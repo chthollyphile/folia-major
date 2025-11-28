@@ -271,7 +271,7 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onBackToPlayer, currentTrack, i
                            >
                                <div className="aspect-square relative overflow-hidden bg-zinc-900 border border-white/10 group-hover:border-white/50 transition-colors">
                                    <img 
-                                        src={pl.coverImgUrl} 
+                                        src={pl.coverImgUrl?.replace('http:', 'https:')} 
                                         loading="lazy" 
                                         alt={pl.name} 
                                         className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 grayscale group-hover:grayscale-0" 
@@ -378,7 +378,7 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onBackToPlayer, currentTrack, i
                     className={`w-12 h-12 cursor-pointer border hover:border-white transition-all overflow-hidden relative
                     ${showUserMenu ? 'border-white' : 'border-white/20'}`}
                   >
-                      <img src={user.avatarUrl} alt={user.nickname} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                      <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
                   </div>
               </div>
           )}

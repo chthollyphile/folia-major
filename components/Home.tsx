@@ -179,12 +179,12 @@ const Home: React.FC<HomeProps> = ({
       {/* Header */}
       <div className="w-full p-4 md:p-8 flex flex-col md:flex-row items-center justify-between z-20 relative gap-4">
         <div className="w-full md:w-auto flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center" style={{ color: 'var(--text-primary)' }}>
-                    <Disc size={16} />
-                </div>
-                Folia
-            </h1>
+        <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
+             <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center" style={{ color: 'var(--text-primary)' }}>
+                 <Disc size={16} />
+             </div>
+             Folia
+        </h1>
         </div>
         
         {/* Simple Search */}
@@ -195,10 +195,10 @@ const Home: React.FC<HomeProps> = ({
                     style={{ marginTop: '-8px' }}
                 />
             ) : (
-                <Search 
+            <Search 
                     className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity" 
-                    onClick={() => handleSearch()}
-                />
+                onClick={() => handleSearch()}
+            />
             )}
             <input 
                 type="text" 
@@ -281,7 +281,7 @@ const Home: React.FC<HomeProps> = ({
                                    }}
                                >
                                    <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
-                                       <img src={pl.coverImgUrl} alt={pl.name} className="w-full h-full object-cover pointer-events-none" />
+                                       <img src={pl.coverImgUrl?.replace('http:', 'https:')} alt={pl.name} className="w-full h-full object-cover pointer-events-none" />
                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
                                    </div>
                                </motion.div>
@@ -435,7 +435,7 @@ const Home: React.FC<HomeProps> = ({
                 className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:border-white hover:scale-105 transition-all overflow-hidden shadow-lg"
                 title="Return to Player"
               >
-                  <img src={user.avatarUrl} alt={user.nickname} className="w-full h-full object-cover" />
+                  <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover" />
                   
                   {/* Hover Overlay */}
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">

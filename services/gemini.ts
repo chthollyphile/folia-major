@@ -14,7 +14,7 @@ export const generateThemeFromLyrics = async (lyricsText: string): Promise<Theme
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to generate theme');
     }
-
+    
     const theme = await response.json();
     return theme as Theme;
   } catch (error) {

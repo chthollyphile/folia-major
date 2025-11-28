@@ -57,7 +57,7 @@ export default function App() {
   const [playlists, setPlaylists] = useState<NeteasePlaylist[]>([]);
   const [likedSongIds, setLikedSongIds] = useState<Set<number>>(new Set());
   const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
-
+  
   // Queue
   const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
   
@@ -254,8 +254,13 @@ export default function App() {
                        setAudioSrc(blobUrl);
                   } else {
                        const urlRes = await neteaseApi.getSongUrl(lastSong.id);
-                       const url = urlRes.data?.[0]?.url;
-                       if (url) setAudioSrc(url);
+                       let url = urlRes.data?.[0]?.url;
+                       if (url) {
+                           if (url.startsWith('http:')) {
+                               url = url.replace('http:', 'https:');
+                           }
+                           setAudioSrc(url);
+                       }
                   }
 
                   // Try cache first for lyrics
@@ -415,29 +420,32 @@ export default function App() {
           setCachedCoverUrl(URL.createObjectURL(cachedCoverBlob));
       }
 
-          // 3. Audio Loading (Cache vs Network)
+      // 3. Audio Loading (Cache vs Network)
           let audioBlobUrl: string | null = null;
-          try {
-              // Check Audio Cache
-              const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
-              if (cachedAudioBlob) {
-                  console.log("[App] Playing from Cache");
+      try {
+          // Check Audio Cache
+          const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
+          if (cachedAudioBlob) {
+              console.log("[App] Playing from Cache");
                   audioBlobUrl = URL.createObjectURL(cachedAudioBlob);
                   blobUrlRef.current = audioBlobUrl;
                   setAudioSrc(audioBlobUrl);
-              } else {
-                  // Fetch URL from API
-                  const urlRes = await neteaseApi.getSongUrl(song.id);
-                  const url = urlRes.data?.[0]?.url;
-                  if (!url) throw new Error("No URL found");
-                  setAudioSrc(url);
-                  // NOTE: We don't cache immediately. We cache when the song FINISHES playing.
+          } else {
+              // Fetch URL from API
+              const urlRes = await neteaseApi.getSongUrl(song.id);
+              let url = urlRes.data?.[0]?.url;
+              if (!url) throw new Error("No URL found");
+              if (url && url.startsWith('http:')) {
+                  url = url.replace('http:', 'https:');
               }
-          } catch (e) {
-              console.error("[App] Failed to fetch song URL:", e);
-              setStatusMsg({ type: 'error', text: t('status.playbackError') });
-              return;
+              setAudioSrc(url);
+              // NOTE: We don't cache immediately. We cache when the song FINISHES playing.
           }
+      } catch (e) {
+          console.error("[App] Failed to fetch song URL:", e);
+          setStatusMsg({ type: 'error', text: t('status.playbackError') });
+          return;
+      }
 
       // 4. Fetch Lyrics (Cache vs Network)
       try {
@@ -808,7 +816,7 @@ export default function App() {
     } catch (e) {
         console.error("Like failed", e);
         setStatusMsg({ type: 'error', text: t('status.likeFailed') });
-    }
+      }
   };
 
   const handleContainerClick = () => {
@@ -1198,7 +1206,7 @@ export default function App() {
                                                  <div className="flex flex-col gap-4">
                                                      <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl">
                                                          <div className="w-10 h-10 rounded-full overflow-hidden">
-                                                             <img src={user.avatarUrl} className="w-full h-full object-cover" />
+                                                             <img src={user.avatarUrl?.replace('http:', 'https:')} className="w-full h-full object-cover" />
                                                          </div>
                                                          <div>
                                                              <h3 className="font-bold text-sm">{user.nickname}</h3>
