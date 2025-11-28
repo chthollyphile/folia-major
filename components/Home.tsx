@@ -348,7 +348,11 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlay
                                  >
                                      <div className="w-12 h-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0 shadow-lg relative">
                                          {(track.al?.picUrl || track.album?.picUrl) ? (
-                                             <img src={track.al?.picUrl || track.album?.picUrl} className="w-full h-full object-cover" loading="lazy" />
+                                             <img 
+                                                src={(track.al?.picUrl || track.album?.picUrl || '').replace('http:', 'https:')} 
+                                                className="w-full h-full object-cover" 
+                                                loading="lazy" 
+                                             />
                                          ) : (
                                              <div className="w-full h-full flex items-center justify-center"><Disc size={20} className="opacity-20"/></div>
                                          )}
