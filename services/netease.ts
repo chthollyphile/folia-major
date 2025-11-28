@@ -6,11 +6,12 @@ const getApiBase = () => {
     const env = (import.meta as any).env;
     if (env && env.VITE_NETEASE_API_BASE) {
       return env.VITE_NETEASE_API_BASE;
+    } else {
+      throw new Error("VITE_NETEASE_API_BASE is not defined. Please set it in your environment variables.");
     }
   } catch (e) {
-    // Ignore errors accessing import.meta
+    throw new Error("Failed to access environment variables for API base. Please configure VITE_NETEASE_API_BASE.");
   }
-  return "https://api-enhanced-chi-amber.vercel.app";
 };
 
 const API_BASE = getApiBase();

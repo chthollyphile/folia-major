@@ -149,19 +149,34 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
     }
 };
 
-export const clearCache = async (keyPrefix?: string): Promise<void> => {
+export const clearCache = async (preserveKeys: string[] = []): Promise<void> => {
      try {
         const db = await openDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction([CACHE_STORE], 'readwrite');
             const store = tx.objectStore(CACHE_STORE);
-            if (keyPrefix) {
-                // Not implemented for simple use case, clearing all for now is safer for this request
-                store.clear();
+            
+            if (preserveKeys.length > 0) {
+                // Selective clear
+                const req = store.openCursor();
+                req.onsuccess = (event) => {
+                    const cursor = (event.target as IDBRequest).result;
+                    if (cursor) {
+                        const key = cursor.key as string;
+                        if (!preserveKeys.includes(key)) {
+                            cursor.delete();
+                        }
+                        cursor.continue();
+                    } else {
+                        resolve();
+                    }
+                };
+                req.onerror = () => reject(req.error);
             } else {
+                // Clear all
                 store.clear();
+                tx.oncomplete = () => resolve();
             }
-            tx.oncomplete = () => resolve();
         });
     } catch (e) {}
 }

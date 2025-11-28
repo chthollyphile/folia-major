@@ -165,20 +165,29 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlay
         style={{ color: 'var(--text-primary)' }}
     >
       {/* Header */}
-      <div className="w-full p-8 flex items-center justify-between z-20 relative">
-        <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-             <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center" style={{ color: 'var(--text-primary)' }}>
-                 <Disc size={16} />
-             </div>
-             Folia
-        </h1>
+      <div className="w-full p-4 md:p-8 flex flex-col md:flex-row items-center justify-between z-20 relative gap-4">
+        <div className="w-full md:w-auto flex items-center justify-between">
+            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center" style={{ color: 'var(--text-primary)' }}>
+                    <Disc size={16} />
+                </div>
+                Folia
+            </h1>
+        </div>
         
         {/* Simple Search */}
-        <form onSubmit={handleSearch} className="relative group w-full max-w-xs mx-auto hidden md:block">
-            <Search 
-                className={`absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity ${isSearching ? 'animate-spin' : ''}`} 
-                onClick={() => handleSearch()}
-            />
+        <form onSubmit={handleSearch} className="relative group w-full max-w-sm md:max-w-xs mx-auto md:mx-0">
+            {isSearching ? (
+                <Loader2 
+                    className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40" 
+                    style={{ marginTop: '-8px' }}
+                />
+            ) : (
+                <Search 
+                    className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity" 
+                    onClick={() => handleSearch()}
+                />
+            )}
             <input 
                 type="text" 
                 placeholder={t('home.searchDatabase')}
@@ -191,15 +200,7 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlay
 
         {/* User / Login */}
         <div className="flex items-center gap-4">
-             {!user && (
-                 <button 
-                    onClick={initLogin} 
-                    className="flex items-center gap-2 px-4 py-2 bg-white text-black hover:bg-gray-200 rounded-full transition-colors text-xs font-bold"
-                 >
-                     <User size={14} />
-                     {t('home.login')}
-                 </button>
-             )}
+             {/* Login Button Removed (Duplicate) */}
         </div>
       </div>
 

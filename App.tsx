@@ -117,7 +117,21 @@ export default function App() {
   };
 
   const handleClearCache = async () => {
-      await clearCache();
+      // Clear media cache only (audio/images/themes/lyrics)
+      // Preserve user session data (user_profile, user_playlists, etc)
+      const preserveKeys = ['user_profile', 'user_playlists', 'last_song', 'last_queue'];
+      
+      const db = await getCacheUsage().then(() => { /* dummy call to ensure db is open if needed, but better to impl logic in db.ts */ });
+      
+      // Since we don't have a selective clear in db.ts yet, we iterate and delete manually or add a feature.
+      // Let's modify db.ts to support this properly or do a quick implementation here?
+      // Actually, let's modify the clearCache function in db.ts or just clear specific keys.
+      // The current clearCache clears everything. 
+      
+      // Better approach: Clear by prefix or type if possible, but our keys vary (audio_*, cover_*, theme_*, lyric_*).
+      // So we should clear everything EXCEPT the preserve list.
+      
+      await clearCache(preserveKeys);
       updateCacheSize();
       setStatusMsg({ type: 'success', text: t('status.cacheCleared') });
   };
@@ -327,28 +341,29 @@ export default function App() {
           setCachedCoverUrl(URL.createObjectURL(cachedCoverBlob));
       }
 
-      // 3. Audio Loading (Cache vs Network)
-      try {
-          // Check Audio Cache
-          const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
-          if (cachedAudioBlob) {
-              console.log("[App] Playing from Cache");
-              const url = URL.createObjectURL(cachedAudioBlob);
-              blobUrlRef.current = url;
-              setAudioSrc(url);
-          } else {
-              // Fetch URL from API
-              const urlRes = await neteaseApi.getSongUrl(song.id);
-              const url = urlRes.data?.[0]?.url;
-              if (!url) throw new Error("No URL found");
-              setAudioSrc(url);
-              // NOTE: We don't cache immediately. We cache when the song FINISHES playing.
+          // 3. Audio Loading (Cache vs Network)
+          let audioBlobUrl: string | null = null;
+          try {
+              // Check Audio Cache
+              const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
+              if (cachedAudioBlob) {
+                  console.log("[App] Playing from Cache");
+                  audioBlobUrl = URL.createObjectURL(cachedAudioBlob);
+                  blobUrlRef.current = audioBlobUrl;
+                  setAudioSrc(audioBlobUrl);
+              } else {
+                  // Fetch URL from API
+                  const urlRes = await neteaseApi.getSongUrl(song.id);
+                  const url = urlRes.data?.[0]?.url;
+                  if (!url) throw new Error("No URL found");
+                  setAudioSrc(url);
+                  // NOTE: We don't cache immediately. We cache when the song FINISHES playing.
+              }
+          } catch (e) {
+              console.error("[App] Failed to fetch song URL:", e);
+              setStatusMsg({ type: 'error', text: t('status.playbackError') });
+              return;
           }
-      } catch (e) {
-          console.error("[App] Failed to fetch song URL:", e);
-          setStatusMsg({ type: 'error', text: t('status.playbackError') });
-          return;
-      }
 
       // 4. Fetch Lyrics (Cache vs Network)
       try {
@@ -424,7 +439,7 @@ export default function App() {
           try {
               // Netease images might need proxy handling due to CORS? 
               // Usually images are fine, but if it fails we catch it.
-              const response = await fetch(coverUrl);
+              const response = await fetch(coverUrl, { mode: 'cors' });
               const blob = await response.blob();
               await saveToCache(`cover_${currentSong.id}`, blob);
               console.log("[Cache] Cover saved");
@@ -709,7 +724,7 @@ export default function App() {
 
   return (
     <div 
-        className="relative w-full h-screen flex flex-col overflow-hidden font-sans transition-colors duration-500"
+        className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
         style={appStyle} 
     >
       <audio 
@@ -760,9 +775,9 @@ export default function App() {
         {currentView === 'home' && (
           <motion.div 
             className="absolute inset-0 z-50"
-            initial={{ x: "100%", opacity: 0, filter: "blur(10px)" }}
-            animate={{ x: "0%", opacity: 1, filter: "blur(0px)" }}
-            exit={{ x: "-20%", opacity: 0, filter: "blur(20px)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
           >
               <Home 

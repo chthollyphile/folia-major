@@ -1,10 +1,11 @@
 import { LyricData, Line, Word } from '../types';
 
 export const parseYRC = (yrcString: string, translationString: string = ''): LyricData => {
+  console.log('[yrcParser] Verbatim lyrics found, Prioritized')
   const lines: Line[] = [];
 
   // Helper to parse translation (standard LRC format)
-  const parseTranslation = (str: string) => {
+  const parseTranslation = (str: string) => { 
     const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
     return str.split('\n').map(line => {
       const match = timeRegex.exec(line);
