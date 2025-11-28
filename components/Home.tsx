@@ -51,6 +51,9 @@ const Home: React.FC<HomeProps> = ({
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
 
+    // Wheel navigation debounce
+    const wheelTimeout = useRef<any>(null);
+
     // Login QR
     const [qrCodeImg, setQrCodeImg] = useState<string>("");
     const [qrStatus, setQrStatus] = useState<string>("");
@@ -161,6 +164,68 @@ const Home: React.FC<HomeProps> = ({
         touchEndX.current = 0;
     };
 
+    // Keyboard Navigation Handler
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Only respond if not in search or modal
+            if (showLoginModal || searchResults !== null) return;
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                if (focusedIndex > 0) {
+                    setFocusedIndex(prev => prev - 1);
+                }
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                if (focusedIndex < playlists.length - 1) {
+                    setFocusedIndex(prev => prev + 1);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [focusedIndex, playlists.length, showLoginModal, searchResults]);
+
+    // Wheel Navigation Handler
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+
+        // Clear existing timeout
+        if (wheelTimeout.current) {
+            clearTimeout(wheelTimeout.current);
+        }
+
+        // Debounce wheel events (wait 150ms after last wheel event)
+        wheelTimeout.current = setTimeout(() => {
+            const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+
+            // Threshold to avoid accidental triggers
+            if (Math.abs(delta) > 20) {
+                if (delta > 0) {
+                    // Scroll right/down -> Next
+                    if (focusedIndex < playlists.length - 1) {
+                        setFocusedIndex(prev => prev + 1);
+                    }
+                } else {
+                    // Scroll left/up -> Previous
+                    if (focusedIndex > 0) {
+                        setFocusedIndex(prev => prev - 1);
+                    }
+                }
+            }
+        }, 150);
+    };
+
+    // Cleanup wheel timeout
+    useEffect(() => {
+        return () => {
+            if (wheelTimeout.current) {
+                clearTimeout(wheelTimeout.current);
+            }
+        };
+    }, []);
+
     // Persistence for Focused Index
     useEffect(() => {
         sessionStorage.setItem('folia_home_focused_index', focusedIndex.toString());
@@ -255,6 +320,7 @@ const Home: React.FC<HomeProps> = ({
                             onTouchStart={handleTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
+                            onWheel={handleWheel}
                         >
                             {playlists.length > 0 ? (
                                 playlists.map((pl, i) => {
