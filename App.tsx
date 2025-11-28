@@ -471,6 +471,76 @@ export default function App() {
           setPlayerState(PlayerState.IDLE);
       }
   }, [currentSong, playQueue, loopMode]);
+
+  const handlePrevTrack = useCallback(() => {
+      if (!currentSong || playQueue.length === 0) return;
+      
+      const currentIndex = playQueue.findIndex(s => s.id === currentSong.id);
+      let prevIndex = -1;
+
+      if (currentIndex > 0) {
+          prevIndex = currentIndex - 1;
+      } else if (loopMode === 'all') {
+          prevIndex = playQueue.length - 1;
+      }
+
+      if (prevIndex >= 0) {
+          playSong(playQueue[prevIndex], playQueue);
+      }
+  }, [currentSong, playQueue, loopMode]);
+
+  // Media Session API Integration
+  useEffect(() => {
+      if (!currentSong) {
+          if ('mediaSession' in navigator) {
+              navigator.mediaSession.metadata = null;
+              navigator.mediaSession.playbackState = 'none';
+          }
+          return;
+      }
+
+      if ('mediaSession' in navigator) {
+          const artistName = currentSong.ar?.map(a => a.name).join(', ') || 
+                             currentSong.artists?.map(a => a.name).join(', ') || 
+                             t('ui.unknownArtist');
+          const albumName = currentSong.al?.name || currentSong.album?.name || '';
+          
+          // Determine cover URL (prioritize cached blob, then network url)
+          const cover = cachedCoverUrl || currentSong.al?.picUrl || currentSong.album?.picUrl || '';
+
+          navigator.mediaSession.metadata = new MediaMetadata({
+              title: currentSong.name,
+              artist: artistName,
+              album: albumName,
+              artwork: cover ? [
+                  { src: cover, sizes: '512x512', type: 'image/jpeg' }
+              ] : []
+          });
+
+          navigator.mediaSession.playbackState = playerState === PlayerState.PLAYING ? 'playing' : 'paused';
+
+          // Action Handlers
+          navigator.mediaSession.setActionHandler('play', async () => {
+               if (audioRef.current) {
+                   try {
+                       await audioRef.current.play();
+                       setPlayerState(PlayerState.PLAYING);
+                   } catch (e) {
+                       console.error("MediaSession play failed", e);
+                   }
+               }
+          });
+          navigator.mediaSession.setActionHandler('pause', () => {
+               if (audioRef.current) {
+                   audioRef.current.pause();
+                   setPlayerState(PlayerState.PAUSED);
+               }
+          });
+          navigator.mediaSession.setActionHandler('previoustrack', handlePrevTrack); 
+          navigator.mediaSession.setActionHandler('nexttrack', handleNextTrack);
+      }
+  }, [currentSong, playerState, cachedCoverUrl, handleNextTrack, handlePrevTrack, t]);
+
   
   useEffect(() => {
       if (audioSrc && audioRef.current) {
