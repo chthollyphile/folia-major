@@ -692,9 +692,14 @@ export default function App() {
 
   const getCoverUrl = () => {
       if (cachedCoverUrl) return cachedCoverUrl;
-      if (currentSong?.al?.picUrl) return currentSong.al.picUrl;
-      if (currentSong?.album?.picUrl) return currentSong.album.picUrl;
-      return null;
+      let url = null;
+      if (currentSong?.al?.picUrl) url = currentSong.al.picUrl;
+      else if (currentSong?.album?.picUrl) url = currentSong.album.picUrl;
+      
+      if (url && url.startsWith('http:')) {
+          return url.replace('http:', 'https:');
+      }
+      return url;
   };
 
   const coverUrl = getCoverUrl();

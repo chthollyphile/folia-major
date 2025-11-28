@@ -93,7 +93,8 @@ export const neteaseApi = {
      // Use exhigh (320k) to ensure VIP songs have a valid signed URL.
      // 'standard' often returns null or invalid links for VIP content even if logged in.
      // randomCNIP=true added to improve success rate for some restricted tracks
-     return fetchWithCreds(`/song/url/v1?id=${id}&level=exhigh&randomCNIP=true`);
+     // https=true ensures URLs are returned with HTTPS protocol to avoid mixed content issues
+     return fetchWithCreds(`/song/url/v1?id=${id}&level=exhigh&randomCNIP=true&https=true`);
   },
   
   getLyric: async (id: number) => {
