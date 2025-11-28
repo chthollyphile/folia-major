@@ -1,0 +1,5 @@
+{
+  "name": "Folia",
+  "description": "A local music player that syncs with Netease Cloud Music lyrics, featuring AI-powered visual themes and kinetic typography effects.",
+  "requestFramePermissions": []
+}
