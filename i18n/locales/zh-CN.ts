@@ -24,7 +24,10 @@ export default {
     "dataSynced": "数据同步成功",
     "syncFailed": "同步失败",
     "loggedOut": "已退出登录",
-    "clickToPlay": "点击播放开始"
+    "clickToPlay": "点击播放开始",
+    "liked": "已添加到喜欢的音乐",
+    "likeFailed": "添加失败",
+    "unliked": "已取消喜欢"
   },
   "ui": {
     "noTrack": "无音轨",

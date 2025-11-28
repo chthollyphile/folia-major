@@ -24,7 +24,10 @@ export default {
     "dataSynced": "Data synced successfully",
     "syncFailed": "Sync failed",
     "loggedOut": "Logged out",
-    "clickToPlay": "Click play to start"
+    "clickToPlay": "Click play to start",
+    "liked": "Added to Liked Songs",
+    "likeFailed": "Failed to like song",
+    "unliked": "Removed from Liked"
   },
   "ui": {
     "noTrack": "No Track",

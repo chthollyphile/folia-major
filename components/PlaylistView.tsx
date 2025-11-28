@@ -121,7 +121,13 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                    </div>
                    <span>{playlist.creator.nickname}</span>
                 </div>
-                <p className="text-xs mt-2 opacity-30" style={{ color: 'var(--text-secondary)' }}>{playlist.trackCount} {t('playlist.tracks')} • {playlist.playCount} {t('playlist.plays')}</p>
+                <div className="text-xs mt-2 opacity-30" style={{ color: 'var(--text-secondary)' }}>{playlist.trackCount} {t('playlist.tracks')} • {playlist.playCount} {t('playlist.plays')}</div>
+                
+                {playlist.description && (
+                    <div className="mt-4 text-xs opacity-60 line-clamp-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                        {playlist.description}
+                    </div>
+                )}
             </div>
 
             <div className="w-full">

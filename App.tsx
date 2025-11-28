@@ -1,7 +1,7 @@
 
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { parseLRC } from './utils/lrcParser';
@@ -55,7 +55,9 @@ export default function App() {
   // User & Library Data (Lifted from Home)
   const [user, setUser] = useState<NeteaseUser | null>(null);
   const [playlists, setPlaylists] = useState<NeteasePlaylist[]>([]);
-  
+  const [likedSongIds, setLikedSongIds] = useState<Set<number>>(new Set());
+  const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
+
   // Queue
   const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
   
@@ -94,9 +96,69 @@ export default function App() {
   // --- Initialization & User Data ---
 
   useEffect(() => {
+    // Initialize History State
+    window.history.replaceState({ view: 'home' }, '', '');
+
+    const handlePopState = (event: PopStateEvent) => {
+        const state = event.state;
+        // If no state or home, go to home root
+        if (!state || state.view === 'home') {
+            setCurrentView('home');
+            setSelectedPlaylist(null);
+        } 
+        // If player state
+        else if (state.view === 'player') {
+            setCurrentView('player');
+            setSelectedPlaylist(null);
+        } 
+        // If playlist state
+        else if (state.view === 'playlist') {
+            setCurrentView('home');
+            // Note: We assume popping back TO playlist isn't common flow from Player,
+            // usually it's Home -> Playlist -> Back(Home).
+            // If we support deeply nested history, we'd need to restore the specific ID.
+            // For now, simpler logic: if we pop to 'playlist', we might need the ID, 
+            // but usually we pop FROM playlist TO home.
+        }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
     loadUserData();
     restoreSession();
+    
+    return () => {
+        window.removeEventListener('popstate', handlePopState);
+    }
   }, []);
+
+  // Helper for Navigation
+  const navigateToPlayer = () => {
+      if (currentView !== 'player') {
+          window.history.pushState({ view: 'player' }, '', '#player');
+          setCurrentView('player');
+      }
+  };
+
+  const navigateToHome = () => {
+     if (currentView !== 'home' || selectedPlaylist) {
+         // If we have history, back() is better to keep stack clean. 
+         // But we can't always know.
+         // Simple strategy: Push home if not there? No, builds stack.
+         // Back is best if we know we pushed.
+         window.history.back();
+     }
+  };
+
+  const handlePlaylistSelect = (pl: NeteasePlaylist | null) => {
+      if (pl) {
+          window.history.pushState({ view: 'playlist', id: pl.id }, '', `#playlist/${pl.id}`);
+          setSelectedPlaylist(pl);
+      } else {
+          // Go back
+          window.history.back();
+      }
+  };
 
   // Revoke blob URLs on unmount to prevent leaks
   useEffect(() => {
@@ -238,6 +300,17 @@ export default function App() {
                   setPlaylists(plRes.playlist);
                   await saveToCache('user_playlists', plRes.playlist);
               }
+              
+              // Fetch Liked Songs List
+              try {
+                const likeRes = await neteaseApi.getLikedSongs(targetUid);
+                if (likeRes.ids) {
+                   setLikedSongIds(new Set(likeRes.ids));
+                }
+              } catch (e) {
+                console.warn("Failed to fetch liked songs", e);
+              }
+
               return true;
           }
       } catch (e) {
@@ -331,7 +404,8 @@ export default function App() {
       saveToCache('last_song', song);
       saveToCache('last_queue', newQueue);
 
-      setCurrentView('player');
+      // Navigate to Player with History
+      navigateToPlayer();
       setPlayerState(PlayerState.IDLE);
       setStatusMsg({ type: 'info', text: t('status.loadingSong') });
 
@@ -709,8 +783,32 @@ export default function App() {
 
   const handlePlayerBarClick = () => {
       if (currentView === 'home') {
-          setCurrentView('player');
+          navigateToPlayer();
       }
+  };
+
+  const handleLike = async () => {
+    if (!currentSong) return;
+    
+    const isLiked = likedSongIds.has(currentSong.id);
+    const newStatus = !isLiked;
+
+    try {
+        await neteaseApi.likeSong(currentSong.id, newStatus);
+        
+        // Update local state immediately
+        setLikedSongIds(prev => {
+            const next = new Set(prev);
+            if (newStatus) next.add(currentSong.id);
+            else next.delete(currentSong.id);
+            return next;
+        });
+
+        setStatusMsg({ type: 'success', text: newStatus ? t('status.liked') : t('status.unliked') || "Removed from Liked" });
+    } catch (e) {
+        console.error("Like failed", e);
+        setStatusMsg({ type: 'error', text: t('status.likeFailed') });
+    }
   };
 
   const handleContainerClick = () => {
@@ -788,12 +886,14 @@ export default function App() {
               <Home 
                   onPlaySong={playSong}
                   onQueueAddAndPlay={handleQueueAddAndPlay}
-                  onBackToPlayer={() => setCurrentView('player')}
+                  onBackToPlayer={navigateToPlayer}
                   onRefreshUser={() => refreshUserData()}
                   user={user}
                   playlists={playlists}
                   currentTrack={currentSong}
                   isPlaying={playerState === PlayerState.PLAYING}
+                  selectedPlaylist={selectedPlaylist}
+                  onSelectPlaylist={handlePlaylistSelect}
               />
           </motion.div>
         )}
@@ -939,7 +1039,7 @@ export default function App() {
                                 <div 
                                     onClick={() => {
                                         setIsPanelOpen(false);
-                                        setCurrentView('home');
+                                        navigateToHome();
                                     }}
                                     className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg relative mb-4 bg-zinc-900 flex items-center justify-center group cursor-pointer"
                                 >
@@ -983,27 +1083,28 @@ export default function App() {
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
                                             className="space-y-4"
                                          >
-                                            {/* Action Buttons: Loop, Home, AI (Compact) */}
+                                            {/* Action Buttons: Loop, Like, AI (Compact) */}
                                             <div className="grid grid-cols-3 gap-3">
                                                  <button 
                                                     onClick={toggleLoop}
-                                                    className={`aspect-video rounded-xl flex items-center justify-center transition-colors
+                                                    className={`h-12 rounded-xl flex items-center justify-center transition-colors
                                                     ${loopMode !== 'off' ? 'bg-white text-black' : 'bg-white/5 hover:bg-white/10'}`}
                                                  >
                                                      {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
                                                  </button>
                                                  
                                                  <button 
-                                                    onClick={() => { setIsPanelOpen(false); setCurrentView('home'); }}
-                                                    className="aspect-video rounded-xl flex items-center justify-center transition-colors bg-white/5 hover:bg-white/10"
+                                                    onClick={handleLike}
+                                                    className={`h-12 rounded-xl flex items-center justify-center transition-colors
+                                                    ${currentSong && likedSongIds.has(currentSong.id) ? 'bg-red-500/20 text-red-500' : 'bg-white/5 hover:bg-white/10'}`}
                                                  >
-                                                     <HomeIcon size={20} />
+                                                     <Heart size={20} fill={currentSong && likedSongIds.has(currentSong.id) ? "currentColor" : "none"} />
                                                  </button>
 
                                                  <button 
                                                     onClick={generateAITheme}
                                                     disabled={isGeneratingTheme || !lyrics}
-                                                    className={`aspect-video rounded-xl flex items-center justify-center transition-colors
+                                                    className={`h-12 rounded-xl flex items-center justify-center transition-colors
                                                     ${isGeneratingTheme ? 'bg-blue-500/20 text-blue-300' : 'bg-white/5 hover:bg-white/10'}`}
                                                  >
                                                      <Sparkles size={20} className={isGeneratingTheme ? "animate-pulse" : ""} />
@@ -1145,7 +1246,7 @@ export default function App() {
                                                  <div className="flex flex-col items-center justify-center h-full gap-2 text-center opacity-50">
                                                      <p>{t('account.guestMode')}</p>
                                                      <button 
-                                                        onClick={() => { setIsPanelOpen(false); setCurrentView('home'); }}
+                                                        onClick={() => { setIsPanelOpen(false); navigateToHome(); }}
                                                         className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-xs font-bold"
                                                      >
                                                          {t('account.loginOnHome')}

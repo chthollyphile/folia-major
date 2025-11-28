@@ -75,6 +75,14 @@ export const neteaseApi = {
   },
 
   // --- User Data ---
+  likeSong: async (id: number, like = true) => {
+    return fetchWithCreds(`/like?id=${id}&like=${like}`);
+  },
+
+  getLikedSongs: async (uid: number) => {
+    return fetchWithCreds(`/likelist?uid=${uid}`);
+  },
+
   getUserPlaylists: async (uid: number, limit = 50, offset = 0) => {
     return fetchWithCreds(`/user/playlist?uid=${uid}&limit=${limit}&offset=${offset}`);
   },

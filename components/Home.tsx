@@ -17,13 +17,25 @@ interface HomeProps {
   playlists: NeteasePlaylist[];
   currentTrack?: SongResult | null;
   isPlaying: boolean;
+  selectedPlaylist: NeteasePlaylist | null;
+  onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
 }
 
-const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlayer, onRefreshUser, user, playlists, currentTrack, isPlaying }) => {
+const Home: React.FC<HomeProps> = ({ 
+  onPlaySong, 
+  onQueueAddAndPlay, 
+  onBackToPlayer, 
+  onRefreshUser, 
+  user, 
+  playlists, 
+  currentTrack, 
+  isPlaying,
+  selectedPlaylist,
+  onSelectPlaylist 
+}) => {
   const { t } = useTranslation();
   
   // UI State
-  const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -150,7 +162,7 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlay
     return (
       <PlaylistView 
         playlist={selectedPlaylist} 
-        onBack={() => setSelectedPlaylist(null)} 
+        onBack={() => onSelectPlaylist(null)} 
         onPlaySong={onPlaySong}
         onPlayAll={(songs) => {
             if (songs.length > 0) onPlaySong(songs[0], songs);
@@ -264,7 +276,7 @@ const Home: React.FC<HomeProps> = ({ onPlaySong, onQueueAddAndPlay, onBackToPlay
                                    }}
                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                                    onClick={() => {
-                                       if (isActive) setSelectedPlaylist(pl);
+                                       if (isActive) onSelectPlaylist(pl);
                                        else setFocusedIndex(i);
                                    }}
                                >
