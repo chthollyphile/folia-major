@@ -92,6 +92,7 @@ export default function App() {
     const analyserRef = useRef<AnalyserNode | null>(null);
     const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
     const blobUrlRef = useRef<string | null>(null);
+    const queueScrollRef = useRef<HTMLDivElement>(null);
 
     // --- Initialization & User Data ---
 
@@ -171,7 +172,18 @@ export default function App() {
         if (isPanelOpen && panelTab === 'account') {
             updateCacheSize();
         }
-    }, [isPanelOpen, panelTab]);
+
+        // Auto-scroll to current song in queue
+        if (isPanelOpen && panelTab === 'queue' && currentSong) {
+            // Small timeout to allow render
+            setTimeout(() => {
+                const activeEl = queueScrollRef.current?.querySelector('[data-active="true"]');
+                if (activeEl) {
+                    activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }, [isPanelOpen, panelTab, currentSong]);
 
     const updateCacheSize = async () => {
         const size = await getCacheUsage();
@@ -745,8 +757,8 @@ export default function App() {
         // If they want to FULLY reset, we reset the theme object.
     };
 
-    const togglePlay = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
+        e?.stopPropagation();
         if (audioRef.current) {
             if (playerState === PlayerState.PLAYING) {
                 audioRef.current.pause();
@@ -757,6 +769,38 @@ export default function App() {
             }
         }
     };
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (currentView !== 'player') return;
+
+            // Ignore if typing in an input (though we don't have many inputs yet)
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay(e);
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    if (audioRef.current) {
+                        audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
+                    }
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    if (audioRef.current) {
+                        audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
+                    }
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentView, playerState]);
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -1153,11 +1197,12 @@ export default function App() {
                                             {/* --- QUEUE TAB --- */}
                                             {panelTab === 'queue' && (
                                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
-                                                    <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 space-y-1">
+                                                    <div ref={queueScrollRef} className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 space-y-1">
                                                         {playQueue.map((s, i) => (
                                                             <div
                                                                 key={`${s.id}-${i}`}
                                                                 onClick={() => playSong(s, playQueue)}
+                                                                data-active={currentSong?.id === s.id}
                                                                 className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors
                                                         ${currentSong?.id === s.id ? 'bg-white/20' : 'hover:bg-white/5'}`}
                                                             >
