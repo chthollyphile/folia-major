@@ -63,7 +63,7 @@ export default function App() {
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
 
     // UI State
-    const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success' | 'info', text: string } | null>(null);
+    const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success' | 'info', text: string; } | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account'>('cover');
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
@@ -130,7 +130,7 @@ export default function App() {
 
         return () => {
             window.removeEventListener('popstate', handlePopState);
-        }
+        };
     }, []);
 
     // Helper for Navigation
@@ -250,6 +250,14 @@ export default function App() {
                 if (cachedTheme) {
                     setTheme(cachedTheme);
                     setBgMode('ai');
+                } else {
+                    console.log("[restoreSession] No cached theme, resetting to default");
+                    setTheme(prev => ({
+                        ...prev,
+                        wordColors: [],
+                        lyricsIcons: []
+                    }));
+                    setBgMode('default');
                 }
 
                 // Try to restore cover
@@ -729,7 +737,7 @@ export default function App() {
         animationFrameRef.current = requestAnimationFrame(updateLoop);
         return () => {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-        }
+        };
     }, [updateLoop]);
 
     // AI Theme Generation
