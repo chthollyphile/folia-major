@@ -69,7 +69,12 @@ export default {
     "syncing": "同步中...",
     "logout": "退出登录",
     "guestMode": "游客模式",
-    "loginOnHome": "去主页登录"
+    "loginOnHome": "去主页登录",
+    "audioQuality": "默认音质",
+    "qualityExhigh": "极高",
+    "qualityLossless": "无损",
+    "qualityHires": "Hi-Res",
+    "vipOnly": "VIP 专属"
   },
   "playlist": {
     "tracks": "首歌曲",

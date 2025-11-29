@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart, Crown } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { generateThemeFromLyrics } from './services/gemini';
-import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage } from './services/db';
+import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import Home from './components/Home';
@@ -71,6 +71,10 @@ export default function App() {
     const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
     const [isSyncing, setIsSyncing] = useState(false);
     const [cacheSize, setCacheSize] = useState<string>("0 B");
+    const [audioQuality, setAudioQuality] = useState<'exhigh' | 'lossless' | 'hires'>(() => {
+        const saved = localStorage.getItem('default_audio_quality');
+        return (saved === 'lossless' || saved === 'hires') ? saved : 'exhigh';
+    });
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -205,22 +209,34 @@ export default function App() {
 
     const handleClearCache = async () => {
         // Clear media cache only (audio/images/themes/lyrics)
-        // Preserve user session data (user_profile, user_playlists, etc)
-        const preserveKeys = ['user_profile', 'user_playlists', 'last_song', 'last_queue'];
+        // Preserve user session data and playlist data
+        const preserveKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'last_song', 'last_queue', 'last_theme'];
 
-        const db = await getCacheUsage().then(() => { /* dummy call to ensure db is open if needed, but better to impl logic in db.ts */ });
+        // We need to preserve all keys starting with 'playlist_tracks_' or 'playlist_detail_'
+        // Since clearCache accepts a preserve list, we need to get all cache keys first
+        try {
+            const db = await openDB();
+            const tx = db.transaction(['cache'], 'readonly');
+            const store = tx.objectStore('cache');
+            const allKeys = await new Promise<string[]>((resolve, reject) => {
+                const request = store.getAllKeys();
+                request.onsuccess = () => resolve(request.result as string[]);
+                request.onerror = () => reject(request.error);
+            });
 
-        // Since we don't have a selective clear in db.ts yet, we iterate and delete manually or add a feature.
-        // Let's modify db.ts to support this properly or do a quick implementation here?
-        // Actually, let's modify the clearCache function in db.ts or just clear specific keys.
-        // The current clearCache clears everything. 
+            // Filter keys to preserve: keep user data, playlist data
+            const playlistKeys = allKeys.filter(key =>
+                key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')
+            );
 
-        // Better approach: Clear by prefix or type if possible, but our keys vary (audio_*, cover_*, theme_*, lyric_*).
-        // So we should clear everything EXCEPT the preserve list.
-
-        await clearCache(preserveKeys);
-        updateCacheSize();
-        setStatusMsg({ type: 'success', text: t('status.cacheCleared') });
+            const finalPreserveKeys = [...preserveKeys, ...playlistKeys];
+            await clearCache(finalPreserveKeys);
+            updateCacheSize();
+            setStatusMsg({ type: 'success', text: t('status.cacheCleared') });
+        } catch (e) {
+            console.error('Failed to clear cache:', e);
+            setStatusMsg({ type: 'error', text: t('status.cacheCleared') });
+        }
     };
 
     const loadUserData = async () => {
@@ -303,7 +319,7 @@ export default function App() {
                         blobUrlRef.current = blobUrl;
                         setAudioSrc(blobUrl);
                     } else {
-                        const urlRes = await neteaseApi.getSongUrl(lastSong.id);
+                        const urlRes = await neteaseApi.getSongUrl(lastSong.id, audioQuality);
                         let url = urlRes.data?.[0]?.url;
                         if (url) {
                             if (url.startsWith('http:')) {
@@ -483,7 +499,7 @@ export default function App() {
                 setAudioSrc(audioBlobUrl);
             } else {
                 // Fetch URL from API
-                const urlRes = await neteaseApi.getSongUrl(song.id);
+                const urlRes = await neteaseApi.getSongUrl(song.id, audioQuality);
                 let url = urlRes.data?.[0]?.url;
                 if (!url) throw new Error("No URL found");
                 if (url && url.startsWith('http:')) {
@@ -1308,15 +1324,72 @@ export default function App() {
                                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col justify-start h-full">
                                                     {user ? (
                                                         <div className="flex flex-col gap-4">
-                                                            <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl">
-                                                                <div className="w-10 h-10 rounded-full overflow-hidden">
-                                                                    <img src={user.avatarUrl?.replace('http:', 'https:')} className="w-full h-full object-cover" />
+                                                            {/* User Info with Logout in Header */}
+                                                            <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-full overflow-hidden">
+                                                                        <img src={user.avatarUrl?.replace('http:', 'https:')} className="w-full h-full object-cover" alt={user.nickname} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <h3 className="font-bold text-sm">{user.nickname}</h3>
+                                                                            {user.vipType && user.vipType !== 0 && (
+                                                                                <Crown size={14} className="text-white fill-white" />
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="text-[10px] font-mono opacity-40">ID: {user.userId}</span>
+                                                                    </div>
                                                                 </div>
-                                                                <div>
-                                                                    <h3 className="font-bold text-sm">{user.nickname}</h3>
-                                                                    <span className="text-[10px] font-mono opacity-40">ID: {user.userId}</span>
-                                                                </div>
+                                                                <button
+                                                                    onClick={handleLogout}
+                                                                    className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                                                                    title={t('account.logout')}
+                                                                >
+                                                                    <LogOut size={16} />
+                                                                </button>
                                                             </div>
+
+                                                            {/* Audio Quality Settings (VIP Only) */}
+                                                            {user.vipType && user.vipType !== 0 && (
+                                                                <div className="bg-white/5 p-3 rounded-xl">
+                                                                    <div className="flex items-center gap-2 mb-2 opacity-60">
+                                                                        <SlidersHorizontal size={12} />
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wide">{t('account.audioQuality')}</span>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setAudioQuality('exhigh');
+                                                                                localStorage.setItem('default_audio_quality', 'exhigh');
+                                                                            }}
+                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'exhigh' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                                                                }`}
+                                                                        >
+                                                                            {t('account.qualityExhigh')}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setAudioQuality('lossless');
+                                                                                localStorage.setItem('default_audio_quality', 'lossless');
+                                                                            }}
+                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'lossless' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                                                                }`}
+                                                                        >
+                                                                            {t('account.qualityLossless')}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setAudioQuality('hires');
+                                                                                localStorage.setItem('default_audio_quality', 'hires');
+                                                                            }}
+                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'hires' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                                                                }`}
+                                                                        >
+                                                                            {t('account.qualityHires')}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
 
                                                             <div className="space-y-2 mt-auto">
                                                                 {/* Cache Management Section */}
@@ -1344,13 +1417,6 @@ export default function App() {
                                                                 >
                                                                     <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
                                                                     {isSyncing ? t('account.syncing') : t('account.syncData')}
-                                                                </button>
-                                                                <button
-                                                                    onClick={handleLogout}
-                                                                    className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-colors"
-                                                                >
-                                                                    <LogOut size={14} />
-                                                                    {t('account.logout')}
                                                                 </button>
                                                             </div>
                                                         </div>

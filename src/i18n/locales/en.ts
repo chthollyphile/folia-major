@@ -69,7 +69,12 @@ export default {
     "syncing": "Syncing...",
     "logout": "Logout",
     "guestMode": "Guest Mode",
-    "loginOnHome": "Login on Home"
+    "loginOnHome": "Login on Home",
+    "audioQuality": "Default Quality",
+    "qualityExhigh": "Very High",
+    "qualityLossless": "Lossless",
+    "qualityHires": "Hi-Res",
+    "vipOnly": "VIP Only"
   },
   "playlist": {
     "tracks": "Tracks",
