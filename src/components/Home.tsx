@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, User, Loader2, Disc, ArrowRight, ChevronRight } from 'lucide-react';
+import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
 import { NeteaseUser, NeteasePlaylist, SongResult } from '../types';
 import PlaylistView from './PlaylistView';
+import HelpModal from './HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface HomeProps {
@@ -36,6 +37,7 @@ const Home: React.FC<HomeProps> = ({
     // UI State
     const [searchQuery, setSearchQuery] = useState("");
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showHelpModal, setShowHelpModal] = useState(false);
     const [focusedIndex, setFocusedIndex] = useState(() => {
         const saved = sessionStorage.getItem('folia_home_focused_index');
         return saved ? parseInt(saved, 10) : 0;
@@ -260,11 +262,15 @@ const Home: React.FC<HomeProps> = ({
             <div className="w-full p-4 md:p-8 flex flex-col md:flex-row items-center justify-between z-20 relative gap-4">
                 <div className="w-full md:w-auto flex items-center justify-between">
                     <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center" style={{ color: 'var(--text-primary)' }}>
-                            <Disc size={16} />
-                        </div>
                         Folia
                     </h1>
+                    <button
+                        onClick={() => setShowHelpModal(true)}
+                        className="p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
+                        title="Help & About"
+                    >
+                        <HelpCircle size={20} style={{ color: 'var(--text-primary)' }} />
+                    </button>
                 </div>
 
                 {/* Simple Search */}
@@ -506,6 +512,11 @@ const Home: React.FC<HomeProps> = ({
                         </p>
                     </div>
                 </div>
+            )}
+
+            {/* Help Modal */}
+            {showHelpModal && (
+                <HelpModal onClose={() => setShowHelpModal(false)} />
             )}
 
             {/* User Avatar - Back to Player */}
