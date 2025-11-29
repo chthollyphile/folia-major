@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight } from 'lucide-react';
@@ -50,6 +48,7 @@ const Home: React.FC<HomeProps> = ({
     // Touch State
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
+    const carouselRef = useRef<HTMLDivElement>(null);
 
     // Wheel navigation debounce
     const wheelTimeout = useRef<any>(null);
@@ -190,44 +189,49 @@ const Home: React.FC<HomeProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [focusedIndex, playlists.length, showLoginModal, searchResults]);
 
-    // Wheel Navigation Handler
-    const handleWheel = (e: React.WheelEvent) => {
-        e.preventDefault();
+    // Wheel Navigation Handler - Attached manually to support non-passive event
+    useEffect(() => {
+        const element = carouselRef.current;
+        if (!element) return;
 
-        // Clear existing timeout
-        if (wheelTimeout.current) {
-            clearTimeout(wheelTimeout.current);
-        }
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
 
-        // Debounce wheel events (wait 150ms after last wheel event)
-        wheelTimeout.current = setTimeout(() => {
-            const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+            // Clear existing timeout
+            if (wheelTimeout.current) {
+                clearTimeout(wheelTimeout.current);
+            }
 
-            // Threshold to avoid accidental triggers
-            if (Math.abs(delta) > 20) {
-                if (delta > 0) {
-                    // Scroll right/down -> Next
-                    if (focusedIndex < playlists.length - 1) {
-                        setFocusedIndex(prev => prev + 1);
-                    }
-                } else {
-                    // Scroll left/up -> Previous
-                    if (focusedIndex > 0) {
-                        setFocusedIndex(prev => prev - 1);
+            // Debounce wheel events (wait 150ms after last wheel event)
+            wheelTimeout.current = setTimeout(() => {
+                const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+
+                // Threshold to avoid accidental triggers
+                if (Math.abs(delta) > 20) {
+                    if (delta > 0) {
+                        // Scroll right/down -> Next
+                        if (focusedIndex < playlists.length - 1) {
+                            setFocusedIndex(prev => prev + 1);
+                        }
+                    } else {
+                        // Scroll left/up -> Previous
+                        if (focusedIndex > 0) {
+                            setFocusedIndex(prev => prev - 1);
+                        }
                     }
                 }
-            }
-        }, 150);
-    };
+            }, 150);
+        };
 
-    // Cleanup wheel timeout
-    useEffect(() => {
+        element.addEventListener('wheel', handleWheel, { passive: false });
+
         return () => {
+            element.removeEventListener('wheel', handleWheel);
             if (wheelTimeout.current) {
                 clearTimeout(wheelTimeout.current);
             }
         };
-    }, []);
+    }, [focusedIndex, playlists.length]);
 
     // Persistence for Focused Index
     useEffect(() => {
@@ -319,11 +323,11 @@ const Home: React.FC<HomeProps> = ({
 
                         {/* Carousel Container */}
                         <div
+                            ref={carouselRef}
                             className="w-full h-[400px] relative flex items-center justify-center perspective-1000 touch-pan-y"
                             onTouchStart={handleTouchStart}
                             onTouchMove={handleTouchMove}
                             onTouchEnd={handleTouchEnd}
-                            onWheel={handleWheel}
                         >
                             {playlists.length > 0 ? (
                                 playlists.map((pl, i) => {
