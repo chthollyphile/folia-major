@@ -170,6 +170,9 @@ const Home: React.FC<HomeProps> = ({
             // Only respond if not in search or modal
             if (showLoginModal || searchResults !== null) return;
 
+            // Ignore if typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 if (focusedIndex > 0) {
