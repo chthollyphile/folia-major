@@ -213,6 +213,7 @@ export default function App() {
     const loadUserData = async () => {
         const cachedUser = await getFromCache<NeteaseUser>('user_profile');
         const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
+        const cachedLikedSongs = await getFromCache<number[]>('user_liked_songs');
 
         if (cachedUser) {
             setUser(cachedUser);
@@ -220,6 +221,10 @@ export default function App() {
                 setPlaylists(cachedPlaylists);
             } else {
                 refreshUserData(cachedUser.userId);
+            }
+
+            if (cachedLikedSongs) {
+                setLikedSongIds(new Set(cachedLikedSongs));
             }
         } else {
             refreshUserData();
@@ -323,6 +328,7 @@ export default function App() {
                     const likeRes = await neteaseApi.getLikedSongs(targetUid);
                     if (likeRes.ids) {
                         setLikedSongIds(new Set(likeRes.ids));
+                        await saveToCache('user_liked_songs', likeRes.ids);
                     }
                 } catch (e) {
                     console.warn("Failed to fetch liked songs", e);
@@ -848,6 +854,10 @@ export default function App() {
                 const next = new Set(prev);
                 if (newStatus) next.add(currentSong.id);
                 else next.delete(currentSong.id);
+
+                // Update cache
+                saveToCache('user_liked_songs', Array.from(next));
+
                 return next;
             });
 
