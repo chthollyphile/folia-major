@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
@@ -251,13 +249,25 @@ export default function App() {
                     setTheme(cachedTheme);
                     setBgMode('ai');
                 } else {
-                    console.log("[restoreSession] No cached theme, resetting to default");
-                    setTheme(prev => ({
-                        ...prev,
-                        wordColors: [],
-                        lyricsIcons: []
-                    }));
-                    setBgMode('default');
+                    // Try to restore last used AI theme
+                    const lastTheme = await getFromCache<Theme>('last_theme');
+                    if (lastTheme) {
+                        console.log("[restoreSession] Using last_theme fallback");
+                        setTheme({
+                            ...lastTheme,
+                            wordColors: [],
+                            lyricsIcons: []
+                        });
+                        setBgMode('ai');
+                    } else {
+                        console.log("[restoreSession] No cached theme, resetting to default");
+                        setTheme(prev => ({
+                            ...prev,
+                            wordColors: [],
+                            lyricsIcons: []
+                        }));
+                        setBgMode('default');
+                    }
                 }
 
                 // Try to restore cover
@@ -756,6 +766,8 @@ export default function App() {
             if (currentSong) {
                 saveToCache(`theme_${currentSong.id}`, newTheme);
             }
+            // Save as last used AI theme
+            saveToCache('last_theme', newTheme);
         } catch (err) {
             console.error(err);
             setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
