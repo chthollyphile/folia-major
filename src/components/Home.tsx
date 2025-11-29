@@ -18,6 +18,7 @@ interface HomeProps {
     isPlaying: boolean;
     selectedPlaylist: NeteasePlaylist | null;
     onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
+    onSelectAlbum: (albumId: number) => void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -30,7 +31,8 @@ const Home: React.FC<HomeProps> = ({
     currentTrack,
     isPlaying,
     selectedPlaylist,
-    onSelectPlaylist
+    onSelectPlaylist,
+    onSelectAlbum
 }) => {
     const { t } = useTranslation();
 
@@ -249,6 +251,7 @@ const Home: React.FC<HomeProps> = ({
                 onPlayAll={(songs) => {
                     if (songs.length > 0) onPlaySong(songs[0], songs);
                 }}
+                onSelectAlbum={onSelectAlbum}
             />
         );
     }
@@ -462,7 +465,20 @@ const Home: React.FC<HomeProps> = ({
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-bold truncate text-base" style={{ color: 'var(--text-primary)' }}>{track.name}</div>
                                                 <div className="text-xs opacity-50 truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                                    {track.ar?.map(a => a.name).join(', ')} • {track.al?.name || track.album?.name}
+                                                    {track.ar?.map(a => a.name).join(', ')} •
+                                                    <span
+                                                        className="cursor-pointer hover:opacity-100 hover:underline transition-all"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const albumId = track.al?.id || track.album?.id;
+                                                            if (albumId) {
+                                                                onSelectAlbum(albumId);
+                                                                setSearchResults(null);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {track.al?.name || track.album?.name}
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className="text-xs font-mono opacity-30">

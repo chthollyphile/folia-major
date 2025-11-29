@@ -23,29 +23,29 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
     ...options,
     mode: 'cors',
   };
-  
+
   // Selective Timestamp: Only for login, user, and playlist detail endpoints
   // as per request to avoid caching issues on dynamic user data, but keep content cacheable.
-  const needsTimestamp = 
-    endpoint.includes('/login') || 
-    endpoint.includes('/user') || 
+  const needsTimestamp =
+    endpoint.includes('/login') ||
+    endpoint.includes('/user') ||
     endpoint.includes('/playlist/detail');
 
   let finalUrl = url;
   if (needsTimestamp) {
-      const separator = finalUrl.includes('?') ? '&' : '?';
-      finalUrl = `${finalUrl}${separator}timestamp=${Date.now()}`;
+    const separator = finalUrl.includes('?') ? '&' : '?';
+    finalUrl = `${finalUrl}${separator}timestamp=${Date.now()}`;
   }
-  
+
   // Note: For Vercel hosted APIs, we rely on the `cookie` query param if cross-site cookies are blocked,
   // or `credentials: 'include'` if the server allows it. 
-  
+
   const storedCookie = localStorage.getItem('netease_cookie');
-  
+
   if (storedCookie) {
-     // Append cookie to URL
-     const sep = finalUrl.includes('?') ? '&' : '?';
-     finalUrl = `${finalUrl}${sep}cookie=${encodeURIComponent(storedCookie)}`;
+    // Append cookie to URL
+    const sep = finalUrl.includes('?') ? '&' : '?';
+    finalUrl = `${finalUrl}${sep}cookie=${encodeURIComponent(storedCookie)}`;
   }
 
   const res = await fetch(finalUrl, { ...defaultOptions, credentials: 'include' });
@@ -57,11 +57,11 @@ export const neteaseApi = {
   getQrKey: async () => {
     return fetchWithCreds(`/login/qr/key`);
   },
-  
+
   createQr: async (key: string) => {
     return fetchWithCreds(`/login/qr/create?key=${key}&qrimg=true`);
   },
-  
+
   checkQr: async (key: string) => {
     return fetchWithCreds(`/login/qr/check?key=${key}`);
   },
@@ -71,7 +71,7 @@ export const neteaseApi = {
   },
 
   getUserAccount: async () => {
-     return fetchWithCreds(`/user/account`);
+    return fetchWithCreds(`/user/account`);
   },
 
   // --- User Data ---
@@ -91,26 +91,30 @@ export const neteaseApi = {
   getPlaylistTracks: async (id: number, limit = 50, offset = 0) => {
     return fetchWithCreds(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
   },
-  
+
   getPlaylistDetail: async (id: number) => {
-      return fetchWithCreds(`/playlist/detail?id=${id}`);
+    return fetchWithCreds(`/playlist/detail?id=${id}`);
+  },
+
+  getAlbum: async (id: number) => {
+    return fetchWithCreds(`/album?id=${id}`);
   },
 
   // --- Song Data ---
   getSongUrl: async (id: number) => {
-     // Use exhigh (320k) to ensure VIP songs have a valid signed URL.
-     // 'standard' often returns null or invalid links for VIP content even if logged in.
-     // randomCNIP=true added to improve success rate for some restricted tracks
-     // https=true ensures URLs are returned with HTTPS protocol to avoid mixed content issues
-     return fetchWithCreds(`/song/url/v1?id=${id}&level=exhigh&randomCNIP=true&https=true`);
+    // Use exhigh (320k) to ensure VIP songs have a valid signed URL.
+    // 'standard' often returns null or invalid links for VIP content even if logged in.
+    // randomCNIP=true added to improve success rate for some restricted tracks
+    // https=true ensures URLs are returned with HTTPS protocol to avoid mixed content issues
+    return fetchWithCreds(`/song/url/v1?id=${id}&level=exhigh&randomCNIP=true&https=true`);
   },
-  
+
   getLyric: async (id: number) => {
-      return fetchWithCreds(`/lyric/new?id=${id}`);
+    return fetchWithCreds(`/lyric/new?id=${id}`);
   },
 
   // --- Search ---
   cloudSearch: async (keywords: string, limit = 30, offset = 0) => {
-      return fetchWithCreds(`/cloudsearch?keywords=${encodeURIComponent(keywords)}&limit=${limit}&offset=${offset}`);
+    return fetchWithCreds(`/cloudsearch?keywords=${encodeURIComponent(keywords)}&limit=${limit}&offset=${offset}`);
   }
 };

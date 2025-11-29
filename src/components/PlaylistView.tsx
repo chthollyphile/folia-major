@@ -13,9 +13,10 @@ interface PlaylistViewProps {
   onBack: () => void;
   onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
   onPlayAll: (songs: SongResult[]) => void;
+  onSelectAlbum: (albumId: number) => void;
 }
 
-const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll }) => {
+const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum }) => {
   const { t } = useTranslation();
   const [tracks, setTracks] = useState<SongResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -229,7 +230,21 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 <div className="flex-1 min-w-0 pl-3 md:pl-4">
                   <div className="text-sm font-medium truncate opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
                     {track.name}
-                    {track.al?.name && <span className="ml-2 text-xs opacity-30 hidden md:inline-block font-normal" style={{ color: 'var(--text-secondary)' }}>{track.al.name}</span>}
+                    {track.al?.name &&
+                      <span
+                        className="ml-2 text-xs opacity-30 hidden md:inline-block font-normal cursor-pointer hover:opacity-100 hover:underline transition-all"
+                        style={{ color: 'var(--text-secondary)' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const albumId = track.al?.id || track.album?.id;
+                          if (albumId) {
+                            onSelectAlbum(albumId);
+                          }
+                        }}
+                      >
+                        {track.al.name}
+                      </span>
+                    }
                   </div>
                   <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {track.ar?.map(a => a.name).join(', ')}

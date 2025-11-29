@@ -9,6 +9,7 @@ import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache,
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import Home from './components/Home';
+import AlbumView from './components/AlbumView';
 import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist } from './types';
 import { neteaseApi } from './services/netease';
 
@@ -56,6 +57,7 @@ export default function App() {
     const [playlists, setPlaylists] = useState<NeteasePlaylist[]>([]);
     const [likedSongIds, setLikedSongIds] = useState<Set<number>>(new Set());
     const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
+    const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -104,11 +106,13 @@ export default function App() {
             if (!state || state.view === 'home') {
                 setCurrentView('home');
                 setSelectedPlaylist(null);
+                setSelectedAlbumId(null);
             }
             // If player state
             else if (state.view === 'player') {
                 setCurrentView('player');
                 setSelectedPlaylist(null);
+                setSelectedAlbumId(null);
             }
             // If playlist state
             else if (state.view === 'playlist') {
@@ -118,6 +122,12 @@ export default function App() {
                 // If we support deeply nested history, we'd need to restore the specific ID.
                 // For now, simpler logic: if we pop to 'playlist', we might need the ID, 
                 // but usually we pop FROM playlist TO home.
+                setSelectedAlbumId(null); // Ensure album is deselected
+            }
+            // If album state
+            else if (state.view === 'album') {
+                setCurrentView('home');
+                setSelectedPlaylist(null); // Ensure playlist is deselected
             }
         };
 
@@ -140,7 +150,7 @@ export default function App() {
     };
 
     const navigateToHome = () => {
-        if (currentView !== 'home' || selectedPlaylist) {
+        if (currentView !== 'home' || selectedPlaylist || selectedAlbumId) {
             // If we have history, back() is better to keep stack clean. 
             // But we can't always know.
             // Simple strategy: Push home if not there? No, builds stack.
@@ -153,10 +163,15 @@ export default function App() {
         if (pl) {
             window.history.pushState({ view: 'playlist', id: pl.id }, '', `#playlist/${pl.id}`);
             setSelectedPlaylist(pl);
+            setSelectedAlbumId(null); // Deselect album when selecting playlist
         } else {
             // Go back
             window.history.back();
         }
+    };
+
+    const handleAlbumSelect = (id: number) => {
+        setSelectedAlbumId(id);
     };
 
     // Revoke blob URLs on unmount to prevent leaks
@@ -971,8 +986,27 @@ export default function App() {
                             isPlaying={playerState === PlayerState.PLAYING}
                             selectedPlaylist={selectedPlaylist}
                             onSelectPlaylist={handlePlaylistSelect}
+                            onSelectAlbum={handleAlbumSelect}
                         />
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* --- ALBUM VIEW (Overlay) --- */}
+            <AnimatePresence>
+                {selectedAlbumId && (
+                    <AlbumView
+                        albumId={selectedAlbumId}
+                        onBack={() => setSelectedAlbumId(null)}
+                        onPlaySong={(song, ctx) => {
+                            playSong(song, ctx);
+                            setSelectedAlbumId(null);
+                        }}
+                        onPlayAll={(songs) => {
+                            playSong(songs[0], songs);
+                            setSelectedAlbumId(null);
+                        }}
+                    />
                 )}
             </AnimatePresence>
 
@@ -1132,6 +1166,28 @@ export default function App() {
 
                                         {/* Tab Content */}
                                         <div className={`flex-1 overflow-hidden ${panelTab === 'cover' ? '' : 'min-h-[120px]'}`} style={{ color: 'var(--text-primary)' }}>
+                                            {/* --- COVER TAB --- */}
+                                            {panelTab === 'cover' && (
+                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center space-y-4 mt-4">
+                                                    <div className="space-y-1">
+                                                        <h2 className="text-2xl font-bold line-clamp-2">{currentSong?.name || t('ui.noTrack')}</h2>
+                                                        <div className="text-sm opacity-60 space-y-1">
+                                                            <div className="font-medium">{currentSong?.ar?.map(a => a.name).join(', ')}</div>
+                                                            <div
+                                                                className="opacity-60 cursor-pointer hover:opacity-100 hover:underline transition-all"
+                                                                onClick={() => {
+                                                                    if (currentSong?.al?.id || currentSong?.album?.id) {
+                                                                        handleAlbumSelect(currentSong?.al?.id || currentSong?.album?.id);
+                                                                        setIsPanelOpen(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {currentSong?.al?.name || currentSong?.album?.name}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            )}
                                             {/* --- PLAYBACK CONTROLS TAB --- */}
                                             {panelTab === 'controls' && (
                                                 <motion.div
