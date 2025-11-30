@@ -53,7 +53,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
 
         // Check if cache is valid and fresh
         if (cachedTracks.length > 0 && targetTime > 0 && cachedTime === targetTime) {
-          console.log("[Playlist] Cache hit and fresh", { cachedTime, targetTime });
+          // console.log("[Playlist] Cache hit and fresh", { cachedTime, targetTime });
           setTracks(cachedTracks);
           setOffset(cachedTracks.length);
           setLoading(false);

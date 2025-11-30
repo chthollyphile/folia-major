@@ -5,7 +5,7 @@ import { neteaseApi } from '../services/netease';
 import { NeteaseUser, NeteasePlaylist, SongResult } from '../types';
 import PlaylistView from './PlaylistView';
 import HelpModal from './HelpModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
 
 interface HomeProps {
@@ -351,6 +351,19 @@ const Home: React.FC<HomeProps> = ({
                                     const xOffset = distance * 240;
                                     const zIndex = 10 - Math.abs(distance);
                                     const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
+                                    const blurTarget = isActive ? 0 : 2;
+
+                                    // Use motion value for blur to ensure valid values
+                                    const blurMotion = useMotionValue(blurTarget);
+                                    const blurString = useTransform(blurMotion, (value) => {
+                                        const clamped = Math.max(0, Math.min(10, isNaN(value) ? 0 : value));
+                                        return `blur(${clamped}px)`;
+                                    });
+
+                                    // Update blur value when target changes
+                                    useEffect(() => {
+                                        blurMotion.set(blurTarget);
+                                    }, [blurTarget, blurMotion]);
 
                                     return (
                                         <motion.div
@@ -363,9 +376,11 @@ const Home: React.FC<HomeProps> = ({
                                                 opacity: opacity,
                                                 zIndex: zIndex,
                                                 rotateY: rotateY,
-                                                filter: isActive ? 'blur(0px)' : 'blur(2px)'
                                             }}
                                             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                            style={{
+                                                filter: blurString
+                                            }}
                                             onClick={() => {
                                                 if (isActive) onSelectPlaylist(pl);
                                                 else setFocusedIndex(i);
@@ -543,7 +558,7 @@ const Home: React.FC<HomeProps> = ({
                 <div className="absolute bottom-8 right-8 z-[100]">
                     <div
                         onClick={onBackToPlayer}
-                        className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:border-white hover:scale-105 transition-all overflow-hidden shadow-lg"
+                        className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:scale-105 transition-all overflow-hidden shadow-lg"
                         title="Return to Player"
                     >
                         <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover" />
