@@ -40,6 +40,27 @@ const formatBytes = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+// 获取用户的所有playlist（支持分页）
+const getAllUserPlaylists = async (uid: number): Promise<NeteasePlaylist[]> => {
+    const allPlaylists: NeteasePlaylist[] = [];
+    let offset = 0;
+    const limit = 50; // 每次获取50个
+    let hasMore = true;
+
+    while (hasMore) {
+        const plRes = await neteaseApi.getUserPlaylists(uid, limit, offset);
+        if (plRes.playlist && plRes.playlist.length > 0) {
+            allPlaylists.push(...plRes.playlist);
+            // 如果返回的数量少于limit，说明已经获取完了
+            hasMore = plRes.playlist.length === limit;
+            offset += limit;
+        } else {
+            hasMore = false;
+        }
+    }
+
+    return allPlaylists;
+};
 
 export default function App() {
     const { t } = useTranslation();
@@ -357,10 +378,10 @@ export default function App() {
                 if (res.cookie) localStorage.setItem('netease_cookie', res.cookie);
 
                 const targetUid = uid || profile.userId;
-                const plRes = await neteaseApi.getUserPlaylists(targetUid);
-                if (plRes.playlist) {
-                    setPlaylists(plRes.playlist);
-                    await saveToCache('user_playlists', plRes.playlist);
+                const allPlaylists = await getAllUserPlaylists(targetUid);
+                if (allPlaylists.length > 0) {
+                    setPlaylists(allPlaylists);
+                    await saveToCache('user_playlists', allPlaylists);
                 }
 
                 // Fetch Liked Songs List
@@ -386,11 +407,9 @@ export default function App() {
         if (!user) return;
 
         try {
-            // 获取最新的歌单列表
-            const plRes = await neteaseApi.getUserPlaylists(user.userId);
-            if (!plRes.playlist) return;
-
-            const newPlaylists = plRes.playlist;
+            // 获取最新的歌单列表（获取所有分页）
+            const newPlaylists = await getAllUserPlaylists(user.userId);
+            if (!newPlaylists || newPlaylists.length === 0) return;
             
             // 从缓存中获取旧的歌单列表
             const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
