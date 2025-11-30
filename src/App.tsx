@@ -120,6 +120,7 @@ export default function App() {
     const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const queueScrollRef = useRef<HTMLDivElement>(null);
+    const shouldAutoPlay = useRef(false);
 
     // --- Initialization & User Data ---
 
@@ -410,10 +411,10 @@ export default function App() {
             // 获取最新的歌单列表（获取所有分页）
             const newPlaylists = await getAllUserPlaylists(user.userId);
             if (!newPlaylists || newPlaylists.length === 0) return;
-            
+
             // 从缓存中获取旧的歌单列表
             const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
-            
+
             if (!cachedPlaylists) {
                 // 如果没有缓存，直接保存新的歌单列表
                 setPlaylists(newPlaylists);
@@ -431,7 +432,7 @@ export default function App() {
             const changedPlaylistIds: number[] = [];
             newPlaylists.forEach(newPl => {
                 const oldPl = cachedMap.get(newPl.id);
-                
+
                 if (!oldPl) {
                     // 新歌单，标记为需要更新
                     changedPlaylistIds.push(newPl.id);
@@ -439,7 +440,7 @@ export default function App() {
                     // 检查 trackUpdateTime 和 updateTime 是否有变化
                     const trackTimeChanged = (newPl.trackUpdateTime || 0) !== (oldPl.trackUpdateTime || 0);
                     const updateTimeChanged = (newPl.updateTime || 0) !== (oldPl.updateTime || 0);
-                    
+
                     if (trackTimeChanged || updateTimeChanged) {
                         changedPlaylistIds.push(newPl.id);
                     }
@@ -458,12 +459,12 @@ export default function App() {
             // 清除有变化的歌单的缓存
             if (changedPlaylistIds.length > 0) {
                 console.log(`[PlaylistSync] 发现 ${changedPlaylistIds.length} 个歌单有变化，清除缓存:`, changedPlaylistIds);
-                
+
                 try {
                     const db = await openDB();
                     const tx = db.transaction(['api_cache'], 'readwrite');
                     const store = tx.objectStore('api_cache');
-                    
+
                     // 批量删除有变化的歌单缓存
                     const deletePromises = changedPlaylistIds.flatMap(playlistId => [
                         new Promise<void>((resolve, reject) => {
@@ -477,7 +478,7 @@ export default function App() {
                             req.onerror = () => reject(req.error);
                         })
                     ]);
-                    
+
                     await Promise.all(deletePromises);
                     console.log(`[PlaylistSync] 已清除 ${changedPlaylistIds.length} 个歌单的缓存`);
                 } catch (e) {
@@ -566,6 +567,9 @@ export default function App() {
 
     const playSong = async (song: SongResult, queue: SongResult[] = []) => {
         console.log("[App] playSong initiated:", song.name, song.id);
+
+        // Enable autoplay for user-initiated song changes
+        shouldAutoPlay.current = true;
 
         // 0. Instant UI Feedback
         setLyrics(null);
@@ -824,19 +828,27 @@ export default function App() {
 
     useEffect(() => {
         if (audioSrc && audioRef.current) {
-            const playPromise = audioRef.current.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        setPlayerState(PlayerState.PLAYING);
-                        setupAudioAnalyzer();
-                    })
-                    .catch(e => {
-                        if (e.name === 'NotAllowedError') {
-                            setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
-                            setPlayerState(PlayerState.PAUSED);
-                        }
-                    });
+            // Only play if shouldAutoPlay is true
+            if (shouldAutoPlay.current) {
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            setPlayerState(PlayerState.PLAYING);
+                            setupAudioAnalyzer();
+                        })
+                        .catch(e => {
+                            if (e.name === 'NotAllowedError') {
+                                setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
+                                setPlayerState(PlayerState.PAUSED);
+                            }
+                        });
+                }
+            } else {
+                // If we're not auto-playing (e.g. restore session), just set state to paused
+                // But we might want to ensure the audio element is ready? 
+                // It's already src assigned.
+                setPlayerState(PlayerState.PAUSED);
             }
         }
     }, [audioSrc]);
