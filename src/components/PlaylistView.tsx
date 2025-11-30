@@ -24,7 +24,8 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
   // Scroll Ref
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const LIMIT = 150;
+  const INITIAL_LIMIT = 150;
+  const BATCH_LIMIT = 1000;
   const CACHE_KEY = `playlist_tracks_${playlist.id}`;
 
   const loadTracks = async (reset = false) => {
@@ -62,7 +63,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
         console.log("[Playlist] Cache miss or stale, fetching fresh...", { cachedTime, targetTime });
 
         // Fetch first chunk immediately
-        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, 0);
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, INITIAL_LIMIT, 0);
         if (res.songs && res.songs.length > 0) {
           const initialTracks = res.songs;
           setTracks(initialTracks);
@@ -85,7 +86,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
         }
       } else {
         // Manual Load More (fallback)
-        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, currentOffset);
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, BATCH_LIMIT, currentOffset);
         if (res.songs && res.songs.length > 0) {
           setTracks(prev => {
             const combined = [...prev, ...res.songs];
@@ -93,7 +94,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
             return combined;
           });
           setOffset(currentOffset + res.songs.length);
-          setHasMore(res.songs.length === LIMIT);
+          setHasMore(res.songs.length === BATCH_LIMIT);
         } else {
           setHasMore(false);
         }
@@ -120,7 +121,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
       try {
         await new Promise(r => setTimeout(r, 100));
 
-        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, currentOffset);
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, BATCH_LIMIT, currentOffset);
         if (res.songs && res.songs.length > 0) {
           const newChunk = res.songs;
           currentTracks = [...currentTracks, ...newChunk];
@@ -131,7 +132,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
           // Update cache
           saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime });
 
-          if (newChunk.length < LIMIT) {
+          if (newChunk.length < BATCH_LIMIT) {
             fetching = false;
           }
         } else {
