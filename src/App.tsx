@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart, Crown } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { List, useListRef, type ListImperativeAPI } from 'react-window';
 import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { generateThemeFromLyrics } from './services/gemini';
@@ -11,6 +10,7 @@ import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import Home from './components/Home';
 import AlbumView from './components/AlbumView';
+import UnifiedPanel from './components/UnifiedPanel';
 import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist } from './types';
 import { neteaseApi } from './services/netease';
 
@@ -40,122 +40,6 @@ const formatBytes = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Virtualized Queue List Component using react-window for performance
-interface QueueListProps {
-    playQueue: SongResult[];
-    currentSong: SongResult | null;
-    onPlaySong: (song: SongResult, queue: SongResult[]) => void;
-    queueScrollRef: React.RefObject<HTMLDivElement>;
-    shouldScrollToCurrent?: boolean;
-}
-
-const QueueList: React.FC<QueueListProps> = ({ playQueue, currentSong, onPlaySong, queueScrollRef, shouldScrollToCurrent = false }) => {
-    const ITEM_HEIGHT = 50;
-    const CONTAINER_HEIGHT = 200;
-    const listRef = useListRef(null);
-    const isInitialMountRef = useRef(true);
-    const lastScrolledIndexRef = useRef<number>(-1);
-    const wasOpenRef = useRef(false);
-
-    // Reset initial mount state when panel is opened
-    useEffect(() => {
-        if (shouldScrollToCurrent && !wasOpenRef.current) {
-            // Panel just opened, reset to allow instant scroll
-            isInitialMountRef.current = true;
-            wasOpenRef.current = true;
-        } else if (!shouldScrollToCurrent) {
-            // Panel closed, reset state
-            wasOpenRef.current = false;
-        }
-    }, [shouldScrollToCurrent]);
-
-    // Auto-scroll to current song (only when shouldScrollToCurrent is true)
-    useEffect(() => {
-        if (shouldScrollToCurrent && currentSong && listRef.current) {
-            const currentIndex = playQueue.findIndex(s => s.id === currentSong.id);
-            if (currentIndex >= 0) {
-                // Check if this is the initial mount or if the song changed
-                const isInitialMount = isInitialMountRef.current;
-                const songChanged = lastScrolledIndexRef.current !== currentIndex && lastScrolledIndexRef.current !== -1;
-                
-                // Use instant scroll for initial mount or when panel just opened, smooth for song changes
-                const behavior = (isInitialMount || !songChanged) ? 'instant' : 'smooth';
-                
-                // Small delay to ensure DOM is ready (only for smooth scroll)
-                const delay = isInitialMount ? 0 : 50;
-                
-                setTimeout(() => {
-                    if (listRef.current) {
-                        listRef.current.scrollToRow({
-                            index: currentIndex,
-                            align: 'center',
-                            behavior: behavior as 'instant' | 'smooth'
-                        });
-                        lastScrolledIndexRef.current = currentIndex;
-                        isInitialMountRef.current = false;
-                    }
-                }, delay);
-            }
-        }
-    }, [shouldScrollToCurrent, currentSong?.id, playQueue, listRef]);
-
-    // Row component for rendering each item
-    const RowComponent = useCallback(({ index, style, ariaAttributes }: { 
-        index: number; 
-        style: React.CSSProperties;
-        ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem" };
-    }) => {
-        const song = playQueue[index];
-        const isActive = currentSong?.id === song.id;
-        
-        return (
-            <div
-                style={style}
-                onClick={() => onPlaySong(song, playQueue)}
-                data-active={isActive}
-                {...ariaAttributes}
-                className={`flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
-                    ${isActive ? 'bg-white/20' : 'hover:bg-white/5'}`}
-            >
-                <div className={`w-1 h-6 rounded-full ${isActive ? 'bg-white' : 'bg-transparent'}`} />
-                <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium truncate">{song.name}</div>
-                    <div className="text-[10px] opacity-40 truncate">{song.ar?.map(a => a.name).join(', ')}</div>
-                </div>
-            </div>
-        );
-    }, [playQueue, currentSong, onPlaySong]);
-
-    if (playQueue.length === 0) {
-        return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
-                <div className="flex items-center justify-center h-full text-xs opacity-40">
-                    播放列表为空
-                </div>
-            </motion.div>
-        );
-    }
-
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
-            <div
-                ref={queueScrollRef}
-                className="flex-1 -mx-2 px-2"
-            >
-                <List
-                    listRef={listRef}
-                    rowCount={playQueue.length}
-                    rowHeight={ITEM_HEIGHT}
-                    rowComponent={RowComponent}
-                    rowProps={{}}
-                    overscanCount={5}
-                    className="custom-scrollbar"
-                    style={{ height: CONTAINER_HEIGHT, width: '100%' }}
-                />
-            </div>
-        </motion.div>
-    );
-};
 
 export default function App() {
     const { t } = useTranslation();
@@ -307,7 +191,6 @@ export default function App() {
         if (isPanelOpen && panelTab === 'account') {
             updateCacheSize();
         }
-        // Auto-scroll to current song is now handled by QueueList component
     }, [isPanelOpen, panelTab]);
 
     const updateCacheSize = async () => {
@@ -1044,23 +927,28 @@ export default function App() {
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (currentView !== 'player') return;
-
             // Ignore if typing in an input (though we don't have many inputs yet)
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
             switch (e.code) {
                 case 'Space':
-                    e.preventDefault();
-                    togglePlay(e);
+                    // Space key works in both home and player views if there's a current song
+                    if (currentSong && audioSrc) {
+                        e.preventDefault();
+                        togglePlay(e);
+                    }
                     break;
                 case 'ArrowLeft':
+                    // Arrow keys only work in player view
+                    if (currentView !== 'player') return;
                     e.preventDefault();
                     if (audioRef.current) {
                         audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
                     }
                     break;
                 case 'ArrowRight':
+                    // Arrow keys only work in player view
+                    if (currentView !== 'player') return;
                     e.preventDefault();
                     if (audioRef.current) {
                         audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
@@ -1071,7 +959,7 @@ export default function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentView, playerState]);
+    }, [currentView, playerState, currentSong, audioSrc]);
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -1339,321 +1227,40 @@ export default function App() {
 
             {/* --- UNIFIED PANEL (Player View Only) --- */}
             {currentView === 'player' && (
-                <div
-                    className="absolute bottom-8 right-0 z-[60] flex flex-col items-end gap-4 pointer-events-none"
-                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the panel wrapper
-                >
-                    <div className="pointer-events-auto pr-4 md:pr-8 pb-16 md:pb-0">
-                        <AnimatePresence>
-                            {isPanelOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9, originY: 1, originX: 1 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className="w-80 bg-black/40 backdrop-blur-3xl rounded-3xl shadow-2xl flex flex-col mb-2 overflow-hidden"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    <div className="p-5 flex flex-col h-full">
-                                        {/* Top: Cover Art (Fixed at top as requested) */}
-                                        <div
-                                            onClick={() => {
-                                                setIsPanelOpen(false);
-                                                navigateToHome();
-                                            }}
-                                            className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg relative mb-4 bg-zinc-900 flex items-center justify-center group cursor-pointer"
-                                        >
-                                            {coverUrl ? (
-                                                <img src={coverUrl} alt="Art" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Disc size={40} className="text-white/20" />
-                                            )}
-                                            {/* Overlay to switch visual */}
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                                                <HomeIcon className="text-white" size={32} />
-                                            </div>
-                                        </div>
-
-                                        {/* Tab Switcher (Below Cover) */}
-                                        <div className="flex bg-white/5 p-1 rounded-xl mb-4">
-                                            {[
-                                                { id: 'cover', label: t('panel.cover'), icon: Disc },
-                                                { id: 'controls', label: t('panel.controls'), icon: SlidersHorizontal },
-                                                { id: 'queue', label: t('panel.playlist'), icon: ListMusic },
-                                                { id: 'account', label: t('panel.account'), icon: UserIcon }
-                                            ].map((tab) => (
-                                                <button
-                                                    key={tab.id}
-                                                    onClick={() => setPanelTab(tab.id as any)}
-                                                    className={`flex-1 py-2 flex items-center justify-center transition-all rounded-lg
-                                            ${panelTab === tab.id ? 'bg-white/10 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                                                    title={tab.label}
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                >
-                                                    <tab.icon size={16} />
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {/* Tab Content */}
-                                        <div className={`flex-1 overflow-hidden ${panelTab === 'cover' ? '' : 'min-h-[120px]'}`} style={{ color: 'var(--text-primary)' }}>
-                                            {/* --- COVER TAB --- */}
-                                            {panelTab === 'cover' && (
-                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center space-y-4 mt-4">
-                                                    <div className="space-y-1">
-                                                        <h2 className="text-2xl font-bold line-clamp-2">{currentSong?.name || t('ui.noTrack')}</h2>
-                                                        <div className="text-sm opacity-60 space-y-1">
-                                                            <div className="font-medium">{currentSong?.ar?.map(a => a.name).join(', ')}</div>
-                                                            <div
-                                                                className="opacity-60 cursor-pointer hover:opacity-100 hover:underline transition-all"
-                                                                onClick={() => {
-                                                                    if (currentSong?.al?.id || currentSong?.album?.id) {
-                                                                        handleAlbumSelect(currentSong?.al?.id || currentSong?.album?.id);
-                                                                        setIsPanelOpen(false);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {currentSong?.al?.name || currentSong?.album?.name}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            )}
-                                            {/* --- PLAYBACK CONTROLS TAB --- */}
-                                            {panelTab === 'controls' && (
-                                                <motion.div
-                                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                                    className="space-y-4"
-                                                >
-                                                    {/* Action Buttons: Loop, Like, AI (Compact) */}
-                                                    <div className="grid grid-cols-3 gap-3">
-                                                        <button
-                                                            onClick={toggleLoop}
-                                                            className={`h-12 rounded-xl flex items-center justify-center transition-colors
-                                                    ${loopMode !== 'off' ? 'bg-white text-black' : 'bg-white/5 hover:bg-white/10'}`}
-                                                        >
-                                                            {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
-                                                        </button>
-
-                                                        <button
-                                                            onClick={handleLike}
-                                                            className={`h-12 rounded-xl flex items-center justify-center transition-colors
-                                                    ${currentSong && likedSongIds.has(currentSong.id) ? 'bg-red-500/20 text-red-500' : 'bg-white/5 hover:bg-white/10'}`}
-                                                        >
-                                                            <Heart size={20} fill={currentSong && likedSongIds.has(currentSong.id) ? "currentColor" : "none"} />
-                                                        </button>
-
-                                                        <button
-                                                            onClick={generateAITheme}
-                                                            disabled={isGeneratingTheme || !lyrics}
-                                                            className={`h-12 rounded-xl flex items-center justify-center transition-colors
-                                                    ${isGeneratingTheme ? 'bg-blue-500/20 text-blue-300' : 'bg-white/5 hover:bg-white/10'}`}
-                                                        >
-                                                            <Sparkles size={20} className={isGeneratingTheme ? "animate-pulse" : ""} />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Appearance Intensity */}
-                                                    <div className="pt-2 border-t border-white/5">
-                                                        <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">{t('ui.animationIntensity')}</label>
-                                                        <div className="flex bg-black/20 p-1 rounded-xl mb-3">
-                                                            {['calm', 'normal', 'chaotic'].map((mode) => (
-                                                                <button
-                                                                    key={mode}
-                                                                    onClick={() => setTheme({ ...theme, animationIntensity: mode as any })}
-                                                                    className={`flex-1 py-1.5 text-[10px] font-medium capitalize rounded-lg transition-all
-                                                                ${theme.animationIntensity === mode ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                                                                >
-                                                                    {t(`animation.${mode}`)}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-
-                                                        {/* Background Mode Select */}
-                                                        <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">{t('ui.background')}</label>
-                                                        <div className="flex bg-black/20 p-1 rounded-xl">
-                                                            <button
-                                                                onClick={() => setBgMode('default')}
-                                                                className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
-                                                        ${bgMode === 'default' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                                                            >
-                                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: DEFAULT_THEME.backgroundColor }}></div>
-                                                                {t('ui.default')}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setBgMode('ai')}
-                                                                className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
-                                                        ${bgMode === 'ai' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                                                            >
-                                                                <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: theme.backgroundColor }}></div>
-                                                                {t('ui.aiTheme')}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Theme Name Display & Reset */}
-                                                    <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-bold truncate max-w-[120px]">
-                                                                {theme.name === DEFAULT_THEME.name ? "Midnight Default" : theme.name}
-                                                            </span>
-                                                            {theme.name !== DEFAULT_THEME.name && (
-                                                                <button
-                                                                    onClick={handleResetTheme}
-                                                                    className="p-1 rounded-full hover:bg-white/10 transition-colors"
-                                                                    title={t('ui.resetToDefaultTheme')}
-                                                                >
-                                                                    <RotateCcw size={12} />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            )}
-
-                                            {/* --- QUEUE TAB --- */}
-                                            {panelTab === 'queue' && (
-                                                <QueueList
-                                                    playQueue={playQueue}
-                                                    currentSong={currentSong}
-                                                    onPlaySong={playSong}
-                                                    queueScrollRef={queueScrollRef}
-                                                    shouldScrollToCurrent={isPanelOpen && panelTab === 'queue'}
-                                                />
-                                            )}
-
-                                            {/* --- ACCOUNT TAB --- */}
-                                            {panelTab === 'account' && (
-                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col justify-start h-full">
-                                                    {user ? (
-                                                        <div className="flex flex-col gap-4">
-                                                            {/* User Info with Logout in Header */}
-                                                            <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-10 h-10 rounded-full overflow-hidden">
-                                                                        <img src={user.avatarUrl?.replace('http:', 'https:')} className="w-full h-full object-cover" alt={user.nickname} />
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <h3 className="font-bold text-sm">{user.nickname}</h3>
-                                                                            {user.vipType && user.vipType !== 0 && (
-                                                                                <Crown size={14} className="text-white fill-white" />
-                                                                            )}
-                                                                        </div>
-                                                                        <span className="text-[10px] font-mono opacity-40">ID: {user.userId}</span>
-                                                                    </div>
-                                                                </div>
-                                                                <button
-                                                                    onClick={handleLogout}
-                                                                    className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
-                                                                    title={t('account.logout')}
-                                                                >
-                                                                    <LogOut size={16} />
-                                                                </button>
-                                                            </div>
-
-                                                            {/* Audio Quality Settings (VIP Only) */}
-                                                            {user.vipType && user.vipType !== 0 && (
-                                                                <div className="bg-white/5 p-3 rounded-xl">
-                                                                    <div className="flex items-center gap-2 mb-2 opacity-60">
-                                                                        <SlidersHorizontal size={12} />
-                                                                        <span className="text-[10px] font-bold uppercase tracking-wide">{t('account.audioQuality')}</span>
-                                                                    </div>
-                                                                    <div className="flex gap-2">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setAudioQuality('exhigh');
-                                                                                localStorage.setItem('default_audio_quality', 'exhigh');
-                                                                            }}
-                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'exhigh' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                                                                }`}
-                                                                        >
-                                                                            {t('account.qualityExhigh')}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setAudioQuality('lossless');
-                                                                                localStorage.setItem('default_audio_quality', 'lossless');
-                                                                            }}
-                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'lossless' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                                                                }`}
-                                                                        >
-                                                                            {t('account.qualityLossless')}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setAudioQuality('hires');
-                                                                                localStorage.setItem('default_audio_quality', 'hires');
-                                                                            }}
-                                                                            className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'hires' ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                                                                }`}
-                                                                        >
-                                                                            {t('account.qualityHires')}
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            <div className="space-y-2 mt-auto">
-                                                                {/* Cache Management Section */}
-                                                                <div className="bg-white/5 p-3 rounded-xl mb-2">
-                                                                    <div className="flex items-center justify-between mb-2">
-                                                                        <div className="flex items-center gap-2 opacity-60">
-                                                                            <HardDrive size={12} />
-                                                                            <span className="text-[10px] font-bold uppercase tracking-wide">{t('account.storage')}</span>
-                                                                        </div>
-                                                                        <span className="text-[10px] font-mono">{cacheSize}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={handleClearCache}
-                                                                        className="w-full py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg flex items-center justify-center gap-2 text-[10px] font-bold transition-colors"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                        {t('account.clearCache')}
-                                                                    </button>
-                                                                </div>
-
-                                                                <button
-                                                                    onClick={handleSyncData}
-                                                                    disabled={isSyncing}
-                                                                    className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 text-xs font-bold opacity-80 transition-colors disabled:opacity-50"
-                                                                >
-                                                                    <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-                                                                    {isSyncing ? t('account.syncing') : t('account.syncData')}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center h-full gap-2 text-center opacity-50">
-                                                            <p>{t('account.guestMode')}</p>
-                                                            <button
-                                                                onClick={() => { setIsPanelOpen(false); navigateToHome(); }}
-                                                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-xs font-bold"
-                                                            >
-                                                                {t('account.loginOnHome')}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </motion.div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Toggle Button - Optimized for Mobile (Half hidden to right) */}
-                    <div className="pointer-events-auto fixed bottom-8 right-0 z-[60] pr-4 md:pr-8 group">
-                        <button
-                            onClick={() => setIsPanelOpen(!isPanelOpen)}
-                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
-                    translate-x-1/2 opacity-60 hover:translate-x-0 hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105 border-none
-                    ${isPanelOpen ? 'bg-white text-black translate-x-0 opacity-100' : 'bg-black/40 text-white'}`}
-                        >
-                            {isPanelOpen ? <X size={20} /> : <Settings2 size={20} />}
-                        </button>
-                    </div>
-                </div>
+                <UnifiedPanel
+                    isOpen={isPanelOpen}
+                    currentTab={panelTab}
+                    onTabChange={setPanelTab}
+                    onToggle={() => setIsPanelOpen(!isPanelOpen)}
+                    onNavigateHome={navigateToHome}
+                    coverUrl={coverUrl}
+                    currentSong={currentSong}
+                    onAlbumSelect={handleAlbumSelect}
+                    loopMode={loopMode}
+                    onToggleLoop={toggleLoop}
+                    onLike={handleLike}
+                    isLiked={currentSong ? likedSongIds.has(currentSong.id) : false}
+                    onGenerateAITheme={generateAITheme}
+                    isGeneratingTheme={isGeneratingTheme}
+                    hasLyrics={!!lyrics}
+                    theme={theme}
+                    onThemeChange={setTheme}
+                    bgMode={bgMode}
+                    onBgModeChange={setBgMode}
+                    onResetTheme={handleResetTheme}
+                    defaultTheme={DEFAULT_THEME}
+                    playQueue={playQueue}
+                    onPlaySong={playSong}
+                    queueScrollRef={queueScrollRef}
+                    user={user}
+                    onLogout={handleLogout}
+                    audioQuality={audioQuality}
+                    onAudioQualityChange={setAudioQuality}
+                    cacheSize={cacheSize}
+                    onClearCache={handleClearCache}
+                    onSyncData={handleSyncData}
+                    isSyncing={isSyncing}
+                />
             )}
         </div>
     );
