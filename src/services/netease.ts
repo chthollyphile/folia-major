@@ -52,6 +52,11 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
   return res.json();
 };
 
+const toHttps = (url?: string) => {
+  if (!url) return '';
+  return url.replace(/^http:/, 'https:');
+};
+
 export const neteaseApi = {
   // --- Login ---
   getQrKey: async () => {
@@ -67,11 +72,21 @@ export const neteaseApi = {
   },
 
   getLoginStatus: async () => {
-    return fetchWithCreds(`/login/status`);
+    const res = await fetchWithCreds(`/login/status`);
+    if (res.data?.profile) {
+      res.data.profile.avatarUrl = toHttps(res.data.profile.avatarUrl);
+      res.data.profile.backgroundUrl = toHttps(res.data.profile.backgroundUrl);
+    }
+    return res;
   },
 
   getUserAccount: async () => {
-    return fetchWithCreds(`/user/account`);
+    const res = await fetchWithCreds(`/user/account`);
+    if (res.profile) {
+      res.profile.avatarUrl = toHttps(res.profile.avatarUrl);
+      res.profile.backgroundUrl = toHttps(res.profile.backgroundUrl);
+    }
+    return res;
   },
 
   // --- User Data ---
@@ -84,20 +99,52 @@ export const neteaseApi = {
   },
 
   getUserPlaylists: async (uid: number, limit = 50, offset = 0) => {
-    return fetchWithCreds(`/user/playlist?uid=${uid}&limit=${limit}&offset=${offset}`);
+    const res = await fetchWithCreds(`/user/playlist?uid=${uid}&limit=${limit}&offset=${offset}`);
+    if (res.playlist) {
+      res.playlist.forEach((p: any) => {
+        p.coverImgUrl = toHttps(p.coverImgUrl);
+        if (p.creator) p.creator.avatarUrl = toHttps(p.creator.avatarUrl);
+      });
+    }
+    return res;
   },
 
   // --- Playlist Data ---
   getPlaylistTracks: async (id: number, limit = 50, offset = 0) => {
-    return fetchWithCreds(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
+    const res = await fetchWithCreds(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
+    if (res.songs) {
+      res.songs.forEach((s: any) => {
+        if (s.al) s.al.picUrl = toHttps(s.al.picUrl);
+      });
+    }
+    return res;
   },
 
   getPlaylistDetail: async (id: number) => {
-    return fetchWithCreds(`/playlist/detail?id=${id}`);
+    const res = await fetchWithCreds(`/playlist/detail?id=${id}`);
+    if (res.playlist) {
+      res.playlist.coverImgUrl = toHttps(res.playlist.coverImgUrl);
+      if (res.playlist.creator) res.playlist.creator.avatarUrl = toHttps(res.playlist.creator.avatarUrl);
+      if (res.playlist.tracks) {
+        res.playlist.tracks.forEach((t: any) => {
+          if (t.al) t.al.picUrl = toHttps(t.al.picUrl);
+        });
+      }
+    }
+    return res;
   },
 
   getAlbum: async (id: number) => {
-    return fetchWithCreds(`/album?id=${id}`);
+    const res = await fetchWithCreds(`/album?id=${id}`);
+    if (res.album) {
+      res.album.picUrl = toHttps(res.album.picUrl);
+    }
+    if (res.songs) {
+      res.songs.forEach((s: any) => {
+        if (s.al) s.al.picUrl = toHttps(s.al.picUrl);
+      });
+    }
+    return res;
   },
 
   // --- Song Data ---
@@ -115,6 +162,12 @@ export const neteaseApi = {
 
   // --- Search ---
   cloudSearch: async (keywords: string, limit = 30, offset = 0) => {
-    return fetchWithCreds(`/cloudsearch?keywords=${encodeURIComponent(keywords)}&limit=${limit}&offset=${offset}`);
-  }
+    const res = await fetchWithCreds(`/cloudsearch?keywords=${encodeURIComponent(keywords)}&limit=${limit}&offset=${offset}`);
+    if (res.result && res.result.songs) {
+      res.result.songs.forEach((s: any) => {
+        if (s.al) s.al.picUrl = toHttps(s.al.picUrl);
+      });
+    }
+    return res;
+  },
 };
