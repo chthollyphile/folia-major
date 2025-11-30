@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X, ListMusic, User as UserIcon, LogOut, RefreshCw, Disc, SlidersHorizontal, LayoutGrid, Home as HomeIcon, RotateCcw, Trash2, HardDrive, Heart, Crown } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { List, useListRef, type ListImperativeAPI } from 'react-window';
 import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { generateThemeFromLyrics } from './services/gemini';
@@ -37,6 +38,123 @@ const formatBytes = (bytes: number) => {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// Virtualized Queue List Component using react-window for performance
+interface QueueListProps {
+    playQueue: SongResult[];
+    currentSong: SongResult | null;
+    onPlaySong: (song: SongResult, queue: SongResult[]) => void;
+    queueScrollRef: React.RefObject<HTMLDivElement>;
+    shouldScrollToCurrent?: boolean;
+}
+
+const QueueList: React.FC<QueueListProps> = ({ playQueue, currentSong, onPlaySong, queueScrollRef, shouldScrollToCurrent = false }) => {
+    const ITEM_HEIGHT = 50;
+    const CONTAINER_HEIGHT = 200;
+    const listRef = useListRef(null);
+    const isInitialMountRef = useRef(true);
+    const lastScrolledIndexRef = useRef<number>(-1);
+    const wasOpenRef = useRef(false);
+
+    // Reset initial mount state when panel is opened
+    useEffect(() => {
+        if (shouldScrollToCurrent && !wasOpenRef.current) {
+            // Panel just opened, reset to allow instant scroll
+            isInitialMountRef.current = true;
+            wasOpenRef.current = true;
+        } else if (!shouldScrollToCurrent) {
+            // Panel closed, reset state
+            wasOpenRef.current = false;
+        }
+    }, [shouldScrollToCurrent]);
+
+    // Auto-scroll to current song (only when shouldScrollToCurrent is true)
+    useEffect(() => {
+        if (shouldScrollToCurrent && currentSong && listRef.current) {
+            const currentIndex = playQueue.findIndex(s => s.id === currentSong.id);
+            if (currentIndex >= 0) {
+                // Check if this is the initial mount or if the song changed
+                const isInitialMount = isInitialMountRef.current;
+                const songChanged = lastScrolledIndexRef.current !== currentIndex && lastScrolledIndexRef.current !== -1;
+                
+                // Use instant scroll for initial mount or when panel just opened, smooth for song changes
+                const behavior = (isInitialMount || !songChanged) ? 'instant' : 'smooth';
+                
+                // Small delay to ensure DOM is ready (only for smooth scroll)
+                const delay = isInitialMount ? 0 : 50;
+                
+                setTimeout(() => {
+                    if (listRef.current) {
+                        listRef.current.scrollToRow({
+                            index: currentIndex,
+                            align: 'center',
+                            behavior: behavior as 'instant' | 'smooth'
+                        });
+                        lastScrolledIndexRef.current = currentIndex;
+                        isInitialMountRef.current = false;
+                    }
+                }, delay);
+            }
+        }
+    }, [shouldScrollToCurrent, currentSong?.id, playQueue, listRef]);
+
+    // Row component for rendering each item
+    const RowComponent = useCallback(({ index, style, ariaAttributes }: { 
+        index: number; 
+        style: React.CSSProperties;
+        ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem" };
+    }) => {
+        const song = playQueue[index];
+        const isActive = currentSong?.id === song.id;
+        
+        return (
+            <div
+                style={style}
+                onClick={() => onPlaySong(song, playQueue)}
+                data-active={isActive}
+                {...ariaAttributes}
+                className={`flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
+                    ${isActive ? 'bg-white/20' : 'hover:bg-white/5'}`}
+            >
+                <div className={`w-1 h-6 rounded-full ${isActive ? 'bg-white' : 'bg-transparent'}`} />
+                <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium truncate">{song.name}</div>
+                    <div className="text-[10px] opacity-40 truncate">{song.ar?.map(a => a.name).join(', ')}</div>
+                </div>
+            </div>
+        );
+    }, [playQueue, currentSong, onPlaySong]);
+
+    if (playQueue.length === 0) {
+        return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
+                <div className="flex items-center justify-center h-full text-xs opacity-40">
+                    播放列表为空
+                </div>
+            </motion.div>
+        );
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
+            <div
+                ref={queueScrollRef}
+                className="flex-1 -mx-2 px-2"
+            >
+                <List
+                    listRef={listRef}
+                    rowCount={playQueue.length}
+                    rowHeight={ITEM_HEIGHT}
+                    rowComponent={RowComponent}
+                    rowProps={{}}
+                    overscanCount={5}
+                    className="custom-scrollbar"
+                    style={{ height: CONTAINER_HEIGHT, width: '100%' }}
+                />
+            </div>
+        </motion.div>
+    );
 };
 
 export default function App() {
@@ -189,18 +307,8 @@ export default function App() {
         if (isPanelOpen && panelTab === 'account') {
             updateCacheSize();
         }
-
-        // Auto-scroll to current song in queue
-        if (isPanelOpen && panelTab === 'queue' && currentSong) {
-            // Small timeout to allow render
-            setTimeout(() => {
-                const activeEl = queueScrollRef.current?.querySelector('[data-active="true"]');
-                if (activeEl) {
-                    activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                }
-            }, 100);
-        }
-    }, [isPanelOpen, panelTab, currentSong]);
+        // Auto-scroll to current song is now handled by QueueList component
+    }, [isPanelOpen, panelTab]);
 
     const updateCacheSize = async () => {
         const size = await getCacheUsage();
@@ -390,6 +498,112 @@ export default function App() {
         }
         return false;
     };
+
+    const checkAndUpdatePlaylists = useCallback(async () => {
+        if (!user) return;
+
+        try {
+            // 获取最新的歌单列表
+            const plRes = await neteaseApi.getUserPlaylists(user.userId);
+            if (!plRes.playlist) return;
+
+            const newPlaylists = plRes.playlist;
+            
+            // 从缓存中获取旧的歌单列表
+            const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
+            
+            if (!cachedPlaylists) {
+                // 如果没有缓存，直接保存新的歌单列表
+                setPlaylists(newPlaylists);
+                await saveToCache('user_playlists', newPlaylists);
+                return;
+            }
+
+            // 创建旧歌单的映射表，以 id 为 key
+            const cachedMap = new Map<number, NeteasePlaylist>();
+            cachedPlaylists.forEach(pl => {
+                cachedMap.set(pl.id, pl);
+            });
+
+            // 检查每个新歌单是否有变化
+            const changedPlaylistIds: number[] = [];
+            newPlaylists.forEach(newPl => {
+                const oldPl = cachedMap.get(newPl.id);
+                
+                if (!oldPl) {
+                    // 新歌单，标记为需要更新
+                    changedPlaylistIds.push(newPl.id);
+                } else {
+                    // 检查 trackUpdateTime 和 updateTime 是否有变化
+                    const trackTimeChanged = (newPl.trackUpdateTime || 0) !== (oldPl.trackUpdateTime || 0);
+                    const updateTimeChanged = (newPl.updateTime || 0) !== (oldPl.updateTime || 0);
+                    
+                    if (trackTimeChanged || updateTimeChanged) {
+                        changedPlaylistIds.push(newPl.id);
+                    }
+                }
+            });
+
+            // 检查是否有删除的歌单（在旧列表中但不在新列表中）
+            const newPlaylistIds = new Set(newPlaylists.map(pl => pl.id));
+            cachedPlaylists.forEach(oldPl => {
+                if (!newPlaylistIds.has(oldPl.id)) {
+                    // 歌单已删除，清除其缓存
+                    changedPlaylistIds.push(oldPl.id);
+                }
+            });
+
+            // 清除有变化的歌单的缓存
+            if (changedPlaylistIds.length > 0) {
+                console.log(`[PlaylistSync] 发现 ${changedPlaylistIds.length} 个歌单有变化，清除缓存:`, changedPlaylistIds);
+                
+                try {
+                    const db = await openDB();
+                    const tx = db.transaction(['api_cache'], 'readwrite');
+                    const store = tx.objectStore('api_cache');
+                    
+                    // 批量删除有变化的歌单缓存
+                    const deletePromises = changedPlaylistIds.flatMap(playlistId => [
+                        new Promise<void>((resolve, reject) => {
+                            const req = store.delete(`playlist_tracks_${playlistId}`);
+                            req.onsuccess = () => resolve();
+                            req.onerror = () => reject(req.error);
+                        }),
+                        new Promise<void>((resolve, reject) => {
+                            const req = store.delete(`playlist_detail_${playlistId}`);
+                            req.onsuccess = () => resolve();
+                            req.onerror = () => reject(req.error);
+                        })
+                    ]);
+                    
+                    await Promise.all(deletePromises);
+                    console.log(`[PlaylistSync] 已清除 ${changedPlaylistIds.length} 个歌单的缓存`);
+                } catch (e) {
+                    console.error("[PlaylistSync] 清除缓存失败", e);
+                }
+            }
+
+            // 更新歌单列表缓存和状态
+            setPlaylists(newPlaylists);
+            await saveToCache('user_playlists', newPlaylists);
+
+        } catch (e) {
+            console.error("[PlaylistSync] 检查歌单更新失败", e);
+        }
+    }, [user]);
+
+    // 在返回主页时检查并更新歌单缓存
+    const lastCheckTimeRef = useRef<number>(0);
+    useEffect(() => {
+        if (currentView === 'home' && user && !selectedPlaylist && !selectedAlbumId) {
+            // 防抖：至少间隔 10 秒才检查一次
+            const now = Date.now();
+            if (now - lastCheckTimeRef.current > 10000) {
+                lastCheckTimeRef.current = now;
+                checkAndUpdatePlaylists();
+            }
+        }
+    }, [currentView, user, selectedPlaylist, selectedAlbumId, checkAndUpdatePlaylists]);
 
     const handleSyncData = async () => {
         if (!user) return;
@@ -1298,25 +1512,13 @@ export default function App() {
 
                                             {/* --- QUEUE TAB --- */}
                                             {panelTab === 'queue' && (
-                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
-                                                    <div ref={queueScrollRef} className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 space-y-1">
-                                                        {playQueue.map((s, i) => (
-                                                            <div
-                                                                key={`${s.id}-${i}`}
-                                                                onClick={() => playSong(s, playQueue)}
-                                                                data-active={currentSong?.id === s.id}
-                                                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors
-                                                        ${currentSong?.id === s.id ? 'bg-white/20' : 'hover:bg-white/5'}`}
-                                                            >
-                                                                <div className={`w-1 h-6 rounded-full ${currentSong?.id === s.id ? 'bg-white' : 'bg-transparent'}`} />
-                                                                <div className="min-w-0">
-                                                                    <div className="text-xs font-medium truncate">{s.name}</div>
-                                                                    <div className="text-[10px] opacity-40 truncate">{s.ar?.map(a => a.name).join(', ')}</div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </motion.div>
+                                                <QueueList
+                                                    playQueue={playQueue}
+                                                    currentSong={currentSong}
+                                                    onPlaySong={playSong}
+                                                    queueScrollRef={queueScrollRef}
+                                                    shouldScrollToCurrent={isPanelOpen && panelTab === 'queue'}
+                                                />
                                             )}
 
                                             {/* --- ACCOUNT TAB --- */}
