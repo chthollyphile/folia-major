@@ -4,6 +4,10 @@
 
 Folia is an online music player focused on delivering dazzling lyric playback effects.
 
+# Showcase
+
+https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
+
 ## Prerequisites
 
 ### Backend API
