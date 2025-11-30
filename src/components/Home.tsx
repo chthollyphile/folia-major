@@ -5,8 +5,65 @@ import { neteaseApi } from '../services/netease';
 import { NeteaseUser, NeteasePlaylist, SongResult } from '../types';
 import PlaylistView from './PlaylistView';
 import HelpModal from './HelpModal';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
+
+// Carousel Item Component with safe blur animation
+const CarouselItem: React.FC<{
+    playlist: NeteasePlaylist;
+    distance: number;
+    isActive: boolean;
+    xOffset: number;
+    scale: number;
+    opacity: number;
+    zIndex: number;
+    rotateY: number;
+    onSelect: () => void;
+    onFocus: () => void;
+}> = ({ playlist, distance, isActive, xOffset, scale, opacity, zIndex, rotateY, onSelect, onFocus }) => {
+    const blurTarget = isActive ? 0 : 2;
+    const blurMotion = useMotionValue(blurTarget);
+    const blurString = useTransform(blurMotion, (value) => {
+        const clamped = Math.max(0, Math.min(10, isNaN(value) || !isFinite(value) ? 0 : value));
+        return `blur(${clamped}px)`;
+    });
+
+    useEffect(() => {
+        const controls = animate(blurMotion, blurTarget, {
+            type: 'spring',
+            stiffness: 300,
+            damping: 30
+        });
+        return () => controls.stop();
+    }, [blurTarget, blurMotion]);
+
+    return (
+        <motion.div
+            className="absolute cursor-pointer"
+            initial={false}
+            animate={{
+                x: xOffset,
+                scale: scale,
+                opacity: opacity,
+                zIndex: zIndex,
+                rotateY: rotateY,
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            style={{
+                filter: blurString
+            }}
+            onClick={() => {
+                if (isActive) onSelect();
+                else onFocus();
+            }}
+        >
+            <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
+                <img src={playlist.coverImgUrl?.replace('http:', 'https:')} alt={playlist.name} className="w-full h-full object-cover pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
+            </div>
+        </motion.div>
+    );
+};
 
 interface HomeProps {
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
@@ -351,46 +408,21 @@ const Home: React.FC<HomeProps> = ({
                                     const xOffset = distance * 240;
                                     const zIndex = 10 - Math.abs(distance);
                                     const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
-                                    const blurTarget = isActive ? 0 : 2;
-
-                                    // Use motion value for blur to ensure valid values
-                                    const blurMotion = useMotionValue(blurTarget);
-                                    const blurString = useTransform(blurMotion, (value) => {
-                                        const clamped = Math.max(0, Math.min(10, isNaN(value) ? 0 : value));
-                                        return `blur(${clamped}px)`;
-                                    });
-
-                                    // Update blur value when target changes
-                                    useEffect(() => {
-                                        blurMotion.set(blurTarget);
-                                    }, [blurTarget, blurMotion]);
 
                                     return (
-                                        <motion.div
+                                        <CarouselItem
                                             key={pl.id}
-                                            className="absolute cursor-pointer"
-                                            initial={false}
-                                            animate={{
-                                                x: xOffset,
-                                                scale: scale,
-                                                opacity: opacity,
-                                                zIndex: zIndex,
-                                                rotateY: rotateY,
-                                            }}
-                                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                            style={{
-                                                filter: blurString
-                                            }}
-                                            onClick={() => {
-                                                if (isActive) onSelectPlaylist(pl);
-                                                else setFocusedIndex(i);
-                                            }}
-                                        >
-                                            <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
-                                                <img src={pl.coverImgUrl?.replace('http:', 'https:')} alt={pl.name} className="w-full h-full object-cover pointer-events-none" />
-                                                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
-                                            </div>
-                                        </motion.div>
+                                            playlist={pl}
+                                            distance={distance}
+                                            isActive={isActive}
+                                            xOffset={xOffset}
+                                            scale={scale}
+                                            opacity={opacity}
+                                            zIndex={zIndex}
+                                            rotateY={rotateY}
+                                            onSelect={() => onSelectPlaylist(pl)}
+                                            onFocus={() => setFocusedIndex(i)}
+                                        />
                                     );
                                 })
                             ) : (
