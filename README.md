@@ -1,3 +1,5 @@
+![folia](/img/1.png)
+
 # Folia
 
 Folia is an online music player focused on delivering dazzling lyric playback effects.
