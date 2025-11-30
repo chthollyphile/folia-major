@@ -27,7 +27,8 @@ export default {
     "clickToPlay": "Click play to start",
     "liked": "Added to Liked Songs",
     "likeFailed": "Failed to like song",
-    "unliked": "Removed from Liked"
+    "unliked": "Removed from Liked",
+    "songUnavailable": "Song has been taken down"
   },
   "ui": {
     "noTrack": "No Track",

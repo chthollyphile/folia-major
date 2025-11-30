@@ -575,6 +575,7 @@ export default function App() {
         setLyrics(null);
         setCurrentSong(song);
         setCachedCoverUrl(null);
+        setAudioSrc(null);
 
         // Revoke old blob
         if (blobUrlRef.current) {
@@ -621,7 +622,12 @@ export default function App() {
                 // Fetch URL from API
                 const urlRes = await neteaseApi.getSongUrl(song.id, audioQuality);
                 let url = urlRes.data?.[0]?.url;
-                if (!url) throw new Error("No URL found");
+                if (!url) {
+                    console.warn("[App] Song URL is empty, likely unavailable");
+                    setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+                    setPlayerState(PlayerState.IDLE);
+                    return;
+                }
                 if (url && url.startsWith('http:')) {
                     url = url.replace('http:', 'https:');
                 }

@@ -27,7 +27,8 @@ export default {
     "clickToPlay": "点击播放开始",
     "liked": "已添加到喜欢的音乐",
     "likeFailed": "添加失败",
-    "unliked": "已取消喜欢"
+    "unliked": "已取消喜欢",
+    "songUnavailable": "歌曲已下架"
   },
   "ui": {
     "noTrack": "无音轨",
