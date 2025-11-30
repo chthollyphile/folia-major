@@ -83,6 +83,8 @@ export interface SongResult {
   };
   ar?: Artist[];
   dt?: number; // duration in ms
+  alia?: string[]; // 别名
+  tns?: string[]; // 翻译名
 }
 
 export interface SearchResponse {

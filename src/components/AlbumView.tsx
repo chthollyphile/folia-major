@@ -4,6 +4,7 @@ import { SongResult } from '../types';
 import { neteaseApi } from '../services/netease';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { formatSongName } from '../utils/songNameFormatter';
 
 interface AlbumViewProps {
     albumId: number;
@@ -158,8 +159,8 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                         </div>
 
                                         <div className="flex-1 min-w-0 pl-3 md:pl-4">
-                                            <div className="text-sm font-medium truncate opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
-                                                {track.name}
+                                            <div className="text-sm font-medium opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
+                                                {formatSongName(track)}
                                             </div>
                                             <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                                                 {track.ar?.map(a => a.name).join(', ')}

@@ -5,6 +5,7 @@ import { neteaseApi } from '../services/netease';
 import { saveToCache, getFromCache } from '../services/db';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { formatSongName } from '../utils/songNameFormatter';
 
 interface PlaylistViewProps {
   playlist: NeteasePlaylist;
@@ -306,26 +307,28 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 </div>
 
                 <div className="flex-1 min-w-0 pl-3 md:pl-4">
-                  <div className="text-sm font-medium truncate opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
-                    {track.name}
-                    {track.al?.name &&
-                      <span
-                        className="ml-2 text-xs opacity-30 hidden md:inline-block font-normal cursor-pointer hover:opacity-100 hover:underline transition-all"
-                        style={{ color: 'var(--text-secondary)' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const albumId = track.al?.id || track.album?.id;
-                          if (albumId) {
-                            onSelectAlbum(albumId);
-                          }
-                        }}
-                      >
-                        {track.al.name}
-                      </span>
-                    }
+                  <div className="text-sm font-medium opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
+                    {formatSongName(track)}
                   </div>
                   <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {track.ar?.map(a => a.name).join(', ')}
+                    {(track.al?.name || track.album?.name) && (
+                      <>
+                        <span className="mx-1.5">•</span>
+                        <span
+                          className="cursor-pointer hover:opacity-100 hover:underline transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const albumId = track.al?.id || track.album?.id;
+                            if (albumId) {
+                              onSelectAlbum(albumId);
+                            }
+                          }}
+                        >
+                          {track.al?.name || track.album?.name}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 

@@ -6,6 +6,7 @@ import { NeteaseUser, NeteasePlaylist, SongResult } from '../types';
 import PlaylistView from './PlaylistView';
 import HelpModal from './HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatSongName } from '../utils/songNameFormatter';
 
 interface HomeProps {
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
@@ -463,7 +464,9 @@ const Home: React.FC<HomeProps> = ({
                                                 </div>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-bold truncate text-base" style={{ color: 'var(--text-primary)' }}>{track.name}</div>
+                                                <div className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                                                    {formatSongName(track)}
+                                                </div>
                                                 <div className="text-xs opacity-50 truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                                                     {track.ar?.map(a => a.name).join(', ')} •
                                                     <span
