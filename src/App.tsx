@@ -8,6 +8,7 @@ import { generateThemeFromLyrics } from './services/gemini';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
+import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import UnifiedPanel from './components/UnifiedPanel';
@@ -90,7 +91,6 @@ export default function App() {
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account'>('cover');
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
-    const [isControlsHovered, setIsControlsHovered] = useState(false);
     const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
     const [isSyncing, setIsSyncing] = useState(false);
     const [cacheSize, setCacheSize] = useState<string>("0 B");
@@ -1021,15 +1021,6 @@ export default function App() {
 
     const coverUrl = getCoverUrl();
 
-    // Control Bar logic
-    const showExpandedControls = isControlsHovered || (playerState !== PlayerState.PLAYING && currentView !== 'home');
-
-    const handlePlayerBarClick = () => {
-        if (currentView === 'home') {
-            navigateToPlayer();
-        }
-    };
-
     const handleLike = async () => {
         if (!currentSong) return;
 
@@ -1184,82 +1175,24 @@ export default function App() {
 
             {/* --- GLOBAL CONTROLS (Floating Glass Pill) --- */}
             {currentSong && (
-                <div
-                    className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[60] w-full flex justify-center transition-all duration-300 pointer-events-none
-               ${currentView === 'home' ? 'max-w-[calc(100vw-120px)] md:max-w-lg' : 'max-w-lg px-4'}`}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {/* Wrapper for hover detection - Pointer events auto to capture hover */}
-                    <div
-                        className="pointer-events-auto w-full flex justify-center"
-                        onMouseEnter={() => setIsControlsHovered(true)}
-                        onMouseLeave={() => setIsControlsHovered(false)}
-                    >
-                        <motion.div
-                            layout
-                            onClick={handlePlayerBarClick}
-                            className={`backdrop-blur-3xl shadow-2xl overflow-hidden cursor-pointer rounded-full relative transition-colors duration-300
-                        ${showExpandedControls ? 'p-3 bg-black/40 w-full' : 'px-4 py-2 bg-black/20 hover:bg-black/30 w-[80%] md:w-[60%]'}`}
-                        >
-                            <motion.div layout className="w-full">
-                                {showExpandedControls ? (
-                                    <div className="flex items-center gap-4 w-full">
-                                        <button
-                                            onClick={togglePlay}
-                                            disabled={!audioSrc}
-                                            className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
-                                            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
-                                        >
-                                            {playerState === PlayerState.PLAYING ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
-                                        </button>
-
-                                        <div className="flex-1 flex flex-col justify-center gap-2 min-w-0 px-2">
-                                            {/* Title Row */}
-                                            <div className="text-center text-sm font-bold truncate px-2" style={{ color: 'var(--text-primary)' }}>
-                                                {currentSong?.name || t('ui.noTrack')}
-                                            </div>
-
-                                            {/* Time & Bar Row */}
-                                            <div className="w-full px-2">
-                                                <ProgressBar
-                                                    currentTime={currentTime}
-                                                    duration={duration}
-                                                    onSeek={(time) => {
-                                                        if (audioRef.current) audioRef.current.currentTime = time;
-                                                    }}
-                                                    primaryColor="var(--text-primary)"
-                                                    secondaryColor="var(--text-secondary)"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={toggleLoop}
-                                            className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? 'bg-white/20' : 'opacity-40 hover:opacity-100'}`}
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    // Collapsed View
-                                    // Collapsed View
-                                    <div className="flex items-center w-full justify-center h-8 px-4">
-                                        <ProgressBar
-                                            currentTime={currentTime}
-                                            duration={duration}
-                                            onSeek={(time) => {
-                                                if (audioRef.current) audioRef.current.currentTime = time;
-                                            }}
-                                            primaryColor="var(--text-primary)"
-                                            secondaryColor="var(--text-secondary)"
-                                        />
-                                    </div>
-                                )}
-                            </motion.div>
-                        </motion.div>
-                    </div>
-                </div>
+                <FloatingPlayerControls
+                    currentSong={currentSong}
+                    playerState={playerState}
+                    currentTime={currentTime}
+                    duration={duration}
+                    loopMode={loopMode}
+                    currentView={currentView}
+                    audioSrc={audioSrc}
+                    onSeek={(time) => {
+                        if (audioRef.current) audioRef.current.currentTime = time;
+                    }}
+                    onTogglePlay={togglePlay}
+                    onToggleLoop={toggleLoop}
+                    onNavigateToPlayer={navigateToPlayer}
+                    noTrackText={t('ui.noTrack')}
+                    primaryColor="var(--text-primary)"
+                    secondaryColor="var(--text-secondary)"
+                />
             )}
 
             {/* --- UNIFIED PANEL (Player View Only) --- */}
