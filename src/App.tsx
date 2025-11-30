@@ -1494,7 +1494,7 @@ export default function App() {
                                                     <div className="pt-2 border-t border-white/5 flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-xs font-bold truncate max-w-[120px]">
-                                                                {theme.name === DEFAULT_THEME.name ? "Default Night" : theme.name}
+                                                                {theme.name === DEFAULT_THEME.name ? "Midnight Default" : theme.name}
                                                             </span>
                                                             {theme.name !== DEFAULT_THEME.name && (
                                                                 <button
