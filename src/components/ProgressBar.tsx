@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';
 
 interface ProgressBarProps {
@@ -33,26 +33,49 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const progressRef = useRef<HTMLDivElement>(null);
     const timeRef = useRef<HTMLSpanElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const isDraggingRef = useRef(false);
 
-    // Update UI directly from MotionValue without re-rendering
-    useMotionValueEvent(currentTime, "change", (latest) => {
-        if (isDragging) return;
+    // Keep ref in sync with state
+    useEffect(() => {
+        isDraggingRef.current = isDragging;
+    }, [isDragging]);
 
+    // Helper function to update UI
+    const updateUI = (value: number, skipDragCheck = false) => {
+        if (!skipDragCheck && isDraggingRef.current) return;
+        
         // Update Progress Bar Width
         if (progressRef.current) {
-            const percent = duration > 0 ? (latest / duration) * 100 : 0;
+            const percent = duration > 0 ? (value / duration) * 100 : 0;
             progressRef.current.style.width = `${percent}%`;
         }
 
         // Update Time Text
         if (timeRef.current) {
-            timeRef.current.innerText = formatTime(latest);
+            timeRef.current.innerText = formatTime(value);
         }
 
-        // Update Input Value (so it stays in sync if user clicks)
+        // Update Input Value
         if (inputRef.current) {
-            inputRef.current.value = latest.toString();
+            inputRef.current.value = value.toString();
         }
+    };
+
+    // Initialize UI with current value on mount (useLayoutEffect to sync before paint)
+    useLayoutEffect(() => {
+        const initialValue = currentTime.get();
+        updateUI(initialValue, true); // Skip drag check on mount
+    }, []); // Only run on mount
+
+    // Re-sync when duration changes
+    useEffect(() => {
+        const currentValue = currentTime.get();
+        updateUI(currentValue, true); // Skip drag check when duration changes
+    }, [duration]);
+
+    // Update UI directly from MotionValue without re-rendering
+    useMotionValueEvent(currentTime, "change", (latest) => {
+        updateUI(latest);
     });
 
     const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
@@ -82,7 +105,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             <div className="relative h-1.5 flex-1 bg-white/10 rounded-full flex items-center group cursor-pointer">
                 <div
                     ref={progressRef}
-                    className="absolute top-0 left-0 h-full rounded-full transition-all duration-75 ease-linear pointer-events-none"
+                    className="absolute top-0 left-0 h-full rounded-full pointer-events-none"
                     style={{ width: '0%', backgroundColor: primaryColor }}
                 />
                 <input

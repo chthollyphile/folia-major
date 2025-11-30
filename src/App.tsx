@@ -1207,7 +1207,7 @@ export default function App() {
                                         <button
                                             onClick={togglePlay}
                                             disabled={!audioSrc}
-                                            className="w-12 h-12 rounded-full bg-[var(--text-primary)] text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
+                                            className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
                                             style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                         >
                                             {playerState === PlayerState.PLAYING ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
