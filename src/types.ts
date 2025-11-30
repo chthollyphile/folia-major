@@ -1,4 +1,3 @@
-
 export interface Word {
   text: string;
   startTime: number; // Seconds
@@ -27,7 +26,7 @@ export interface Theme {
   secondaryColor: string;
   fontStyle: 'sans' | 'serif' | 'mono';
   animationIntensity: 'calm' | 'normal' | 'chaotic';
-  wordColors?: { word: string; color: string }[];
+  wordColors?: { word: string; color: string; }[];
   lyricsIcons?: string[];
 }
 
@@ -53,6 +52,8 @@ export interface NeteasePlaylist {
   coverImgUrl: string;
   trackCount: number;
   playCount: number;
+  updateTime: number;
+  trackUpdateTime: number;
   creator: NeteaseUser;
   description?: string;
 }

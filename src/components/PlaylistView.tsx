@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2 } from 'lucide-react';
 import { NeteasePlaylist, SongResult } from '../types';
@@ -35,33 +33,70 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
 
     try {
       const currentOffset = reset ? 0 : offset;
+      const targetTime = playlist.trackUpdateTime || playlist.updateTime || 0;
 
       if (reset) {
-        const cached = await getFromCache<SongResult[]>(CACHE_KEY);
-        if (cached && cached.length > 0) {
-          setTracks(cached);
-          setOffset(cached.length);
+        const cached = await getFromCache<{ tracks: SongResult[], snapshotTime: number; } | SongResult[]>(CACHE_KEY);
+
+        let cachedTracks: SongResult[] = [];
+        let cachedTime = 0;
+
+        if (Array.isArray(cached)) {
+          // Old format migration
+          cachedTracks = cached;
+        } else if (cached && cached.tracks) {
+          cachedTracks = cached.tracks;
+          cachedTime = cached.snapshotTime;
+        }
+
+        // Check if cache is valid and fresh
+        if (cachedTracks.length > 0 && targetTime > 0 && cachedTime === targetTime) {
+          console.log("[Playlist] Cache hit and fresh", { cachedTime, targetTime });
+          setTracks(cachedTracks);
+          setOffset(cachedTracks.length);
           setLoading(false);
-          setHasMore(cached.length < playlist.trackCount);
+          setHasMore(cachedTracks.length < playlist.trackCount);
           return;
         }
-      }
 
-      const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, currentOffset);
+        console.log("[Playlist] Cache miss or stale, fetching fresh...", { cachedTime, targetTime });
 
-      if (res.songs && res.songs.length > 0) {
-        const newTracks = res.songs;
-        setTracks(prev => {
-          const combined = reset ? newTracks : [...prev, ...newTracks];
-          if (reset || combined.length > prev.length) {
-            saveToCache(CACHE_KEY, combined);
+        // Fetch first chunk immediately
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, 0);
+        if (res.songs && res.songs.length > 0) {
+          const initialTracks = res.songs;
+          setTracks(initialTracks);
+          setOffset(initialTracks.length);
+
+          // Determine if we need more
+          const needsMore = initialTracks.length < playlist.trackCount;
+          setHasMore(needsMore);
+
+          // Save partial result immediately
+          saveToCache(CACHE_KEY, { tracks: initialTracks, snapshotTime: targetTime });
+
+          // Trigger background sync for the rest
+          if (needsMore) {
+            fetchRemainingTracks(initialTracks, targetTime);
           }
-          return combined;
-        });
-        setOffset(currentOffset + newTracks.length);
-        setHasMore(newTracks.length === LIMIT);
+        } else {
+          setHasMore(false);
+          setTracks([]);
+        }
       } else {
-        setHasMore(false);
+        // Manual Load More (fallback)
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, currentOffset);
+        if (res.songs && res.songs.length > 0) {
+          setTracks(prev => {
+            const combined = [...prev, ...res.songs];
+            saveToCache(CACHE_KEY, { tracks: combined, snapshotTime: targetTime });
+            return combined;
+          });
+          setOffset(currentOffset + res.songs.length);
+          setHasMore(res.songs.length === LIMIT);
+        } else {
+          setHasMore(false);
+        }
       }
     } catch (error) {
       console.error("Failed to load tracks", error);
@@ -70,9 +105,51 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
     }
   };
 
+  const fetchRemainingTracks = async (initialTracks: SongResult[], targetTime: number) => {
+    console.log("[Playlist] Starting background sync for remaining tracks...");
+    let currentTracks = [...initialTracks];
+    let currentOffset = initialTracks.length;
+    let fetching = true;
+
+    // Safety break
+    let safetyCount = 0;
+    const MAX_LOOPS = 50;
+
+    while (fetching && currentTracks.length < playlist.trackCount && safetyCount < MAX_LOOPS) {
+      safetyCount++;
+      try {
+        await new Promise(r => setTimeout(r, 100));
+
+        const res = await neteaseApi.getPlaylistTracks(playlist.id, LIMIT, currentOffset);
+        if (res.songs && res.songs.length > 0) {
+          const newChunk = res.songs;
+          currentTracks = [...currentTracks, ...newChunk];
+          currentOffset += newChunk.length;
+
+          setTracks([...currentTracks]);
+
+          // Update cache
+          saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime });
+
+          if (newChunk.length < LIMIT) {
+            fetching = false;
+          }
+        } else {
+          fetching = false;
+        }
+      } catch (e) {
+        console.error("[Playlist] Background sync failed", e);
+        fetching = false;
+      }
+    }
+    setHasMore(false);
+    console.log("[Playlist] Background sync complete");
+  };
+
   useEffect(() => {
     loadTracks(true);
   }, [playlist.id]);
+
 
   // Scroll Persistence
   const hasRestoredScroll = useRef(false);
