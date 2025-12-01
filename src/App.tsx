@@ -430,12 +430,18 @@ export default function App() {
 
             // 检查每个新歌单是否有变化
             const changedPlaylistIds: number[] = [];
-            newPlaylists.forEach(newPl => {
+            let likedSongsPlaylistChanged = false; // 标记"喜欢的音乐"歌单是否有变化
+            
+            newPlaylists.forEach((newPl, index) => {
                 const oldPl = cachedMap.get(newPl.id);
+                const isLikedSongsPlaylist = index === 0; // 第一个歌单是"喜欢的音乐"
 
                 if (!oldPl) {
                     // 新歌单，标记为需要更新
                     changedPlaylistIds.push(newPl.id);
+                    if (isLikedSongsPlaylist) {
+                        likedSongsPlaylistChanged = true;
+                    }
                 } else {
                     // 检查 trackUpdateTime 和 updateTime 是否有变化
                     const trackTimeChanged = (newPl.trackUpdateTime || 0) !== (oldPl.trackUpdateTime || 0);
@@ -443,6 +449,9 @@ export default function App() {
 
                     if (trackTimeChanged || updateTimeChanged) {
                         changedPlaylistIds.push(newPl.id);
+                        if (isLikedSongsPlaylist) {
+                            likedSongsPlaylistChanged = true;
+                        }
                     }
                 }
             });
@@ -489,6 +498,21 @@ export default function App() {
             // 更新歌单列表缓存和状态
             setPlaylists(newPlaylists);
             await saveToCache('user_playlists', newPlaylists);
+
+            // 如果"喜欢的音乐"歌单有变化，重新获取喜欢的歌曲列表
+            if (likedSongsPlaylistChanged && newPlaylists.length > 0) {
+                try {
+                    console.log("[PlaylistSync] 检测到喜欢的音乐歌单更新，重新获取喜欢的歌曲列表");
+                    const likeRes = await neteaseApi.getLikedSongs(user.userId);
+                    if (likeRes.ids) {
+                        setLikedSongIds(new Set(likeRes.ids));
+                        await saveToCache('user_liked_songs', likeRes.ids);
+                        console.log("[PlaylistSync] 已更新喜欢的歌曲列表，共", likeRes.ids.length, "首");
+                    }
+                } catch (e) {
+                    console.warn("[PlaylistSync] 重新获取喜欢的歌曲列表失败", e);
+                }
+            }
 
         } catch (e) {
             console.error("[PlaylistSync] 检查歌单更新失败", e);
