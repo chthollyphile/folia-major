@@ -226,18 +226,18 @@ export default function App() {
         const preserveKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'last_song', 'last_queue', 'last_theme'];
 
         // We need to preserve all keys starting with 'playlist_tracks_' or 'playlist_detail_'
-        // Since clearCache accepts a preserve list, we need to get all cache keys first
+        // Since clearCache accepts a preserve list, we need to get all cache keys from metadata_cache
         try {
             const db = await openDB();
-            const tx = db.transaction(['cache'], 'readonly');
-            const store = tx.objectStore('cache');
+            const tx = db.transaction(['metadata_cache'], 'readonly');
+            const store = tx.objectStore('metadata_cache');
             const allKeys = await new Promise<string[]>((resolve, reject) => {
                 const request = store.getAllKeys();
                 request.onsuccess = () => resolve(request.result as string[]);
                 request.onerror = () => reject(request.error);
             });
 
-            // Filter keys to preserve: keep user data, playlist data
+            // Filter keys to preserve: keep playlist data
             const playlistKeys = allKeys.filter(key =>
                 key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')
             );
@@ -471,8 +471,8 @@ export default function App() {
 
                 try {
                     const db = await openDB();
-                    const tx = db.transaction(['api_cache'], 'readwrite');
-                    const store = tx.objectStore('api_cache');
+                    const tx = db.transaction(['metadata_cache'], 'readwrite');
+                    const store = tx.objectStore('metadata_cache');
 
                     // 批量删除有变化的歌单缓存
                     const deletePromises = changedPlaylistIds.flatMap(playlistId => [
