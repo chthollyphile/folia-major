@@ -431,7 +431,7 @@ export default function App() {
             // 检查每个新歌单是否有变化
             const changedPlaylistIds: number[] = [];
             let likedSongsPlaylistChanged = false; // 标记"喜欢的音乐"歌单是否有变化
-            
+
             newPlaylists.forEach((newPl, index) => {
                 const oldPl = cachedMap.get(newPl.id);
                 const isLikedSongsPlaylist = index === 0; // 第一个歌单是"喜欢的音乐"
@@ -448,6 +448,14 @@ export default function App() {
                     const updateTimeChanged = (newPl.updateTime || 0) !== (oldPl.updateTime || 0);
 
                     if (trackTimeChanged || updateTimeChanged) {
+                        console.log(`[PlaylistSync] Playlist ${newPl.name} (ID: ${newPl.id}) changed. Reason:`, {
+                            trackTimeChanged,
+                            updateTimeChanged,
+                            oldTrackTime: oldPl.trackUpdateTime,
+                            newTrackTime: newPl.trackUpdateTime,
+                            oldUpdateTime: oldPl.updateTime,
+                            newUpdateTime: newPl.updateTime
+                        });
                         changedPlaylistIds.push(newPl.id);
                         if (isLikedSongsPlaylist) {
                             likedSongsPlaylistChanged = true;
