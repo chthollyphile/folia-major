@@ -122,6 +122,8 @@ export default function App() {
     const blobUrlRef = useRef<string | null>(null);
     const queueScrollRef = useRef<HTMLDivElement>(null);
     const shouldAutoPlay = useRef(false);
+    const currentSongRef = useRef<number | null>(null);
+    const [isLyricsLoading, setIsLyricsLoading] = useState(false);
 
     // --- Initialization & User Data ---
 
@@ -627,12 +629,14 @@ export default function App() {
 
         // Enable autoplay for user-initiated song changes
         shouldAutoPlay.current = true;
+        currentSongRef.current = song.id;
 
         // 0. Instant UI Feedback
         setLyrics(null);
         setCurrentSong(song);
         setCachedCoverUrl(null);
         setAudioSrc(null);
+        setIsLyricsLoading(true); // Start loading lyrics
 
         // Revoke old blob
         if (blobUrlRef.current) {
@@ -683,6 +687,7 @@ export default function App() {
                     console.warn("[App] Song URL is empty, likely unavailable");
                     setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
                     setPlayerState(PlayerState.IDLE);
+                    setIsLyricsLoading(false); // Stop loading if failed
                     return;
                 }
                 if (url && url.startsWith('http:')) {
@@ -694,6 +699,7 @@ export default function App() {
         } catch (e) {
             console.error("[App] Failed to fetch song URL:", e);
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            setIsLyricsLoading(false); // Stop loading if failed
             return;
         }
 
@@ -702,6 +708,7 @@ export default function App() {
             const cachedLyrics = await getFromCache<LyricData>(`lyric_${song.id}`);
             if (cachedLyrics) {
                 setLyrics(cachedLyrics);
+                setIsLyricsLoading(false); // Cached lyrics ready immediately
             } else {
                 const lyricRes = await neteaseApi.getLyric(song.id);
                 const mainLrc = lyricRes.lrc?.lyric;
@@ -716,42 +723,79 @@ export default function App() {
                 }
 
                 if (parsedLyrics) {
-                    // Chorus Detection
+                    // 1. Render immediately without chorus info to unblock UI
+                    // But keep isLyricsLoading TRUE until chorus is done
+                    setLyrics(parsedLyrics);
+
+                    // 2. Schedule Chorus Detection
                     // Check pureMusic flag from API (it might be on lrc object or root)
                     const isPureMusic = lyricRes.pureMusic || lyricRes.lrc?.pureMusic;
 
                     if (!isPureMusic && mainLrc) {
-                        const chorusLines = detectChorusLines(mainLrc);
-                        if (chorusLines.size > 0) {
-                            // Assign a stable random effect for each unique chorus line text
-                            const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
-                            const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+                        const runChorusDetection = () => {
+                            // Check if song changed while waiting
+                            if (currentSongRef.current !== song.id) return;
 
-                            chorusLines.forEach(text => {
-                                const randomEffect = effects[Math.floor(Math.random() * effects.length)];
-                                effectMap.set(text, randomEffect);
-                            });
+                            try {
+                                const chorusLines = detectChorusLines(mainLrc);
+                                if (chorusLines.size > 0) {
+                                    // Assign a stable random effect for each unique chorus line text
+                                    const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
+                                    const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
 
-                            parsedLyrics.lines.forEach(line => {
-                                const text = line.fullText.trim();
-                                if (chorusLines.has(text)) {
-                                    line.isChorus = true;
-                                    line.chorusEffect = effectMap.get(text);
+                                    chorusLines.forEach(text => {
+                                        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+                                        effectMap.set(text, randomEffect);
+                                    });
+
+                                    // Clone and update lines
+                                    // @ts-ignore
+                                    const newLines = parsedLyrics.lines.map(line => {
+                                        const text = line.fullText.trim();
+                                        if (chorusLines.has(text)) {
+                                            return {
+                                                ...line,
+                                                isChorus: true,
+                                                chorusEffect: effectMap.get(text)
+                                            };
+                                        }
+                                        return line;
+                                    });
+
+                                    // @ts-ignore
+                                    const updatedLyrics = { ...parsedLyrics, lines: newLines };
+                                    setLyrics(updatedLyrics);
+                                    saveToCache(`lyric_${song.id}`, updatedLyrics);
+                                } else {
+                                    // No chorus found, but cache the lyrics anyway
+                                    saveToCache(`lyric_${song.id}`, parsedLyrics);
                                 }
-                            });
-                        }
-                    }
+                            } catch (err) {
+                                console.warn("[App] Chorus detection failed", err);
+                                // Ensure we cache even if detection fails
+                                saveToCache(`lyric_${song.id}`, parsedLyrics);
+                            } finally {
+                                setIsLyricsLoading(false); // Done loading
+                            }
+                        };
 
-                    setLyrics(parsedLyrics);
-                    // Cache Lyrics Immediately
-                    saveToCache(`lyric_${song.id}`, parsedLyrics);
+                        // Use setTimeout(0) for immediate async execution to unblock main thread
+                        // but prioritize it over idle callback for faster playback start
+                        setTimeout(runChorusDetection, 0);
+                    } else {
+                        // Pure music or no lrc, just cache
+                        saveToCache(`lyric_${song.id}`, parsedLyrics);
+                        setIsLyricsLoading(false); // Done loading
+                    }
                 } else {
                     setLyrics(null);
+                    setIsLyricsLoading(false); // No lyrics found
                 }
             }
         } catch (e) {
             console.warn("[App] Lyric fetch failed", e);
             setLyrics(null);
+            setIsLyricsLoading(false); // Failed
         }
 
         // 5. Handle Theme
@@ -917,8 +961,8 @@ export default function App() {
 
     useEffect(() => {
         if (audioSrc && audioRef.current) {
-            // Only play if shouldAutoPlay is true
-            if (shouldAutoPlay.current) {
+            // Only play if shouldAutoPlay is true AND lyrics are not loading
+            if (shouldAutoPlay.current && !isLyricsLoading) {
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
                     playPromise
@@ -933,14 +977,12 @@ export default function App() {
                             }
                         });
                 }
-            } else {
+            } else if (!shouldAutoPlay.current) {
                 // If we're not auto-playing (e.g. restore session), just set state to paused
-                // But we might want to ensure the audio element is ready? 
-                // It's already src assigned.
                 setPlayerState(PlayerState.PAUSED);
             }
         }
-    }, [audioSrc]);
+    }, [audioSrc, isLyricsLoading]);
 
     // Sync Logic & Audio Power
     const updateLoop = useCallback(() => {
