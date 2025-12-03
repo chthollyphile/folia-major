@@ -6,7 +6,7 @@ import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { generateThemeFromLyrics } from './services/gemini';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
-import Visualizer from './components/Visualizer';
+import Visualizer3D from './components/Visualizer3D';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
@@ -1101,7 +1101,7 @@ export default function App() {
                 className="absolute inset-0 z-0"
                 onClick={handleContainerClick}
             >
-                <Visualizer
+                <Visualizer3D
                     currentTime={currentTime}
                     currentLineIndex={currentLineIndex}
                     lines={lyrics?.lines || []}
