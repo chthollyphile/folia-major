@@ -10,6 +10,8 @@ export interface Line {
   endTime: number;
   fullText: string;
   translation?: string;
+  isChorus?: boolean;
+  chorusEffect?: 'bars' | 'circles' | 'beams';
 }
 
 export interface LyricData {

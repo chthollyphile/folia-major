@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Line, Theme, Word as WordType } from '../types';
 import GeometricBackground from './GeometricBackground';
 
+
 interface VisualizerProps {
     currentTime: MotionValue<number>;
     currentLineIndex: number;
@@ -42,8 +43,10 @@ const Word: React.FC<{
     variants: Variants;
     baseColor: string;
     activeColor: string;
-}> = ({ word, config, currentTime, theme, isChaotic, variants, baseColor, activeColor }) => {
+    isChorus?: boolean;
+}> = ({ word, config, currentTime, theme, isChaotic, variants, baseColor, activeColor, isChorus }) => {
     const [status, setStatus] = useState<"waiting" | "active" | "passed">("waiting");
+    const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
 
     useMotionValueEvent(currentTime, "change", (latest: number) => {
         const PRE_LOOKAHEAD = 0.15;
@@ -80,6 +83,20 @@ const Word: React.FC<{
             }}
         >
             {word.text}
+            {/* Chorus Ripple Effect */}
+            <AnimatePresence>
+                {isChorus && status === 'active' && (
+                    <motion.span
+                        key="ripple"
+                        className="absolute inset-0 rounded-full border-1 pointer-events-none"
+                        style={{ borderColor: activeColor }}
+                        initial={{ scale: 0.2, opacity: 0.8 }}
+                        animate={{ scale: rippleScale, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                )}
+            </AnimatePresence>
         </motion.span>
     );
 };
@@ -246,6 +263,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
                                         variants={variants}
                                         baseColor={theme.primaryColor}
                                         activeColor={activeColor}
+                                        isChorus={activeLine.isChorus}
                                     />
                                 );
                             })}

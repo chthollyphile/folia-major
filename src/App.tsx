@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
+import { detectChorusLines } from './utils/chorusDetector';
 import { generateThemeFromLyrics } from './services/gemini';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
 import Visualizer from './components/Visualizer';
@@ -358,6 +359,30 @@ export default function App() {
                         } else if (mainLrc) {
                             parsed = parseLRC(mainLrc, transLrc);
                         }
+
+                        // Chorus Detection
+                        if (parsed && !lyricRes.pureMusic && !lyricRes.lrc?.pureMusic && mainLrc) {
+                            const chorusLines = detectChorusLines(mainLrc);
+                            if (chorusLines.size > 0) {
+                                // Assign a stable random effect for each unique chorus line text
+                                const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
+                                const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+
+                                chorusLines.forEach(text => {
+                                    const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+                                    effectMap.set(text, randomEffect);
+                                });
+
+                                parsed.lines.forEach(line => {
+                                    const text = line.fullText.trim();
+                                    if (chorusLines.has(text)) {
+                                        line.isChorus = true;
+                                        line.chorusEffect = effectMap.get(text);
+                                    }
+                                });
+                            }
+                        }
+
                         setLyrics(parsed);
                     }
                 } catch (e) {
@@ -691,6 +716,32 @@ export default function App() {
                 }
 
                 if (parsedLyrics) {
+                    // Chorus Detection
+                    // Check pureMusic flag from API (it might be on lrc object or root)
+                    const isPureMusic = lyricRes.pureMusic || lyricRes.lrc?.pureMusic;
+
+                    if (!isPureMusic && mainLrc) {
+                        const chorusLines = detectChorusLines(mainLrc);
+                        if (chorusLines.size > 0) {
+                            // Assign a stable random effect for each unique chorus line text
+                            const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
+                            const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+
+                            chorusLines.forEach(text => {
+                                const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+                                effectMap.set(text, randomEffect);
+                            });
+
+                            parsedLyrics.lines.forEach(line => {
+                                const text = line.fullText.trim();
+                                if (chorusLines.has(text)) {
+                                    line.isChorus = true;
+                                    line.chorusEffect = effectMap.get(text);
+                                }
+                            });
+                        }
+                    }
+
                     setLyrics(parsedLyrics);
                     // Cache Lyrics Immediately
                     saveToCache(`lyric_${song.id}`, parsedLyrics);
