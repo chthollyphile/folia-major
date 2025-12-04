@@ -119,6 +119,7 @@ export interface LocalSong {
   matchedLyrics?: LyricData;
   matchedCoverUrl?: string; // Cover image URL from matched song
   hasManualLyricSelection?: boolean;
+  folderName?: string; // Name of the folder if imported via folder import
 }
 
 // Extend SongResult to support local files

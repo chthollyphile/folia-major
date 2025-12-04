@@ -134,7 +134,8 @@ export async function importFolder(): Promise<LocalSong[]> {
                     addedAt: Date.now(),
                     title: metadata.title,
                     artist: metadata.artist,
-                    hasManualLyricSelection: false
+                    hasManualLyricSelection: false,
+                    folderName: dirHandle.name
                 };
 
                 // Store fileHandle in memory (cannot persist to IndexedDB)
@@ -246,7 +247,7 @@ export async function deleteLocalSong(id: string): Promise<void> {
 export async function getAudioFromLocalSong(song: LocalSong): Promise<string | null> {
     // Try to get fileHandle from memory first (for files imported via folder)
     let fileHandle = fileHandleMap.get(song.id);
-    
+
     // If not in memory, try to use the one stored in song object (if available)
     if (!fileHandle && song.fileHandle) {
         fileHandle = song.fileHandle;

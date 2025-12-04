@@ -6,65 +6,11 @@ import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong } from '../types';
 import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
 import HelpModal from './HelpModal';
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
+import Carousel3D from './Carousel3D';
 
-// Carousel Item Component with safe blur animation
-const CarouselItem: React.FC<{
-    playlist: NeteasePlaylist;
-    distance: number;
-    isActive: boolean;
-    xOffset: number;
-    scale: number;
-    opacity: number;
-    zIndex: number;
-    rotateY: number;
-    onSelect: () => void;
-    onFocus: () => void;
-}> = ({ playlist, distance, isActive, xOffset, scale, opacity, zIndex, rotateY, onSelect, onFocus }) => {
-    const blurTarget = isActive ? 0 : 2;
-    const blurMotion = useMotionValue(blurTarget);
-    const blurString = useTransform(blurMotion, (value) => {
-        const clamped = Math.max(0, Math.min(10, isNaN(value) || !isFinite(value) ? 0 : value));
-        return `blur(${clamped}px)`;
-    });
 
-    useEffect(() => {
-        const controls = animate(blurMotion, blurTarget, {
-            type: 'spring',
-            stiffness: 300,
-            damping: 30
-        });
-        return () => controls.stop();
-    }, [blurTarget, blurMotion]);
-
-    return (
-        <motion.div
-            className="absolute cursor-pointer"
-            initial={false}
-            animate={{
-                x: xOffset,
-                scale: scale,
-                opacity: opacity,
-                zIndex: zIndex,
-                rotateY: rotateY,
-            }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            style={{
-                filter: blurString
-            }}
-            onClick={() => {
-                if (isActive) onSelect();
-                else onFocus();
-            }}
-        >
-            <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
-                <img src={playlist.coverImgUrl?.replace('http:', 'https:')} alt={playlist.name} className="w-full h-full object-cover pointer-events-none" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
-            </div>
-        </motion.div>
-    );
-};
 
 interface HomeProps {
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
@@ -106,22 +52,9 @@ const Home: React.FC<HomeProps> = ({
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
     const [viewTab, setViewTab] = useState<'playlist' | 'local'>('playlist'); // Tab state
-    const [focusedIndex, setFocusedIndex] = useState(() => {
-        const saved = sessionStorage.getItem('folia_home_focused_index');
-        return saved ? parseInt(saved, 10) : 0;
-    });
-
     // Search State
     const [searchResults, setSearchResults] = useState<SongResult[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
-
-    // Touch State
-    const touchStartX = useRef(0);
-    const touchEndX = useRef(0);
-    const carouselRef = useRef<HTMLDivElement>(null);
-
-    // Wheel navigation debounce
-    const wheelTimeout = useRef<any>(null);
 
     // Login QR
     const [qrCodeImg, setQrCodeImg] = useState<string>("");
@@ -202,112 +135,6 @@ const Home: React.FC<HomeProps> = ({
         };
     }, []);
 
-    const handleTouchStart = (e: React.TouchEvent) => {
-        touchStartX.current = e.targetTouches[0].clientX;
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        touchEndX.current = e.targetTouches[0].clientX;
-    };
-
-    const handleTouchEnd = () => {
-        if (!touchStartX.current || !touchEndX.current) return;
-        const diff = touchStartX.current - touchEndX.current;
-
-        // Threshold for swipe
-        if (Math.abs(diff) > 50) {
-            if (diff > 0) {
-                // Swipe Left -> Next
-                if (focusedIndex < playlists.length - 1) {
-                    setFocusedIndex(prev => prev + 1);
-                }
-            } else {
-                // Swipe Right -> Prev
-                if (focusedIndex > 0) {
-                    setFocusedIndex(prev => prev - 1);
-                }
-            }
-        }
-        // Reset
-        touchStartX.current = 0;
-        touchEndX.current = 0;
-    };
-
-    // Keyboard Navigation Handler
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            // Only respond if not in search or modal
-            if (showLoginModal || searchResults !== null) return;
-
-            // Ignore if typing in an input
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                if (focusedIndex > 0) {
-                    setFocusedIndex(prev => prev - 1);
-                }
-            } else if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                if (focusedIndex < playlists.length - 1) {
-                    setFocusedIndex(prev => prev + 1);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [focusedIndex, playlists.length, showLoginModal, searchResults]);
-
-    // Wheel Navigation Handler - Attached manually to support non-passive event
-    useEffect(() => {
-        const element = carouselRef.current;
-        if (!element) return;
-
-        const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
-
-            // Clear existing timeout
-            if (wheelTimeout.current) {
-                clearTimeout(wheelTimeout.current);
-            }
-
-            // Debounce wheel events (wait 150ms after last wheel event)
-            wheelTimeout.current = setTimeout(() => {
-                const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-
-                // Threshold to avoid accidental triggers
-                if (Math.abs(delta) > 20) {
-                    if (delta > 0) {
-                        // Scroll right/down -> Next
-                        if (focusedIndex < playlists.length - 1) {
-                            setFocusedIndex(prev => prev + 1);
-                        }
-                    } else {
-                        // Scroll left/up -> Previous
-                        if (focusedIndex > 0) {
-                            setFocusedIndex(prev => prev - 1);
-                        }
-                    }
-                }
-            }, 150);
-        };
-
-        element.addEventListener('wheel', handleWheel, { passive: false });
-
-        return () => {
-            element.removeEventListener('wheel', handleWheel);
-            if (wheelTimeout.current) {
-                clearTimeout(wheelTimeout.current);
-            }
-        };
-    }, [focusedIndex, playlists.length]);
-
-    // Persistence for Focused Index
-    useEffect(() => {
-        sessionStorage.setItem('folia_home_focused_index', focusedIndex.toString());
-    }, [focusedIndex]);
-
     return (
         <AnimatePresence>
             {selectedPlaylist ? (
@@ -331,9 +158,10 @@ const Home: React.FC<HomeProps> = ({
                     className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-black/20 pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar"
                     style={{ color: 'var(--text-primary)' }}
                 >
-                    {/* Header */}
-                    <div className="w-full p-4 md:p-8 flex flex-col md:flex-row items-center justify-between z-20 relative gap-4">
-                        <div className="w-full md:w-auto flex items-center justify-between">
+                    {/* Header Section */}
+                    <div className="grid grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8">
+                        {/* Left: Title & Help */}
+                        <div className="flex items-center justify-start">
                             <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
                                 Folia
                             </h1>
@@ -346,28 +174,59 @@ const Home: React.FC<HomeProps> = ({
                             </button>
                         </div>
 
-                        {/* Search Bar - Moved to Right */}
-                        <form onSubmit={handleSearch} className="relative group w-full max-w-xs">
-                            {isSearching ? (
-                                <Loader2
-                                    className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
-                                    style={{ marginTop: '-8px' }}
-                                />
-                            ) : (
-                                <Search
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity"
-                                    onClick={() => handleSearch()}
-                                />
+                        {/* Center: Tab Switcher */}
+                        <div className="flex justify-center">
+                            {user && (
+                                <div className="flex relative bg-white/10 backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center">
+                                    <div
+                                        className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
+                                        style={{
+                                            left: viewTab === 'playlist' ? '4px' : '50%',
+                                            width: 'calc(50% - 4px)'
+                                        }}
+                                    />
+                                    <button
+                                        onClick={() => setViewTab('playlist')}
+                                        className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? 'text-black' : 'text-white/60 hover:text-white'
+                                            }`}
+                                    >
+                                        Playlists
+                                    </button>
+                                    <button
+                                        onClick={() => setViewTab('local')}
+                                        className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? 'text-black' : 'text-white/60 hover:text-white'
+                                            }`}
+                                    >
+                                        Local Music
+                                    </button>
+                                </div>
                             )}
-                            <input
-                                type="text"
-                                placeholder={t('home.searchDatabase')}
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all placeholder:text-white/20"
-                                style={{ color: 'var(--text-primary)' }}
-                            />
-                        </form>
+                        </div>
+
+                        {/* Right: Search Bar */}
+                        <div className="flex justify-end">
+                            <form onSubmit={handleSearch} className="relative group w-48 md:w-64 transition-all focus-within:w-64 md:focus-within:w-80">
+                                {isSearching ? (
+                                    <Loader2
+                                        className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
+                                        style={{ marginTop: '-8px' }}
+                                    />
+                                ) : (
+                                    <Search
+                                        className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity"
+                                        onClick={() => handleSearch()}
+                                    />
+                                )}
+                                <input
+                                    type="text"
+                                    placeholder={t('home.searchDatabase')}
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all placeholder:text-white/20"
+                                    style={{ color: 'var(--text-primary)' }}
+                                />
+                            </form>
+                        </div>
                     </div>
 
                     {/* Main Content Area */}
@@ -388,100 +247,18 @@ const Home: React.FC<HomeProps> = ({
                             </div>
                         ) : (
                             <>
-                                {/* Tab Switcher */}
-                                <div className="flex gap-2 mb-6 bg-white/5 p-1 rounded-lg">
-                                    <button
-                                        onClick={() => setViewTab('playlist')}
-                                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${viewTab === 'playlist'
-                                                ? 'bg-white text-black'
-                                                : 'hover:bg-white/10 opacity-60'
-                                            }`}
-                                    >
-                                        Playlists
-                                    </button>
-                                    <button
-                                        onClick={() => setViewTab('local')}
-                                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${viewTab === 'local'
-                                                ? 'bg-white text-black'
-                                                : 'hover:bg-white/10 opacity-60'
-                                            }`}
-                                    >
-                                        Local Music
-                                    </button>
-                                </div>
-
                                 {/* Conditional Content Based on Tab */}
                                 {viewTab === 'playlist' ? (
-                                    <div className="w-full h-full flex flex-col justify-center relative">
-                                        {/* Decorative Line Behind */}
-                                        <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-y-1/2 z-0" />
+                                    <Carousel3D
+                                        items={playlists.map(p => ({
+                                            ...p,
+                                            coverUrl: p.coverImgUrl
+                                        }))}
+                                        onSelect={(pl) => onSelectPlaylist(pl as any)}
+                                        isLoading={false}
+                                        emptyMessage={t('home.loadingLibrary')}
+                                    />
 
-                                        {/* Center Focus Decoration */}
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border border-white/5 -z-10" />
-
-                                        {/* Carousel Container */}
-                                        <div
-                                            ref={carouselRef}
-                                            className="w-full h-[400px] relative flex items-center justify-center perspective-1000 touch-pan-y"
-                                            onTouchStart={handleTouchStart}
-                                            onTouchMove={handleTouchMove}
-                                            onTouchEnd={handleTouchEnd}
-                                        >
-                                            {playlists.length > 0 ? (
-                                                playlists.map((pl, i) => {
-                                                    if (Math.abs(focusedIndex - i) > 4) return null;
-
-                                                    const distance = i - focusedIndex;
-                                                    const isActive = distance === 0;
-
-                                                    const scale = isActive ? 1.1 : 1 - Math.abs(distance) * 0.15;
-                                                    const opacity = isActive ? 1 : 0.6 - Math.abs(distance) * 0.15;
-                                                    const xOffset = distance * 240;
-                                                    const zIndex = 10 - Math.abs(distance);
-                                                    const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
-
-                                                    return (
-                                                        <CarouselItem
-                                                            key={pl.id}
-                                                            playlist={pl}
-                                                            distance={distance}
-                                                            isActive={isActive}
-                                                            xOffset={xOffset}
-                                                            scale={scale}
-                                                            opacity={opacity}
-                                                            zIndex={zIndex}
-                                                            rotateY={rotateY}
-                                                            onSelect={() => onSelectPlaylist(pl)}
-                                                            onFocus={() => setFocusedIndex(i)}
-                                                        />
-                                                    );
-                                                })
-                                            ) : (
-                                                <div className="opacity-50 flex flex-col items-center gap-4">
-                                                    <Loader2 className="animate-spin" />
-                                                    <span>{t('home.loadingLibrary')}</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Active Playlist Title - Static Layer Below */}
-                                        {playlists.length > 0 && playlists[focusedIndex] && (
-                                            <motion.div
-                                                key={playlists[focusedIndex].id}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.3 }}
-                                                className="absolute bottom-24 left-0 right-0 text-center z-10 px-8 pointer-events-none"
-                                            >
-                                                <h3 className="font-bold text-2xl truncate max-w-xl mx-auto" style={{ color: 'var(--text-primary)' }}>
-                                                    {playlists[focusedIndex].name}
-                                                </h3>
-                                                <p className="text-xs opacity-50 font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                                    {playlists[focusedIndex].trackCount} {t('home.songs')} • ID: {playlists[focusedIndex].id}
-                                                </p>
-                                            </motion.div>
-                                        )}
-                                    </div>
                                 ) : (
                                     <div className="w-full flex-1 overflow-hidden">
                                         <LocalMusicView
@@ -644,8 +421,9 @@ const Home: React.FC<HomeProps> = ({
                         </div>
                     )}
                 </motion.div>
-            )}
-        </AnimatePresence>
+            )
+            }
+        </AnimatePresence >
     );
 };
 
