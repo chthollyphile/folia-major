@@ -22,6 +22,18 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  let gitBranch = '';
+  if (process.env.VERCEL_GIT_COMMIT_REF) {
+    gitBranch = process.env.VERCEL_GIT_COMMIT_REF;
+  } else {
+    try {
+      gitBranch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+    } catch (e) {
+      console.warn('Could not get git branch:', e);
+      gitBranch = 'unknown';
+    }
+  }
+
   return {
     server: {
       port: 3000,
@@ -56,7 +68,8 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      '__COMMIT_HASH__': JSON.stringify(commitHash)
+      '__COMMIT_HASH__': JSON.stringify(commitHash),
+      '__GIT_BRANCH__': JSON.stringify(gitBranch)
     },
     resolve: {
       alias: {
