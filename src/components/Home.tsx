@@ -26,7 +26,17 @@ interface HomeProps {
     onSelectAlbum: (albumId: number) => void;
     localSongs: LocalSong[];
     onRefreshLocalSongs: () => void;
-    onPlayLocalSong: (song: LocalSong) => void;
+    onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
+    viewTab: 'playlist' | 'local';
+    setViewTab: (tab: 'playlist' | 'local') => void;
+    localMusicState: {
+        activeRow: 0 | 1;
+        selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+    };
+    setLocalMusicState: React.Dispatch<React.SetStateAction<{
+        activeRow: 0 | 1;
+        selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+    }>>;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -43,7 +53,11 @@ const Home: React.FC<HomeProps> = ({
     onSelectAlbum,
     localSongs,
     onRefreshLocalSongs,
-    onPlayLocalSong
+    onPlayLocalSong,
+    viewTab,
+    setViewTab,
+    localMusicState,
+    setLocalMusicState
 }) => {
     const { t } = useTranslation();
 
@@ -51,7 +65,7 @@ const Home: React.FC<HomeProps> = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
-    const [viewTab, setViewTab] = useState<'playlist' | 'local'>('playlist'); // Tab state
+    // viewTab lifted to App.tsx
     // Search State
     const [searchResults, setSearchResults] = useState<SongResult[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
@@ -269,6 +283,10 @@ const Home: React.FC<HomeProps> = ({
                                             onRefresh={onRefreshLocalSongs}
                                             onPlaySong={onPlayLocalSong}
                                             onPlaylistVisibilityChange={setIsLocalPlaylistOpen}
+                                            activeRow={localMusicState.activeRow}
+                                            setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
+                                            selectedGroup={localMusicState.selectedGroup}
+                                            setSelectedGroup={(group) => setLocalMusicState(prev => ({ ...prev, selectedGroup: group }))}
                                         />
                                     </div>
                                 )}

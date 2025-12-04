@@ -11,7 +11,7 @@ interface LocalPlaylistViewProps {
     coverUrl?: string;
     songs: LocalSong[];
     onBack: () => void;
-    onPlaySong: (song: LocalSong) => void;
+    onPlaySong: (song: LocalSong, queue?: LocalSong[]) => void;
     isFolderView?: boolean;
     onResync?: () => void;
     onDelete?: () => void;
@@ -87,7 +87,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                     <div className="w-full space-y-3">
                         <button
                             onClick={() => {
-                                if (songs.length > 0) onPlaySong(songs[0]);
+                                if (songs.length > 0) onPlaySong(songs[0], songs);
                             }}
                             className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
                             style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}

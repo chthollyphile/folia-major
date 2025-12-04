@@ -130,6 +130,16 @@ export default function App() {
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
     const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
 
+    // Navigation Persistence State (Lifted from Home/LocalMusicView)
+    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local'>('playlist');
+    const [localMusicState, setLocalMusicState] = useState<{
+        activeRow: 0 | 1;
+        selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+    }>({
+        activeRow: 0,
+        selectedGroup: null
+    });
+
     // --- Initialization & User Data ---
 
     useEffect(() => {
@@ -612,13 +622,13 @@ export default function App() {
         await loadLocalSongs();
     };
 
-    const onPlayLocalSong = async (localSong: LocalSong) => {
+    const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
         // Get audio blob from fileHandle first
         const blobUrl = await getAudioFromLocalSong(localSong);
         if (!blobUrl) {
-            setStatusMsg({ 
-                type: 'error', 
-                text: '无法访问文件。该文件通过"选择文件"导入，刷新页面后需要重新导入。建议使用"导入文件夹"功能。' 
+            setStatusMsg({
+                type: 'error',
+                text: '无法访问文件。该文件通过"选择文件"导入，刷新页面后需要重新导入。建议使用"导入文件夹"功能。'
             });
             return;
         }
@@ -634,7 +644,7 @@ export default function App() {
                 // Import matchLyrics function
                 const { matchLyrics } = await import('./services/localMusicService');
                 const matchedLyrics = await matchLyrics(localSong);
-                
+
                 if (matchedLyrics) {
                     lyrics = matchedLyrics;
                     // Reload local song to get updated cover URL
@@ -647,8 +657,8 @@ export default function App() {
                     if (updatedSong?.matchedSongId) {
                         try {
                             const searchRes = await neteaseApi.cloudSearch(
-                                localSong.artist 
-                                    ? `${localSong.artist} ${localSong.title}` 
+                                localSong.artist
+                                    ? `${localSong.artist} ${localSong.title}`
                                     : localSong.title || localSong.fileName
                             );
                             if (searchRes.result?.songs && searchRes.result.songs.length > 0) {
@@ -677,14 +687,14 @@ export default function App() {
             album: localSong.album ? { id: 0, name: localSong.album } : { id: 0, name: '' },
             duration: localSong.duration,
             ar: localSong.artist ? [{ id: 0, name: localSong.artist }] : [],
-            al: localSong.album ? { 
-                id: 0, 
-                name: localSong.album, 
-                picUrl: coverUrl || undefined 
-            } : coverUrl ? { 
-                id: 0, 
-                name: '', 
-                picUrl: coverUrl 
+            al: localSong.album ? {
+                id: 0,
+                name: localSong.album,
+                picUrl: coverUrl || undefined
+            } : coverUrl ? {
+                id: 0,
+                name: '',
+                picUrl: coverUrl
             } : undefined,
             dt: localSong.duration
         };
@@ -739,9 +749,47 @@ export default function App() {
         setIsLyricsLoading(false);
 
         // Set queue
-        setPlayQueue([unifiedSong]);
+        if (queue.length > 0) {
+            // Convert entire queue
+            const convertedQueue = queue.map(s => {
+                // Use negative ID logic
+                const sId = -Math.abs(parseInt(s.id.replace(/\D/g, '')) || (Date.now() + Math.random()));
+                // Basic conversion, we might miss matched metadata for others if not loaded, 
+                // but usually we just need basic info for the queue list.
+                // Ideally we should have matched info for all.
+                // For now, use what we have.
+                return {
+                    id: sId,
+                    name: s.title || s.fileName,
+                    artists: s.artist ? [{ id: 0, name: s.artist }] : [],
+                    album: s.album ? { id: 0, name: s.album } : { id: 0, name: '' },
+                    duration: s.duration,
+                    ar: s.artist ? [{ id: 0, name: s.artist }] : [],
+                    al: s.album ? { id: 0, name: s.album, picUrl: s.matchedCoverUrl } : undefined,
+                    dt: s.duration
+                } as SongResult;
+            });
+
+            // Ensure the current playing song has the CORRECT ID in the queue
+            // The map above generates new random IDs if parsing fails, which might mismatch `unifiedSong.id`.
+            // Let's fix `unifiedSong` to be part of the queue properly.
+
+            // Better approach: Generate ID deterministically or reuse `unifiedSong` for the current track.
+            const finalQueue = convertedQueue.map(s => {
+                if (s.name === unifiedSong.name && s.duration === unifiedSong.duration) {
+                    return unifiedSong;
+                }
+                return s;
+            });
+
+            setPlayQueue(finalQueue);
+            saveToCache('last_queue', finalQueue);
+        } else {
+            setPlayQueue([unifiedSong]);
+            saveToCache('last_queue', [unifiedSong]);
+        }
+
         saveToCache('last_song', unifiedSong);
-        saveToCache('last_queue', [unifiedSong]);
 
         // Navigate to player
         navigateToPlayer();
@@ -1419,6 +1467,10 @@ export default function App() {
                             localSongs={localSongs}
                             onRefreshLocalSongs={onRefreshLocalSongs}
                             onPlayLocalSong={onPlayLocalSong}
+                            viewTab={homeViewTab}
+                            setViewTab={setHomeViewTab}
+                            localMusicState={localMusicState}
+                            setLocalMusicState={setLocalMusicState}
                         />
                     </motion.div>
                 )}
