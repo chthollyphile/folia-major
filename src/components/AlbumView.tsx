@@ -121,7 +121,9 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
 
                                 {albumInfo?.description && (
                                     <div className="mt-4 text-xs opacity-60 line-clamp-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                                        {albumInfo.description}
+                                        {albumInfo.description?.length > 12
+                                            ? `${albumInfo.description.slice(0, 12)}...`
+                                            : albumInfo.description}
                                     </div>
                                 )}
                             </div>

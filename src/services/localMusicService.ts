@@ -9,10 +9,6 @@ import { detectChorusLines } from '../utils/chorusDetector';
 // Maps song ID to FileSystemFileHandle
 const fileHandleMap = new Map<string, FileSystemFileHandle>();
 
-// In-memory storage for File objects (for files imported via <input type="file">)
-// Maps song ID to File object (only available during current session)
-const fileObjectMap = new Map<string, File>();
-
 // Generate UUID for local songs
 function generateId(): string {
     return `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -57,46 +53,7 @@ async function getAudioDuration(file: File): Promise<number> {
     });
 }
 
-// Import files from file input
-export async function importFiles(files: FileList): Promise<LocalSong[]> {
-    const importedSongs: LocalSong[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // Check if it's an audio file
-        if (!file.type.startsWith('audio/')) {
-            console.warn(`Skipping non-audio file: ${file.name}`);
-            continue;
-        }
-
-        const metadata = extractMetadataFromFilename(file.name);
-        const duration = await getAudioDuration(file);
-
-        const songId = generateId();
-        const localSong: LocalSong = {
-            id: songId,
-            fileName: file.name,
-            filePath: file.name, // In browser, we use filename as reference
-            duration,
-            fileSize: file.size,
-            mimeType: file.type,
-            addedAt: Date.now(),
-            title: metadata.title,
-            artist: metadata.artist,
-            hasManualLyricSelection: false
-        };
-
-        // Save File object to memory for immediate playback (only available during current session)
-        fileObjectMap.set(songId, file);
-
-        // Save to IndexedDB
-        await saveLocalSong(localSong);
-        importedSongs.push(localSong);
-    }
-
-    return importedSongs;
-}
 
 // Import folder using File System Access API (if supported)
 export async function importFolder(): Promise<LocalSong[]> {
@@ -238,16 +195,15 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
 // Delete local song
 export async function deleteLocalSong(id: string): Promise<void> {
-    // Remove fileHandle and File object from memory
+    // Remove fileHandle from memory
     fileHandleMap.delete(id);
-    fileObjectMap.delete(id);
     await dbDeleteLocalSong(id);
 }
 
-// Get audio blob from local song using fileHandle or File object
-// Returns blob URL if fileHandle or File object exists, null otherwise
+// Get audio blob from local song using fileHandle
+// Returns blob URL if fileHandle exists, null otherwise
 export async function getAudioFromLocalSong(song: LocalSong): Promise<string | null> {
-    // Try to get fileHandle from memory first (for files imported via folder)
+    // Try to get fileHandle from memory first
     let fileHandle = fileHandleMap.get(song.id);
 
     // If not in memory, try to use the one stored in song object (if available)
@@ -269,15 +225,8 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
         }
     }
 
-    // Try to get File object from memory (for files imported via <input type="file">)
-    const fileObject = fileObjectMap.get(song.id);
-    if (fileObject) {
-        return URL.createObjectURL(fileObject);
-    }
-
-    // No fileHandle or File object available - user needs to re-select the file
-    // This happens for files imported via <input type="file"> after page refresh
-    console.warn(`[LocalMusic] No fileHandle or File object for song ${song.id}. File must be re-selected.`);
+    // No fileHandle available - file may have been moved or deleted
+    console.warn(`[LocalMusic] No fileHandle for song ${song.id}. File must be re-imported.`);
     return null;
 }
 

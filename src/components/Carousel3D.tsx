@@ -216,7 +216,12 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                     </h3>
                     <p className="text-xs opacity-50 font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
                         {items[focusedIndex].trackCount !== undefined ? `${items[focusedIndex].trackCount} songs` : ''}
-                        {items[focusedIndex].description ? ` • ${items[focusedIndex].description}` : ''}
+                        {items[focusedIndex].description
+                            ? ` • ${items[focusedIndex].description.length > 12
+                                ? items[focusedIndex].description.substring(0, 12) + '...'
+                                : items[focusedIndex].description
+                            }`
+                            : ''}
                     </p>
                 </motion.div>
             )}

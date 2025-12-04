@@ -1,9 +1,9 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, FolderOpen, Play, Music, Trash2, Search, Loader2, Disc, Folder, ChevronDown, ChevronUp } from 'lucide-react';
+import { FolderOpen, Music, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LocalSong } from '../types';
-import { importFiles, importFolder, matchLyrics, deleteLocalSong } from '../services/localMusicService';
+import { importFolder, matchLyrics, deleteLocalSong } from '../services/localMusicService';
 import LyricMatchModal from './LyricMatchModal';
 import LocalPlaylistView from './LocalPlaylistView';
 import Carousel3D from './Carousel3D';
@@ -17,7 +17,6 @@ interface LocalMusicViewProps {
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, onPlaySong, onPlaylistVisibilityChange }) => {
     const { t } = useTranslation();
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isImporting, setIsImporting] = useState(false);
     const [matchingLyricsFor, setMatchingLyricsFor] = useState<string | null>(null);
@@ -32,15 +31,12 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
     const groups = useMemo(() => {
         const folders: Record<string, LocalSong[]> = {};
         const albums: Record<string, LocalSong[]> = {};
-        const singleImports: LocalSong[] = [];
 
         localSongs.forEach(song => {
-            // Folder Grouping
+            // Folder Grouping - all songs should have folderName from folder import
             if (song.folderName) {
                 if (!folders[song.folderName]) folders[song.folderName] = [];
                 folders[song.folderName].push(song);
-            } else {
-                singleImports.push(song);
             }
 
             // Album Grouping
@@ -68,7 +64,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             }
         });
 
-        // Sort folders: Single Imports first, then alphabetical
+        // Sort folders alphabetically
         const folderList = Object.entries(folders).map(([name, songs]) => ({
             id: `folder-${name}`,
             name,
@@ -78,18 +74,6 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             trackCount: songs.length,
             description: 'Folder'
         })).sort((a, b) => a.name.localeCompare(b.name));
-
-        if (singleImports.length > 0) {
-            folderList.unshift({
-                id: 'folder-single-imports',
-                name: 'Single Imports',
-                songs: singleImports,
-                type: 'folder' as const,
-                coverUrl: singleImports.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
-                trackCount: singleImports.length,
-                description: 'Imported Files'
-            });
-        }
 
         // Sort albums
         const albumList = Object.entries(albums).map(([key, songs]) => {
@@ -111,24 +95,6 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
 
         return { folders: folderList, albums: albumList };
     }, [localSongs]);
-
-    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-
-        setIsImporting(true);
-        try {
-            await importFiles(files);
-            onRefresh();
-        } catch (error) {
-            console.error('Failed to import files:', error);
-        } finally {
-            setIsImporting(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    };
 
     const handleFolderImport = async () => {
         setIsImporting(true);
@@ -167,24 +133,24 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
     };
 
     // Scroll / Swipe Handling
-    const touchStartY = useRef(0);
+    let touchStartY = 0;
 
-    const handleWheel = (e: React.WheelEvent) => {
-        if (selectedGroup) return;
-        // Only trigger if vertical scroll is significant
-        if (Math.abs(e.deltaY) > 50) {
-            if (e.deltaY > 0 && activeRow === 0) setActiveRow(1);
-            if (e.deltaY < 0 && activeRow === 1) setActiveRow(0);
-        }
-    };
+    // const handleWheel = (e: React.WheelEvent) => {
+    //     if (selectedGroup) return;
+    //     // Only trigger if vertical scroll is significant
+    //     if (Math.abs(e.deltaY) > 50) {
+    //         if (e.deltaY > 0 && activeRow === 0) setActiveRow(1);
+    //         if (e.deltaY < 0 && activeRow === 1) setActiveRow(0);
+    //     }
+    // };
 
     const handleTouchStart = (e: React.TouchEvent) => {
-        touchStartY.current = e.touches[0].clientY;
+        touchStartY = e.touches[0].clientY;
     };
 
     const handleTouchEnd = (e: React.TouchEvent) => {
         if (selectedGroup) return;
-        const diff = touchStartY.current - e.changedTouches[0].clientY;
+        const diff = touchStartY - e.changedTouches[0].clientY;
         if (Math.abs(diff) > 50) {
             if (diff > 0 && activeRow === 0) setActiveRow(1);
             if (diff < 0 && activeRow === 1) setActiveRow(0);
@@ -214,21 +180,13 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
     return (
         <div
             className="w-full h-full flex flex-col p-6 pb-32 overflow-hidden relative"
-            onWheel={handleWheel}
+            // onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-2 z-10">
-                {/* <h2 className="text-2xl font-bold opacity-90">Local Music</h2> */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    multiple
-                    onChange={handleFileImport}
-                    className="hidden"
-                />
+                {/* Placeholder for future header content */}
             </div>
 
             {/* Dashboard Content */}
@@ -237,20 +195,23 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
                         <Music size={64} className="mb-4" />
                         <p className="text-lg">No local music imported yet</p>
-                        <div className="flex gap-4 mt-4">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm"
-                            >
-                                Import Files
-                            </button>
-                            <button
-                                onClick={handleFolderImport}
-                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm"
-                            >
-                                Import Folder
-                            </button>
-                        </div>
+                        <button
+                            onClick={handleFolderImport}
+                            disabled={isImporting}
+                            className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm mt-4 flex items-center gap-2"
+                        >
+                            {isImporting ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    Importing...
+                                </>
+                            ) : (
+                                <>
+                                    <FolderOpen size={16} />
+                                    Import Folder
+                                </>
+                            )}
+                        </button>
                     </div>
                 ) : (
                     <div className="w-full h-full relative">
@@ -269,31 +230,15 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                                             Folders & Playlists
                                         </div>
 
-                                        {/* Import Dropdown Trigger */}
-                                        <div className="relative group">
-                                            <button
-                                                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                                                disabled={isImporting}
-                                            >
-                                                {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                                            </button>
-
-                                            {/* Dropdown Menu */}
-                                            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-32 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col">
-                                                <button
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="px-3 py-2 text-xs text-left hover:bg-white/10 transition-colors flex items-center gap-2"
-                                                >
-                                                    <Music size={12} /> Single Files
-                                                </button>
-                                                <button
-                                                    onClick={handleFolderImport}
-                                                    className="px-3 py-2 text-xs text-left hover:bg-white/10 transition-colors flex items-center gap-2"
-                                                >
-                                                    <FolderOpen size={12} /> Folder
-                                                </button>
-                                            </div>
-                                        </div>
+                                        {/* Import Button */}
+                                        <button
+                                            onClick={handleFolderImport}
+                                            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                                            disabled={isImporting}
+                                            title="Import Folder"
+                                        >
+                                            {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FolderOpen size={14} />}
+                                        </button>
                                     </div>
                                     <div className="h-[400px]">
                                         <Carousel3D
