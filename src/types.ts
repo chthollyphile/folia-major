@@ -116,6 +116,8 @@ export interface LocalSong {
 
   // Lyrics matching result
   matchedSongId?: number; // Netease song ID
+  matchedAlbumId?: number; // Netease album ID
+  matchedAlbumName?: string; // Netease album name
   matchedLyrics?: LyricData;
   matchedCoverUrl?: string; // Cover image URL from matched song
   hasManualLyricSelection?: boolean;

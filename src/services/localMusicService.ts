@@ -218,6 +218,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         if (parsedLyrics) {
             // Update local song with matched info
             song.matchedSongId = matchedSong.id;
+            song.matchedAlbumId = matchedSong.al?.id || matchedSong.album?.id;
+            song.matchedAlbumName = matchedSong.al?.name || matchedSong.album?.name;
             song.matchedLyrics = parsedLyrics;
             // Get cover URL from matched song
             const coverUrl = matchedSong.al?.picUrl || matchedSong.album?.picUrl;

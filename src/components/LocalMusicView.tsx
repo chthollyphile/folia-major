@@ -25,7 +25,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
 
     // Navigation State
     const [activeRow, setActiveRow] = useState<0 | 1>(0); // 0: Folders, 1: Albums
-    const [selectedGroup, setSelectedGroup] = useState<{ type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string } | null>(null);
+    const [selectedGroup, setSelectedGroup] = useState<{ type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null>(null);
 
     // Grouping Logic
     const groups = useMemo(() => {
@@ -44,22 +44,21 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
 
             // Album Grouping
             // Use matched album info if available, otherwise fallback to metadata
-            // We need to be careful to group by ID if possible, or name
             let albumKey = 'Unknown Album';
             let albumName = 'Unknown Album';
             let coverUrl = undefined;
+            let albumId: number | undefined = undefined;
 
-            if (song.matchedSongId && song.album) {
+            if (song.matchedSongId && song.matchedAlbumId) {
                 // If matched, use the album name from metadata (which might be updated by match)
-                // But wait, localSong.album is from file tags. 
-                // We should check if we have better info.
-                // Actually, let's use the album name.
-                albumName = song.album;
-                albumKey = song.album;
+                albumName = song.matchedAlbumName || song.album || 'Unknown Album';
+                // Use ID as key to distinguish different albums with same name
+                albumKey = `id-${song.matchedAlbumId}`;
+                albumId = song.matchedAlbumId;
                 coverUrl = song.matchedCoverUrl;
             } else if (song.album) {
                 albumName = song.album;
-                albumKey = song.album;
+                albumKey = `name-${song.album}`;
             }
 
             if (albumKey !== 'Unknown Album') {
@@ -92,15 +91,22 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
         }
 
         // Sort albums
-        const albumList = Object.entries(albums).map(([name, songs]) => ({
-            id: `album-${name}`,
-            name,
-            songs,
-            type: 'album' as const,
-            coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
-            trackCount: songs.length,
-            description: songs[0]?.artist || 'Unknown Artist'
-        })).sort((a, b) => a.name.localeCompare(b.name));
+        const albumList = Object.entries(albums).map(([key, songs]) => {
+            // Try to find a song with matched info to get the best metadata
+            const representative = songs.find(s => s.matchedAlbumId) || songs[0];
+            const name = representative.matchedAlbumName || representative.album || 'Unknown Album';
+
+            return {
+                id: `album-${key}`,
+                name,
+                songs,
+                type: 'album' as const,
+                coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
+                trackCount: songs.length,
+                description: songs[0]?.artist || 'Unknown Artist',
+                albumId: representative.matchedAlbumId
+            };
+        }).sort((a, b) => a.name.localeCompare(b.name));
 
         return { folders: folderList, albums: albumList };
     }, [localSongs]);
@@ -306,7 +312,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                                             items={groups.albums}
                                             onSelect={(item) => setSelectedGroup(item)}
                                             emptyMessage="No albums found"
-                                            textBottomClass="bottom-4"
+                                            textBottomClass="-bottom-1"
                                         />
                                     </div>
                                 </motion.div>
@@ -318,10 +324,10 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
 
             {/* Navigation Arrow - Left Side */}
             {localSongs.length > 0 && (
-                <div className="absolute left-8 top-1/2 -translate-y-1/2 z-20">
+                <div className="absolute right-8 top-1/2 -translate-y-1/2 z-20">
                     <button
                         onClick={() => setActiveRow(prev => prev === 0 ? 1 : 0)}
-                        className="p-3 opacity-50 hover:opacity-100 transition-opacity animate-bounce"
+                        className="p-3 opacity-50 hover:opacity-100 transition-opacity"
                         title={activeRow === 0 ? "Switch to Albums" : "Switch to Folders"}
                     >
                         {activeRow === 0 ? <ChevronDown size={32} /> : <ChevronUp size={32} />}
