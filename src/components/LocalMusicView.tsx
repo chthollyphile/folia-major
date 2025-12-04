@@ -17,6 +17,7 @@ interface LocalMusicViewProps {
     setActiveRow: (row: 0 | 1) => void;
     selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
     setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null) => void;
+    onMatchSong?: (song: LocalSong) => void;
 }
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({
@@ -27,7 +28,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     activeRow,
     setActiveRow,
     selectedGroup,
-    setSelectedGroup
+    setSelectedGroup,
+    onMatchSong
 }) => {
     const { t } = useTranslation();
 
@@ -216,6 +218,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 isFolderView={selectedGroup.type === 'folder'}
                 onResync={selectedGroup.type === 'folder' ? handleResyncFolder : undefined}
                 onDelete={selectedGroup.type === 'folder' ? handleDeleteFolder : undefined}
+                onMatchSong={onMatchSong}
             />
         );
     }

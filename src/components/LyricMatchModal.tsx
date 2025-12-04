@@ -114,6 +114,13 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         }
     };
 
+    const handleNoMatch = async () => {
+        // Set noAutoMatch flag to true
+        song.noAutoMatch = true;
+        await saveLocalSong(song);
+        onClose();
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
             <div className="bg-zinc-900/95 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
@@ -223,6 +230,12 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
                     >
                         Cancel
+                    </button>
+                    <button
+                        onClick={handleNoMatch}
+                        className="px-6 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors mr-auto"
+                    >
+                        Don't use online metadata
                     </button>
                     <button
                         onClick={handleConfirm}

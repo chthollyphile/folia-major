@@ -37,6 +37,7 @@ interface HomeProps {
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
     }>>;
+    onMatchSong?: (song: LocalSong) => void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -57,7 +58,8 @@ const Home: React.FC<HomeProps> = ({
     viewTab,
     setViewTab,
     localMusicState,
-    setLocalMusicState
+    setLocalMusicState,
+    onMatchSong
 }) => {
     const { t } = useTranslation();
 
@@ -175,9 +177,9 @@ const Home: React.FC<HomeProps> = ({
                 >
                     {/* Header Section */}
                     {!isLocalPlaylistOpen && (
-                        <div className="grid grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8">
+                        <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8 gap-y-4 md:gap-y-0">
                             {/* Left: Title & Help */}
-                            <div className="flex items-center justify-start">
+                            <div className="flex items-center justify-start order-1 md:order-none">
                                 <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
                                     Folia
                                 </h1>
@@ -191,7 +193,7 @@ const Home: React.FC<HomeProps> = ({
                             </div>
 
                             {/* Center: Tab Switcher */}
-                            <div className="flex justify-center">
+                            <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
                                 {user && (
                                     <div className="flex relative bg-white/10 backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center">
                                         <div
@@ -220,8 +222,8 @@ const Home: React.FC<HomeProps> = ({
                             </div>
 
                             {/* Right: Search Bar */}
-                            <div className="flex justify-end">
-                                <form onSubmit={handleSearch} className="relative group w-48 md:w-64 transition-all focus-within:w-64 md:focus-within:w-80">
+                            <div className="flex justify-end order-2 md:order-none">
+                                <form onSubmit={handleSearch} className="relative group w-full md:w-64 transition-all focus-within:w-full md:focus-within:w-80">
                                     {isSearching ? (
                                         <Loader2
                                             className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
@@ -287,6 +289,7 @@ const Home: React.FC<HomeProps> = ({
                                             setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
                                             selectedGroup={localMusicState.selectedGroup}
                                             setSelectedGroup={(group) => setLocalMusicState(prev => ({ ...prev, selectedGroup: group }))}
+                                            onMatchSong={onMatchSong}
                                         />
                                     </div>
                                 )}
