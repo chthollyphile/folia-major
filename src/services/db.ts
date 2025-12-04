@@ -1,13 +1,14 @@
 
-import { LyricData, Theme, NeteaseUser, NeteasePlaylist, SongResult } from "../types";
+import { LyricData, Theme, NeteaseUser, NeteasePlaylist, SongResult, LocalSong } from "../types";
 
 const DB_NAME = 'KineticPlayerDB';
-const DB_VERSION = 3; // Incremented version for table separation
+const DB_VERSION = 5; // Incremented version to ensure local_music store is created
 const STORE_NAME = 'session';
 const CACHE_STORE = 'api_cache';
 const USER_CACHE_STORE = 'user_cache';
 const MEDIA_CACHE_STORE = 'media_cache';
 const METADATA_CACHE_STORE = 'metadata_cache';
+const LOCAL_MUSIC_STORE = 'local_music';
 
 export interface SessionData {
   audioFile?: File | Blob;
@@ -35,43 +36,43 @@ const openDB = (): Promise<IDBDatabase> => {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       const oldVersion = event.oldVersion || 0;
-      
+
       // Create session store
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
-      
+
       // Create api_cache store (for backward compatibility: last_song, last_queue, last_theme)
       if (!db.objectStoreNames.contains(CACHE_STORE)) {
         db.createObjectStore(CACHE_STORE, { keyPath: 'key' });
       }
-      
+
       // Create new stores for table separation (version 3+)
       if (oldVersion < 3) {
         // Create user_cache store
         if (!db.objectStoreNames.contains(USER_CACHE_STORE)) {
           db.createObjectStore(USER_CACHE_STORE, { keyPath: 'key' });
         }
-        
+
         // Create media_cache store
         if (!db.objectStoreNames.contains(MEDIA_CACHE_STORE)) {
           db.createObjectStore(MEDIA_CACHE_STORE, { keyPath: 'key' });
         }
-        
+
         // Create metadata_cache store
         if (!db.objectStoreNames.contains(METADATA_CACHE_STORE)) {
           db.createObjectStore(METADATA_CACHE_STORE, { keyPath: 'key' });
         }
-        
+
         // Migrate user data from api_cache to user_cache
         if (oldVersion > 0 && db.objectStoreNames.contains(CACHE_STORE)) {
           const transaction = (event.target as IDBOpenDBRequest).transaction!;
           const oldStore = transaction.objectStore(CACHE_STORE);
           const newStore = transaction.objectStore(USER_CACHE_STORE);
-          
+
           const userKeys = ['user_profile', 'user_playlists', 'user_liked_songs'];
           let migratedCount = 0;
-          
+
           userKeys.forEach(userKey => {
             const req = oldStore.get(userKey);
             req.onsuccess = () => {
@@ -86,6 +87,12 @@ const openDB = (): Promise<IDBDatabase> => {
             };
           });
         }
+      }
+
+      // Create local_music store (version 4+)
+      // Always check if it exists, regardless of version, to handle edge cases
+      if (!db.objectStoreNames.contains(LOCAL_MUSIC_STORE)) {
+        db.createObjectStore(LOCAL_MUSIC_STORE, { keyPath: 'id' });
       }
     };
 
@@ -170,23 +177,23 @@ const getStoreName = (key: string): string => {
   if (key === 'user_profile' || key === 'user_playlists' || key === 'user_liked_songs') {
     return USER_CACHE_STORE;
   }
-  
+
   // Session data -> api_cache (backward compatibility)
   if (key === 'last_song' || key === 'last_queue' || key === 'last_theme') {
     return CACHE_STORE;
   }
-  
+
   // Media files -> media_cache
   if (key.startsWith('audio_') || key.startsWith('cover_')) {
     return MEDIA_CACHE_STORE;
   }
-  
+
   // Metadata and playlists -> metadata_cache
-  if (key.startsWith('lyric_') || key.startsWith('theme_') || 
-      key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')) {
+  if (key.startsWith('lyric_') || key.startsWith('theme_') ||
+    key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')) {
     return METADATA_CACHE_STORE;
   }
-  
+
   // Default to api_cache for backward compatibility
   return CACHE_STORE;
 };
@@ -212,7 +219,7 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
   try {
     const db = await openDB();
     const storeName = getStoreName(key);
-    
+
     // For backward compatibility, also check api_cache if not found in the primary store
     return new Promise((resolve, reject) => {
       const tx = db.transaction([storeName], 'readonly');
@@ -223,8 +230,8 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
           resolve(req.result.data as T);
         } else {
           // If not found and it's a user data key, check old api_cache for migration
-          if ((key === 'user_profile' || key === 'user_playlists' || key === 'user_liked_songs') && 
-              storeName === USER_CACHE_STORE) {
+          if ((key === 'user_profile' || key === 'user_playlists' || key === 'user_liked_songs') &&
+            storeName === USER_CACHE_STORE) {
             const oldTx = db.transaction([CACHE_STORE], 'readonly');
             const oldStore = oldTx.objectStore(CACHE_STORE);
             const oldReq = oldStore.get(key);
@@ -254,7 +261,7 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
 export const clearCache = async (preserveKeys: string[] = []): Promise<void> => {
   try {
     const db = await openDB();
-    
+
     // Group preserve keys by store
     const storeKeys: Record<string, string[]> = {
       [CACHE_STORE]: [],
@@ -262,18 +269,18 @@ export const clearCache = async (preserveKeys: string[] = []): Promise<void> => 
       [MEDIA_CACHE_STORE]: [],
       [METADATA_CACHE_STORE]: []
     };
-    
+
     preserveKeys.forEach(key => {
       const storeName = getStoreName(key);
       storeKeys[storeName].push(key);
     });
-    
+
     // Clear each store
     const clearPromises = Object.entries(storeKeys).map(([storeName, keys]) => {
       return new Promise<void>((resolve, reject) => {
         const tx = db.transaction([storeName], 'readwrite');
         const store = tx.objectStore(storeName);
-        
+
         if (keys.length > 0) {
           // Selective clear
           const req = store.openCursor();
@@ -297,21 +304,21 @@ export const clearCache = async (preserveKeys: string[] = []): Promise<void> => 
         }
       });
     });
-    
+
     await Promise.all(clearPromises);
   } catch (e) {
     console.error("Clear cache failed", e);
   }
-}
+};
 
 export const getCacheUsage = async (): Promise<number> => {
   try {
     const db = await openDB();
     const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
-    
+
     let totalSize = 0;
     let completed = 0;
-    
+
     return new Promise((resolve, reject) => {
       stores.forEach(storeName => {
         const tx = db.transaction([storeName], 'readonly');
@@ -351,3 +358,52 @@ export const getCacheUsage = async (): Promise<number> => {
     return 0;
   }
 };
+
+// --- Local Music Methods ---
+
+export const saveLocalSong = async (song: LocalSong): Promise<void> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
+      const store = tx.objectStore(LOCAL_MUSIC_STORE);
+      store.put(song);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error("Failed to save local song", e);
+  }
+};
+
+export const getLocalSongs = async (): Promise<LocalSong[]> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readonly');
+      const store = tx.objectStore(LOCAL_MUSIC_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.error("Failed to get local songs", e);
+    return [];
+  }
+};
+
+export const deleteLocalSong = async (id: string): Promise<void> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
+      const store = tx.objectStore(LOCAL_MUSIC_STORE);
+      store.delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error("Failed to delete local song", e);
+  }
+};
+

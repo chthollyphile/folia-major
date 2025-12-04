@@ -6,14 +6,15 @@ import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { detectChorusLines } from './utils/chorusDetector';
 import { generateThemeFromLyrics } from './services/gemini';
-import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
+import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB, getLocalSongs } from './services/db';
+import { getAudioFromLocalSong } from './services/localMusicService';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import UnifiedPanel from './components/UnifiedPanel';
-import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist } from './types';
+import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong } from './types';
 import { neteaseApi } from './services/netease';
 
 // Default Theme
@@ -125,6 +126,10 @@ export default function App() {
     const currentSongRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
 
+    // Local Music State
+    const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
+    const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
+
     // --- Initialization & User Data ---
 
     useEffect(() => {
@@ -166,6 +171,7 @@ export default function App() {
 
         loadUserData();
         restoreSession();
+        loadLocalSongs();
 
         return () => {
             window.removeEventListener('popstate', handlePopState);
@@ -589,6 +595,158 @@ export default function App() {
         setUser(null);
         setPlaylists([]);
         setStatusMsg({ type: 'info', text: t('status.loggedOut') });
+    };
+
+    // --- Local Music Functions ---
+
+    const loadLocalSongs = async () => {
+        try {
+            const songs = await getLocalSongs();
+            setLocalSongs(songs);
+        } catch (error) {
+            console.error('Failed to load local songs:', error);
+        }
+    };
+
+    const onRefreshLocalSongs = async () => {
+        await loadLocalSongs();
+    };
+
+    const onPlayLocalSong = async (localSong: LocalSong) => {
+        // Get audio blob from fileHandle first
+        const blobUrl = await getAudioFromLocalSong(localSong);
+        if (!blobUrl) {
+            setStatusMsg({ 
+                type: 'error', 
+                text: '无法访问文件。该文件通过"选择文件"导入，刷新页面后需要重新导入。建议使用"导入文件夹"功能。' 
+            });
+            return;
+        }
+
+        // Auto-match lyrics and cover if not already matched
+        let matchedSong: SongResult | null = null;
+        let coverUrl: string | null = localSong.matchedCoverUrl || null;
+        let lyrics: LyricData | null = localSong.matchedLyrics || null;
+
+        if (!localSong.matchedLyrics || !localSong.matchedCoverUrl) {
+            setStatusMsg({ type: 'info', text: '正在匹配歌词和封面...' });
+            try {
+                // Import matchLyrics function
+                const { matchLyrics } = await import('./services/localMusicService');
+                const matchedLyrics = await matchLyrics(localSong);
+                
+                if (matchedLyrics) {
+                    lyrics = matchedLyrics;
+                    // Reload local song to get updated cover URL
+                    const updatedSongs = await getLocalSongs();
+                    const updatedSong = updatedSongs.find(s => s.id === localSong.id);
+                    if (updatedSong?.matchedCoverUrl) {
+                        coverUrl = updatedSong.matchedCoverUrl;
+                    }
+                    // Also get matched song info for better metadata
+                    if (updatedSong?.matchedSongId) {
+                        try {
+                            const searchRes = await neteaseApi.cloudSearch(
+                                localSong.artist 
+                                    ? `${localSong.artist} ${localSong.title}` 
+                                    : localSong.title || localSong.fileName
+                            );
+                            if (searchRes.result?.songs && searchRes.result.songs.length > 0) {
+                                matchedSong = searchRes.result.songs.find(s => s.id === updatedSong.matchedSongId) || searchRes.result.songs[0];
+                            }
+                        } catch (e) {
+                            console.warn('Failed to get matched song details:', e);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Auto-match failed:', error);
+                // Continue with existing data if available
+            }
+            // Refresh local songs list to show updated cover
+            await loadLocalSongs();
+        }
+
+        // Convert LocalSong to SongResult-like format for playback
+        // Use a negative ID to distinguish local songs from cloud songs
+        const localSongId = -Math.abs(parseInt(localSong.id.replace(/\D/g, '')) || Date.now());
+        const unifiedSong: SongResult = {
+            id: localSongId,
+            name: localSong.title || localSong.fileName,
+            artists: localSong.artist ? [{ id: 0, name: localSong.artist }] : [],
+            album: localSong.album ? { id: 0, name: localSong.album } : { id: 0, name: '' },
+            duration: localSong.duration,
+            ar: localSong.artist ? [{ id: 0, name: localSong.artist }] : [],
+            al: localSong.album ? { 
+                id: 0, 
+                name: localSong.album, 
+                picUrl: coverUrl || undefined 
+            } : coverUrl ? { 
+                id: 0, 
+                name: '', 
+                picUrl: coverUrl 
+            } : undefined,
+            dt: localSong.duration
+        };
+
+        // If we have matched song info, use it for better metadata
+        if (matchedSong) {
+            unifiedSong.name = matchedSong.name;
+            unifiedSong.artists = matchedSong.artists || matchedSong.ar || unifiedSong.artists;
+            unifiedSong.album = matchedSong.album || (matchedSong.al ? {
+                id: matchedSong.al.id,
+                name: matchedSong.al.name,
+                picUrl: matchedSong.al.picUrl
+            } : unifiedSong.album);
+            unifiedSong.ar = matchedSong.ar || unifiedSong.ar;
+            unifiedSong.al = matchedSong.al || unifiedSong.al;
+        }
+
+        // Store blob URL reference
+        if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+        }
+        blobUrlRef.current = blobUrl;
+
+        // Enable autoplay
+        shouldAutoPlay.current = true;
+        currentSongRef.current = unifiedSong.id;
+
+        // Set UI state
+        setLyrics(lyrics);
+        setCurrentSong(unifiedSong);
+        // Cache cover if available
+        if (coverUrl) {
+            try {
+                const cachedCover = await getFromCache<Blob>(`cover_local_${localSong.id}`);
+                if (cachedCover) {
+                    setCachedCoverUrl(URL.createObjectURL(cachedCover));
+                } else {
+                    // Fetch and cache cover
+                    const response = await fetch(coverUrl, { mode: 'cors' });
+                    const coverBlob = await response.blob();
+                    await saveToCache(`cover_local_${localSong.id}`, coverBlob);
+                    setCachedCoverUrl(URL.createObjectURL(coverBlob));
+                }
+            } catch (e) {
+                console.warn('Failed to cache cover:', e);
+                setCachedCoverUrl(coverUrl);
+            }
+        } else {
+            setCachedCoverUrl(null);
+        }
+        setAudioSrc(blobUrl);
+        setIsLyricsLoading(false);
+
+        // Set queue
+        setPlayQueue([unifiedSong]);
+        saveToCache('last_song', unifiedSong);
+        saveToCache('last_queue', [unifiedSong]);
+
+        // Navigate to player
+        navigateToPlayer();
+        setPlayerState(PlayerState.IDLE);
+        setStatusMsg({ type: 'success', text: '本地音乐已加载' });
     };
 
     // --- Effects ---
@@ -1258,6 +1416,9 @@ export default function App() {
                             selectedPlaylist={selectedPlaylist}
                             onSelectPlaylist={handlePlaylistSelect}
                             onSelectAlbum={handleAlbumSelect}
+                            localSongs={localSongs}
+                            onRefreshLocalSongs={onRefreshLocalSongs}
+                            onPlayLocalSong={onPlayLocalSong}
                         />
                     </motion.div>
                 )}

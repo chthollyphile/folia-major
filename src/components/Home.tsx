@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { NeteaseUser, NeteasePlaylist, SongResult } from '../types';
+import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong } from '../types';
 import PlaylistView from './PlaylistView';
+import LocalMusicView from './LocalMusicView';
 import HelpModal from './HelpModal';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -77,6 +78,9 @@ interface HomeProps {
     selectedPlaylist: NeteasePlaylist | null;
     onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
     onSelectAlbum: (albumId: number) => void;
+    localSongs: LocalSong[];
+    onRefreshLocalSongs: () => void;
+    onPlayLocalSong: (song: LocalSong) => void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -90,7 +94,10 @@ const Home: React.FC<HomeProps> = ({
     isPlaying,
     selectedPlaylist,
     onSelectPlaylist,
-    onSelectAlbum
+    onSelectAlbum,
+    localSongs,
+    onRefreshLocalSongs,
+    onPlayLocalSong
 }) => {
     const { t } = useTranslation();
 
@@ -98,6 +105,7 @@ const Home: React.FC<HomeProps> = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
+    const [viewTab, setViewTab] = useState<'playlist' | 'local'>('playlist'); // Tab state
     const [focusedIndex, setFocusedIndex] = useState(() => {
         const saved = sessionStorage.getItem('folia_home_focused_index');
         return saved ? parseInt(saved, 10) : 0;
@@ -338,8 +346,8 @@ const Home: React.FC<HomeProps> = ({
                             </button>
                         </div>
 
-                        {/* Simple Search */}
-                        <form onSubmit={handleSearch} className="relative group w-full max-w-sm md:max-w-xs mx-auto md:mx-0">
+                        {/* Search Bar - Moved to Right */}
+                        <form onSubmit={handleSearch} className="relative group w-full max-w-xs">
                             {isSearching ? (
                                 <Loader2
                                     className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
@@ -360,14 +368,9 @@ const Home: React.FC<HomeProps> = ({
                                 style={{ color: 'var(--text-primary)' }}
                             />
                         </form>
-
-                        {/* User / Login */}
-                        <div className="flex items-center gap-4">
-                            {/* Login Button Removed (Duplicate) */}
-                        </div>
                     </div>
 
-                    {/* Main Content Area - Carousel */}
+                    {/* Main Content Area */}
                     <div className="flex-1 flex flex-col items-center justify-center relative">
                         {!user ? (
                             <div className="flex flex-col items-center justify-center space-y-6">
@@ -384,77 +387,111 @@ const Home: React.FC<HomeProps> = ({
                                 </button>
                             </div>
                         ) : (
-                            <div className="w-full h-full flex flex-col justify-center relative">
-
-                                {/* Decorative Line Behind */}
-                                <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-y-1/2 z-0" />
-
-                                {/* Center Focus Decoration */}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border border-white/5 -z-10" />
-
-                                {/* Carousel Container */}
-                                <div
-                                    ref={carouselRef}
-                                    className="w-full h-[400px] relative flex items-center justify-center perspective-1000 touch-pan-y"
-                                    onTouchStart={handleTouchStart}
-                                    onTouchMove={handleTouchMove}
-                                    onTouchEnd={handleTouchEnd}
-                                >
-                                    {playlists.length > 0 ? (
-                                        playlists.map((pl, i) => {
-                                            if (Math.abs(focusedIndex - i) > 4) return null;
-
-                                            const distance = i - focusedIndex;
-                                            const isActive = distance === 0;
-
-                                            const scale = isActive ? 1.1 : 1 - Math.abs(distance) * 0.15;
-                                            const opacity = isActive ? 1 : 0.6 - Math.abs(distance) * 0.15;
-                                            const xOffset = distance * 240;
-                                            const zIndex = 10 - Math.abs(distance);
-                                            const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
-
-                                            return (
-                                                <CarouselItem
-                                                    key={pl.id}
-                                                    playlist={pl}
-                                                    distance={distance}
-                                                    isActive={isActive}
-                                                    xOffset={xOffset}
-                                                    scale={scale}
-                                                    opacity={opacity}
-                                                    zIndex={zIndex}
-                                                    rotateY={rotateY}
-                                                    onSelect={() => onSelectPlaylist(pl)}
-                                                    onFocus={() => setFocusedIndex(i)}
-                                                />
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="opacity-50 flex flex-col items-center gap-4">
-                                            <Loader2 className="animate-spin" />
-                                            <span>{t('home.loadingLibrary')}</span>
-                                        </div>
-                                    )}
+                            <>
+                                {/* Tab Switcher */}
+                                <div className="flex gap-2 mb-6 bg-white/5 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => setViewTab('playlist')}
+                                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${viewTab === 'playlist'
+                                                ? 'bg-white text-black'
+                                                : 'hover:bg-white/10 opacity-60'
+                                            }`}
+                                    >
+                                        Playlists
+                                    </button>
+                                    <button
+                                        onClick={() => setViewTab('local')}
+                                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${viewTab === 'local'
+                                                ? 'bg-white text-black'
+                                                : 'hover:bg-white/10 opacity-60'
+                                            }`}
+                                    >
+                                        Local Music
+                                    </button>
                                 </div>
 
-                                {/* Active Playlist Title - Static Layer Below */}
-                                {playlists.length > 0 && playlists[focusedIndex] && (
-                                    <motion.div
-                                        key={playlists[focusedIndex].id}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        className="absolute bottom-24 left-0 right-0 text-center z-10 px-8 pointer-events-none"
-                                    >
-                                        <h3 className="font-bold text-2xl truncate max-w-xl mx-auto" style={{ color: 'var(--text-primary)' }}>
-                                            {playlists[focusedIndex].name}
-                                        </h3>
-                                        <p className="text-xs opacity-50 font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                            {playlists[focusedIndex].trackCount} {t('home.songs')} • ID: {playlists[focusedIndex].id}
-                                        </p>
-                                    </motion.div>
+                                {/* Conditional Content Based on Tab */}
+                                {viewTab === 'playlist' ? (
+                                    <div className="w-full h-full flex flex-col justify-center relative">
+                                        {/* Decorative Line Behind */}
+                                        <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-y-1/2 z-0" />
+
+                                        {/* Center Focus Decoration */}
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border border-white/5 -z-10" />
+
+                                        {/* Carousel Container */}
+                                        <div
+                                            ref={carouselRef}
+                                            className="w-full h-[400px] relative flex items-center justify-center perspective-1000 touch-pan-y"
+                                            onTouchStart={handleTouchStart}
+                                            onTouchMove={handleTouchMove}
+                                            onTouchEnd={handleTouchEnd}
+                                        >
+                                            {playlists.length > 0 ? (
+                                                playlists.map((pl, i) => {
+                                                    if (Math.abs(focusedIndex - i) > 4) return null;
+
+                                                    const distance = i - focusedIndex;
+                                                    const isActive = distance === 0;
+
+                                                    const scale = isActive ? 1.1 : 1 - Math.abs(distance) * 0.15;
+                                                    const opacity = isActive ? 1 : 0.6 - Math.abs(distance) * 0.15;
+                                                    const xOffset = distance * 240;
+                                                    const zIndex = 10 - Math.abs(distance);
+                                                    const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
+
+                                                    return (
+                                                        <CarouselItem
+                                                            key={pl.id}
+                                                            playlist={pl}
+                                                            distance={distance}
+                                                            isActive={isActive}
+                                                            xOffset={xOffset}
+                                                            scale={scale}
+                                                            opacity={opacity}
+                                                            zIndex={zIndex}
+                                                            rotateY={rotateY}
+                                                            onSelect={() => onSelectPlaylist(pl)}
+                                                            onFocus={() => setFocusedIndex(i)}
+                                                        />
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="opacity-50 flex flex-col items-center gap-4">
+                                                    <Loader2 className="animate-spin" />
+                                                    <span>{t('home.loadingLibrary')}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Active Playlist Title - Static Layer Below */}
+                                        {playlists.length > 0 && playlists[focusedIndex] && (
+                                            <motion.div
+                                                key={playlists[focusedIndex].id}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.3 }}
+                                                className="absolute bottom-24 left-0 right-0 text-center z-10 px-8 pointer-events-none"
+                                            >
+                                                <h3 className="font-bold text-2xl truncate max-w-xl mx-auto" style={{ color: 'var(--text-primary)' }}>
+                                                    {playlists[focusedIndex].name}
+                                                </h3>
+                                                <p className="text-xs opacity-50 font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                                    {playlists[focusedIndex].trackCount} {t('home.songs')} • ID: {playlists[focusedIndex].id}
+                                                </p>
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="w-full flex-1 overflow-hidden">
+                                        <LocalMusicView
+                                            localSongs={localSongs}
+                                            onRefresh={onRefreshLocalSongs}
+                                            onPlaySong={onPlayLocalSong}
+                                        />
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )}
                     </div>
 
