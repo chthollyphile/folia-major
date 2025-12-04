@@ -41,14 +41,14 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
 
             // Album Grouping
             // Use matched album info if available, otherwise fallback to metadata
-            let albumKey = 'Unknown Album';
-            let albumName = 'Unknown Album';
+            let albumKey = t('localMusic.unknownAlbum');
+            let albumName = t('localMusic.unknownAlbum');
             let coverUrl = undefined;
             let albumId: number | undefined = undefined;
 
             if (song.matchedSongId && song.matchedAlbumId) {
                 // If matched, use the album name from metadata (which might be updated by match)
-                albumName = song.matchedAlbumName || song.album || 'Unknown Album';
+                albumName = song.matchedAlbumName || song.album || t('localMusic.unknownAlbum');
                 // Use ID as key to distinguish different albums with same name
                 albumKey = `id-${song.matchedAlbumId}`;
                 albumId = song.matchedAlbumId;
@@ -58,7 +58,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                 albumKey = `name-${song.album}`;
             }
 
-            if (albumKey !== 'Unknown Album') {
+            if (albumKey !== t('localMusic.unknownAlbum')) {
                 if (!albums[albumKey]) albums[albumKey] = [];
                 albums[albumKey].push(song);
             }
@@ -72,14 +72,14 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             type: 'folder' as const,
             coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
             trackCount: songs.length,
-            description: 'Folder'
+            description: t('localMusic.folder')
         })).sort((a, b) => a.name.localeCompare(b.name));
 
         // Sort albums
         const albumList = Object.entries(albums).map(([key, songs]) => {
             // Try to find a song with matched info to get the best metadata
             const representative = songs.find(s => s.matchedAlbumId) || songs[0];
-            const name = representative.matchedAlbumName || representative.album || 'Unknown Album';
+            const name = representative.matchedAlbumName || representative.album || t('localMusic.unknownAlbum');
 
             return {
                 id: `album-${key}`,
@@ -88,7 +88,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                 type: 'album' as const,
                 coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
                 trackCount: songs.length,
-                description: songs[0]?.artist || 'Unknown Artist',
+                description: songs[0]?.artist || t('localMusic.unknownArtist'),
                 albumId: representative.matchedAlbumId
             };
         }).sort((a, b) => a.name.localeCompare(b.name));
@@ -103,7 +103,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             onRefresh();
         } catch (error) {
             console.error('Failed to import folder:', error);
-            alert('Folder import not supported in this browser or cancelled');
+            alert(t('localMusic.importNotSupported'));
         } finally {
             setIsImporting(false);
         }
@@ -142,7 +142,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             setSelectedGroup(null); // Close the playlist view
         } catch (error) {
             console.error('Failed to resync folder:', error);
-            alert('Failed to resync folder. Please try again.');
+            alert(t('localMusic.resyncFailed'));
         }
     };
 
@@ -155,7 +155,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             setSelectedGroup(null); // Close the playlist view
         } catch (error) {
             console.error('Failed to delete folder:', error);
-            alert('Failed to delete folder. Please try again.');
+            alert(t('localMusic.deleteFailed'));
         }
     };
 
@@ -224,7 +224,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                 {localSongs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
                         <Music size={64} className="mb-4" />
-                        <p className="text-lg">No local music imported yet</p>
+                        <p className="text-lg">{t('localMusic.noLocalMusic')}</p>
                         <button
                             onClick={handleFolderImport}
                             disabled={isImporting}
@@ -233,12 +233,12 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                             {isImporting ? (
                                 <>
                                     <Loader2 size={16} className="animate-spin" />
-                                    Importing...
+                                    {t('localMusic.importing')}
                                 </>
                             ) : (
                                 <>
                                     <FolderOpen size={16} />
-                                    Import Folder
+                                    {t('localMusic.importFolder')}
                                 </>
                             )}
                         </button>
@@ -257,7 +257,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                                 >
                                     <div className="flex items-center justify-center gap-3 mb-4">
                                         <div className="opacity-60 text-sm font-medium uppercase tracking-widest">
-                                            Folders & Playlists
+                                            {t('localMusic.foldersAndPlaylists')}
                                         </div>
 
                                         {/* Import Button */}
@@ -274,7 +274,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                                         <Carousel3D
                                             items={groups.folders}
                                             onSelect={(item) => setSelectedGroup(item)}
-                                            emptyMessage="No folders found"
+                                            emptyMessage={t('localMusic.noFoldersFound')}
                                             textBottomClass="-bottom-1"
                                         />
                                     </div>
@@ -289,13 +289,13 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                                     className="w-full h-full flex flex-col justify-center"
                                 >
                                     <div className="text-center mb-4 opacity-60 text-sm font-medium uppercase tracking-widest">
-                                        Albums
+                                        {t('localMusic.albums')}
                                     </div>
                                     <div className="h-[400px]">
                                         <Carousel3D
                                             items={groups.albums}
                                             onSelect={(item) => setSelectedGroup(item)}
-                                            emptyMessage="No albums found"
+                                            emptyMessage={t('localMusic.noAlbumsFound')}
                                             textBottomClass="-bottom-1"
                                         />
                                     </div>
@@ -312,7 +312,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                     <button
                         onClick={() => setActiveRow(prev => prev === 0 ? 1 : 0)}
                         className="p-3 opacity-50 hover:opacity-100 transition-opacity"
-                        title={activeRow === 0 ? "Switch to Albums" : "Switch to Folders"}
+                        title={activeRow === 0 ? t('localMusic.switchToAlbums') : t('localMusic.switchToFolders')}
                     >
                         {activeRow === 0 ? <ChevronDown size={32} /> : <ChevronUp size={32} />}
                     </button>

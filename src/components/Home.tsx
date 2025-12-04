@@ -192,14 +192,14 @@ const Home: React.FC<HomeProps> = ({
                                             className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? 'text-black' : 'text-white/60 hover:text-white'
                                                 }`}
                                         >
-                                            Playlists
+                                            {t('home.playlists')}
                                         </button>
                                         <button
                                             onClick={() => setViewTab('local')}
                                             className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? 'text-black' : 'text-white/60 hover:text-white'
                                                 }`}
                                         >
-                                            Local Music
+                                            {t('localMusic.folder')}
                                         </button>
                                     </div>
                                 )}

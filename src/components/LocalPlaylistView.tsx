@@ -116,7 +116,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                         title="Re-import folder to refresh"
                                     >
                                         <RefreshCw size={16} className={isResyncing ? 'animate-spin' : ''} />
-                                        重新导入
+                                        {t('localMusic.reimport')}
                                     </button>
                                 )}
 
@@ -128,7 +128,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                         title="Remove folder from library"
                                     >
                                         <Trash2 size={16} />
-                                        删除
+                                        {t('localMusic.delete')}
                                     </button>
                                 )}
                             </div>
@@ -163,7 +163,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                         {song.title || song.fileName}
                                     </div>
                                     <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                        {song.matchedArtists || song.artist || 'Unknown Artist'}
+                                        {song.matchedArtists || song.artist || t('localMusic.unknownArtist')}
                                         {song.matchedAlbumName && (
                                             <>
                                                 <span className="mx-1.5">•</span>

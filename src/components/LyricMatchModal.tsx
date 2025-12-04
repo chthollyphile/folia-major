@@ -108,7 +108,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             onMatch();
         } catch (error) {
             console.error('Failed to fetch lyrics:', error);
-            alert('Failed to fetch lyrics for selected song');
+            console.error('Failed to fetch lyrics:', error);
+            alert(t('localMusic.matchFailed'));
         } finally {
             setIsMatching(false);
         }
@@ -120,9 +121,9 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                 {/* Header */}
                 <div className="p-6 border-b border-white/10 flex items-center justify-between">
                     <div>
-                        <h2 className="text-xl font-bold">Match Lyrics</h2>
+                        <h2 className="text-xl font-bold">{t('localMusic.matchLyrics')}</h2>
                         <p className="text-sm opacity-60 mt-1">
-                            Search and select the correct song for: <span className="font-semibold">{song.title || song.fileName}</span>
+                            {t('localMusic.matchLyricsDescription')} <span className="font-semibold">{song.title || song.fileName}</span>
                         </p>
                     </div>
                     <button
@@ -146,7 +147,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search for song..."
+                            placeholder={t('localMusic.searchForSong')}
                             className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all"
                             autoFocus
                         />
@@ -156,7 +157,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             disabled={isSearching}
                             className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-md text-sm transition-colors disabled:opacity-50"
                         >
-                            {isSearching ? 'Searching...' : 'Search'}
+                            {isSearching ? t('localMusic.searching') : t('localMusic.search')}
                         </button>
                     </form>
                 </div>
@@ -170,7 +171,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                     ) : searchResults.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 opacity-50">
                             <Music size={48} className="mb-3" />
-                            <p>No results found. Try a different search query.</p>
+                            <p>{t('localMusic.noResults')}</p>
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -222,7 +223,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         onClick={onClose}
                         className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
                     >
-                        Cancel
+                        {t('localMusic.cancel')}
                     </button>
                     <button
                         onClick={handleConfirm}
@@ -232,10 +233,10 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         {isMatching ? (
                             <>
                                 <Loader2 className="animate-spin" size={16} />
-                                <span>Matching...</span>
+                                <span>{t('localMusic.matching')}</span>
                             </>
                         ) : (
-                            'Confirm Match'
+                            t('localMusic.confirmMatch')
                         )}
                     </button>
                 </div>

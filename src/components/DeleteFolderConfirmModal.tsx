@@ -53,23 +53,23 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
 
                         {/* Title */}
                         <h2 className="text-2xl font-bold text-center mb-4">
-                            Delete Folder?
+                            {t('localMusic.deleteFolderTitle')}
                         </h2>
 
                         {/* Description */}
                         <div className="space-y-3 mb-8">
                             <p className="text-center opacity-80">
-                                You are about to remove <span className="font-semibold">"{folderName}"</span> from your library.
+                                {t('localMusic.deleteFolderMessage', { folderName })}
                             </p>
 
                             <p className="text-center opacity-60 text-sm">
-                                This will remove <span className="font-semibold">{songCount}</span> {songCount === 1 ? 'song' : 'songs'} from your library.
+                                {t('localMusic.deleteFolderCount', { count: songCount })}
                             </p>
 
                             {/* Important Notice */}
                             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mt-4">
                                 <p className="text-sm text-center opacity-90">
-                                    <span className="font-semibold">Note:</span> This will only remove songs from your library. Your files on disk will not be affected.
+                                    {t('localMusic.deleteFolderNote')}
                                 </p>
                             </div>
                         </div>
@@ -80,7 +80,8 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                                 onClick={onCancel}
                                 className="flex-1 py-3 px-6 rounded-full font-medium text-sm transition-colors bg-white/5 hover:bg-white/10 border border-white/10"
                             >
-                                Cancel
+
+                                {t('localMusic.cancel')}
                             </button>
                             <button
                                 onClick={() => {
@@ -89,7 +90,8 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                                 }}
                                 className="flex-1 py-3 px-6 rounded-full font-medium text-sm transition-colors bg-red-500 hover:bg-red-600 text-white"
                             >
-                                Delete from Library
+
+                                {t('localMusic.deleteFromLibrary')}
                             </button>
                         </div>
                     </motion.div>

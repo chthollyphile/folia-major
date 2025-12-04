@@ -113,7 +113,8 @@ export default {
     "connectAccount": "连接网易云账户",
     "loadingLibrary": "加载音乐库...",
     "resultsFor": "搜索结果：",
-    "noResults": "未找到相关结果"
+    "noResults": "未找到相关结果",
+    "playlists": "歌单"
   },
   "animation": {
     "calm": "平静",
@@ -135,5 +136,39 @@ export default {
     "seekBackward": "倒退 5 秒",
     "madeBy": "作者",
     "version": "版本"
+  },
+  "localMusic": {
+    "foldersAndPlaylists": "本地文件夹",
+    "albums": "本地专辑",
+    "unknownAlbum": "未知专辑",
+    "unknownArtist": "未知艺术家",
+    "folder": "本地",
+    "importFolder": "导入文件夹",
+    "importing": "导入中...",
+    "noLocalMusic": "暂无本地音乐",
+    "noFoldersFound": "未找到文件夹",
+    "noAlbumsFound": "未找到专辑",
+    "switchToAlbums": "切换到专辑视图",
+    "switchToFolders": "切换到文件夹视图",
+    "reimport": "重新导入",
+    "delete": "删除",
+    "deleteFromLibrary": "从库中删除",
+    "cancel": "取消",
+    "confirmMatch": "确认匹配",
+    "matching": "匹配中...",
+    "searchForSong": "搜索歌曲...",
+    "search": "搜索",
+    "searching": "搜索中...",
+    "noResults": "未找到结果，请尝试不同的关键词。",
+    "matchLyrics": "匹配歌词",
+    "matchLyricsDescription": "搜索并选择正确的歌曲以匹配：",
+    "deleteFolderTitle": "删除文件夹？",
+    "deleteFolderMessage": "您即将从库中移除 \"{{folderName}}\"。",
+    "deleteFolderCount": "这将从您的库中移除 {{count}} 首歌曲。",
+    "deleteFolderNote": "注意：这只会从库中移除歌曲，不会影响您的磁盘文件。",
+    "importNotSupported": "当前浏览器不支持文件夹导入或操作已取消",
+    "resyncFailed": "重新同步文件夹失败，请重试。",
+    "deleteFailed": "删除文件夹失败，请重试。",
+    "matchFailed": "获取歌词失败"
   }
 } as const;
