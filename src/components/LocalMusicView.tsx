@@ -12,9 +12,10 @@ interface LocalMusicViewProps {
     localSongs: LocalSong[];
     onRefresh: () => void;
     onPlaySong: (song: LocalSong) => void;
+    onPlaylistVisibilityChange?: (isOpen: boolean) => void;
 }
 
-const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, onPlaySong }) => {
+const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, onPlaySong, onPlaylistVisibilityChange }) => {
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -190,13 +191,21 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
         }
     };
 
+    // Notify parent when playlist view opens/closes
+    React.useEffect(() => {
+        onPlaylistVisibilityChange?.(selectedGroup !== null);
+    }, [selectedGroup, onPlaylistVisibilityChange]);
+
     if (selectedGroup) {
         return (
             <LocalPlaylistView
                 title={selectedGroup.name}
                 coverUrl={selectedGroup.coverUrl}
                 songs={selectedGroup.songs}
-                onBack={() => setSelectedGroup(null)}
+                onBack={() => {
+                    setSelectedGroup(null);
+                    onPlaylistVisibilityChange?.(false);
+                }}
                 onPlaySong={onPlaySong}
             />
         );

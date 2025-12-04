@@ -60,6 +60,7 @@ const Home: React.FC<HomeProps> = ({
     const [qrCodeImg, setQrCodeImg] = useState<string>("");
     const [qrStatus, setQrStatus] = useState<string>("");
     const qrCheckInterval = useRef<any>(null);
+    const [isLocalPlaylistOpen, setIsLocalPlaylistOpen] = useState(false);
 
     const initLogin = async () => {
         setShowLoginModal(true);
@@ -159,75 +160,77 @@ const Home: React.FC<HomeProps> = ({
                     style={{ color: 'var(--text-primary)' }}
                 >
                     {/* Header Section */}
-                    <div className="grid grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8">
-                        {/* Left: Title & Help */}
-                        <div className="flex items-center justify-start">
-                            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-                                Folia
-                            </h1>
-                            <button
-                                onClick={() => setShowHelpModal(true)}
-                                className="p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
-                                title="Help & About"
-                            >
-                                <HelpCircle size={20} style={{ color: 'var(--text-primary)' }} />
-                            </button>
-                        </div>
+                    {!isLocalPlaylistOpen && (
+                        <div className="grid grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8">
+                            {/* Left: Title & Help */}
+                            <div className="flex items-center justify-start">
+                                <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
+                                    Folia
+                                </h1>
+                                <button
+                                    onClick={() => setShowHelpModal(true)}
+                                    className="p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
+                                    title="Help & About"
+                                >
+                                    <HelpCircle size={20} style={{ color: 'var(--text-primary)' }} />
+                                </button>
+                            </div>
 
-                        {/* Center: Tab Switcher */}
-                        <div className="flex justify-center">
-                            {user && (
-                                <div className="flex relative bg-white/10 backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center">
-                                    <div
-                                        className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
-                                        style={{
-                                            left: viewTab === 'playlist' ? '4px' : '50%',
-                                            width: 'calc(50% - 4px)'
-                                        }}
-                                    />
-                                    <button
-                                        onClick={() => setViewTab('playlist')}
-                                        className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? 'text-black' : 'text-white/60 hover:text-white'
-                                            }`}
-                                    >
-                                        Playlists
-                                    </button>
-                                    <button
-                                        onClick={() => setViewTab('local')}
-                                        className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? 'text-black' : 'text-white/60 hover:text-white'
-                                            }`}
-                                    >
-                                        Local Music
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right: Search Bar */}
-                        <div className="flex justify-end">
-                            <form onSubmit={handleSearch} className="relative group w-48 md:w-64 transition-all focus-within:w-64 md:focus-within:w-80">
-                                {isSearching ? (
-                                    <Loader2
-                                        className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
-                                        style={{ marginTop: '-8px' }}
-                                    />
-                                ) : (
-                                    <Search
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity"
-                                        onClick={() => handleSearch()}
-                                    />
+                            {/* Center: Tab Switcher */}
+                            <div className="flex justify-center">
+                                {user && (
+                                    <div className="flex relative bg-white/10 backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center">
+                                        <div
+                                            className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
+                                            style={{
+                                                left: viewTab === 'playlist' ? '4px' : '50%',
+                                                width: 'calc(50% - 4px)'
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => setViewTab('playlist')}
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? 'text-black' : 'text-white/60 hover:text-white'
+                                                }`}
+                                        >
+                                            Playlists
+                                        </button>
+                                        <button
+                                            onClick={() => setViewTab('local')}
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? 'text-black' : 'text-white/60 hover:text-white'
+                                                }`}
+                                        >
+                                            Local Music
+                                        </button>
+                                    </div>
                                 )}
-                                <input
-                                    type="text"
-                                    placeholder={t('home.searchDatabase')}
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all placeholder:text-white/20"
-                                    style={{ color: 'var(--text-primary)' }}
-                                />
-                            </form>
+                            </div>
+
+                            {/* Right: Search Bar */}
+                            <div className="flex justify-end">
+                                <form onSubmit={handleSearch} className="relative group w-48 md:w-64 transition-all focus-within:w-64 md:focus-within:w-80">
+                                    {isSearching ? (
+                                        <Loader2
+                                            className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
+                                            style={{ marginTop: '-8px' }}
+                                        />
+                                    ) : (
+                                        <Search
+                                            className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity"
+                                            onClick={() => handleSearch()}
+                                        />
+                                    )}
+                                    <input
+                                        type="text"
+                                        placeholder={t('home.searchDatabase')}
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all placeholder:text-white/20"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    />
+                                </form>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Main Content Area */}
                     <div className="flex-1 flex flex-col items-center justify-center relative">
@@ -265,6 +268,7 @@ const Home: React.FC<HomeProps> = ({
                                             localSongs={localSongs}
                                             onRefresh={onRefreshLocalSongs}
                                             onPlaySong={onPlayLocalSong}
+                                            onPlaylistVisibilityChange={setIsLocalPlaylistOpen}
                                         />
                                     </div>
                                 )}
