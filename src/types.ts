@@ -123,6 +123,7 @@ export interface LocalSong {
   matchedCoverUrl?: string; // Cover image URL from matched song
   hasManualLyricSelection?: boolean;
   folderName?: string; // Name of the folder if imported via folder import
+  noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
 }
 
 // Extend SongResult to support local files

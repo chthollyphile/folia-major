@@ -1,23 +1,25 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, Folder, RefreshCw, Trash2 } from 'lucide-react';
+import { Play, ChevronLeft, Disc, Loader2, Folder, RefreshCw, Trash2, Pencil } from 'lucide-react';
 import { LocalSong, SongResult } from '../types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
 import DeleteFolderConfirmModal from './DeleteFolderConfirmModal';
+import LyricMatchModal from './LyricMatchModal';
 
 interface LocalPlaylistViewProps {
     title: string;
     coverUrl?: string;
     songs: LocalSong[];
     onBack: () => void;
-    onPlaySong: (song: LocalSong) => void;
+    onPlaySong: (song: LocalSong, queue?: LocalSong[]) => void;
     isFolderView?: boolean;
     onResync?: () => void;
     onDelete?: () => void;
+    onMatchSong?: (song: LocalSong) => void;
 }
 
-const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete }) => {
+const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong }) => {
     const { t } = useTranslation();
 
     // Scroll Ref
@@ -26,6 +28,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
     // State for delete confirmation modal
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isResyncing, setIsResyncing] = useState(false);
+    const [matchingSong, setMatchingSong] = useState<LocalSong | null>(null);
 
     const formatDuration = (ms: number) => {
         const minutes = Math.floor(ms / 60000);
@@ -87,7 +90,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                     <div className="w-full space-y-3">
                         <button
                             onClick={() => {
-                                if (songs.length > 0) onPlaySong(songs[0]);
+                                if (songs.length > 0) onPlaySong(songs[0], songs);
                             }}
                             className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
                             style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
@@ -176,6 +179,20 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                 <div className="w-12 md:w-16 text-right text-xs font-medium opacity-30 group-hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
                                     {formatDuration(song.duration)}
                                 </div>
+
+                                {onMatchSong && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setMatchingSong(song);
+                                        }}
+                                        className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                        title="Match Metadata"
+                                        style={{ color: 'var(--text-secondary)' }}
+                                    >
+                                        <Pencil size={14} />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -191,6 +208,18 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                     songCount={songs.length}
                     onConfirm={onDelete}
                     onCancel={() => setShowDeleteModal(false)}
+                />
+            )}
+
+            {/* Lyric Match Modal */}
+            {matchingSong && onMatchSong && (
+                <LyricMatchModal
+                    song={matchingSong}
+                    onClose={() => setMatchingSong(null)}
+                    onMatch={() => {
+                        setMatchingSong(null);
+                        if (onResync) onResync(); // Refresh list to show new metadata
+                    }}
                 />
             )}
         </motion.div>

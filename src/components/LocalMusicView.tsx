@@ -11,11 +11,26 @@ import Carousel3D from './Carousel3D';
 interface LocalMusicViewProps {
     localSongs: LocalSong[];
     onRefresh: () => void;
-    onPlaySong: (song: LocalSong) => void;
+    onPlaySong: (song: LocalSong, queue?: LocalSong[]) => void;
     onPlaylistVisibilityChange?: (isOpen: boolean) => void;
+    activeRow: 0 | 1;
+    setActiveRow: (row: 0 | 1) => void;
+    selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+    setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null) => void;
+    onMatchSong?: (song: LocalSong) => void;
 }
 
-const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, onPlaySong, onPlaylistVisibilityChange }) => {
+const LocalMusicView: React.FC<LocalMusicViewProps> = ({
+    localSongs,
+    onRefresh,
+    onPlaySong,
+    onPlaylistVisibilityChange,
+    activeRow,
+    setActiveRow,
+    selectedGroup,
+    setSelectedGroup,
+    onMatchSong
+}) => {
     const { t } = useTranslation();
 
     const [isImporting, setIsImporting] = useState(false);
@@ -23,9 +38,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
     const [showMatchModal, setShowMatchModal] = useState(false);
     const [selectedSong, setSelectedSong] = useState<LocalSong | null>(null);
 
-    // Navigation State
-    const [activeRow, setActiveRow] = useState<0 | 1>(0); // 0: Folders, 1: Albums
-    const [selectedGroup, setSelectedGroup] = useState<{ type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null>(null);
+    // Navigation State (Lifted to Parent)
+    // const [activeRow, setActiveRow] = useState<0 | 1>(0); 
+    // const [selectedGroup, setSelectedGroup] = useState<{ type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null>(null);
 
     // Grouping Logic
     const groups = useMemo(() => {
@@ -203,6 +218,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                 isFolderView={selectedGroup.type === 'folder'}
                 onResync={selectedGroup.type === 'folder' ? handleResyncFolder : undefined}
                 onDelete={selectedGroup.type === 'folder' ? handleDeleteFolder : undefined}
+                onMatchSong={onMatchSong}
             />
         );
     }
@@ -310,7 +326,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
             {localSongs.length > 0 && (
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 z-20">
                     <button
-                        onClick={() => setActiveRow(prev => prev === 0 ? 1 : 0)}
+                        onClick={() => setActiveRow(activeRow === 0 ? 1 : 0)}
                         className="p-3 opacity-50 hover:opacity-100 transition-opacity"
                         title={activeRow === 0 ? t('localMusic.switchToAlbums') : t('localMusic.switchToFolders')}
                     >
