@@ -406,4 +406,3 @@ export const deleteLocalSong = async (id: string): Promise<void> => {
     console.error("Failed to delete local song", e);
   }
 };
-

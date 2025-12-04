@@ -108,8 +108,15 @@ export async function importFolder(): Promise<LocalSong[]> {
                 fileHandleMap.set(songId, entry as FileSystemFileHandle);
                 localSong.fileHandle = entry as FileSystemFileHandle;
 
-                await saveLocalSong(localSong);
-                importedSongs.push(localSong);
+                try {
+                    await saveLocalSong(localSong);
+                    importedSongs.push(localSong);
+                } catch (saveError) {
+                    // If save fails for one file, log error but continue with other files
+                    console.error(`Failed to save song ${localSong.fileName}:`, saveError);
+                    // Remove fileHandle from memory since we couldn't save
+                    fileHandleMap.delete(songId);
+                }
             }
         }
 

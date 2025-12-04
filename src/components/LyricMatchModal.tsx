@@ -107,8 +107,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
             onMatch();
         } catch (error) {
-            console.error('Failed to fetch lyrics:', error);
-            console.error('Failed to fetch lyrics:', error);
+            console.error('Failed to match lyrics or save song:', error);
             alert(t('localMusic.matchFailed'));
         } finally {
             setIsMatching(false);
@@ -116,10 +115,15 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     };
 
     const handleNoMatch = async () => {
-        // Set noAutoMatch flag to true
-        song.noAutoMatch = true;
-        await saveLocalSong(song);
-        onClose();
+        try {
+            // Set noAutoMatch flag to true
+            song.noAutoMatch = true;
+            await saveLocalSong(song);
+            onClose();
+        } catch (error) {
+            console.error('Failed to save song:', error);
+            alert(t('localMusic.matchFailed'));
+        }
     };
 
     return (

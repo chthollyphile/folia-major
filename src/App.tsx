@@ -667,6 +667,25 @@ export default function App() {
         return { updatedLocalSong, matchedSongResult };
     };
 
+    // Helper function to generate consistent ID from LocalSong
+    const getLocalSongId = (localSong: LocalSong): number => {
+        // Extract numeric part from LocalSong.id (format: local_timestamp_random)
+        // This ensures deterministic ID generation based on the original LocalSong.id
+        const numericPart = parseInt(localSong.id.replace(/\D/g, ''));
+        if (!isNaN(numericPart) && numericPart > 0) {
+            return -Math.abs(numericPart);
+        }
+        // Fallback: use a hash of the ID string for deterministic ID
+        // This ensures same LocalSong.id always produces same numeric ID
+        let hash = 0;
+        for (let i = 0; i < localSong.id.length; i++) {
+            const char = localSong.id.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return -Math.abs(Math.abs(hash));
+    };
+
     const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
         // Get audio blob from fileHandle first
         const blobUrl = await getAudioFromLocalSong(localSong);
@@ -688,7 +707,7 @@ export default function App() {
 
         // Convert LocalSong to SongResult-like format for playback
         // Use a negative ID to distinguish local songs from cloud songs
-        const localSongId = -Math.abs(parseInt(updatedLocalSong.id.replace(/\D/g, '')) || Date.now());
+        const localSongId = getLocalSongId(updatedLocalSong);
         const unifiedSong: SongResult = {
             id: localSongId,
             name: updatedLocalSong.title || updatedLocalSong.fileName,
@@ -761,10 +780,10 @@ export default function App() {
 
         // Set queue
         if (queue.length > 0) {
-            // Convert entire queue
+            // Convert entire queue using the same ID generation function
             const convertedQueue = queue.map(s => {
-                // Use negative ID logic
-                const sId = -Math.abs(parseInt(s.id.replace(/\D/g, '')) || (Date.now() + Math.random()));
+                // Use the same ID generation logic as current song
+                const sId = getLocalSongId(s);
                 // Basic conversion, we might miss matched metadata for others if not loaded, 
                 // but usually we just need basic info for the queue list.
                 // Ideally we should have matched info for all.
@@ -784,11 +803,14 @@ export default function App() {
             });
 
             // Ensure the current playing song has the CORRECT ID in the queue
-            // The map above generates new random IDs if parsing fails, which might mismatch `unifiedSong.id`.
-            // Let's fix `unifiedSong` to be part of the queue properly.
-
-            // Better approach: Generate ID deterministically or reuse `unifiedSong` for the current track.
+            // Since we now use the same ID generation function, IDs should match correctly.
+            // But we still check by ID first, then fallback to name+duration for safety.
             const finalQueue = convertedQueue.map(s => {
+                // Match by ID first (most reliable)
+                if (s.id === unifiedSong.id) {
+                    return unifiedSong;
+                }
+                // Fallback: match by name and duration (for edge cases)
                 if (s.name === unifiedSong.name && s.duration === unifiedSong.duration) {
                     return unifiedSong;
                 }
