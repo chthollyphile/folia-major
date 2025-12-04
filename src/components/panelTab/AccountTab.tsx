@@ -81,11 +81,10 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         onAudioQualityChange('exhigh');
                                         localStorage.setItem('default_audio_quality', 'exhigh');
                                     }}
-                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${
-                                        audioQuality === 'exhigh'
+                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'exhigh'
                                             ? 'bg-white/20 shadow-sm'
                                             : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                    }`}
+                                        }`}
                                 >
                                     {t('account.qualityExhigh')}
                                 </button>
@@ -94,11 +93,10 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         onAudioQualityChange('lossless');
                                         localStorage.setItem('default_audio_quality', 'lossless');
                                     }}
-                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${
-                                        audioQuality === 'lossless'
+                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'lossless'
                                             ? 'bg-white/20 shadow-sm'
                                             : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                    }`}
+                                        }`}
                                 >
                                     {t('account.qualityLossless')}
                                 </button>
@@ -107,11 +105,10 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         onAudioQualityChange('hires');
                                         localStorage.setItem('default_audio_quality', 'hires');
                                     }}
-                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${
-                                        audioQuality === 'hires'
+                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'hires'
                                             ? 'bg-white/20 shadow-sm'
                                             : 'opacity-40 hover:opacity-100 hover:bg-white/5'
-                                    }`}
+                                        }`}
                                 >
                                     {t('account.qualityHires')}
                                 </button>

@@ -6,14 +6,15 @@ import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { detectChorusLines } from './utils/chorusDetector';
 import { generateThemeFromLyrics } from './services/gemini';
-import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB } from './services/db';
+import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB, getLocalSongs } from './services/db';
+import { getAudioFromLocalSong } from './services/localMusicService';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import UnifiedPanel from './components/UnifiedPanel';
-import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist } from './types';
+import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
 import { neteaseApi } from './services/netease';
 
 // Default Theme
@@ -125,6 +126,20 @@ export default function App() {
     const currentSongRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
 
+    // Local Music State
+    const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
+    const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
+
+    // Navigation Persistence State (Lifted from Home/LocalMusicView)
+    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local'>('playlist');
+    const [localMusicState, setLocalMusicState] = useState<{
+        activeRow: 0 | 1;
+        selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+    }>({
+        activeRow: 0,
+        selectedGroup: null
+    });
+
     // --- Initialization & User Data ---
 
     useEffect(() => {
@@ -166,6 +181,7 @@ export default function App() {
 
         loadUserData();
         restoreSession();
+        loadLocalSongs();
 
         return () => {
             window.removeEventListener('popstate', handlePopState);
@@ -591,6 +607,209 @@ export default function App() {
         setStatusMsg({ type: 'info', text: t('status.loggedOut') });
     };
 
+    // --- Local Music Functions ---
+
+    const loadLocalSongs = async () => {
+        try {
+            const songs = await getLocalSongs();
+            setLocalSongs(songs);
+        } catch (error) {
+            console.error('Failed to load local songs:', error);
+        }
+    };
+
+    const onRefreshLocalSongs = async () => {
+        await loadLocalSongs();
+    };
+
+    const handleLocalSongMatch = async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong, matchedSongResult: SongResult | null }> => {
+        let updatedLocalSong = localSong;
+        let matchedSongResult: SongResult | null = null;
+
+        if ((!localSong.matchedLyrics || !localSong.matchedCoverUrl) && !localSong.noAutoMatch) {
+            setStatusMsg({ type: 'info', text: '正在匹配歌词和封面...' });
+            try {
+                const { matchLyrics } = await import('./services/localMusicService');
+                const matchedLyrics = await matchLyrics(localSong);
+
+                if (matchedLyrics) {
+                    // Reload local song to get updated data from DB
+                    const updatedSongs = await getLocalSongs();
+                    const found = updatedSongs.find(s => s.id === localSong.id);
+
+                    if (found) {
+                        updatedLocalSong = found;
+
+                        // Get full matched song details for UI
+                        if (found.matchedSongId) {
+                            try {
+                                const searchRes = await neteaseApi.cloudSearch(
+                                    localSong.artist
+                                        ? `${localSong.artist} ${localSong.title}`
+                                        : localSong.title || localSong.fileName
+                                );
+                                if (searchRes.result?.songs) {
+                                    matchedSongResult = searchRes.result.songs.find(s => s.id === found.matchedSongId) || searchRes.result.songs[0];
+                                }
+                            } catch (e) {
+                                console.warn('Failed to get matched song details:', e);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Auto-match failed:', error);
+            }
+            // Refresh local songs list in App state
+            await loadLocalSongs();
+        }
+
+        return { updatedLocalSong, matchedSongResult };
+    };
+
+    const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
+        // Get audio blob from fileHandle first
+        const blobUrl = await getAudioFromLocalSong(localSong);
+        if (!blobUrl) {
+            setStatusMsg({
+                type: 'error',
+                text: '无法访问文件。该文件通过"选择文件"导入，刷新页面后需要重新导入。建议使用"导入文件夹"功能。'
+            });
+            return;
+        }
+
+        // Auto-match lyrics and cover if not already matched
+        const { updatedLocalSong, matchedSongResult } = await handleLocalSongMatch(localSong);
+
+        // Use updated data
+        const coverUrl = updatedLocalSong.matchedCoverUrl || null;
+        const lyrics = updatedLocalSong.matchedLyrics || null;
+        const matchedSong = matchedSongResult;
+
+        // Convert LocalSong to SongResult-like format for playback
+        // Use a negative ID to distinguish local songs from cloud songs
+        const localSongId = -Math.abs(parseInt(updatedLocalSong.id.replace(/\D/g, '')) || Date.now());
+        const unifiedSong: SongResult = {
+            id: localSongId,
+            name: updatedLocalSong.title || updatedLocalSong.fileName,
+            artists: updatedLocalSong.artist ? [{ id: 0, name: updatedLocalSong.artist }] : [],
+            album: updatedLocalSong.album ? { id: 0, name: updatedLocalSong.album } : { id: 0, name: '' },
+            duration: updatedLocalSong.duration,
+            ar: updatedLocalSong.artist ? [{ id: 0, name: updatedLocalSong.artist }] : [],
+            al: updatedLocalSong.album ? {
+                id: 0,
+                name: updatedLocalSong.album,
+                picUrl: coverUrl || undefined
+            } : coverUrl ? {
+                id: 0,
+                name: '',
+                picUrl: coverUrl
+            } : undefined,
+            dt: updatedLocalSong.duration,
+            isLocal: true,
+            localData: updatedLocalSong
+        } as UnifiedSong;
+
+        // If we have matched song info, use it for better metadata
+        if (matchedSong) {
+            unifiedSong.name = matchedSong.name;
+            unifiedSong.artists = matchedSong.artists || matchedSong.ar || unifiedSong.artists;
+            unifiedSong.album = matchedSong.album || (matchedSong.al ? {
+                id: matchedSong.al.id,
+                name: matchedSong.al.name,
+                picUrl: matchedSong.al.picUrl
+            } : unifiedSong.album);
+            unifiedSong.ar = matchedSong.ar || unifiedSong.ar;
+            unifiedSong.al = matchedSong.al || unifiedSong.al;
+        }
+
+        // Store blob URL reference
+        if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+        }
+        blobUrlRef.current = blobUrl;
+
+        // Enable autoplay
+        shouldAutoPlay.current = true;
+        currentSongRef.current = unifiedSong.id;
+
+        // Set UI state
+        setLyrics(lyrics);
+        setCurrentSong(unifiedSong);
+        // Cache cover if available
+        if (coverUrl) {
+            try {
+                const cachedCover = await getFromCache<Blob>(`cover_local_${updatedLocalSong.id}`);
+                if (cachedCover) {
+                    setCachedCoverUrl(URL.createObjectURL(cachedCover));
+                } else {
+                    // Fetch and cache cover
+                    const response = await fetch(coverUrl, { mode: 'cors' });
+                    const coverBlob = await response.blob();
+                    await saveToCache(`cover_local_${updatedLocalSong.id}`, coverBlob);
+                    setCachedCoverUrl(URL.createObjectURL(coverBlob));
+                }
+            } catch (e) {
+                console.warn('Failed to cache cover:', e);
+                setCachedCoverUrl(coverUrl);
+            }
+        } else {
+            setCachedCoverUrl(null);
+        }
+        setAudioSrc(blobUrl);
+        setIsLyricsLoading(false);
+
+        // Set queue
+        if (queue.length > 0) {
+            // Convert entire queue
+            const convertedQueue = queue.map(s => {
+                // Use negative ID logic
+                const sId = -Math.abs(parseInt(s.id.replace(/\D/g, '')) || (Date.now() + Math.random()));
+                // Basic conversion, we might miss matched metadata for others if not loaded, 
+                // but usually we just need basic info for the queue list.
+                // Ideally we should have matched info for all.
+                // For now, use what we have.
+                return {
+                    id: sId,
+                    name: s.title || s.fileName,
+                    artists: s.artist ? [{ id: 0, name: s.artist }] : [],
+                    album: s.album ? { id: 0, name: s.album } : { id: 0, name: '' },
+                    duration: s.duration,
+                    ar: s.artist ? [{ id: 0, name: s.artist }] : [],
+                    al: s.album ? { id: 0, name: s.album, picUrl: s.matchedCoverUrl } : undefined,
+                    dt: s.duration,
+                    isLocal: true,
+                    localData: s
+                } as UnifiedSong;
+            });
+
+            // Ensure the current playing song has the CORRECT ID in the queue
+            // The map above generates new random IDs if parsing fails, which might mismatch `unifiedSong.id`.
+            // Let's fix `unifiedSong` to be part of the queue properly.
+
+            // Better approach: Generate ID deterministically or reuse `unifiedSong` for the current track.
+            const finalQueue = convertedQueue.map(s => {
+                if (s.name === unifiedSong.name && s.duration === unifiedSong.duration) {
+                    return unifiedSong;
+                }
+                return s;
+            });
+
+            setPlayQueue(finalQueue);
+            saveToCache('last_queue', finalQueue);
+        } else {
+            setPlayQueue([unifiedSong]);
+            saveToCache('last_queue', [unifiedSong]);
+        }
+
+        saveToCache('last_song', unifiedSong);
+
+        // Navigate to player
+        navigateToPlayer();
+        setPlayerState(PlayerState.IDLE);
+        setStatusMsg({ type: 'success', text: '本地音乐已加载' });
+    };
+
     // --- Effects ---
 
     // Toast Auto-Dismiss
@@ -662,6 +881,123 @@ export default function App() {
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+
+        // Check if it is a local song
+        // We check for isLocal flag OR negative ID (legacy check)
+        const isLocal = (song as any).isLocal || song.id < 0;
+
+        if (isLocal) {
+            console.log("[App] Playing Local Song");
+
+            // 2. Load Local Audio
+            let blobUrl: string | null = null;
+            let currentLocalData = (song as any).localData;
+
+            // Try to get blob from localData if available
+            if (currentLocalData) {
+                blobUrl = await getAudioFromLocalSong(currentLocalData);
+            }
+            // If not in song object (e.g. from queue restoration), try to find in localSongs list
+            else {
+                // Try to match by name/duration as fallback
+                const found = localSongs.find(ls =>
+                    (ls.title || ls.fileName) === song.name &&
+                    Math.abs(ls.duration - song.duration) < 1000
+                );
+                if (found) {
+                    currentLocalData = found;
+                    blobUrl = await getAudioFromLocalSong(found);
+                }
+            }
+
+            if (blobUrl) {
+                blobUrlRef.current = blobUrl;
+                setAudioSrc(blobUrl);
+
+                // 3. Auto-Match & Load Local Lyrics & Cover
+                if (currentLocalData) {
+                    const { updatedLocalSong, matchedSongResult } = await handleLocalSongMatch(currentLocalData);
+
+                    // Update localData reference
+                    currentLocalData = updatedLocalSong;
+
+                    // Update SongResult metadata if match found
+                    if (matchedSongResult) {
+                        const updatedSong = { ...song };
+                        updatedSong.name = matchedSongResult.name;
+                        updatedSong.artists = matchedSongResult.artists || matchedSongResult.ar || updatedSong.artists;
+                        updatedSong.album = matchedSongResult.album || (matchedSongResult.al ? {
+                            id: matchedSongResult.al.id,
+                            name: matchedSongResult.al.name,
+                            picUrl: matchedSongResult.al.picUrl
+                        } : updatedSong.album);
+                        updatedSong.ar = matchedSongResult.ar || updatedSong.ar;
+                        updatedSong.al = matchedSongResult.al || updatedSong.al;
+                        (updatedSong as any).localData = updatedLocalSong;
+
+                        setCurrentSong(updatedSong);
+                        // Update in queue as well? Ideally yes, but might be complex to find index.
+                        // For now, updating currentSong is enough for player view.
+                    }
+
+                    // Cover
+                    if (currentLocalData.matchedCoverUrl) {
+                        // Try cache first
+                        try {
+                            const cachedCover = await getFromCache<Blob>(`cover_local_${currentLocalData.id}`);
+                            if (cachedCover) {
+                                setCachedCoverUrl(URL.createObjectURL(cachedCover));
+                            } else {
+                                // Fetch and cache cover
+                                const response = await fetch(currentLocalData.matchedCoverUrl, { mode: 'cors' });
+                                const coverBlob = await response.blob();
+                                await saveToCache(`cover_local_${currentLocalData.id}`, coverBlob);
+                                setCachedCoverUrl(URL.createObjectURL(coverBlob));
+                            }
+                        } catch {
+                            setCachedCoverUrl(currentLocalData.matchedCoverUrl);
+                        }
+                    } else {
+                        setCachedCoverUrl(null);
+                    }
+
+                    // Lyrics
+                    if (currentLocalData.matchedLyrics) {
+                        setLyrics(currentLocalData.matchedLyrics);
+                    } else {
+                        setLyrics(null);
+                    }
+                }
+
+                setIsLyricsLoading(false);
+
+                // Theme
+                try {
+                    const cachedTheme = await getFromCache<Theme>(`theme_${song.id}`);
+                    if (cachedTheme) {
+                        setTheme(cachedTheme);
+                        setBgMode('ai');
+                    } else {
+                        // Default theme for local songs if no AI theme generated yet
+                        setTheme(prev => ({
+                            ...prev,
+                            wordColors: [],
+                            lyricsIcons: []
+                        }));
+                    }
+                } catch (e) {
+                    console.warn("Theme load error", e);
+                }
+
+                return; // EXIT for local songs
+            } else {
+                setStatusMsg({ type: 'error', text: '无法播放本地文件 (文件可能已移动或权限丢失)' });
+                setIsLyricsLoading(false);
+                return;
+            }
+        }
+
+        // --- ONLINE SONG LOGIC BELOW ---
 
         // 2. Load Cached Cover (Visual Feedback)
         const cachedCoverBlob = await getFromCache<Blob>(`cover_${song.id}`);
@@ -1149,6 +1485,12 @@ export default function App() {
     const handleLike = async () => {
         if (!currentSong) return;
 
+        // Check if local song
+        if ((currentSong as any).isLocal || currentSong.id < 0) {
+            setStatusMsg({ type: 'info', text: '本地音乐无法添加到"我喜欢的音乐"' });
+            return;
+        }
+
         const isLiked = likedSongIds.has(currentSong.id);
         const newStatus = !isLiked;
 
@@ -1258,6 +1600,35 @@ export default function App() {
                             selectedPlaylist={selectedPlaylist}
                             onSelectPlaylist={handlePlaylistSelect}
                             onSelectAlbum={handleAlbumSelect}
+                            localSongs={localSongs}
+                            onRefreshLocalSongs={onRefreshLocalSongs}
+                            onPlayLocalSong={onPlayLocalSong}
+                            viewTab={homeViewTab}
+                            setViewTab={setHomeViewTab}
+                            localMusicState={localMusicState}
+                            setLocalMusicState={setLocalMusicState}
+                            onMatchSong={async (song) => {
+                                // When match is done (modal closes and calls onMatch), 
+                                // LocalPlaylistView calls onResync which calls onRefreshLocalSongs.
+                                // So we might not need to do anything here if LocalPlaylistView handles the modal.
+                                // BUT LocalPlaylistView only shows the button if onMatchSong is defined.
+                                // And we need to pass it down.
+                                // The actual modal logic is inside LocalPlaylistView now? 
+                                // YES, I added LyricMatchModal to LocalPlaylistView.
+                                // So passing an empty function is enough to enable the button?
+                                // No, I added `onMatchSong` as a prop to `LocalPlaylistView` which triggers the state `setMatchingSong`.
+                                // Wait, in `LocalPlaylistView.tsx`:
+                                // `onClick={(e) => { e.stopPropagation(); setMatchingSong(song); }}`
+                                // This uses internal state. It doesn't call the prop `onMatchSong`.
+                                // The prop `onMatchSong` is used as a boolean check: `{onMatchSong && ...}`
+                                // AND as a type: `onMatchSong?: (song: LocalSong) => void;`
+                                // If I pass it, the button appears.
+                                // But the button click sets internal state.
+                                // So I just need to pass a function.
+                                // Ideally this function could be used to notify App about the change?
+                                // For now, let's pass `onRefreshLocalSongs` or similar.
+                                await loadLocalSongs();
+                            }}
                         />
                     </motion.div>
                 )}

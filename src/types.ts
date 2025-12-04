@@ -96,3 +96,38 @@ export interface SearchResponse {
   };
   code: number;
 }
+
+// Local Music Types
+
+export interface LocalSong {
+  id: string; // UUID for local file
+  fileName: string;
+  filePath: string; // File path for reference
+  fileHandle?: FileSystemFileHandle; // For re-accessing the file (not persisted, stored in memory)
+  duration: number; // milliseconds
+  fileSize: number; // bytes
+  mimeType: string;
+  addedAt: number; // timestamp
+
+  // Extracted metadata from file tags
+  title?: string;
+  artist?: string;
+  album?: string;
+
+  // Lyrics matching result
+  matchedSongId?: number; // Netease song ID
+  matchedArtists?: string; // Matched artist names (joined string)
+  matchedAlbumId?: number; // Netease album ID
+  matchedAlbumName?: string; // Netease album name
+  matchedLyrics?: LyricData;
+  matchedCoverUrl?: string; // Cover image URL from matched song
+  hasManualLyricSelection?: boolean;
+  folderName?: string; // Name of the folder if imported via folder import
+  noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
+}
+
+// Extend SongResult to support local files
+export interface UnifiedSong extends SongResult {
+  isLocal?: boolean;
+  localData?: LocalSong;
+}

@@ -13,7 +13,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
     const availableIcons = theme.lyricsIcons || [];
-    
+
     let iconCount = 0;
     // Increased total shapes slightly to accommodate more variety
     return Array.from({ length: 15 }).map((_, i) => {
@@ -73,7 +73,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         if (shape.type === 'icon' && shape.iconName) {
           // @ts-ignore - Dynamic access to Lucide icons
           const IconComponent = LucideIcons[shape.iconName];
-          
+
           if (IconComponent) {
             return (
               <motion.div
@@ -117,7 +117,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         // Use stroke if it's a circle/square AND NOT filled. 
         // If it's filled (randomly true for circle/square), or if it's other shapes (triangle/cross), use fill.
         const useStroke = isCircleOrSquare && !shape.filled;
-        
+
         return (
           <motion.div
             key={shape.id}
@@ -132,11 +132,11 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
               borderRadius: shape.type === 'circle' ? '50%' : '0%',
               opacity: shape.opacity,
               scale: scale, // Bind dynamic scale here
-              clipPath: shape.type === 'triangle' 
-                ? 'polygon(50% 0%, 0% 100%, 100% 100%)' 
+              clipPath: shape.type === 'triangle'
+                ? 'polygon(50% 0%, 0% 100%, 100% 100%)'
                 : shape.type === 'cross'
-                ? 'polygon(20% 0%, 0% 20%, 30% 50%, 0% 80%, 20% 100%, 50% 70%, 80% 100%, 100% 80%, 70% 50%, 100% 20%, 80% 0%, 50% 30%)'
-                : 'none',
+                  ? 'polygon(20% 0%, 0% 20%, 30% 50%, 0% 80%, 20% 100%, 50% 70%, 80% 100%, 100% 80%, 70% 50%, 100% 20%, 80% 0%, 50% 30%)'
+                  : 'none',
             }}
             animate={{
               y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
@@ -153,37 +153,37 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
           />
         );
       })}
-      
+
       {/* Floating particles/dust */}
       {particles.map((p) => (
-         <motion.div
-            key={`p-${p.id}`}
-            className="absolute rounded-full"
-            style={{
-                backgroundColor: theme.accentColor,
-                width: p.size,
-                height: p.size,
-                left: `${p.left}%`,
-                top: `${p.top}%`,
-                opacity: p.opacity
-            }}
-            animate={{
-                y: [0, -100], // Move up slightly
-                opacity: [0, p.opacity, 0] // Fade in and out
-            }}
-            transition={{
-                duration: p.duration,
-                repeat: Infinity,
-                ease: "linear",
-                delay: p.delay
-            }}
-         />
+        <motion.div
+          key={`p-${p.id}`}
+          className="absolute rounded-full"
+          style={{
+            backgroundColor: theme.accentColor,
+            width: p.size,
+            height: p.size,
+            left: `${p.left}%`,
+            top: `${p.top}%`,
+            opacity: p.opacity
+          }}
+          animate={{
+            y: [0, -100], // Move up slightly
+            opacity: [0, p.opacity, 0] // Fade in and out
+          }}
+          transition={{
+            duration: p.duration,
+            repeat: Infinity,
+            ease: "linear",
+            delay: p.delay
+          }}
+        />
       ))}
-      
+
       {/* Gradient overlay to soften edges - Stronger Vignette */}
-      <div 
-        className="absolute inset-0 pointer-events-none" 
-        style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }} 
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
       />
     </div>
   );

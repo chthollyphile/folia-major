@@ -43,7 +43,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     // Helper function to update UI
     const updateUI = (value: number, skipDragCheck = false) => {
         if (!skipDragCheck && isDraggingRef.current) return;
-        
+
         // Update Progress Bar Width
         if (progressRef.current) {
             const percent = duration > 0 ? (value / duration) * 100 : 0;

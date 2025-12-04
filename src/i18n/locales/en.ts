@@ -113,7 +113,8 @@ export default {
     "connectAccount": "Connect Netease Account",
     "loadingLibrary": "Loading Library...",
     "resultsFor": "Results for",
-    "noResults": "No results found."
+    "noResults": "No results found.",
+    "playlists": "Playlists"
   },
   "animation": {
     "calm": "calm",
@@ -135,5 +136,39 @@ export default {
     "seekBackward": "Seek Backward 5s",
     "madeBy": "Made by",
     "version": "version"
+  },
+  "localMusic": {
+    "foldersAndPlaylists": "Folders & Playlists",
+    "albums": "Albums",
+    "unknownAlbum": "Unknown Album",
+    "unknownArtist": "Unknown Artist",
+    "folder": "Folder",
+    "importFolder": "Import Folder",
+    "importing": "Importing...",
+    "noLocalMusic": "No local music imported yet",
+    "noFoldersFound": "No folders found",
+    "noAlbumsFound": "No albums found",
+    "switchToAlbums": "Switch to Albums",
+    "switchToFolders": "Switch to Folders",
+    "reimport": "Re-import",
+    "delete": "Delete",
+    "deleteFromLibrary": "Delete from Library",
+    "cancel": "Cancel",
+    "confirmMatch": "Confirm Match",
+    "matching": "Matching...",
+    "searchForSong": "Search for song...",
+    "search": "Search",
+    "searching": "Searching...",
+    "noResults": "No results found. Try a different search query.",
+    "matchLyrics": "Match Lyrics",
+    "matchLyricsDescription": "Search and select the correct song for: ",
+    "deleteFolderTitle": "Delete Folder?",
+    "deleteFolderMessage": "You are about to remove \"{{folderName}}\" from your library.",
+    "deleteFolderCount": "This will remove {{count}} song(s) from your library.",
+    "deleteFolderNote": "Note: This will only remove songs from your library. Your files on disk will not be affected.",
+    "importNotSupported": "Folder import not supported in this browser or cancelled",
+    "resyncFailed": "Failed to resync folder. Please try again.",
+    "deleteFailed": "Failed to delete folder. Please try again.",
+    "matchFailed": "Failed to fetch lyrics for selected song"
   }
 } as const;

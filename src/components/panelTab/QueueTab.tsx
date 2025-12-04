@@ -42,10 +42,10 @@ const QueueTab: React.FC<QueueTabProps> = ({
             if (currentIndex >= 0) {
                 const isInitialMount = isInitialMountRef.current;
                 const songChanged = lastScrolledIndexRef.current !== currentIndex && lastScrolledIndexRef.current !== -1;
-                
+
                 const behavior = (isInitialMount || !songChanged) ? 'instant' : 'smooth';
                 const delay = isInitialMount ? 0 : 50;
-                
+
                 setTimeout(() => {
                     if (listRef.current) {
                         listRef.current.scrollToRow({
@@ -62,14 +62,14 @@ const QueueTab: React.FC<QueueTabProps> = ({
     }, [shouldScrollToCurrent, currentSong?.id, playQueue, listRef]);
 
     // Row component for rendering each item
-    const RowComponent = React.useCallback(({ index, style, ariaAttributes }: { 
-        index: number; 
+    const RowComponent = React.useCallback(({ index, style, ariaAttributes }: {
+        index: number;
         style: React.CSSProperties;
-        ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem" };
+        ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem"; };
     }) => {
         const song = playQueue[index];
         const isActive = currentSong?.id === song.id;
-        
+
         return (
             <div
                 style={style}
