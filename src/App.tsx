@@ -1308,8 +1308,16 @@ export default function App() {
                     loopMode={loopMode}
                     currentView={currentView}
                     audioSrc={audioSrc}
+                    lyrics={lyrics}
                     onSeek={(time) => {
-                        if (audioRef.current) audioRef.current.currentTime = time;
+                        if (audioRef.current) {
+                            audioRef.current.currentTime = time;
+                            // Auto-play when seeking (e.g. from timeline lyric dots)
+                            if (audioRef.current.paused) {
+                                audioRef.current.play();
+                                setPlayerState(PlayerState.PLAYING);
+                            }
+                        }
                     }}
                     onTogglePlay={togglePlay}
                     onToggleLoop={toggleLoop}
