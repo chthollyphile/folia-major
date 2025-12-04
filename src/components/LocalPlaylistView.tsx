@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, Folder } from 'lucide-react';
+import { Play, ChevronLeft, Disc, Loader2, Folder, RefreshCw, Trash2 } from 'lucide-react';
 import { LocalSong, SongResult } from '../types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
+import DeleteFolderConfirmModal from './DeleteFolderConfirmModal';
 
 interface LocalPlaylistViewProps {
     title: string;
@@ -11,13 +12,20 @@ interface LocalPlaylistViewProps {
     songs: LocalSong[];
     onBack: () => void;
     onPlaySong: (song: LocalSong) => void;
+    isFolderView?: boolean;
+    onResync?: () => void;
+    onDelete?: () => void;
 }
 
-const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong }) => {
+const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete }) => {
     const { t } = useTranslation();
 
     // Scroll Ref
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // State for delete confirmation modal
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isResyncing, setIsResyncing] = useState(false);
 
     const formatDuration = (ms: number) => {
         const minutes = Math.floor(ms / 60000);
@@ -76,7 +84,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                         <div className="text-xs mt-2 opacity-30" style={{ color: 'var(--text-secondary)' }}>{songs.length} {t('playlist.tracks')}</div>
                     </div>
 
-                    <div className="w-full">
+                    <div className="w-full space-y-3">
                         <button
                             onClick={() => {
                                 if (songs.length > 0) onPlaySong(songs[0]);
@@ -87,6 +95,44 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                             <Play size={18} fill="currentColor" />
                             {t('playlist.playAll')}
                         </button>
+
+                        {/* Folder Management Buttons */}
+                        {isFolderView && (
+                            <div className="flex gap-2">
+                                {/* Sync Button */}
+                                {onResync && (
+                                    <button
+                                        onClick={async () => {
+                                            setIsResyncing(true);
+                                            try {
+                                                await onResync();
+                                            } finally {
+                                                setIsResyncing(false);
+                                            }
+                                        }}
+                                        disabled={isResyncing}
+                                        className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        style={{ color: 'var(--text-primary)' }}
+                                        title="Re-import folder to refresh"
+                                    >
+                                        <RefreshCw size={16} className={isResyncing ? 'animate-spin' : ''} />
+                                        重新导入
+                                    </button>
+                                )}
+
+                                {/* Delete Button */}
+                                {onDelete && (
+                                    <button
+                                        onClick={() => setShowDeleteModal(true)}
+                                        className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500"
+                                        title="Remove folder from library"
+                                    >
+                                        <Trash2 size={16} />
+                                        删除
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -117,9 +163,13 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                         {song.title || song.fileName}
                                     </div>
                                     <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                        {song.artist || 'Unknown Artist'}
-                                        <span className="mx-1.5">•</span>
-                                        {formatBytes(song.fileSize)}
+                                        {song.matchedArtists || song.artist || 'Unknown Artist'}
+                                        {song.matchedAlbumName && (
+                                            <>
+                                                <span className="mx-1.5">•</span>
+                                                {song.matchedAlbumName}
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
@@ -132,6 +182,17 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                 </div>
 
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {isFolderView && onDelete && (
+                <DeleteFolderConfirmModal
+                    isOpen={showDeleteModal}
+                    folderName={title}
+                    songCount={songs.length}
+                    onConfirm={onDelete}
+                    onCancel={() => setShowDeleteModal(false)}
+                />
+            )}
         </motion.div>
     );
 };

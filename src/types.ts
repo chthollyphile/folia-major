@@ -116,6 +116,7 @@ export interface LocalSong {
 
   // Lyrics matching result
   matchedSongId?: number; // Netease song ID
+  matchedArtists?: string; // Matched artist names (joined string)
   matchedAlbumId?: number; // Netease album ID
   matchedAlbumName?: string; // Netease album name
   matchedLyrics?: LyricData;

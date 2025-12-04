@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Disc } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 // Carousel Item Component with safe blur animation
@@ -53,7 +53,13 @@ const CarouselItem: React.FC<{
             }}
         >
             <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
-                <img src={item.coverUrl?.replace('http:', 'https:')} alt={item.name} className="w-full h-full object-cover pointer-events-none" />
+                {item.coverUrl ? (
+                    <img src={item.coverUrl?.replace('http:', 'https:')} alt={item.name} className="w-full h-full object-cover pointer-events-none" />
+                ) : (
+                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                        <Disc size={64} className="opacity-20" style={{ color: 'var(--text-primary)' }} />
+                    </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity" />
             </div>
         </motion.div>

@@ -93,7 +93,15 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
             // Update local song with matched lyrics
             song.matchedSongId = selectedResult.id;
+            song.matchedArtists = selectedResult.ar?.map(a => a.name).join(', ');
+            song.matchedAlbumId = selectedResult.al?.id || selectedResult.album?.id;
+            song.matchedAlbumName = selectedResult.al?.name || selectedResult.album?.name;
             song.matchedLyrics = parsedLyrics || undefined;
+            // Get cover URL from matched song
+            const coverUrl = selectedResult.al?.picUrl || selectedResult.album?.picUrl;
+            if (coverUrl) {
+                song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
+            }
             song.hasManualLyricSelection = true;
             await saveLocalSong(song);
 
@@ -171,8 +179,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                     key={result.id}
                                     onClick={() => setSelectedResult(result)}
                                     className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all border ${selectedResult?.id === result.id
-                                            ? 'bg-blue-500/20 border-blue-500/50'
-                                            : 'bg-white/5 hover:bg-white/10 border-white/5'
+                                        ? 'bg-blue-500/20 border-blue-500/50'
+                                        : 'bg-white/5 hover:bg-white/10 border-white/5'
                                         }`}
                                 >
                                     {/* Album Cover */}

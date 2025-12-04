@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FolderOpen, Music, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LocalSong } from '../types';
-import { importFolder, matchLyrics, deleteLocalSong } from '../services/localMusicService';
+import { importFolder, matchLyrics, deleteLocalSong, resyncFolder, deleteFolderSongs } from '../services/localMusicService';
 import LyricMatchModal from './LyricMatchModal';
 import LocalPlaylistView from './LocalPlaylistView';
 import Carousel3D from './Carousel3D';
@@ -132,6 +132,33 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
         setSelectedSong(null);
     };
 
+    // Folder management handlers
+    const handleResyncFolder = async () => {
+        if (!selectedGroup || selectedGroup.type !== 'folder') return;
+
+        try {
+            await resyncFolder(selectedGroup.name);
+            onRefresh(); // Refresh the UI to show updated songs
+            setSelectedGroup(null); // Close the playlist view
+        } catch (error) {
+            console.error('Failed to resync folder:', error);
+            alert('Failed to resync folder. Please try again.');
+        }
+    };
+
+    const handleDeleteFolder = async () => {
+        if (!selectedGroup || selectedGroup.type !== 'folder') return;
+
+        try {
+            await deleteFolderSongs(selectedGroup.name);
+            onRefresh(); // Refresh the UI
+            setSelectedGroup(null); // Close the playlist view
+        } catch (error) {
+            console.error('Failed to delete folder:', error);
+            alert('Failed to delete folder. Please try again.');
+        }
+    };
+
     // Scroll / Swipe Handling
     let touchStartY = 0;
 
@@ -173,6 +200,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({ localSongs, onRefresh, 
                     onPlaylistVisibilityChange?.(false);
                 }}
                 onPlaySong={onPlaySong}
+                isFolderView={selectedGroup.type === 'folder'}
+                onResync={selectedGroup.type === 'folder' ? handleResyncFolder : undefined}
+                onDelete={selectedGroup.type === 'folder' ? handleDeleteFolder : undefined}
             />
         );
     }

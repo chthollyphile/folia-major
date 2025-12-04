@@ -175,6 +175,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         if (parsedLyrics) {
             // Update local song with matched info
             song.matchedSongId = matchedSong.id;
+            song.matchedArtists = matchedSong.ar?.map(a => a.name).join(', ');
             song.matchedAlbumId = matchedSong.al?.id || matchedSong.album?.id;
             song.matchedAlbumName = matchedSong.al?.name || matchedSong.album?.name;
             song.matchedLyrics = parsedLyrics;
@@ -234,3 +235,31 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
 export async function getAudioFromFile(file: File): Promise<string> {
     return URL.createObjectURL(file);
 }
+
+// Resync folder: Delete all songs and prompt re-import
+export async function resyncFolder(folderName: string): Promise<LocalSong[]> {
+    // First, delete all songs from this folder
+    await deleteFolderSongs(folderName);
+
+    // Then prompt user to select the folder again to get fresh handles
+    return await importFolder();
+}
+
+// Delete all songs from a specific folder
+export async function deleteFolderSongs(folderName: string): Promise<void> {
+    const { getLocalSongs } = await import('./db');
+
+    // Get all local songs
+    const allSongs = await getLocalSongs();
+
+    // Filter songs that belong to this folder
+    const songsToDelete = allSongs.filter(song => song.folderName === folderName);
+
+    // Delete each song
+    for (const song of songsToDelete) {
+        await deleteLocalSong(song.id);
+    }
+
+    console.log(`[LocalMusic] Deleted ${songsToDelete.length} songs from folder: ${folderName}`);
+}
+
