@@ -219,6 +219,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onResync={selectedGroup.type === 'folder' ? handleResyncFolder : undefined}
                 onDelete={selectedGroup.type === 'folder' ? handleDeleteFolder : undefined}
                 onMatchSong={onMatchSong}
+                onRefresh={onRefresh}
             />
         );
     }

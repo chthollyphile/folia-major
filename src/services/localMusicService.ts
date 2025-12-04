@@ -17,9 +17,17 @@ function generateId(): string {
 // Extract basic metadata from filename
 // Expected format: "Artist - Title.mp3" or "Title.mp3"
 function extractMetadataFromFilename(fileName: string): { title?: string; artist?: string; } {
-    const nameWithoutExt = fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-    const parts = nameWithoutExt.split(' - ');
+    // 去掉扩展名
+    let nameWithoutExt = fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
 
+    // 忽略前导数字和点
+    nameWithoutExt = nameWithoutExt.replace(/^[\d\.]+/, '');
+
+    // 再去除一开始的空格
+    nameWithoutExt = nameWithoutExt.replace(/^\s+/, '');
+
+    // 分割艺术家和标题
+    const parts = nameWithoutExt.split(' - ');
     if (parts.length === 2) {
         return {
             artist: parts[0].trim(),

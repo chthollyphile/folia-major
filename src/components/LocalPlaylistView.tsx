@@ -17,9 +17,10 @@ interface LocalPlaylistViewProps {
     onResync?: () => void;
     onDelete?: () => void;
     onMatchSong?: (song: LocalSong) => void;
+    onRefresh?: () => void;
 }
 
-const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong }) => {
+const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong, onRefresh }) => {
     const { t } = useTranslation();
 
     // Scroll Ref
@@ -218,7 +219,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                     onClose={() => setMatchingSong(null)}
                     onMatch={() => {
                         setMatchingSong(null);
-                        if (onResync) onResync(); // Refresh list to show new metadata
+                        if (onRefresh) onRefresh(); // Refresh list to show new metadata
                     }}
                 />
             )}
