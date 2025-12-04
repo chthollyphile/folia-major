@@ -6,7 +6,7 @@ import { neteaseApi } from '../services/netease';
 import { parseLRC } from '../utils/lrcParser';
 import { parseYRC } from '../utils/yrcParser';
 import { detectChorusLines } from '../utils/chorusDetector';
-import { saveLocalSong } from '../services/db';
+import { saveLocalSong, removeFromCache } from '../services/db';
 import { formatSongName } from '../utils/songNameFormatter';
 
 interface LyricMatchModalProps {
@@ -32,17 +32,47 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         handleSearch(initialQuery);
     }, [song]);
 
+    // Helper function to normalize title for comparison
+    const normalizeTitle = (title: string): string => {
+        return title
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s\u4e00-\u9fa5]/g, '') // Remove punctuation except Chinese characters
+            .replace(/\s+/g, ''); // Remove all whitespace
+    };
+
+    // Helper function to check if two titles match
+    const isTitleMatch = (localTitle: string, searchTitle: string): boolean => {
+        const normalizedLocal = normalizeTitle(localTitle);
+        const normalizedSearch = normalizeTitle(searchTitle);
+        return normalizedLocal === normalizedSearch;
+    };
+
     const handleSearch = async (query?: string) => {
         const q = query || searchQuery;
         if (!q.trim()) return;
 
         setIsSearching(true);
         setSearchResults([]);
+        setSelectedResult(null);
 
         try {
             const res = await neteaseApi.cloudSearch(q);
             if (res.result?.songs) {
                 setSearchResults(res.result.songs);
+                
+                // Try to find a song with matching title
+                const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
+                const exactMatch = res.result.songs.find(s => isTitleMatch(localTitle, s.name));
+                
+                if (exactMatch) {
+                    // Auto-select the exact match
+                    setSelectedResult(exactMatch);
+                    console.log(`[LyricMatchModal] Auto-selected exact title match: ${exactMatch.name}`);
+                } else {
+                    // No exact match found, user will need to select manually
+                    console.log(`[LyricMatchModal] No exact title match found for: "${localTitle}". User selection required.`);
+                }
             }
         } catch (error) {
             console.error('Search failed:', error);
@@ -104,6 +134,9 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             }
             song.hasManualLyricSelection = true;
             await saveLocalSong(song);
+
+            // Remove old cached cover to force refresh on next play
+            await removeFromCache(`cover_local_${song.id}`);
 
             onMatch();
         } catch (error) {

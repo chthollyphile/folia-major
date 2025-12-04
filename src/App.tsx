@@ -1630,26 +1630,60 @@ export default function App() {
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
                             onMatchSong={async (song) => {
-                                // When match is done (modal closes and calls onMatch), 
-                                // LocalPlaylistView calls onResync which calls onRefreshLocalSongs.
-                                // So we might not need to do anything here if LocalPlaylistView handles the modal.
-                                // BUT LocalPlaylistView only shows the button if onMatchSong is defined.
-                                // And we need to pass it down.
-                                // The actual modal logic is inside LocalPlaylistView now? 
-                                // YES, I added LyricMatchModal to LocalPlaylistView.
-                                // So passing an empty function is enough to enable the button?
-                                // No, I added `onMatchSong` as a prop to `LocalPlaylistView` which triggers the state `setMatchingSong`.
-                                // Wait, in `LocalPlaylistView.tsx`:
-                                // `onClick={(e) => { e.stopPropagation(); setMatchingSong(song); }}`
-                                // This uses internal state. It doesn't call the prop `onMatchSong`.
-                                // The prop `onMatchSong` is used as a boolean check: `{onMatchSong && ...}`
-                                // AND as a type: `onMatchSong?: (song: LocalSong) => void;`
-                                // If I pass it, the button appears.
-                                // But the button click sets internal state.
-                                // So I just need to pass a function.
-                                // Ideally this function could be used to notify App about the change?
-                                // For now, let's pass `onRefreshLocalSongs` or similar.
                                 await loadLocalSongs();
+                                
+                                // If the matched song is currently playing, update the cover
+                                if (currentSong && ((currentSong as any).isLocal || currentSong.id < 0)) {
+                                    const currentLocalData = (currentSong as any).localData as LocalSong | undefined;
+                                    if (currentLocalData && currentLocalData.id === song.id) {
+                                        // Reload the song from DB to get updated metadata
+                                        const updatedSongs = await getLocalSongs();
+                                        const updatedSong = updatedSongs.find(s => s.id === song.id);
+                                        
+                                        if (updatedSong) {
+                                            // Update currentSong's localData
+                                            const updatedCurrentSong = { ...currentSong };
+                                            (updatedCurrentSong as any).localData = updatedSong;
+                                            
+                                            // Update cover URL in currentSong
+                                            if (updatedSong.matchedCoverUrl) {
+                                                const coverUrl = updatedSong.matchedCoverUrl;
+                                                if (updatedCurrentSong.al) {
+                                                    updatedCurrentSong.al.picUrl = coverUrl;
+                                                } else {
+                                                    updatedCurrentSong.al = {
+                                                        id: 0,
+                                                        name: '',
+                                                        picUrl: coverUrl
+                                                    };
+                                                }
+                                            }
+                                            
+                                            setCurrentSong(updatedCurrentSong);
+                                            
+                                            // Update cached cover URL
+                                            if (updatedSong.matchedCoverUrl) {
+                                                try {
+                                                    // Cache was already cleared in LyricMatchModal, so fetch and cache new cover
+                                                    const response = await fetch(updatedSong.matchedCoverUrl, { mode: 'cors' });
+                                                    const coverBlob = await response.blob();
+                                                    await saveToCache(`cover_local_${updatedSong.id}`, coverBlob);
+                                                    setCachedCoverUrl(URL.createObjectURL(coverBlob));
+                                                } catch (e) {
+                                                    console.warn('Failed to cache updated cover:', e);
+                                                    setCachedCoverUrl(updatedSong.matchedCoverUrl);
+                                                }
+                                            } else {
+                                                setCachedCoverUrl(null);
+                                            }
+                                            
+                                            // Update lyrics if available
+                                            if (updatedSong.matchedLyrics) {
+                                                setLyrics(updatedSong.matchedLyrics);
+                                            }
+                                        }
+                                    }
+                                }
                             }}
                         />
                     </motion.div>

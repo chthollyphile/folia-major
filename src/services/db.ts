@@ -258,6 +258,22 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
   }
 };
 
+export const removeFromCache = async (key: string): Promise<void> => {
+  try {
+    const db = await openDB();
+    const storeName = getStoreName(key);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([storeName], 'readwrite');
+      const store = tx.objectStore(storeName);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.error("Cache remove failed", e);
+  }
+};
+
 export const clearCache = async (preserveKeys: string[] = []): Promise<void> => {
   try {
     const db = await openDB();
