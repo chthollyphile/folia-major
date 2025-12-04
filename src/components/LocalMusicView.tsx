@@ -152,7 +152,15 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         if (!selectedGroup || selectedGroup.type !== 'folder') return;
 
         try {
-            await resyncFolder(selectedGroup.name);
+            const importedSongs = await resyncFolder(selectedGroup.name);
+            
+            // If user cancelled (null), don't delete the old folder
+            if (importedSongs === null) {
+                return;
+            }
+            
+            // Only delete old folder after user confirmed the new folder selection
+            await deleteFolderSongs(selectedGroup.name);
             onRefresh(); // Refresh the UI to show updated songs
             setSelectedGroup(null); // Close the playlist view
         } catch (error) {

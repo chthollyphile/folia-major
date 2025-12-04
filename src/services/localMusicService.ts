@@ -108,8 +108,15 @@ export async function importFolder(): Promise<LocalSong[]> {
                 fileHandleMap.set(songId, entry as FileSystemFileHandle);
                 localSong.fileHandle = entry as FileSystemFileHandle;
 
-                await saveLocalSong(localSong);
-                importedSongs.push(localSong);
+                try {
+                    await saveLocalSong(localSong);
+                    importedSongs.push(localSong);
+                } catch (saveError) {
+                    // If save fails for one file, log error but continue with other files
+                    console.error(`Failed to save song ${localSong.fileName}:`, saveError);
+                    // Remove fileHandle from memory since we couldn't save
+                    fileHandleMap.delete(songId);
+                }
             }
         }
 
@@ -121,6 +128,22 @@ export async function importFolder(): Promise<LocalSong[]> {
         }
         throw error;
     }
+}
+
+// Helper function to normalize title for comparison
+function normalizeTitle(title: string): string {
+    return title
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s\u4e00-\u9fa5]/g, '') // Remove punctuation except Chinese characters
+        .replace(/\s+/g, ''); // Remove all whitespace
+}
+
+// Helper function to check if two titles match
+function isTitleMatch(localTitle: string, searchTitle: string): boolean {
+    const normalizedLocal = normalizeTitle(localTitle);
+    const normalizedSearch = normalizeTitle(searchTitle);
+    return normalizedLocal === normalizedSearch;
 }
 
 // Match lyrics for a local song using search API
@@ -141,9 +164,17 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             return null;
         }
 
-        // Get the first result (best match)
-        const matchedSong = searchRes.result.songs[0];
-        console.log(`[LocalMusic] Found match: ${matchedSong.name} by ${matchedSong.ar?.map(a => a.name).join(', ')}`);
+        // Try to find a song with matching title
+        const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
+        let matchedSong = searchRes.result.songs.find(s => isTitleMatch(localTitle, s.name));
+
+        // If no exact title match found, return null to trigger manual selection
+        if (!matchedSong) {
+            console.log(`[LocalMusic] No exact title match found for: "${localTitle}". Manual selection required.`);
+            return null;
+        }
+
+        console.log(`[LocalMusic] Found exact title match: ${matchedSong.name} by ${matchedSong.ar?.map(a => a.name).join(', ')}`);
 
         // Fetch lyrics
         const lyricRes = await neteaseApi.getLyric(matchedSong.id);
@@ -245,12 +276,19 @@ export async function getAudioFromFile(file: File): Promise<string> {
 }
 
 // Resync folder: Delete all songs and prompt re-import
-export async function resyncFolder(folderName: string): Promise<LocalSong[]> {
-    // First, delete all songs from this folder
-    await deleteFolderSongs(folderName);
-
-    // Then prompt user to select the folder again to get fresh handles
-    return await importFolder();
+export async function resyncFolder(folderName: string): Promise<LocalSong[] | null> {
+    // First, prompt user to select the folder again to get fresh handles
+    const importedSongs = await importFolder();
+    
+    // If user cancelled (empty array), return null to indicate cancellation
+    // Don't delete the old folder
+    if (importedSongs.length === 0) {
+        return null;
+    }
+    
+    // Return the imported songs, but don't delete old folder yet
+    // The deletion will happen after user confirms in the UI
+    return importedSongs;
 }
 
 // Delete all songs from a specific folder
