@@ -23,7 +23,7 @@ Folia 使用 Google Gemini 提供 AI 驱动的功能。
 ### 在 Vercel 上部署
 点击下方按钮在 Vercel 上部署此项目。请确保在 Vercel 项目设置中配置必要的环境变量（`GEMINI_API_KEY`和 `VITE_NETEASE_API_BASE`）。
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/irtrdr/folia-minuet)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/chthollyphile/folia-major)
 
 
 
