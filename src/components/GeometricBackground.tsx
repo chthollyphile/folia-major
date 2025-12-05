@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
 import { motion, MotionValue, useTransform, useSpring } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
-import { Theme } from '../types';
+import { Theme, AudioBands } from '../types';
 
 interface GeometricBackgroundProps {
   theme: Theme;
   audioPower: MotionValue<number>;
+  audioBands?: AudioBands; // Optional to prevent breaking if not passed immediately
 }
 
-const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower }) => {
+const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower, audioBands }) => {
   // Generate static random configuration for shapes to prevent jitter on re-renders
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
@@ -57,14 +58,22 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
     }));
   }, []);
 
-  // Create a spring-based physics value from the raw audio power
-  // This removes jitter and adds a nice "bounce" to the beat
-  const springAudio = useSpring(audioPower, { stiffness: 300, damping: 30 }) as unknown as MotionValue<number>;
+  // Create spring-based scales for each band
+  const useBandScale = (val: MotionValue<number> | undefined) => {
+    // Fallback to main audioPower if band is missing
+    const source = val || audioPower;
+    const spring = useSpring(source, { stiffness: 300, damping: 30 });
+    return useTransform(spring, [10, 200], [0.95, 1.45]);
+  };
 
-  // Map audio power (0-255 boosted) to a subtle scale factor
-  // Lower threshold (10) allows it to pick up quieter bass
-  // Upper range (200) caps the max expansion
-  const scale = useTransform(springAudio, [10, 200], [0.95, 1.45]);
+  const scales = {
+    bass: useBandScale(audioBands?.bass),       // Circle
+    lowMid: useBandScale(audioBands?.lowMid),   // Square
+    mid: useBandScale(audioBands?.mid),         // Triangle
+    vocal: useBandScale(audioBands?.vocal),     // Icon
+    treble: useBandScale(audioBands?.treble),   // Cross
+    default: useBandScale(audioPower)          // Fallback
+  };
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -85,7 +94,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
                   width: shape.size,
                   height: shape.size,
                   color: theme.secondaryColor, // Use secondary color for stroke
-                  scale: scale,
+                  scale: scales.vocal,
                 }}
                 animate={{
                   y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
@@ -131,7 +140,11 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
               backgroundColor: !useStroke ? theme.secondaryColor : 'transparent',
               borderRadius: shape.type === 'circle' ? '50%' : '0%',
               opacity: shape.opacity,
-              scale: scale, // Bind dynamic scale here
+              scale: shape.type === 'circle' ? scales.bass :
+                shape.type === 'square' ? scales.lowMid :
+                  shape.type === 'triangle' ? scales.mid :
+                    shape.type === 'cross' ? scales.treble :
+                      scales.default, // Fallback
               clipPath: shape.type === 'triangle'
                 ? 'polygon(50% 0%, 0% 100%, 100% 100%)'
                 : shape.type === 'cross'

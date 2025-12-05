@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Line, Theme, Word as WordType } from '../types';
+import { Line, Theme, Word as WordType, AudioBands } from '../types';
 import GeometricBackground from './GeometricBackground';
 
 
@@ -11,6 +11,7 @@ interface VisualizerProps {
     lines: Line[];
     theme: Theme;
     audioPower: MotionValue<number>;
+    audioBands: AudioBands;
     showText?: boolean;
 }
 
@@ -101,7 +102,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, showText = true }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true }) => {
     const { t } = useTranslation();
     const activeLine = lines[currentLineIndex];
 
@@ -216,7 +217,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
             className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontFamily} transition-colors duration-1000`}
             style={{ backgroundColor: theme.backgroundColor }}
         >
-            <GeometricBackground theme={theme} audioPower={audioPower} />
+            <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} />
 
             {/* Main Container */}
             <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">

@@ -131,3 +131,14 @@ export interface UnifiedSong extends SongResult {
   isLocal?: boolean;
   localData?: LocalSong;
 }
+
+// Audio Analysis Types
+import { MotionValue } from 'framer-motion';
+
+export interface AudioBands {
+  bass: MotionValue<number>;    // 20-150Hz (Circles)
+  lowMid: MotionValue<number>;  // 150-400Hz (Squares)
+  mid: MotionValue<number>;     // 400-1200Hz (Triangles)
+  vocal: MotionValue<number>;   // 1000-3500Hz (Icons)
+  treble: MotionValue<number>;  // 3500Hz+ (Crosses)
+}

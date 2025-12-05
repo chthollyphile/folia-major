@@ -112,7 +112,15 @@ export default function App() {
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
 
     // Audio Analysis State
+    // Audio Analysis State
     const audioPower = useMotionValue(0);
+    const audioBands = {
+        bass: useMotionValue(0),
+        lowMid: useMotionValue(0),
+        mid: useMotionValue(0),
+        vocal: useMotionValue(0),
+        treble: useMotionValue(0)
+    };
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -1352,21 +1360,55 @@ export default function App() {
             const dataArray = new Uint8Array(bufferLength);
             analyserRef.current.getByteFrequencyData(dataArray);
 
-            const startIndex = 2; // ~40Hz
-            const endIndex = 8;   // ~160Hz
-            let sum = 0;
-            for (let i = startIndex; i <= endIndex; i++) {
-                sum += dataArray[i];
-            }
-            const rawAverage = sum / (endIndex - startIndex + 1);
-            const normalized = rawAverage / 255;
-            const boosted = Math.pow(normalized, 3) * 255;
-            audioPower.set(boosted);
+            // Helper to get average energy of a frequency range
+            // fftSize 2048 -> bin size ~21.5Hz (44100/2048)
+            const getEnergy = (minHz: number, maxHz: number): number => {
+                const start = Math.floor(minHz / 21.5);
+                const end = Math.floor(maxHz / 21.5);
+                let sum = 0;
+                for (let i = start; i <= end; i++) {
+                    sum += dataArray[i];
+                }
+                const count = end - start + 1;
+                return count > 0 ? sum / count : 0;
+            };
+
+            // Calculate bands
+            const bass = getEnergy(20, 150);       // Circles
+            const lowMid = getEnergy(150, 400);    // Squares
+            const mid = getEnergy(400, 1200);      // Triangles
+            const vocal = getEnergy(1000, 3500);   // Icons (Vocal range)
+            const treble = getEnergy(3500, 12000); // Crosses
+
+            // Apply sensitivity and update
+            const process = (val: number, boost: number = 2) => {
+                const norm = val / 255;
+                return Math.pow(norm, boost) * 255;
+            };
+
+            // Main audio power (keep for legacy compatibility)
+            // Use bass + low mid for main pulse
+            audioPower.set(process((bass + lowMid) / 2, 3));
+
+            // Set individual bands
+            audioBands.bass.set(process(bass, 1.8)); // slightly more sensitive bass
+            audioBands.lowMid.set(process(lowMid, 2));
+            audioBands.mid.set(process(mid, 2));
+            audioBands.vocal.set(process(vocal, 1.5)); // Vocal sensitive
+            audioBands.treble.set(process(treble, 2));
+
         } else {
             // Idle Animation (Breathing effect for PV background)
             const time = Date.now() / 2000;
             const breath = (Math.sin(time) + 1) * 20;
             audioPower.set(breath);
+
+            // Idle state for bands
+            audioBands.bass.set(breath);
+            audioBands.lowMid.set(breath);
+            audioBands.mid.set(breath);
+            audioBands.vocal.set(breath);
+            audioBands.treble.set(breath);
         }
 
         // 2. Playback Time & Lyrics Sync
@@ -1598,6 +1640,7 @@ export default function App() {
                     lines={lyrics?.lines || []}
                     theme={{ ...theme, backgroundColor: String(appStyle['--bg-color']) }} // Pass effective bg color
                     audioPower={audioPower}
+                    audioBands={audioBands}
                     showText={currentView === 'player'}
                 />
             </div>
@@ -1728,72 +1771,76 @@ export default function App() {
             </AnimatePresence>
 
             {/* --- GLOBAL CONTROLS (Floating Glass Pill) --- */}
-            {currentSong && (
-                <FloatingPlayerControls
-                    currentSong={currentSong}
-                    playerState={playerState}
-                    currentTime={currentTime}
-                    duration={duration}
-                    loopMode={loopMode}
-                    currentView={currentView}
-                    audioSrc={audioSrc}
-                    lyrics={lyrics}
-                    onSeek={(time) => {
-                        if (audioRef.current) {
-                            audioRef.current.currentTime = time;
-                            // Auto-play when seeking (e.g. from timeline lyric dots)
-                            if (audioRef.current.paused) {
-                                audioRef.current.play();
-                                setPlayerState(PlayerState.PLAYING);
+            {
+                currentSong && (
+                    <FloatingPlayerControls
+                        currentSong={currentSong}
+                        playerState={playerState}
+                        currentTime={currentTime}
+                        duration={duration}
+                        loopMode={loopMode}
+                        currentView={currentView}
+                        audioSrc={audioSrc}
+                        lyrics={lyrics}
+                        onSeek={(time) => {
+                            if (audioRef.current) {
+                                audioRef.current.currentTime = time;
+                                // Auto-play when seeking (e.g. from timeline lyric dots)
+                                if (audioRef.current.paused) {
+                                    audioRef.current.play();
+                                    setPlayerState(PlayerState.PLAYING);
+                                }
                             }
-                        }
-                    }}
-                    onTogglePlay={togglePlay}
-                    onToggleLoop={toggleLoop}
-                    onNavigateToPlayer={navigateToPlayer}
-                    noTrackText={t('ui.noTrack')}
-                    primaryColor="var(--text-primary)"
-                    secondaryColor="var(--text-secondary)"
-                />
-            )}
+                        }}
+                        onTogglePlay={togglePlay}
+                        onToggleLoop={toggleLoop}
+                        onNavigateToPlayer={navigateToPlayer}
+                        noTrackText={t('ui.noTrack')}
+                        primaryColor="var(--text-primary)"
+                        secondaryColor="var(--text-secondary)"
+                    />
+                )
+            }
 
             {/* --- UNIFIED PANEL (Player View Only) --- */}
-            {currentView === 'player' && (
-                <UnifiedPanel
-                    isOpen={isPanelOpen}
-                    currentTab={panelTab}
-                    onTabChange={setPanelTab}
-                    onToggle={() => setIsPanelOpen(!isPanelOpen)}
-                    onNavigateHome={navigateToHome}
-                    coverUrl={coverUrl}
-                    currentSong={currentSong}
-                    onAlbumSelect={handleAlbumSelect}
-                    loopMode={loopMode}
-                    onToggleLoop={toggleLoop}
-                    onLike={handleLike}
-                    isLiked={currentSong ? likedSongIds.has(currentSong.id) : false}
-                    onGenerateAITheme={generateAITheme}
-                    isGeneratingTheme={isGeneratingTheme}
-                    hasLyrics={!!lyrics}
-                    theme={theme}
-                    onThemeChange={setTheme}
-                    bgMode={bgMode}
-                    onBgModeChange={setBgMode}
-                    onResetTheme={handleResetTheme}
-                    defaultTheme={DEFAULT_THEME}
-                    playQueue={playQueue}
-                    onPlaySong={playSong}
-                    queueScrollRef={queueScrollRef}
-                    user={user}
-                    onLogout={handleLogout}
-                    audioQuality={audioQuality}
-                    onAudioQualityChange={setAudioQuality}
-                    cacheSize={cacheSize}
-                    onClearCache={handleClearCache}
-                    onSyncData={handleSyncData}
-                    isSyncing={isSyncing}
-                />
-            )}
-        </div>
+            {
+                currentView === 'player' && (
+                    <UnifiedPanel
+                        isOpen={isPanelOpen}
+                        currentTab={panelTab}
+                        onTabChange={setPanelTab}
+                        onToggle={() => setIsPanelOpen(!isPanelOpen)}
+                        onNavigateHome={navigateToHome}
+                        coverUrl={coverUrl}
+                        currentSong={currentSong}
+                        onAlbumSelect={handleAlbumSelect}
+                        loopMode={loopMode}
+                        onToggleLoop={toggleLoop}
+                        onLike={handleLike}
+                        isLiked={currentSong ? likedSongIds.has(currentSong.id) : false}
+                        onGenerateAITheme={generateAITheme}
+                        isGeneratingTheme={isGeneratingTheme}
+                        hasLyrics={!!lyrics}
+                        theme={theme}
+                        onThemeChange={setTheme}
+                        bgMode={bgMode}
+                        onBgModeChange={setBgMode}
+                        onResetTheme={handleResetTheme}
+                        defaultTheme={DEFAULT_THEME}
+                        playQueue={playQueue}
+                        onPlaySong={playSong}
+                        queueScrollRef={queueScrollRef}
+                        user={user}
+                        onLogout={handleLogout}
+                        audioQuality={audioQuality}
+                        onAudioQualityChange={setAudioQuality}
+                        cacheSize={cacheSize}
+                        onClearCache={handleClearCache}
+                        onSyncData={handleSyncData}
+                        isSyncing={isSyncing}
+                    />
+                )
+            }
+        </div >
     );
 }
