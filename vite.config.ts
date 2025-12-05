@@ -7,7 +7,7 @@ import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
   let commitHash = '';
@@ -31,6 +31,27 @@ export default defineConfig(({ mode }) => {
     } catch (e) {
       console.warn('Could not get git branch:', e);
       gitBranch = 'unknown';
+    }
+  }
+
+  let commitSuffix = '';
+  if (commitHash && commitHash !== 'unknown, probably dev version') {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`https://namoe.izuna.top/api/namoe?hash=${commitHash}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const data = await res.json() as { name?: string };
+        if (data?.name) {
+          commitSuffix = `/${data.name}`;
+        }
+      }
+    } catch (e) {
+      // Ignore errors during fetch to prevent build failure
     }
   }
 
@@ -68,7 +89,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      '__COMMIT_HASH__': JSON.stringify(commitHash),
+      '__COMMIT_HASH__': JSON.stringify(commitHash + commitSuffix),
       '__GIT_BRANCH__': JSON.stringify(gitBranch)
     },
     resolve: {
