@@ -32,8 +32,8 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         initialX: Math.random() * 100,
         initialY: Math.random() * 100,
         size: 40 + Math.random() * 100,
-        // Icons move/fade faster (15s-30s), shapes move slower (30s-60s)
-        duration: useIcon ? 15 + Math.random() * 15 : 30 + Math.random() * 30,
+        // Icons move/fade faster (20s-40s), shapes move slower (30s-60s)
+        duration: useIcon ? 20 + Math.random() * 20 : 30 + Math.random() * 30,
         delay: Math.random() * 5,
         opacity: 0.04 + Math.random() * 0.08, // Increased opacity for better visibility
         reverse: Math.random() > 0.5,
