@@ -622,7 +622,7 @@ export default function App() {
         await loadLocalSongs();
     };
 
-    const handleLocalSongMatch = async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong, matchedSongResult: SongResult | null }> => {
+    const handleLocalSongMatch = async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong, matchedSongResult: SongResult | null; }> => {
         let updatedLocalSong = localSong;
         let matchedSongResult: SongResult | null = null;
 
@@ -754,6 +754,7 @@ export default function App() {
 
         // Set UI state
         setLyrics(lyrics);
+        setCurrentLineIndex(-1);
         setCurrentSong(unifiedSong);
         // Cache cover if available
         if (coverUrl) {
@@ -874,6 +875,7 @@ export default function App() {
 
         // 0. Instant UI Feedback
         setLyrics(null);
+        setCurrentLineIndex(-1);
         setCurrentSong(song);
         setCachedCoverUrl(null);
         setAudioSrc(null);
@@ -1631,7 +1633,7 @@ export default function App() {
                             setLocalMusicState={setLocalMusicState}
                             onMatchSong={async (song) => {
                                 await loadLocalSongs();
-                                
+
                                 // If the matched song is currently playing, update the cover
                                 if (currentSong && ((currentSong as any).isLocal || currentSong.id < 0)) {
                                     const currentLocalData = (currentSong as any).localData as LocalSong | undefined;
@@ -1639,12 +1641,12 @@ export default function App() {
                                         // Reload the song from DB to get updated metadata
                                         const updatedSongs = await getLocalSongs();
                                         const updatedSong = updatedSongs.find(s => s.id === song.id);
-                                        
+
                                         if (updatedSong) {
                                             // Update currentSong's localData
                                             const updatedCurrentSong = { ...currentSong };
                                             (updatedCurrentSong as any).localData = updatedSong;
-                                            
+
                                             // Update cover URL in currentSong
                                             if (updatedSong.matchedCoverUrl) {
                                                 const coverUrl = updatedSong.matchedCoverUrl;
@@ -1658,9 +1660,9 @@ export default function App() {
                                                     };
                                                 }
                                             }
-                                            
+
                                             setCurrentSong(updatedCurrentSong);
-                                            
+
                                             // Update cached cover URL
                                             if (updatedSong.matchedCoverUrl) {
                                                 try {
@@ -1676,7 +1678,7 @@ export default function App() {
                                             } else {
                                                 setCachedCoverUrl(null);
                                             }
-                                            
+
                                             // Update lyrics if available
                                             if (updatedSong.matchedLyrics) {
                                                 setLyrics(updatedSong.matchedLyrics);

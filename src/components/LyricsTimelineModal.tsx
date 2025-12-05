@@ -55,10 +55,10 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
             clearTimeout(userScrollTimeoutRef.current);
         }
 
-        // Set timeout to return to auto-scroll after 5 seconds
+        // Set timeout to return to auto-scroll after 3 seconds
         userScrollTimeoutRef.current = setTimeout(() => {
             setIsUserScrolling(false);
-        }, 5000);
+        }, 3000);
     };
 
     // Auto-scroll to active lyric (only when not user scrolling)
