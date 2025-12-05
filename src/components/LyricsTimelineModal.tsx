@@ -32,6 +32,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     const activeItemRef = useRef<HTMLDivElement>(null);
     const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isAutoScrolling = useRef(false);
 
     // Track active line
     useMotionValueEvent(currentTime, "change", (latest) => {
@@ -44,6 +45,9 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
 
     // Handle user scroll
     const handleScroll = () => {
+        if (isAutoScrolling.current) {
+            return;
+        }
         setIsUserScrolling(true);
 
         // Clear existing timeout
@@ -67,13 +71,11 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                 clearTimeout(scrollTimeoutRef.current);
             }
 
-            // Small delay to batch rapid updates
-            scrollTimeoutRef.current = setTimeout(() => {
-                const container = scrollContainerRef.current;
-                const activeItem = activeItemRef.current;
+            // Scroll immediately
+            const container = scrollContainerRef.current;
+            const activeItem = activeItemRef.current;
 
-                if (!container || !activeItem) return;
-
+            if (container && activeItem) {
                 const containerHeight = container.clientHeight;
                 const itemOffsetTop = activeItem.offsetTop;
                 const itemHeight = activeItem.clientHeight;
@@ -85,7 +87,14 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                     top: scrollTo,
                     behavior: 'smooth'
                 });
-            }, 100);
+
+                // Allow some time for the scroll event to fire and be ignored
+                isAutoScrolling.current = true;
+                // Add a small timeout to clear the flag in case the scroll event doesn't fire (e.g. already at position)
+                setTimeout(() => {
+                    isAutoScrolling.current = false;
+                }, 1000);
+            }
         }
 
         // Cleanup
