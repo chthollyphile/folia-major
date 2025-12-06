@@ -55,7 +55,7 @@ export default {
     "resetToDefaultTheme": "重置为默认主题",
     "selectTrack": "选择音轨",
     "foundMatches": "找到 {{count}} 个匹配项",
-    "waitingForMusic": "..."
+    "waitingForMusic": "♪"
   },
   "panel": {
     "cover": "封面",

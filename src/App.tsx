@@ -768,6 +768,7 @@ export default function App() {
         // Set UI state
         setLyrics(lyrics);
         setCurrentLineIndex(-1);
+        currentTime.set(0); // Reset currentTime to prevent stale playback position
         setCurrentSong(unifiedSong);
         // Cache cover if available
         if (coverUrl) {
@@ -889,6 +890,7 @@ export default function App() {
         // 0. Instant UI Feedback
         setLyrics(null);
         setCurrentLineIndex(-1);
+        currentTime.set(0); // Reset currentTime to prevent stale playback position
         setCurrentSong(song);
         setCachedCoverUrl(null);
         setAudioSrc(null);
@@ -1434,7 +1436,8 @@ export default function App() {
                 } else {
                     foundIndex = lyrics.lines.findIndex(l => time >= l.startTime && time <= l.endTime);
                 }
-                if (foundIndex !== -1 && foundIndex !== currentLineIndex) {
+                // Update currentLineIndex whenever it changes, including when moving to -1 (no active lyric)
+                if (foundIndex !== currentLineIndex) {
                     setCurrentLineIndex(foundIndex);
                 }
             }
@@ -1626,6 +1629,7 @@ export default function App() {
                 }}
                 onLoadedMetadata={(e) => {
                     setDuration(e.currentTarget.duration);
+                    currentTime.set(0); // Ensure currentTime is reset when new audio loads
                 }}
                 onError={(e) => {
                     if (audioSrc) {

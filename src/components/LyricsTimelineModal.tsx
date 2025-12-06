@@ -43,6 +43,11 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
         }
     });
 
+    // Reset activeLineIndex when lyrics change (e.g., when switching songs)
+    useEffect(() => {
+        setActiveLineIndex(-1);
+    }, [lyrics]);
+
     // Handle user scroll
     const handleScroll = () => {
         if (isAutoScrolling.current) {

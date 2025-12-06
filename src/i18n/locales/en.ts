@@ -55,7 +55,7 @@ export default {
     "resetToDefaultTheme": "Reset to Default Theme",
     "selectTrack": "Select Track",
     "foundMatches": "Found {{count}} matches",
-    "waitingForMusic": "..."
+    "waitingForMusic": "♪"
   },
   "panel": {
     "cover": "Cover",
