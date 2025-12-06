@@ -60,11 +60,11 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             const res = await neteaseApi.cloudSearch(q);
             if (res.result?.songs) {
                 setSearchResults(res.result.songs);
-                
+
                 // Try to find a song with matching title
                 const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
                 const exactMatch = res.result.songs.find(s => isTitleMatch(localTitle, s.name));
-                
+
                 if (exactMatch) {
                     // Auto-select the exact match
                     setSelectedResult(exactMatch);
@@ -88,9 +88,12 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         try {
             // Fetch lyrics for selected song
             const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-            const mainLrc = lyricRes.lrc?.lyric;
             const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-            const transLrc = lyricRes.tlyric?.lyric || "";
+            const mainLrc = lyricRes.lrc?.lyric;
+            const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
+            const tlyric = lyricRes.tlyric?.lyric || "";
+
+            const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
 
             let parsedLyrics: LyricData | null = null;
             if (yrcLrc) {

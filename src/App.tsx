@@ -375,9 +375,14 @@ export default function App() {
                         setLyrics(cachedLyrics);
                     } else {
                         const lyricRes = await neteaseApi.getLyric(lastSong.id);
-                        const mainLrc = lyricRes.lrc?.lyric;
                         const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-                        const transLrc = lyricRes.tlyric?.lyric || "";
+                        const mainLrc = lyricRes.lrc?.lyric;
+                        const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
+                        const tlyric = lyricRes.tlyric?.lyric || "";
+
+                        // Use ytlrc for YRC if available, otherwise fallback to tlyric.
+                        // For standard LRC, use tlyric.
+                        const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
 
                         let parsed: LyricData | null = null;
                         if (yrcLrc) {
@@ -1081,7 +1086,10 @@ export default function App() {
                 const lyricRes = await neteaseApi.getLyric(song.id);
                 const mainLrc = lyricRes.lrc?.lyric;
                 const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-                const transLrc = lyricRes.tlyric?.lyric || "";
+                const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
+                const tlyric = lyricRes.tlyric?.lyric || "";
+
+                const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
 
                 let parsedLyrics = null;
                 if (yrcLrc) {

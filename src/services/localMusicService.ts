@@ -178,9 +178,12 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         // Fetch lyrics
         const lyricRes = await neteaseApi.getLyric(matchedSong.id);
-        const mainLrc = lyricRes.lrc?.lyric;
         const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-        const transLrc = lyricRes.tlyric?.lyric || "";
+        const mainLrc = lyricRes.lrc?.lyric;
+        const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
+        const tlyric = lyricRes.tlyric?.lyric || "";
+
+        const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
 
         let parsedLyrics: LyricData | null = null;
         if (yrcLrc) {
@@ -279,13 +282,13 @@ export async function getAudioFromFile(file: File): Promise<string> {
 export async function resyncFolder(folderName: string): Promise<LocalSong[] | null> {
     // First, prompt user to select the folder again to get fresh handles
     const importedSongs = await importFolder();
-    
+
     // If user cancelled (empty array), return null to indicate cancellation
     // Don't delete the old folder
     if (importedSongs.length === 0) {
         return null;
     }
-    
+
     // Return the imported songs, but don't delete old folder yet
     // The deletion will happen after user confirms in the UI
     return importedSongs;
