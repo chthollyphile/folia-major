@@ -104,7 +104,25 @@ const Word: React.FC<{
 
 const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true }) => {
     const { t } = useTranslation();
+    const [currentTimeValue, setCurrentTimeValue] = useState(0);
+
+    // Track current time for finding most recent lyric (for translation display)
+    useMotionValueEvent(currentTime, "change", (latest: number) => {
+        setCurrentTimeValue(latest);
+    });
+
     const activeLine = lines[currentLineIndex];
+
+    // Find the most recent completed lyric (for translation display during breaks)
+    let recentCompletedLine = null;
+    if (currentLineIndex === -1 && lines.length > 0) {
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (currentTimeValue > lines[i].endTime) {
+                recentCompletedLine = lines[i];
+                break;
+            }
+        }
+    }
 
     // Find recent previous and next lines for context subtitles
     const nextLines = lines.slice(currentLineIndex + 1, currentLineIndex + 3);
@@ -232,7 +250,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
                             style={{ perspective: `${lineConfig.perspective}px`, minHeight: '300px' }}
                         >
                             {activeLine.words.map((word, idx) => {
-                                const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto' };
+                                const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto', passedRotate: 0 };
 
                                 let activeColor = theme.accentColor;
 
@@ -295,19 +313,21 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
                         exit={{ opacity: 0, y: 20 }}
                         className="absolute bottom-28 w-full text-center space-y-2 px-4 z-20 pointer-events-none"
                     >
-                        {activeLine?.translation ? (
+                        {/* Show translation of active line OR recent completed line */}
+                        {(activeLine?.translation || recentCompletedLine?.translation) ? (
                             <motion.div
-                                key={`trans-${activeLine.startTime}`}
+                                key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0 }}
                                 className="text-lg md:text-xl font-medium max-w-4xl mx-auto"
                                 style={{ color: theme.secondaryColor }}
                             >
-                                {activeLine.translation}
+                                {activeLine?.translation || recentCompletedLine?.translation}
                             </motion.div>
                         ) : (
-                            nextLines.map((line, i) => (
+                            /* Show next lines only when there's an active line (not during breaks) */
+                            activeLine && nextLines.map((line, i) => (
                                 <p key={i} className="text-sm md:text-base truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]" style={{ color: theme.secondaryColor }}>
                                     {line.fullText}
                                 </p>
