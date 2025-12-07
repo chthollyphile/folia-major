@@ -169,6 +169,7 @@ export default {
     "importNotSupported": "Folder import not supported in this browser or cancelled",
     "resyncFailed": "Failed to resync folder. Please try again.",
     "deleteFailed": "Failed to delete folder. Please try again.",
-    "matchFailed": "Failed to fetch lyrics for selected song"
+    "matchFailed": "Failed to fetch lyrics for selected song",
+    "dontUseOnlineMetadata": "Don't use online metadata"
   }
 } as const;

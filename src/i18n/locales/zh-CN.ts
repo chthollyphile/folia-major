@@ -169,6 +169,7 @@ export default {
     "importNotSupported": "当前浏览器不支持文件夹导入或操作已取消",
     "resyncFailed": "重新同步文件夹失败，请重试。",
     "deleteFailed": "删除文件夹失败，请重试。",
-    "matchFailed": "获取歌词失败"
+    "matchFailed": "获取歌词失败",
+    "dontUseOnlineMetadata": "不使用在线元数据"
   }
 } as const;

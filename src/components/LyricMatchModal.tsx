@@ -276,7 +276,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         onClick={handleNoMatch}
                         className="px-6 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors mr-auto"
                     >
-                        Don't use online metadata
+                        {t('localMusic.dontUseOnlineMetadata')}
                     </button>
                     <button
                         onClick={handleConfirm}
