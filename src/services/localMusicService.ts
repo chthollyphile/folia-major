@@ -15,7 +15,7 @@ function generateId(): string {
 }
 
 // Extract basic metadata from filename
-// Expected format: "Artist - Title.mp3" or "Title.mp3"
+// Expected format: "Artist - Title.mp3", "Artist-Title.mp3", or "Title.mp3"
 function extractMetadataFromFilename(fileName: string): { title?: string; artist?: string; } {
     // 去掉扩展名
     let nameWithoutExt = fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
@@ -26,13 +26,29 @@ function extractMetadataFromFilename(fileName: string): { title?: string; artist
     // 再去除一开始的空格
     nameWithoutExt = nameWithoutExt.replace(/^\s+/, '');
 
-    // 分割艺术家和标题
-    const parts = nameWithoutExt.split(' - ');
+    // 分割艺术家和标题 - 尝试 " - " (带空格)
+    let parts = nameWithoutExt.split(' - ');
     if (parts.length === 2) {
         return {
             artist: parts[0].trim(),
             title: parts[1].trim()
         };
+    }
+
+    // 尝试 "-" (不带空格) - 但要确保不是单词中间的连字符
+    // 我们检查最后一个"-"是否可能是分隔符
+    const lastDashIndex = nameWithoutExt.lastIndexOf('-');
+    if (lastDashIndex > 0 && lastDashIndex < nameWithoutExt.length - 1) {
+        const potentialTitle = nameWithoutExt.substring(0, lastDashIndex).trim();
+        const potentialArtist = nameWithoutExt.substring(lastDashIndex + 1).trim();
+
+        // 如果分割后的两部分都有内容，使用这个分割
+        if (potentialTitle && potentialArtist) {
+            return {
+                artist: potentialArtist,
+                title: potentialTitle
+            };
+        }
     }
 
     return {
@@ -143,7 +159,25 @@ function normalizeTitle(title: string): string {
 function isTitleMatch(localTitle: string, searchTitle: string): boolean {
     const normalizedLocal = normalizeTitle(localTitle);
     const normalizedSearch = normalizeTitle(searchTitle);
-    return normalizedLocal === normalizedSearch;
+
+    // Check for exact match first
+    if (normalizedLocal === normalizedSearch) {
+        return true;
+    }
+
+    // Check if either title contains the other (for fuzzy matching)
+    // This helps when local file is "Title-Artist" but search result is just "Title"
+    if (normalizedLocal.includes(normalizedSearch) || normalizedSearch.includes(normalizedLocal)) {
+        // Additional check: the shorter one should be at least 50% of the longer one
+        // to avoid matching "a" with "abc"
+        const minLength = Math.min(normalizedLocal.length, normalizedSearch.length);
+        const maxLength = Math.max(normalizedLocal.length, normalizedSearch.length);
+        if (minLength / maxLength >= 0.5) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // Match lyrics for a local song using search API

@@ -18,6 +18,10 @@ interface LocalMusicViewProps {
     selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
     setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null) => void;
     onMatchSong?: (song: LocalSong) => void;
+    focusedFolderIndex?: number;
+    setFocusedFolderIndex?: (index: number) => void;
+    focusedAlbumIndex?: number;
+    setFocusedAlbumIndex?: (index: number) => void;
 }
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({
@@ -29,7 +33,11 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     setActiveRow,
     selectedGroup,
     setSelectedGroup,
-    onMatchSong
+    onMatchSong,
+    focusedFolderIndex = 0,
+    setFocusedFolderIndex,
+    focusedAlbumIndex = 0,
+    setFocusedAlbumIndex
 }) => {
     const { t } = useTranslation();
 
@@ -152,15 +160,28 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         if (!selectedGroup || selectedGroup.type !== 'folder') return;
 
         try {
+            // Delete old folder songs FIRST, before importing new ones
+            // This prevents the bug where re-importing the same folder would delete new songs
+            // because they share the same folderName with old songs
+            await deleteFolderSongs(selectedGroup.name);
+
+            // Now import fresh songs from the folder
             const importedSongs = await resyncFolder(selectedGroup.name);
-            
-            // If user cancelled (null), don't delete the old folder
+
+            // If user cancelled, folder is already deleted but that's expected behavior
             if (importedSongs === null) {
+                onRefresh(); // Refresh to show the deletion
+                setSelectedGroup(null);
                 return;
             }
-            
-            // Only delete old folder after user confirmed the new folder selection
-            await deleteFolderSongs(selectedGroup.name);
+
+            // Log result
+            if (importedSongs.length === 0) {
+                console.warn('[LocalMusic] No songs imported after folder deletion');
+            } else {
+                console.log(`[LocalMusic] Successfully re-imported ${importedSongs.length} songs`);
+            }
+
             onRefresh(); // Refresh the UI to show updated songs
             setSelectedGroup(null); // Close the playlist view
         } catch (error) {
@@ -301,6 +322,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                             onSelect={(item) => setSelectedGroup(item)}
                                             emptyMessage={t('localMusic.noFoldersFound')}
                                             textBottomClass="-bottom-1"
+                                            initialFocusedIndex={focusedFolderIndex}
+                                            onFocusedIndexChange={setFocusedFolderIndex}
                                         />
                                     </div>
                                 </motion.div>
@@ -322,6 +345,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                             onSelect={(item) => setSelectedGroup(item)}
                                             emptyMessage={t('localMusic.noAlbumsFound')}
                                             textBottomClass="-bottom-1"
+                                            initialFocusedIndex={focusedAlbumIndex}
+                                            onFocusedIndexChange={setFocusedAlbumIndex}
                                         />
                                     </div>
                                 </motion.div>

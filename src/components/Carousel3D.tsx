@@ -72,15 +72,37 @@ interface Carousel3DProps {
     isLoading?: boolean;
     emptyMessage?: string;
     textBottomClass?: string;
+    initialFocusedIndex?: number;
+    onFocusedIndexChange?: (index: number) => void;
 }
 
-const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24" }) => {
+const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24", initialFocusedIndex = 0, onFocusedIndexChange }) => {
     const { t } = useTranslation();
-    const [focusedIndex, setFocusedIndex] = useState(0);
+    const [focusedIndex, setFocusedIndex] = useState(initialFocusedIndex);
     const carouselRef = useRef<HTMLDivElement>(null);
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
     const wheelTimeout = useRef<any>(null);
+    const prevInitialIndexRef = useRef(initialFocusedIndex);
+    const onFocusedIndexChangeRef = useRef(onFocusedIndexChange);
+
+    // Update ref when callback changes
+    useEffect(() => {
+        onFocusedIndexChangeRef.current = onFocusedIndexChange;
+    }, [onFocusedIndexChange]);
+
+    // Update focusedIndex when initialFocusedIndex changes (but not on first mount if already set)
+    useEffect(() => {
+        if (prevInitialIndexRef.current !== initialFocusedIndex) {
+            setFocusedIndex(initialFocusedIndex);
+            prevInitialIndexRef.current = initialFocusedIndex;
+        }
+    }, [initialFocusedIndex]);
+
+    // Notify parent when focusedIndex changes
+    useEffect(() => {
+        onFocusedIndexChangeRef.current?.(focusedIndex);
+    }, [focusedIndex]);
 
     // Touch Handling
     const handleTouchStart = (e: React.TouchEvent) => {

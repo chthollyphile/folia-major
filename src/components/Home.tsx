@@ -29,13 +29,19 @@ interface HomeProps {
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
     viewTab: 'playlist' | 'local';
     setViewTab: (tab: 'playlist' | 'local') => void;
+    focusedPlaylistIndex?: number;
+    setFocusedPlaylistIndex?: (index: number) => void;
     localMusicState: {
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+        focusedFolderIndex: number;
+        focusedAlbumIndex: number;
     };
     setLocalMusicState: React.Dispatch<React.SetStateAction<{
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+        focusedFolderIndex: number;
+        focusedAlbumIndex: number;
     }>>;
     onMatchSong?: (song: LocalSong) => void;
 }
@@ -57,6 +63,8 @@ const Home: React.FC<HomeProps> = ({
     onPlayLocalSong,
     viewTab,
     setViewTab,
+    focusedPlaylistIndex = 0,
+    setFocusedPlaylistIndex,
     localMusicState,
     setLocalMusicState,
     onMatchSong
@@ -276,6 +284,8 @@ const Home: React.FC<HomeProps> = ({
                                         onSelect={(pl) => onSelectPlaylist(pl as any)}
                                         isLoading={false}
                                         emptyMessage={t('home.loadingLibrary')}
+                                        initialFocusedIndex={focusedPlaylistIndex}
+                                        onFocusedIndexChange={setFocusedPlaylistIndex}
                                     />
 
                                 ) : (
@@ -290,6 +300,10 @@ const Home: React.FC<HomeProps> = ({
                                             selectedGroup={localMusicState.selectedGroup}
                                             setSelectedGroup={(group) => setLocalMusicState(prev => ({ ...prev, selectedGroup: group }))}
                                             onMatchSong={onMatchSong}
+                                            focusedFolderIndex={localMusicState.focusedFolderIndex}
+                                            setFocusedFolderIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedFolderIndex: index }))}
+                                            focusedAlbumIndex={localMusicState.focusedAlbumIndex}
+                                            setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
                                         />
                                     </div>
                                 )}

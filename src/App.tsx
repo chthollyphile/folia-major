@@ -140,12 +140,17 @@ export default function App() {
 
     // Navigation Persistence State (Lifted from Home/LocalMusicView)
     const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local'>('playlist');
+    const [focusedPlaylistIndex, setFocusedPlaylistIndex] = useState(0);
     const [localMusicState, setLocalMusicState] = useState<{
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
+        focusedFolderIndex: number;
+        focusedAlbumIndex: number;
     }>({
         activeRow: 0,
-        selectedGroup: null
+        selectedGroup: null,
+        focusedFolderIndex: 0,
+        focusedAlbumIndex: 0
     });
 
     // --- Initialization & User Data ---
@@ -1684,6 +1689,8 @@ export default function App() {
                             onPlayLocalSong={onPlayLocalSong}
                             viewTab={homeViewTab}
                             setViewTab={setHomeViewTab}
+                            focusedPlaylistIndex={focusedPlaylistIndex}
+                            setFocusedPlaylistIndex={setFocusedPlaylistIndex}
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
                             onMatchSong={async (song) => {
