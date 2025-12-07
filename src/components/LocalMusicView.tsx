@@ -160,24 +160,21 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         if (!selectedGroup || selectedGroup.type !== 'folder') return;
 
         try {
-            // Delete old folder songs FIRST, before importing new ones
-            // This prevents the bug where re-importing the same folder would delete new songs
-            // because they share the same folderName with old songs
-            await deleteFolderSongs(selectedGroup.name);
+            // Collect IDs of old songs BEFORE any operations
+            const oldSongIds = selectedGroup.songs.map(song => song.id);
 
-            // Now import fresh songs from the folder
-            const importedSongs = await resyncFolder(selectedGroup.name);
+            // Import fresh songs from the folder
+            // Pass old song IDs so they can be deleted AFTER import
+            const importedSongs = await resyncFolder(oldSongIds);
 
-            // If user cancelled, folder is already deleted but that's expected behavior
+            // If user cancelled, do nothing and keep existing folder intact
             if (importedSongs === null) {
-                onRefresh(); // Refresh to show the deletion
-                setSelectedGroup(null);
                 return;
             }
 
             // Log result
             if (importedSongs.length === 0) {
-                console.warn('[LocalMusic] No songs imported after folder deletion');
+                console.warn('[LocalMusic] No songs imported during resync');
             } else {
                 console.log(`[LocalMusic] Successfully re-imported ${importedSongs.length} songs`);
             }
@@ -189,6 +186,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             alert(t('localMusic.resyncFailed'));
         }
     };
+
 
     const handleDeleteFolder = async () => {
         if (!selectedGroup || selectedGroup.type !== 'folder') return;

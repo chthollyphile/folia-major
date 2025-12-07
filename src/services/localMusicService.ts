@@ -312,19 +312,30 @@ export async function getAudioFromFile(file: File): Promise<string> {
     return URL.createObjectURL(file);
 }
 
-// Resync folder: Delete all songs and prompt re-import
-export async function resyncFolder(folderName: string): Promise<LocalSong[] | null> {
+// Delete songs by their specific IDs
+export async function deleteSongsByIds(songIds: string[]): Promise<void> {
+    for (const id of songIds) {
+        await deleteLocalSong(id);
+    }
+    console.log(`[LocalMusic] Deleted ${songIds.length} songs by ID`);
+}
+
+// Resync folder: Delete old songs by ID, then prompt for new import
+export async function resyncFolder(oldSongIds: string[]): Promise<LocalSong[] | null> {
     // First, prompt user to select the folder again to get fresh handles
     const importedSongs = await importFolder();
 
     // If user cancelled (empty array), return null to indicate cancellation
-    // Don't delete the old folder
+    // Don't delete anything
     if (importedSongs.length === 0) {
         return null;
     }
 
-    // Return the imported songs, but don't delete old folder yet
-    // The deletion will happen after user confirms in the UI
+    // User confirmed - delete old songs by their IDs
+    // This happens AFTER import so new songs have different IDs
+    // and won't be affected by the deletion
+    await deleteSongsByIds(oldSongIds);
+
     return importedSongs;
 }
 
