@@ -874,6 +874,7 @@ export default function App() {
 
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 2048;
+            analyser.smoothingTimeConstant = 0.6;
             analyserRef.current = analyser;
 
             const source = ctx.createMediaElementSource(audioRef.current);
