@@ -141,6 +141,7 @@ export default function App() {
     // Navigation Persistence State (Lifted from Home/LocalMusicView)
     const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local' | 'albums'>('playlist');
     const [focusedPlaylistIndex, setFocusedPlaylistIndex] = useState(0);
+    const [focusedFavoriteAlbumIndex, setFocusedFavoriteAlbumIndex] = useState(0);
     const [localMusicState, setLocalMusicState] = useState<{
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
@@ -185,8 +186,19 @@ export default function App() {
             }
             // If album state
             else if (state.view === 'album') {
-                setCurrentView('home');
-                setSelectedPlaylist(null); // Ensure playlist is deselected
+                // If we have an ID in state, it means we are IN album view.
+                // But popState is triggered when we go BACK to this state? NO.
+                // popState is triggered when we land ON a state.
+                // So if we land on 'album', we should show it.
+                if (state.id) {
+                    setSelectedAlbumId(state.id);
+                    setCurrentView('home'); // Ensure we are on home view base (AlbumView overlays Home)
+                    setSelectedPlaylist(null);
+                } else {
+                    // Fallback to home if no ID?
+                    setCurrentView('home');
+                    setSelectedAlbumId(null);
+                }
             }
         };
 
@@ -230,8 +242,13 @@ export default function App() {
         }
     };
 
-    const handleAlbumSelect = (id: number) => {
-        setSelectedAlbumId(id);
+    const handleAlbumSelect = (id: number | null) => {
+        if (id) {
+            window.history.pushState({ view: 'album', id: id }, '', `#album/${id}`);
+            setSelectedAlbumId(id);
+        } else {
+            window.history.back();
+        }
     };
 
     // Revoke blob URLs on unmount to prevent leaks
@@ -1692,6 +1709,8 @@ export default function App() {
                             setViewTab={setHomeViewTab}
                             focusedPlaylistIndex={focusedPlaylistIndex}
                             setFocusedPlaylistIndex={setFocusedPlaylistIndex}
+                            focusedFavoriteAlbumIndex={focusedFavoriteAlbumIndex}
+                            setFocusedFavoriteAlbumIndex={setFocusedFavoriteAlbumIndex}
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
                             onMatchSong={async (song) => {
@@ -1760,14 +1779,29 @@ export default function App() {
                 {selectedAlbumId && (
                     <AlbumView
                         albumId={selectedAlbumId}
-                        onBack={() => setSelectedAlbumId(null)}
+                        onBack={() => handleAlbumSelect(null)}
                         onPlaySong={(song, ctx) => {
                             playSong(song, ctx);
-                            setSelectedAlbumId(null);
+                            // Keep AlbumView open or close? Usually keep open unless explicit back.
+                            // But here we might want to just play.
+                            // Existing logic was: setSelectedAlbumId(null);
+                            // Let's keep it closing for now if that was desired, OR keep openness.
+                            // User request: "Left Panel 标题不要收缩..." implies they want to see it.
+                            // But original code had:
+                            // onPlaySong={(song, ctx) => { playSong(song, ctx); setSelectedAlbumId(null); }}
+                            // If we want to navigate TO player, we should do that.
+                            // Let's assume onPlay we go to player view?
+                            // Actually, let's keep it open, as user might want to play another song.
+                            // BUT wait, looking at diff:
+                            // onPlaySong={(song, ctx) => { playSong(song, ctx); setSelectedAlbumId(null); }}
+                            // If I remove setSelectedAlbumId(null), it stays open.
+                            // Most music apps go to player on play.
+                            // Let's stick to existing behavior: CLOSE AlbumView on play.
+                            handleAlbumSelect(null);
                         }}
                         onPlayAll={(songs) => {
                             playSong(songs[0], songs);
-                            setSelectedAlbumId(null);
+                            handleAlbumSelect(null);
                         }}
                     />
                 )}

@@ -23,7 +23,7 @@ interface HomeProps {
     isPlaying: boolean;
     selectedPlaylist: NeteasePlaylist | null;
     onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
-    onSelectAlbum: (albumId: number) => void;
+    onSelectAlbum: (albumId: number | null) => void;
     localSongs: LocalSong[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
@@ -31,6 +31,8 @@ interface HomeProps {
     setViewTab: (tab: 'playlist' | 'local' | 'albums') => void;
     focusedPlaylistIndex?: number;
     setFocusedPlaylistIndex?: (index: number) => void;
+    focusedFavoriteAlbumIndex?: number;
+    setFocusedFavoriteAlbumIndex?: (index: number) => void;
     localMusicState: {
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
@@ -65,6 +67,8 @@ const Home: React.FC<HomeProps> = ({
     setViewTab,
     focusedPlaylistIndex = 0,
     setFocusedPlaylistIndex,
+    focusedFavoriteAlbumIndex = 0,
+    setFocusedFavoriteAlbumIndex,
     localMusicState,
     setLocalMusicState,
     onMatchSong
@@ -223,7 +227,7 @@ const Home: React.FC<HomeProps> = ({
                     onPlayAll={(songs) => {
                         if (songs.length > 0) onPlaySong(songs[0], songs);
                     }}
-                    onSelectAlbum={onSelectAlbum}
+                    onSelectAlbum={(id) => onSelectAlbum(id)}
                 />
             ) : (
                 <motion.div
@@ -348,7 +352,8 @@ const Home: React.FC<HomeProps> = ({
                                         onSelect={(album) => onSelectAlbum(album.id)}
                                         isLoading={loadingAlbums}
                                         emptyMessage={t('home.noAlbums') || "No favorite albums found"}
-                                        initialFocusedIndex={0}
+                                        initialFocusedIndex={focusedFavoriteAlbumIndex}
+                                        onFocusedIndexChange={setFocusedFavoriteAlbumIndex}
                                     />
                                 ) : viewTab === 'playlist' ? (
                                     <Carousel3D
