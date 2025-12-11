@@ -96,29 +96,29 @@ const Home: React.FC<HomeProps> = ({
     const [albumsLoaded, setAlbumsLoaded] = useState(false);
 
     // Swipe handling
-    const touchStartY = useRef(0);
-    const touchEndY = useRef(0);
+    // const touchStartY = useRef(0);
+    // const touchEndY = useRef(0);
 
-    const onTouchStart = (e: React.TouchEvent) => {
-        touchStartY.current = e.targetTouches[0].clientY;
-    };
+    // const onTouchStart = (e: React.TouchEvent) => {
+    //     touchStartY.current = e.targetTouches[0].clientY;
+    // };
 
-    const onTouchEnd = (e: React.TouchEvent) => {
-        touchEndY.current = e.changedTouches[0].clientY;
-        const diff = touchStartY.current - touchEndY.current;
+    // const onTouchEnd = (e: React.TouchEvent) => {
+    //     touchEndY.current = e.changedTouches[0].clientY;
+    //     const diff = touchStartY.current - touchEndY.current;
 
-        // Threshold of 50px
-        if (Math.abs(diff) > 50) {
-            // Swipe Up (diff > 0) -> Go to Albums (if in Playlist)
-            if (diff > 0 && viewTab === 'playlist') {
-                setViewTab('albums');
-            }
-            // Swipe Down (diff < 0) -> Go to Playlist (if in Albums)
-            else if (diff < 0 && viewTab === 'albums') {
-                setViewTab('playlist');
-            }
-        }
-    };
+    //     // Threshold of 50px
+    //     if (Math.abs(diff) > 50) {
+    //         // Swipe Up (diff > 0) -> Go to Albums (if in Playlist)
+    //         if (diff > 0 && viewTab === 'playlist') {
+    //             setViewTab('albums');
+    //         }
+    //         // Swipe Down (diff < 0) -> Go to Playlist (if in Albums)
+    //         else if (diff < 0 && viewTab === 'albums') {
+    //             setViewTab('playlist');
+    //         }
+    //     }
+    // };
 
     // Load favorite albums when tab is active
     useEffect(() => {
@@ -130,11 +130,26 @@ const Home: React.FC<HomeProps> = ({
     const fetchFavoriteAlbums = async () => {
         setLoadingAlbums(true);
         try {
-            const res = await neteaseApi.getFavoriteAlbums(50, 0);
-            if (res.data) {
-                setFavoriteAlbums(res.data);
-                setAlbumsLoaded(true);
+            let allAlbums: any[] = [];
+            let offset = 0;
+            const limit = 50;
+            let hasMore = true;
+
+            while (hasMore) {
+                const res = await neteaseApi.getFavoriteAlbums(limit, offset);
+                if (res.data) {
+                    allAlbums = [...allAlbums, ...res.data];
+                }
+
+                // Use hasMore directly as requested
+                hasMore = res.hasMore;
+                offset += limit;
             }
+
+            if (allAlbums.length > 0) {
+                setFavoriteAlbums(allAlbums);
+            }
+            setAlbumsLoaded(true);
         } catch (e) {
             console.error("Failed to fetch favorite albums", e);
         } finally {
@@ -238,8 +253,8 @@ const Home: React.FC<HomeProps> = ({
                     transition={{ duration: 0.3 }}
                     className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-black/20 pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar"
                     style={{ color: 'var(--text-primary)' }}
-                    onTouchStart={onTouchStart}
-                    onTouchEnd={onTouchEnd}
+                // onTouchStart={onTouchStart}
+                // onTouchEnd={onTouchEnd}
                 >
                     {/* Header Section */}
                     {!isLocalPlaylistOpen && (

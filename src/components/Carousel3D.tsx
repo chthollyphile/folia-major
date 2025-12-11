@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
-import { Loader2, Disc } from 'lucide-react';
+import { Loader2, Disc, Map as MapIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 // Carousel Item Component with safe blur animation
@@ -79,6 +79,7 @@ interface Carousel3DProps {
 const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24", initialFocusedIndex = 0, onFocusedIndexChange }) => {
     const { t } = useTranslation();
     const [focusedIndex, setFocusedIndex] = useState(initialFocusedIndex);
+    const [showMap, setShowMap] = useState(false);
     const carouselRef = useRef<HTMLDivElement>(null);
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
@@ -252,6 +253,85 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                             : ''}
                     </p>
                 </motion.div>
+            )}
+
+            {/* Map Interaction Layer */}
+            <AnimatePresence>
+                {showMap && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col p-8"
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white/90">{t('home.allAlbums') || 'All Albums'}</h3>
+                            <button
+                                onClick={() => setShowMap(false)}
+                                className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+                            >
+                                <X className="text-white" size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                            <div className="flex flex-wrap gap-6 justify-center content-start pb-12">
+                                {items.map((item, index) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => {
+                                            if (focusedIndex === index) {
+                                                onSelect(item);
+                                            } else {
+                                                setFocusedIndex(index);
+                                            }
+                                            setShowMap(false);
+                                        }}
+                                        className="group cursor-pointer flex flex-col items-center gap-3 w-28 md:w-32 transition-transform duration-300 hover:scale-105"
+                                    >
+                                        <div className={`relative w-28 h-28 md:w-32 md:h-32 rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ${focusedIndex === index
+                                            ? 'ring-4 ring-white/80 scale-105'
+                                            : 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-white/30'
+                                            }`}>
+                                            {item.coverUrl ? (
+                                                <img src={item.coverUrl.replace('http:', 'https:')} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                            ) : (
+                                                <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                                    <Disc size={32} className="opacity-20 text-white" />
+                                                </div>
+                                            )}
+
+                                            {/* Overlay for non-selected items to dim them slightly? Optional. */}
+                                            {focusedIndex !== index && (
+                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+                                            )}
+                                        </div>
+
+                                        <div className="text-center w-full">
+                                            <div className={`text-xs font-bold truncate ${focusedIndex === index ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
+                                                {item.name}
+                                            </div>
+                                            {/* Optional description if space permits, but keeping it clean for cards */}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Map Toggle Button */}
+            {!showMap && items.length > 0 && (
+                <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="absolute top-4 left-1/2 -translate-x-1/2 z-40 p-3 rounded-full hover:bg-white/10 transition-all text-white/50 hover:text-white"
+                    onClick={() => setShowMap(true)}
+                    title={t('home.allAlbums') || 'Show All'}
+                >
+                    <MapIcon size={24} />
+                </motion.button>
             )}
         </div>
     );

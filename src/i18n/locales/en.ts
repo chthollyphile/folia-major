@@ -115,7 +115,8 @@ export default {
     "resultsFor": "Results for",
     "noResults": "No results found.",
     "playlists": "Playlists",
-    "albums": "Albums"
+    "albums": "Albums",
+    "allAlbums": "All"
   },
   "animation": {
     "calm": "calm",
