@@ -27,8 +27,8 @@ interface HomeProps {
     localSongs: LocalSong[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
-    viewTab: 'playlist' | 'local';
-    setViewTab: (tab: 'playlist' | 'local') => void;
+    viewTab: 'playlist' | 'local' | 'albums';
+    setViewTab: (tab: 'playlist' | 'local' | 'albums') => void;
     focusedPlaylistIndex?: number;
     setFocusedPlaylistIndex?: (index: number) => void;
     localMusicState: {
@@ -85,6 +85,58 @@ const Home: React.FC<HomeProps> = ({
     const [qrStatus, setQrStatus] = useState<string>("");
     const qrCheckInterval = useRef<any>(null);
     const [isLocalPlaylistOpen, setIsLocalPlaylistOpen] = useState(false);
+
+    // Favorite Albums
+    const [favoriteAlbums, setFavoriteAlbums] = useState<any[]>([]);
+    const [loadingAlbums, setLoadingAlbums] = useState(false);
+    const [albumsLoaded, setAlbumsLoaded] = useState(false);
+
+    // Swipe handling
+    const touchStartY = useRef(0);
+    const touchEndY = useRef(0);
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        touchStartY.current = e.targetTouches[0].clientY;
+    };
+
+    const onTouchEnd = (e: React.TouchEvent) => {
+        touchEndY.current = e.changedTouches[0].clientY;
+        const diff = touchStartY.current - touchEndY.current;
+
+        // Threshold of 50px
+        if (Math.abs(diff) > 50) {
+            // Swipe Up (diff > 0) -> Go to Albums (if in Playlist)
+            if (diff > 0 && viewTab === 'playlist') {
+                setViewTab('albums');
+            }
+            // Swipe Down (diff < 0) -> Go to Playlist (if in Albums)
+            else if (diff < 0 && viewTab === 'albums') {
+                setViewTab('playlist');
+            }
+        }
+    };
+
+    // Load favorite albums when tab is active
+    useEffect(() => {
+        if (viewTab === 'albums' && !albumsLoaded && user) {
+            fetchFavoriteAlbums();
+        }
+    }, [viewTab, user, albumsLoaded]);
+
+    const fetchFavoriteAlbums = async () => {
+        setLoadingAlbums(true);
+        try {
+            const res = await neteaseApi.getFavoriteAlbums(50, 0);
+            if (res.data) {
+                setFavoriteAlbums(res.data);
+                setAlbumsLoaded(true);
+            }
+        } catch (e) {
+            console.error("Failed to fetch favorite albums", e);
+        } finally {
+            setLoadingAlbums(false);
+        }
+    };
 
     const initLogin = async () => {
         setShowLoginModal(true);
@@ -182,6 +234,8 @@ const Home: React.FC<HomeProps> = ({
                     transition={{ duration: 0.3 }}
                     className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-black/20 pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar"
                     style={{ color: 'var(--text-primary)' }}
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}
                 >
                     {/* Header Section */}
                     {!isLocalPlaylistOpen && (
@@ -207,8 +261,8 @@ const Home: React.FC<HomeProps> = ({
                                         <div
                                             className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
                                             style={{
-                                                left: viewTab === 'playlist' ? '4px' : '50%',
-                                                width: 'calc(50% - 4px)'
+                                                left: viewTab === 'playlist' ? '4px' : viewTab === 'albums' ? 'calc(33.33% + 2px)' : 'calc(66.66%)',
+                                                width: 'calc(33.33% - 4px)'
                                             }}
                                         />
                                         <button
@@ -217,6 +271,13 @@ const Home: React.FC<HomeProps> = ({
                                                 }`}
                                         >
                                             {t('home.playlists')}
+                                        </button>
+                                        <button
+                                            onClick={() => setViewTab('albums')}
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'albums' ? 'text-black' : 'text-white/60 hover:text-white'
+                                                }`}
+                                        >
+                                            {t('home.albums') || '专辑'}
                                         </button>
                                         <button
                                             onClick={() => setViewTab('local')}
@@ -275,7 +336,21 @@ const Home: React.FC<HomeProps> = ({
                         ) : (
                             <>
                                 {/* Conditional Content Based on Tab */}
-                                {viewTab === 'playlist' ? (
+                                {viewTab === 'albums' ? (
+                                    <Carousel3D
+                                        items={favoriteAlbums.map(a => ({
+                                            id: a.id,
+                                            name: a.name,
+                                            coverUrl: a.picUrl,
+                                            trackCount: a.size,
+                                            description: a.artists?.[0]?.name
+                                        }))}
+                                        onSelect={(album) => onSelectAlbum(album.id)}
+                                        isLoading={loadingAlbums}
+                                        emptyMessage={t('home.noAlbums') || "No favorite albums found"}
+                                        initialFocusedIndex={0}
+                                    />
+                                ) : viewTab === 'playlist' ? (
                                     <Carousel3D
                                         items={playlists.map(p => ({
                                             ...p,

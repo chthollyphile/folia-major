@@ -114,7 +114,8 @@ export default {
     "loadingLibrary": "加载音乐库...",
     "resultsFor": "搜索结果：",
     "noResults": "未找到相关结果",
-    "playlists": "歌单"
+    "playlists": "歌单",
+    "albums": "专辑"
   },
   "animation": {
     "calm": "平静",

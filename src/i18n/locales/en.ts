@@ -114,7 +114,8 @@ export default {
     "loadingLibrary": "Loading Library...",
     "resultsFor": "Results for",
     "noResults": "No results found.",
-    "playlists": "Playlists"
+    "playlists": "Playlists",
+    "albums": "Albums"
   },
   "animation": {
     "calm": "calm",

@@ -139,7 +139,7 @@ export default function App() {
     const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
 
     // Navigation Persistence State (Lifted from Home/LocalMusicView)
-    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local'>('playlist');
+    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local' | 'albums'>('playlist');
     const [focusedPlaylistIndex, setFocusedPlaylistIndex] = useState(0);
     const [localMusicState, setLocalMusicState] = useState<{
         activeRow: 0 | 1;

@@ -97,11 +97,11 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                     <>
                         {/* Left Panel: Cover & Meta */}
                         <div
-                            className="w-full md:w-[400px] p-8 md:p-12 flex flex-col items-center md:items-start relative shrink-0 md:h-full md:overflow-y-auto custom-scrollbar"
+                            className="w-full md:w-[400px] p-8 md:p-12 flex flex-col items-center md:items-start relative shrink-0 md:h-full md:overflow-hidden"
                         >
                             {/* Album Art */}
                             <div
-                                className="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 bg-zinc-800"
+                                className="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 bg-zinc-800 shrink-0"
                             >
                                 {albumInfo?.picUrl ? (
                                     <img src={albumInfo.picUrl.replace('http:', 'https:')} alt={albumInfo.name} className="w-full h-full object-cover" />
@@ -112,31 +112,35 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                 )}
                             </div>
 
-                            <div className="text-center md:text-left space-y-2 w-full mb-6">
-                                <h1 className="text-2xl md:text-3xl font-bold line-clamp-2" style={{ color: 'var(--text-primary)' }}>{albumInfo?.name}</h1>
-                                <div className="flex flex-col md:items-start items-center gap-1 text-sm opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                    <div className="font-medium text-base">{albumInfo?.artist?.name}</div>
-                                    <div className="text-xs">{formatDate(albumInfo?.publishTime)} • {albumInfo?.company}</div>
+                            {/* Scrollable Text Content */}
+                            <div className="w-full md:flex-1 md:overflow-y-auto custom-scrollbar md:min-h-0 md:pr-2">
+                                <div className="text-center md:text-left space-y-2 w-full mb-6">
+                                    <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>{albumInfo?.name}</h1>
+                                    <div className="flex flex-col md:items-start items-center gap-1 text-sm opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                        {albumInfo?.alias?.[0] && (
+                                            <div className="text-sm font-medium opacity-80">{albumInfo.alias[0]}</div>
+                                        )}
+                                        <div className="font-medium text-base">{albumInfo?.artist?.name}</div>
+                                        <div className="text-xs">{formatDate(albumInfo?.publishTime)} • {albumInfo?.company}</div>
+                                    </div>
+
+                                    {albumInfo?.description && (
+                                        <div className="mt-4 w-full max-h-40 overflow-y-auto custom-scrollbar text-xs opacity-60 leading-relaxed pr-2" style={{ color: 'var(--text-secondary)' }}>
+                                            {albumInfo.description}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {albumInfo?.description && (
-                                    <div className="mt-4 text-xs opacity-60 line-clamp-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                                        {albumInfo.description?.length > 12
-                                            ? `${albumInfo.description.slice(0, 12)}...`
-                                            : albumInfo.description}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="w-full">
-                                <button
-                                    onClick={() => onPlayAll(tracks)}
-                                    className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
-                                    style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
-                                >
-                                    <Play size={18} fill="currentColor" />
-                                    {t('playlist.playAll')}
-                                </button>
+                                <div className="w-full pb-2">
+                                    <button
+                                        onClick={() => onPlayAll(tracks)}
+                                        className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
+                                        style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
+                                    >
+                                        <Play size={18} fill="currentColor" />
+                                        {t('playlist.playAll')}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

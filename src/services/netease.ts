@@ -147,6 +147,17 @@ export const neteaseApi = {
     return res;
   },
 
+  getFavoriteAlbums: async (limit = 25, offset = 0) => {
+    const res = await fetchWithCreds(`/album/sublist?limit=${limit}&offset=${offset}`);
+    if (res.data) {
+      res.data.forEach((a: any) => {
+        a.picUrl = toHttps(a.picUrl);
+        // Map artist info if needed, ensuring picUrl is https
+      });
+    }
+    return res;
+  },
+
   // --- Song Data ---
   getSongUrl: async (id: number, level: string = 'exhigh') => {
     // Use exhigh (320k) by default to ensure VIP songs have a valid signed URL.
