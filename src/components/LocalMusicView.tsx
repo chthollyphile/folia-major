@@ -293,9 +293,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                             {activeRow === 0 ? (
                                 <motion.div
                                     key="folders"
-                                    initial={{ opacity: 0, y: -50 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -50 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 0.3 }}
                                     className="w-full h-full flex flex-col justify-center"
                                 >
@@ -328,9 +328,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                             ) : (
                                 <motion.div
                                     key="albums"
-                                    initial={{ opacity: 0, y: 50 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 50 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 0.3 }}
                                     className="w-full h-full flex flex-col justify-center"
                                 >

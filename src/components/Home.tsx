@@ -355,53 +355,79 @@ const Home: React.FC<HomeProps> = ({
                         ) : (
                             <>
                                 {/* Conditional Content Based on Tab */}
-                                {viewTab === 'albums' ? (
-                                    <Carousel3D
-                                        items={favoriteAlbums.map(a => ({
-                                            id: a.id,
-                                            name: a.name,
-                                            coverUrl: a.picUrl,
-                                            trackCount: a.size,
-                                            description: a.artists?.[0]?.name
-                                        }))}
-                                        onSelect={(album) => onSelectAlbum(album.id)}
-                                        isLoading={loadingAlbums}
-                                        emptyMessage={t('home.noAlbums') || "No favorite albums found"}
-                                        initialFocusedIndex={focusedFavoriteAlbumIndex}
-                                        onFocusedIndexChange={setFocusedFavoriteAlbumIndex}
-                                    />
-                                ) : viewTab === 'playlist' ? (
-                                    <Carousel3D
-                                        items={playlists.map(p => ({
-                                            ...p,
-                                            coverUrl: p.coverImgUrl
-                                        }))}
-                                        onSelect={(pl) => onSelectPlaylist(pl as any)}
-                                        isLoading={false}
-                                        emptyMessage={t('home.loadingLibrary')}
-                                        initialFocusedIndex={focusedPlaylistIndex}
-                                        onFocusedIndexChange={setFocusedPlaylistIndex}
-                                    />
-
-                                ) : (
-                                    <div className="w-full flex-1 overflow-hidden">
-                                        <LocalMusicView
-                                            localSongs={localSongs}
-                                            onRefresh={onRefreshLocalSongs}
-                                            onPlaySong={onPlayLocalSong}
-                                            onPlaylistVisibilityChange={setIsLocalPlaylistOpen}
-                                            activeRow={localMusicState.activeRow}
-                                            setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
-                                            selectedGroup={localMusicState.selectedGroup}
-                                            setSelectedGroup={(group) => setLocalMusicState(prev => ({ ...prev, selectedGroup: group }))}
-                                            onMatchSong={onMatchSong}
-                                            focusedFolderIndex={localMusicState.focusedFolderIndex}
-                                            setFocusedFolderIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedFolderIndex: index }))}
-                                            focusedAlbumIndex={localMusicState.focusedAlbumIndex}
-                                            setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
-                                        />
-                                    </div>
-                                )}
+                                <AnimatePresence mode="wait">
+                                    {viewTab === 'albums' ? (
+                                        <motion.div
+                                            key="albums"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="w-full h-full flex-1"
+                                        >
+                                            <Carousel3D
+                                                items={favoriteAlbums.map(a => ({
+                                                    id: a.id,
+                                                    name: a.name,
+                                                    coverUrl: a.picUrl,
+                                                    trackCount: a.size,
+                                                    description: a.artists?.[0]?.name
+                                                }))}
+                                                onSelect={(album) => onSelectAlbum(album.id)}
+                                                isLoading={loadingAlbums}
+                                                emptyMessage={t('home.noAlbums') || "No favorite albums found"}
+                                                initialFocusedIndex={focusedFavoriteAlbumIndex}
+                                                onFocusedIndexChange={setFocusedFavoriteAlbumIndex}
+                                            />
+                                        </motion.div>
+                                    ) : viewTab === 'playlist' ? (
+                                        <motion.div
+                                            key="playlist"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="w-full h-full flex-1"
+                                        >
+                                            <Carousel3D
+                                                items={playlists.map(p => ({
+                                                    ...p,
+                                                    coverUrl: p.coverImgUrl
+                                                }))}
+                                                onSelect={(pl) => onSelectPlaylist(pl as any)}
+                                                isLoading={false}
+                                                emptyMessage={t('home.loadingLibrary')}
+                                                initialFocusedIndex={focusedPlaylistIndex}
+                                                onFocusedIndexChange={setFocusedPlaylistIndex}
+                                            />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="local"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="w-full h-full flex-1 overflow-hidden"
+                                        >
+                                            <LocalMusicView
+                                                localSongs={localSongs}
+                                                onRefresh={onRefreshLocalSongs}
+                                                onPlaySong={onPlayLocalSong}
+                                                onPlaylistVisibilityChange={setIsLocalPlaylistOpen}
+                                                activeRow={localMusicState.activeRow}
+                                                setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
+                                                selectedGroup={localMusicState.selectedGroup}
+                                                setSelectedGroup={(group) => setLocalMusicState(prev => ({ ...prev, selectedGroup: group }))}
+                                                onMatchSong={onMatchSong}
+                                                focusedFolderIndex={localMusicState.focusedFolderIndex}
+                                                setFocusedFolderIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedFolderIndex: index }))}
+                                                focusedAlbumIndex={localMusicState.focusedAlbumIndex}
+                                                setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </>
                         )}
                     </div>
