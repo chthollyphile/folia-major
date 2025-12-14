@@ -38,6 +38,7 @@ interface UnifiedPanelProps {
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
     queueScrollRef: React.RefObject<HTMLDivElement>;
+    onShuffle: () => void;
     // Account Tab Props
     user: any; // NeteaseUser | null
     onLogout: () => void;
@@ -74,6 +75,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     playQueue,
     onPlaySong,
     queueScrollRef,
+    onShuffle,
     user,
     onLogout,
     audioQuality,
@@ -183,6 +185,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onPlaySong={onPlaySong}
                                             queueScrollRef={queueScrollRef}
                                             shouldScrollToCurrent={isOpen && currentTab === 'queue'}
+                                            onShuffle={onShuffle}
                                         />
                                     )}
                                     {currentTab === 'account' && (

@@ -178,7 +178,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-8 flex-shrink-0">
-                            <h2 className="text-2xl font-bold text-white/90">Timeline</h2>
+                            <h2 className="text-2xl font-bold text-white/90">时间线</h2>
                             <button
                                 onClick={onClose}
                                 className="p-2 hover:bg-white/10 rounded-full transition-colors"

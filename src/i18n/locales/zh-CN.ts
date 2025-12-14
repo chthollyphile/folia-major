@@ -28,7 +28,8 @@ export default {
     "liked": "已添加到喜欢的音乐",
     "likeFailed": "添加失败",
     "unliked": "已取消喜欢",
-    "songUnavailable": "歌曲已下架"
+    "songUnavailable": "歌曲已下架",
+    "queueShuffled": "播放队列已打乱",
   },
   "ui": {
     "noTrack": "无音轨",
@@ -116,7 +117,7 @@ export default {
     "noResults": "未找到相关结果",
     "playlists": "歌单",
     "albums": "专辑",
-    "allAlbums": "全部"
+    "allAlbums": "全部",
   },
   "animation": {
     "calm": "平静",

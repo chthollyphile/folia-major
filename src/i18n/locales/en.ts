@@ -28,7 +28,8 @@ export default {
     "liked": "Added to Liked Songs",
     "likeFailed": "Failed to like song",
     "unliked": "Removed from Liked",
-    "songUnavailable": "Song has been taken down"
+    "songUnavailable": "Song has been taken down",
+    "queueShuffled": "Queue shuffled",
   },
   "ui": {
     "noTrack": "No Track",

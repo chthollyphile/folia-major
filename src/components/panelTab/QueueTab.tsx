@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { List, useListRef, type ListImperativeAPI } from 'react-window';
+import { Shuffle } from 'lucide-react';
 import { SongResult } from '../../types';
 
 interface QueueTabProps {
@@ -9,6 +10,7 @@ interface QueueTabProps {
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
     queueScrollRef: React.RefObject<HTMLDivElement>;
     shouldScrollToCurrent?: boolean;
+    onShuffle?: () => void;
 }
 
 const QueueTab: React.FC<QueueTabProps> = ({
@@ -17,9 +19,23 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onPlaySong,
     queueScrollRef,
     shouldScrollToCurrent = false,
+    onShuffle
 }) => {
     const ITEM_HEIGHT = 50;
-    const CONTAINER_HEIGHT = 200;
+    // Adjust container height calculation if needed, or rely on flex
+    // previously CONTAINER_HEIGHT = 200 was passed to List. 
+    // We should make List take available space.
+    // However, react-window List needs explicit height.
+    // The parent has max-h-[300px]. 
+    // If we add a header, we need to subtract its height from the List height or use AutoSizer.
+    // For simplicity given the constraints, let's try to fit it.
+    // The parent is flex-col. 
+    // Let's reduce List height slightly to accommodate header? 
+    // Or better, use Autoizer? No, let's stick to simple fixed height for now but slightly reduced: 300 - 32 (header) = 268?
+    // User asked for "about 5 songs height". 5 * 50 = 250.
+    // Let's set CONTAINER_HEIGHT to 250.
+    const CONTAINER_HEIGHT = 250;
+
     const listRef = useListRef(null);
     const isInitialMountRef = React.useRef(true);
     const lastScrolledIndexRef = React.useRef<number>(-1);
@@ -90,7 +106,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
 
     if (playQueue.length === 0) {
         return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px]">
                 <div className="flex items-center justify-center h-full text-xs opacity-40">
                     播放列表为空
                 </div>
@@ -99,10 +115,26 @@ const QueueTab: React.FC<QueueTabProps> = ({
     }
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[200px]">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-2 pb-2 shrink-0">
+                <span className="text-xs font-medium opacity-60">
+                    播放队列 ({playQueue.length})
+                </span>
+                {onShuffle && (
+                    <button
+                        onClick={onShuffle}
+                        className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
+                        title="打乱队列"
+                    >
+                        <Shuffle size={14} />
+                    </button>
+                )}
+            </div>
+
             <div
                 ref={queueScrollRef}
-                className="flex-1 -mx-2 px-2"
+                className="flex-1 -mx-2 px-2 overflow-hidden"
             >
                 <List
                     listRef={listRef}

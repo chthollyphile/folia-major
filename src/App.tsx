@@ -1307,6 +1307,36 @@ export default function App() {
         }
     }, [currentSong, playQueue, loopMode]);
 
+    const shuffleQueue = useCallback(() => {
+        if (!playQueue || playQueue.length <= 1) return;
+
+        // 1. Identify current song
+        const currentId = currentSong?.id;
+
+        // 2. Separate current song from others
+        let songsToShuffle: SongResult[] = [];
+        let firstSong: SongResult | null = null;
+
+        if (currentId) {
+            firstSong = playQueue.find(s => s.id === currentId) || null;
+            songsToShuffle = playQueue.filter(s => s.id !== currentId);
+        } else {
+            songsToShuffle = [...playQueue];
+        }
+
+        // 3. Fisher-Yates Shuffle
+        for (let i = songsToShuffle.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [songsToShuffle[i], songsToShuffle[j]] = [songsToShuffle[j], songsToShuffle[i]];
+        }
+
+        // 4. Reconstruct queue: Current song first (if exists), then shuffled songs
+        const newQueue = firstSong ? [firstSong, ...songsToShuffle] : songsToShuffle;
+
+        setPlayQueue(newQueue);
+        setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' }); // assuming status key might exist or use fallback
+    }, [playQueue, currentSong, t]);
+
     // Media Session API Integration
     useEffect(() => {
         if (!currentSong) {
@@ -1884,6 +1914,7 @@ export default function App() {
                         playQueue={playQueue}
                         onPlaySong={playSong}
                         queueScrollRef={queueScrollRef}
+                        onShuffle={shuffleQueue}
                         user={user}
                         onLogout={handleLogout}
                         audioQuality={audioQuality}
