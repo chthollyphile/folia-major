@@ -7,9 +7,10 @@ interface GeometricBackgroundProps {
   theme: Theme;
   audioPower: MotionValue<number>;
   audioBands?: AudioBands; // Optional to prevent breaking if not passed immediately
+  seed?: string | number; // Added seed for forcing regeneration
 }
 
-const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower, audioBands }) => {
+const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower, audioBands, seed }) => {
   // Generate static random configuration for shapes to prevent jitter on re-renders
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
@@ -42,7 +43,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         initialRotation: Math.random() * 360
       };
     });
-  }, [theme.lyricsIcons]); // Re-generate if icons change
+  }, [theme.lyricsIcons, seed]); // Re-generate if icons change OR seed changes
 
   // Stable particle configuration
   const particles = useMemo(() => {
@@ -56,7 +57,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
       duration: 15 + Math.random() * 20,
       delay: Math.random() * 10
     }));
-  }, []);
+  }, [seed]); // Also regenerate particles on seed change
 
   // Create spring-based scales for each band
   const useBandScale = (val: MotionValue<number> | undefined) => {
@@ -200,6 +201,50 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
       />
     </div>
   );
+}, (prevProps, nextProps) => {
+  // Check seed change
+  if (prevProps.seed !== nextProps.seed) return false;
+
+  // Check audioPower stability
+  if (prevProps.audioPower !== nextProps.audioPower) return false;
+
+  // Check audioBands stability (compare individual MotionValues, not container object)
+  const pBands = prevProps.audioBands;
+  const nBands = nextProps.audioBands;
+
+  // If one is missing and other isn't -> re-render
+  if (!pBands !== !nBands) return false;
+
+  // If both exist, compare all bands
+  let bandsEqual = true;
+  if (pBands && nBands) {
+    bandsEqual =
+      pBands.bass === nBands.bass &&
+      pBands.lowMid === nBands.lowMid &&
+      pBands.mid === nBands.mid &&
+      pBands.vocal === nBands.vocal &&
+      pBands.treble === nBands.treble;
+  }
+  if (!bandsEqual) return false;
+
+  // Theme Update Check (Color Values)
+  const pTheme = prevProps.theme;
+  const nTheme = nextProps.theme;
+
+  // Check basic colors logic
+  const colorsEqual =
+    pTheme.backgroundColor === nTheme.backgroundColor &&
+    pTheme.primaryColor === nTheme.primaryColor &&
+    pTheme.secondaryColor === nTheme.secondaryColor &&
+    pTheme.accentColor === nTheme.accentColor;
+
+  // Also check lyricsIcons if they affect rendering shape usage
+  const iconsEqual =
+    (pTheme.lyricsIcons === nTheme.lyricsIcons) ||
+    (pTheme.lyricsIcons?.length === nTheme.lyricsIcons?.length &&
+      pTheme.lyricsIcons?.every((val, index) => val === nTheme.lyricsIcons?.[index]));
+
+  return colorsEqual && iconsEqual;
 });
 
 export default GeometricBackground;

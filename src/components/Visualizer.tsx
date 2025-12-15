@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } f
 import { useTranslation } from 'react-i18next';
 import { Line, Theme, Word as WordType, AudioBands } from '../types';
 import GeometricBackground from './GeometricBackground';
+import FluidBackground from './FluidBackground';
 
 
 interface VisualizerProps {
@@ -13,6 +14,9 @@ interface VisualizerProps {
     audioPower: MotionValue<number>;
     audioBands: AudioBands;
     showText?: boolean;
+    coverUrl?: string | null;
+    useCoverColorBg?: boolean;
+    seed?: string | number; // Added seed for geometric bg
 }
 
 interface WordLayoutConfig {
@@ -102,7 +106,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -233,9 +237,31 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
     return (
         <div
             className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontFamily} transition-colors duration-1000`}
-            style={{ backgroundColor: theme.backgroundColor }}
+            style={{ backgroundColor: 'transparent' }} // Main bg transparent to show fluid
         >
-            <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} />
+            <AnimatePresence>
+                {useCoverColorBg && (
+                    <motion.div
+                        key="fluid-bg"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1 }}
+                        className="absolute inset-0 z-0"
+                    >
+                        <FluidBackground coverUrl={coverUrl} theme={theme} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div
+                className="absolute inset-0 z-0 transition-colors duration-1000"
+                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? 0.82 : 1 }}
+            />
+
+            <div className="absolute inset-0 z-0">
+                <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
+            </div>
 
             {/* Main Container */}
             <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">

@@ -107,6 +107,19 @@ export default function App() {
     const [duration, setDuration] = useState(0);
     const [currentLineIndex, setCurrentLineIndex] = useState(-1);
     const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('off');
+    const [useCoverColorBg, setUseCoverColorBg] = useState(() => {
+        const saved = localStorage.getItem('use_cover_color_bg');
+        return saved !== null ? saved === 'true' : false;
+    });
+
+    const handleToggleCoverColorBg = (enable: boolean) => {
+        setUseCoverColorBg(enable);
+        localStorage.setItem('use_cover_color_bg', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '添加封面色彩' : '使用默认色彩'
+        });
+    };
 
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
@@ -1415,6 +1428,10 @@ export default function App() {
             navigator.mediaSession.setActionHandler('play', async () => {
                 if (audioRef.current) {
                     try {
+                        setupAudioAnalyzer();
+                        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                            audioContextRef.current.resume();
+                        }
                         await audioRef.current.play();
                         setPlayerState(PlayerState.PLAYING);
                     } catch (e) {
@@ -1590,6 +1607,12 @@ export default function App() {
                 audioRef.current.pause();
                 setPlayerState(PlayerState.PAUSED);
             } else {
+                // Ensure audio context is set up and resumed
+                setupAudioAnalyzer();
+                if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                    audioContextRef.current.resume();
+                }
+
                 audioRef.current.play();
                 setPlayerState(PlayerState.PLAYING);
             }
@@ -1750,7 +1773,10 @@ export default function App() {
                     theme={{ ...theme, backgroundColor: String(appStyle['--bg-color']) }} // Pass effective bg color
                     audioPower={audioPower}
                     audioBands={audioBands}
+                    coverUrl={getCoverUrl()}
                     showText={currentView === 'player'}
+                    useCoverColorBg={useCoverColorBg}
+                    seed={currentSong?.id}
                 />
             </div>
 
@@ -1967,6 +1993,8 @@ export default function App() {
                         onClearCache={handleClearCache}
                         onSyncData={handleSyncData}
                         isSyncing={isSyncing}
+                        useCoverColorBg={useCoverColorBg}
+                        onToggleCoverColorBg={handleToggleCoverColorBg}
                     />
                 )
             }
