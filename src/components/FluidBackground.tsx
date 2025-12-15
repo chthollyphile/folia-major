@@ -13,7 +13,7 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ coverUrl, theme }) =>
 
     useEffect(() => {
         if (coverUrl) {
-            extractColors(coverUrl, 5).then((extracted) => {
+            extractColors(coverUrl, 10).then((extracted) => {
                 if (extracted.length > 0) {
                     setColors(extracted);
                 } else {
@@ -37,8 +37,8 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ coverUrl, theme }) =>
         return Array.from({ length: 5 }).map((_, i) => ({
             id: i,
             size: 20 + seededRandom(i * 3) * 40, // 20-60vw varied sizes
-            x: (i * 20) + seededRandom(i * 7) * 20, // Spread across 5 zones horizontally
-            y: seededRandom(i * 11) * 80 + 10, // Keep away from extreme edges vertically
+            x: seededRandom(i * 7) * 100, // Random 0-90vw
+            y: seededRandom(i * 11) * 100, // Random 0-90vh
         }));
     }, []);
 

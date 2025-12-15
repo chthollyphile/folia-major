@@ -109,11 +109,6 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
-    // Debug log
-    React.useEffect(() => {
-        console.log("[Visualizer] useCoverColorBg changed to:", useCoverColorBg);
-    }, [useCoverColorBg]);
-
     // Track current time for finding most recent lyric (for translation display)
     useMotionValueEvent(currentTime, "change", (latest: number) => {
         setCurrentTimeValue(latest);
@@ -258,10 +253,9 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
                 )}
             </AnimatePresence>
 
-            {/* Theme Color Overlay - Semi-transparent */}
             <div
                 className="absolute inset-0 z-0 transition-colors duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: 0.85 }}
+                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? 0.82 : 1 }}
             />
 
             <div className="absolute inset-0 z-0">

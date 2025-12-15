@@ -113,9 +113,12 @@ export default function App() {
     });
 
     const handleToggleCoverColorBg = (enable: boolean) => {
-        console.log("[App] Toggling cover color bg to:", enable);
         setUseCoverColorBg(enable);
         localStorage.setItem('use_cover_color_bg', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '添加封面色彩' : '使用默认色彩'
+        });
     };
 
     // Progress Bar State

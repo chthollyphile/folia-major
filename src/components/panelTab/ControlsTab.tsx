@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Repeat, Repeat1, Heart, Sparkles, RotateCcw } from 'lucide-react';
+import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Paintbrush } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../../types';
 
@@ -94,9 +94,18 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                 </div>
 
                 {/* Background Mode Select */}
-                <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
-                    {t('ui.background')}
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
+                        {t('ui.background')}
+                    </label>
+                    <button
+                        onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
+                        className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                        title={useCoverColorBg ? '添加封面色彩' : '使用默认色彩'}
+                    >
+                        <Paintbrush size={14} />
+                    </button>
+                </div>
                 <div className="flex bg-black/20 p-1 rounded-xl">
                     <button
                         onClick={() => onBgModeChange('default')}
@@ -113,29 +122,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     >
                         <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: theme.backgroundColor }}></div>
                         {t('ui.aiTheme')}
-                    </button>
-                </div>
-
-                {/* Cover Color Toggle */}
-                <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2 mt-3">
-                    {t('ui.coverColors') || "COVER COLORS"}
-                </label>
-                <div className="flex bg-black/20 p-1 rounded-xl">
-                    <button
-                        onClick={() => onToggleCoverColorBg(true)}
-                        className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
-                            ${useCoverColorBg ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                    >
-                        <div className={`w-3 h-3 rounded-full border border-white/20 ${useCoverColorBg ? 'bg-white' : 'bg-transparent'}`}></div>
-                        {t('ui.on') || "On"}
-                    </button>
-                    <button
-                        onClick={() => onToggleCoverColorBg(false)}
-                        className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
-                            ${!useCoverColorBg ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
-                    >
-                        <div className={`w-3 h-3 rounded-full border border-white/20 ${!useCoverColorBg ? 'bg-white' : 'bg-transparent'}`}></div>
-                        {t('ui.off') || "Off"}
                     </button>
                 </div>
             </div>

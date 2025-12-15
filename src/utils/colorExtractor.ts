@@ -30,8 +30,8 @@ export const extractColors = async (imageUrl: string, count: number = 5): Promis
             const imageData = ctx.getImageData(0, 0, width, height).data;
             const colors: RGB[] = [];
 
-            // Sample pixels with a step to be faster
-            const step = 5;
+            // Improved sampling: step = 2 instead of 5 for better coverage
+            const step = 2;
             for (let i = 0; i < imageData.length; i += 4 * step) {
                 const r = imageData[i];
                 const g = imageData[i + 1];
@@ -40,21 +40,32 @@ export const extractColors = async (imageUrl: string, count: number = 5): Promis
 
                 if (a < 128) continue; // Skip transparent
 
-                // Simple saturation/brightness check to avoid gray/black/white if desired
-                // But for album covers, maybe we want them? 
-                // Let's filter out very dark or very bright to keep "color" unless it's strictly monochrome
+                // Calculate saturation and brightness
                 const max = Math.max(r, g, b);
                 const min = Math.min(r, g, b);
                 const l = (max + min) / 2;
+                const saturation = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
 
-                // Allow some range, but maybe skip pure black/white unless needed
-
-                colors.push({ r, g, b });
+                // Prefer colors with some saturation (avoid pure grays)
+                // and exclude very dark or very bright colors
+                if (saturation > 0.2 && l > 30 && l < 220) {
+                    colors.push({ r, g, b });
+                } else if (colors.length < 100) {
+                    // Still collect some low-saturation colors as fallback
+                    colors.push({ r, g, b });
+                }
             }
 
-            // Simple clustering or just picking distinct ones
+            // Sort by saturation (vibrant colors first)
+            colors.sort((a, b) => {
+                const satA = (Math.max(a.r, a.g, a.b) - Math.min(a.r, a.g, a.b)) / 255;
+                const satB = (Math.max(b.r, b.g, b.b) - Math.min(b.r, b.g, b.b)) / 255;
+                return satB - satA;
+            });
+
+            // Extract distinct colors with lower distance threshold
             const distinctColors: RGB[] = [];
-            const minDistance = 30; // Min euclidean distance to be considered different
+            const minDistance = 20; // Reduced from 30 for more variety
 
             for (const c of colors) {
                 if (distinctColors.length >= count) break;
