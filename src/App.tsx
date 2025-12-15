@@ -735,24 +735,36 @@ export default function App() {
         // Auto-match lyrics and cover if not already matched
         const { updatedLocalSong, matchedSongResult } = await handleLocalSongMatch(localSong);
 
-        // Use updated data
-        const coverUrl = updatedLocalSong.matchedCoverUrl || null;
+        // Create Blob URL for embedded cover if available
+        let embeddedCoverUrl: string | null = null;
+        if (updatedLocalSong.embeddedCover) {
+            embeddedCoverUrl = URL.createObjectURL(updatedLocalSong.embeddedCover);
+        }
+
+        // Use updated data, prioritizing embedded metadata
+        const coverUrl = embeddedCoverUrl || updatedLocalSong.matchedCoverUrl || null;
         const lyrics = updatedLocalSong.matchedLyrics || null;
         const matchedSong = matchedSongResult;
 
         // Convert LocalSong to SongResult-like format for playback
         // Use a negative ID to distinguish local songs from cloud songs
         const localSongId = getLocalSongId(updatedLocalSong);
+
+        // Determine metadata to display
+        const displayTitle = updatedLocalSong.embeddedTitle || updatedLocalSong.title || updatedLocalSong.fileName;
+        const displayArtist = updatedLocalSong.embeddedArtist || updatedLocalSong.artist;
+        const displayAlbum = updatedLocalSong.embeddedAlbum || updatedLocalSong.album;
+
         const unifiedSong: SongResult = {
             id: localSongId,
-            name: updatedLocalSong.title || updatedLocalSong.fileName,
-            artists: updatedLocalSong.artist ? [{ id: 0, name: updatedLocalSong.artist }] : [],
-            album: updatedLocalSong.album ? { id: 0, name: updatedLocalSong.album } : { id: 0, name: '' },
+            name: displayTitle,
+            artists: displayArtist ? [{ id: 0, name: displayArtist }] : [],
+            album: displayAlbum ? { id: 0, name: displayAlbum } : { id: 0, name: '' },
             duration: updatedLocalSong.duration,
-            ar: updatedLocalSong.artist ? [{ id: 0, name: updatedLocalSong.artist }] : [],
-            al: updatedLocalSong.album ? {
+            ar: displayArtist ? [{ id: 0, name: displayArtist }] : [],
+            al: displayAlbum ? {
                 id: 0,
-                name: updatedLocalSong.album,
+                name: displayAlbum,
                 picUrl: coverUrl || undefined
             } : coverUrl ? {
                 id: 0,
@@ -764,17 +776,49 @@ export default function App() {
             localData: updatedLocalSong
         } as UnifiedSong;
 
-        // If we have matched song info, use it for better metadata
+        // If we have matched song info, ONLY overwrite if we DON'T have embedded metadata
+        // EXCEPT for lyrics, which we always want (handled above)
         if (matchedSong) {
-            unifiedSong.name = matchedSong.name;
-            unifiedSong.artists = matchedSong.artists || matchedSong.ar || unifiedSong.artists;
-            unifiedSong.album = matchedSong.album || (matchedSong.al ? {
-                id: matchedSong.al.id,
-                name: matchedSong.al.name,
-                picUrl: matchedSong.al.picUrl
-            } : unifiedSong.album);
-            unifiedSong.ar = matchedSong.ar || unifiedSong.ar;
-            unifiedSong.al = matchedSong.al || unifiedSong.al;
+            // Only use online name if we don't have embedded title AND don't have filename-parsed title (unlikely, but safe)
+            // Actually, the requirement is: "prioritize embedded... if exists... otherwise use online"
+            // But we also have filename parsed title. 
+            // Logic: Embedded > Online > Filename? Or Embedded > Filename?
+            // User said: "if exists these info (embedded), prefer use these info... instead of online info"
+
+            // So:
+            // Title: Embedded -> Matched -> Filename
+            // Artist: Embedded -> Matched -> Filename
+            // Album: Embedded -> Matched -> Filename
+            // Cover: Embedded -> Matched
+
+            if (!updatedLocalSong.embeddedTitle) {
+                unifiedSong.name = matchedSong.name;
+            }
+
+            if (!updatedLocalSong.embeddedArtist) {
+                unifiedSong.artists = matchedSong.artists || matchedSong.ar || unifiedSong.artists;
+                unifiedSong.ar = matchedSong.ar || unifiedSong.ar;
+            }
+
+            if (!updatedLocalSong.embeddedAlbum) {
+                unifiedSong.album = matchedSong.album || (matchedSong.al ? {
+                    id: matchedSong.al.id,
+                    name: matchedSong.al.name,
+                    picUrl: matchedSong.al.picUrl
+                } : unifiedSong.album);
+                unifiedSong.al = matchedSong.al || unifiedSong.al;
+            }
+
+            // For cover, we already handled priority in `coverUrl` variable:
+            // embeddedCoverUrl || updatedLocalSong.matchedCoverUrl
+            // So just ensure unifiedSong uses `coverUrl` which is already correct.
+            // However, we need to update the `al` or `album` object if we created it from matched song but want to override picture
+
+            if (embeddedCoverUrl) {
+                // If we used matched album info, we need to inject our local cover
+                if (unifiedSong.album) unifiedSong.album.picUrl = embeddedCoverUrl;
+                if (unifiedSong.al) unifiedSong.al.picUrl = embeddedCoverUrl;
+            }
         }
 
         // Store blob URL reference

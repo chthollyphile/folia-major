@@ -114,6 +114,12 @@ export interface LocalSong {
   artist?: string;
   album?: string;
 
+  // Embedded metadata from file tags
+  embeddedTitle?: string;
+  embeddedArtist?: string;
+  embeddedAlbum?: string;
+  embeddedCover?: Blob; // Stored as Blob in IndexedDB
+
   // Lyrics matching result
   matchedSongId?: number; // Netease song ID
   matchedArtists?: string; // Matched artist names (joined string)

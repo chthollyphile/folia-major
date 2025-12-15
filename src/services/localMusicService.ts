@@ -4,6 +4,7 @@ import { neteaseApi } from './netease';
 import { parseLRC } from '../utils/lrcParser';
 import { parseYRC } from '../utils/yrcParser';
 import { detectChorusLines } from '../utils/chorusDetector';
+import { parseBlob } from 'music-metadata-browser';
 
 // In-memory storage for FileSystemFileHandle (cannot be persisted to IndexedDB)
 // Maps song ID to FileSystemFileHandle
@@ -104,6 +105,25 @@ export async function importFolder(): Promise<LocalSong[]> {
                 const metadata = extractMetadataFromFilename(file.name);
                 const duration = await getAudioDuration(file);
 
+                let embeddedMetadata: {
+                    title?: string;
+                    artist?: string;
+                    album?: string;
+                    cover?: Blob;
+                } = {};
+
+                try {
+                    const parsed = await parseBlob(file);
+                    embeddedMetadata = {
+                        title: parsed.common.title,
+                        artist: parsed.common.artist,
+                        album: parsed.common.album,
+                        cover: parsed.common.picture?.[0] ? new Blob([parsed.common.picture[0].data as any], { type: parsed.common.picture[0].format }) : undefined
+                    };
+                } catch (e) {
+                    console.warn(`[LocalMusic] Failed to parse metadata for ${file.name}:`, e);
+                }
+
                 const songId = generateId();
                 const localSong: LocalSong = {
                     id: songId,
@@ -113,8 +133,17 @@ export async function importFolder(): Promise<LocalSong[]> {
                     fileSize: file.size,
                     mimeType: file.type,
                     addedAt: Date.now(),
-                    title: metadata.title,
-                    artist: metadata.artist,
+                    // Prioritize embedded metadata, fallback to filename parsing
+                    title: embeddedMetadata.title || metadata.title,
+                    artist: embeddedMetadata.artist || metadata.artist,
+                    album: embeddedMetadata.album,
+
+                    // Store embedded metadata specifically
+                    embeddedTitle: embeddedMetadata.title,
+                    embeddedArtist: embeddedMetadata.artist,
+                    embeddedAlbum: embeddedMetadata.album,
+                    embeddedCover: embeddedMetadata.cover,
+
                     hasManualLyricSelection: false,
                     folderName: dirHandle.name
                 };

@@ -1,3 +1,7 @@
+import { Buffer } from 'buffer';
+// @ts-ignore
+globalThis.Buffer = Buffer;
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './i18n/config';
