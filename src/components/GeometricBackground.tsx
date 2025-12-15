@@ -200,6 +200,47 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
       />
     </div>
   );
+}, (prevProps, nextProps) => {
+  // Check audioPower stability
+  if (prevProps.audioPower !== nextProps.audioPower) return false;
+
+  // Check audioBands stability (compare individual MotionValues, not container object)
+  const pBands = prevProps.audioBands;
+  const nBands = nextProps.audioBands;
+
+  // If one is missing and other isn't -> re-render
+  if (!pBands !== !nBands) return false;
+
+  // If both exist, compare all bands
+  let bandsEqual = true;
+  if (pBands && nBands) {
+    bandsEqual =
+      pBands.bass === nBands.bass &&
+      pBands.lowMid === nBands.lowMid &&
+      pBands.mid === nBands.mid &&
+      pBands.vocal === nBands.vocal &&
+      pBands.treble === nBands.treble;
+  }
+  if (!bandsEqual) return false;
+
+  // Theme Update Check (Color Values)
+  const pTheme = prevProps.theme;
+  const nTheme = nextProps.theme;
+
+  // Check basic colors logic
+  const colorsEqual =
+    pTheme.backgroundColor === nTheme.backgroundColor &&
+    pTheme.primaryColor === nTheme.primaryColor &&
+    pTheme.secondaryColor === nTheme.secondaryColor &&
+    pTheme.accentColor === nTheme.accentColor;
+
+  // Also check lyricsIcons if they affect rendering shape usage
+  const iconsEqual =
+    (pTheme.lyricsIcons === nTheme.lyricsIcons) ||
+    (pTheme.lyricsIcons?.length === nTheme.lyricsIcons?.length &&
+      pTheme.lyricsIcons?.every((val, index) => val === nTheme.lyricsIcons?.[index]));
+
+  return colorsEqual && iconsEqual;
 });
 
 export default GeometricBackground;

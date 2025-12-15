@@ -132,14 +132,19 @@ const FluidBackground: React.FC<FluidBackgroundProps> = memo(({ coverUrl, theme 
     // Returns true if props are equal (do NOT re-render)
     // Returns false if props are different (DO re-render)
 
-    // Check if theme reference changed (deep check might be overkill but theme object ref usually changes)
-    const themeChanged = prevProps.theme !== nextProps.theme;
+    // Check cover equality
+    if (prevProps.coverUrl !== nextProps.coverUrl) return false;
 
-    // Check if coverUrl changed
-    const coverChanged = prevProps.coverUrl !== nextProps.coverUrl;
+    // Check theme equality (color fields only)
+    const pTheme = prevProps.theme;
+    const nTheme = nextProps.theme;
 
-    // We only want to re-render (return false) if these actually changed.
-    return !themeChanged && !coverChanged;
+    return (
+        pTheme.backgroundColor === nTheme.backgroundColor &&
+        pTheme.primaryColor === nTheme.primaryColor &&
+        pTheme.secondaryColor === nTheme.secondaryColor &&
+        pTheme.accentColor === nTheme.accentColor
+    );
 });
 
 export default FluidBackground;
