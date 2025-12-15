@@ -109,7 +109,7 @@ export default function App() {
     const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('off');
     const [useCoverColorBg, setUseCoverColorBg] = useState(() => {
         const saved = localStorage.getItem('use_cover_color_bg');
-        return saved !== null ? saved === 'true' : true;
+        return saved !== null ? saved === 'true' : false;
     });
 
     const handleToggleCoverColorBg = (enable: boolean) => {

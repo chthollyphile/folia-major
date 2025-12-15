@@ -106,7 +106,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = true, seed }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 

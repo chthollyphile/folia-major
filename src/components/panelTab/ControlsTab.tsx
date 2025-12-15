@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Paintbrush } from 'lucide-react';
+import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Cone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../../types';
 
@@ -103,7 +103,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
                         title={useCoverColorBg ? '添加封面色彩' : '使用默认色彩'}
                     >
-                        <Paintbrush size={14} />
+                        <Cone size={14} />
                     </button>
                 </div>
                 <div className="flex bg-black/20 p-1 rounded-xl">
