@@ -1750,6 +1750,7 @@ export default function App() {
                     theme={{ ...theme, backgroundColor: String(appStyle['--bg-color']) }} // Pass effective bg color
                     audioPower={audioPower}
                     audioBands={audioBands}
+                    coverUrl={getCoverUrl()}
                     showText={currentView === 'player'}
                 />
             </div>

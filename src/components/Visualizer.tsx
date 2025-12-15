@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } f
 import { useTranslation } from 'react-i18next';
 import { Line, Theme, Word as WordType, AudioBands } from '../types';
 import GeometricBackground from './GeometricBackground';
+import FluidBackground from './FluidBackground';
 
 
 interface VisualizerProps {
@@ -13,6 +14,7 @@ interface VisualizerProps {
     audioPower: MotionValue<number>;
     audioBands: AudioBands;
     showText?: boolean;
+    coverUrl?: string | null;
 }
 
 interface WordLayoutConfig {
@@ -102,7 +104,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -233,9 +235,19 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
     return (
         <div
             className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontFamily} transition-colors duration-1000`}
-            style={{ backgroundColor: theme.backgroundColor }}
+            style={{ backgroundColor: 'transparent' }} // Main bg transparent to show fluid
         >
-            <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} />
+            <FluidBackground coverUrl={coverUrl} theme={theme} />
+
+            {/* Theme Color Overlay - Semi-transparent */}
+            <div
+                className="absolute inset-0 z-0 transition-colors duration-1000"
+                style={{ backgroundColor: theme.backgroundColor, opacity: 0.85 }}
+            />
+
+            <div className="absolute inset-0 z-0">
+                <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} />
+            </div>
 
             {/* Main Container */}
             <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">
