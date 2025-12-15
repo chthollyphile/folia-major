@@ -15,6 +15,7 @@ interface VisualizerProps {
     audioBands: AudioBands;
     showText?: boolean;
     coverUrl?: string | null;
+    useCoverColorBg?: boolean;
 }
 
 interface WordLayoutConfig {
@@ -104,9 +105,14 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = true }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
+
+    // Debug log
+    React.useEffect(() => {
+        console.log("[Visualizer] useCoverColorBg changed to:", useCoverColorBg);
+    }, [useCoverColorBg]);
 
     // Track current time for finding most recent lyric (for translation display)
     useMotionValueEvent(currentTime, "change", (latest: number) => {
@@ -237,7 +243,20 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
             className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontFamily} transition-colors duration-1000`}
             style={{ backgroundColor: 'transparent' }} // Main bg transparent to show fluid
         >
-            <FluidBackground coverUrl={coverUrl} theme={theme} />
+            <AnimatePresence>
+                {useCoverColorBg && (
+                    <motion.div
+                        key="fluid-bg"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1 }}
+                        className="absolute inset-0 z-0"
+                    >
+                        <FluidBackground coverUrl={coverUrl} theme={theme} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Theme Color Overlay - Semi-transparent */}
             <div

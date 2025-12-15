@@ -107,6 +107,16 @@ export default function App() {
     const [duration, setDuration] = useState(0);
     const [currentLineIndex, setCurrentLineIndex] = useState(-1);
     const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('off');
+    const [useCoverColorBg, setUseCoverColorBg] = useState(() => {
+        const saved = localStorage.getItem('use_cover_color_bg');
+        return saved !== null ? saved === 'true' : true;
+    });
+
+    const handleToggleCoverColorBg = (enable: boolean) => {
+        console.log("[App] Toggling cover color bg to:", enable);
+        setUseCoverColorBg(enable);
+        localStorage.setItem('use_cover_color_bg', String(enable));
+    };
 
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
@@ -1752,6 +1762,7 @@ export default function App() {
                     audioBands={audioBands}
                     coverUrl={getCoverUrl()}
                     showText={currentView === 'player'}
+                    useCoverColorBg={useCoverColorBg}
                 />
             </div>
 
@@ -1968,6 +1979,8 @@ export default function App() {
                         onClearCache={handleClearCache}
                         onSyncData={handleSyncData}
                         isSyncing={isSyncing}
+                        useCoverColorBg={useCoverColorBg}
+                        onToggleCoverColorBg={handleToggleCoverColorBg}
                     />
                 )
             }

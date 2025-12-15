@@ -25,15 +25,20 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ coverUrl, theme }) =>
         }
     }, [coverUrl, theme]);
 
-    // Reduced blob count to 3 for performance
+    // Increased blob count to 5 with better random distribution
     const blobs = useMemo(() => {
-        return Array.from({ length: 3 }).map((_, i) => ({
+        // Use a seeded random for more varied distribution
+        const seed = Date.now();
+        const seededRandom = (offset: number) => {
+            const x = Math.sin(seed + offset * 12345) * 10000;
+            return x - Math.floor(x);
+        };
+
+        return Array.from({ length: 5 }).map((_, i) => ({
             id: i,
-            size: 60, // Percentage width
-            initialX: Math.random() * 80 + 10,
-            initialY: Math.random() * 80 + 10,
-            duration: 20 + Math.random() * 10, // Slower
-            delay: Math.random() * 5,
+            size: 20 + seededRandom(i * 3) * 40, // 20-60vw varied sizes
+            x: (i * 20) + seededRandom(i * 7) * 20, // Spread across 5 zones horizontally
+            y: seededRandom(i * 11) * 80 + 10, // Keep away from extreme edges vertically
         }));
     }, []);
 
@@ -44,8 +49,7 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ coverUrl, theme }) =>
 
     return (
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-            {/* Removed global blur filter which kills CPU */}
-            <div className="absolute inset-0 w-full h-full opacity-60">
+            <div className="absolute inset-0 w-full h-full opacity-60" style={{ filter: 'blur(80px)' }}>
                 <AnimatePresence>
                     {blobs.map((blob, i) => {
                         const color = getBlobColor(i);
@@ -56,10 +60,9 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ coverUrl, theme }) =>
                                 style={{
                                     width: `${blob.size}vw`,
                                     height: `${blob.size}vw`,
-                                    left: `${blob.initialX}%`,
-                                    top: `${blob.initialY}%`,
-                                    // Use radial gradient to simulate blur CHEAPLY
-                                    background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                                    left: `${blob.x}%`,
+                                    top: `${blob.y}%`,
+                                    backgroundColor: color,
                                     opacity: 0.8,
                                     transform: 'translate(-50%, -50%)',
                                 }}

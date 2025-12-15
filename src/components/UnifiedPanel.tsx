@@ -48,6 +48,8 @@ interface UnifiedPanelProps {
     onClearCache: () => void;
     onSyncData: () => void;
     isSyncing: boolean;
+    useCoverColorBg: boolean;
+    onToggleCoverColorBg: (enable: boolean) => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -84,6 +86,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onClearCache,
     onSyncData,
     isSyncing,
+    useCoverColorBg,
+    onToggleCoverColorBg,
 }) => {
     const { t } = useTranslation();
 
@@ -176,6 +180,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onBgModeChange={onBgModeChange}
                                             onResetTheme={onResetTheme}
                                             defaultTheme={defaultTheme}
+                                            useCoverColorBg={useCoverColorBg}
+                                            onToggleCoverColorBg={onToggleCoverColorBg}
                                         />
                                     )}
                                     {currentTab === 'queue' && (

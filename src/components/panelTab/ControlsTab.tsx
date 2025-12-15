@@ -18,6 +18,8 @@ interface ControlsTabProps {
     onBgModeChange: (mode: 'default' | 'ai') => void;
     onResetTheme: () => void;
     defaultTheme: Theme;
+    useCoverColorBg: boolean;
+    onToggleCoverColorBg: (enable: boolean) => void;
 }
 
 const ControlsTab: React.FC<ControlsTabProps> = ({
@@ -34,6 +36,8 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     onBgModeChange,
     onResetTheme,
     defaultTheme,
+    useCoverColorBg,
+    onToggleCoverColorBg,
 }) => {
     const { t } = useTranslation();
 
@@ -109,6 +113,29 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     >
                         <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: theme.backgroundColor }}></div>
                         {t('ui.aiTheme')}
+                    </button>
+                </div>
+
+                {/* Cover Color Toggle */}
+                <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2 mt-3">
+                    {t('ui.coverColors') || "COVER COLORS"}
+                </label>
+                <div className="flex bg-black/20 p-1 rounded-xl">
+                    <button
+                        onClick={() => onToggleCoverColorBg(true)}
+                        className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
+                            ${useCoverColorBg ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+                    >
+                        <div className={`w-3 h-3 rounded-full border border-white/20 ${useCoverColorBg ? 'bg-white' : 'bg-transparent'}`}></div>
+                        {t('ui.on') || "On"}
+                    </button>
+                    <button
+                        onClick={() => onToggleCoverColorBg(false)}
+                        className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
+                            ${!useCoverColorBg ? 'bg-white/20 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+                    >
+                        <div className={`w-3 h-3 rounded-full border border-white/20 ${!useCoverColorBg ? 'bg-white' : 'bg-transparent'}`}></div>
+                        {t('ui.off') || "Off"}
                     </button>
                 </div>
             </div>
