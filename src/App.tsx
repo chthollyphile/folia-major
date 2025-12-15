@@ -1428,6 +1428,10 @@ export default function App() {
             navigator.mediaSession.setActionHandler('play', async () => {
                 if (audioRef.current) {
                     try {
+                        setupAudioAnalyzer();
+                        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                            audioContextRef.current.resume();
+                        }
                         await audioRef.current.play();
                         setPlayerState(PlayerState.PLAYING);
                     } catch (e) {
@@ -1603,6 +1607,12 @@ export default function App() {
                 audioRef.current.pause();
                 setPlayerState(PlayerState.PAUSED);
             } else {
+                // Ensure audio context is set up and resumed
+                setupAudioAnalyzer();
+                if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                    audioContextRef.current.resume();
+                }
+
                 audioRef.current.play();
                 setPlayerState(PlayerState.PLAYING);
             }
@@ -1766,6 +1776,7 @@ export default function App() {
                     coverUrl={getCoverUrl()}
                     showText={currentView === 'player'}
                     useCoverColorBg={useCoverColorBg}
+                    seed={currentSong?.id}
                 />
             </div>
 

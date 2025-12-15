@@ -16,6 +16,7 @@ interface VisualizerProps {
     showText?: boolean;
     coverUrl?: string | null;
     useCoverColorBg?: boolean;
+    seed?: string | number; // Added seed for geometric bg
 }
 
 interface WordLayoutConfig {
@@ -105,7 +106,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = true }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = true, seed }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -259,7 +260,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
             />
 
             <div className="absolute inset-0 z-0">
-                <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} />
+                <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
             </div>
 
             {/* Main Container */}

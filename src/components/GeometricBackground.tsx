@@ -7,9 +7,10 @@ interface GeometricBackgroundProps {
   theme: Theme;
   audioPower: MotionValue<number>;
   audioBands?: AudioBands; // Optional to prevent breaking if not passed immediately
+  seed?: string | number; // Added seed for forcing regeneration
 }
 
-const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower, audioBands }) => {
+const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ theme, audioPower, audioBands, seed }) => {
   // Generate static random configuration for shapes to prevent jitter on re-renders
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
@@ -42,7 +43,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         initialRotation: Math.random() * 360
       };
     });
-  }, [theme.lyricsIcons]); // Re-generate if icons change
+  }, [theme.lyricsIcons, seed]); // Re-generate if icons change OR seed changes
 
   // Stable particle configuration
   const particles = useMemo(() => {
@@ -56,7 +57,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
       duration: 15 + Math.random() * 20,
       delay: Math.random() * 10
     }));
-  }, []);
+  }, [seed]); // Also regenerate particles on seed change
 
   // Create spring-based scales for each band
   const useBandScale = (val: MotionValue<number> | undefined) => {
@@ -201,6 +202,9 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
     </div>
   );
 }, (prevProps, nextProps) => {
+  // Check seed change
+  if (prevProps.seed !== nextProps.seed) return false;
+
   // Check audioPower stability
   if (prevProps.audioPower !== nextProps.audioPower) return false;
 
