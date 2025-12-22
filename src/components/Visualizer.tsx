@@ -255,7 +255,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             </AnimatePresence>
 
             <div
-                className="absolute inset-0 z-0 transition-colors duration-1000"
+                className="absolute inset-0 z-0 transition-all duration-1000"
                 style={{ backgroundColor: theme.backgroundColor, opacity: (useCoverColorBg && !staticMode) ? 0.82 : 1 }}
             />
 
