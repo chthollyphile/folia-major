@@ -152,8 +152,10 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             ? ['items-center']
             : ['items-start', 'items-center', 'items-end'];
 
+        const isInterlude = activeLine.fullText === "......";
+
         const lineConfig: LineLayoutConfig = {
-            justifyContent: justifyOptions[Math.floor(seed % justifyOptions.length)], // deterministic random
+            justifyContent: isInterlude ? 'justify-center' : justifyOptions[Math.floor(seed % justifyOptions.length)], // deterministic random
             alignItems: alignOptions[Math.floor((seed * 2) % alignOptions.length)],
             perspective: isChaotic ? 500 + (seed % 500) : 1000,
         };

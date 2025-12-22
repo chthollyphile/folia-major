@@ -130,6 +130,48 @@ export const parseLRC = (lrcString: string, translationString: string = ''): Lyr
             translation
         });
     }
+    const finalLines: Line[] = [];
 
-    return { lines };
+    // Helper to create interlude line
+    const createInterlude = (start: number, end: number) => {
+        const duration = end - start;
+        const dots = "......";
+        const wordDuration = duration / 6;
+        const words: Word[] = [];
+
+        for (let j = 0; j < 6; j++) {
+            words.push({
+                text: ".",
+                startTime: start + (j * wordDuration),
+                endTime: start + ((j + 1) * wordDuration)
+            });
+        }
+
+        return {
+            startTime: start,
+            endTime: end,
+            fullText: dots,
+            words
+        };
+    };
+
+    // Check gap before first line
+    if (lines.length > 0 && lines[0].startTime > 3) {
+        finalLines.push(createInterlude(0.5, lines[0].startTime - 0.5));
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        const current = lines[i];
+        finalLines.push(current);
+
+        const next = lines[i + 1];
+        if (next) {
+            const gap = next.startTime - current.endTime;
+            if (gap > 3) {
+                finalLines.push(createInterlude(current.endTime + 0.05, next.startTime - 0.05));
+            }
+        }
+    }
+
+    return { lines: finalLines };
 };
