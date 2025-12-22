@@ -163,11 +163,25 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
         // Word Layouts
         const wordConfigs: WordLayoutConfig[] = activeLine.words.map((w, i) => {
             const wordSeed = seed + i;
+
             // Pseudo-random generator function based on seed
             const random = (offset: number) => {
                 const x = Math.sin(wordSeed + offset) * 10000;
                 return x - Math.floor(x);
             };
+
+            if (isInterlude) {
+                return {
+                    id: `${w.text}-${i}-${seed}`,
+                    x: 0,
+                    y: (random(2) - 0.5) * 15, // Slight vertical randomness
+                    rotate: 0,
+                    scale: 1.5,
+                    marginRight: '3rem',
+                    alignSelf: 'center',
+                    passedRotate: 0
+                };
+            }
 
             const baseSpread = isChaotic ? 60 : isCalm ? 0 : 20;
             const baseRotate = isChaotic ? 30 : isCalm ? 0 : 5;
