@@ -11,7 +11,7 @@ export const detectChorusLines = (lrcString: string): Set<string> => {
     lines.forEach(line => {
         // Remove time tags
         const text = line.replace(timeRegex, '').trim();
-        if (!text) return;
+        if (!text || text === "......") return;
 
         // Normalize: remove punctuation, lowercase? 
         // For now, let's keep it simple: exact match of trimmed text.

@@ -152,8 +152,10 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             ? ['items-center']
             : ['items-start', 'items-center', 'items-end'];
 
+        const isInterlude = activeLine.fullText === "......";
+
         const lineConfig: LineLayoutConfig = {
-            justifyContent: justifyOptions[Math.floor(seed % justifyOptions.length)], // deterministic random
+            justifyContent: isInterlude ? 'justify-center' : justifyOptions[Math.floor(seed % justifyOptions.length)], // deterministic random
             alignItems: alignOptions[Math.floor((seed * 2) % alignOptions.length)],
             perspective: isChaotic ? 500 + (seed % 500) : 1000,
         };
@@ -161,11 +163,25 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
         // Word Layouts
         const wordConfigs: WordLayoutConfig[] = activeLine.words.map((w, i) => {
             const wordSeed = seed + i;
+
             // Pseudo-random generator function based on seed
             const random = (offset: number) => {
                 const x = Math.sin(wordSeed + offset) * 10000;
                 return x - Math.floor(x);
             };
+
+            if (isInterlude) {
+                return {
+                    id: `${w.text}-${i}-${seed}`,
+                    x: 0,
+                    y: (random(2) - 0.5) * 15, // Slight vertical randomness
+                    rotate: 0,
+                    scale: 1.5,
+                    marginRight: '3rem',
+                    alignSelf: 'center',
+                    passedRotate: 0
+                };
+            }
 
             const baseSpread = isChaotic ? 60 : isCalm ? 0 : 20;
             const baseRotate = isChaotic ? 30 : isCalm ? 0 : 5;
@@ -255,7 +271,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             </AnimatePresence>
 
             <div
-                className="absolute inset-0 z-0 transition-colors duration-1000"
+                className="absolute inset-0 z-0 transition-all duration-1000"
                 style={{ backgroundColor: theme.backgroundColor, opacity: (useCoverColorBg && !staticMode) ? 0.82 : 1 }}
             />
 
