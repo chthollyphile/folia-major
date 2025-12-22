@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong } from '../types';
+import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme } from '../types';
 import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
 import HelpModal from './HelpModal';
@@ -46,6 +46,11 @@ interface HomeProps {
         focusedAlbumIndex: number;
     }>>;
     onMatchSong?: (song: LocalSong) => void;
+    staticMode?: boolean;
+    onToggleStaticMode?: (enable: boolean) => void;
+    enableMediaCache?: boolean;
+    onToggleMediaCache?: (enable: boolean) => void;
+    theme: Theme;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -71,7 +76,12 @@ const Home: React.FC<HomeProps> = ({
     setFocusedFavoriteAlbumIndex,
     localMusicState,
     setLocalMusicState,
-    onMatchSong
+    onMatchSong,
+    staticMode = false,
+    onToggleStaticMode,
+    enableMediaCache = false,
+    onToggleMediaCache,
+    theme
 }) => {
     const { t } = useTranslation();
 
@@ -560,7 +570,14 @@ const Home: React.FC<HomeProps> = ({
 
                     {/* Help Modal */}
                     {showHelpModal && (
-                        <HelpModal onClose={() => setShowHelpModal(false)} />
+                        <HelpModal
+                            onClose={() => setShowHelpModal(false)}
+                            staticMode={staticMode}
+                            onToggleStaticMode={onToggleStaticMode}
+                            enableMediaCache={enableMediaCache}
+                            onToggleMediaCache={onToggleMediaCache}
+                            theme={theme}
+                        />
                     )}
 
                     {/* User Avatar - Back to Player */}

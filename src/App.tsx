@@ -121,6 +121,30 @@ export default function App() {
         });
     };
 
+    const [staticMode, setStaticMode] = useState(() => {
+        const saved = localStorage.getItem('static_mode');
+        return saved !== null ? saved === 'true' : false;
+    });
+
+    const handleToggleStaticMode = (enable: boolean) => {
+        setStaticMode(enable);
+        localStorage.setItem('static_mode', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '静态模式已开启' : '静态模式已关闭'
+        });
+    };
+
+    const [enableMediaCache, setEnableMediaCache] = useState(() => {
+        const saved = localStorage.getItem('enable_media_cache');
+        return saved !== null ? saved === 'true' : false;
+    });
+
+    const handleToggleMediaCache = (enable: boolean) => {
+        setEnableMediaCache(enable);
+        localStorage.setItem('enable_media_cache', String(enable));
+    };
+
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
 
@@ -1281,6 +1305,8 @@ export default function App() {
         const existing = await getFromCache(`audio_${currentSong.id}`);
         if (existing) return;
 
+        if (!enableMediaCache) return;
+
         console.log("[Cache] Caching fully played song:", currentSong.name);
 
         // 1. Cache Audio
@@ -1777,6 +1803,7 @@ export default function App() {
                     showText={currentView === 'player'}
                     useCoverColorBg={useCoverColorBg}
                     seed={currentSong?.id}
+                    staticMode={staticMode}
                 />
             </div>
 
@@ -1813,6 +1840,11 @@ export default function App() {
                             setFocusedFavoriteAlbumIndex={setFocusedFavoriteAlbumIndex}
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
+                            staticMode={staticMode}
+                            onToggleStaticMode={handleToggleStaticMode}
+                            enableMediaCache={enableMediaCache}
+                            onToggleMediaCache={handleToggleMediaCache}
+                            theme={theme}
                             onMatchSong={async (song) => {
                                 await loadLocalSongs();
 

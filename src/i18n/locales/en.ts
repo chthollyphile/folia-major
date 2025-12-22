@@ -56,7 +56,8 @@ export default {
     "resetToDefaultTheme": "Reset to Default Theme",
     "selectTrack": "Select Track",
     "foundMatches": "Found {{count}} matches",
-    "waitingForMusic": ""
+    "waitingForMusic": "",
+    "options": "Options"
   },
   "panel": {
     "cover": "Cover",
@@ -139,6 +140,21 @@ export default {
     "seekBackward": "Seek Backward 5s",
     "madeBy": "Made by",
     "version": "version"
+  },
+  "options": {
+    "cacheDetails": "Cache Details",
+    "playlistData": "Playlist Data",
+    "lyrics": "Lyrics",
+    "covers": "Covers",
+    "mediaFiles": "Media Files",
+    "mediaCache": "Media Cache",
+    "enableMediaCache": "Cache Songs",
+    "enableMediaCacheDesc": "Cache audio after playback for offline listening.",
+    "cachedSongsCount": "Cached Songs",
+    "staticMode": "Static Mode",
+    "enableStaticMode": "Static Mode",
+    "enableStaticModeDesc": "Disable geometric backgrounds and dynamic lyrics.",
+    "enableStaticModeDescSub": "Suitable for background playback (Timeline lyrics update kept)."
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

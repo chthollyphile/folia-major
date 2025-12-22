@@ -56,7 +56,8 @@ export default {
     "resetToDefaultTheme": "重置为默认主题",
     "selectTrack": "选择音轨",
     "foundMatches": "找到 {{count}} 个匹配项",
-    "waitingForMusic": ""
+    "waitingForMusic": "",
+    "options": "选项"
   },
   "panel": {
     "cover": "封面",
@@ -139,6 +140,21 @@ export default {
     "seekBackward": "倒退 5 秒",
     "madeBy": "作者",
     "version": "版本"
+  },
+  "options": {
+    "cacheDetails": "缓存详情",
+    "playlistData": "歌单数据",
+    "lyrics": "歌词",
+    "covers": "封面",
+    "mediaFiles": "媒体文件",
+    "mediaCache": "媒体缓存",
+    "enableMediaCache": "缓存歌曲",
+    "enableMediaCacheDesc": "播放后缓存音频以便离线收听。",
+    "cachedSongsCount": "已缓存歌曲",
+    "staticMode": "静态模式",
+    "enableStaticMode": "静态模式",
+    "enableStaticModeDesc": "禁用几何背景和动态歌词以节省资源。",
+    "enableStaticModeDescSub": "适合后台播放（保留时间轴歌词更新）。"
   },
   "localMusic": {
     "foldersAndPlaylists": "本地文件夹",

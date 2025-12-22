@@ -106,7 +106,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed }) => {
+const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -135,7 +135,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
 
     // Generate a stable random layout configuration for the current line
     const { wordConfigs, lineConfig } = useMemo(() => {
-        if (!activeLine) return { wordConfigs: [], lineConfig: { justifyContent: 'center', alignItems: 'center', perspective: 1000 } };
+        if (!activeLine || staticMode) return { wordConfigs: [], lineConfig: { justifyContent: 'center', alignItems: 'center', perspective: 1000 } };
 
         const seed = activeLine.startTime;
         const intensity = theme.animationIntensity;
@@ -183,7 +183,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
         });
 
         return { wordConfigs, lineConfig };
-    }, [activeLine, theme.animationIntensity]);
+    }, [activeLine, theme.animationIntensity, staticMode]);
 
     // Animation Variants
     const variants: Variants = {
@@ -240,7 +240,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
             style={{ backgroundColor: 'transparent' }} // Main bg transparent to show fluid
         >
             <AnimatePresence>
-                {useCoverColorBg && (
+                {useCoverColorBg && !staticMode && (
                     <motion.div
                         key="fluid-bg"
                         initial={{ opacity: 0 }}
@@ -256,12 +256,14 @@ const Visualizer: React.FC<VisualizerProps> = ({ currentTime, currentLineIndex, 
 
             <div
                 className="absolute inset-0 z-0 transition-colors duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? 0.82 : 1 }}
+                style={{ backgroundColor: theme.backgroundColor, opacity: (useCoverColorBg && !staticMode) ? 0.82 : 1 }}
             />
 
-            <div className="absolute inset-0 z-0">
-                <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
-            </div>
+            {!staticMode && (
+                <div className="absolute inset-0 z-0">
+                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
+                </div>
+            )}
 
             {/* Main Container */}
             <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">

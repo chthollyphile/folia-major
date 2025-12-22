@@ -375,6 +375,125 @@ export const getCacheUsage = async (): Promise<number> => {
   }
 };
 
+export const getCacheUsageByCategory = async (): Promise<{
+  playlist: number;
+  lyrics: number;
+  cover: number;
+  media: number;
+  mediaCount: number;
+}> => {
+  try {
+    const db = await openDB();
+    const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
+
+    const usage = {
+      playlist: 0,
+      lyrics: 0,
+      cover: 0,
+      media: 0,
+      mediaCount: 0
+    };
+
+    return new Promise((resolve, reject) => {
+      let completed = 0;
+
+      stores.forEach(storeName => {
+        const tx = db.transaction([storeName], 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.openCursor();
+
+        req.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            const key = cursor.key as string;
+            const value = cursor.value;
+            let size = 0;
+
+            if (value.data instanceof Blob) {
+              size = value.data.size;
+            } else {
+              size = JSON.stringify(value.data).length;
+            }
+
+            // Categorize
+            if (key === 'user_playlists' || key.startsWith('playlist_')) {
+              usage.playlist += size;
+            } else if (key.startsWith('lyric_')) {
+              usage.lyrics += size;
+            } else if (key.startsWith('cover_')) {
+              usage.cover += size;
+            } else if (key.startsWith('audio_')) {
+              usage.media += size;
+              usage.mediaCount++;
+            } else if (key === 'user_liked_songs' || key === 'user_profile') {
+              // Consider user profile as playlist data mostly
+              usage.playlist += size;
+            }
+
+            cursor.continue();
+          } else {
+            completed++;
+            if (completed === stores.length) {
+              resolve(usage);
+            }
+          }
+        };
+        req.onerror = () => {
+          completed++;
+          if (completed === stores.length) resolve(usage);
+        };
+      });
+    });
+  } catch (e) {
+    return { playlist: 0, lyrics: 0, cover: 0, media: 0, mediaCount: 0 };
+  }
+};
+
+export const clearCacheByCategory = async (category: 'playlist' | 'lyrics' | 'cover' | 'media'): Promise<void> => {
+  try {
+    const db = await openDB();
+    const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
+
+    const clearPromises = stores.map(storeName => {
+      return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([storeName], 'readwrite');
+        const store = tx.objectStore(storeName);
+        const req = store.openCursor();
+
+        req.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            const key = cursor.key as string;
+            let shouldDelete = false;
+
+            if (category === 'playlist') {
+              if (key === 'user_playlists' || key.startsWith('playlist_')) shouldDelete = true;
+            } else if (category === 'lyrics') {
+              if (key.startsWith('lyric_')) shouldDelete = true;
+            } else if (category === 'cover') {
+              if (key.startsWith('cover_')) shouldDelete = true;
+            } else if (category === 'media') {
+              if (key.startsWith('audio_')) shouldDelete = true;
+            }
+
+            if (shouldDelete) {
+              cursor.delete();
+            }
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        req.onerror = () => reject(req.error);
+      });
+    });
+
+    await Promise.all(clearPromises);
+  } catch (e) {
+    console.error("Failed to clear cache by category", e);
+  }
+};
+
 // --- Local Music Methods ---
 
 export const saveLocalSong = async (song: LocalSong): Promise<void> => {
