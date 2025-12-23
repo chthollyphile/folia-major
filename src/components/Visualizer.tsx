@@ -228,7 +228,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
                 stiffness: 200,
                 damping: 20,
                 opacity: { duration: 0.1 },
-                color: { duration: 0.2 }
+                color: { duration: 0.2 },
+                filter: { type: "tween", duration: 0.2 }
             }
         }),
         passed: ({ config, baseColor }: any) => ({
