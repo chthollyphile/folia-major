@@ -191,8 +191,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
                 x: (random(1) - 0.5) * baseSpread * 2,
                 y: (random(2) - 0.5) * baseSpread * 2,
                 rotate: (random(3) - 0.5) * baseRotate * 2,
-                scale: isChaotic ? 0.8 + random(4) * 0.6 : 1,
-                marginRight: isChaotic ? `${random(5) * 1.5}rem` : '0.4rem',
+                scale: 0.8 + random(4) * 0.6,
+                marginRight: isChaotic ? `${random(5) * 1.5}rem` : '0.8rem',
                 alignSelf: isChaotic && random(6) > 0.7 ? (random(7) > 0.5 ? 'flex-start' : 'flex-end') : 'auto',
                 passedRotate: (random(8) - 0.5) * 45
             };
