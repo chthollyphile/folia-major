@@ -119,6 +119,7 @@ export default {
     "playlists": "歌单",
     "albums": "专辑",
     "allAlbums": "全部",
+    "popular": "时下流行"
   },
   "animation": {
     "calm": "平静",

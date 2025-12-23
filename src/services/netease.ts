@@ -158,6 +158,46 @@ export const neteaseApi = {
     return res;
   },
 
+  // --- Artist Data ---
+  getArtistDetail: async (id: number) => {
+    const res = await fetchWithCreds(`/artist/detail?id=${id}`);
+    if (res.data && res.data.artist) {
+      res.data.artist.cover = toHttps(res.data.artist.cover);
+      res.data.artist.avatar = toHttps(res.data.artist.avatar);
+    }
+    return res;
+  },
+
+  getArtistAlbums: async (id: number, limit = 30, offset = 0) => {
+    const res = await fetchWithCreds(`/artist/album?id=${id}&limit=${limit}&offset=${offset}`);
+    if (res.hotAlbums) {
+      res.hotAlbums.forEach((a: any) => {
+        a.picUrl = toHttps(a.picUrl);
+      });
+    }
+    return res;
+  },
+
+  getArtistTopSongs: async (id: number) => {
+    const res = await fetchWithCreds(`/artist/top/song?id=${id}`);
+    if (res.songs) {
+      res.songs.forEach((s: any) => {
+        if (s.al) s.al.picUrl = toHttps(s.al.picUrl);
+      });
+    }
+    return res;
+  },
+
+  getArtistSongs: async (id: number, limit = 50, offset = 0, order = 'hot') => {
+    const res = await fetchWithCreds(`/artist/songs?id=${id}&limit=${limit}&offset=${offset}&order=${order}`);
+    if (res.songs) {
+      res.songs.forEach((s: any) => {
+        if (s.al) s.al.picUrl = toHttps(s.al.picUrl);
+      });
+    }
+    return res;
+  },
+
   // --- Song Data ---
   getSongUrl: async (id: number, level: string = 'exhigh') => {
     // Use exhigh (320k) by default to ensure VIP songs have a valid signed URL.

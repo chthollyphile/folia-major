@@ -27,3 +27,4 @@ dist-ssr
 .env*.local
 
 dev-dist/
+example/

@@ -20,6 +20,7 @@ interface UnifiedPanelProps {
     // Cover Tab Props
     currentSong: SongResult | null;
     onAlbumSelect: (albumId: number) => void;
+    onSelectArtist: (artistId: number) => void;
     // Controls Tab Props
     loopMode: 'off' | 'all' | 'one';
     onToggleLoop: () => void;
@@ -61,6 +62,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     coverUrl,
     currentSong,
     onAlbumSelect,
+    onSelectArtist,
     loopMode,
     onToggleLoop,
     onLike,
@@ -161,6 +163,10 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             currentSong={currentSong}
                                             onAlbumSelect={(albumId) => {
                                                 onAlbumSelect(albumId);
+                                                onToggle();
+                                            }}
+                                            onSelectArtist={(artistId) => {
+                                                onSelectArtist(artistId);
                                                 onToggle();
                                             }}
                                         />

@@ -13,9 +13,10 @@ interface PlaylistViewProps {
   onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
   onPlayAll: (songs: SongResult[]) => void;
   onSelectAlbum: (albumId: number) => void;
+  onSelectArtist: (artistId: number) => void;
 }
 
-const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum }) => {
+const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum, onSelectArtist }) => {
   const { t } = useTranslation();
   const [tracks, setTracks] = useState<SongResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -311,7 +312,20 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                     {formatSongName(track)}
                   </div>
                   <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                    {track.ar?.map(a => a.name).join(', ')}
+                    {track.ar?.map((a, i) => (
+                      <React.Fragment key={a.id}>
+                        {i > 0 && ", "}
+                        <span
+                          className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectArtist(a.id);
+                          }}
+                        >
+                          {a.name}
+                        </span>
+                      </React.Fragment>
+                    ))}
                     {(track.al?.name || track.album?.name) && (
                       <>
                         <span className="mx-1.5">•</span>

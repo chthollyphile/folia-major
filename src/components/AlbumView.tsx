@@ -11,9 +11,10 @@ interface AlbumViewProps {
     onBack: () => void;
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
     onPlayAll: (songs: SongResult[]) => void;
+    onSelectArtist: (artistId: number) => void;
 }
 
-const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll }) => {
+const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll, onSelectArtist }) => {
     const { t } = useTranslation();
     const [tracks, setTracks] = useState<SongResult[]>([]);
     const [albumInfo, setAlbumInfo] = useState<any>(null);
@@ -120,7 +121,16 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                         {albumInfo?.alias?.[0] && (
                                             <div className="text-sm font-medium opacity-80">{albumInfo.alias[0]}</div>
                                         )}
-                                        <div className="font-medium text-base">{albumInfo?.artist?.name}</div>
+                                        <div className="font-medium text-base">
+                                            {albumInfo?.artist && (
+                                                <span
+                                                    className="cursor-pointer hover:underline"
+                                                    onClick={() => onSelectArtist(albumInfo.artist.id)}
+                                                >
+                                                    {albumInfo.artist.name}
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="text-xs">{formatDate(albumInfo?.publishTime)} • {albumInfo?.company}</div>
                                     </div>
 
@@ -169,7 +179,20 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                                 {formatSongName(track)}
                                             </div>
                                             <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                                {track.ar?.map(a => a.name).join(', ')}
+                                                {track.ar?.map((a, i) => (
+                                                    <React.Fragment key={a.id}>
+                                                        {i > 0 && ", "}
+                                                        <span
+                                                            className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onSelectArtist(a.id);
+                                                            }}
+                                                        >
+                                                            {a.name}
+                                                        </span>
+                                                    </React.Fragment>
+                                                ))}
                                             </div>
                                         </div>
 

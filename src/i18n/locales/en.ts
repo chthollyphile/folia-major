@@ -118,7 +118,8 @@ export default {
     "noResults": "No results found.",
     "playlists": "Playlists",
     "albums": "Albums",
-    "allAlbums": "All"
+    "allAlbums": "All",
+    "popular": "Popular"
   },
   "animation": {
     "calm": "calm",

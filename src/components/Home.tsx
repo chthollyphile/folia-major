@@ -24,6 +24,7 @@ interface HomeProps {
     selectedPlaylist: NeteasePlaylist | null;
     onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
     onSelectAlbum: (albumId: number | null) => void;
+    onSelectArtist: (artistId: number | null) => void;
     localSongs: LocalSong[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
@@ -65,6 +66,7 @@ const Home: React.FC<HomeProps> = ({
     selectedPlaylist,
     onSelectPlaylist,
     onSelectAlbum,
+    onSelectArtist,
     localSongs,
     onRefreshLocalSongs,
     onPlayLocalSong,
@@ -253,6 +255,7 @@ const Home: React.FC<HomeProps> = ({
                         if (songs.length > 0) onPlaySong(songs[0], songs);
                     }}
                     onSelectAlbum={(id) => onSelectAlbum(id)}
+                    onSelectArtist={onSelectArtist}
                 />
             ) : (
                 <motion.div
@@ -503,7 +506,21 @@ const Home: React.FC<HomeProps> = ({
                                                             {formatSongName(track)}
                                                         </div>
                                                         <div className="text-xs opacity-50 truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                                            {track.ar?.map(a => a.name).join(', ')} •
+                                                            {track.ar?.map((a, i) => (
+                                                                <React.Fragment key={a.id}>
+                                                                    {i > 0 && ", "}
+                                                                    <span
+                                                                        className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            onSelectArtist(a.id);
+                                                                            setSearchResults(null);
+                                                                        }}
+                                                                    >
+                                                                        {a.name}
+                                                                    </span>
+                                                                </React.Fragment>
+                                                            ))} •
                                                             <span
                                                                 className="cursor-pointer hover:opacity-100 hover:underline transition-all"
                                                                 onClick={(e) => {

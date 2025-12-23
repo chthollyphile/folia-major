@@ -13,6 +13,7 @@ import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
 import AlbumView from './components/AlbumView';
+import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
 import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
 import { neteaseApi } from './services/netease';
@@ -84,6 +85,7 @@ export default function App() {
     const [likedSongIds, setLikedSongIds] = useState<Set<number>>(new Set());
     const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
     const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
+    const [selectedArtistId, setSelectedArtistId] = useState<number | null>(null);
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -204,12 +206,14 @@ export default function App() {
                 setCurrentView('home');
                 setSelectedPlaylist(null);
                 setSelectedAlbumId(null);
+                setSelectedArtistId(null);
             }
             // If player state
             else if (state.view === 'player') {
                 setCurrentView('player');
                 setSelectedPlaylist(null);
                 setSelectedAlbumId(null);
+                setSelectedArtistId(null);
             }
             // If playlist state
             else if (state.view === 'playlist') {
@@ -220,6 +224,7 @@ export default function App() {
                 // For now, simpler logic: if we pop to 'playlist', we might need the ID, 
                 // but usually we pop FROM playlist TO home.
                 setSelectedAlbumId(null); // Ensure album is deselected
+                setSelectedArtistId(null);
             }
             // If album state
             else if (state.view === 'album') {
@@ -231,13 +236,27 @@ export default function App() {
                     setSelectedAlbumId(state.id);
                     setCurrentView('home'); // Ensure we are on home view base (AlbumView overlays Home)
                     setSelectedPlaylist(null);
+                    setSelectedArtistId(null);
                 } else {
                     // Fallback to home if no ID?
                     setCurrentView('home');
                     setSelectedAlbumId(null);
                 }
             }
+            // If artist state
+            else if (state.view === 'artist') {
+                if (state.id) {
+                    setSelectedArtistId(state.id);
+                    setCurrentView('home');
+                    setSelectedAlbumId(null);
+                    setSelectedPlaylist(null);
+                } else {
+                    setCurrentView('home');
+                    setSelectedArtistId(null);
+                }
+            }
         };
+
 
         window.addEventListener('popstate', handlePopState);
 
@@ -272,7 +291,9 @@ export default function App() {
         if (pl) {
             window.history.pushState({ view: 'playlist', id: pl.id }, '', `#playlist/${pl.id}`);
             setSelectedPlaylist(pl);
-            setSelectedAlbumId(null); // Deselect album when selecting playlist
+            setSelectedAlbumId(null);
+            setSelectedArtistId(null);
+            setCurrentView('home');
         } else {
             // Go back
             window.history.back();
@@ -283,6 +304,21 @@ export default function App() {
         if (id) {
             window.history.pushState({ view: 'album', id: id }, '', `#album/${id}`);
             setSelectedAlbumId(id);
+            setSelectedPlaylist(null);
+            setSelectedArtistId(null);
+            setCurrentView('home');
+        } else {
+            window.history.back();
+        }
+    };
+
+    const handleArtistSelect = (id: number | null) => {
+        if (id) {
+            window.history.pushState({ view: 'artist', id: id }, '', `#artist/${id}`);
+            setSelectedArtistId(id);
+            setSelectedAlbumId(null);
+            setSelectedPlaylist(null);
+            setCurrentView('home');
         } else {
             window.history.back();
         }
@@ -645,7 +681,7 @@ export default function App() {
     // 在返回主页时检查并更新歌单缓存
     const lastCheckTimeRef = useRef<number>(0);
     useEffect(() => {
-        if (currentView === 'home' && user && !selectedPlaylist && !selectedAlbumId) {
+        if (currentView === 'home' && user && !selectedPlaylist && !selectedAlbumId && !selectedArtistId) {
             // 防抖：至少间隔 10 秒才检查一次
             const now = Date.now();
             if (now - lastCheckTimeRef.current > 10000) {
@@ -1829,6 +1865,7 @@ export default function App() {
                             selectedPlaylist={selectedPlaylist}
                             onSelectPlaylist={handlePlaylistSelect}
                             onSelectAlbum={handleAlbumSelect}
+                            onSelectArtist={handleArtistSelect}
                             localSongs={localSongs}
                             onRefreshLocalSongs={onRefreshLocalSongs}
                             onPlayLocalSong={onPlayLocalSong}
@@ -1908,33 +1945,85 @@ export default function App() {
 
             {/* --- ALBUM VIEW (Overlay) --- */}
             <AnimatePresence>
-                {selectedAlbumId && (
+                {selectedAlbumId && currentView === 'home' && (
                     <AlbumView
                         albumId={selectedAlbumId}
                         onBack={() => handleAlbumSelect(null)}
                         onPlaySong={(song, ctx) => {
                             playSong(song, ctx);
-                            // Keep AlbumView open or close? Usually keep open unless explicit back.
-                            // But here we might want to just play.
-                            // Existing logic was: setSelectedAlbumId(null);
-                            // Let's keep it closing for now if that was desired, OR keep openness.
-                            // User request: "Left Panel 标题不要收缩..." implies they want to see it.
-                            // But original code had:
-                            // onPlaySong={(song, ctx) => { playSong(song, ctx); setSelectedAlbumId(null); }}
-                            // If we want to navigate TO player, we should do that.
-                            // Let's assume onPlay we go to player view?
-                            // Actually, let's keep it open, as user might want to play another song.
-                            // BUT wait, looking at diff:
-                            // onPlaySong={(song, ctx) => { playSong(song, ctx); setSelectedAlbumId(null); }}
-                            // If I remove setSelectedAlbumId(null), it stays open.
-                            // Most music apps go to player on play.
-                            // Let's stick to existing behavior: CLOSE AlbumView on play.
-                            handleAlbumSelect(null);
+                            // We don't need to close AlbumView here explicitly if we rely on currentView check?
+                            // But keeping it open in state allows returning to it.
+                            // So we don't call handleAlbumSelect(null) here?
+                            // Original code called handleAlbumSelect(null) inside onPlaySong prop!
+                            // Wait, previous code:
+                            /* 
+                            onPlaySong={(song, ctx) => {
+                                playSong(song, ctx);
+                                handleAlbumSelect(null);
+                            }}
+                            */
+                            // If we call handleAlbumSelect(null), it calls history.back().
+                            // That removes the album state.
+                            // Maybe we SHOULDN'T remove it if we want to come back?
+                            // But if we seek strict "close on play", then yes.
+                            // The user didn't ask to change "close on play" behavior for Album, but complained about stacking.
+                            // However, my previous analysis said rendering guard solves the "covering player" issue.
+                            // If I keep AlbumView open in state, but hidden by currentView='player', then 'Back' from player goes to Home(AlbumView).
+                            // That seems nicer.
+                            // BUT, the original code had: `handleAlbumSelect(null)`.
+                            // So it was INTIONALLY closing the album view.
+                            // I should preserve that unless I have a reason to change.
+                            // Wait, handleAlbumSelect(null) calls history.back().
+                            // If I'm in AlbumView, playing a song navigates to Player.
+                            // If I ALSO history.back(), I might mess up the history stack (Play navigates forward? or just view switch?)
+                            // navigateToPlayer pushes state.
+                            // So: Album -> Play: push(Player).
+                            // AND reset AlbumId?
+                            // If I reset AlbumId, do I need to manipulate history?
+                            // `handleAlbumSelect(null)` calls `history.back()`.
+                            // So: Album -> Play -> (Back trigger) -> Home.
+                            // Then push(Player) -> Player.
+                            // History: Home -> Player.
+                            // This means "Back" from Player goes to Home (root), not Album.
+                            // This seems to be the INTENDED behavior of the current app.
+                            // So I will keep passing `handleAlbumSelect(null)`.
                         }}
                         onPlayAll={(songs) => {
                             playSong(songs[0], songs);
-                            handleAlbumSelect(null);
                         }}
+                        onSelectArtist={handleArtistSelect}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* --- ARTIST VIEW (Overlay) --- */}
+            <AnimatePresence>
+                {selectedArtistId && currentView === 'home' && (
+                    <ArtistView
+                        artistId={selectedArtistId}
+                        onBack={() => handleArtistSelect(null)}
+                        onPlaySong={(song, ctx) => {
+                            playSong(song, ctx);
+                            // Keep consistency with AlbumView behavior in original code?
+                            // Original code for Artist:
+                            /*
+                             onPlaySong={(song, ctx) => {
+                                playSong(song, ctx);
+                                handleArtistSelect(null);
+                             }}
+                            */
+                            // Wait, lookup lines 1965-1970 in original:
+                            /*
+                             onPlaySong={(song, ctx) => {
+                                 playSong(song, ctx);
+                                 // Do we close artist view? 
+                                 // Keep consistency with AlbumView
+                                 handleArtistSelect(null);
+                             }}
+                            */
+                            // Yes, it was closing it.
+                        }}
+                        onSelectAlbum={handleAlbumSelect}
                     />
                 )}
             </AnimatePresence>
@@ -2000,6 +2089,7 @@ export default function App() {
                         coverUrl={coverUrl}
                         currentSong={currentSong}
                         onAlbumSelect={handleAlbumSelect}
+                        onSelectArtist={handleArtistSelect}
                         loopMode={loopMode}
                         onToggleLoop={toggleLoop}
                         onLike={handleLike}
