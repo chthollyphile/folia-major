@@ -218,27 +218,33 @@ export default function App() {
             // If playlist state
             else if (state.view === 'playlist') {
                 setCurrentView('home');
-                // Note: We assume popping back TO playlist isn't common flow from Player,
-                // usually it's Home -> Playlist -> Back(Home).
-                // If we support deeply nested history, we'd need to restore the specific ID.
-                // For now, simpler logic: if we pop to 'playlist', we might need the ID, 
-                // but usually we pop FROM playlist TO home.
-                setSelectedAlbumId(null); // Ensure album is deselected
+                // When going back to playlist, clear upper layers
+                setSelectedAlbumId(null);
                 setSelectedArtistId(null);
+
+                // If we have an ID (which we should for playlist state), ensure it's selected
+                // But typically setSelectedPlaylist is persisted or we rely on it not being cleared if we just popped 'album'
+                // However, if we popped 'player', we need to ensure playlist is active.
+                if (state.id) {
+                    // We need to find the playlist object to set it, but we only have ID here.
+                    // The previous logic assumed setSelectedPlaylist(null) happened on home.
+                    // Ideally we should refetch or find from cached playlists if needed, 
+                    // but for now, we rely on the fact that if we popped back to playlist, 
+                    // we likely didn't clear the active playlist state if we came from valid nav.
+                    // But if we landed here from fresh load, we might be in trouble. 
+                    // App.tsx currently doesn't fully support deep linking restoration for playlists without the object.
+                    // For this bugfix (flash), we focus on NOT clearing things when going deeper.
+                    // When going BACK to playlist, we just ensure overlay layers are gone.
+                }
             }
             // If album state
             else if (state.view === 'album') {
-                // If we have an ID in state, it means we are IN album view.
-                // But popState is triggered when we go BACK to this state? NO.
-                // popState is triggered when we land ON a state.
-                // So if we land on 'album', we should show it.
                 if (state.id) {
                     setSelectedAlbumId(state.id);
-                    setCurrentView('home'); // Ensure we are on home view base (AlbumView overlays Home)
-                    setSelectedPlaylist(null);
-                    setSelectedArtistId(null);
+                    setCurrentView('home');
+                    // Keep selectedPlaylist if it exists (background)
+                    setSelectedArtistId(null); // Clear top layer
                 } else {
-                    // Fallback to home if no ID?
                     setCurrentView('home');
                     setSelectedAlbumId(null);
                 }
@@ -248,8 +254,7 @@ export default function App() {
                 if (state.id) {
                     setSelectedArtistId(state.id);
                     setCurrentView('home');
-                    setSelectedAlbumId(null);
-                    setSelectedPlaylist(null);
+                    // Keep album and playlist (background layers)
                 } else {
                     setCurrentView('home');
                     setSelectedArtistId(null);
@@ -304,7 +309,8 @@ export default function App() {
         if (id) {
             window.history.pushState({ view: 'album', id: id }, '', `#album/${id}`);
             setSelectedAlbumId(id);
-            setSelectedPlaylist(null);
+            // Don't clear playlist - keep it as background
+            // setSelectedPlaylist(null); 
             setSelectedArtistId(null);
             setCurrentView('home');
         } else {
@@ -316,8 +322,9 @@ export default function App() {
         if (id) {
             window.history.pushState({ view: 'artist', id: id }, '', `#artist/${id}`);
             setSelectedArtistId(id);
-            setSelectedAlbumId(null);
-            setSelectedPlaylist(null);
+            // Don't clear album or playlist - keep them as background layers
+            // setSelectedAlbumId(null);
+            // setSelectedPlaylist(null);
             setCurrentView('home');
         } else {
             window.history.back();
