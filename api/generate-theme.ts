@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
     const snippet = lyricsText.slice(0, 2000);
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `Analyze the mood of these lyrics and generate a visual theme configuration (colors and animation style) for a music player.
       
       THEME PREFERENCES:
@@ -33,9 +33,13 @@ export default async function handler(req: any, res: any) {
       2. If mode is LIGHT: Use LIGHT backgrounds (whites, creams, soft pastels). Ensure text/icons are dark enough for contrast.
       3. If mode is DARK: Use DARK backgrounds (deep colors).
       4. If the lyrics strongly suggest a contrary mood (e.g. "dark night" in light mode), you MAY override, but generally stick to the requested mode.
-      2. If a LIGHT background is necessary for the mood:
-         - Ensure 'secondaryColor' and 'accentColor' (used for geometric shapes/icons) are visible against the background. 
+      5. If a LIGHT background is necessary for the mood:
+         - Ensure 'accentColor' (used for geometric shapes/icons) are visible against the background. 
          - Avoid very faint colors on white backgrounds. The shapes should be discernable.
+      6. CRITICAL for 'secondaryColor': This color is used for secondary TEXT (e.g., album name, artist name).
+         - It MUST have sufficient contrast against 'backgroundColor' to be easily readable.
+         - Aim for a contrast ratio of at least 4.5:1 for accessibility.
+         - On light backgrounds, use darker shades; on dark backgrounds, use lighter shades.
   
       IMPORTANT for 'wordColors':
       1. Identify 5-10 key emotional words or phrases from the lyrics.
