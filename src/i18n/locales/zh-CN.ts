@@ -154,7 +154,7 @@ export default {
     "cachedSongsCount": "已缓存歌曲",
     "staticMode": "静态模式",
     "enableStaticMode": "静态模式",
-    "enableStaticModeDesc": "禁用几何背景和动态歌词以节省资源。",
+    "enableStaticModeDesc": "禁用几何背景以节省资源。",
     "enableStaticModeDescSub": "适合后台播放（保留时间轴歌词更新）。"
   },
   "localMusic": {

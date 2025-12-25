@@ -15,9 +15,9 @@ const FluidBackground: React.FC<FluidBackgroundProps> = memo(({ coverUrl, theme 
                     className="absolute inset-0 w-full h-full bg-center bg-cover transition-all duration-1000 ease-in-out"
                     style={{
                         backgroundImage: `url(${coverUrl})`,
-                        filter: 'blur(36px) brightness(0.7)',
+                        filter: 'blur(40px) brightness(1)',
                         transform: 'scale(1.5)',
-                        opacity: 0.8
+                        opacity: 1
                     }}
                 />
             ) : (

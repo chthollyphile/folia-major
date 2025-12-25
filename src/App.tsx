@@ -29,6 +29,16 @@ const DEFAULT_THEME: Theme = {
     animationIntensity: "normal"
 };
 
+const DAYLIGHT_THEME: Theme = {
+    name: "Daylight Default",
+    backgroundColor: "#f5f5f4", // stone-100 (Pearl White-ish)
+    primaryColor: "#1c1917", // stone-900
+    accentColor: "#ea580c", // orange-600
+    secondaryColor: "#78716c", // stone-500
+    fontStyle: "sans",
+    animationIntensity: "normal"
+};
+
 const formatTime = (time: number) => {
     if (isNaN(time)) return "00:00";
     const minutes = Math.floor(time / 60);
@@ -145,6 +155,16 @@ export default function App() {
     const handleToggleMediaCache = (enable: boolean) => {
         setEnableMediaCache(enable);
         localStorage.setItem('enable_media_cache', String(enable));
+    };
+
+    const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
+        const saved = localStorage.getItem('background_opacity');
+        return saved ? parseFloat(saved) : 0.75;
+    });
+
+    const handleSetBackgroundOpacity = (opacity: number) => {
+        setBackgroundOpacity(opacity);
+        localStorage.setItem('background_opacity', String(opacity));
     };
 
     // Progress Bar State
@@ -1669,6 +1689,17 @@ export default function App() {
         // If they want to FULLY reset, we reset the theme object.
     };
 
+    const handleSetThemePreset = (preset: 'midnight' | 'daylight') => {
+        if (preset === 'midnight') {
+            setTheme(DEFAULT_THEME);
+            setStatusMsg({ type: 'success', text: 'Theme set to Midnight Default' });
+        } else {
+            setTheme(DAYLIGHT_THEME);
+            setStatusMsg({ type: 'success', text: 'Theme set to Daylight Default' });
+        }
+        setBgMode('ai');
+    };
+
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
         if (audioRef.current) {
@@ -1847,6 +1878,7 @@ export default function App() {
                     useCoverColorBg={useCoverColorBg}
                     seed={currentSong?.id}
                     staticMode={staticMode}
+                    backgroundOpacity={backgroundOpacity}
                 />
             </div>
 
@@ -1889,6 +1921,9 @@ export default function App() {
                             enableMediaCache={enableMediaCache}
                             onToggleMediaCache={handleToggleMediaCache}
                             theme={theme}
+                            backgroundOpacity={backgroundOpacity}
+                            setBackgroundOpacity={handleSetBackgroundOpacity}
+                            onSetThemePreset={handleSetThemePreset}
                             onMatchSong={async (song) => {
                                 await loadLocalSongs();
 

@@ -154,8 +154,8 @@ export default {
     "cachedSongsCount": "Cached Songs",
     "staticMode": "Static Mode",
     "enableStaticMode": "Static Mode",
-    "enableStaticModeDesc": "Disable geometric backgrounds and dynamic lyrics.",
-    "enableStaticModeDescSub": "Suitable for background playback (Timeline lyrics update kept)."
+    "enableStaticModeDesc": "Disable geometric backgrounds.",
+    "enableStaticModeDescSub": "Suitable for background playback."
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

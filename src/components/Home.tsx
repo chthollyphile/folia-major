@@ -52,6 +52,9 @@ interface HomeProps {
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme: Theme;
+    backgroundOpacity: number;
+    setBackgroundOpacity: (opacity: number) => void;
+    onSetThemePreset: (preset: 'midnight' | 'daylight') => void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -83,7 +86,10 @@ const Home: React.FC<HomeProps> = ({
     onToggleStaticMode,
     enableMediaCache = false,
     onToggleMediaCache,
-    theme
+    theme,
+    backgroundOpacity,
+    setBackgroundOpacity,
+    onSetThemePreset
 }) => {
     const { t } = useTranslation();
 
@@ -594,6 +600,9 @@ const Home: React.FC<HomeProps> = ({
                             enableMediaCache={enableMediaCache}
                             onToggleMediaCache={onToggleMediaCache}
                             theme={theme}
+                            backgroundOpacity={backgroundOpacity}
+                            setBackgroundOpacity={setBackgroundOpacity}
+                            onSetThemePreset={onSetThemePreset}
                         />
                     )}
 

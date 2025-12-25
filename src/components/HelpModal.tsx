@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2 } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory } from '../services/db';
 import { Theme } from '../types';
@@ -11,6 +11,9 @@ interface HelpModalProps {
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
+    backgroundOpacity?: number;
+    setBackgroundOpacity?: (opacity: number) => void;
+    onSetThemePreset?: (preset: 'midnight' | 'daylight') => void;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -19,7 +22,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onToggleStaticMode,
     enableMediaCache = false,
     onToggleMediaCache,
-    theme
+    theme,
+    backgroundOpacity = 0.75,
+    setBackgroundOpacity,
+    onSetThemePreset
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
@@ -154,9 +160,79 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     </li>
                                 </ul>
                             </div>
+
+                            {/* Author Info (Moved from Footer) */}
+                            <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
+                                <p className="text-sm opacity-60 mb-1" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('help.madeBy') || "Made by"} <a href="https://github.com/chthollyphile" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile</a>
+                                </p>
+                                <p className="text-xs font-mono opacity-30" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('help.version') || "Version"}: folia-major - {__GIT_BRANCH__} - {__COMMIT_HASH__}
+                                </p>
+                            </div>
                         </div>
                     ) : (
                         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                            {/* Visual Settings */}
+                            <section>
+                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                    <Sparkles size={14} /> {t('options.visualSettings') || "Visual Settings"}
+                                </h3>
+                                <div className="space-y-4">
+                                    {/* Theme Presets */}
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                            {t('options.themePresets') || "Theme Presets"}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => onSetThemePreset?.('midnight')}
+                                                className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
+                                                style={{
+                                                    borderColor: theme?.name === 'Midnight Default' ? theme.accentColor : 'transparent',
+                                                    backgroundColor: 'rgba(9, 9, 11, 0.5)'
+                                                }}
+                                            >
+                                                <div className="w-6 h-6 rounded-full bg-zinc-950 border border-zinc-700" />
+                                                <span className="text-xs opacity-80 text-zinc-300">Midnight</span>
+                                            </button>
+                                            <button
+                                                onClick={() => onSetThemePreset?.('daylight')}
+                                                className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
+                                                style={{
+                                                    borderColor: theme?.name === 'Daylight Default' ? theme.accentColor : 'transparent',
+                                                    backgroundColor: 'rgba(245, 245, 244, 0.8)'
+                                                }}
+                                            >
+                                                <div className="w-6 h-6 rounded-full bg-[#f5f5f4] border border-zinc-300 shadow-sm" />
+                                                <span className="text-xs opacity-80 text-zinc-800">Daylight</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Opacity Slider */}
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                {t('options.backgroundOpacity') || "Background Opacity"}
+                                            </div>
+                                            <div className="text-xs font-mono opacity-50">
+                                                {Math.round(backgroundOpacity * 100)}%
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={backgroundOpacity}
+                                            onChange={(e) => setBackgroundOpacity?.(parseFloat(e.target.value))}
+                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                        />
+                                    </div>
+                                </div>
+                            </section>
+
                             {/* Cache Details */}
                             <section>
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
@@ -251,22 +327,15 @@ const HelpModal: React.FC<HelpModalProps> = ({
                     )}
                 </div>
 
-                {/* Footer / Author Info */}
-                <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
-                    <p className="text-sm opacity-60 mb-1" style={{ color: 'var(--text-secondary)' }}>
-                        {t('help.madeBy')} <a href="https://github.com/chthollyphile" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile</a>
-                    </p>
-                    <p className="text-xs font-mono opacity-30" style={{ color: 'var(--text-secondary)' }}>
-                        {t('help.version')}: folia-major - {__GIT_BRANCH__} - {__COMMIT_HASH__}
-                    </p>
-                </div>
+                {/* Footer (Empty now) */}
+                {/* <div className="mt-8 pt-0 border-t-0 p-0" /> */}
             </div>
         </div>
     );
 };
 
 // Simple Disc Icon for Cover
-const DiscIcon = ({ size, className }: { size: number, className?: string }) => (
+const DiscIcon = ({ size, className }: { size: number, className?: string; }) => (
     <svg
         xmlns="http://www.w3.org/2000/svg"
         width={size}

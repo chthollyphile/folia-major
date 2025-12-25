@@ -17,6 +17,7 @@ interface VisualizerProps {
     coverUrl?: string | null;
     useCoverColorBg?: boolean;
     seed?: string | number; // Added seed for geometric bg
+    backgroundOpacity?: number;
 }
 
 interface WordLayoutConfig {
@@ -126,7 +127,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false }) => {
+const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false, backgroundOpacity = 0.75 }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -331,7 +332,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
 
             <div
                 className="absolute inset-0 z-0 transition-all duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: (useCoverColorBg && !staticMode) ? 0.82 : 1 }}
+                style={{ backgroundColor: theme.backgroundColor, opacity: (useCoverColorBg && !staticMode) ? backgroundOpacity : 1 }}
             />
 
             {!staticMode && (
