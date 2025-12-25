@@ -22,6 +22,7 @@ interface LocalMusicViewProps {
     setFocusedFolderIndex?: (index: number) => void;
     focusedAlbumIndex?: number;
     setFocusedAlbumIndex?: (index: number) => void;
+    theme: any;
 }
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({
@@ -37,7 +38,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     focusedFolderIndex = 0,
     setFocusedFolderIndex,
     focusedAlbumIndex = 0,
-    setFocusedAlbumIndex
+    setFocusedAlbumIndex,
+    theme
 }) => {
     const { t } = useTranslation();
 
@@ -247,6 +249,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onDelete={selectedGroup.type === 'folder' ? handleDeleteFolder : undefined}
                 onMatchSong={onMatchSong}
                 onRefresh={onRefresh}
+                theme={theme}
             />
         );
     }

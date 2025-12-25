@@ -155,7 +155,12 @@ export default {
     "staticMode": "静态模式",
     "enableStaticMode": "静态模式",
     "enableStaticModeDesc": "禁用几何背景以节省资源。",
-    "enableStaticModeDescSub": "适合后台播放（保留时间轴歌词更新）。"
+    "enableStaticModeDescSub": "适合后台播放（保留时间轴歌词更新）。",
+    "visualSettings": "视觉设置",
+    "backgroundOpacity": "背景透明度",
+    "themePresets": "主题预设",
+    "themePresetsMidnight": "Midnight",
+    "themePresetsDaylight": "Daylight"
   },
   "localMusic": {
     "foldersAndPlaylists": "本地文件夹",

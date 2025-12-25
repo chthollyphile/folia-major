@@ -167,6 +167,21 @@ export default function App() {
         localStorage.setItem('background_opacity', String(opacity));
     };
 
+    // Apply Theme to Scrollbar globally
+    useEffect(() => {
+        const isDaylight = theme.name === 'Daylight Default';
+        const root = document.documentElement;
+        if (isDaylight) {
+            root.style.setProperty('--scrollbar-track', '#cccbcc');
+            root.style.setProperty('--scrollbar-thumb', '#ecececff');
+            root.style.setProperty('--scrollbar-thumb-hover', '#ffffffff');
+        } else {
+            root.style.setProperty('--scrollbar-track', '#18181b'); // zinc-900
+            root.style.setProperty('--scrollbar-thumb', '#3f3f46'); // zinc-700
+            root.style.setProperty('--scrollbar-thumb-hover', '#52525b'); // zinc-600
+        }
+    }, [theme]);
+
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
 
@@ -1663,7 +1678,12 @@ export default function App() {
         setStatusMsg({ type: 'info', text: t('status.generatingTheme') });
         try {
             const allText = lyrics.lines.map(l => l.fullText).join("\n");
-            const newTheme = await generateThemeFromLyrics(allText);
+
+            // Determine preference based on current theme, assuming user wants to stick to similar brightness
+            const isDaylight = theme.name === DAYLIGHT_THEME.name || (theme.backgroundColor && theme.backgroundColor.toLowerCase() === '#fcfcfc');
+            const themeMode = isDaylight ? 'light' : 'dark';
+
+            const newTheme = await generateThemeFromLyrics(allText, themeMode);
             setTheme(newTheme);
             setBgMode('ai'); // Auto switch to AI bg when generated
             setStatusMsg({ type: 'success', text: t('status.themeApplied', { themeName: newTheme.name }) });
@@ -1692,10 +1712,10 @@ export default function App() {
     const handleSetThemePreset = (preset: 'midnight' | 'daylight') => {
         if (preset === 'midnight') {
             setTheme(DEFAULT_THEME);
-            setStatusMsg({ type: 'success', text: 'Theme set to Midnight Default' });
+            setStatusMsg({ type: 'success', text: '默认主题: Midnight Default' });
         } else {
             setTheme(DAYLIGHT_THEME);
-            setStatusMsg({ type: 'success', text: 'Theme set to Daylight Default' });
+            setStatusMsg({ type: 'success', text: '默认主题: Daylight Default' });
         }
         setBgMode('ai');
     };
@@ -1819,7 +1839,7 @@ export default function App() {
 
     // Define dynamic style for theme variables
     const appStyle = {
-        '--bg-color': bgMode === 'ai' ? theme.backgroundColor : DEFAULT_THEME.backgroundColor,
+        '--bg-color': bgMode === 'ai' ? theme.backgroundColor : (theme.name === DAYLIGHT_THEME.name ? DAYLIGHT_THEME.backgroundColor : DEFAULT_THEME.backgroundColor),
         '--text-primary': theme.primaryColor,
         '--text-secondary': theme.secondaryColor,
         '--text-accent': theme.accentColor,
@@ -2034,6 +2054,7 @@ export default function App() {
                             playSong(songs[0], songs);
                         }}
                         onSelectArtist={handleArtistSelect}
+                        theme={theme}
                     />
                 )}
             </AnimatePresence>
@@ -2066,6 +2087,7 @@ export default function App() {
                             // Yes, it was closing it.
                         }}
                         onSelectAlbum={handleAlbumSelect}
+                        theme={theme}
                     />
                 )}
             </AnimatePresence>
@@ -2115,6 +2137,7 @@ export default function App() {
                         noTrackText={t('ui.noTrack')}
                         primaryColor="var(--text-primary)"
                         secondaryColor="var(--text-secondary)"
+                        theme={theme}
                     />
                 )
             }
@@ -2145,6 +2168,7 @@ export default function App() {
                         onBgModeChange={setBgMode}
                         onResetTheme={handleResetTheme}
                         defaultTheme={DEFAULT_THEME}
+                        daylightTheme={DAYLIGHT_THEME}
                         playQueue={playQueue}
                         onPlaySong={playSong}
                         queueScrollRef={queueScrollRef}

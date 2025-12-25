@@ -82,8 +82,8 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         localStorage.setItem('default_audio_quality', 'exhigh');
                                     }}
                                     className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'exhigh'
-                                            ? 'bg-white/20 shadow-sm'
-                                            : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                        ? 'bg-white/20 shadow-sm'
+                                        : 'opacity-40 hover:opacity-100 hover:bg-white/5'
                                         }`}
                                 >
                                     {t('account.qualityExhigh')}
@@ -94,8 +94,8 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         localStorage.setItem('default_audio_quality', 'lossless');
                                     }}
                                     className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'lossless'
-                                            ? 'bg-white/20 shadow-sm'
-                                            : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                        ? 'bg-white/20 shadow-sm'
+                                        : 'opacity-40 hover:opacity-100 hover:bg-white/5'
                                         }`}
                                 >
                                     {t('account.qualityLossless')}
@@ -106,8 +106,8 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                         localStorage.setItem('default_audio_quality', 'hires');
                                     }}
                                     className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'hires'
-                                            ? 'bg-white/20 shadow-sm'
-                                            : 'opacity-40 hover:opacity-100 hover:bg-white/5'
+                                        ? 'bg-white/20 shadow-sm'
+                                        : 'opacity-40 hover:opacity-100 hover:bg-white/5'
                                         }`}
                                 >
                                     {t('account.qualityHires')}
@@ -118,7 +118,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
 
                     <div className="space-y-2 mt-auto">
                         {/* Cache Management Section */}
-                        <div className="bg-white/5 p-3 rounded-xl mb-2">
+                        {/* <div className="bg-white/5 p-3 rounded-xl mb-2">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2 opacity-60">
                                     <HardDrive size={12} />
@@ -135,7 +135,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                 <Trash2 size={12} />
                                 {t('account.clearCache')}
                             </button>
-                        </div>
+                        </div> */}
 
                         <button
                             onClick={onSyncData}

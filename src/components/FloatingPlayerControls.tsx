@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Play, Pause, Repeat, Repeat1, ChartBar } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
-import { PlayerState, LyricData } from '../types';
+import { PlayerState, LyricData, Theme } from '../types';
 import LyricsTimelineModal from './LyricsTimelineModal';
 
 interface FloatingPlayerControlsProps {
@@ -22,7 +22,9 @@ interface FloatingPlayerControlsProps {
     noTrackText?: string;
     primaryColor?: string;
     secondaryColor?: string;
+    theme?: Theme;
 }
+
 
 const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     currentSong,
@@ -39,8 +41,20 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     onNavigateToPlayer,
     noTrackText = 'No Track',
     primaryColor = 'var(--text-primary)',
-    secondaryColor = 'var(--text-secondary)'
+    secondaryColor = 'var(--text-secondary)',
+    theme
 }) => {
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
+    const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'bg-black/20 border border-white/5 hover:bg-black/30';
+    const trackColor = isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';
+    // Button bg logic
+    const buttonBg = isDaylight ? { backgroundColor: primaryColor, color: 'var(--bg-color)' } : { backgroundColor: primaryColor, color: 'var(--bg-color)' }; // Keep primary for play button, looks good
+
+    // Other buttons hover
+    const iconBtnExpandedClass = isDaylight ? 'hover:bg-black/5' : 'bg-white/20'; // Wait, loop button has logic
+    const iconBtnClass = isDaylight ? 'hover:bg-black/5 text-black/60' : 'hover:bg-white/10 opacity-40 hover:opacity-100';
+
     const [isHovered, setIsHovered] = useState(false);
     const [isTimelineOpen, setIsTimelineOpen] = useState(false);
 
@@ -68,7 +82,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         layout
                         onClick={handleClick}
                         className={`backdrop-blur-3xl shadow-2xl overflow-hidden cursor-pointer rounded-full relative transition-colors duration-300
-                            ${showExpanded ? 'p-3 bg-black/40 w-full' : 'px-4 py-2 bg-black/20 hover:bg-black/30 w-[80%] md:w-[60%]'}`}
+                            ${showExpanded ? `p-3 ${glassBgExpanded} w-full` : `px-4 py-2 ${glassBgCollapsed} w-[80%] md:w-[60%]`}`}
                     >
                         <motion.div layout className="w-full">
                             {showExpanded ? (
@@ -86,7 +100,9 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     noTrackText={noTrackText}
                                     primaryColor={primaryColor}
                                     secondaryColor={secondaryColor}
+                                    trackColor={trackColor}
                                     hasLyrics={!!lyrics}
+                                    isDaylight={isDaylight}
                                 />
                             ) : (
                                 <CollapsedView
@@ -95,6 +111,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     onSeek={onSeek}
                                     primaryColor={primaryColor}
                                     secondaryColor={secondaryColor}
+                                    trackColor={trackColor}
                                 />
                             )}
                         </motion.div>
@@ -112,6 +129,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
                 accentColor="var(--text-accent)"
+                theme={theme}
             />
         </>
     );
@@ -133,6 +151,8 @@ interface ExpandedViewProps {
     primaryColor: string;
     secondaryColor: string;
     hasLyrics: boolean;
+    trackColor?: string;
+    isDaylight?: boolean;
 }
 
 const ExpandedView: React.FC<ExpandedViewProps> = ({
@@ -149,7 +169,9 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     noTrackText,
     primaryColor,
     secondaryColor,
-    hasLyrics
+    hasLyrics,
+    trackColor,
+    isDaylight
 }) => {
     const formatTime = (time: number) => {
         const minutes = Math.floor(time / 60);
@@ -208,7 +230,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             e.stopPropagation();
                             onToggleLoop();
                         }}
-                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? 'bg-white/20' : 'opacity-40 hover:opacity-100'}`}
+                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/20') : 'opacity-40 hover:opacity-100'}`}
                         style={{ color: primaryColor }}
                     >
                         {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
@@ -220,7 +242,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             onToggleTimeline();
                         }}
                         disabled={!hasLyrics}
-                        className={`p-2 rounded-full transition-colors ${!hasLyrics ? 'opacity-20 cursor-not-allowed' : 'opacity-40 hover:opacity-100 hover:bg-white/10'}`}
+                        className={`p-2 rounded-full transition-colors ${!hasLyrics ? 'opacity-20 cursor-not-allowed' : `opacity-40 hover:opacity-100 ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}`}
                         style={{ color: primaryColor }}
                         title="View Lyrics Timeline"
                     >
@@ -271,7 +293,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             onToggleTimeline();
                         }}
                         disabled={!hasLyrics}
-                        className={`p-2 rounded-full transition-colors ${!hasLyrics ? 'opacity-20 cursor-not-allowed' : 'opacity-40 hover:opacity-100 hover:bg-white/10'}`}
+                        className={`p-2 rounded-full transition-colors ${!hasLyrics ? 'opacity-20 cursor-not-allowed' : `opacity-40 hover:opacity-100 ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}`}
                         style={{ color: primaryColor }}
                         title="View Lyrics Timeline"
                     >
@@ -305,6 +327,7 @@ interface CollapsedViewProps {
     onSeek: (time: number) => void;
     primaryColor: string;
     secondaryColor: string;
+    trackColor?: string;
 }
 
 const CollapsedView: React.FC<CollapsedViewProps> = ({
@@ -312,7 +335,8 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
     duration,
     onSeek,
     primaryColor,
-    secondaryColor
+    secondaryColor,
+    trackColor
 }) => {
     return (
         <div className="flex items-center w-full justify-center h-8 px-4">
@@ -322,6 +346,7 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
                 onSeek={onSeek}
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
+                trackColor={trackColor}
             />
         </div>
     );

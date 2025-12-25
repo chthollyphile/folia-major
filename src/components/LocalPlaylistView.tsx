@@ -18,9 +18,15 @@ interface LocalPlaylistViewProps {
     onDelete?: () => void;
     onMatchSong?: (song: LocalSong) => void;
     onRefresh?: () => void;
+    theme: any;
 }
 
-const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong, onRefresh }) => {
+const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong, onRefresh, theme }) => {
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
+    const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
+    const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
+
     const { t } = useTranslation();
 
     // Scroll Ref
@@ -50,19 +56,19 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-3xl font-sans"
+            className={`fixed inset-0 z-50 flex items-center justify-center ${glassBg} font-sans`}
             style={{ color: 'var(--text-primary)' }}
         >
             {/* Main Container - Scrollable on Mobile, Flex on Desktop */}
             <div
                 ref={containerRef}
-                className="w-full h-full md:max-w-6xl md:h-[90vh] md:bg-black/20 md:rounded-3xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative custom-scrollbar"
+                className={`w-full h-full md:max-w-6xl md:h-[90vh] ${panelBg} md:rounded-3xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative custom-scrollbar`}
             >
 
                 {/* Close Button */}
                 <button
                     onClick={onBack}
-                    className="fixed md:absolute top-6 left-6 z-30 w-10 h-10 rounded-full bg-black/20 hover:bg-white/10 flex items-center justify-center transition-colors backdrop-blur-md"
+                    className={`fixed md:absolute top-6 left-6 z-30 w-10 h-10 rounded-full ${closeBtnBg} flex items-center justify-center transition-colors backdrop-blur-md`}
                     style={{ color: 'var(--text-primary)' }}
                 >
                     <ChevronLeft size={20} />

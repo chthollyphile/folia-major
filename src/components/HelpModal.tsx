@@ -72,9 +72,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
         setIsCleaning(null);
     };
 
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-900/90'; // Use slightly higher opacity for modal than panel
+    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
+    const textColor = isDaylight ? 'text-zinc-800' : 'text-zinc-100';
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-200">
-            <div className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-lg w-full relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[85vh]`}>
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors z-20"
@@ -194,7 +199,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 }}
                                             >
                                                 <div className="w-6 h-6 rounded-full bg-zinc-950 border border-zinc-700" />
-                                                <span className="text-xs opacity-80 text-zinc-300">Midnight</span>
+                                                <span className="text-xs opacity-80 text-zinc-300">{t('options.themePresetsMidnight') || "Midnight"}</span>
                                             </button>
                                             <button
                                                 onClick={() => onSetThemePreset?.('daylight')}
@@ -205,7 +210,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 }}
                                             >
                                                 <div className="w-6 h-6 rounded-full bg-[#f5f5f4] border border-zinc-300 shadow-sm" />
-                                                <span className="text-xs opacity-80 text-zinc-800">Daylight</span>
+                                                <span className="text-xs opacity-80 text-zinc-800">{t('options.themePresetsDaylight') || "Daylight"}</span>
                                             </button>
                                         </div>
                                     </div>

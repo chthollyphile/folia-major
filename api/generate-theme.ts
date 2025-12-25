@@ -6,7 +6,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { lyricsText } = req.body;
+    const { lyricsText, themeMode } = req.body;
 
     if (!lyricsText) {
       return res.status(400).json({ error: 'Missing lyricsText' });
@@ -29,7 +29,10 @@ export default async function handler(req: any, res: any) {
       contents: `Analyze the mood of these lyrics and generate a visual theme configuration (colors and animation style) for a music player.
       
       THEME PREFERENCES:
-      1. Prefer DARK backgrounds (deep colors) for a cinematic feel, but if the lyrics are light and bright, use a light background.
+      1. Theme Mode: ${themeMode === 'light' ? 'LIGHT/DAYLIGHT' : 'DARK/MIDNIGHT'}
+      2. If mode is LIGHT: Use LIGHT backgrounds (whites, creams, soft pastels). Ensure text/icons are dark enough for contrast.
+      3. If mode is DARK: Use DARK backgrounds (deep colors).
+      4. If the lyrics strongly suggest a contrary mood (e.g. "dark night" in light mode), you MAY override, but generally stick to the requested mode.
       2. If a LIGHT background is necessary for the mood:
          - Ensure 'secondaryColor' and 'accentColor' (used for geometric shapes/icons) are visible against the background. 
          - Avoid very faint colors on white backgrounds. The shapes should be discernable.

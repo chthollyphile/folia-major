@@ -1,13 +1,13 @@
 import { Theme } from "../types";
 
-export const generateThemeFromLyrics = async (lyricsText: string): Promise<Theme> => {
+export const generateThemeFromLyrics = async (lyricsText: string, themeMode: 'light' | 'dark' = 'dark'): Promise<Theme> => {
   try {
     const response = await fetch('/api/generate-theme', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ lyricsText }),
+      body: JSON.stringify({ lyricsText, themeMode }),
     });
 
     if (!response.ok) {

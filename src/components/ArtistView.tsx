@@ -11,9 +11,18 @@ interface ArtistViewProps {
     onBack: () => void;
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
     onSelectAlbum: (id: number) => void;
+    theme: any;
 }
 
-const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onSelectAlbum }) => {
+const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onSelectAlbum, theme }) => {
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
+    const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
+    const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
+    const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-800';
+    const itemHoverBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
+    const itemCardBg = isDaylight ? 'bg-white/20' : 'bg-white/5';
+
     const { t } = useTranslation();
     const [topSongs, setTopSongs] = useState<SongResult[]>([]);
     const [albums, setAlbums] = useState<any[]>([]);
@@ -73,17 +82,17 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-3xl font-sans"
+            className={`fixed inset-0 z-50 flex items-center justify-center ${glassBg} font-sans`}
             style={{ color: 'var(--text-primary)' }}
         >
             {/* Main Container */}
-            <div className="w-full h-full md:max-w-6xl md:h-[90vh] md:bg-black/20 md:rounded-3xl overflow-hidden flex flex-col relative">
+            <div className={`w-full h-full md:max-w-6xl md:h-[90vh] ${panelBg} md:rounded-3xl overflow-hidden flex flex-col relative`}>
 
                 {/* Header (Back Button) */}
                 <div className="absolute top-0 left-0 p-6 z-30">
                     <button
                         onClick={onBack}
-                        className="w-10 h-10 rounded-full bg-black/20 hover:bg-white/10 flex items-center justify-center transition-colors backdrop-blur-md"
+                        className={`w-10 h-10 rounded-full ${closeBtnBg} flex items-center justify-center transition-colors backdrop-blur-md`}
                         style={{ color: 'var(--text-primary)' }}
                     >
                         <ChevronLeft size={20} />
@@ -101,7 +110,7 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                         <div className="flex flex-col md:flex-row w-full md:min-h-[70vh] flex-shrink-0 p-6 md:p-8 pb-0 gap-8 relative">
                             {/* Left: Artist Info */}
                             <div className="w-full md:w-1/3 flex flex-col items-start pt-12 md:pt-0">
-                                <div className="w-48 h-48 md:w-64 md:h-64 rounded-full shadow-2xl overflow-hidden mb-6 relative bg-zinc-800 shrink-0 border-4 border-white/5">
+                                <div className={`w-48 h-48 md:w-64 md:h-64 rounded-full shadow-2xl overflow-hidden mb-6 relative ${placeholderBg} shrink-0 border-4 border-white/5`}>
                                     {artistInfo?.cover ? (
                                         <img src={artistInfo.cover} alt={artistInfo.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -136,13 +145,13 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                         <div
                                             key={track.id}
                                             onClick={() => onPlaySong(track, topSongs)}
-                                            className="group flex items-center py-3 px-3 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                                            className={`group flex items-center py-3 px-3 rounded-lg ${itemHoverBg} cursor-pointer transition-colors`}
                                         >
                                             <div className="w-8 text-center text-sm font-medium opacity-40 group-hover:opacity-100 shrink-0">
                                                 {idx + 1}
                                             </div>
 
-                                            <div className="w-10 h-10 rounded-md overflow-hidden mr-4 bg-white/5 shrink-0 ml-2">
+                                            <div className={`w-10 h-10 rounded-md overflow-hidden mr-4 ${itemCardBg} shrink-0 ml-2`}>
                                                 {track.al?.picUrl && <img src={track.al.picUrl} alt="" className="w-full h-full object-cover" />}
                                             </div>
 
@@ -174,7 +183,7 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                         onClick={() => onSelectAlbum(album.id)}
                                         className="group cursor-pointer flex flex-col"
                                     >
-                                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-white/5 shadow-lg relative mb-3">
+                                        <div className={`w-full aspect-square rounded-xl overflow-hidden ${itemCardBg} shadow-lg relative mb-3`}>
                                             {album.picUrl ? (
                                                 <img
                                                     src={album.picUrl}

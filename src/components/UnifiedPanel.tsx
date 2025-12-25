@@ -35,6 +35,7 @@ interface UnifiedPanelProps {
     onBgModeChange: (mode: 'default' | 'ai') => void;
     onResetTheme: () => void;
     defaultTheme: Theme;
+    daylightTheme: Theme;
     // Queue Tab Props
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
@@ -76,6 +77,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onBgModeChange,
     onResetTheme,
     defaultTheme,
+    daylightTheme,
     playQueue,
     onPlaySong,
     queueScrollRef,
@@ -100,6 +102,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         { id: 'account' as PanelTab, label: t('panel.account'), icon: UserIcon },
     ];
 
+    // Theme Helper
+    const isDaylight = theme.name === 'Daylight Default';
+    const isAI = bgMode === 'ai'; // AI themes usually dark
+    const glassBg = isDaylight ? 'bg-white/60' : 'bg-black/40';
+    const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-900';
+    const activeTabBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
+    const tabSwitcherBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
     const handleCoverClick = () => {
         onToggle();
         onNavigateHome();
@@ -117,14 +126,14 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                             initial={{ opacity: 0, scale: 0.9, originY: 1, originX: 1 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="w-80 bg-black/40 backdrop-blur-3xl rounded-3xl shadow-2xl flex flex-col mb-2 overflow-hidden"
-                            style={{ color: 'var(--text-primary)' }}
+                            className={`w-80 ${glassBg} backdrop-blur-3xl rounded-3xl shadow-2xl flex flex-col mb-2 overflow-hidden`}
+                            style={{ color: theme.primaryColor }}
                         >
                             <div className="p-5 flex flex-col h-full">
                                 {/* Top: Cover Art */}
                                 <div
                                     onClick={handleCoverClick}
-                                    className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg relative mb-4 bg-zinc-900 flex items-center justify-center group cursor-pointer"
+                                    className={`w-full aspect-square rounded-2xl overflow-hidden shadow-lg relative mb-4 ${placeholderBg} flex items-center justify-center group cursor-pointer`}
                                 >
                                     {coverUrl ? (
                                         <img src={coverUrl} alt="Art" className="w-full h-full object-cover" />
@@ -138,13 +147,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                 </div>
 
                                 {/* Tab Switcher */}
-                                <div className="flex bg-white/5 p-1 rounded-xl mb-4">
+                                <div className={`flex ${tabSwitcherBg} p-1 rounded-xl mb-4`}>
                                     {tabs.map((tab) => (
                                         <button
                                             key={tab.id}
                                             onClick={() => onTabChange(tab.id)}
                                             className={`flex-1 py-2 flex items-center justify-center transition-all rounded-lg
-                                                ${currentTab === tab.id ? 'bg-white/10 shadow-sm' : 'opacity-40 hover:opacity-100'}`}
+                                                ${currentTab === tab.id ? `${activeTabBg} shadow-sm` : 'opacity-40 hover:opacity-100'}`}
                                             title={tab.label}
                                             style={{ color: 'var(--text-primary)' }}
                                         >
@@ -186,6 +195,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onBgModeChange={onBgModeChange}
                                             onResetTheme={onResetTheme}
                                             defaultTheme={defaultTheme}
+                                            daylightTheme={daylightTheme}
                                             useCoverColorBg={useCoverColorBg}
                                             onToggleCoverColorBg={onToggleCoverColorBg}
                                         />

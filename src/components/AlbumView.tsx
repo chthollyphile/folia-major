@@ -12,9 +12,17 @@ interface AlbumViewProps {
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
     onPlayAll: (songs: SongResult[]) => void;
     onSelectArtist: (artistId: number) => void;
+    theme: any;
 }
 
-const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll, onSelectArtist }) => {
+const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll, onSelectArtist, theme }) => {
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
+    const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20'; // Desktop panel
+    const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
+    const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-800';
+    const itemHoverBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
+
     const { t } = useTranslation();
     const [tracks, setTracks] = useState<SongResult[]>([]);
     const [albumInfo, setAlbumInfo] = useState<any>(null);
@@ -72,19 +80,19 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-3xl font-sans"
+            className={`fixed inset-0 z-50 flex items-center justify-center ${glassBg} font-sans`}
             style={{ color: 'var(--text-primary)' }}
         >
             {/* Main Container */}
             <div
                 ref={containerRef}
-                className="w-full h-full md:max-w-6xl md:h-[90vh] md:bg-black/20 md:rounded-3xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative custom-scrollbar"
+                className={`w-full h-full md:max-w-6xl md:h-[90vh] ${panelBg} md:rounded-3xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative custom-scrollbar`}
             >
 
                 {/* Close Button */}
                 <button
                     onClick={onBack}
-                    className="fixed md:absolute top-6 left-6 z-30 w-10 h-10 rounded-full bg-black/20 hover:bg-white/10 flex items-center justify-center transition-colors backdrop-blur-md"
+                    className={`fixed md:absolute top-6 left-6 z-30 w-10 h-10 rounded-full ${closeBtnBg} flex items-center justify-center transition-colors backdrop-blur-md`}
                     style={{ color: 'var(--text-primary)' }}
                 >
                     <ChevronLeft size={20} />
@@ -102,7 +110,7 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                         >
                             {/* Album Art */}
                             <div
-                                className="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 bg-zinc-800 shrink-0"
+                                className={`w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 ${placeholderBg} shrink-0`}
                             >
                                 {albumInfo?.picUrl ? (
                                     <img src={albumInfo.picUrl.replace('http:', 'https:')} alt={albumInfo.name} className="w-full h-full object-cover" />
@@ -168,7 +176,7 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                     <div
                                         key={track.id}
                                         onClick={() => onPlaySong(track, tracks)}
-                                        className="group flex items-center py-3 px-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"
+                                        className={`group flex items-center py-3 px-2 rounded-xl ${itemHoverBg} cursor-pointer transition-colors`}
                                     >
                                         <div className="w-8 md:w-10 text-center text-sm font-medium opacity-30 group-hover:opacity-100" style={{ color: 'var(--text-secondary)' }}>
                                             {idx + 1}

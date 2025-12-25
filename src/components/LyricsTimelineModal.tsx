@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, MotionValue, useMotionValueEvent } from 'framer-motion';
 import { X } from 'lucide-react';
-import { LyricData } from '../types';
+import { LyricData, Theme } from '../types';
 
 interface LyricsTimelineModalProps {
     isOpen: boolean;
@@ -13,6 +13,7 @@ interface LyricsTimelineModalProps {
     primaryColor?: string;
     secondaryColor?: string;
     accentColor?: string;
+    theme?: Theme;
 }
 
 const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
@@ -24,8 +25,12 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     onSeek,
     primaryColor = 'var(--text-primary)',
     secondaryColor = 'var(--text-secondary)',
-    accentColor = 'var(--text-accent)'
+    accentColor = 'var(--text-accent)',
+    theme
 }) => {
+    const isDaylight = theme?.name === 'Daylight Default';
+    const glassBg = isDaylight ? 'bg-white/70' : 'bg-black/40';
+    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const [activeLineIndex, setActiveLineIndex] = useState(-1);
     const [isUserScrolling, setIsUserScrolling] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -173,7 +178,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.9, opacity: 0 }}
-                        className="w-[90vw] max-w-4xl h-[80vh] bg-black/40 border border-white/10 rounded-2xl p-8 relative flex flex-col"
+                        className={`w-[90vw] max-w-4xl h-[80vh] ${glassBg} border ${borderColor} rounded-2xl p-8 relative flex flex-col`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}

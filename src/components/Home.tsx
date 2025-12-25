@@ -92,6 +92,17 @@ const Home: React.FC<HomeProps> = ({
     onSetThemePreset
 }) => {
     const { t } = useTranslation();
+    const isDaylight = theme.name === 'Daylight Default';
+
+    // Style Variants
+    const mainBg = isDaylight ? 'bg-white/40' : 'bg-black/20';
+    const inputBg = isDaylight ? 'bg-black/5 focus:bg-black/10' : 'bg-white/5 focus:bg-white/10';
+    const resultItemBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
+    const cardBg = isDaylight ? 'bg-white/40' : 'bg-white/5';
+    const activeTabBg = isDaylight ? 'text-black font-bold' : 'text-black'; // When tab active (white bg), text is black
+    // For pill nav container
+    const navPillBg = isDaylight ? 'bg-black/5' : 'bg-white/10';
+    const navPillInactiveText = isDaylight ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white';
 
     // UI State
     const [searchQuery, setSearchQuery] = useState("");
@@ -262,6 +273,7 @@ const Home: React.FC<HomeProps> = ({
                     }}
                     onSelectAlbum={(id) => onSelectAlbum(id)}
                     onSelectArtist={onSelectArtist}
+                    theme={theme}
                 />
             ) : (
                 <motion.div
@@ -270,7 +282,8 @@ const Home: React.FC<HomeProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="relative w-full h-full flex flex-col font-sans overflow-hidden bg-black/20 pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar"
+
+                    className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar`}
                     style={{ color: 'var(--text-primary)' }}
                 // onTouchStart={onTouchStart}
                 // onTouchEnd={onTouchEnd}
@@ -295,7 +308,7 @@ const Home: React.FC<HomeProps> = ({
                             {/* Center: Tab Switcher */}
                             <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
                                 {user && (
-                                    <div className="flex relative bg-white/10 backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center">
+                                    <div className={`flex relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
                                         <div
                                             className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
                                             style={{
@@ -305,21 +318,21 @@ const Home: React.FC<HomeProps> = ({
                                         />
                                         <button
                                             onClick={() => setViewTab('playlist')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? 'text-black' : 'text-white/60 hover:text-white'
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? activeTabBg : navPillInactiveText
                                                 }`}
                                         >
                                             {t('home.playlists')}
                                         </button>
                                         <button
                                             onClick={() => setViewTab('albums')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'albums' ? 'text-black' : 'text-white/60 hover:text-white'
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'albums' ? activeTabBg : navPillInactiveText
                                                 }`}
                                         >
                                             {t('home.albums') || '专辑'}
                                         </button>
                                         <button
                                             onClick={() => setViewTab('local')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? 'text-black' : 'text-white/60 hover:text-white'
+                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? activeTabBg : navPillInactiveText
                                                 }`}
                                         >
                                             {t('localMusic.folder')}
@@ -347,7 +360,8 @@ const Home: React.FC<HomeProps> = ({
                                         placeholder={t('home.searchDatabase')}
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all placeholder:text-white/20"
+
+                                        className={`w-full ${inputBg} border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-white/20 transition-all placeholder:text-current placeholder:opacity-40`}
                                         style={{ color: 'var(--text-primary)' }}
                                     />
                                 </form>
@@ -359,7 +373,7 @@ const Home: React.FC<HomeProps> = ({
                     <div className="flex-1 flex flex-col items-center justify-center relative">
                         {!user ? (
                             <div className="flex flex-col items-center justify-center space-y-6">
-                                <div className="w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
+                                <div className={`w-24 h-24 rounded-3xl ${cardBg} border border-white/10 flex items-center justify-center backdrop-blur-md`}>
                                     <User size={40} className="opacity-20" />
                                 </div>
                                 <h2 className="text-3xl font-bold opacity-80">{t('home.welcomeBack')}</h2>
@@ -443,6 +457,7 @@ const Home: React.FC<HomeProps> = ({
                                                 setFocusedFolderIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedFolderIndex: index }))}
                                                 focusedAlbumIndex={localMusicState.focusedAlbumIndex}
                                                 setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
+                                                theme={theme}
                                             />
                                         </motion.div>
                                     )}
@@ -458,7 +473,9 @@ const Home: React.FC<HomeProps> = ({
                                 initial={{ opacity: 0, y: 50 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: 50 }}
-                                className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col p-6 md:p-12 overflow-hidden"
+
+                                className={`fixed inset-0 z-50 ${isDaylight ? 'bg-white/95' : 'bg-black/90'} backdrop-blur-xl flex flex-col p-6 md:p-12 overflow-hidden`}
+                                style={{ color: theme.primaryColor }}
                             >
                                 <div className="flex items-center justify-between mb-8 max-w-4xl mx-auto w-full">
                                     <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -491,7 +508,8 @@ const Home: React.FC<HomeProps> = ({
                                                         onQueueAddAndPlay(track);
                                                         setSearchResults(null);
                                                     }}
-                                                    className="flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer group transition-colors border border-transparent hover:border-white/10"
+
+                                                    className={`flex items-center gap-4 p-4 rounded-xl ${resultItemBg} cursor-pointer group transition-colors border border-transparent hover:border-white/10`}
                                                 >
                                                     <div className="w-12 h-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0 shadow-lg relative">
                                                         {(track.al?.picUrl || track.album?.picUrl) ? (
@@ -555,75 +573,81 @@ const Home: React.FC<HomeProps> = ({
                     </AnimatePresence>
 
                     {/* Login Modal */}
-                    {showLoginModal && (
-                        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4">
-                            <div className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl">
-                                <button
-                                    onClick={() => {
-                                        setShowLoginModal(false);
-                                        if (qrCheckInterval.current) clearInterval(qrCheckInterval.current);
-                                    }}
-                                    className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    ✕
-                                </button>
-                                <h3 className="text-lg font-bold mb-6" style={{ color: 'var(--text-primary)' }}>{t('home.loginTitle')}</h3>
+                    {
+                        showLoginModal && (
+                            <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4">
+                                <div className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl">
+                                    <button
+                                        onClick={() => {
+                                            setShowLoginModal(false);
+                                            if (qrCheckInterval.current) clearInterval(qrCheckInterval.current);
+                                        }}
+                                        className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        ✕
+                                    </button>
+                                    <h3 className="text-lg font-bold mb-6" style={{ color: 'var(--text-primary)' }}>{t('home.loginTitle')}</h3>
 
-                                <div className="relative inline-block bg-white p-2 rounded-xl mb-4 shadow-inner">
-                                    {qrCodeImg ? (
-                                        <img src={qrCodeImg} alt="QR Code" className="w-40 h-40" />
-                                    ) : (
-                                        <div className="w-40 h-40 flex items-center justify-center bg-gray-100 rounded-lg">
-                                            <Loader2 className="animate-spin text-gray-400" size={24} />
-                                        </div>
-                                    )}
+                                    <div className="relative inline-block bg-white p-2 rounded-xl mb-4 shadow-inner">
+                                        {qrCodeImg ? (
+                                            <img src={qrCodeImg} alt="QR Code" className="w-40 h-40" />
+                                        ) : (
+                                            <div className="w-40 h-40 flex items-center justify-center bg-gray-100 rounded-lg">
+                                                <Loader2 className="animate-spin text-gray-400" size={24} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <p className={`text-xs font-medium mt-2 ${qrStatus.includes('Success') ? 'text-green-400' : 'opacity-60'}`} style={{ color: qrStatus.includes('Success') ? undefined : 'var(--text-secondary)' }}>
+                                        {qrStatus}
+                                    </p>
+
+                                    <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('home.loginNote')}
+                                    </p>
                                 </div>
-
-                                <p className={`text-xs font-medium mt-2 ${qrStatus.includes('Success') ? 'text-green-400' : 'opacity-60'}`} style={{ color: qrStatus.includes('Success') ? undefined : 'var(--text-secondary)' }}>
-                                    {qrStatus}
-                                </p>
-
-                                <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('home.loginNote')}
-                                </p>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
 
                     {/* Help Modal */}
-                    {showHelpModal && (
-                        <HelpModal
-                            onClose={() => setShowHelpModal(false)}
-                            staticMode={staticMode}
-                            onToggleStaticMode={onToggleStaticMode}
-                            enableMediaCache={enableMediaCache}
-                            onToggleMediaCache={onToggleMediaCache}
-                            theme={theme}
-                            backgroundOpacity={backgroundOpacity}
-                            setBackgroundOpacity={setBackgroundOpacity}
-                            onSetThemePreset={onSetThemePreset}
-                        />
-                    )}
+                    {
+                        showHelpModal && (
+                            <HelpModal
+                                onClose={() => setShowHelpModal(false)}
+                                staticMode={staticMode}
+                                onToggleStaticMode={onToggleStaticMode}
+                                enableMediaCache={enableMediaCache}
+                                onToggleMediaCache={onToggleMediaCache}
+                                theme={theme}
+                                backgroundOpacity={backgroundOpacity}
+                                setBackgroundOpacity={setBackgroundOpacity}
+                                onSetThemePreset={onSetThemePreset}
+                            />
+                        )
+                    }
 
                     {/* User Avatar - Back to Player */}
-                    {user && (
-                        <div className="absolute bottom-8 right-8 z-[100]">
-                            <div
-                                onClick={onBackToPlayer}
-                                className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:scale-105 transition-all overflow-hidden shadow-lg"
-                                title="Return to Player"
-                            >
-                                <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover" />
+                    {
+                        user && (
+                            <div className="absolute bottom-8 right-8 z-[100]">
+                                <div
+                                    onClick={onBackToPlayer}
+                                    className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:scale-105 transition-all overflow-hidden shadow-lg"
+                                    title="Return to Player"
+                                >
+                                    <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover" />
 
-                                {/* Hover Overlay */}
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                                    <ChevronRight className="text-white" size={24} />
+                                    {/* Hover Overlay */}
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
+                                        <ChevronRight className="text-white" size={24} />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </motion.div>
+                        )
+                    }
+                </motion.div >
             )
             }
         </AnimatePresence >

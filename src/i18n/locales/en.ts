@@ -155,7 +155,12 @@ export default {
     "staticMode": "Static Mode",
     "enableStaticMode": "Static Mode",
     "enableStaticModeDesc": "Disable geometric backgrounds.",
-    "enableStaticModeDescSub": "Suitable for background playback."
+    "enableStaticModeDescSub": "Suitable for background playback.",
+    "visualSettings": "Visual Settings",
+    "backgroundOpacity": "Background Opacity",
+    "themePresets": "Theme Presets",
+    "themePresetsMidnight": "Midnight",
+    "themePresetsDaylight": "Daylight"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

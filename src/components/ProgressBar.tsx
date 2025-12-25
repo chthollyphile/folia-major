@@ -9,7 +9,9 @@ interface ProgressBarProps {
     onSeekEnd?: () => void;
     primaryColor?: string;
     secondaryColor?: string;
+    trackColor?: string;
 }
+
 
 const formatTime = (time: number) => {
     if (isNaN(time)) return "00:00";
@@ -25,7 +27,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     onSeekStart,
     onSeekEnd,
     primaryColor = 'white',
-    secondaryColor = 'rgba(255,255,255,0.5)'
+    secondaryColor = 'rgba(255,255,255,0.5)',
+    trackColor = 'rgba(255,255,255,0.1)'
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [localValue, setLocalValue] = useState(0);
@@ -102,7 +105,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                 00:00
             </span>
 
-            <div className="relative h-1.5 flex-1 bg-white/10 rounded-full flex items-center group cursor-pointer">
+            <div className="relative h-1.5 flex-1 rounded-full flex items-center group cursor-pointer" style={{ backgroundColor: trackColor }}>
                 <div
                     ref={progressRef}
                     className="absolute top-0 left-0 h-full rounded-full pointer-events-none"
