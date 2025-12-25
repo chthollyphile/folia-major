@@ -36,7 +36,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo(({ th
         // Icons move/fade faster (20s-40s), shapes move slower (30s-60s)
         duration: useIcon ? 20 + Math.random() * 20 : 30 + Math.random() * 30,
         delay: Math.random() * 5,
-        opacity: 0.06 + Math.random() * 0.08, // Increased opacity for better visibility
+        opacity: 0.11 + Math.random() * 0.08, // Increased opacity for better visibility
         reverse: Math.random() > 0.5,
         // Randomly decide if circle/square should be filled (30% chance filled)
         filled: Math.random() < 0.3,
