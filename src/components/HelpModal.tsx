@@ -171,7 +171,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                             {/* Author Info (Moved from Footer) */}
                             <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
                                 <p className="text-sm opacity-60 mb-1" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('help.madeBy') || "Made by"} <a href="https://github.com/chthollyphile" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile</a>
+                                    {t('help.madeBy') || "Made by"} <a href="https://github.com/chthollyphile/folia-major" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile</a>
                                 </p>
                                 <p className="text-xs font-mono opacity-30" style={{ color: 'var(--text-secondary)' }}>
                                     {t('help.version') || "Version"}: folia-major - {__GIT_BRANCH__} - {__COMMIT_HASH__}
