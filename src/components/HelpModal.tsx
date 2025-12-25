@@ -14,6 +14,7 @@ interface HelpModalProps {
     backgroundOpacity?: number;
     setBackgroundOpacity?: (opacity: number) => void;
     onSetThemePreset?: (preset: 'midnight' | 'daylight') => void;
+    isDaylight: boolean;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -25,7 +26,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
     theme,
     backgroundOpacity = 0.75,
     setBackgroundOpacity,
-    onSetThemePreset
+    onSetThemePreset,
+    isDaylight
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
@@ -72,7 +74,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
         setIsCleaning(null);
     };
 
-    const isDaylight = theme?.name === 'Daylight Default';
+    // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-900/90'; // Use slightly higher opacity for modal than panel
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const textColor = isDaylight ? 'text-zinc-800' : 'text-zinc-100';

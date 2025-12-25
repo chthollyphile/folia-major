@@ -14,6 +14,7 @@ interface LyricsTimelineModalProps {
     secondaryColor?: string;
     accentColor?: string;
     theme?: Theme;
+    isDaylight: boolean;
 }
 
 const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
@@ -26,9 +27,10 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     primaryColor = 'var(--text-primary)',
     secondaryColor = 'var(--text-secondary)',
     accentColor = 'var(--text-accent)',
-    theme
+    theme,
+    isDaylight
 }) => {
-    const isDaylight = theme?.name === 'Daylight Default';
+    // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-black/40';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
 

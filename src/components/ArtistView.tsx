@@ -12,10 +12,11 @@ interface ArtistViewProps {
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
     onSelectAlbum: (id: number) => void;
     theme: any;
+    isDaylight: boolean;
 }
 
-const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onSelectAlbum, theme }) => {
-    const isDaylight = theme?.name === 'Daylight Default';
+const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onSelectAlbum, theme, isDaylight }) => {
+    // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
     const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
     const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';

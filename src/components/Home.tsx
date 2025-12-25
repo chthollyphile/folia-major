@@ -55,6 +55,7 @@ interface HomeProps {
     backgroundOpacity: number;
     setBackgroundOpacity: (opacity: number) => void;
     onSetThemePreset: (preset: 'midnight' | 'daylight') => void;
+    isDaylight: boolean;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -89,10 +90,11 @@ const Home: React.FC<HomeProps> = ({
     theme,
     backgroundOpacity,
     setBackgroundOpacity,
-    onSetThemePreset
+    onSetThemePreset,
+    isDaylight
 }) => {
     const { t } = useTranslation();
-    const isDaylight = theme.name === 'Daylight Default';
+    // const isDaylight = theme.name === 'Daylight Default'; // Deprecated, passed as prop
 
     // Style Variants
     const mainBg = isDaylight ? 'bg-white/40' : 'bg-black/20';
@@ -274,6 +276,7 @@ const Home: React.FC<HomeProps> = ({
                     onSelectAlbum={(id) => onSelectAlbum(id)}
                     onSelectArtist={onSelectArtist}
                     theme={theme}
+                    isDaylight={isDaylight}
                 />
             ) : (
                 <motion.div
@@ -458,6 +461,7 @@ const Home: React.FC<HomeProps> = ({
                                                 focusedAlbumIndex={localMusicState.focusedAlbumIndex}
                                                 setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
                                                 theme={theme}
+                                                isDaylight={isDaylight}
                                             />
                                         </motion.div>
                                     )}
@@ -624,6 +628,7 @@ const Home: React.FC<HomeProps> = ({
                                 backgroundOpacity={backgroundOpacity}
                                 setBackgroundOpacity={setBackgroundOpacity}
                                 onSetThemePreset={onSetThemePreset}
+                                isDaylight={isDaylight}
                             />
                         )
                     }

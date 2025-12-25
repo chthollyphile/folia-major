@@ -106,6 +106,7 @@ export default function App() {
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account'>('cover');
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
     const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
+    const [aiTheme, setAiTheme] = useState<Theme | null>(null); // Store AI theme for bgMode switching
     const [isSyncing, setIsSyncing] = useState(false);
     const [cacheSize, setCacheSize] = useState<string>("0 B");
     const [audioQuality, setAudioQuality] = useState<'exhigh' | 'lossless' | 'hires'>(() => {
@@ -167,9 +168,34 @@ export default function App() {
         localStorage.setItem('background_opacity', String(opacity));
     };
 
+    const [defaultThemeDaylight, setDefaultThemeDaylight] = useState(() => {
+        const saved = localStorage.getItem('default_theme_daylight');
+        return saved !== null ? saved === 'true' : false;
+    });
+
+    const isDaylight = defaultThemeDaylight; // Master switch for UI mode
+
+    const handleToggleDaylight = (isLight: boolean) => {
+        setDefaultThemeDaylight(isLight);
+        localStorage.setItem('default_theme_daylight', String(isLight));
+
+        // If we are in default mode, update background only (preserve AI text colors)
+        if (bgMode === 'default') {
+            const baseTheme = isLight ? DAYLIGHT_THEME : DEFAULT_THEME;
+            if (aiTheme) {
+                // Compose: AI colors + default background
+                setTheme({
+                    ...aiTheme,
+                    backgroundColor: baseTheme.backgroundColor,
+                });
+            } else {
+                setTheme(baseTheme);
+            }
+        }
+    };
+
     // Apply Theme to Scrollbar globally
     useEffect(() => {
-        const isDaylight = theme.name === 'Daylight Default';
         const root = document.documentElement;
         if (isDaylight) {
             root.style.setProperty('--scrollbar-track', '#cccbcc');
@@ -180,7 +206,7 @@ export default function App() {
             root.style.setProperty('--scrollbar-thumb', '#3f3f46'); // zinc-700
             root.style.setProperty('--scrollbar-thumb-hover', '#52525b'); // zinc-600
         }
-    }, [theme]);
+    }, [isDaylight]);
 
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
@@ -455,6 +481,7 @@ export default function App() {
                 const cachedTheme = await getFromCache<Theme>(`theme_${lastSong.id}`);
                 if (cachedTheme) {
                     setTheme(cachedTheme);
+                    setAiTheme(cachedTheme); // Also store as aiTheme for bg mode switching
                     setBgMode('ai');
                 } else {
                     // Try to restore last used AI theme
@@ -466,6 +493,7 @@ export default function App() {
                             wordColors: [],
                             lyricsIcons: []
                         });
+                        setAiTheme(lastTheme); // Store original AI theme
                         setBgMode('ai');
                     } else {
                         console.log("[restoreSession] No cached theme, resetting to default");
@@ -1680,11 +1708,12 @@ export default function App() {
             const allText = lyrics.lines.map(l => l.fullText).join("\n");
 
             // Determine preference based on current theme, assuming user wants to stick to similar brightness
-            const isDaylight = theme.name === DAYLIGHT_THEME.name || (theme.backgroundColor && theme.backgroundColor.toLowerCase() === '#fcfcfc');
+            // We use the persistent setting for this preference now
             const themeMode = isDaylight ? 'light' : 'dark';
 
             const newTheme = await generateThemeFromLyrics(allText, themeMode);
             setTheme(newTheme);
+            setAiTheme(newTheme); // Store AI theme for bgMode switching
             setBgMode('ai'); // Auto switch to AI bg when generated
             setStatusMsg({ type: 'success', text: t('status.themeApplied', { themeName: newTheme.name }) });
 
@@ -1703,21 +1732,46 @@ export default function App() {
     };
 
     const handleResetTheme = () => {
-        setTheme(DEFAULT_THEME);
-        // We don't change bgMode here strictly, but usually default theme implies default BG
-        // If the user wants to keep AI text colors but default bg, they use the toggle.
-        // If they want to FULLY reset, we reset the theme object.
+        setTheme(isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME);
+        setAiTheme(null); // Clear stored AI theme
+        setBgMode('default'); // Reset to default mode
     };
 
     const handleSetThemePreset = (preset: 'midnight' | 'daylight') => {
-        if (preset === 'midnight') {
-            setTheme(DEFAULT_THEME);
-            setStatusMsg({ type: 'success', text: '默认主题: Midnight Default' });
+        const isLight = preset === 'daylight';
+        handleToggleDaylight(isLight);
+        setStatusMsg({ type: 'success', text: `默认主题: ${isLight ? 'Daylight' : 'Midnight'} Default` });
+        // NOTE: We don't force 'ai' mode here anymore, we just switch the default preference.
+        // If the user wants to use this as a base for AI, they can generate AI theme afterwards.
+    };
+
+    const handleBgModeChange = (mode: 'default' | 'ai') => {
+        setBgMode(mode);
+
+        if (mode === 'default') {
+            // When switching to default mode, preserve current AI theme if it exists
+            const isCurrentThemeAI = theme.name !== DEFAULT_THEME.name && theme.name !== DAYLIGHT_THEME.name;
+            if (isCurrentThemeAI && !aiTheme) {
+                setAiTheme(theme);
+            }
+            // Apply default background color only, keep AI text colors
+            const baseTheme = isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME;
+            const currentAiTheme = aiTheme || (isCurrentThemeAI ? theme : null);
+            if (currentAiTheme) {
+                setTheme({
+                    ...currentAiTheme,
+                    backgroundColor: baseTheme.backgroundColor,
+                });
+            } else {
+                setTheme(baseTheme);
+            }
         } else {
-            setTheme(DAYLIGHT_THEME);
-            setStatusMsg({ type: 'success', text: '默认主题: Daylight Default' });
+            // When switching to AI mode, restore the full AI theme
+            if (aiTheme) {
+                setTheme(aiTheme);
+            }
+            // If no AI theme stored, keep current theme (which might already be AI)
         }
-        setBgMode('ai');
     };
 
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
@@ -1839,7 +1893,7 @@ export default function App() {
 
     // Define dynamic style for theme variables
     const appStyle = {
-        '--bg-color': bgMode === 'ai' ? theme.backgroundColor : (theme.name === DAYLIGHT_THEME.name ? DAYLIGHT_THEME.backgroundColor : DEFAULT_THEME.backgroundColor),
+        '--bg-color': bgMode === 'ai' ? theme.backgroundColor : (isDaylight ? DAYLIGHT_THEME.backgroundColor : DEFAULT_THEME.backgroundColor),
         '--text-primary': theme.primaryColor,
         '--text-secondary': theme.secondaryColor,
         '--text-accent': theme.accentColor,
@@ -1941,6 +1995,7 @@ export default function App() {
                             enableMediaCache={enableMediaCache}
                             onToggleMediaCache={handleToggleMediaCache}
                             theme={theme}
+                            isDaylight={isDaylight}
                             backgroundOpacity={backgroundOpacity}
                             setBackgroundOpacity={handleSetBackgroundOpacity}
                             onSetThemePreset={handleSetThemePreset}
@@ -2055,6 +2110,7 @@ export default function App() {
                         }}
                         onSelectArtist={handleArtistSelect}
                         theme={theme}
+                        isDaylight={isDaylight}
                     />
                 )}
             </AnimatePresence>
@@ -2088,6 +2144,7 @@ export default function App() {
                         }}
                         onSelectAlbum={handleAlbumSelect}
                         theme={theme}
+                        isDaylight={isDaylight}
                     />
                 )}
             </AnimatePresence>
@@ -2138,6 +2195,7 @@ export default function App() {
                         primaryColor="var(--text-primary)"
                         secondaryColor="var(--text-secondary)"
                         theme={theme}
+                        isDaylight={isDaylight}
                     />
                 )
             }
@@ -2165,7 +2223,7 @@ export default function App() {
                         theme={theme}
                         onThemeChange={setTheme}
                         bgMode={bgMode}
-                        onBgModeChange={setBgMode}
+                        onBgModeChange={handleBgModeChange}
                         onResetTheme={handleResetTheme}
                         defaultTheme={DEFAULT_THEME}
                         daylightTheme={DAYLIGHT_THEME}
@@ -2183,6 +2241,8 @@ export default function App() {
                         isSyncing={isSyncing}
                         useCoverColorBg={useCoverColorBg}
                         onToggleCoverColorBg={handleToggleCoverColorBg}
+                        isDaylight={isDaylight}
+                        onToggleDaylight={() => handleToggleDaylight(!isDaylight)}
                     />
                 )
             }

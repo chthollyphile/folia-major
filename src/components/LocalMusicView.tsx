@@ -23,6 +23,7 @@ interface LocalMusicViewProps {
     focusedAlbumIndex?: number;
     setFocusedAlbumIndex?: (index: number) => void;
     theme: any;
+    isDaylight: boolean;
 }
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({
@@ -39,7 +40,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     setFocusedFolderIndex,
     focusedAlbumIndex = 0,
     setFocusedAlbumIndex,
-    theme
+    theme,
+    isDaylight
 }) => {
     const { t } = useTranslation();
 
@@ -250,6 +252,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onMatchSong={onMatchSong}
                 onRefresh={onRefresh}
                 theme={theme}
+                isDaylight={isDaylight}
             />
         );
     }

@@ -14,11 +14,12 @@ interface PlaylistViewProps {
   onPlayAll: (songs: SongResult[]) => void;
   onSelectAlbum: (albumId: number) => void;
   onSelectArtist: (artistId: number) => void;
-  theme: any; // Using any temporarily to avoid circular import if needed, or import Theme
+  theme: any;
+  isDaylight: boolean;
 }
 
-const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum, onSelectArtist, theme }) => {
-  const isDaylight = theme?.name === 'Daylight Default';
+const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum, onSelectArtist, theme, isDaylight }) => {
+  // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
   const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
   const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
   const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';

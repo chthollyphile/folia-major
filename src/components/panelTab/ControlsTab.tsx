@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Cone } from 'lucide-react';
+import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Cone, Sun, Moon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../../types';
 
@@ -21,6 +21,8 @@ interface ControlsTabProps {
     daylightTheme: Theme;
     useCoverColorBg: boolean;
     onToggleCoverColorBg: (enable: boolean) => void;
+    isDaylight: boolean;
+    onToggleDaylight: () => void;
 }
 
 const ControlsTab: React.FC<ControlsTabProps> = ({
@@ -40,9 +42,11 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     daylightTheme,
     useCoverColorBg,
     onToggleCoverColorBg,
+    isDaylight,
+    onToggleDaylight,
 }) => {
     const { t } = useTranslation();
-    const isDaylight = theme.name === 'Daylight Default';
+    // const isDaylight = theme.name === 'Daylight Default'; // Deprecated, passed as prop
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
     const activeIconBg = isDaylight ? 'bg-black text-white' : 'bg-white text-black';
     const wellBg = isDaylight ? 'bg-black/5' : 'bg-black/20';
@@ -105,13 +109,22 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
                         {t('ui.background')}
                     </label>
-                    <button
-                        onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
-                        className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
-                        title={useCoverColorBg ? '添加封面色彩' : '使用默认色彩'}
-                    >
-                        <Cone size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={onToggleDaylight}
+                            className={`p-1 rounded-md transition-all ${isDaylight ? 'text-amber-500' : 'text-blue-300'}`}
+                            title={isDaylight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                        >
+                            {isDaylight ? <Sun size={14} /> : <Moon size={14} />}
+                        </button>
+                        <button
+                            onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
+                            className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                            title={useCoverColorBg ? '添加封面色彩' : '使用默认色彩'}
+                        >
+                            <Cone size={14} />
+                        </button>
+                    </div>
                 </div>
                 <div className={`flex ${wellBg} p-1 rounded-xl`}>
                     <button
@@ -119,7 +132,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         className={`flex-1 py-1.5 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all
                             ${bgMode === 'default' ? activeOptionBg : 'opacity-40 hover:opacity-100'}`}
                     >
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: theme.name === daylightTheme.name ? daylightTheme.backgroundColor : defaultTheme.backgroundColor }}></div>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: isDaylight ? daylightTheme.backgroundColor : defaultTheme.backgroundColor }}></div>
                         {t('ui.default')}
                     </button>
                     <button

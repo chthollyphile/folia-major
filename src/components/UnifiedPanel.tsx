@@ -52,6 +52,8 @@ interface UnifiedPanelProps {
     isSyncing: boolean;
     useCoverColorBg: boolean;
     onToggleCoverColorBg: (enable: boolean) => void;
+    isDaylight: boolean;
+    onToggleDaylight: () => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -92,6 +94,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     isSyncing,
     useCoverColorBg,
     onToggleCoverColorBg,
+    isDaylight,
+    onToggleDaylight,
 }) => {
     const { t } = useTranslation();
 
@@ -103,7 +107,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     ];
 
     // Theme Helper
-    const isDaylight = theme.name === 'Daylight Default';
+    // const isDaylight = theme.name === 'Daylight Default'; // Deprecated
     const isAI = bgMode === 'ai'; // AI themes usually dark
     const glassBg = isDaylight ? 'bg-white/60' : 'bg-black/40';
     const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-900';
@@ -198,6 +202,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             daylightTheme={daylightTheme}
                                             useCoverColorBg={useCoverColorBg}
                                             onToggleCoverColorBg={onToggleCoverColorBg}
+                                            isDaylight={isDaylight}
+                                            onToggleDaylight={onToggleDaylight}
                                         />
                                     )}
                                     {currentTab === 'queue' && (
