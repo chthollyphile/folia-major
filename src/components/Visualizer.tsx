@@ -81,7 +81,7 @@ const Word: React.FC<{
             variants={variants}
             initial="waiting"
             animate={status}
-            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center will-change-transform"
+            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center"
             style={{
                 marginRight: config.marginRight,
                 alignSelf: config.alignSelf,
@@ -106,7 +106,7 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false }) => {
+const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false }) => {
     const { t } = useTranslation();
     const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
@@ -220,7 +220,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             x: config.x,
             y: config.y,
             rotate: config.rotate,
-            filter: "blur(0px)",
+            filter: "none",
             color: activeColor,
             textShadow: `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
             transition: {
@@ -230,6 +230,9 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
                 opacity: { duration: 0.1 },
                 color: { duration: 0.2 },
                 filter: { type: "tween", duration: 0.2 }
+            },
+            transitionEnd: {
+                filter: "none"
             }
         }),
         passed: ({ config, baseColor }: any) => ({
@@ -238,7 +241,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
             x: config.x,
             y: config.y,
             rotate: config.rotate + config.passedRotate,
-            filter: "blur(0px)",
+            filter: "none",
             color: baseColor,
             textShadow: "none",
             transition: {
@@ -247,6 +250,9 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
                     duration: 5,
                     ease: "linear"
                 }
+            },
+            transitionEnd: {
+                filter: "none"
             }
         })
     };
@@ -289,7 +295,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean }> = ({ curr
                         <motion.div
                             key={activeLine.startTime}
                             initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
-                            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: "none" } }}
                             exit={{ opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } }}
                             className={`flex flex-wrap w-full max-w-6xl content-center ${lineConfig.justifyContent} ${lineConfig.alignItems}`}
                             style={{ perspective: `${lineConfig.perspective}px`, minHeight: '300px' }}
