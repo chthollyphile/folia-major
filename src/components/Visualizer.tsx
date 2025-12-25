@@ -114,7 +114,7 @@ const Word: React.FC<{
                     <motion.span
                         key="ripple"
                         className="absolute inset-0 rounded-full border-1 pointer-events-none z-0"
-                        style={{ borderColor: activeColor }}
+                        style={{ borderColor: activeColor, filter: "blur(1px)" }}
                         initial={{ scale: 0.2, opacity: 0.8 }}
                         animate={{ scale: rippleScale, opacity: 0 }}
                         exit={{ opacity: 0 }}
@@ -281,7 +281,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
         }),
         passed: ({ baseColor }: any) => ({
             color: baseColor,
-            filter: "none",
+            filter: "blur(0px)",
             transition: { duration: 0.5 },
             transitionEnd: {
                 filter: "none"
