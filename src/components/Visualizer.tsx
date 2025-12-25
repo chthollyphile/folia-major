@@ -45,11 +45,13 @@ const Word: React.FC<{
     currentTime: MotionValue<number>;
     theme: Theme;
     isChaotic: boolean;
-    variants: Variants;
+    layoutVariants: Variants;
+    bodyVariants: Variants;
+    glowVariants: Variants;
     baseColor: string;
     activeColor: string;
     isChorus?: boolean;
-}> = ({ word, config, currentTime, theme, isChaotic, variants, baseColor, activeColor, isChorus }) => {
+}> = ({ word, config, currentTime, theme, isChaotic, layoutVariants, bodyVariants, glowVariants, baseColor, activeColor, isChorus }) => {
     const [status, setStatus] = useState<"waiting" | "active" | "passed">("waiting");
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
 
@@ -71,29 +73,47 @@ const Word: React.FC<{
     });
 
     return (
-        <motion.span
+        <motion.div
             key={`${config.id}`}
             custom={{
                 config,
                 activeColor,
                 baseColor
             }}
-            variants={variants}
+            variants={layoutVariants}
             initial="waiting"
             animate={status}
-            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center"
+            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center relative"
             style={{
                 marginRight: config.marginRight,
                 alignSelf: config.alignSelf,
             }}
         >
-            {word.text}
+            {/* Glow Layer - Handles Text Shadow - Absolute Position */}
+            <motion.span
+                variants={glowVariants}
+                custom={{ config, activeColor, baseColor }}
+                className="absolute inset-0 select-none pointer-events-none"
+                aria-hidden="true"
+            >
+                {word.text}
+            </motion.span>
+
+            {/* Body Layer - Handles Color and Blur - Relative Position */}
+            <motion.span
+                variants={bodyVariants}
+                custom={{ config, activeColor, baseColor }}
+                className="relative z-10 block"
+            >
+                {word.text}
+            </motion.span>
+
             {/* Chorus Ripple Effect */}
             <AnimatePresence>
                 {isChorus && status === 'active' && (
                     <motion.span
                         key="ripple"
-                        className="absolute inset-0 rounded-full border-1 pointer-events-none"
+                        className="absolute inset-0 rounded-full border-1 pointer-events-none z-0"
                         style={{ borderColor: activeColor }}
                         initial={{ scale: 0.2, opacity: 0.8 }}
                         animate={{ scale: rippleScale, opacity: 0 }}
@@ -102,7 +122,7 @@ const Word: React.FC<{
                     />
                 )}
             </AnimatePresence>
-        </motion.span>
+        </motion.div>
     );
 };
 
@@ -191,8 +211,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
                 x: (random(1) - 0.5) * baseSpread * 2,
                 y: (random(2) - 0.5) * baseSpread * 2,
                 rotate: (random(3) - 0.5) * baseRotate * 2,
-                scale: 0.8 + random(4) * 0.6,
-                marginRight: isChaotic ? `${random(5) * 1.5}rem` : '0.8rem',
+                scale: isChaotic ? 0.8 + random(4) * 0.6 : 1.2,
+                marginRight: isChaotic ? `${random(5) * 1.5}rem` : '0.4rem',
                 alignSelf: isChaotic && random(6) > 0.7 ? (random(7) > 0.5 ? 'flex-start' : 'flex-end') : 'auto',
                 passedRotate: (random(8) - 0.5) * 45
             };
@@ -202,37 +222,27 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
     }, [activeLine, theme.animationIntensity, staticMode]);
 
     // Animation Variants
-    const variants: Variants = {
-        waiting: ({ config, baseColor }: any) => ({
+    // Container: Layout (x, y, rotate, scale) + Opacity
+    const layoutVariants: Variants = {
+        waiting: ({ config }: any) => ({
             opacity: 0,
             scale: 0.5,
             x: config.x + (Math.sin(config.y) * 100),
             y: config.y + (Math.cos(config.x) * 50),
             rotate: config.rotate + 20,
-            filter: "blur(10px)",
-            color: baseColor,
-            textShadow: "none",
             transition: { duration: 0.4 }
         }),
-        active: ({ config, activeColor }: any) => ({
+        active: ({ config }: any) => ({
             opacity: 1,
             scale: isNaN(config.scale) ? 1.5 : config.scale * 1.3,
             x: config.x,
             y: config.y,
             rotate: config.rotate,
-            filter: "none",
-            color: activeColor,
-            textShadow: `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
             transition: {
                 type: "spring" as const,
                 stiffness: 200,
                 damping: 20,
-                opacity: { duration: 0.1 },
-                color: { duration: 0.2 },
-                filter: { type: "tween", duration: 0.2 }
-            },
-            transitionEnd: {
-                filter: "none"
+                opacity: { duration: 0.1 }
             }
         }),
         passed: ({ config, baseColor }: any) => ({
@@ -241,20 +251,62 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
             x: config.x,
             y: config.y,
             rotate: config.rotate + config.passedRotate,
-            filter: "none",
-            color: baseColor,
-            textShadow: "none",
             transition: {
                 duration: 0.5,
                 rotate: {
                     duration: 5,
                     ease: "linear"
                 }
+            }
+        })
+    };
+
+    // Body: Color + Filter
+    const bodyVariants: Variants = {
+        waiting: ({ baseColor }: any) => ({
+            color: baseColor,
+            filter: "blur(10px)",
+            transition: { duration: 0.4 }
+        }),
+        active: ({ activeColor }: any) => ({
+            color: activeColor,
+            filter: "none",
+            transition: {
+                color: { duration: 0.2 },
+                filter: { type: "tween", duration: 0.2 }
             },
             transitionEnd: {
                 filter: "none"
             }
+        }),
+        passed: ({ baseColor }: any) => ({
+            color: baseColor,
+            filter: "none",
+            transition: { duration: 0.5 },
+            transitionEnd: {
+                filter: "none"
+            }
         })
+    };
+
+    // Glow: Text Shadow only (Transparent text)
+    const glowVariants: Variants = {
+        waiting: {
+            color: "transparent",
+            textShadow: "none",
+        },
+        active: ({ activeColor }: any) => ({
+            color: "transparent",
+            textShadow: `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
+            transition: {
+                duration: 0.2
+            }
+        }),
+        passed: {
+            color: "transparent",
+            textShadow: "none",
+            transition: { duration: 0.5 }
+        }
     };
 
     return (
@@ -330,7 +382,9 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
                                         currentTime={currentTime}
                                         theme={theme}
                                         isChaotic={theme.animationIntensity === 'chaotic'}
-                                        variants={variants}
+                                        layoutVariants={layoutVariants}
+                                        bodyVariants={bodyVariants}
+                                        glowVariants={glowVariants}
                                         baseColor={theme.primaryColor}
                                         activeColor={activeColor}
                                         isChorus={activeLine.isChorus}
