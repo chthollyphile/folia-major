@@ -31,6 +31,16 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     const isDaylight = theme?.name === 'Daylight Default';
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-black/40';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
+
+    // Timeline Item Styles
+    const itemBg = isDaylight ? 'bg-white/60' : 'bg-black/60';
+    const itemBorder = isDaylight ? 'border-black/5' : 'border-white/10';
+    const itemHoverBg = isDaylight ? 'hover:bg-white/80' : 'hover:bg-black/70';
+    const itemTextPrimary = isDaylight ? 'text-zinc-800' : 'text-white';
+    const itemTextSecondary = isDaylight ? 'text-zinc-500' : 'text-white/60';
+    const headerText = isDaylight ? 'text-zinc-800/90' : 'text-white/90';
+    const closeIconColor = isDaylight ? 'text-zinc-800/70' : 'text-white/70';
+    const closeBtnHover = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10';
     const [activeLineIndex, setActiveLineIndex] = useState(-1);
     const [isUserScrolling, setIsUserScrolling] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -183,12 +193,12 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-8 flex-shrink-0">
-                            <h2 className="text-2xl font-bold text-white/90">时间线</h2>
+                            <h2 className={`text-2xl font-bold ${headerText}`}>时间线</h2>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                className={`p-2 ${closeBtnHover} rounded-full transition-colors`}
                             >
-                                <X size={24} className="text-white/70" />
+                                <X size={24} className={closeIconColor} />
                             </button>
                         </div>
 
@@ -235,18 +245,18 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                             className="max-w-[90%]"
                                                         >
                                                             <div
-                                                                className="inline-block bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg p-6 cursor-pointer hover:bg-black/70 transition-all"
+                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer ${itemHoverBg} transition-all`}
                                                                 onClick={() => {
                                                                     onSeek(dot.startTime);
                                                                 }}
                                                             >
                                                                 <div className="text-right">
-                                                                    <p className={`text-white font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
+                                                                    <p className={`${itemTextPrimary} font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
                                                                         }`}>
                                                                         {dot.fullText}
                                                                     </p>
                                                                     {dot.translation && (
-                                                                        <p className={`text-white/60 mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
+                                                                        <p className={`${itemTextSecondary} mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
                                                                             }`}>
                                                                             {dot.translation}
                                                                         </p>
@@ -288,18 +298,18 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                             className="max-w-[90%]"
                                                         >
                                                             <div
-                                                                className="inline-block bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg p-6 cursor-pointer hover:bg-black/70 transition-all"
+                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer ${itemHoverBg} transition-all`}
                                                                 onClick={() => {
                                                                     onSeek(dot.startTime);
                                                                 }}
                                                             >
                                                                 <div className="text-left">
-                                                                    <p className={`text-white font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
+                                                                    <p className={`${itemTextPrimary} font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
                                                                         }`}>
                                                                         {dot.fullText}
                                                                     </p>
                                                                     {dot.translation && (
-                                                                        <p className={`text-white/60 mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
+                                                                        <p className={`${itemTextSecondary} mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
                                                                             }`}>
                                                                             {dot.translation}
                                                                         </p>
@@ -320,18 +330,18 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                     className="hidden max-md:block absolute left-1/2 -translate-x-1/2 w-[90%]"
                                                 >
                                                     <div
-                                                        className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-lg p-6 cursor-pointer hover:bg-black/70 transition-all"
+                                                        className={`bg-black/60 backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer hover:bg-black/70 transition-all ${itemBg} ${itemHoverBg}`}
                                                         onClick={() => {
                                                             onSeek(dot.startTime);
                                                         }}
                                                     >
                                                         <div className="text-center">
-                                                            <p className={`text-white font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
+                                                            <p className={`${itemTextPrimary} font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
                                                                 }`}>
                                                                 {dot.fullText}
                                                             </p>
                                                             {dot.translation && (
-                                                                <p className={`text-white/60 mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
+                                                                <p className={`${itemTextSecondary} mt-1 transition-all ${isActive ? 'text-sm' : 'text-xs'
                                                                     }`}>
                                                                     {dot.translation}
                                                                 </p>
@@ -344,7 +354,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                     })}
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-center h-full text-white/40">
+                                <div className={`flex items-center justify-center h-full ${itemTextSecondary}`}>
                                     无歌词
                                 </div>
                             )}
