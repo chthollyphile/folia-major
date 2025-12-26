@@ -328,6 +328,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                             textBottomClass="-bottom-1"
                                             initialFocusedIndex={focusedFolderIndex}
                                             onFocusedIndexChange={setFocusedFolderIndex}
+                                            isDaylight={isDaylight}
                                         />
                                     </div>
                                 </motion.div>
@@ -351,6 +352,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                             textBottomClass="-bottom-1"
                                             initialFocusedIndex={focusedAlbumIndex}
                                             onFocusedIndexChange={setFocusedAlbumIndex}
+                                            isDaylight={isDaylight}
                                         />
                                     </div>
                                 </motion.div>

@@ -414,6 +414,7 @@ const Home: React.FC<HomeProps> = ({
                                                 emptyMessage={t('home.noAlbums') || "No favorite albums found"}
                                                 initialFocusedIndex={focusedFavoriteAlbumIndex}
                                                 onFocusedIndexChange={setFocusedFavoriteAlbumIndex}
+                                                isDaylight={isDaylight}
                                             />
                                         </motion.div>
                                     ) : viewTab === 'playlist' ? (
@@ -435,6 +436,7 @@ const Home: React.FC<HomeProps> = ({
                                                 emptyMessage={t('home.loadingLibrary')}
                                                 initialFocusedIndex={focusedPlaylistIndex}
                                                 onFocusedIndexChange={setFocusedPlaylistIndex}
+                                                isDaylight={isDaylight}
                                             />
                                         </motion.div>
                                     ) : (

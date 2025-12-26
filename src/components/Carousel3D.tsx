@@ -74,9 +74,10 @@ interface Carousel3DProps {
     textBottomClass?: string;
     initialFocusedIndex?: number;
     onFocusedIndexChange?: (index: number) => void;
+    isDaylight?: boolean;
 }
 
-const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24", initialFocusedIndex = 0, onFocusedIndexChange }) => {
+const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24", initialFocusedIndex = 0, onFocusedIndexChange, isDaylight = false }) => {
     const { t } = useTranslation();
     const [focusedIndex, setFocusedIndex] = useState(initialFocusedIndex);
     const [showMap, setShowMap] = useState(false);
@@ -262,15 +263,15 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col p-8"
+                        className={`absolute inset-0 z-50 backdrop-blur-md flex flex-col p-8 ${isDaylight ? 'bg-white/80' : 'bg-black/80'}`}
                     >
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white/90">{t('home.allAlbums') || 'All Albums'}</h3>
+                            <h3 className={`text-xl font-bold ${isDaylight ? 'text-black/90' : 'text-white/90'}`}>{t('home.allAlbums') || 'All Albums'}</h3>
                             <button
                                 onClick={() => setShowMap(false)}
-                                className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+                                className={`p-2 rounded-full transition-colors ${isDaylight ? 'bg-black/10 hover:bg-black/20' : 'bg-white/10 hover:bg-white/20'}`}
                             >
-                                <X className="text-white" size={24} />
+                                <X className={isDaylight ? 'text-black' : 'text-white'} size={24} />
                             </button>
                         </div>
 
@@ -290,28 +291,29 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                                         className="group cursor-pointer flex flex-col items-center gap-3 w-28 md:w-32 transition-transform duration-300 hover:scale-105"
                                     >
                                         <div className={`relative w-28 h-28 md:w-32 md:h-32 rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ${focusedIndex === index
-                                            ? 'ring-4 ring-white/80 scale-105'
-                                            : 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-white/30'
+                                            ? isDaylight ? 'ring-4 ring-black/80 scale-105' : 'ring-4 ring-white/80 scale-105'
+                                            : isDaylight ? 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-black/30' : 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-white/30'
                                             }`}>
                                             {item.coverUrl ? (
                                                 <img src={item.coverUrl.replace('http:', 'https:')} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
                                             ) : (
-                                                <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-                                                    <Disc size={32} className="opacity-20 text-white" />
+                                                <div className={`w-full h-full flex items-center justify-center ${isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'}`}>
+                                                    <Disc size={32} className={`opacity-20 ${isDaylight ? 'text-black' : 'text-white'}`} />
                                                 </div>
                                             )}
 
-                                            {/* Overlay for non-selected items to dim them slightly? Optional. */}
+                                            {/* Overlay for non-selected items to dim them slightly */}
                                             {focusedIndex !== index && (
-                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+                                                <div className={`absolute inset-0 group-hover:bg-transparent transition-colors ${isDaylight ? 'bg-white/20' : 'bg-black/20'}`} />
                                             )}
                                         </div>
 
                                         <div className="text-center w-full">
-                                            <div className={`text-xs font-bold truncate ${focusedIndex === index ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
+                                            <div className={`text-xs font-bold truncate ${focusedIndex === index
+                                                ? isDaylight ? 'text-black' : 'text-white'
+                                                : isDaylight ? 'text-black/70 group-hover:text-black' : 'text-white/70 group-hover:text-white'}`}>
                                                 {item.name}
                                             </div>
-                                            {/* Optional description if space permits, but keeping it clean for cards */}
                                         </div>
                                     </div>
                                 ))}
@@ -326,7 +328,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                 <motion.button
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="absolute top-4 left-1/2 -translate-x-1/2 z-40 p-3 rounded-full hover:bg-white/10 transition-all text-white/50 hover:text-white"
+                    className={`absolute top-4 left-1/2 -translate-x-1/2 z-40 p-3 rounded-full transition-all ${isDaylight ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-white/50 hover:text-white'}`}
                     onClick={() => setShowMap(true)}
                     title={t('home.allAlbums') || 'Show All'}
                 >
