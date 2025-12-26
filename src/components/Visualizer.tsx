@@ -84,7 +84,7 @@ const Word: React.FC<{
             variants={layoutVariants}
             initial="waiting"
             animate={status}
-            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center relative"
+            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center relative will-change-transform"
             style={{
                 marginRight: config.marginRight,
                 alignSelf: config.alignSelf,
@@ -129,12 +129,9 @@ const Word: React.FC<{
 
 const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ currentTime, currentLineIndex, lines, theme, audioPower, audioBands, showText = true, coverUrl, useCoverColorBg = false, seed, staticMode = false, backgroundOpacity = 0.75 }) => {
     const { t } = useTranslation();
-    const [currentTimeValue, setCurrentTimeValue] = useState(0);
 
-    // Track current time for finding most recent lyric (for translation display)
-    useMotionValueEvent(currentTime, "change", (latest: number) => {
-        setCurrentTimeValue(latest);
-    });
+    // Read current time directly from MotionValue (no state, no re-renders)
+    const currentTimeValue = currentTime.get();
 
     const activeLine = lines[currentLineIndex];
 

@@ -1608,6 +1608,10 @@ export default function App() {
         }
     }, [audioSrc, isLyricsLoading]);
 
+    // Ref to track currentLineIndex inside animation loop (avoid callback recreation)
+    const currentLineIndexRef = useRef(currentLineIndex);
+    currentLineIndexRef.current = currentLineIndex;
+
     // Sync Logic & Audio Power
     const updateLoop = useCallback(() => {
         // 1. Audio Power / Visualizer Data
@@ -1674,23 +1678,23 @@ export default function App() {
 
             if (lyrics) {
                 let foundIndex = -1;
-                if (currentLineIndex !== -1 &&
-                    lyrics.lines[currentLineIndex] &&
-                    time >= lyrics.lines[currentLineIndex].startTime &&
-                    time <= lyrics.lines[currentLineIndex].endTime) {
-                    foundIndex = currentLineIndex;
+                if (currentLineIndexRef.current !== -1 &&
+                    lyrics.lines[currentLineIndexRef.current] &&
+                    time >= lyrics.lines[currentLineIndexRef.current].startTime &&
+                    time <= lyrics.lines[currentLineIndexRef.current].endTime) {
+                    foundIndex = currentLineIndexRef.current;
                 } else {
                     foundIndex = lyrics.lines.findIndex(l => time >= l.startTime && time <= l.endTime);
                 }
                 // Update currentLineIndex whenever it changes, including when moving to -1 (no active lyric)
-                if (foundIndex !== currentLineIndex) {
+                if (foundIndex !== currentLineIndexRef.current) {
                     setCurrentLineIndex(foundIndex);
                 }
             }
         }
 
         animationFrameRef.current = requestAnimationFrame(updateLoop);
-    }, [lyrics, currentLineIndex, audioPower, playerState]);
+    }, [lyrics, audioPower, playerState]);
 
     useEffect(() => {
         animationFrameRef.current = requestAnimationFrame(updateLoop);
