@@ -107,6 +107,7 @@ export interface LocalSong {
   duration: number; // milliseconds
   fileSize: number; // bytes
   mimeType: string;
+  bitrate?: number; // bps
   addedAt: number; // timestamp
 
   // Extracted metadata from file tags
@@ -130,6 +131,12 @@ export interface LocalSong {
   hasManualLyricSelection?: boolean;
   folderName?: string; // Name of the folder if imported via folder import
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
+
+  // Local Lyrics
+  hasLocalLyrics?: boolean;
+  localLyricsContent?: string;
+  hasLocalTranslationLyrics?: boolean;
+  localTranslationLyricsContent?: string;
 }
 
 // Extend SongResult to support local files

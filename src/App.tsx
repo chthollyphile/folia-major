@@ -103,8 +103,9 @@ export default function App() {
     // UI State
     const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success' | 'info', text: string; } | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
-    const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account'>('cover');
+    const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local'>('cover');
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
+
     const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
     const [aiTheme, setAiTheme] = useState<Theme | null>(null); // Store AI theme for bgMode switching
     const [isSyncing, setIsSyncing] = useState(false);
@@ -804,7 +805,10 @@ export default function App() {
         let updatedLocalSong = localSong;
         let matchedSongResult: SongResult | null = null;
 
-        if ((!localSong.matchedLyrics || !localSong.matchedCoverUrl) && !localSong.noAutoMatch) {
+        // Only match online if: no local lyrics AND (no matched lyrics OR no matched cover) AND auto-match is enabled
+        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.matchedLyrics;
+        const needsCoverMatch = !localSong.embeddedCover && !localSong.matchedCoverUrl;
+        if ((needsLyricsMatch || needsCoverMatch) && !localSong.noAutoMatch) {
             setStatusMsg({ type: 'info', text: '正在匹配歌词和封面...' });
             try {
                 const { matchLyrics } = await import('./services/localMusicService');
@@ -884,10 +888,23 @@ export default function App() {
             embeddedCoverUrl = URL.createObjectURL(updatedLocalSong.embeddedCover);
         }
 
-        // Use updated data, prioritizing embedded metadata
+        // Use updated data, prioritizing embedded metadata and local lyrics
         const coverUrl = embeddedCoverUrl || updatedLocalSong.matchedCoverUrl || null;
-        const lyrics = updatedLocalSong.matchedLyrics || null;
         const matchedSong = matchedSongResult;
+
+        // Prioritize local lyrics over online matched lyrics
+        let lyrics: LyricData | null = null;
+        if (updatedLocalSong.hasLocalLyrics && updatedLocalSong.localLyricsContent) {
+            // Parse local LRC file content
+            lyrics = parseLRC(
+                updatedLocalSong.localLyricsContent,
+                updatedLocalSong.localTranslationLyricsContent || ''
+            );
+            console.log('[App] Using local lyrics file');
+        } else if (updatedLocalSong.matchedLyrics) {
+            lyrics = updatedLocalSong.matchedLyrics;
+            console.log('[App] Using online matched lyrics');
+        }
 
         // Convert LocalSong to SongResult-like format for playback
         // Use a negative ID to distinguish local songs from cloud songs
@@ -1211,7 +1228,11 @@ export default function App() {
                     }
 
                     // Lyrics
-                    if (currentLocalData.matchedLyrics) {
+                    if (currentLocalData.hasLocalLyrics && currentLocalData.localLyricsContent) {
+                        // Parse local existing lyrics
+                        const parsed = parseLRC(currentLocalData.localLyricsContent, currentLocalData.localTranslationLyricsContent || "");
+                        setLyrics(parsed);
+                    } else if (currentLocalData.matchedLyrics) {
                         setLyrics(currentLocalData.matchedLyrics);
                     } else {
                         setLyrics(null);
@@ -1891,6 +1912,67 @@ export default function App() {
         }
     };
 
+    const handleUpdateLocalLyrics = async (content: string, isTranslation: boolean) => {
+        if (!currentSong || !((currentSong as any).isLocal || currentSong.id < 0)) return;
+
+        const localData = (currentSong as any).localData as LocalSong;
+        if (!localData) return;
+
+        const updatedLocalSong = { ...localData };
+        if (isTranslation) {
+            updatedLocalSong.hasLocalTranslationLyrics = true;
+            updatedLocalSong.localTranslationLyricsContent = content;
+        } else {
+            updatedLocalSong.hasLocalLyrics = true;
+            updatedLocalSong.localLyricsContent = content;
+        }
+
+        // Save to DB
+        try {
+            const { saveLocalSong } = await import('./services/db');
+            await saveLocalSong(updatedLocalSong);
+
+            // Re-run onPlayLocalSong to handle everything (parsing, merging) properly
+            onPlayLocalSong(updatedLocalSong, localSongs);
+
+            setStatusMsg({ type: 'success', text: isTranslation ? 'Translation lyrics updated' : 'Lyrics updated' });
+        } catch (e) {
+            console.error("Failed to save local lyrics", e);
+            setStatusMsg({ type: 'error', text: 'Failed to save lyrics' });
+        }
+    };
+
+    const handleManualMatchOnline = async () => {
+        if (!currentSong || !((currentSong as any).isLocal || currentSong.id < 0)) return;
+        const localData = (currentSong as any).localData as LocalSong;
+        if (!localData) return;
+
+        setStatusMsg({ type: 'info', text: 'Matching online...' });
+        try {
+            const { matchLyrics } = await import('./services/localMusicService');
+            // Force search
+            const matchedLyrics = await matchLyrics(localData);
+
+            if (matchedLyrics) {
+                // Determine matched song details? matchLyrics updates localData internally in service?
+                // Yes, lines 281-292 in localMusicService.ts updates song and saves it.
+
+                // So we just need to reload
+                await loadLocalSongs();
+                const updatedList = await getLocalSongs();
+                const found = updatedList.find(s => s.id === localData.id);
+                if (found) {
+                    onPlayLocalSong(found, localSongs);
+                    setStatusMsg({ type: 'success', text: 'Match successful' });
+                }
+            } else {
+                setStatusMsg({ type: 'error', text: 'No match found' });
+            }
+        } catch (e) {
+            setStatusMsg({ type: 'error', text: 'Match failed' });
+        }
+    };
+
     const handleContainerClick = () => {
         if (isPanelOpen) setIsPanelOpen(false);
     };
@@ -2247,6 +2329,8 @@ export default function App() {
                         onToggleCoverColorBg={handleToggleCoverColorBg}
                         isDaylight={isDaylight}
                         onToggleDaylight={() => handleToggleDaylight(!isDaylight)}
+                        onMatchOnline={handleManualMatchOnline}
+                        onUpdateLocalLyrics={handleUpdateLocalLyrics}
                     />
                 )
             }

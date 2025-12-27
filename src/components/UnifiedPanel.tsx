@@ -1,14 +1,15 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon } from 'lucide-react';
+import { Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import CoverTab from './panelTab/CoverTab';
 import ControlsTab from './panelTab/ControlsTab';
 import QueueTab from './panelTab/QueueTab';
 import AccountTab from './panelTab/AccountTab';
+import LocalTab from './panelTab/LocalTab';
 
-export type PanelTab = 'cover' | 'controls' | 'queue' | 'account';
+export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local';
 
 interface UnifiedPanelProps {
     isOpen: boolean;
@@ -54,6 +55,9 @@ interface UnifiedPanelProps {
     onToggleCoverColorBg: (enable: boolean) => void;
     isDaylight: boolean;
     onToggleDaylight: () => void;
+    // Local Tab Props
+    onMatchOnline: () => void;
+    onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -96,8 +100,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onToggleCoverColorBg,
     isDaylight,
     onToggleDaylight,
+    onMatchOnline,
+    onUpdateLocalLyrics
 }) => {
     const { t } = useTranslation();
+
+    const isLocal = currentSong && ((currentSong as any).isLocal || currentSong.id < 0);
 
     const tabs = [
         { id: 'cover' as PanelTab, label: t('panel.cover'), icon: Disc },
@@ -105,6 +113,10 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         { id: 'queue' as PanelTab, label: t('panel.playlist'), icon: ListMusic },
         { id: 'account' as PanelTab, label: t('panel.account'), icon: UserIcon },
     ];
+
+    if (isLocal) {
+        tabs.splice(1, 0, { id: 'local' as PanelTab, label: 'Local', icon: FileAudio });
+    }
 
     // Theme Helper
     // const isDaylight = theme.name === 'Daylight Default'; // Deprecated
@@ -230,6 +242,14 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onToggle();
                                                 onNavigateHome();
                                             }}
+                                        />
+                                    )}
+                                    {currentTab === 'local' && isLocal && (
+                                        <LocalTab
+                                            // @ts-ignore
+                                            currentSong={currentSong}
+                                            onMatchOnline={onMatchOnline}
+                                            onUpdateLocalLyrics={onUpdateLocalLyrics}
                                         />
                                     )}
                                 </div>
