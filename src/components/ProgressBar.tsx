@@ -105,10 +105,10 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                 00:00
             </span>
 
-            <div className="relative h-1.5 flex-1 rounded-full flex items-center group cursor-pointer" style={{ backgroundColor: trackColor }}>
+            <div className="relative h-1.5 flex-1 rounded-sm md:rounded-full flex items-center group cursor-pointer" style={{ backgroundColor: trackColor }}>
                 <div
                     ref={progressRef}
-                    className="absolute top-0 left-0 h-full rounded-full pointer-events-none"
+                    className="absolute top-0 left-0 h-full rounded-sm md:rounded-full pointer-events-none"
                     style={{ width: '0%', backgroundColor: primaryColor }}
                 />
                 <input
