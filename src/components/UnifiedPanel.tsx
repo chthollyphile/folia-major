@@ -250,6 +250,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             currentSong={currentSong}
                                             onMatchOnline={onMatchOnline}
                                             onUpdateLocalLyrics={onUpdateLocalLyrics}
+                                            isDaylight={isDaylight}
                                         />
                                     )}
                                 </div>

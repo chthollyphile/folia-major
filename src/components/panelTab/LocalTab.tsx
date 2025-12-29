@@ -8,6 +8,7 @@ interface LocalTabProps {
     currentSong: UnifiedSong;
     onMatchOnline: () => void;
     onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
+    isDaylight: boolean;
 }
 
 const formatBytes = (bytes: number) => {
@@ -18,7 +19,7 @@ const formatBytes = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdateLocalLyrics }) => {
+const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdateLocalLyrics, isDaylight }) => {
     const { t } = useTranslation();
     const lrcInputRef = useRef<HTMLInputElement>(null);
     const tlrcInputRef = useRef<HTMLInputElement>(null);
@@ -114,8 +115,17 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                         <span className="text-sm">Original</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalLyrics ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60'}`}>
-                            {localData.hasLocalLyrics ? 'Local' : 'None'}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalLyrics
+                                ? 'bg-green-500/20 text-green-300'
+                                : (localData.matchedLyrics?.lines?.length ?? 0) > 0
+                                    ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
+                                    : 'bg-white/10 opacity-60'
+                            }`}>
+                            {localData.hasLocalLyrics
+                                ? 'Local'
+                                : (localData.matchedLyrics?.lines?.length ?? 0) > 0
+                                    ? 'Online'
+                                    : 'None'}
                         </span>
                         <button
                             onClick={() => lrcInputRef.current?.click()}
@@ -141,8 +151,17 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                         <span className="text-sm">Translation</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalTranslationLyrics ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60'}`}>
-                            {localData.hasLocalTranslationLyrics ? 'Local' : 'None'}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalTranslationLyrics
+                                ? 'bg-green-500/20 text-green-300'
+                                : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
+                                    ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
+                                    : 'bg-white/10 opacity-60'
+                            }`}>
+                            {localData.hasLocalTranslationLyrics
+                                ? 'Local'
+                                : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
+                                    ? 'Online'
+                                    : 'None'}
                         </span>
                         <button
                             onClick={() => tlrcInputRef.current?.click()}
