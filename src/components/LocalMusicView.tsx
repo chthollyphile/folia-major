@@ -15,8 +15,8 @@ interface LocalMusicViewProps {
     onPlaylistVisibilityChange?: (isOpen: boolean) => void;
     activeRow: 0 | 1;
     setActiveRow: (row: 0 | 1) => void;
-    selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
-    setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null) => void;
+    selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; id?: string; } | null;
+    setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; id?: string; } | null) => void;
     onMatchSong?: (song: LocalSong) => void;
     focusedFolderIndex?: number;
     setFocusedFolderIndex?: (index: number) => void;
@@ -54,6 +54,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     // const [activeRow, setActiveRow] = useState<0 | 1>(0); 
     // const [selectedGroup, setSelectedGroup] = useState<{ type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null>(null);
 
+    const [coverVersion, setCoverVersion] = useState(0);
+
     // Grouping Logic
     const groups = useMemo(() => {
         const folders: Record<string, LocalSong[]> = {};
@@ -70,7 +72,10 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             // Use matched album info if available, otherwise fallback to metadata
             let albumKey = t('localMusic.unknownAlbum');
             let albumName = t('localMusic.unknownAlbum');
+
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             let coverUrl = undefined;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             let albumId: number | undefined = undefined;
 
             if (song.matchedSongId && song.matchedAlbumId) {
@@ -91,13 +96,38 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             }
         });
 
+        // Helper to determine best cover for a group
+        const getGroupCover = (groupType: 'folder' | 'album', groupName: string, songs: LocalSong[]) => {
+            const prefKey = `local_cover_pref_${groupType}_${groupName}`;
+            const prefId = localStorage.getItem(prefKey);
+
+            // 1. User Preference
+            if (prefId) {
+                const prefSong = songs.find(s => s.id === prefId);
+                if (prefSong) {
+                    if (prefSong.embeddedCover) return URL.createObjectURL(prefSong.embeddedCover);
+                    if (prefSong.matchedCoverUrl) return prefSong.matchedCoverUrl;
+                }
+            }
+
+            // 2. Embedded Cover (First found)
+            const embedded = songs.find(s => s.embeddedCover);
+            if (embedded?.embeddedCover) {
+                return URL.createObjectURL(embedded.embeddedCover);
+            }
+
+            // 3. Matched Cover (First found)
+            const matched = songs.find(s => s.matchedCoverUrl);
+            return matched?.matchedCoverUrl;
+        };
+
         // Sort folders alphabetically
         const folderList = Object.entries(folders).map(([name, songs]) => ({
             id: `folder-${name}`,
             name,
             songs,
             type: 'folder' as const,
-            coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
+            coverUrl: getGroupCover('folder', name, songs),
             trackCount: songs.length,
             description: t('localMusic.folder')
         })).sort((a, b) => a.name.localeCompare(b.name));
@@ -113,7 +143,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 name,
                 songs,
                 type: 'album' as const,
-                coverUrl: songs.find(s => s.matchedCoverUrl)?.matchedCoverUrl,
+                coverUrl: getGroupCover('album', key, songs),
                 trackCount: songs.length,
                 description: songs[0]?.artist || t('localMusic.unknownArtist'),
                 albumId: representative.matchedAlbumId
@@ -121,7 +151,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         }).sort((a, b) => a.name.localeCompare(b.name));
 
         return { folders: folderList, albums: albumList };
-    }, [localSongs]);
+    }, [localSongs, coverVersion, t]);
 
     const handleFolderImport = async () => {
         setIsImporting(true);
@@ -241,6 +271,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 title={selectedGroup.name}
                 coverUrl={selectedGroup.coverUrl}
                 songs={selectedGroup.songs}
+                groupId={selectedGroup.id}
                 onBack={() => {
                     setSelectedGroup(null);
                     onPlaylistVisibilityChange?.(false);
@@ -253,6 +284,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onRefresh={onRefresh}
                 theme={theme}
                 isDaylight={isDaylight}
+                onUpdateCover={() => setCoverVersion(v => v + 1)}
             />
         );
     }

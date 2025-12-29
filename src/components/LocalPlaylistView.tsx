@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, Folder, RefreshCw, Trash2, Pencil } from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Play, ChevronLeft, Disc, Loader2, Folder, RefreshCw, Trash2, Pencil, Image as ImageIcon, X, Check } from 'lucide-react';
 import { LocalSong, SongResult } from '../types';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
 import DeleteFolderConfirmModal from './DeleteFolderConfirmModal';
 import LyricMatchModal from './LyricMatchModal';
@@ -11,6 +11,7 @@ interface LocalPlaylistViewProps {
     title: string;
     coverUrl?: string;
     songs: LocalSong[];
+    groupId?: string;
     onBack: () => void;
     onPlaySong: (song: LocalSong, queue?: LocalSong[]) => void;
     isFolderView?: boolean;
@@ -20,9 +21,10 @@ interface LocalPlaylistViewProps {
     onRefresh?: () => void;
     theme: any;
     isDaylight: boolean;
+    onUpdateCover?: () => void;
 }
 
-const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong, onRefresh, theme, isDaylight }) => {
+const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, songs, groupId, onBack, onPlaySong, isFolderView = false, onResync, onDelete, onMatchSong, onRefresh, theme, isDaylight, onUpdateCover }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
     const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
@@ -37,6 +39,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isResyncing, setIsResyncing] = useState(false);
     const [matchingSong, setMatchingSong] = useState<LocalSong | null>(null);
+    const [showCoverSelection, setShowCoverSelection] = useState(false);
 
     const formatDuration = (ms: number) => {
         const minutes = Math.floor(ms / 60000);
@@ -50,6 +53,43 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    // Filter songs that actully have a cover
+    const songsWithCovers = useMemo(() => {
+        return songs.filter(s => s.embeddedCover || s.matchedCoverUrl);
+    }, [songs]);
+
+    const handleCoverSelect = (songId: string) => {
+        if (!groupId) return;
+
+        // Extract the key part from groupId (e.g. "folder-Check" -> "Check")
+        // But getGroupCover uses the raw name/key.
+        // Let's decode how we constructed groupId in LocalMusicView.
+        // For folders: `folder-${name}`
+        // For albums: `album-${key}`
+
+        let storeKey = '';
+        if (groupId.startsWith('folder-')) {
+            const name = groupId.substring(7);
+            storeKey = `local_cover_pref_folder_${name}`;
+        } else if (groupId.startsWith('album-')) {
+            const key = groupId.substring(6);
+            storeKey = `local_cover_pref_album_${key}`;
+        } else {
+            console.warn('Unknown groupId format', groupId);
+            return;
+        }
+
+        localStorage.setItem(storeKey, songId);
+        onUpdateCover?.();
+        setShowCoverSelection(false);
+    };
+
+    // Helper to get Blob URL safely for list rendering
+    const getSongCover = (song: LocalSong) => {
+        if (song.embeddedCover) return URL.createObjectURL(song.embeddedCover);
+        return song.matchedCoverUrl;
     };
 
     return (
@@ -81,12 +121,25 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                 >
                     {/* Album Art */}
                     <div
-                        className="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 bg-zinc-800 flex items-center justify-center"
+                        className="group w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-2xl overflow-hidden mb-6 relative mt-12 md:mt-0 mx-auto md:mx-0 bg-zinc-800 flex items-center justify-center"
                     >
                         {coverUrl ? (
                             <img src={coverUrl} alt={title} className="w-full h-full object-cover" />
                         ) : (
                             <Folder size={64} className="opacity-20" />
+                        )}
+
+                        {/* Edit Cover Button Overlay */}
+                        {onUpdateCover && songsWithCovers.length > 0 && (
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                <button
+                                    onClick={() => setShowCoverSelection(true)}
+                                    className="p-3 rounded-full bg-white/20 hover:bg-white/30 transition-colors text-white"
+                                    title={t('localMusic.changeCover')}
+                                >
+                                    <ImageIcon size={24} />
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -207,6 +260,67 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                 </div>
 
             </div>
+
+            {/* Cover Selection Modal */}
+            <AnimatePresence>
+                {showCoverSelection && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setShowCoverSelection(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className={`w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl ${glassBg} overflow-hidden shadow-2xl`}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between p-4 border-b border-white/10">
+                                <h2 className="text-lg font-bold flex items-center gap-2">
+                                    <ImageIcon size={20} />
+                                    {t('localMusic.chooseCover')}
+                                </h2>
+                                <button onClick={() => setShowCoverSelection(false)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                                {songsWithCovers.length === 0 ? (
+                                    <div className="p-8 text-center opacity-50">
+                                        {t('localMusic.noCoversFound')}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {songsWithCovers.map(song => (
+                                            <button
+                                                key={song.id}
+                                                onClick={() => handleCoverSelect(song.id)}
+                                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors text-left group"
+                                            >
+                                                <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800 shrink-0">
+                                                    <img src={getSongCover(song)} className="w-full h-full object-cover" loading="lazy" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium truncate text-sm">{song.title || song.fileName}</div>
+                                                    <div className="text-xs opacity-50 truncate">{song.artist || 'Unknown Artist'}</div>
+                                                </div>
+                                                {/* Visual indicator handled by logic, here just hover effect */}
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Check size={16} />
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Delete Confirmation Modal */}
             {isFolderView && onDelete && (
