@@ -416,6 +416,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                         setSelectedSong(null);
                     }}
                     onMatch={handleManualLyricMatch}
+                    isDaylight={isDaylight}
                 />
             )}
         </div>

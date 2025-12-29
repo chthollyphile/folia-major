@@ -13,10 +13,24 @@ interface LyricMatchModalProps {
     song: LocalSong;
     onClose: () => void;
     onMatch: () => void;
+    isDaylight: boolean;
 }
 
-const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatch }) => {
+const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatch, isDaylight }) => {
     const { t } = useTranslation();
+
+    // Dynamic theme classes based on isDaylight
+    const bgClass = isDaylight ? 'bg-white/90 border-white/20' : 'bg-zinc-900/95 border-white/10';
+    const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
+    const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
+    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
+    const inputBg = isDaylight ? 'bg-black/5 focus:bg-black/10 border-black/10 focus:border-black/20' : 'bg-white/5 focus:bg-white/10 border-white/10 focus:border-white/20';
+    const searchBtnBg = isDaylight ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600' : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300';
+    const resultItemBg = isDaylight ? 'bg-black/5 hover:bg-black/10 border-black/5' : 'bg-white/5 hover:bg-white/10 border-white/5';
+    const resultItemSelected = isDaylight ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-500/20 border-blue-500/50';
+    const closeBtnHover = isDaylight ? 'hover:bg-zinc-200/50' : 'hover:bg-white/10';
+    const cancelBtnBg = isDaylight ? 'bg-zinc-100/80 hover:bg-zinc-200' : 'bg-white/5 hover:bg-white/10';
+    const noMatchBtnBg = isDaylight ? 'bg-red-500/5 hover:bg-red-500/10 border-red-500/10' : 'bg-red-500/10 hover:bg-red-500/20 border-red-500/20';
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<SongResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -163,26 +177,26 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
-            <div className="bg-zinc-900/95 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex items-center justify-center p-6">
+            <div className={`${bgClass} border rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl backdrop-blur-md`}>
                 {/* Header */}
-                <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                <div className={`p-6 border-b ${borderColor} flex items-center justify-between`}>
                     <div>
-                        <h2 className="text-xl font-bold">{t('localMusic.matchLyrics')}</h2>
-                        <p className="text-sm opacity-60 mt-1">
+                        <h2 className={`text-xl font-bold ${textPrimary}`}>{t('localMusic.matchLyrics')}</h2>
+                        <p className={`text-sm ${textSecondary} mt-1`}>
                             {t('localMusic.matchLyricsDescription')} <span className="font-semibold">{song.title || song.fileName}</span>
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                        className={`p-2 ${closeBtnHover} rounded-lg transition-colors ${textPrimary}`}
                     >
                         <X size={20} />
                     </button>
                 </div>
 
                 {/* Search Bar */}
-                <div className="p-6 border-b border-white/10">
+                <div className={`p-6 border-b ${borderColor}`}>
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
@@ -195,14 +209,14 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder={t('localMusic.searchForSong')}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all"
+                            className={`w-full ${inputBg} border rounded-lg py-3 pl-10 pr-4 focus:outline-none transition-all ${textPrimary}`}
                             autoFocus
                         />
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" size={18} />
+                        <Search className={`absolute left-3 top-1/2 -translate-y-1/2 opacity-40 ${textSecondary}`} size={18} />
                         <button
                             type="submit"
                             disabled={isSearching}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-md text-sm transition-colors disabled:opacity-50"
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 ${searchBtnBg} rounded-md text-sm transition-colors disabled:opacity-50`}
                         >
                             {isSearching ? t('localMusic.searching') : t('localMusic.search')}
                         </button>
@@ -216,7 +230,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             <Loader2 className="animate-spin opacity-50" size={32} />
                         </div>
                     ) : searchResults.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 opacity-50">
+                        <div className={`flex flex-col items-center justify-center h-40 opacity-50 ${textSecondary}`}>
                             <Music size={48} className="mb-3" />
                             <p>{t('localMusic.noResults')}</p>
                         </div>
@@ -227,8 +241,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                     key={result.id}
                                     onClick={() => setSelectedResult(result)}
                                     className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all border ${selectedResult?.id === result.id
-                                        ? 'bg-blue-500/20 border-blue-500/50'
-                                        : 'bg-white/5 hover:bg-white/10 border-white/5'
+                                        ? resultItemSelected
+                                        : resultItemBg
                                         }`}
                                 >
                                     {/* Album Cover */}
@@ -248,8 +262,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
                                     {/* Song Info */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold truncate">{formatSongName(result)}</div>
-                                        <div className="text-sm opacity-60 truncate">
+                                        <div className={`font-semibold truncate ${textPrimary}`}>{formatSongName(result)}</div>
+                                        <div className={`text-sm truncate ${textSecondary}`}>
                                             {result.ar?.map(a => a.name).join(', ')} • {result.al?.name || result.album?.name}
                                         </div>
                                     </div>
@@ -265,16 +279,16 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-white/10 flex justify-end gap-3">
+                <div className={`p-6 border-t ${borderColor} flex justify-end gap-3`}>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                        className={`px-6 py-2 ${cancelBtnBg} rounded-lg transition-colors ${textPrimary}`}
                     >
                         {t('localMusic.cancel')}
                     </button>
                     <button
                         onClick={handleNoMatch}
-                        className="px-6 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors mr-auto"
+                        className={`px-6 py-2 ${noMatchBtnBg} text-red-400 border rounded-lg transition-colors mr-auto`}
                     >
                         {t('localMusic.dontUseOnlineMetadata')}
                     </button>

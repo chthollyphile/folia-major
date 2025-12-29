@@ -343,6 +343,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                         setMatchingSong(null);
                         if (onRefresh) onRefresh(); // Refresh list to show new metadata
                     }}
+                    isDaylight={isDaylight}
                 />
             )}
         </motion.div>
