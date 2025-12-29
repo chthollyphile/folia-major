@@ -176,21 +176,6 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     trackColor,
     isDaylight
 }) => {
-    const formatTime = (time: number) => {
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const [currentTimeValue, setCurrentTimeValue] = React.useState(0);
-
-    React.useEffect(() => {
-        const unsubscribe = currentTime.on('change', (latest) => {
-            setCurrentTimeValue(latest);
-        });
-        return () => unsubscribe();
-    }, [currentTime]);
-
     return (
         <>
             {/* Desktop Layout - hidden on mobile */}
