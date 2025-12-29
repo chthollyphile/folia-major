@@ -517,70 +517,142 @@ export default function App() {
 
                 // Load resources silently (without auto-playing)
                 try {
-                    // Try cache first for audio
-                    const cachedAudio = await getFromCache<Blob>(`audio_${lastSong.id}`);
-                    if (cachedAudio) {
-                        const blobUrl = URL.createObjectURL(cachedAudio);
-                        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-                        blobUrlRef.current = blobUrl;
-                        setAudioSrc(blobUrl);
-                    } else {
-                        const urlRes = await neteaseApi.getSongUrl(lastSong.id, audioQuality);
-                        let url = urlRes.data?.[0]?.url;
-                        if (url) {
-                            if (url.startsWith('http:')) {
-                                url = url.replace('http:', 'https:');
-                            }
-                            setAudioSrc(url);
-                        }
-                    }
+                    // Check if this is a local song
+                    const isLocalSong = (lastSong as any).isLocal || lastSong.id < 0;
 
-                    // Try cache first for lyrics
-                    const cachedLyrics = await getFromCache<LyricData>(`lyric_${lastSong.id}`);
-                    if (cachedLyrics) {
-                        setLyrics(cachedLyrics);
-                    } else {
-                        const lyricRes = await neteaseApi.getLyric(lastSong.id);
-                        const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-                        const mainLrc = lyricRes.lrc?.lyric;
-                        const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
-                        const tlyric = lyricRes.tlyric?.lyric || "";
+                    if (isLocalSong) {
+                        // For local songs, we need to try to restore from localSongs list
+                        // FileSystemFileHandle cannot be serialized to IndexedDB
+                        console.log("[restoreSession] Detected local song, attempting to restore from file handles...");
 
-                        // Use ytlrc for YRC if available, otherwise fallback to tlyric.
-                        // For standard LRC, use tlyric.
-                        const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
+                        // Wait for localSongs to be loaded (loadLocalSongs runs in parallel)
+                        // We'll try to match by name and duration
+                        const localData = (lastSong as any).localData;
+                        let songToRestore: LocalSong | undefined;
 
-                        let parsed: LyricData | null = null;
-                        if (yrcLrc) {
-                            parsed = parseYRC(yrcLrc, transLrc);
-                        } else if (mainLrc) {
-                            parsed = parseLRC(mainLrc, transLrc);
+                        // Load local songs if not already loaded
+                        const songs = await getLocalSongs();
+
+                        if (localData?.id) {
+                            // Try to find by original local ID
+                            songToRestore = songs.find(s => s.id === localData.id);
                         }
 
-                        // Chorus Detection
-                        if (parsed && !lyricRes.pureMusic && !lyricRes.lrc?.pureMusic && mainLrc) {
-                            const chorusLines = detectChorusLines(mainLrc);
-                            if (chorusLines.size > 0) {
-                                // Assign a stable random effect for each unique chorus line text
-                                const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
-                                const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+                        if (!songToRestore) {
+                            // Fallback: match by name and duration
+                            songToRestore = songs.find(s =>
+                                (s.title || s.fileName) === lastSong.name &&
+                                Math.abs(s.duration - lastSong.duration) < 1000
+                            );
+                        }
 
-                                chorusLines.forEach(text => {
-                                    const randomEffect = effects[Math.floor(Math.random() * effects.length)];
-                                    effectMap.set(text, randomEffect);
+                        if (songToRestore) {
+                            // Try to get audio from the file handle
+                            const blobUrl = await getAudioFromLocalSong(songToRestore);
+                            if (blobUrl) {
+                                if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+                                blobUrlRef.current = blobUrl;
+                                setAudioSrc(blobUrl);
+                                console.log("[restoreSession] Successfully restored local song audio");
+
+                                // Also restore local lyrics if available
+                                if (songToRestore.hasLocalLyrics && songToRestore.localLyricsContent) {
+                                    const localLyrics = parseLRC(
+                                        songToRestore.localLyricsContent,
+                                        songToRestore.localTranslationLyricsContent || ''
+                                    );
+                                    setLyrics(localLyrics);
+                                } else if (songToRestore.matchedLyrics) {
+                                    setLyrics(songToRestore.matchedLyrics);
+                                }
+
+                                // Restore cover
+                                if (songToRestore.embeddedCover) {
+                                    setCachedCoverUrl(URL.createObjectURL(songToRestore.embeddedCover));
+                                } else if (songToRestore.matchedCoverUrl) {
+                                    setCachedCoverUrl(songToRestore.matchedCoverUrl);
+                                }
+                            } else {
+                                // File handle is no longer valid (permission revoked or file moved)
+                                console.warn("[restoreSession] Local song file not accessible - needs resync");
+                                setStatusMsg({
+                                    type: 'info',
+                                    text: '本地歌曲文件需要重新授权访问，请从本地音乐列表重新选择播放'
                                 });
-
-                                parsed.lines.forEach(line => {
-                                    const text = line.fullText.trim();
-                                    if (chorusLines.has(text)) {
-                                        line.isChorus = true;
-                                        line.chorusEffect = effectMap.get(text);
-                                    }
-                                });
+                            }
+                        } else {
+                            console.warn("[restoreSession] Could not find local song in library");
+                            setStatusMsg({
+                                type: 'info',
+                                text: '上次播放的本地歌曲已不在曲库中'
+                            });
+                        }
+                    } else {
+                        // Cloud song - original logic
+                        const cachedAudio = await getFromCache<Blob>(`audio_${lastSong.id}`);
+                        if (cachedAudio) {
+                            const blobUrl = URL.createObjectURL(cachedAudio);
+                            if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+                            blobUrlRef.current = blobUrl;
+                            setAudioSrc(blobUrl);
+                        } else {
+                            const urlRes = await neteaseApi.getSongUrl(lastSong.id, audioQuality);
+                            let url = urlRes.data?.[0]?.url;
+                            if (url) {
+                                if (url.startsWith('http:')) {
+                                    url = url.replace('http:', 'https:');
+                                }
+                                setAudioSrc(url);
                             }
                         }
 
-                        setLyrics(parsed);
+                        // Try cache first for lyrics (cloud songs only)
+                        const cachedLyrics = await getFromCache<LyricData>(`lyric_${lastSong.id}`);
+                        if (cachedLyrics) {
+                            setLyrics(cachedLyrics);
+                        } else {
+                            const lyricRes = await neteaseApi.getLyric(lastSong.id);
+                            const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
+                            const mainLrc = lyricRes.lrc?.lyric;
+                            const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
+                            const tlyric = lyricRes.tlyric?.lyric || "";
+
+                            // Use ytlrc for YRC if available, otherwise fallback to tlyric.
+                            // For standard LRC, use tlyric.
+                            const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
+
+                            let parsed: LyricData | null = null;
+                            if (yrcLrc) {
+                                parsed = parseYRC(yrcLrc, transLrc);
+                            } else if (mainLrc) {
+                                parsed = parseLRC(mainLrc, transLrc);
+                            }
+
+                            // Chorus Detection
+                            if (parsed && !lyricRes.pureMusic && !lyricRes.lrc?.pureMusic && mainLrc) {
+                                const chorusLines = detectChorusLines(mainLrc);
+                                if (chorusLines.size > 0) {
+                                    // Assign a stable random effect for each unique chorus line text
+                                    const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
+                                    const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+
+                                    chorusLines.forEach(text => {
+                                        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+                                        effectMap.set(text, randomEffect);
+                                    });
+
+                                    parsed.lines.forEach(line => {
+                                        const text = line.fullText.trim();
+                                        if (chorusLines.has(text)) {
+                                            line.isChorus = true;
+                                            line.chorusEffect = effectMap.get(text);
+                                        }
+                                    });
+                                }
+                            }
+
+                            setLyrics(parsed);
+                        }
                     }
                 } catch (e) {
                     console.warn("Failed to restore audio/lyrics for last session", e);
