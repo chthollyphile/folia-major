@@ -219,9 +219,9 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                         >
                             {dots.length > 0 ? (
                                 <div className="relative py-8">
-                                    {/* Vertical Center Line */}
+                                    {/* Vertical Center Line - left aligned on mobile */}
                                     <div
-                                        className="absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2"
+                                        className="absolute left-1/2 max-md:left-[6px] top-0 bottom-0 w-[2px] -translate-x-1/2 max-md:translate-x-0"
                                         style={{ backgroundColor: secondaryColor, opacity: 0.3 }}
                                     />
 
@@ -271,8 +271,8 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                     )}
                                                 </div>
 
-                                                {/* Center Dot */}
-                                                <div className="flex-shrink-0 z-10">
+                                                {/* Center Dot - left aligned on mobile */}
+                                                <div className="flex-shrink-0 z-10 max-md:absolute max-md:left-0">
                                                     <motion.div
                                                         animate={{
                                                             scale: isActive ? 1.5 : 1,
@@ -324,22 +324,22 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                     )}
                                                 </div>
 
-                                                {/* Mobile layout - center overlay */}
+                                                {/* Mobile layout - left aligned with dot */}
                                                 <motion.div
                                                     animate={{
                                                         scale: isActive ? 1 : 0.85,
                                                         opacity: isActive ? 1 : 0.7
                                                     }}
                                                     transition={{ duration: 0.3 }}
-                                                    className="hidden max-md:block absolute left-1/2 -translate-x-1/2 w-[90%]"
+                                                    className="hidden max-md:block absolute left-6 right-0"
                                                 >
                                                     <div
-                                                        className={`bg-black/60 backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer hover:bg-black/70 transition-all ${itemBg} ${itemHoverBg}`}
+                                                        className={`${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-4 cursor-pointer ${itemHoverBg} transition-all`}
                                                         onClick={() => {
                                                             onSeek(dot.startTime);
                                                         }}
                                                     >
-                                                        <div className="text-center">
+                                                        <div className="text-left">
                                                             <p className={`${itemTextPrimary} font-medium transition-all ${isActive ? 'text-base' : 'text-sm'
                                                                 }`}>
                                                                 {dot.fullText}
