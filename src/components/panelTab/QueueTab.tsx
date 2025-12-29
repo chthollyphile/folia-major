@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { List, useListRef, type ListImperativeAPI } from 'react-window';
 import { Shuffle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 
 interface QueueTabProps {
@@ -21,6 +22,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     shouldScrollToCurrent = false,
     onShuffle
 }) => {
+    const { t } = useTranslation();
     const ITEM_HEIGHT = 50;
     // Adjust container height calculation if needed, or rely on flex
     // previously CONTAINER_HEIGHT = 200 was passed to List. 
@@ -108,7 +110,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
         return (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px]">
                 <div className="flex items-center justify-center h-full text-xs opacity-40">
-                    播放列表为空
+                    {t('queue.empty')}
                 </div>
             </motion.div>
         );
@@ -119,13 +121,13 @@ const QueueTab: React.FC<QueueTabProps> = ({
             {/* Header */}
             <div className="flex items-center justify-between px-2 pb-2 shrink-0">
                 <span className="text-xs font-medium opacity-60">
-                    播放队列 ({playQueue.length})
+                    {t('queue.title')} ({playQueue.length})
                 </span>
                 {onShuffle && (
                     <button
                         onClick={onShuffle}
                         className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
-                        title="打乱队列"
+                        title={t('queue.shuffle')}
                     >
                         <Shuffle size={14} />
                     </button>

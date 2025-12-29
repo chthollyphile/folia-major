@@ -29,7 +29,7 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
     if (!currentSong.isLocal || !localData) {
         return (
             <div className="flex items-center justify-center h-full opacity-60">
-                Not a local song
+                {t('localMusic.notALocalSong')}
             </div>
         );
     }
@@ -60,27 +60,23 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
             {/* File Info */}
             <div className="space-y-3">
                 <h3 className="text-sm font-semibold opacity-50 uppercase tracking-wider flex items-center gap-2">
-                    <FileAudio size={14} /> File Info
+                    <FileAudio size={14} /> {t('localMusic.fileInfo')}
                 </h3>
                 <div className="bg-white/5 rounded-xl p-3 space-y-2 text-sm">
                     <div className="flex justify-between">
-                        <span className="opacity-60">Filename</span>
+                        <span className="opacity-60">{t('localMusic.filename')}</span>
                         <span className="font-mono text-xs opacity-80 truncate max-w-[150px]" title={localData.fileName}>
                             {localData.fileName}
                         </span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="opacity-60">Size</span>
-                        <span className="font-mono text-xs opacity-80">{formatBytes(localData.fileSize)}</span>
+                        <span className="opacity-60">{t('localMusic.size')}</span>
+                        <span className="font-mono text-xs opacity-80 truncate max-w-[150px]" title={`${formatBytes(localData.fileSize)}${localData.bitrate ? ` / ${Math.round(localData.bitrate / 1000)} kbps` : ''}`}>
+                            {formatBytes(localData.fileSize)}{localData.bitrate && ` / ${Math.round(localData.bitrate / 1000)} kbps`}
+                        </span>
                     </div>
-                    {localData.bitrate && (
-                        <div className="flex justify-between">
-                            <span className="opacity-60">Bitrate</span>
-                            <span className="font-mono text-xs opacity-80">{Math.round(localData.bitrate / 1000)} kbps</span>
-                        </div>
-                    )}
                     <div className="flex justify-between">
-                        <span className="opacity-60">Path</span>
+                        <span className="opacity-60">{t('localMusic.path')}</span>
                         <span className="font-mono text-xs opacity-80 truncate max-w-[150px]" title={localData.filePath}>
                             {localData.folderName}/{localData.fileName}
                         </span>
@@ -88,49 +84,46 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                 </div>
             </div>
 
-            {/* Metadata Match */}
-            <div className="space-y-3">
-                <h3 className="text-sm font-semibold opacity-50 uppercase tracking-wider flex items-center gap-2">
-                    <RefreshCw size={14} /> Metadata
-                </h3>
-                <button
-                    onClick={onMatchOnline}
-                    className="w-full py-2 bg-white/10 hover:bg-white/20 active:bg-white/30 transition-colors rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                >
-                    <RefreshCw size={14} />
-                    Match Online Info
-                </button>
-            </div>
+
 
             {/* Lyrics Management */}
             <div className="space-y-3">
-                <h3 className="text-sm font-semibold opacity-50 uppercase tracking-wider flex items-center gap-2">
-                    <FileText size={14} /> Lyrics
-                </h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold opacity-50 uppercase tracking-wider flex items-center gap-2">
+                        <FileText size={14} /> {t('localMusic.lyrics')}
+                    </h3>
+                    <button
+                        onClick={onMatchOnline}
+                        className="px-3 py-1 bg-white/10 hover:bg-white/20 active:bg-white/30 transition-colors rounded-lg text-xs font-medium flex items-center gap-1.5"
+                    >
+                        <RefreshCw size={12} />
+                        {t('localMusic.matchOnline')}
+                    </button>
+                </div>
 
                 {/* Original Lyrics */}
                 <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 pl-3">
                     <div className="flex items-center gap-2">
                         <FileText size={16} className="opacity-60" />
-                        <span className="text-sm">Original</span>
+                        <span className="text-sm">{t('localMusic.original')}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalLyrics
-                                ? 'bg-green-500/20 text-green-300'
-                                : (localData.matchedLyrics?.lines?.length ?? 0) > 0
-                                    ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
-                                    : 'bg-white/10 opacity-60'
+                            ? 'bg-green-500/20 text-green-300'
+                            : (localData.matchedLyrics?.lines?.length ?? 0) > 0
+                                ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
+                                : 'bg-white/10 opacity-60'
                             }`}>
                             {localData.hasLocalLyrics
-                                ? 'Local'
+                                ? t('localMusic.statusLocal')
                                 : (localData.matchedLyrics?.lines?.length ?? 0) > 0
-                                    ? 'Online'
-                                    : 'None'}
+                                    ? t('localMusic.statusOnline')
+                                    : t('localMusic.statusNone')}
                         </span>
                         <button
                             onClick={() => lrcInputRef.current?.click()}
                             className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
-                            title="Select LRC File"
+                            title={t('localMusic.selectLrcFile')}
                         >
                             <Upload size={14} />
                         </button>
@@ -148,25 +141,25 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                 <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 pl-3">
                     <div className="flex items-center gap-2">
                         <Languages size={16} className="opacity-60" />
-                        <span className="text-sm">Translation</span>
+                        <span className="text-sm">{t('localMusic.translation')}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalTranslationLyrics
-                                ? 'bg-green-500/20 text-green-300'
-                                : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
-                                    ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
-                                    : 'bg-white/10 opacity-60'
+                            ? 'bg-green-500/20 text-green-300'
+                            : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
+                                ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
+                                : 'bg-white/10 opacity-60'
                             }`}>
                             {localData.hasLocalTranslationLyrics
-                                ? 'Local'
+                                ? t('localMusic.statusLocal')
                                 : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
-                                    ? 'Online'
-                                    : 'None'}
+                                    ? t('localMusic.statusOnline')
+                                    : t('localMusic.statusNone')}
                         </span>
                         <button
                             onClick={() => tlrcInputRef.current?.click()}
                             className="p-1.5 hover:bg-white/10 rounded-md transition-colors"
-                            title="Select Translation LRC"
+                            title={t('localMusic.selectTranslationLrc')}
                         >
                             <Upload size={14} />
                         </button>
@@ -180,7 +173,7 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                     </div>
                 </div>
             </div>
-        </motion.div>
+        </motion.div >
     );
 };
 

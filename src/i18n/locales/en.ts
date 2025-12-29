@@ -85,7 +85,8 @@ export default {
     "playAll": "Play All",
     "loadMore": "Load More",
     "headerTitle": "Title",
-    "headerTime": "Time"
+    "headerTime": "Time",
+    "loading": "Loading"
   },
   "home": {
     "welcome": "Welcome to Folia",
@@ -195,6 +196,37 @@ export default {
     "resyncFailed": "Failed to resync folder. Please try again.",
     "deleteFailed": "Failed to delete folder. Please try again.",
     "matchFailed": "Failed to fetch lyrics for selected song",
-    "dontUseOnlineMetadata": "Don't use online metadata"
+    "dontUseOnlineMetadata": "Don't use online metadata",
+    "notALocalSong": "Not a local song",
+    "fileInfo": "File Info",
+    "filename": "Filename",
+    "size": "Size",
+    "path": "Path",
+    "lyrics": "Lyrics",
+    "matchOnline": "Match Online",
+    "original": "Original",
+    "translation": "Translation",
+    "statusLocal": "Local",
+    "statusOnline": "Online",
+    "statusNone": "None",
+    "selectLrcFile": "Select LRC File",
+    "selectTranslationLrc": "Select Translation LRC"
+  },
+  "queue": {
+    "empty": "Queue is empty",
+    "title": "Play Queue",
+    "shuffle": "Shuffle Queue"
+  },
+  "theme": {
+    "switchToDark": "Switch to Dark Mode",
+    "switchToLight": "Switch to Light Mode",
+    "addCoverColor": "Add Cover Color",
+    "useDefaultColor": "Use Default Color",
+    "midnightDefault": "Midnight Default",
+    "daylightDefault": "Daylight Default"
+  },
+  "timeline": {
+    "title": "Timeline",
+    "noLyrics": "No lyrics"
   }
 } as const;

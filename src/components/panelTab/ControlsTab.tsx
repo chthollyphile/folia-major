@@ -113,14 +113,14 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         <button
                             onClick={onToggleDaylight}
                             className={`p-1 rounded-md transition-all ${isDaylight ? 'text-amber-500' : 'text-blue-300'}`}
-                            title={isDaylight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                            title={isDaylight ? t('theme.switchToDark') : t('theme.switchToLight')}
                         >
                             {isDaylight ? <Sun size={14} /> : <Moon size={14} />}
                         </button>
                         <button
                             onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
                             className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
-                            title={useCoverColorBg ? '添加封面色彩' : '使用默认色彩'}
+                            title={useCoverColorBg ? t('theme.addCoverColor') : t('theme.useDefaultColor')}
                         >
                             <Cone size={14} />
                         </button>
@@ -150,7 +150,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
             <div className="pt-2 border-t border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold truncate max-w-[120px]">
-                        {theme.name === defaultTheme.name ? "Midnight Default" : (theme.name === daylightTheme.name ? "Daylight Default" : theme.name)}
+                        {theme.name === defaultTheme.name ? t('theme.midnightDefault') : (theme.name === daylightTheme.name ? t('theme.daylightDefault') : theme.name)}
                     </span>
                     {(theme.name !== defaultTheme.name && theme.name !== daylightTheme.name) && (
                         <button

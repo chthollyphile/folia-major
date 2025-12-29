@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, MotionValue, useMotionValueEvent } from 'framer-motion';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { LyricData, Theme } from '../types';
 
 interface LyricsTimelineModalProps {
@@ -30,6 +31,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     theme,
     isDaylight
 }) => {
+    const { t } = useTranslation();
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-black/40';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
@@ -195,7 +197,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                     >
                         {/* Header */}
                         <div className="flex justify-between items-center mb-8 flex-shrink-0">
-                            <h2 className={`text-2xl font-bold ${headerText}`}>时间线</h2>
+                            <h2 className={`text-2xl font-bold ${headerText}`}>{t('timeline.title')}</h2>
                             <button
                                 onClick={onClose}
                                 className={`p-2 ${closeBtnHover} rounded-full transition-colors`}
@@ -357,7 +359,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                 </div>
                             ) : (
                                 <div className={`flex items-center justify-center h-full ${itemTextSecondary}`}>
-                                    无歌词
+                                    {t('timeline.noLyrics')}
                                 </div>
                             )}
                         </div>

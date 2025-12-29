@@ -115,7 +115,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     ];
 
     if (isLocal) {
-        tabs.splice(1, 0, { id: 'local' as PanelTab, label: 'Local', icon: FileAudio });
+        tabs.splice(1, 0, { id: 'local' as PanelTab, label: t('localMusic.folder'), icon: FileAudio });
     }
 
     // Theme Helper

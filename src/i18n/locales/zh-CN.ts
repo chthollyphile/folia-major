@@ -85,7 +85,8 @@ export default {
     "playAll": "播放全部",
     "loadMore": "加载更多",
     "headerTitle": "标题",
-    "headerTime": "时长"
+    "headerTime": "时长",
+    "loading": "加载中"
   },
   "home": {
     "welcome": "欢迎使用 Folia",
@@ -195,6 +196,37 @@ export default {
     "resyncFailed": "重新同步文件夹失败，请重试。",
     "deleteFailed": "删除文件夹失败，请重试。",
     "matchFailed": "获取歌词失败",
-    "dontUseOnlineMetadata": "不使用在线元数据"
+    "dontUseOnlineMetadata": "不使用在线元数据",
+    "notALocalSong": "非本地歌曲",
+    "fileInfo": "文件信息",
+    "filename": "文件名",
+    "size": "大小",
+    "path": "路径",
+    "lyrics": "歌词",
+    "matchOnline": "在线匹配",
+    "original": "原文",
+    "translation": "译文",
+    "statusLocal": "本地",
+    "statusOnline": "在线",
+    "statusNone": "无",
+    "selectLrcFile": "选择 LRC 文件",
+    "selectTranslationLrc": "选择译文 LRC"
+  },
+  "queue": {
+    "empty": "播放列表为空",
+    "title": "播放队列",
+    "shuffle": "打乱队列"
+  },
+  "theme": {
+    "switchToDark": "切换到深色模式",
+    "switchToLight": "切换到浅色模式",
+    "addCoverColor": "添加封面色彩",
+    "useDefaultColor": "使用默认色彩",
+    "midnightDefault": "午夜默认",
+    "daylightDefault": "日光默认"
+  },
+  "timeline": {
+    "title": "时间线",
+    "noLyrics": "无歌词"
   }
 } as const;

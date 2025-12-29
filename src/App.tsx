@@ -946,7 +946,7 @@ export default function App() {
         if (!blobUrl) {
             setStatusMsg({
                 type: 'error',
-                text: '无法访问文件。该文件通过"选择文件"导入，刷新页面后需要重新导入。建议使用"导入文件夹"功能。'
+                text: '无法访问文件，请重新导入文件夹'
             });
             return;
         }
