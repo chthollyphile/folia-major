@@ -20,8 +20,8 @@ export default async function handler(req: Request) {
             });
         }
 
-        const apiKey = process.env.openai_api_key;
-        const apiUrl = process.env.openai_api_url || "https://api.openai.com/v1/chat/completions";
+        const apiKey = process.env.OPENAI_API_KEY;
+        const apiUrl = process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
 
         if (!apiKey) {
             console.error("OpenAI API Key is missing in server environment.");
