@@ -222,8 +222,8 @@ export default {
     "switchToLight": "切换到浅色模式",
     "addCoverColor": "添加封面色彩",
     "useDefaultColor": "使用默认色彩",
-    "midnightDefault": "午夜默认",
-    "daylightDefault": "日光默认"
+    "midnightDefault": "午夜墨染",
+    "daylightDefault": "日光素白"
   },
   "timeline": {
     "title": "时间线",
