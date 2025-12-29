@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, Music, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { FolderOpen, Music, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LocalSong } from '../types';
 import { importFolder, matchLyrics, deleteLocalSong, resyncFolder, deleteFolderSongs } from '../services/localMusicService';
@@ -284,7 +284,34 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onRefresh={onRefresh}
                 theme={theme}
                 isDaylight={isDaylight}
-                onUpdateCover={() => setCoverVersion(v => v + 1)}
+                onUpdateCover={() => {
+                    setCoverVersion(v => v + 1);
+                    // Also update the selectedGroup's coverUrl immediately
+                    // so the LocalPlaylistView displays the new cover without a page refresh
+                    if (selectedGroup) {
+                        const groupType = selectedGroup.type;
+                        const groupName = selectedGroup.type === 'folder'
+                            ? selectedGroup.name
+                            : selectedGroup.id?.substring(6) || selectedGroup.name; // album-{key} -> key
+                        const prefKey = `local_cover_pref_${groupType}_${groupName}`;
+                        const prefId = localStorage.getItem(prefKey);
+
+                        if (prefId) {
+                            const prefSong = selectedGroup.songs.find(s => s.id === prefId);
+                            if (prefSong) {
+                                let newCoverUrl: string | undefined;
+                                if (prefSong.embeddedCover) {
+                                    newCoverUrl = URL.createObjectURL(prefSong.embeddedCover);
+                                } else if (prefSong.matchedCoverUrl) {
+                                    newCoverUrl = prefSong.matchedCoverUrl;
+                                }
+                                if (newCoverUrl) {
+                                    setSelectedGroup({ ...selectedGroup, coverUrl: newCoverUrl });
+                                }
+                            }
+                        }
+                    }
+                }}
             />
         );
     }
@@ -338,7 +365,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                     className="w-full h-full flex flex-col justify-center"
                                 >
                                     <div className="flex items-center justify-center gap-3 mb-4">
-                                        <div className="opacity-60 text-sm font-medium uppercase tracking-widest">
+                                        <div className="text-sm font-medium uppercase tracking-widest">
                                             {t('localMusic.foldersAndPlaylists')}
                                         </div>
 
@@ -350,6 +377,16 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                             title="Import Folder"
                                         >
                                             {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FolderOpen size={14} />}
+                                        </button>
+
+                                        <span className="opacity-30">/</span>
+
+                                        {/* Switch to Albums */}
+                                        <button
+                                            onClick={() => setActiveRow(1)}
+                                            className="opacity-40 hover:opacity-80 text-sm font-medium uppercase tracking-widest transition-opacity"
+                                        >
+                                            {t('localMusic.albums')}
                                         </button>
                                     </div>
                                     <div className="h-[400px]">
@@ -373,8 +410,20 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                     transition={{ duration: 0.3 }}
                                     className="w-full h-full flex flex-col justify-center"
                                 >
-                                    <div className="text-center mb-4 opacity-60 text-sm font-medium uppercase tracking-widest">
-                                        {t('localMusic.albums')}
+                                    <div className="flex items-center justify-center gap-3 mb-4">
+                                        {/* Switch to Folders */}
+                                        <button
+                                            onClick={() => setActiveRow(0)}
+                                            className="opacity-40 hover:opacity-80 text-sm font-medium uppercase tracking-widest transition-opacity"
+                                        >
+                                            {t('localMusic.foldersAndPlaylists')}
+                                        </button>
+
+                                        <span className="opacity-30">|</span>
+
+                                        <div className="text-sm font-medium uppercase tracking-widest">
+                                            {t('localMusic.albums')}
+                                        </div>
                                     </div>
                                     <div className="h-[400px]">
                                         <Carousel3D
@@ -394,18 +443,6 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 )}
             </div>
 
-            {/* Navigation Arrow - Left Side */}
-            {localSongs.length > 0 && (
-                <div className="absolute right-8 top-1/2 -translate-y-1/2 z-20">
-                    <button
-                        onClick={() => setActiveRow(activeRow === 0 ? 1 : 0)}
-                        className="p-3 opacity-50 hover:opacity-100 transition-opacity"
-                        title={activeRow === 0 ? t('localMusic.switchToAlbums') : t('localMusic.switchToFolders')}
-                    >
-                        {activeRow === 0 ? <ChevronDown size={32} /> : <ChevronUp size={32} />}
-                    </button>
-                </div>
-            )}
 
             {/* Manual Lyric Match Modal */}
             {showMatchModal && selectedSong && (

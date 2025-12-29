@@ -137,7 +137,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                     className="p-3 rounded-full bg-white/20 hover:bg-white/30 transition-colors text-white"
                                     title={t('localMusic.changeCover')}
                                 >
-                                    <ImageIcon size={24} />
+                                    <Pencil size={24} />
                                 </button>
                             </div>
                         )}
