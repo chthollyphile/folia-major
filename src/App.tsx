@@ -8,6 +8,7 @@ import { detectChorusLines } from './utils/chorusDetector';
 import { generateThemeFromLyrics } from './services/gemini';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB, getLocalSongs } from './services/db';
 import { getAudioFromLocalSong } from './services/localMusicService';
+import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch, parseLyricsAsync, isUrlValid } from './services/prefetchService';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
@@ -1341,24 +1342,35 @@ export default function App() {
 
         // --- ONLINE SONG LOGIC BELOW ---
 
+        // Check prefetch cache for this song (with quality validation)
+        const prefetched = getPrefetchedData(song.id, audioQuality);
+
         // 2. Load Cached Cover (Visual Feedback)
         const cachedCoverBlob = await getFromCache<Blob>(`cover_${song.id}`);
         if (cachedCoverBlob) {
             setCachedCoverUrl(URL.createObjectURL(cachedCoverBlob));
+        } else if (prefetched?.coverUrl) {
+            // Use prefetched cover URL as fallback
+            setCachedCoverUrl(prefetched.coverUrl);
         }
 
-        // 3. Audio Loading (Cache vs Network)
+        // 3. Audio Loading (Prefetch Cache vs IndexedDB vs Network)
         let audioBlobUrl: string | null = null;
         try {
-            // Check Audio Cache
+            // Check IndexedDB Audio Cache first
             const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
             if (cachedAudioBlob) {
-                console.log("[App] Playing from Cache");
+                console.log("[App] Playing from IndexedDB Cache");
                 audioBlobUrl = URL.createObjectURL(cachedAudioBlob);
                 blobUrlRef.current = audioBlobUrl;
                 setAudioSrc(audioBlobUrl);
+            } else if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
+                // Use prefetched URL (still valid, quality already validated)
+                console.log(`[App] Playing from Prefetch Cache (quality: ${audioQuality})`);
+                setAudioSrc(prefetched.audioUrl);
             } else {
                 // Fetch URL from API
+                console.log(`[App] Fetching audio URL from API (quality: ${audioQuality})`);
                 const urlRes = await neteaseApi.getSongUrl(song.id, audioQuality);
                 let url = urlRes.data?.[0]?.url;
                 if (!url) {
@@ -1381,13 +1393,55 @@ export default function App() {
             return;
         }
 
-        // 4. Fetch Lyrics (Cache vs Network)
+        // 4. Fetch Lyrics (Prefetch Cache vs IndexedDB vs Network)
         try {
             const cachedLyrics = await getFromCache<LyricData>(`lyric_${song.id}`);
             if (cachedLyrics) {
                 setLyrics(cachedLyrics);
                 setIsLyricsLoading(false); // Cached lyrics ready immediately
+            } else if (prefetched?.lyrics) {
+                // Use prefetched lyrics (already parsed by worker)
+                console.log("[App] Using prefetched lyrics");
+                setLyrics(prefetched.lyrics);
+                // Run chorus detection and cache
+                if (prefetched.lyricRaw?.mainLrc && !prefetched.lyricRaw.isPureMusic) {
+                    setTimeout(() => {
+                        if (currentSongRef.current !== song.id) return;
+                        try {
+                            const chorusLines = detectChorusLines(prefetched.lyricRaw!.mainLrc!);
+                            if (chorusLines.size > 0 && prefetched.lyrics) {
+                                const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
+                                const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
+                                chorusLines.forEach(text => {
+                                    effectMap.set(text, effects[Math.floor(Math.random() * effects.length)]);
+                                });
+                                const newLines = prefetched.lyrics.lines.map(line => {
+                                    const text = line.fullText.trim();
+                                    if (chorusLines.has(text)) {
+                                        return { ...line, isChorus: true, chorusEffect: effectMap.get(text) };
+                                    }
+                                    return line;
+                                });
+                                const updatedLyrics = { ...prefetched.lyrics, lines: newLines };
+                                setLyrics(updatedLyrics);
+                                saveToCache(`lyric_${song.id}`, updatedLyrics);
+                            } else if (prefetched.lyrics) {
+                                saveToCache(`lyric_${song.id}`, prefetched.lyrics);
+                            }
+                        } catch (err) {
+                            console.warn("[App] Chorus detection on prefetched lyrics failed", err);
+                            if (prefetched.lyrics) saveToCache(`lyric_${song.id}`, prefetched.lyrics);
+                        } finally {
+                            setIsLyricsLoading(false);
+                        }
+                    }, 0);
+                } else {
+                    if (prefetched.lyrics) saveToCache(`lyric_${song.id}`, prefetched.lyrics);
+                    setIsLyricsLoading(false);
+                }
             } else {
+                // Fetch from API and parse using Web Worker
+                console.log("[App] Fetching lyrics from API");
                 const lyricRes = await neteaseApi.getLyric(song.id);
                 const mainLrc = lyricRes.lrc?.lyric;
                 const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
@@ -1396,11 +1450,12 @@ export default function App() {
 
                 const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
 
+                // Parse using Web Worker for better performance
                 let parsedLyrics = null;
                 if (yrcLrc) {
-                    parsedLyrics = parseYRC(yrcLrc, transLrc);
+                    parsedLyrics = await parseLyricsAsync('yrc', yrcLrc, transLrc);
                 } else if (mainLrc) {
-                    parsedLyrics = parseLRC(mainLrc, transLrc);
+                    parsedLyrics = await parseLyricsAsync('lrc', mainLrc, transLrc);
                 }
 
                 if (parsedLyrics) {
@@ -1494,6 +1549,11 @@ export default function App() {
             }
         } catch (e) {
             console.warn("Theme load error", e);
+        }
+
+        // 6. Trigger prefetch for nearby songs in queue
+        if (newQueue.length > 1) {
+            prefetchNearbySongs(song.id, newQueue, audioQuality);
         }
     };
 
@@ -1616,8 +1676,13 @@ export default function App() {
         const newQueue = firstSong ? [firstSong, ...songsToShuffle] : songsToShuffle;
 
         setPlayQueue(newQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' }); // assuming status key might exist or use fallback
-    }, [playQueue, currentSong, t]);
+        setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
+
+        // 5. Re-prefetch based on new queue order
+        if (currentId && newQueue.length > 1) {
+            invalidateAndRefetch(currentId, newQueue, audioQuality);
+        }
+    }, [playQueue, currentSong, t, audioQuality]);
 
     // Media Session API Integration
     useEffect(() => {
