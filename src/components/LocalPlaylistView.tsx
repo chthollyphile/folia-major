@@ -216,6 +216,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                     songCount={songs.length}
                     onConfirm={onDelete}
                     onCancel={() => setShowDeleteModal(false)}
+                    isDaylight={isDaylight}
                 />
             )}
 

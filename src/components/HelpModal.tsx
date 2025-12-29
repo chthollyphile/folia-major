@@ -176,6 +176,11 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 <p className="text-xs font-mono opacity-30" style={{ color: 'var(--text-secondary)' }}>
                                     {t('help.version') || "Version"}: folia-major - {__GIT_BRANCH__} - {__COMMIT_HASH__}
                                 </p>
+                                {theme?.provider && (
+                                    <p className="text-xs font-mono opacity-30 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                        AI Service: {theme.provider}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ) : (

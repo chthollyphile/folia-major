@@ -30,6 +30,7 @@ export interface Theme {
   animationIntensity: 'calm' | 'normal' | 'chaotic';
   wordColors?: { word: string; color: string; }[];
   lyricsIcons?: string[];
+  provider?: string;
 }
 
 export enum PlayerState {

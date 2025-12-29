@@ -95,6 +95,7 @@ export default async function handler(req: any, res: any) {
 
     // Force fixed font style
     theme.fontStyle = 'sans';
+    theme.provider = 'Google Gemini';
 
     return res.status(200).json(theme);
 

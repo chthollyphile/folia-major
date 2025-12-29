@@ -2,7 +2,10 @@ import { Theme } from "../types";
 
 export const generateThemeFromLyrics = async (lyricsText: string, themeMode: 'light' | 'dark' = 'dark'): Promise<Theme> => {
   try {
-    const response = await fetch('/api/generate-theme', {
+    const provider = import.meta.env.VITE_AI_PROVIDER;
+    const endpoint = provider === 'openai' ? '/api/generate-theme_openai' : '/api/generate-theme';
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
