@@ -160,8 +160,8 @@ export default {
     "visualSettings": "视觉设置",
     "backgroundOpacity": "背景透明度",
     "themePresets": "主题预设",
-    "themePresetsMidnight": "Midnight",
-    "themePresetsDaylight": "Daylight"
+    "themePresetsMidnight": "午夜墨染",
+    "themePresetsDaylight": "日光素白"
   },
   "localMusic": {
     "foldersAndPlaylists": "本地文件夹",
