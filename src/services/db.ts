@@ -541,3 +541,25 @@ export const deleteLocalSong = async (id: string): Promise<void> => {
     console.error("Failed to delete local song", e);
   }
 };
+
+export const clearAllData = async (): Promise<void> => {
+  try {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => {
+        console.log("Database deleted successfully");
+        resolve();
+      };
+      request.onerror = () => {
+        console.error("Failed to delete database");
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        console.warn("Database deletion blocked - closing connections");
+        resolve();
+      };
+    });
+  } catch (e) {
+    console.error("Failed to clear all data", e);
+  }
+};
