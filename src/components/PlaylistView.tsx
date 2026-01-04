@@ -305,7 +305,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
 
             {tracks.map((track, idx) => (
               <div
-                key={track.id}
+                key={`${track.id}-${idx}`}
                 id={`track-${playlist.id}-${idx}`}
                 onClick={() => handlePlaySongWrapper(track, idx)}
                 className="group flex items-center py-3 px-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"
@@ -320,7 +320,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                   </div>
                   <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {track.ar?.map((a, i) => (
-                      <React.Fragment key={a.id}>
+                      <React.Fragment key={`${a.id}-${i}`}>
                         {i > 0 && ", "}
                         <span
                           className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
