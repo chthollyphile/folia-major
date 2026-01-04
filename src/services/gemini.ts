@@ -1,6 +1,6 @@
-import { Theme } from "../types";
+import { DualTheme } from "../types";
 
-export const generateThemeFromLyrics = async (lyricsText: string, themeMode: 'light' | 'dark' = 'dark'): Promise<Theme> => {
+export const generateThemeFromLyrics = async (lyricsText: string): Promise<DualTheme> => {
   try {
     const provider = import.meta.env.VITE_AI_PROVIDER;
     const endpoint = provider === 'openai' ? '/api/generate-theme_openai' : '/api/generate-theme';
@@ -10,7 +10,7 @@ export const generateThemeFromLyrics = async (lyricsText: string, themeMode: 'li
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ lyricsText, themeMode }),
+      body: JSON.stringify({ lyricsText }),
     });
 
     if (!response.ok) {
@@ -18,8 +18,8 @@ export const generateThemeFromLyrics = async (lyricsText: string, themeMode: 'li
       throw new Error(errorData.error || 'Failed to generate theme');
     }
 
-    const theme = await response.json();
-    return theme as Theme;
+    const dualTheme = await response.json();
+    return dualTheme as DualTheme;
   } catch (error) {
     console.error("Failed to generate theme via API:", error);
     throw error;

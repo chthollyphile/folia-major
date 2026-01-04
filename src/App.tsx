@@ -16,7 +16,7 @@ import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
-import { LyricData, Theme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
+import { LyricData, Theme, DualTheme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
 import { neteaseApi } from './services/netease';
 
 // Default Theme
@@ -108,7 +108,7 @@ export default function App() {
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
 
     const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
-    const [aiTheme, setAiTheme] = useState<Theme | null>(null); // Store AI theme for bgMode switching
+    const [aiTheme, setAiTheme] = useState<DualTheme | null>(null); // Store dual AI themes (light + dark) for mode switching
     const [isSyncing, setIsSyncing] = useState(false);
     const [cacheSize, setCacheSize] = useState<string>("0 B");
     const [audioQuality, setAudioQuality] = useState<'exhigh' | 'lossless' | 'hires'>(() => {
@@ -181,18 +181,23 @@ export default function App() {
         setDefaultThemeDaylight(isLight);
         localStorage.setItem('default_theme_daylight', String(isLight));
 
-        // If we are in default mode, update background only (preserve AI text colors)
-        if (bgMode === 'default') {
-            const baseTheme = isLight ? DAYLIGHT_THEME : DEFAULT_THEME;
-            if (aiTheme) {
-                // Compose: AI colors + default background
+        // If we have a dual AI theme cached, switch to the appropriate variant
+        if (aiTheme) {
+            const selectedTheme = isLight ? aiTheme.light : aiTheme.dark;
+            if (bgMode === 'default') {
+                // In default mode, use AI colors + default background
+                const baseTheme = isLight ? DAYLIGHT_THEME : DEFAULT_THEME;
                 setTheme({
-                    ...aiTheme,
+                    ...selectedTheme,
                     backgroundColor: baseTheme.backgroundColor,
                 });
             } else {
-                setTheme(baseTheme);
+                // In AI mode, use full AI theme
+                setTheme(selectedTheme);
             }
+        } else {
+            // No AI theme, just switch default themes
+            setTheme(isLight ? DAYLIGHT_THEME : DEFAULT_THEME);
         }
     };
 
@@ -479,32 +484,42 @@ export default function App() {
                     setPlayQueue([lastSong]);
                 }
 
-                // Try to restore theme
-                const cachedTheme = await getFromCache<Theme>(`theme_${lastSong.id}`);
-                if (cachedTheme) {
-                    setTheme(cachedTheme);
-                    setAiTheme(cachedTheme); // Also store as aiTheme for bg mode switching
+                // Try to restore theme (new DualTheme format)
+                const cachedDualTheme = await getFromCache<DualTheme>(`dual_theme_${lastSong.id}`);
+                if (cachedDualTheme) {
+                    const selectedTheme = isDaylight ? cachedDualTheme.light : cachedDualTheme.dark;
+                    setTheme(selectedTheme);
+                    setAiTheme(cachedDualTheme);
                     setBgMode('ai');
                 } else {
-                    // Try to restore last used AI theme
-                    const lastTheme = await getFromCache<Theme>('last_theme');
-                    if (lastTheme) {
-                        console.log("[restoreSession] Using last_theme fallback");
-                        setTheme({
-                            ...lastTheme,
-                            wordColors: [],
-                            lyricsIcons: []
-                        });
-                        setAiTheme(lastTheme); // Store original AI theme
+                    // Try legacy single theme cache for backwards compatibility
+                    const legacyTheme = await getFromCache<Theme>(`theme_${lastSong.id}`);
+                    if (legacyTheme) {
+                        setTheme(legacyTheme);
+                        // Can't convert legacy theme to DualTheme, leave aiTheme null
                         setBgMode('ai');
                     } else {
-                        console.log("[restoreSession] No cached theme, resetting to default");
-                        setTheme(prev => ({
-                            ...prev,
-                            wordColors: [],
-                            lyricsIcons: []
-                        }));
-                        setBgMode('default');
+                        // Try to restore last used AI theme (DualTheme format)
+                        const lastDualTheme = await getFromCache<DualTheme>('last_dual_theme');
+                        if (lastDualTheme) {
+                            console.log("[restoreSession] Using last_dual_theme fallback");
+                            const selectedTheme = isDaylight ? lastDualTheme.light : lastDualTheme.dark;
+                            setTheme({
+                                ...selectedTheme,
+                                wordColors: [],
+                                lyricsIcons: []
+                            });
+                            setAiTheme(lastDualTheme);
+                            setBgMode('ai');
+                        } else {
+                            console.log("[restoreSession] No cached theme, resetting to default");
+                            setTheme(prev => ({
+                                ...prev,
+                                wordColors: [],
+                                lyricsIcons: []
+                            }));
+                            setBgMode('default');
+                        }
                     }
                 }
 
@@ -1869,22 +1884,22 @@ export default function App() {
         try {
             const allText = lyrics.lines.map(l => l.fullText).join("\n");
 
-            // Determine preference based on current theme, assuming user wants to stick to similar brightness
-            // We use the persistent setting for this preference now
-            const themeMode = isDaylight ? 'light' : 'dark';
+            // Generate dual theme (both light and dark variants)
+            const dualTheme = await generateThemeFromLyrics(allText);
 
-            const newTheme = await generateThemeFromLyrics(allText, themeMode);
-            setTheme(newTheme);
-            setAiTheme(newTheme); // Store AI theme for bgMode switching
+            // Apply the appropriate variant based on current isDaylight setting
+            const selectedTheme = isDaylight ? dualTheme.light : dualTheme.dark;
+            setTheme(selectedTheme);
+            setAiTheme(dualTheme); // Store full dual theme for mode switching
             setBgMode('ai'); // Auto switch to AI bg when generated
-            setStatusMsg({ type: 'success', text: t('status.themeApplied', { themeName: newTheme.name }) });
+            setStatusMsg({ type: 'success', text: t('status.themeApplied', { themeName: selectedTheme.name }) });
 
-            // Persist Theme for this song
+            // Persist DualTheme for this song
             if (currentSong) {
-                saveToCache(`theme_${currentSong.id}`, newTheme);
+                saveToCache(`dual_theme_${currentSong.id}`, dualTheme);
             }
             // Save as last used AI theme
-            saveToCache('last_theme', newTheme);
+            saveToCache('last_dual_theme', dualTheme);
         } catch (err) {
             console.error(err);
             setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
@@ -1911,17 +1926,12 @@ export default function App() {
         setBgMode(mode);
 
         if (mode === 'default') {
-            // When switching to default mode, preserve current AI theme if it exists
-            const isCurrentThemeAI = theme.name !== DEFAULT_THEME.name && theme.name !== DAYLIGHT_THEME.name;
-            if (isCurrentThemeAI && !aiTheme) {
-                setAiTheme(theme);
-            }
             // Apply default background color only, keep AI text colors
             const baseTheme = isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME;
-            const currentAiTheme = aiTheme || (isCurrentThemeAI ? theme : null);
-            if (currentAiTheme) {
+            if (aiTheme) {
+                const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
                 setTheme({
-                    ...currentAiTheme,
+                    ...selectedAiTheme,
                     backgroundColor: baseTheme.backgroundColor,
                 });
             } else {
@@ -1930,7 +1940,8 @@ export default function App() {
         } else {
             // When switching to AI mode, restore the full AI theme
             if (aiTheme) {
-                setTheme(aiTheme);
+                const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
+                setTheme(selectedAiTheme);
             }
             // If no AI theme stored, keep current theme (which might already be AI)
         }
