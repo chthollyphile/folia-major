@@ -33,6 +33,11 @@ export interface Theme {
   provider?: string;
 }
 
+export interface DualTheme {
+  light: Theme;
+  dark: Theme;
+}
+
 export enum PlayerState {
   IDLE = 'IDLE',
   PLAYING = 'PLAYING',

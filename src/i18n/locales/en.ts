@@ -161,7 +161,9 @@ export default {
     "backgroundOpacity": "Background Opacity",
     "themePresets": "Theme Presets",
     "themePresetsMidnight": "Midnight",
-    "themePresetsDaylight": "Daylight"
+    "themePresetsDaylight": "Daylight",
+    "clearAll": "Clear All",
+    "confirmClearAll": "Are you sure you want to clear all cache?"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

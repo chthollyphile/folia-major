@@ -11,7 +11,7 @@ export default async function handler(req: Request) {
     }
 
     try {
-        const { lyricsText, themeMode } = await req.json();
+        const { lyricsText } = await req.json();
 
         if (!lyricsText) {
             return new Response(JSON.stringify({ error: 'Missing lyricsText' }), {
@@ -34,28 +34,35 @@ export default async function handler(req: Request) {
         // Limit text to avoid token limits if lyrics are huge
         const snippet = lyricsText.slice(0, 2000);
 
-        const prompt = `Analyze the mood of these lyrics and generate a visual theme configuration (colors and animation style) for a music player.
+        const prompt = `Analyze the mood of these lyrics and generate TWO visual theme configurations (colors and animation style) for a music player - one for LIGHT mode and one for DARK mode.
 
-THEME PREFERENCES:
-1. Theme Mode: ${themeMode === 'light' ? 'LIGHT/DAYLIGHT' : 'DARK/MIDNIGHT'}
-2. If mode is LIGHT: Use LIGHT backgrounds (whites, creams, soft pastels). Ensure text/icons are dark enough for contrast.
-3. If mode is DARK: Use DARK backgrounds (deep colors).
-4. If the lyrics strongly suggest a contrary mood (e.g. "dark night" in light mode), you MAY override, but generally stick to the requested mode.
-5. If a LIGHT background is necessary for the mood:
-    - Ensure 'accentColor' (used for geometric shapes/icons) are visible against the background. 
-    - Avoid very faint colors on white backgrounds. The shapes should be discernable.
-6. CRITICAL for 'secondaryColor': This color is used for secondary TEXT (e.g., album name, artist name).
+DUAL THEME REQUIREMENTS:
+1. Generate TWO complete themes: one optimized for LIGHT/DAYLIGHT mode, one for DARK/MIDNIGHT mode.
+2. Both themes should capture the SAME emotional essence of the lyrics, but with appropriate color palettes for their respective modes.
+3. The theme names should reflect both the mood AND the mode (e.g., "Melancholic Dawn" for light, "Melancholic Midnight" for dark).
+
+LIGHT THEME RULES:
+- Use LIGHT backgrounds (whites, creams, soft pastels).
+- Ensure text/icons are dark enough for contrast.
+- 'accentColor' must be visible against the light background.
+
+DARK THEME RULES:
+- Use DARK backgrounds (deep colors, near-black tones).
+- Ensure text/icons are light enough for contrast.
+
+SHARED RULES FOR BOTH THEMES:
+1. CRITICAL for 'secondaryColor': This color is used for secondary TEXT (e.g., album name, artist name).
     - It MUST have sufficient contrast against 'backgroundColor' to be easily readable.
     - Aim for a contrast ratio of at least 4.5:1 for accessibility.
-    - On light backgrounds, use darker shades; on dark backgrounds, use lighter shades.
+2. 'wordColors' and 'lyricsIcons' should be the SAME for both themes (they represent the lyrics' meaning).
 
 IMPORTANT for 'wordColors':
 1. Identify 5-10 key emotional words or phrases from the lyrics.
 2. Assign a specific color to each word that represents its emotion.
-3. CRITICAL: The 'word' field MUST match the EXACT text in the lyrics snippet (case-insensitive) to be highlighted correctly. Do not change the word form or use synonyms.
+3. CRITICAL: The 'word' field MUST match the EXACT text in the lyrics snippet (case-insensitive).
 
 IMPORTANT for 'lyricsIcons':
-1. Identify 3-5 visual concepts/objects mentioned in or relevant to the lyrics (e.g. 'Heart', 'Cloud', 'Sun', 'Moon', 'Flame', 'Music', 'Star', 'Zap').
+1. Identify 3-5 visual concepts/objects mentioned in or relevant to the lyrics.
 2. Return them as valid Lucide React icon names (PascalCase, e.g., 'CloudLightning', 'HeartHandshake').
 
 Response MUST be a valid JSON object. Do not include markdown formatting like \`\`\`json. Just the raw JSON.
@@ -67,29 +74,64 @@ JSON Schema:
 {
   "type": "object",
   "properties": {
-    "name": { "type": "string", "description": "A creative name for this theme" },
-    "backgroundColor": { "type": "string", "description": "Hex code for background" },
-    "primaryColor": { "type": "string", "description": "Hex code for main text" },
-    "accentColor": { "type": "string", "description": "Hex code for highlighted text/effects" },
-    "secondaryColor": { "type": "string", "description": "Hex code for secondary elements" },
-    "animationIntensity": { "type": "string", "enum": ["calm", "normal", "chaotic"] },
-    "wordColors": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "word": { "type": "string" },
-          "color": { "type": "string" }
+    "light": {
+      "type": "object",
+      "description": "Theme optimized for light/daylight mode",
+      "properties": {
+        "name": { "type": "string", "description": "A creative name for this light theme" },
+        "backgroundColor": { "type": "string", "description": "Hex code for light background" },
+        "primaryColor": { "type": "string", "description": "Hex code for main text (dark)" },
+        "accentColor": { "type": "string", "description": "Hex code for highlighted text/effects" },
+        "secondaryColor": { "type": "string", "description": "Hex code for secondary elements" },
+        "animationIntensity": { "type": "string", "enum": ["calm", "normal", "chaotic"] },
+        "wordColors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "word": { "type": "string" },
+              "color": { "type": "string" }
+            },
+            "required": ["word", "color"]
+          }
         },
-        "required": ["word", "color"]
-      }
+        "lyricsIcons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"]
     },
-    "lyricsIcons": {
-      "type": "array",
-      "items": { "type": "string" }
+    "dark": {
+      "type": "object",
+      "description": "Theme optimized for dark/midnight mode",
+      "properties": {
+        "name": { "type": "string", "description": "A creative name for this dark theme" },
+        "backgroundColor": { "type": "string", "description": "Hex code for dark background" },
+        "primaryColor": { "type": "string", "description": "Hex code for main text (light)" },
+        "accentColor": { "type": "string", "description": "Hex code for highlighted text/effects" },
+        "secondaryColor": { "type": "string", "description": "Hex code for secondary elements" },
+        "animationIntensity": { "type": "string", "enum": ["calm", "normal", "chaotic"] },
+        "wordColors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "word": { "type": "string" },
+              "color": { "type": "string" }
+            },
+            "required": ["word", "color"]
+          }
+        },
+        "lyricsIcons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"]
     }
   },
-  "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"]
+  "required": ["light", "dark"]
 }`;
 
         const response = await fetch(apiUrl, {
@@ -99,13 +141,13 @@ JSON Schema:
                 "Authorization": `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "gpt-4o", // Default, you can override via URL potentially if using compatible API that ignores model.
+                model: "gpt-4o",
                 messages: [
                     { role: "system", content: "You are a helpful assistant that generates JSON themes for music players." },
                     { role: "user", content: prompt }
                 ],
                 temperature: 0.7,
-                response_format: { type: "json_object" } // Force JSON mode for OpenAI
+                response_format: { type: "json_object" }
             }),
         });
 
@@ -122,10 +164,8 @@ JSON Schema:
             throw new Error("Failed to generate theme JSON");
         }
 
-        // Attempt to parse JSON. 
-        // Sometimes OpenAI might still wrap in markdown despite response_format, though strict json mode shouldn't.
-        // Standard compatible APIs might not support response_format strictly.
-        let theme;
+        // Attempt to parse JSON
+        let dualTheme;
         let jsonStr = content.trim();
 
         // Remove markdown code blocks if present
@@ -134,17 +174,19 @@ JSON Schema:
         }
 
         try {
-            theme = JSON.parse(jsonStr);
+            dualTheme = JSON.parse(jsonStr);
         } catch (e) {
             console.error("Failed to parse JSON from AI response:", jsonStr);
             throw new Error("Invalid JSON response from AI");
         }
 
-        // Force fixed font style
-        theme.fontStyle = 'sans';
-        theme.provider = 'OpenAI Compatible';
+        // Force fixed font style for both themes
+        dualTheme.light.fontStyle = 'sans';
+        dualTheme.light.provider = 'OpenAI Compatible';
+        dualTheme.dark.fontStyle = 'sans';
+        dualTheme.dark.provider = 'OpenAI Compatible';
 
-        return new Response(JSON.stringify(theme), {
+        return new Response(JSON.stringify(dualTheme), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
         });

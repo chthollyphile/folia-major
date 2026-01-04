@@ -161,7 +161,9 @@ export default {
     "backgroundOpacity": "背景透明度",
     "themePresets": "主题预设",
     "themePresetsMidnight": "午夜墨染",
-    "themePresetsDaylight": "日光素白"
+    "themePresetsDaylight": "日光素白",
+    "clearAll": "全部清空",
+    "confirmClearAll": "确定要清空所有缓存吗？"
   },
   "localMusic": {
     "foldersAndPlaylists": "本地文件夹",

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getCacheUsageByCategory, clearCacheByCategory } from '../services/db';
+import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../services/db';
 import { Theme } from '../types';
 
 interface HelpModalProps {
@@ -249,6 +249,20 @@ const HelpModal: React.FC<HelpModalProps> = ({
                             <section>
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                                     <Database size={14} /> {t('options.cacheDetails') || "Cache Storage"}
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm(t('options.confirmClearAll') || '确定要清空所有缓存数据吗？此操作不可恢复。')) {
+                                                setIsCleaning('all');
+                                                await clearAllData();
+                                                window.location.reload();
+                                            }
+                                        }}
+                                        disabled={isCleaning === 'all'}
+                                        className="ml-auto text-xs font-normal normal-case tracking-normal px-2 py-1 hover:bg-white/10 rounded-lg text-red-400 opacity-60 hover:opacity-100 transition-all disabled:opacity-20 flex items-center gap-1"
+                                    >
+                                        {isCleaning === 'all' ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                        {t('options.clearAll') || "清空所有"}
+                                    </button>
                                 </h3>
 
                                 <div className="space-y-3">
