@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../services/db';
 import { Theme } from '../types';
+import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../services/navidromeService';
+import { NavidromeConfig } from '../types/navidrome';
 
 interface HelpModalProps {
     onClose: () => void;
@@ -15,6 +17,7 @@ interface HelpModalProps {
     setBackgroundOpacity?: (opacity: number) => void;
     onSetThemePreset?: (preset: 'midnight' | 'daylight') => void;
     isDaylight: boolean;
+    onToggleNavidrome?: (enabled: boolean) => void;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -27,7 +30,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
     backgroundOpacity = 0.75,
     setBackgroundOpacity,
     onSetThemePreset,
-    isDaylight
+    isDaylight,
+    onToggleNavidrome
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
@@ -41,6 +45,68 @@ const HelpModal: React.FC<HelpModalProps> = ({
     });
     const [mediaCount, setMediaCount] = useState(0);
     const [isCleaning, setIsCleaning] = useState<string | null>(null);
+
+    // Navidrome Settings State
+    const [navidromeEnabled, setNavidromeEnabledState] = useState(false);
+    const [navidromeUrl, setNavidromeUrl] = useState('');
+    const [navidromeUsername, setNavidromeUsername] = useState('');
+    const [navidromePassword, setNavidromePassword] = useState('');
+    const [navidromeTestStatus, setNavidromeTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+    const [navidromeConfigured, setNavidromeConfigured] = useState(false);
+
+    // Load Navidrome config on mount
+    useEffect(() => {
+        setNavidromeEnabledState(isNavidromeEnabled());
+        const config = getNavidromeConfig();
+        if (config) {
+            setNavidromeUrl(config.serverUrl);
+            setNavidromeUsername(config.username);
+            setNavidromeConfigured(true);
+        }
+    }, []);
+
+    // Test Navidrome connection
+    const testNavidromeConnection = async () => {
+        if (!navidromeUrl || !navidromeUsername || !navidromePassword) {
+            setNavidromeTestStatus('failed');
+            return;
+        }
+
+        setNavidromeTestStatus('testing');
+        const config: NavidromeConfig = {
+            serverUrl: navidromeUrl.replace(/\/$/, ''), // Remove trailing slash
+            username: navidromeUsername,
+            passwordHash: hashPassword(navidromePassword)
+        };
+
+        const success = await navidromeApi.ping(config);
+        if (success) {
+            saveNavidromeConfig(config);
+            setNavidromeConfigured(true);
+            setNavidromeTestStatus('success');
+        } else {
+            setNavidromeTestStatus('failed');
+        }
+    };
+
+    // Toggle Navidrome enabled
+    const handleToggleNavidromeEnabled = (enabled: boolean) => {
+        setNavidromeEnabled(enabled);
+        setNavidromeEnabledState(enabled);
+        if (onToggleNavidrome) {
+            onToggleNavidrome(enabled);
+        }
+    };
+
+    // Clear Navidrome config
+    const handleClearNavidrome = () => {
+        clearNavidromeConfig();
+        setNavidromeUrl('');
+        setNavidromeUsername('');
+        setNavidromePassword('');
+        setNavidromeConfigured(false);
+        setNavidromeTestStatus('idle');
+    };
 
     const formatBytes = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -323,6 +389,128 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         <span>{t('options.cachedSongsCount') || "Cached Songs"}:</span>
                                         <span className="font-mono">{mediaCount}</span>
                                     </div>
+                                </div>
+                            </section>
+
+                            {/* Navidrome Settings */}
+                            <section>
+                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                    <Server size={14} /> {t('navidrome.settings') || "Navidrome Settings"}
+                                    {navidromeEnabled && navidromeConfigured && (
+                                        <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full font-normal normal-case">
+                                            {t('navidrome.connectionSuccess') || "Connected"}
+                                        </span>
+                                    )}
+                                </h3>
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                    {/* Enable Toggle */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                            {t('navidrome.enable') || "Enable Navidrome"}
+                                        </span>
+                                        <button
+                                            onClick={() => handleToggleNavidromeEnabled(!navidromeEnabled)}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!navidromeEnabled ? 'bg-white/10' : ''}`}
+                                            style={{ backgroundColor: navidromeEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                        >
+                                            <div
+                                                className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${navidromeEnabled ? 'translate-x-6' : 'translate-x-0'
+                                                    }`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    {/* Config (only show when enabled) */}
+                                    {navidromeEnabled && (
+                                        <>
+                                            {/* Server URL */}
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('navidrome.serverUrl') || "Server URL"}
+                                                </label>
+                                                <input
+                                                    type="url"
+                                                    value={navidromeUrl}
+                                                    onChange={(e) => setNavidromeUrl(e.target.value)}
+                                                    placeholder={t('navidrome.serverUrlPlaceholder') || "e.g., http://localhost:4533"}
+                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                    style={{ color: 'var(--text-primary)' }}
+                                                />
+                                            </div>
+
+                                            {/* Username */}
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('navidrome.username') || "Username"}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={navidromeUsername}
+                                                    onChange={(e) => setNavidromeUsername(e.target.value)}
+                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                    style={{ color: 'var(--text-primary)' }}
+                                                />
+                                            </div>
+
+                                            {/* Password */}
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('navidrome.password') || "Password"}
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={navidromePassword}
+                                                    onChange={(e) => setNavidromePassword(e.target.value)}
+                                                    placeholder={navidromeConfigured ? "••••••••" : ""}
+                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                    style={{ color: 'var(--text-primary)' }}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* Buttons (only show when enabled) */}
+                                    {navidromeEnabled && (
+                                        <div className="flex gap-2 pt-2">
+                                            <button
+                                                onClick={testNavidromeConnection}
+                                                disabled={navidromeTestStatus === 'testing' || !navidromeUrl || !navidromeUsername || !navidromePassword}
+                                                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                style={{ color: 'var(--text-primary)' }}
+                                            >
+                                                {navidromeTestStatus === 'testing' ? (
+                                                    <>
+                                                        <Loader2 size={16} className="animate-spin" />
+                                                        {t('navidrome.testing') || "Connecting..."}
+                                                    </>
+                                                ) : navidromeTestStatus === 'success' ? (
+                                                    <>
+                                                        <Check size={16} className="text-green-400" />
+                                                        {t('navidrome.connectionSuccess') || "Connected"}
+                                                    </>
+                                                ) : navidromeTestStatus === 'failed' ? (
+                                                    <>
+                                                        <AlertCircle size={16} className="text-red-400" />
+                                                        {t('navidrome.connectionFailed') || "Failed"}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Server size={16} />
+                                                        {t('navidrome.testConnection') || "Test Connection"}
+                                                    </>
+                                                )}
+                                            </button>
+
+                                            {navidromeConfigured && (
+                                                <button
+                                                    onClick={handleClearNavidrome}
+                                                    className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </section>
 

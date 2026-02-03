@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@types/react-window": "^1.8.8",
+    "blueimp-md5": "^2.19.0",
     "buffer": "^6.0.3",
     "framer-motion": "^12.23.24",
     "i18next": "^25.6.3",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/blueimp-md5": "^2.18.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.22",

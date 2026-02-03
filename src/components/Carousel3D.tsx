@@ -3,6 +3,16 @@ import { motion, useMotionValue, useTransform, animate, AnimatePresence } from '
 import { Loader2, Disc, Map as MapIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+// Convert HTTP to HTTPS only for Netease CDN URLs
+const toSafeUrl = (url?: string): string | undefined => {
+    if (!url) return url;
+    // Only convert Netease CDN URLs to HTTPS
+    if (url.startsWith('http:') && url.includes('music.126.net')) {
+        return url.replace('http:', 'https:');
+    }
+    return url;
+};
+
 // Carousel Item Component with safe blur animation
 const CarouselItem: React.FC<{
     item: { id: number | string; name: string; coverUrl?: string; trackCount?: number; playCount?: number; description?: string; };
@@ -54,7 +64,7 @@ const CarouselItem: React.FC<{
         >
             <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
                 {item.coverUrl ? (
-                    <img src={item.coverUrl?.startsWith('http:') ? item.coverUrl.replace('http:', 'https:') : item.coverUrl} alt={item.name} className="w-full h-full object-cover pointer-events-none" />
+                    <img src={toSafeUrl(item.coverUrl)} alt={item.name} className="w-full h-full object-cover pointer-events-none" />
                 ) : (
                     <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
                         <Disc size={64} className="opacity-20" style={{ color: 'var(--text-primary)' }} />
@@ -295,7 +305,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                                             : isDaylight ? 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-black/30' : 'ring-0 ring-transparent group-hover:ring-2 group-hover:ring-white/30'
                                             }`}>
                                             {item.coverUrl ? (
-                                                <img src={item.coverUrl.startsWith('http:') ? item.coverUrl.replace('http:', 'https:') : item.coverUrl} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                                                <img src={toSafeUrl(item.coverUrl)} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
                                             ) : (
                                                 <div className={`w-full h-full flex items-center justify-center ${isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'}`}>
                                                     <Disc size={32} className={`opacity-20 ${isDaylight ? 'text-black' : 'text-white'}`} />

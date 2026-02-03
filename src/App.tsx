@@ -17,7 +17,9 @@ import AlbumView from './components/AlbumView';
 import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
 import { LyricData, Theme, DualTheme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
+import { NavidromeSong } from './types/navidrome';
 import { neteaseApi } from './services/netease';
+import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
 
 // Default Theme
 const DEFAULT_THEME: Theme = {
@@ -246,9 +248,10 @@ export default function App() {
     const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
 
     // Navigation Persistence State (Lifted from Home/LocalMusicView)
-    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local' | 'albums'>('playlist');
+    const [homeViewTab, setHomeViewTab] = useState<'playlist' | 'local' | 'albums' | 'navidrome'>('playlist');
     const [focusedPlaylistIndex, setFocusedPlaylistIndex] = useState(0);
     const [focusedFavoriteAlbumIndex, setFocusedFavoriteAlbumIndex] = useState(0);
+    const [navidromeFocusedAlbumIndex, setNavidromeFocusedAlbumIndex] = useState(0);
     const [localMusicState, setLocalMusicState] = useState<{
         activeRow: 0 | 1;
         selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; } | null;
@@ -1159,6 +1162,144 @@ export default function App() {
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'success', text: '本地音乐已加载' });
+    };
+
+    // --- Navidrome Playback ---
+    const onPlayNavidromeSong = async (navidromeSong: NavidromeSong, queue: NavidromeSong[] = []) => {
+        const config = getNavidromeConfig();
+        if (!config) {
+            setStatusMsg({ type: 'error', text: 'Navidrome not configured' });
+            return;
+        }
+
+        setIsLyricsLoading(true);
+        setStatusMsg({ type: 'info', text: t('status.loadingSong') || '加载歌曲中...' });
+
+        try {
+            // Get streaming URL using navidromeData.id
+            const navidromeId = navidromeSong.navidromeData.id;
+            const streamUrl = navidromeApi.getStreamUrl(config, navidromeId);
+
+            // Try to get lyrics from Navidrome first
+            let lyrics: LyricData | null = null;
+            const artistName = navidromeSong.ar?.[0]?.name || navidromeSong.artists?.[0]?.name || '';
+            const lyricsFromNavidrome = await navidromeApi.getLyrics(config, artistName, navidromeSong.name);
+            if (lyricsFromNavidrome) {
+                lyrics = parseLRC(lyricsFromNavidrome, '');
+                console.log('[App] Using Navidrome lyrics');
+            }
+
+            // If no lyrics from Navidrome, try Netease
+            if (!lyrics) {
+                try {
+                    const artistName = navidromeSong.artists?.[0]?.name || navidromeSong.ar?.[0]?.name || '';
+                    const searchQuery = `${navidromeSong.name} ${artistName}`.trim();
+                    const searchRes = await neteaseApi.cloudSearch(searchQuery, 1);
+
+                    if (searchRes.result?.songs?.length > 0) {
+                        const matchedSong = searchRes.result.songs[0];
+                        const lyricRes = await neteaseApi.getLyric(matchedSong.id);
+
+                        const mainLrc = lyricRes.lrc?.lyric;
+                        const tlyric = lyricRes.tlyric?.lyric || "";
+
+                        if (mainLrc) {
+                            lyrics = parseLRC(mainLrc, tlyric);
+                            console.log('[App] Using Netease lyrics for Navidrome song');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[App] Failed to fetch Netease lyrics for Navidrome song:', e);
+                }
+            }
+
+            // Use previously matched lyrics if available
+            if (!lyrics && navidromeSong.matchedLyrics) {
+                lyrics = navidromeSong.matchedLyrics;
+                console.log('[App] Using cached matched lyrics');
+            }
+
+            // Get cover art URL
+            const coverUrl = navidromeSong.album?.picUrl || navidromeSong.al?.picUrl ||
+                navidromeApi.getCoverArtUrl(config, navidromeId);
+
+            // Create unified song for playback
+            const unifiedSong: SongResult = {
+                id: navidromeSong.id,
+                name: navidromeSong.name,
+                artists: navidromeSong.artists || navidromeSong.ar || [],
+                album: navidromeSong.album || (navidromeSong.al ? {
+                    id: navidromeSong.al.id,
+                    name: navidromeSong.al.name,
+                    picUrl: navidromeSong.al.picUrl
+                } : { id: 0, name: '' }),
+                duration: navidromeSong.duration || navidromeSong.dt || 0,
+                ar: navidromeSong.ar || [],
+                al: navidromeSong.al,
+                dt: navidromeSong.dt,
+                isNavidrome: true,
+                navidromeData: navidromeSong
+            } as any;
+
+            // Enable autoplay
+            shouldAutoPlay.current = true;
+            currentSongRef.current = unifiedSong.id;
+
+            // Set UI state
+            setLyrics(lyrics);
+            setCurrentLineIndex(-1);
+            currentTime.set(0);
+            setCurrentSong(unifiedSong);
+            setCachedCoverUrl(coverUrl);
+            setAudioSrc(streamUrl);
+            setIsLyricsLoading(false);
+
+            // Set queue
+            if (queue.length > 0) {
+                const convertedQueue = queue.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    artists: s.artists || s.ar || [],
+                    album: s.album || (s.al ? { id: s.al.id, name: s.al.name, picUrl: s.al.picUrl } : { id: 0, name: '' }),
+                    duration: s.duration || s.dt || 0,
+                    ar: s.ar || [],
+                    al: s.al,
+                    dt: s.dt,
+                    isNavidrome: true,
+                    navidromeData: s
+                } as any));
+
+                // Replace current song in queue with full data
+                const finalQueue = convertedQueue.map(s =>
+                    s.id === unifiedSong.id ? unifiedSong : s
+                );
+
+                setPlayQueue(finalQueue);
+                saveToCache('last_queue', finalQueue);
+            } else {
+                setPlayQueue([unifiedSong]);
+                saveToCache('last_queue', [unifiedSong]);
+            }
+
+            saveToCache('last_song', unifiedSong);
+
+            // Navigate to player
+            navigateToPlayer();
+            setPlayerState(PlayerState.IDLE);
+            setStatusMsg({ type: 'success', text: 'Navidrome 歌曲已加载' });
+        } catch (e) {
+            console.error('[App] Failed to play Navidrome song:', e);
+            setStatusMsg({ type: 'error', text: '播放失败' });
+            setIsLyricsLoading(false);
+        }
+    };
+
+    // --- Navidrome Lyric Matching ---
+    const onMatchNavidromeSong = async (navidromeSong: NavidromeSong) => {
+        // This opens the lyric matching modal for Navidrome songs
+        // For now, we'll use a similar approach to local song matching
+        // The actual matching will be handled when playing the song
+        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics') || '正在匹配歌词...' });
     };
 
     // --- Effects ---
@@ -2289,6 +2430,10 @@ export default function App() {
                                     }
                                 }
                             }}
+                            onPlayNavidromeSong={onPlayNavidromeSong}
+                            onMatchNavidromeSong={onMatchNavidromeSong}
+                            navidromeFocusedAlbumIndex={navidromeFocusedAlbumIndex}
+                            setNavidromeFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
                         />
                     </motion.div>
                 )}

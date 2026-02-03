@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
 import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme } from '../types';
+import { NavidromeSong } from '../types/navidrome';
+import { isNavidromeEnabled } from '../services/navidromeService';
 import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
+import NavidromeMusicView from './NavidromeMusicView';
 import HelpModal from './HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -28,8 +31,8 @@ interface HomeProps {
     localSongs: LocalSong[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
-    viewTab: 'playlist' | 'local' | 'albums';
-    setViewTab: (tab: 'playlist' | 'local' | 'albums') => void;
+    viewTab: 'playlist' | 'local' | 'albums' | 'navidrome';
+    setViewTab: (tab: 'playlist' | 'local' | 'albums' | 'navidrome') => void;
     focusedPlaylistIndex?: number;
     setFocusedPlaylistIndex?: (index: number) => void;
     focusedFavoriteAlbumIndex?: number;
@@ -47,6 +50,10 @@ interface HomeProps {
         focusedAlbumIndex: number;
     }>>;
     onMatchSong?: (song: LocalSong) => void;
+    onPlayNavidromeSong?: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onMatchNavidromeSong?: (song: NavidromeSong) => void;
+    navidromeFocusedAlbumIndex?: number;
+    setNavidromeFocusedAlbumIndex?: (index: number) => void;
     staticMode?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     enableMediaCache?: boolean;
@@ -83,6 +90,10 @@ const Home: React.FC<HomeProps> = ({
     localMusicState,
     setLocalMusicState,
     onMatchSong,
+    onPlayNavidromeSong,
+    onMatchNavidromeSong,
+    navidromeFocusedAlbumIndex = 0,
+    setNavidromeFocusedAlbumIndex,
     staticMode = false,
     onToggleStaticMode,
     enableMediaCache = false,
@@ -110,6 +121,15 @@ const Home: React.FC<HomeProps> = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
+    const [navidromeEnabled, setNavidromeEnabled] = useState(isNavidromeEnabled());
+
+    const handleToggleNavidrome = (enabled: boolean) => {
+        setNavidromeEnabled(enabled);
+        if (!enabled && viewTab === 'navidrome') {
+            setViewTab('local');
+        }
+    };
+
     // viewTab lifted to App.tsx
     // Search State
     const [searchResults, setSearchResults] = useState<SongResult[] | null>(null);
@@ -311,35 +331,49 @@ const Home: React.FC<HomeProps> = ({
                             {/* Center: Tab Switcher */}
                             <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
                                 {user && (
-                                    <div className={`flex relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
-                                        <div
-                                            className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
-                                            style={{
-                                                left: viewTab === 'playlist' ? '4px' : viewTab === 'albums' ? 'calc(33.33% + 2px)' : 'calc(66.66%)',
-                                                width: 'calc(33.33% - 4px)'
-                                            }}
-                                        />
-                                        <button
-                                            onClick={() => setViewTab('playlist')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'playlist' ? activeTabBg : navPillInactiveText
-                                                }`}
-                                        >
-                                            {t('home.playlists')}
-                                        </button>
-                                        <button
-                                            onClick={() => setViewTab('albums')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'albums' ? activeTabBg : navPillInactiveText
-                                                }`}
-                                        >
-                                            {t('home.albums') || '专辑'}
-                                        </button>
-                                        <button
-                                            onClick={() => setViewTab('local')}
-                                            className={`relative z-10 px-6 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 ${viewTab === 'local' ? activeTabBg : navPillInactiveText
-                                                }`}
-                                        >
-                                            {t('localMusic.folder')}
-                                        </button>
+                                    <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
+                                        <div className={`grid ${navidromeEnabled ? 'grid-cols-4' : 'grid-cols-3 transition-all duration-300'}`}>
+                                            <div
+                                                className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
+                                                style={{
+                                                    left: viewTab === 'playlist' ? '4px'
+                                                        : viewTab === 'albums' ? (navidromeEnabled ? 'calc(25% + 1px)' : 'calc(33.333% + 1px)')
+                                                            : viewTab === 'local' ? (navidromeEnabled ? 'calc(50%)' : 'calc(66.666% - 1px)')
+                                                                : 'calc(75% - 1px)',
+                                                    width: navidromeEnabled ? 'calc(25% - 2px)' : 'calc(33.333% - 2px)'
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => setViewTab('playlist')}
+                                                className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'playlist' ? activeTabBg : navPillInactiveText
+                                                    }`}
+                                            >
+                                                {t('home.playlists')}
+                                            </button>
+                                            <button
+                                                onClick={() => setViewTab('albums')}
+                                                className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'albums' ? activeTabBg : navPillInactiveText
+                                                    }`}
+                                            >
+                                                {t('home.albums') || '专辑'}
+                                            </button>
+                                            <button
+                                                onClick={() => setViewTab('local')}
+                                                className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'local' ? activeTabBg : navPillInactiveText
+                                                    }`}
+                                            >
+                                                {t('localMusic.folder')}
+                                            </button>
+                                            {navidromeEnabled && (
+                                                <button
+                                                    onClick={() => setViewTab('navidrome')}
+                                                    className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'navidrome' ? activeTabBg : navPillInactiveText
+                                                        }`}
+                                                >
+                                                    {t('navidrome.title') || 'Navidrome'}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -439,7 +473,7 @@ const Home: React.FC<HomeProps> = ({
                                                 isDaylight={isDaylight}
                                             />
                                         </motion.div>
-                                    ) : (
+                                    ) : viewTab === 'local' ? (
                                         <motion.div
                                             key="local"
                                             initial={{ opacity: 0 }}
@@ -464,6 +498,25 @@ const Home: React.FC<HomeProps> = ({
                                                 setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
                                                 theme={theme}
                                                 isDaylight={isDaylight}
+                                            />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="navidrome"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="w-full h-full flex-1 overflow-hidden"
+                                        >
+                                            <NavidromeMusicView
+                                                onPlaySong={onPlayNavidromeSong || (() => { })}
+                                                onOpenSettings={() => setShowHelpModal(true)}
+                                                onMatchSong={onMatchNavidromeSong}
+                                                theme={theme}
+                                                isDaylight={isDaylight}
+                                                focusedAlbumIndex={navidromeFocusedAlbumIndex}
+                                                setFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
                                             />
                                         </motion.div>
                                     )}
@@ -631,6 +684,7 @@ const Home: React.FC<HomeProps> = ({
                                 setBackgroundOpacity={setBackgroundOpacity}
                                 onSetThemePreset={onSetThemePreset}
                                 isDaylight={isDaylight}
+                                onToggleNavidrome={handleToggleNavidrome}
                             />
                         )
                     }
