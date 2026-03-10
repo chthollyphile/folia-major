@@ -86,7 +86,8 @@ const Word: React.FC<{
             variants={layoutVariants}
             initial="waiting"
             animate={status}
-            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center relative will-change-transform"
+            // Add `whitespace-nowrap` to prevent unexpected line breaks
+            className="text-4xl md:text-6xl lg:text-7xl font-bold inline-block origin-center relative will-change-transform whitespace-nowrap"
             style={{
                 marginRight: config.marginRight,
                 alignSelf: config.alignSelf,
