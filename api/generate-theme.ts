@@ -26,7 +26,7 @@ export default async function handler(req: any, res: any) {
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Analyze the mood of these lyrics and generate TWO visual theme configurations (colors and animation style) for a music player - one for LIGHT mode and one for DARK mode.
+      contents: `Analyze the mood of these lyrics and generate TWO visual theme configurations for a music player - one for LIGHT mode and one for DARK mode.
 
       DUAL THEME REQUIREMENTS:
       1. Generate TWO complete themes: one optimized for LIGHT/DAYLIGHT mode, one for DARK/MIDNIGHT mode.
@@ -73,7 +73,6 @@ export default async function handler(req: any, res: any) {
                 primaryColor: { type: Type.STRING, description: "Hex code for main text (dark color for contrast)" },
                 accentColor: { type: Type.STRING, description: "Hex code for highlighted text/effects" },
                 secondaryColor: { type: Type.STRING, description: "Hex code for secondary elements (must contrast with light bg)" },
-                animationIntensity: { type: Type.STRING, enum: ["calm", "normal", "chaotic"] },
                 wordColors: {
                   type: Type.ARRAY,
                   description: "List of exact emotional words from lyrics and their specific colors",
@@ -92,7 +91,7 @@ export default async function handler(req: any, res: any) {
                   items: { type: Type.STRING }
                 },
               },
-              required: ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"],
+              required: ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor"],
             },
             dark: {
               type: Type.OBJECT,
@@ -103,7 +102,6 @@ export default async function handler(req: any, res: any) {
                 primaryColor: { type: Type.STRING, description: "Hex code for main text (light color for contrast)" },
                 accentColor: { type: Type.STRING, description: "Hex code for highlighted text/effects" },
                 secondaryColor: { type: Type.STRING, description: "Hex code for secondary elements (must contrast with dark bg)" },
-                animationIntensity: { type: Type.STRING, enum: ["calm", "normal", "chaotic"] },
                 wordColors: {
                   type: Type.ARRAY,
                   description: "List of exact emotional words from lyrics and their specific colors",
@@ -122,7 +120,7 @@ export default async function handler(req: any, res: any) {
                   items: { type: Type.STRING }
                 },
               },
-              required: ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"],
+              required: ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor"],
             },
           },
           required: ["light", "dark"],
@@ -137,11 +135,13 @@ export default async function handler(req: any, res: any) {
 
     const dualTheme = JSON.parse(jsonText);
 
-    // Force fixed font style for both themes
+    // Force fixed properties for both themes
     dualTheme.light.fontStyle = 'sans';
     dualTheme.light.provider = 'Google Gemini';
+    dualTheme.light.animationIntensity = 'normal';
     dualTheme.dark.fontStyle = 'sans';
     dualTheme.dark.provider = 'Google Gemini';
+    dualTheme.dark.animationIntensity = 'normal';
 
     return res.status(200).json(dualTheme);
 

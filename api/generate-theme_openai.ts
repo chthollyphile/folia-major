@@ -34,7 +34,7 @@ export default async function handler(req: Request) {
         // Limit text to avoid token limits if lyrics are huge
         const snippet = lyricsText.slice(0, 2000);
 
-        const prompt = `Analyze the mood of these lyrics and generate TWO visual theme configurations (colors and animation style) for a music player - one for LIGHT mode and one for DARK mode.
+        const prompt = `Analyze the mood of these lyrics and generate TWO visual theme configurations for a music player - one for LIGHT mode and one for DARK mode.
 
 DUAL THEME REQUIREMENTS:
 1. Generate TWO complete themes: one optimized for LIGHT/DAYLIGHT mode, one for DARK/MIDNIGHT mode.
@@ -83,7 +83,6 @@ JSON Schema:
         "primaryColor": { "type": "string", "description": "Hex code for main text (dark)" },
         "accentColor": { "type": "string", "description": "Hex code for highlighted text/effects" },
         "secondaryColor": { "type": "string", "description": "Hex code for secondary elements" },
-        "animationIntensity": { "type": "string", "enum": ["calm", "normal", "chaotic"] },
         "wordColors": {
           "type": "array",
           "items": {
@@ -100,7 +99,7 @@ JSON Schema:
           "items": { "type": "string" }
         }
       },
-      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"]
+      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor"]
     },
     "dark": {
       "type": "object",
@@ -111,7 +110,6 @@ JSON Schema:
         "primaryColor": { "type": "string", "description": "Hex code for main text (light)" },
         "accentColor": { "type": "string", "description": "Hex code for highlighted text/effects" },
         "secondaryColor": { "type": "string", "description": "Hex code for secondary elements" },
-        "animationIntensity": { "type": "string", "enum": ["calm", "normal", "chaotic"] },
         "wordColors": {
           "type": "array",
           "items": {
@@ -128,7 +126,7 @@ JSON Schema:
           "items": { "type": "string" }
         }
       },
-      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor", "animationIntensity"]
+      "required": ["name", "backgroundColor", "primaryColor", "accentColor", "secondaryColor"]
     }
   },
   "required": ["light", "dark"]
@@ -180,11 +178,13 @@ JSON Schema:
             throw new Error("Invalid JSON response from AI");
         }
 
-        // Force fixed font style for both themes
+        // Force fixed properties for both themes
         dualTheme.light.fontStyle = 'sans';
         dualTheme.light.provider = 'OpenAI Compatible';
+        dualTheme.light.animationIntensity = 'normal';
         dualTheme.dark.fontStyle = 'sans';
         dualTheme.dark.provider = 'OpenAI Compatible';
+        dualTheme.dark.animationIntensity = 'normal';
 
         return new Response(JSON.stringify(dualTheme), {
             status: 200,

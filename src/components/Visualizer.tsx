@@ -344,7 +344,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({ cur
         passed: {
             color: "transparent",
             textShadow: "none",
-            transition: { duration: 2.5, ease: "easeInOut" }
+            transition: { duration: 1.8, ease: "easeInOut" }
         }
     };
 
