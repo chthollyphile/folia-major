@@ -188,7 +188,7 @@ export default {
     "search": "搜索",
     "searching": "搜索中...",
     "noResults": "未找到结果，请尝试不同的关键词。",
-    "matchLyrics": "匹配歌词",
+    "matchLyrics": "匹配数据",
     "matchLyricsDescription": "搜索并选择正确的歌曲以匹配：",
     "deleteFolderTitle": "删除文件夹？",
     "deleteFolderMessage": "您即将从库中移除 \"{{folderName}}\"。",
@@ -198,7 +198,7 @@ export default {
     "resyncFailed": "重新同步文件夹失败，请重试。",
     "deleteFailed": "删除文件夹失败，请重试。",
     "matchFailed": "获取歌词失败",
-    "dontUseOnlineMetadata": "不使用在线元数据",
+    "dontUseOnlineMetadata": "不使用在线数据",
     "notALocalSong": "非本地歌曲",
     "fileInfo": "文件信息",
     "filename": "文件名",
@@ -212,7 +212,14 @@ export default {
     "statusOnline": "在线",
     "statusNone": "无",
     "selectLrcFile": "选择 LRC 文件",
-    "selectTranslationLrc": "选择译文 LRC"
+    "selectTranslationLrc": "选择译文 LRC",
+    "lyricsSource": "歌词",
+    "coverSource": "封面",
+    "metadataSource": "元数据",
+    "artistLabel": "歌手",
+    "albumLabel": "专辑",
+    "noSelection": "请在左侧选择一首歌曲",
+    "save": "保存"
   },
   "navidrome": {
     "title": "Navi",

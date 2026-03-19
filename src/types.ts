@@ -138,6 +138,11 @@ export interface LocalSong {
   folderName?: string; // Name of the folder if imported via folder import
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
 
+  // User preferences for online data override (set via LyricMatchModal)
+  useOnlineLyrics?: boolean;    // Prefer online lyrics over local LRC
+  useOnlineCover?: boolean;     // Prefer online cover over embedded cover
+  useOnlineMetadata?: boolean;  // Prefer online artist/album over embedded tags
+
   // Local Lyrics
   hasLocalLyrics?: boolean;
   localLyricsContent?: string;

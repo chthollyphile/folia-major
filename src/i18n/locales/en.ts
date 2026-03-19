@@ -188,7 +188,7 @@ export default {
     "search": "Search",
     "searching": "Searching...",
     "noResults": "No results found. Try a different search query.",
-    "matchLyrics": "Match Lyrics",
+    "matchLyrics": "Match Data",
     "matchLyricsDescription": "Search and select the correct song for: ",
     "deleteFolderTitle": "Delete Folder?",
     "deleteFolderMessage": "You are about to remove \"{{folderName}}\" from your library.",
@@ -212,7 +212,14 @@ export default {
     "statusOnline": "Online",
     "statusNone": "None",
     "selectLrcFile": "Select LRC File",
-    "selectTranslationLrc": "Select Translation LRC"
+    "selectTranslationLrc": "Select Translation LRC",
+    "lyricsSource": "Lyrics",
+    "coverSource": "Cover",
+    "metadataSource": "Metadata",
+    "artistLabel": "Artist",
+    "albumLabel": "Album",
+    "noSelection": "Select a song on the left",
+    "save": "Save"
   },
   "navidrome": {
     "title": "Navi",

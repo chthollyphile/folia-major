@@ -16,6 +16,7 @@ import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
+import LyricMatchModal from './components/LyricMatchModal';
 import { LyricData, Theme, DualTheme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
 import { NavidromeSong } from './types/navidrome';
 import { neteaseApi } from './services/netease';
@@ -979,22 +980,33 @@ export default function App() {
             embeddedCoverUrl = URL.createObjectURL(updatedLocalSong.embeddedCover);
         }
 
-        // Use updated data, prioritizing embedded metadata and local lyrics
-        const coverUrl = embeddedCoverUrl || updatedLocalSong.matchedCoverUrl || null;
+        // Use updated data, respecting user's online data preferences
+        // If user explicitly chose to use online data (useOnline* flags), override default priority
+        const preferOnlineCover = updatedLocalSong.useOnlineCover === true;
+        const preferOnlineLyrics = updatedLocalSong.useOnlineLyrics === true;
+        const preferOnlineMetadata = updatedLocalSong.useOnlineMetadata === true;
+
+        // Cover priority: default is Embedded > Online, but useOnlineCover reverses it
+        const coverUrl = preferOnlineCover
+            ? (updatedLocalSong.matchedCoverUrl || embeddedCoverUrl || null)
+            : (embeddedCoverUrl || updatedLocalSong.matchedCoverUrl || null);
         const matchedSong = matchedSongResult;
 
-        // Prioritize local lyrics over online matched lyrics
+        // Lyrics priority: default is Local LRC > Online, but useOnlineLyrics reverses it
         let lyrics: LyricData | null = null;
-        if (updatedLocalSong.hasLocalLyrics && updatedLocalSong.localLyricsContent) {
+        if (preferOnlineLyrics && updatedLocalSong.matchedLyrics) {
+            lyrics = updatedLocalSong.matchedLyrics;
+            console.log('[App] Using online matched lyrics (user preference)');
+        } else if (updatedLocalSong.hasLocalLyrics && updatedLocalSong.localLyricsContent) {
             // Parse local LRC file content
             lyrics = parseLRC(
                 updatedLocalSong.localLyricsContent,
                 updatedLocalSong.localTranslationLyricsContent || ''
             );
             console.log('[App] Using local lyrics file');
-        } else if (updatedLocalSong.matchedLyrics) {
+        } else if (updatedLocalSong.matchedLyrics && updatedLocalSong.useOnlineLyrics !== false) {
             lyrics = updatedLocalSong.matchedLyrics;
-            console.log('[App] Using online matched lyrics');
+            console.log('[App] Using online matched lyrics (fallback)');
         }
 
         // Convert LocalSong to SongResult-like format for playback
@@ -1002,9 +1014,15 @@ export default function App() {
         const localSongId = getLocalSongId(updatedLocalSong);
 
         // Determine metadata to display
+        // Default priority: Embedded > Online > Filename
+        // If useOnlineMetadata is true: Online (matchedArtists/matchedAlbumName) > Embedded > Filename
         const displayTitle = updatedLocalSong.embeddedTitle || updatedLocalSong.title || updatedLocalSong.fileName;
-        const displayArtist = updatedLocalSong.embeddedArtist || updatedLocalSong.artist;
-        const displayAlbum = updatedLocalSong.embeddedAlbum || updatedLocalSong.album;
+        const displayArtist = preferOnlineMetadata
+            ? (updatedLocalSong.matchedArtists || updatedLocalSong.embeddedArtist || updatedLocalSong.artist)
+            : (updatedLocalSong.embeddedArtist || updatedLocalSong.matchedArtists || updatedLocalSong.artist);
+        const displayAlbum = preferOnlineMetadata
+            ? (updatedLocalSong.matchedAlbumName || updatedLocalSong.embeddedAlbum || updatedLocalSong.album)
+            : (updatedLocalSong.embeddedAlbum || updatedLocalSong.matchedAlbumName || updatedLocalSong.album);
 
         const unifiedSong: SongResult = {
             id: localSongId,
@@ -1027,48 +1045,29 @@ export default function App() {
             localData: updatedLocalSong
         } as UnifiedSong;
 
-        // If we have matched song info, ONLY overwrite if we DON'T have embedded metadata
-        // EXCEPT for lyrics, which we always want (handled above)
+        // If we have matched song info, overwrite unifiedSong fields based on priority
         if (matchedSong) {
-            // Only use online name if we don't have embedded title AND don't have filename-parsed title (unlikely, but safe)
-            // Actually, the requirement is: "prioritize embedded... if exists... otherwise use online"
-            // But we also have filename parsed title. 
-            // Logic: Embedded > Online > Filename? Or Embedded > Filename?
-            // User said: "if exists these info (embedded), prefer use these info... instead of online info"
-
-            // So:
-            // Title: Embedded -> Matched -> Filename
-            // Artist: Embedded -> Matched -> Filename
-            // Album: Embedded -> Matched -> Filename
-            // Cover: Embedded -> Matched
-
+            // Title: Embedded -> Matched -> Filename (useOnlineMetadata doesn't affect title for now)
             if (!updatedLocalSong.embeddedTitle) {
                 unifiedSong.name = matchedSong.name;
             }
 
-            if (!updatedLocalSong.embeddedArtist) {
-                unifiedSong.artists = matchedSong.artists || matchedSong.ar || unifiedSong.artists;
-                unifiedSong.ar = matchedSong.ar || unifiedSong.ar;
+            // Artist & Album already resolved above via displayArtist/displayAlbum
+            // but we need to set the structured ar/al objects if matched song provides them
+            if (preferOnlineMetadata || !updatedLocalSong.embeddedArtist) {
+                if (matchedSong.ar) unifiedSong.ar = matchedSong.ar;
+                if (matchedSong.artists) unifiedSong.artists = matchedSong.artists;
             }
 
-            if (!updatedLocalSong.embeddedAlbum) {
-                unifiedSong.album = matchedSong.album || (matchedSong.al ? {
-                    id: matchedSong.al.id,
-                    name: matchedSong.al.name,
-                    picUrl: matchedSong.al.picUrl
-                } : unifiedSong.album);
-                unifiedSong.al = matchedSong.al || unifiedSong.al;
+            if (preferOnlineMetadata || !updatedLocalSong.embeddedAlbum) {
+                if (matchedSong.al) unifiedSong.al = matchedSong.al;
+                if (matchedSong.album) unifiedSong.album = matchedSong.album;
             }
 
-            // For cover, we already handled priority in `coverUrl` variable:
-            // embeddedCoverUrl || updatedLocalSong.matchedCoverUrl
-            // So just ensure unifiedSong uses `coverUrl` which is already correct.
-            // However, we need to update the `al` or `album` object if we created it from matched song but want to override picture
-
-            if (embeddedCoverUrl) {
-                // If we used matched album info, we need to inject our local cover
-                if (unifiedSong.album) unifiedSong.album.picUrl = embeddedCoverUrl;
-                if (unifiedSong.al) unifiedSong.al.picUrl = embeddedCoverUrl;
+            // For cover, inject the resolved coverUrl back into the album objects
+            if (coverUrl) {
+                if (unifiedSong.album) unifiedSong.album.picUrl = coverUrl;
+                if (unifiedSong.al) unifiedSong.al.picUrl = coverUrl;
             }
         }
 
@@ -2263,34 +2262,27 @@ export default function App() {
         }
     };
 
-    const handleManualMatchOnline = async () => {
+    const [showLyricMatchModal, setShowLyricMatchModal] = useState(false);
+
+    const handleManualMatchOnline = () => {
+        if (!currentSong || !((currentSong as any).isLocal || currentSong.id < 0)) return;
+        const localData = (currentSong as any).localData as LocalSong;
+        if (!localData) return;
+        setShowLyricMatchModal(true);
+    };
+
+    const handleLyricMatchComplete = async () => {
+        setShowLyricMatchModal(false);
         if (!currentSong || !((currentSong as any).isLocal || currentSong.id < 0)) return;
         const localData = (currentSong as any).localData as LocalSong;
         if (!localData) return;
 
-        setStatusMsg({ type: 'info', text: 'Matching online...' });
-        try {
-            const { matchLyrics } = await import('./services/localMusicService');
-            // Force search
-            const matchedLyrics = await matchLyrics(localData);
-
-            if (matchedLyrics) {
-                // Determine matched song details? matchLyrics updates localData internally in service?
-                // Yes, lines 281-292 in localMusicService.ts updates song and saves it.
-
-                // So we just need to reload
-                await loadLocalSongs();
-                const updatedList = await getLocalSongs();
-                const found = updatedList.find(s => s.id === localData.id);
-                if (found) {
-                    onPlayLocalSong(found, localSongs);
-                    setStatusMsg({ type: 'success', text: 'Match successful' });
-                }
-            } else {
-                setStatusMsg({ type: 'error', text: 'No match found' });
-            }
-        } catch (e) {
-            setStatusMsg({ type: 'error', text: 'Match failed' });
+        await loadLocalSongs();
+        const updatedList = await getLocalSongs();
+        const found = updatedList.find(s => s.id === localData.id);
+        if (found) {
+            onPlayLocalSong(found, localSongs);
+            setStatusMsg({ type: 'success', text: 'Match successful' });
         }
     };
 
@@ -2613,7 +2605,7 @@ export default function App() {
 
             {/* --- UNIFIED PANEL (Player View Only) --- */}
             {
-                currentView === 'player' && (
+                currentView === 'player' && !showLyricMatchModal && (
                     <UnifiedPanel
                         isOpen={isPanelOpen}
                         currentTab={panelTab}
@@ -2659,6 +2651,16 @@ export default function App() {
                     />
                 )
             }
+
+            {/* --- LYRIC MATCH MODAL (Player View) --- */}
+            {showLyricMatchModal && currentSong && ((currentSong as any).isLocal || currentSong.id < 0) && (currentSong as any).localData && (
+                <LyricMatchModal
+                    song={(currentSong as any).localData as LocalSong}
+                    onClose={() => setShowLyricMatchModal(false)}
+                    onMatch={handleLyricMatchComplete}
+                    isDaylight={isDaylight}
+                />
+            )}
         </div >
     );
 }

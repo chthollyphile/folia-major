@@ -110,13 +110,13 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                     <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalLyrics
                             ? 'bg-green-500/20 text-green-300'
-                            : (localData.matchedLyrics?.lines?.length ?? 0) > 0
+                            : ((localData.matchedLyrics?.lines?.length ?? 0) > 0 && localData.useOnlineLyrics !== false)
                                 ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
                                 : 'bg-white/10 opacity-60'
                             }`}>
                             {localData.hasLocalLyrics
                                 ? t('localMusic.statusLocal')
-                                : (localData.matchedLyrics?.lines?.length ?? 0) > 0
+                                : ((localData.matchedLyrics?.lines?.length ?? 0) > 0 && localData.useOnlineLyrics !== false)
                                     ? t('localMusic.statusOnline')
                                     : t('localMusic.statusNone')}
                         </span>
@@ -146,13 +146,13 @@ const LocalTab: React.FC<LocalTabProps> = ({ currentSong, onMatchOnline, onUpdat
                     <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${localData.hasLocalTranslationLyrics
                             ? 'bg-green-500/20 text-green-300'
-                            : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
+                            : ((localData.matchedLyrics?.lines?.some(l => l.translation) ?? false) && localData.useOnlineLyrics !== false)
                                 ? isDaylight ? 'bg-[#1686eb]/10 text-[#1686eb]' : 'bg-blue-500/20 text-blue-300'
                                 : 'bg-white/10 opacity-60'
                             }`}>
                             {localData.hasLocalTranslationLyrics
                                 ? t('localMusic.statusLocal')
-                                : (localData.matchedLyrics?.lines?.some(l => l.translation) ?? false)
+                                : ((localData.matchedLyrics?.lines?.some(l => l.translation) ?? false) && localData.useOnlineLyrics !== false)
                                     ? t('localMusic.statusOnline')
                                     : t('localMusic.statusNone')}
                         </span>
