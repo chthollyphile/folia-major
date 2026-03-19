@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme } from '../types';
+import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, UnifiedSong } from '../types';
 import { NavidromeSong } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import PlaylistView from './PlaylistView';
@@ -256,17 +256,51 @@ const Home: React.FC<HomeProps> = ({
 
     const handleSearch = async (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (!searchQuery.trim()) return;
+        const query = searchQuery.trim();
+        if (!query) return;
 
         setIsSearching(true);
         setSearchResults(null); // Clear previous results while loading
 
         try {
-            const res = await neteaseApi.cloudSearch(searchQuery);
-            if (res.result && res.result.songs) {
-                setSearchResults(res.result.songs);
+            if (viewTab === 'local') {
+                const lowerQuery = query.toLowerCase();
+                const matchedLocalSongs = localSongs.filter(ls => {
+                    const title = (ls.title || ls.embeddedTitle || ls.fileName || '').toLowerCase();
+                    const artist = (ls.artist || ls.embeddedArtist || '').toLowerCase();
+                    const album = (ls.album || ls.embeddedAlbum || '').toLowerCase();
+                    return title.includes(lowerQuery) || artist.includes(lowerQuery) || album.includes(lowerQuery);
+                });
+
+                const unifiedResults: UnifiedSong[] = matchedLocalSongs.map((ls, index) => {
+                    // Create a pseudo unique negative ID
+                    const uniqueId = -(Date.now() + index);
+                    return {
+                        id: uniqueId,
+                        name: ls.title || ls.embeddedTitle || ls.fileName,
+                        artists: [{ id: 0, name: ls.artist || ls.embeddedArtist || t('player.unknownArtist', '未知歌手') }],
+                        album: { id: 0, name: ls.album || ls.embeddedAlbum || t('player.unknownAlbum', '未知专辑'), picUrl: ls.matchedCoverUrl || undefined },
+                        duration: ls.duration,
+                        al: {
+                            id: 0,
+                            name: ls.album || ls.embeddedAlbum || t('player.unknownAlbum', '未知专辑'),
+                            picUrl: ls.matchedCoverUrl || undefined
+                        },
+                        ar: [{ id: 0, name: ls.artist || ls.embeddedArtist || t('player.unknownArtist', '未知歌手') }],
+                        dt: ls.duration,
+                        isLocal: true,
+                        localData: ls
+                    };
+                });
+                
+                setSearchResults(unifiedResults);
             } else {
-                setSearchResults([]);
+                const res = await neteaseApi.cloudSearch(query);
+                if (res.result && res.result.songs) {
+                    setSearchResults(res.result.songs);
+                } else {
+                    setSearchResults([]);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -564,7 +598,12 @@ const Home: React.FC<HomeProps> = ({
                                                     transition={{ delay: i * 0.03 }}
                                                     key={track.id}
                                                     onClick={() => {
-                                                        onQueueAddAndPlay(track);
+                                                        const unifiedTrack = track as UnifiedSong;
+                                                        if (unifiedTrack.isLocal && unifiedTrack.localData) {
+                                                            onPlayLocalSong(unifiedTrack.localData);
+                                                        } else {
+                                                            onQueueAddAndPlay(track);
+                                                        }
                                                         setSearchResults(null);
                                                     }}
 
