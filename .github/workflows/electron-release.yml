@@ -1,6 +1,9 @@
 name: Build and Release Electron App
 
 on:
+  push:
+    branches: [main]
+    paths: ['package.json']
   workflow_dispatch:
     inputs:
       version:
@@ -16,8 +19,42 @@ permissions:
   contents: write # Required to upload artifacts and publish releases
 
 jobs:
+  check-version:
+    name: Check version change
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - name: Detect version change
+        id: check
+        shell: bash
+        run: |
+          # If triggered manually, always proceed
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Compare version with previous commit
+          PREV_VERSION=$(git show HEAD^:package.json | jq -r .version)
+          CURR_VERSION=$(cat package.json | jq -r .version)
+          
+          if [ "$PREV_VERSION" != "$CURR_VERSION" ]; then
+            echo "Version changed from $PREV_VERSION to $CURR_VERSION"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version unchanged ($CURR_VERSION)"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
   release:
     name: Build on ${{ matrix.os }}
+    needs: check-version
+    if: needs.check-version.outputs.changed == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,12 +63,12 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Update package.json version
         if: github.event.inputs.version != ''
