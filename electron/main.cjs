@@ -14,6 +14,16 @@ const store = new Store();
 
 // Provide Netease API unblock parameter as requested
 process.env.ENABLE_GENERAL_UNBLOCK = 'false';
+
+// Issue: Netease API module reads 'anonymous_token' synchronously from tmp dir upon require.
+// If not present, Electron crashes with ENOENT. We pre-create it safely.
+const fs = require('fs');
+const os = require('os');
+const tokenPath = path.resolve(os.tmpdir(), 'anonymous_token');
+if (!fs.existsSync(tokenPath)) {
+  fs.writeFileSync(tokenPath, '', 'utf-8');
+}
+
 const { serveNcmApi } = require('@neteasecloudmusicapienhanced/api/server');
 
 const net = require('net');
