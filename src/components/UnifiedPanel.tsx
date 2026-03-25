@@ -67,6 +67,11 @@ interface UnifiedPanelProps {
     onPrevTrack: () => void;
     playerState: PlayerState;
     onTogglePlay: () => void;
+    volume: number;
+    isMuted: boolean;
+    onVolumePreview: (val: number) => void;
+    onVolumeChange: (val: number) => void;
+    onToggleMute: () => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -116,7 +121,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onNextTrack,
     onPrevTrack,
     playerState,
-    onTogglePlay
+    onTogglePlay,
+    volume,
+    isMuted,
+    onVolumePreview,
+    onVolumeChange,
+    onToggleMute
 }) => {
     const { t } = useTranslation();
 
@@ -236,6 +246,11 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onToggleCoverColorBg={onToggleCoverColorBg}
                                             isDaylight={isDaylight}
                                             onToggleDaylight={onToggleDaylight}
+                                            volume={volume}
+                                            isMuted={isMuted}
+                                            onVolumePreview={onVolumePreview}
+                                            onVolumeChange={onVolumeChange}
+                                            onToggleMute={onToggleMute}
                                         />
                                     )}
                                     {currentTab === 'queue' && (
@@ -318,4 +333,3 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 };
 
 export default UnifiedPanel;
-

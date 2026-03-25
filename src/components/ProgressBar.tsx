@@ -77,7 +77,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     }, [duration]);
 
     // Update UI directly from MotionValue without re-rendering
-    useMotionValueEvent(currentTime, "change", (latest) => {
+    useMotionValueEvent(currentTime, "change", (latest: number) => {
         updateUI(latest);
     });
 

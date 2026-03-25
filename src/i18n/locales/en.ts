@@ -58,7 +58,8 @@ export default {
     "selectTrack": "Select Track",
     "foundMatches": "Found {{count}} matches",
     "waitingForMusic": "",
-    "options": "Options"
+    "options": "Options",
+    "volume": "Volume"
   },
   "panel": {
     "cover": "Cover",

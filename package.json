@@ -97,6 +97,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.22",
+    "baseline-browser-mapping": "^2.10.10",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^41.0.3",

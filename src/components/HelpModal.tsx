@@ -179,6 +179,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-900/90'; // Use slightly higher opacity for modal than panel
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const textColor = isDaylight ? 'text-zinc-800' : 'text-zinc-100';
+    const successTextColor = isDaylight ? 'text-green-600' : 'text-green-400';
+    const successBgColor = isDaylight ? 'bg-green-500/10' : 'bg-green-500/20';
+    const errorTextColor = isDaylight ? 'text-red-600' : 'text-red-400';
+    const errorBgColor = isDaylight ? 'bg-red-500/10' : 'bg-red-500/10';
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-200">
@@ -359,7 +363,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             }
                                         }}
                                         disabled={isCleaning === 'all'}
-                                        className="ml-auto text-xs font-normal normal-case tracking-normal px-2 py-1 hover:bg-white/10 rounded-lg text-red-400 opacity-60 hover:opacity-100 transition-all disabled:opacity-20 flex items-center gap-1"
+                                        className={`ml-auto text-xs font-normal normal-case tracking-normal px-2 py-1 hover:bg-white/10 rounded-lg ${errorTextColor} opacity-60 hover:opacity-100 transition-all disabled:opacity-20 flex items-center gap-1`}
                                     >
                                         {isCleaning === 'all' ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                         {t('options.clearAll') || "清空所有"}
@@ -386,7 +390,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             <button
                                                 onClick={() => handleClear(item.id as any)}
                                                 disabled={isCleaning === item.id}
-                                                className="p-2 hover:bg-white/10 rounded-lg text-red-400 opacity-60 hover:opacity-100 transition-all disabled:opacity-20"
+                                                className={`p-2 hover:bg-white/10 rounded-lg ${errorTextColor} opacity-60 hover:opacity-100 transition-all disabled:opacity-20`}
                                                 title="Clear"
                                             >
                                                 {isCleaning === item.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
@@ -432,7 +436,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                                     <Server size={14} /> {t('navidrome.settings') || "Navidrome Settings"}
                                     {navidromeEnabled && navidromeConfigured && (
-                                        <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full font-normal normal-case">
+                                        <span className={`ml-2 px-2 py-0.5 ${successBgColor} ${successTextColor} text-xs rounded-full font-normal normal-case`}>
                                             {t('navidrome.connectionSuccess') || "Connected"}
                                         </span>
                                     )}
@@ -520,12 +524,12 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     </>
                                                 ) : navidromeTestStatus === 'success' ? (
                                                     <>
-                                                        <Check size={16} className="text-green-400" />
+                                                        <Check size={16} className={successTextColor} />
                                                         {t('navidrome.connectionSuccess') || "Connected"}
                                                     </>
                                                 ) : navidromeTestStatus === 'failed' ? (
                                                     <>
-                                                        <AlertCircle size={16} className="text-red-400" />
+                                                        <AlertCircle size={16} className={errorTextColor} />
                                                         {t('navidrome.connectionFailed') || "Failed"}
                                                     </>
                                                 ) : (
@@ -539,7 +543,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             {navidromeConfigured && (
                                                 <button
                                                     onClick={handleClearNavidrome}
-                                                    className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                                                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${errorBgColor} hover:bg-red-500/20 ${errorTextColor}`}
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -659,7 +663,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
                                                     style={{ color: 'var(--text-primary)' }}
                                                 >
-                                                    {electronSaveStatus === 'saved' ? <Check size={16} className="text-green-400" /> : (t('options.save') || "Save")}
+                                                    {electronSaveStatus === 'saved' ? <Check size={16} className={successTextColor} /> : (t('options.save') || "Save")}
                                                 </button>
                                             </div>
                                         </div>

@@ -1,7 +1,8 @@
 import { LyricData, Line, Word } from '../types';
 
 export const parseYRC = (yrcString: string, translationString: string = ''): LyricData => {
-  console.log('[yrcParser] Verbatim lyrics found, Prioritized')
+  // Synced lyrics means word-by-word lyrics with precise timing, as opposed to line-based lyrics.
+  console.log('[yrcParser] Synced lyrics found, Prioritized');
   const lines: Line[] = [];
 
   // Helper to parse translation (standard LRC format)

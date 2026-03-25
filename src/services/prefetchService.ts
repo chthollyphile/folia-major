@@ -14,7 +14,7 @@ const PREFETCH_COUNT_NEXT = 2;  // Prefetch 2 songs ahead
 const PREFETCH_COUNT_PREV = 1;  // Prefetch 1 song behind
 const URL_TTL_MS = 1200 * 1000; // 1200 seconds = 20 minutes
 
-interface PrefetchedSongData {
+export interface PrefetchedSongData {
     songId: number;
     audioUrl: string | null;
     audioUrlFetchedAt: number;

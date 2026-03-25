@@ -1,14 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { parseLRC } from './utils/lrcParser';
 import { parseYRC } from './utils/yrcParser';
 import { detectChorusLines } from './utils/chorusDetector';
-import { generateThemeFromLyrics } from './services/gemini';
-import { saveSessionData, getSessionData, getFromCache, saveToCache, clearCache, getCacheUsage, openDB, getLocalSongs } from './services/db';
+import { saveSessionData, getSessionData, getFromCache, saveToCache, getLocalSongs } from './services/db';
+import { getCachedCoverUrl, loadCachedOrFetchCover } from './services/coverCache';
 import { getAudioFromLocalSong } from './services/localMusicService';
-import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch, parseLyricsAsync, isUrlValid } from './services/prefetchService';
+import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from './services/onlinePlayback';
+import { buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong } from './services/playbackAdapters';
+import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch } from './services/prefetchService';
 import Visualizer from './components/Visualizer';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
@@ -18,12 +20,17 @@ import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
 import LyricMatchModal from './components/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/NaviLyricMatchModal';
-import { LyricData, Theme, DualTheme, PlayerState, SongResult, NeteaseUser, NeteasePlaylist, LocalSong, UnifiedSong } from './types';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong } from './types';
 import { NavidromeSong } from './types/navidrome';
 import { neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
+import { useAppPreferences } from './hooks/useAppPreferences';
+import { useThemeController } from './hooks/useThemeController';
 
 // Default Theme
+// 午夜墨染
 const DEFAULT_THEME: Theme = {
     name: "Midnight Default",
     backgroundColor: "#09090b", // zinc-950
@@ -34,6 +41,7 @@ const DEFAULT_THEME: Theme = {
     animationIntensity: "normal"
 };
 
+// 日光素白
 const DAYLIGHT_THEME: Theme = {
     name: "Daylight Default",
     backgroundColor: "#f5f5f4", // stone-100 (Pearl White-ish)
@@ -51,56 +59,14 @@ const formatTime = (time: number) => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
-// 获取用户的所有playlist（支持分页）
-const getAllUserPlaylists = async (uid: number): Promise<NeteasePlaylist[]> => {
-    const allPlaylists: NeteasePlaylist[] = [];
-    let offset = 0;
-    const limit = 50; // 每次获取50个
-    let hasMore = true;
-
-    while (hasMore) {
-        const plRes = await neteaseApi.getUserPlaylists(uid, limit, offset);
-        if (plRes.playlist && plRes.playlist.length > 0) {
-            allPlaylists.push(...plRes.playlist);
-            // 如果返回的数量少于limit，说明已经获取完了
-            hasMore = plRes.playlist.length === limit;
-            offset += limit;
-        } else {
-            hasMore = false;
-        }
-    }
-
-    return allPlaylists;
-};
-
 export default function App() {
     const { t } = useTranslation();
-
-    // View State
-    const [currentView, setCurrentView] = useState<'home' | 'player'>('home');
 
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
     const [lyrics, setLyrics] = useState<LyricData | null>(null);
-    const [theme, setTheme] = useState<Theme>(DEFAULT_THEME);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
-
-    // User & Library Data (Lifted from Home)
-    const [user, setUser] = useState<NeteaseUser | null>(null);
-    const [playlists, setPlaylists] = useState<NeteasePlaylist[]>([]);
-    const [likedSongIds, setLikedSongIds] = useState<Set<number>>(new Set());
-    const [selectedPlaylist, setSelectedPlaylist] = useState<NeteasePlaylist | null>(null);
-    const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
-    const [selectedArtistId, setSelectedArtistId] = useState<number | null>(null);
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -109,16 +75,6 @@ export default function App() {
     const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success' | 'info', text: string; } | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
-    const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
-
-    const [bgMode, setBgMode] = useState<'default' | 'ai'>('ai');
-    const [aiTheme, setAiTheme] = useState<DualTheme | null>(null); // Store dual AI themes (light + dark) for mode switching
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [cacheSize, setCacheSize] = useState<string>("0 B");
-    const [audioQuality, setAudioQuality] = useState<'exhigh' | 'lossless' | 'hires'>(() => {
-        const saved = localStorage.getItem('default_audio_quality');
-        return (saved === 'lossless' || saved === 'hires') ? saved : 'exhigh';
-    });
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -127,111 +83,10 @@ export default function App() {
     const [currentLineIndex, setCurrentLineIndex] = useState(-1);
     const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('off');
     const [isFmMode, setIsFmMode] = useState(false);
-    const [useCoverColorBg, setUseCoverColorBg] = useState(() => {
-        const saved = localStorage.getItem('use_cover_color_bg');
-        return saved !== null ? saved === 'true' : false;
-    });
-
-    const handleToggleCoverColorBg = (enable: boolean) => {
-        setUseCoverColorBg(enable);
-        localStorage.setItem('use_cover_color_bg', String(enable));
-        setStatusMsg({
-            type: 'info',
-            text: enable ? '添加封面色彩' : '使用默认色彩'
-        });
-    };
-
-    const [staticMode, setStaticMode] = useState(() => {
-        const saved = localStorage.getItem('static_mode');
-        return saved !== null ? saved === 'true' : false;
-    });
-
-    const handleToggleStaticMode = (enable: boolean) => {
-        setStaticMode(enable);
-        localStorage.setItem('static_mode', String(enable));
-        setStatusMsg({
-            type: 'info',
-            text: enable ? '静态模式已开启' : '静态模式已关闭'
-        });
-    };
-
-    const [enableMediaCache, setEnableMediaCache] = useState(() => {
-        const saved = localStorage.getItem('enable_media_cache');
-        return saved !== null ? saved === 'true' : false;
-    });
-
-    const handleToggleMediaCache = (enable: boolean) => {
-        setEnableMediaCache(enable);
-        localStorage.setItem('enable_media_cache', String(enable));
-    };
-
-    const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
-        const saved = localStorage.getItem('background_opacity');
-        return saved ? parseFloat(saved) : 0.75;
-    });
-
-    const handleSetBackgroundOpacity = (opacity: number) => {
-        setBackgroundOpacity(opacity);
-        localStorage.setItem('background_opacity', String(opacity));
-    };
-
-    const [defaultThemeDaylight, setDefaultThemeDaylight] = useState(() => {
-        const saved = localStorage.getItem('default_theme_daylight');
-        return saved !== null ? saved === 'true' : false;
-    });
-
-    const isDaylight = defaultThemeDaylight; // Master switch for UI mode
-
-    const handleToggleDaylight = (isLight: boolean) => {
-        setDefaultThemeDaylight(isLight);
-        localStorage.setItem('default_theme_daylight', String(isLight));
-
-        // If we have a dual AI theme cached, switch to the appropriate variant
-        if (aiTheme) {
-            const selectedTheme = isLight ? aiTheme.light : aiTheme.dark;
-            setTheme(prev => {
-                if (bgMode === 'default') {
-                    // In default mode, use AI colors + default background
-                    const baseTheme = isLight ? DAYLIGHT_THEME : DEFAULT_THEME;
-                    return {
-                        ...selectedTheme,
-                        backgroundColor: baseTheme.backgroundColor,
-                        wordColors: prev.wordColors,
-                        lyricsIcons: prev.lyricsIcons
-                    };
-                } else {
-                    // In AI mode, use full AI theme
-                    return {
-                        ...selectedTheme,
-                        wordColors: prev.wordColors,
-                        lyricsIcons: prev.lyricsIcons
-                    };
-                }
-            });
-        } else {
-            // No AI theme, just switch default themes
-            setTheme(isLight ? DAYLIGHT_THEME : DEFAULT_THEME);
-        }
-    };
-
-    // Apply Theme to Scrollbar globally
-    useEffect(() => {
-        const root = document.documentElement;
-        if (isDaylight) {
-            root.style.setProperty('--scrollbar-track', '#cccbcc');
-            root.style.setProperty('--scrollbar-thumb', '#ecececff');
-            root.style.setProperty('--scrollbar-thumb-hover', '#ffffffff');
-        } else {
-            root.style.setProperty('--scrollbar-track', '#18181b'); // zinc-900
-            root.style.setProperty('--scrollbar-thumb', '#3f3f46'); // zinc-700
-            root.style.setProperty('--scrollbar-thumb-hover', '#52525b'); // zinc-600
-        }
-    }, [isDaylight]);
 
     // Progress Bar State
     // Removed isDragging and sliderValue as they are handled by ProgressBar component
 
-    // Audio Analysis State
     // Audio Analysis State
     const audioPower = useMotionValue(0);
     const audioBands = {
@@ -252,6 +107,8 @@ export default function App() {
     const queueScrollRef = useRef<HTMLDivElement>(null);
     const shouldAutoPlay = useRef(false);
     const currentSongRef = useRef<number | null>(null);
+    const volumePreviewFrameRef = useRef<number | null>(null);
+    const pendingVolumePreviewRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
 
     // Local Music State
@@ -276,148 +133,119 @@ export default function App() {
         focusedAlbumIndex: 0
     });
 
-    // --- Initialization & User Data ---
+    // Preferences and Theme
+    // Manages user preferences for audio quality, theme settings, 
+    // and related actions like toggling cover color backgrounds and static mode,
+    // as well as setting daylight mode preference
+    const {
+        audioQuality,
+        setAudioQuality,
+        useCoverColorBg,
+        staticMode,
+        enableMediaCache,
+        backgroundOpacity,
+        isDaylight,
+        handleToggleCoverColorBg,
+        handleToggleStaticMode,
+        handleToggleMediaCache,
+        handleSetBackgroundOpacity,
+        setDaylightPreference,
+        volume,
+        isMuted,
+        handleSetVolume,
+        handleToggleMute,
+    } = useAppPreferences(setStatusMsg);
 
-    useEffect(() => {
-        // Initialize History State
-        window.history.replaceState({ view: 'home' }, '', '');
+    const handlePreviewVolume = useCallback((val: number) => {
+        pendingVolumePreviewRef.current = val;
 
-        const handlePopState = (event: PopStateEvent) => {
-            const state = event.state;
-            // If no state or home, go to home root
-            if (!state || state.view === 'home') {
-                setCurrentView('home');
-                setSelectedPlaylist(null);
-                setSelectedAlbumId(null);
-                setSelectedArtistId(null);
+        if (volumePreviewFrameRef.current !== null) {
+            return;
+        }
+
+        volumePreviewFrameRef.current = requestAnimationFrame(() => {
+            volumePreviewFrameRef.current = null;
+            const nextVolume = pendingVolumePreviewRef.current;
+            if (audioRef.current && nextVolume !== null) {
+                audioRef.current.volume = nextVolume;
             }
-            // If player state
-            else if (state.view === 'player') {
-                setCurrentView('player');
-                setSelectedPlaylist(null);
-                setSelectedAlbumId(null);
-                setSelectedArtistId(null);
-            }
-            // If playlist state
-            else if (state.view === 'playlist') {
-                setCurrentView('home');
-                // When going back to playlist, clear upper layers
-                setSelectedAlbumId(null);
-                setSelectedArtistId(null);
-
-                // If we have an ID (which we should for playlist state), ensure it's selected
-                // But typically setSelectedPlaylist is persisted or we rely on it not being cleared if we just popped 'album'
-                // However, if we popped 'player', we need to ensure playlist is active.
-                if (state.id) {
-                    // We need to find the playlist object to set it, but we only have ID here.
-                    // The previous logic assumed setSelectedPlaylist(null) happened on home.
-                    // Ideally we should refetch or find from cached playlists if needed, 
-                    // but for now, we rely on the fact that if we popped back to playlist, 
-                    // we likely didn't clear the active playlist state if we came from valid nav.
-                    // But if we landed here from fresh load, we might be in trouble. 
-                    // App.tsx currently doesn't fully support deep linking restoration for playlists without the object.
-                    // For this bugfix (flash), we focus on NOT clearing things when going deeper.
-                    // When going BACK to playlist, we just ensure overlay layers are gone.
-                }
-            }
-            // If album state
-            else if (state.view === 'album') {
-                if (state.id) {
-                    setSelectedAlbumId(state.id);
-                    setCurrentView('home');
-                    // Keep selectedPlaylist if it exists (background)
-                    setSelectedArtistId(null); // Clear top layer
-                } else {
-                    setCurrentView('home');
-                    setSelectedAlbumId(null);
-                }
-            }
-            // If artist state
-            else if (state.view === 'artist') {
-                if (state.id) {
-                    setSelectedArtistId(state.id);
-                    setCurrentView('home');
-                    // Keep album and playlist (background layers)
-                } else {
-                    setCurrentView('home');
-                    setSelectedArtistId(null);
-                }
-            }
-        };
-
-
-        window.addEventListener('popstate', handlePopState);
-
-        loadUserData();
-        restoreSession();
-        loadLocalSongs();
-
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-        };
+        });
     }, []);
 
-    // Helper for Navigation
-    const navigateToPlayer = () => {
-        if (currentView !== 'player') {
-            window.history.pushState({ view: 'player' }, '', '#player');
-            setCurrentView('player');
-        }
-    };
+    // Theme Controller
+    // manages current theme, daylight mode, and related actions like generating AI themes 
+    // and restoring cached themes for songs
+    const {
+        theme,
+        setTheme,
+        bgMode,
+        isGeneratingTheme,
+        handleToggleDaylight,
+        handleBgModeChange,
+        handleResetTheme,
+        handleSetThemePreset,
+        restoreCachedThemeForSong,
+        generateAITheme,
+    } = useThemeController({
+        defaultTheme: DEFAULT_THEME,
+        daylightTheme: DAYLIGHT_THEME,
+        isDaylight,
+        setDaylightPreference,
+        setStatusMsg,
+        t,
+    });
 
-    const navigateToHome = () => {
-        if (currentView !== 'home' || selectedPlaylist || selectedAlbumId) {
-            // If we have history, back() is better to keep stack clean. 
-            // But we can't always know.
-            // Simple strategy: Push home if not there? No, builds stack.
-            // Back is best if we know we pushed.
-            window.history.back();
-        }
-    };
+    // Navigation and Library Hooks
+    // manages current view, selected items, and navigation functions across the app
+    const {
+        currentView,
+        selectedPlaylist,
+        selectedAlbumId,
+        selectedArtistId,
+        navigateToPlayer,
+        navigateToHome,
+        handlePlaylistSelect,
+        handleAlbumSelect,
+        handleArtistSelect,
+    } = useAppNavigation();
 
-    const handlePlaylistSelect = (pl: NeteasePlaylist | null) => {
-        if (pl) {
-            window.history.pushState({ view: 'playlist', id: pl.id }, '', `#playlist/${pl.id}`);
-            setSelectedPlaylist(pl);
-            setSelectedAlbumId(null);
-            setSelectedArtistId(null);
-            setCurrentView('home');
-        } else {
-            // Go back
-            window.history.back();
-        }
-    };
+    // Netease Library Hook
+    // manages user data, playlists, liked songs, and related actions
+    const {
+        user,
+        playlists,
+        likedSongIds,
+        isSyncing,
+        cacheSize,
+        refreshUserData,
+        updateCacheSize,
+        handleClearCache,
+        handleSyncData,
+        handleLogout,
+        setLikedSongIds,
+    } = useNeteaseLibrary({
+        currentView,
+        selectedPlaylist,
+        selectedAlbumId,
+        selectedArtistId,
+        setStatusMsg,
+        t,
+    });
 
-    const handleAlbumSelect = (id: number | null) => {
-        if (id) {
-            window.history.pushState({ view: 'album', id: id }, '', `#album/${id}`);
-            setSelectedAlbumId(id);
-            // Don't clear playlist - keep it as background
-            // setSelectedPlaylist(null); 
-            setSelectedArtistId(null);
-            setCurrentView('home');
-        } else {
-            window.history.back();
-        }
-    };
+    // --- Initialization ---
 
-    const handleArtistSelect = (id: number | null) => {
-        if (id) {
-            window.history.pushState({ view: 'artist', id: id }, '', `#artist/${id}`);
-            setSelectedArtistId(id);
-            // Don't clear album or playlist - keep them as background layers
-            // setSelectedAlbumId(null);
-            // setSelectedPlaylist(null);
-            setCurrentView('home');
-        } else {
-            window.history.back();
-        }
-    };
+    useEffect(() => {
+        restoreSession();
+        loadLocalSongs();
+    }, []);
 
     // Revoke blob URLs on unmount to prevent leaks
     useEffect(() => {
         return () => {
             if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+            if (volumePreviewFrameRef.current !== null) {
+                cancelAnimationFrame(volumePreviewFrameRef.current);
+            }
         };
     }, []);
 
@@ -426,64 +254,6 @@ export default function App() {
             updateCacheSize();
         }
     }, [isPanelOpen, panelTab]);
-
-    const updateCacheSize = async () => {
-        const size = await getCacheUsage();
-        setCacheSize(formatBytes(size));
-    };
-
-    const handleClearCache = async () => {
-        // Clear media cache only (audio/images/themes/lyrics)
-        // Preserve user session data and playlist data
-        const preserveKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'last_song', 'last_queue', 'last_theme'];
-
-        // We need to preserve all keys starting with 'playlist_tracks_' or 'playlist_detail_'
-        // Since clearCache accepts a preserve list, we need to get all cache keys from metadata_cache
-        try {
-            const db = await openDB();
-            const tx = db.transaction(['metadata_cache'], 'readonly');
-            const store = tx.objectStore('metadata_cache');
-            const allKeys = await new Promise<string[]>((resolve, reject) => {
-                const request = store.getAllKeys();
-                request.onsuccess = () => resolve(request.result as string[]);
-                request.onerror = () => reject(request.error);
-            });
-
-            // Filter keys to preserve: keep playlist data
-            const playlistKeys = allKeys.filter(key =>
-                key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')
-            );
-
-            const finalPreserveKeys = [...preserveKeys, ...playlistKeys];
-            await clearCache(finalPreserveKeys);
-            updateCacheSize();
-            setStatusMsg({ type: 'success', text: t('status.cacheCleared') });
-        } catch (e) {
-            console.error('Failed to clear cache:', e);
-            setStatusMsg({ type: 'error', text: t('status.cacheCleared') });
-        }
-    };
-
-    const loadUserData = async () => {
-        const cachedUser = await getFromCache<NeteaseUser>('user_profile');
-        const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
-        const cachedLikedSongs = await getFromCache<number[]>('user_liked_songs');
-
-        if (cachedUser) {
-            setUser(cachedUser);
-            if (cachedPlaylists) {
-                setPlaylists(cachedPlaylists);
-            } else {
-                refreshUserData(cachedUser.userId);
-            }
-
-            if (cachedLikedSongs) {
-                setLikedSongIds(new Set(cachedLikedSongs));
-            }
-        } else {
-            refreshUserData();
-        }
-    };
 
     const restoreSession = async () => {
         try {
@@ -499,52 +269,15 @@ export default function App() {
                     setPlayQueue([lastSong]);
                 }
 
-                // Try to restore theme (new DualTheme format)
-                const cachedDualTheme = await getFromCache<DualTheme>(`dual_theme_${lastSong.id}`);
-                if (cachedDualTheme) {
-                    const selectedTheme = isDaylight ? cachedDualTheme.light : cachedDualTheme.dark;
-                    setTheme(selectedTheme);
-                    setAiTheme(cachedDualTheme);
-                    setBgMode('ai');
-                } else {
-                    // Try legacy single theme cache for backwards compatibility
-                    const legacyTheme = await getFromCache<Theme>(`theme_${lastSong.id}`);
-                    if (legacyTheme) {
-                        setTheme(legacyTheme);
-                        // Can't convert legacy theme to DualTheme, leave aiTheme null
-                        setBgMode('ai');
-                    } else {
-                        // Try to restore last used AI theme (DualTheme format)
-                        const lastDualTheme = await getFromCache<DualTheme>('last_dual_theme');
-                        if (lastDualTheme) {
-                            console.log("[restoreSession] Using last_dual_theme fallback");
-                            const selectedTheme = isDaylight ? lastDualTheme.light : lastDualTheme.dark;
-                            setTheme({
-                                ...selectedTheme,
-                                wordColors: [],
-                                lyricsIcons: []
-                            });
-                            setAiTheme(lastDualTheme);
-                            setBgMode('ai');
-                        } else {
-                            console.log("[restoreSession] No cached theme, resetting to default");
-                            setTheme(prev => ({
-                                ...prev,
-                                wordColors: [],
-                                lyricsIcons: []
-                            }));
-                            setBgMode('default');
-                        }
-                    }
+                const restoredThemeKind = await restoreCachedThemeForSong(lastSong.id, { allowLastUsedFallback: true });
+                if (restoredThemeKind === 'fallback-dual') {
+                    console.log("[restoreSession] Using last_dual_theme fallback");
+                } else if (restoredThemeKind === 'none') {
+                    console.log("[restoreSession] No cached theme, resetting to default");
                 }
 
                 // Try to restore cover
-                const cachedCover = await getFromCache<Blob>(`cover_${lastSong.id}`);
-                if (cachedCover) {
-                    setCachedCoverUrl(URL.createObjectURL(cachedCover));
-                } else {
-                    setCachedCoverUrl(null);
-                }
+                setCachedCoverUrl(await getCachedCoverUrl(`cover_${lastSong.id}`));
 
                 // Load resources silently (without auto-playing)
                 try {
@@ -612,6 +345,9 @@ export default function App() {
                                 });
                             }
                         } else {
+                            // TODO: NEED INVESTIGATION, meow~
+                            // This case happens when try to restore a navidrome song, it fails to find the song from server or local storage.
+                            // dosen't cause any critical issue, just can't restore the last played song's audio and lyrics, but it will show a warning toast in screen every time open the app, which is annoying! need to investigate why it happens and how to fix it.
                             console.warn("[restoreSession] Could not find local song in library");
                             setStatusMsg({
                                 type: 'info',
@@ -660,6 +396,11 @@ export default function App() {
                             }
 
                             // Chorus Detection
+                            // Find the most repeated lines (after trimming) and mark them as chorus lines, assign a random effect for each unique chorus line text
+                            // Not the best way to determine if a line is a chorus, better than nothing, 
+                            // since the real chourus detection requires very heavy audio analysis or ML model, 
+                            // which btw is not impossible to implement, but it will introduce a lot overhead, the uesr will have to wait for
+                            // a long time before see any lyrics if we do that. Not really worth it.
                             if (parsed && !lyricRes.pureMusic && !lyricRes.lrc?.pureMusic && mainLrc) {
                                 const chorusLines = detectChorusLines(mainLrc);
                                 if (chorusLines.size > 0) {
@@ -692,201 +433,6 @@ export default function App() {
         } catch (e) {
             console.error("Session restore failed", e);
         }
-    };
-
-    const refreshUserData = async (uid?: number) => {
-        try {
-            const res = await neteaseApi.getLoginStatus();
-            if (res.data && res.data.profile) {
-                const profile = res.data.profile;
-                setUser(profile);
-                await saveToCache('user_profile', profile);
-                if (res.cookie) localStorage.setItem('netease_cookie', res.cookie);
-
-                const targetUid = uid || profile.userId;
-                const allPlaylists = await getAllUserPlaylists(targetUid);
-                if (allPlaylists.length > 0) {
-                    setPlaylists(allPlaylists);
-                    await saveToCache('user_playlists', allPlaylists);
-                }
-
-                // Fetch Liked Songs List
-                try {
-                    const likeRes = await neteaseApi.getLikedSongs(targetUid);
-                    if (likeRes.ids) {
-                        setLikedSongIds(new Set(likeRes.ids));
-                        await saveToCache('user_liked_songs', likeRes.ids);
-                    }
-                } catch (e) {
-                    console.warn("Failed to fetch liked songs", e);
-                }
-
-                return true;
-            }
-        } catch (e) {
-            console.log("Not logged in or offline");
-        }
-        return false;
-    };
-
-    const checkAndUpdatePlaylists = useCallback(async () => {
-        if (!user) return;
-
-        try {
-            // 获取最新的歌单列表（获取所有分页）
-            const newPlaylists = await getAllUserPlaylists(user.userId);
-            if (!newPlaylists || newPlaylists.length === 0) return;
-
-            // 从缓存中获取旧的歌单列表
-            const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
-
-            if (!cachedPlaylists) {
-                // 如果没有缓存，直接保存新的歌单列表
-                setPlaylists(newPlaylists);
-                await saveToCache('user_playlists', newPlaylists);
-                return;
-            }
-
-            // 创建旧歌单的映射表，以 id 为 key
-            const cachedMap = new Map<number, NeteasePlaylist>();
-            cachedPlaylists.forEach(pl => {
-                cachedMap.set(pl.id, pl);
-            });
-
-            // 检查每个新歌单是否有变化
-            const changedPlaylistIds: number[] = [];
-            let likedSongsPlaylistChanged = false; // 标记"喜欢的音乐"歌单是否有变化
-
-            newPlaylists.forEach((newPl, index) => {
-                const oldPl = cachedMap.get(newPl.id);
-                const isLikedSongsPlaylist = index === 0; // 第一个歌单是"喜欢的音乐"
-
-                if (!oldPl) {
-                    // 新歌单，标记为需要更新
-                    changedPlaylistIds.push(newPl.id);
-                    if (isLikedSongsPlaylist) {
-                        likedSongsPlaylistChanged = true;
-                    }
-                } else {
-                    // 检查 trackUpdateTime 和 updateTime 是否有变化
-                    const trackTimeChanged = (newPl.trackUpdateTime || 0) !== (oldPl.trackUpdateTime || 0);
-                    const updateTimeChanged = (newPl.updateTime || 0) !== (oldPl.updateTime || 0);
-
-                    if (trackTimeChanged || updateTimeChanged) {
-                        console.log(`[PlaylistSync] Playlist ${newPl.name} (ID: ${newPl.id}) changed. Reason:`, {
-                            trackTimeChanged,
-                            updateTimeChanged,
-                            oldTrackTime: oldPl.trackUpdateTime,
-                            newTrackTime: newPl.trackUpdateTime,
-                            oldUpdateTime: oldPl.updateTime,
-                            newUpdateTime: newPl.updateTime
-                        });
-                        changedPlaylistIds.push(newPl.id);
-                        if (isLikedSongsPlaylist) {
-                            likedSongsPlaylistChanged = true;
-                        }
-                    }
-                }
-            });
-
-            // 检查是否有删除的歌单（在旧列表中但不在新列表中）
-            const newPlaylistIds = new Set(newPlaylists.map(pl => pl.id));
-            cachedPlaylists.forEach(oldPl => {
-                if (!newPlaylistIds.has(oldPl.id)) {
-                    // 歌单已删除，清除其缓存
-                    changedPlaylistIds.push(oldPl.id);
-                }
-            });
-
-            // 清除有变化的歌单的缓存
-            if (changedPlaylistIds.length > 0) {
-                console.log(`[PlaylistSync] 发现 ${changedPlaylistIds.length} 个歌单有变化，清除缓存:`, changedPlaylistIds);
-
-                try {
-                    const db = await openDB();
-                    const tx = db.transaction(['metadata_cache'], 'readwrite');
-                    const store = tx.objectStore('metadata_cache');
-
-                    // 批量删除有变化的歌单缓存
-                    const deletePromises = changedPlaylistIds.flatMap(playlistId => [
-                        new Promise<void>((resolve, reject) => {
-                            const req = store.delete(`playlist_tracks_${playlistId}`);
-                            req.onsuccess = () => resolve();
-                            req.onerror = () => reject(req.error);
-                        }),
-                        new Promise<void>((resolve, reject) => {
-                            const req = store.delete(`playlist_detail_${playlistId}`);
-                            req.onsuccess = () => resolve();
-                            req.onerror = () => reject(req.error);
-                        })
-                    ]);
-
-                    await Promise.all(deletePromises);
-                    console.log(`[PlaylistSync] 已清除 ${changedPlaylistIds.length} 个歌单的缓存`);
-                } catch (e) {
-                    console.error("[PlaylistSync] 清除缓存失败", e);
-                }
-            }
-
-            // 更新歌单列表缓存和状态
-            setPlaylists(newPlaylists);
-            await saveToCache('user_playlists', newPlaylists);
-
-            // 如果"喜欢的音乐"歌单有变化，重新获取喜欢的歌曲列表
-            if (likedSongsPlaylistChanged && newPlaylists.length > 0) {
-                try {
-                    console.log("[PlaylistSync] 检测到喜欢的音乐歌单更新，重新获取喜欢的歌曲列表");
-                    const likeRes = await neteaseApi.getLikedSongs(user.userId);
-                    if (likeRes.ids) {
-                        setLikedSongIds(new Set(likeRes.ids));
-                        await saveToCache('user_liked_songs', likeRes.ids);
-                        console.log("[PlaylistSync] 已更新喜欢的歌曲列表，共", likeRes.ids.length, "首");
-                    }
-                } catch (e) {
-                    console.warn("[PlaylistSync] 重新获取喜欢的歌曲列表失败", e);
-                }
-            }
-
-        } catch (e) {
-            console.error("[PlaylistSync] 检查歌单更新失败", e);
-        }
-    }, [user]);
-
-    // 在返回主页时检查并更新歌单缓存
-    const lastCheckTimeRef = useRef<number>(0);
-    useEffect(() => {
-        if (currentView === 'home' && user && !selectedPlaylist && !selectedAlbumId && !selectedArtistId) {
-            // 防抖：至少间隔 10 秒才检查一次
-            const now = Date.now();
-            if (now - lastCheckTimeRef.current > 10000) {
-                lastCheckTimeRef.current = now;
-                checkAndUpdatePlaylists();
-            }
-        }
-    }, [currentView, user, selectedPlaylist, selectedAlbumId, checkAndUpdatePlaylists]);
-
-    const handleSyncData = async () => {
-        if (!user) return;
-        setIsSyncing(true);
-        try {
-            await refreshUserData(user.userId);
-            // Optional: Clear playlist tracks cache to force refresh on view?
-            // For now, we just refresh the playlist list.
-            updateCacheSize();
-            setStatusMsg({ type: 'success', text: t('status.dataSynced') });
-        } catch (e) {
-            setStatusMsg({ type: 'error', text: t('status.syncFailed') });
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-
-    const handleLogout = async () => {
-        localStorage.removeItem('netease_cookie');
-        await clearCache();
-        setUser(null);
-        setPlaylists([]);
-        setStatusMsg({ type: 'info', text: t('status.loggedOut') });
     };
 
     // --- Local Music Functions ---
@@ -952,25 +498,6 @@ export default function App() {
         return { updatedLocalSong, matchedSongResult };
     };
 
-    // Helper function to generate consistent ID from LocalSong
-    const getLocalSongId = (localSong: LocalSong): number => {
-        // Extract numeric part from LocalSong.id (format: local_timestamp_random)
-        // This ensures deterministic ID generation based on the original LocalSong.id
-        const numericPart = parseInt(localSong.id.replace(/\D/g, ''));
-        if (!isNaN(numericPart) && numericPart > 0) {
-            return -Math.abs(numericPart);
-        }
-        // Fallback: use a hash of the ID string for deterministic ID
-        // This ensures same LocalSong.id always produces same numeric ID
-        let hash = 0;
-        for (let i = 0; i < localSong.id.length; i++) {
-            const char = localSong.id.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32-bit integer
-        }
-        return -Math.abs(Math.abs(hash));
-    };
-
     const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
         // Get audio blob from fileHandle first
         const blobUrl = await getAudioFromLocalSong(localSong);
@@ -1020,67 +547,12 @@ export default function App() {
             console.log('[App] Using online matched lyrics (fallback)');
         }
 
-        // Convert LocalSong to SongResult-like format for playback
-        // Use a negative ID to distinguish local songs from cloud songs
-        const localSongId = getLocalSongId(updatedLocalSong);
-
-        // Determine metadata to display
-        // Default priority: Embedded > Online > Filename
-        // If useOnlineMetadata is true: Online (matchedArtists/matchedAlbumName) > Embedded > Filename
-        const displayTitle = updatedLocalSong.embeddedTitle || updatedLocalSong.title || updatedLocalSong.fileName;
-        const displayArtist = preferOnlineMetadata
-            ? (updatedLocalSong.matchedArtists || updatedLocalSong.embeddedArtist || updatedLocalSong.artist)
-            : (updatedLocalSong.embeddedArtist || updatedLocalSong.matchedArtists || updatedLocalSong.artist);
-        const displayAlbum = preferOnlineMetadata
-            ? (updatedLocalSong.matchedAlbumName || updatedLocalSong.embeddedAlbum || updatedLocalSong.album)
-            : (updatedLocalSong.embeddedAlbum || updatedLocalSong.matchedAlbumName || updatedLocalSong.album);
-
-        const unifiedSong: SongResult = {
-            id: localSongId,
-            name: displayTitle,
-            artists: displayArtist ? [{ id: 0, name: displayArtist }] : [],
-            album: displayAlbum ? { id: 0, name: displayAlbum } : { id: 0, name: '' },
-            duration: updatedLocalSong.duration,
-            ar: displayArtist ? [{ id: 0, name: displayArtist }] : [],
-            al: displayAlbum ? {
-                id: 0,
-                name: displayAlbum,
-                picUrl: coverUrl || undefined
-            } : coverUrl ? {
-                id: 0,
-                name: '',
-                picUrl: coverUrl
-            } : undefined,
-            dt: updatedLocalSong.duration,
-            isLocal: true,
-            localData: updatedLocalSong
-        } as UnifiedSong;
-
-        // If we have matched song info, overwrite unifiedSong fields based on priority
-        if (matchedSong) {
-            // Title: Embedded -> Matched -> Filename (useOnlineMetadata doesn't affect title for now)
-            if (!updatedLocalSong.embeddedTitle) {
-                unifiedSong.name = matchedSong.name;
-            }
-
-            // Artist & Album already resolved above via displayArtist/displayAlbum
-            // but we need to set the structured ar/al objects if matched song provides them
-            if (preferOnlineMetadata || !updatedLocalSong.embeddedArtist) {
-                if (matchedSong.ar) unifiedSong.ar = matchedSong.ar;
-                if (matchedSong.artists) unifiedSong.artists = matchedSong.artists;
-            }
-
-            if (preferOnlineMetadata || !updatedLocalSong.embeddedAlbum) {
-                if (matchedSong.al) unifiedSong.al = matchedSong.al;
-                if (matchedSong.album) unifiedSong.album = matchedSong.album;
-            }
-
-            // For cover, inject the resolved coverUrl back into the album objects
-            if (coverUrl) {
-                if (unifiedSong.album) unifiedSong.album.picUrl = coverUrl;
-                if (unifiedSong.al) unifiedSong.al.picUrl = coverUrl;
-            }
-        }
+        const unifiedSong = buildUnifiedLocalSong({
+            localSong: updatedLocalSong,
+            matchedSong,
+            coverUrl,
+            preferOnlineMetadata,
+        });
 
         // Store blob URL reference
         if (blobUrlRef.current) {
@@ -1098,67 +570,13 @@ export default function App() {
         currentTime.set(0); // Reset currentTime to prevent stale playback position
         setCurrentSong(unifiedSong);
         // Cache cover if available
-        if (coverUrl) {
-            try {
-                const cachedCover = await getFromCache<Blob>(`cover_local_${updatedLocalSong.id}`);
-                if (cachedCover) {
-                    setCachedCoverUrl(URL.createObjectURL(cachedCover));
-                } else {
-                    // Fetch and cache cover
-                    const response = await fetch(coverUrl, { mode: 'cors' });
-                    const coverBlob = await response.blob();
-                    await saveToCache(`cover_local_${updatedLocalSong.id}`, coverBlob);
-                    setCachedCoverUrl(URL.createObjectURL(coverBlob));
-                }
-            } catch (e) {
-                console.warn('Failed to cache cover:', e);
-                setCachedCoverUrl(coverUrl);
-            }
-        } else {
-            setCachedCoverUrl(null);
-        }
+        setCachedCoverUrl(await loadCachedOrFetchCover(`cover_local_${updatedLocalSong.id}`, coverUrl));
         setAudioSrc(blobUrl);
         setIsLyricsLoading(false);
 
         // Set queue
         if (queue.length > 0) {
-            // Convert entire queue using the same ID generation function
-            const convertedQueue = queue.map(s => {
-                // Use the same ID generation logic as current song
-                const sId = getLocalSongId(s);
-                // Basic conversion, we might miss matched metadata for others if not loaded, 
-                // but usually we just need basic info for the queue list.
-                // Ideally we should have matched info for all.
-                // For now, use what we have.
-                return {
-                    id: sId,
-                    name: s.title || s.fileName,
-                    artists: s.artist ? [{ id: 0, name: s.artist }] : [],
-                    album: s.album ? { id: 0, name: s.album } : { id: 0, name: '' },
-                    duration: s.duration,
-                    ar: s.artist ? [{ id: 0, name: s.artist }] : [],
-                    al: s.album ? { id: 0, name: s.album, picUrl: s.matchedCoverUrl } : undefined,
-                    dt: s.duration,
-                    isLocal: true,
-                    localData: s
-                } as UnifiedSong;
-            });
-
-            // Ensure the current playing song has the CORRECT ID in the queue
-            // Since we now use the same ID generation function, IDs should match correctly.
-            // But we still check by ID first, then fallback to name+duration for safety.
-            const finalQueue = convertedQueue.map(s => {
-                // Match by ID first (most reliable)
-                if (s.id === unifiedSong.id) {
-                    return unifiedSong;
-                }
-                // Fallback: match by name and duration (for edge cases)
-                if (s.name === unifiedSong.name && s.duration === unifiedSong.duration) {
-                    return unifiedSong;
-                }
-                return s;
-            });
-
+            const finalQueue = buildLocalQueue(queue, unifiedSong);
             setPlayQueue(finalQueue);
             saveToCache('last_queue', finalQueue);
         } else {
@@ -1207,6 +625,8 @@ export default function App() {
             }
 
             // Try to get lyrics from Navidrome first
+            // The navidrome API doesn't support lyric with translation, or synced lyrics, making it hard for us to provide a good lyric display experience.
+            // In best senario, we can implement a middleware to provide Folia's cached-lyric file directly from user's navidrome server, but that requires users to self-host an additional service, which is not ideal for user experience. So for now, we will just try to fetch the standard lyrics from navidrome, and if the lyrics is in LRC format and has time tags, we will parse it and display it as synced lyrics, otherwise we will just display it as unsynced plain text lyrics. It's not perfect, but it's better than nothing. We will also provide an option for users to manually match lyrics from Netease if they want better lyric experience, and we will save the matched lyrics in cache for future use.
             const artistName = navidromeSong.ar?.[0]?.name || navidromeSong.artists?.[0]?.name || '';
 
             // 1. Try OpenSubsonic structured lyrics (getLyricsBySongId)
@@ -1236,6 +656,10 @@ export default function App() {
                 }
 
                 // 2. Fallback to standard Subsonic lyrics
+                // This breaks the visualizer, maybe better just don't support it if the lyrics is not in structured format.
+                // 看到这里你会发现注释大部分都是英文写的，这是因为 Linux 下的输入法不太好用，而且对于 LLM 来说英文更节省token,大概是这样，反正你能看懂就好。
+                // 题外话，不用 Windows 并非因为 Linux 更好用（虽然我个人确实更喜欢 Linux），而是因为在开发的早期，Windows下的LFN,以及目录反斜杠等问题导致
+                // 本来就不太可靠的大型语言模型 agent 经常发生错误编辑，破坏掉整个代码库，你能想象吗？
                 if (!lyrics) {
                     const lyricsFromNavidrome = await navidromeApi.getLyrics(config, artistName, navidromeSong.name);
                     if (lyricsFromNavidrome) {
@@ -1289,22 +713,12 @@ export default function App() {
             }
 
             // Create unified song for playback
-            const unifiedSong: SongResult = {
-                id: navidromeSong.id,
-                name: (matchData?.useOnlineMetadata && matchData?.matchedAlbumName) ? matchData.matchedAlbumName : navidromeSong.name,
-                artists: (matchData?.useOnlineMetadata && matchData?.matchedArtists) ? [{ id: 0, name: matchData.matchedArtists }] : (navidromeSong.artists || navidromeSong.ar || []),
-                album: navidromeSong.album || (navidromeSong.al ? {
-                    id: navidromeSong.al.id,
-                    name: navidromeSong.al.name,
-                    picUrl: navidromeSong.al.picUrl
-                } : { id: 0, name: '' }),
-                duration: navidromeSong.duration || navidromeSong.dt || 0,
-                ar: navidromeSong.ar || [],
-                al: navidromeSong.al,
-                dt: navidromeSong.dt,
-                isNavidrome: true,
-                navidromeData: navidromeSong
-            } as any;
+            const unifiedSong = buildUnifiedNavidromeSong(navidromeSong, {
+                coverUrl,
+                useOnlineMetadata: matchData?.useOnlineMetadata,
+                matchedArtists: matchData?.matchedArtists,
+                matchedAlbumName: matchData?.matchedAlbumName,
+            });
 
             // Enable autoplay
             shouldAutoPlay.current = true;
@@ -1321,24 +735,7 @@ export default function App() {
 
             // Set queue
             if (queue.length > 0) {
-                const convertedQueue = queue.map(s => ({
-                    id: s.id,
-                    name: s.name,
-                    artists: s.artists || s.ar || [],
-                    album: s.album || (s.al ? { id: s.al.id, name: s.al.name, picUrl: s.al.picUrl } : { id: 0, name: '' }),
-                    duration: s.duration || s.dt || 0,
-                    ar: s.ar || [],
-                    al: s.al,
-                    dt: s.dt,
-                    isNavidrome: true,
-                    navidromeData: s
-                } as any));
-
-                // Replace current song in queue with full data
-                const finalQueue = convertedQueue.map(s =>
-                    s.id === unifiedSong.id ? unifiedSong : s
-                );
-
+                const finalQueue = buildNavidromeQueue(queue, unifiedSong);
                 setPlayQueue(finalQueue);
                 saveToCache('last_queue', finalQueue);
             } else {
@@ -1380,6 +777,11 @@ export default function App() {
     }, [statusMsg]);
 
     // Audio Analyzer Setup
+    // TODO: LOW PRIORITY::
+    // Currently if a song contains rapidly changing audio, the analyzer can't keep up and causes a weird frame-skip-like effect on the gemotries(they seem to be static, like too slow to keep up), but this dosen't causes real visual stutter or audio issues, just the GeometricBackground is not responsive to the audio changes.
+    // Very likely caused by
+    //             analyser.smoothingTimeConstant = 0.6;
+    // What do you think? Lowering the smoothingTimeConstant can make the analyzer more responsive, but it will also make it more jittery and less smooth, which might not look good for the visualizer. It's a trade-off between responsiveness and visual quality. We can experiment with different values to find a good balance. Maybe we can even make it dynamic based on the song's audio characteristics, but that might be overkill for now.
     const setupAudioAnalyzer = () => {
         if (!audioRef.current || sourceRef.current) return;
         try {
@@ -1510,22 +912,9 @@ export default function App() {
 
                     // Cover
                     if (currentLocalData.matchedCoverUrl) {
-                        // Try cache first
-                        try {
-                            const cachedCover = await getFromCache<Blob>(`cover_local_${currentLocalData.id}`);
-                            if (cachedCover) {
-                                setCachedCoverUrl(URL.createObjectURL(cachedCover));
-                            } else {
-                                // Fetch and cache cover
-                                const response = await fetch(currentLocalData.matchedCoverUrl, { mode: 'cors' });
-                                const coverBlob = await response.blob();
-                                if (currentSongRef.current !== song.id) return;
-                                await saveToCache(`cover_local_${currentLocalData.id}`, coverBlob);
-                                setCachedCoverUrl(URL.createObjectURL(coverBlob));
-                            }
-                        } catch {
-                            setCachedCoverUrl(currentLocalData.matchedCoverUrl);
-                        }
+                        const resolvedCoverUrl = await loadCachedOrFetchCover(`cover_local_${currentLocalData.id}`, currentLocalData.matchedCoverUrl);
+                        if (currentSongRef.current !== song.id) return;
+                        setCachedCoverUrl(resolvedCoverUrl);
                     } else {
                         setCachedCoverUrl(null);
                     }
@@ -1546,29 +935,8 @@ export default function App() {
 
                 // Theme
                 try {
-                    const cachedDualTheme = await getFromCache<DualTheme>(`dual_theme_${song.id}`);
+                    await restoreCachedThemeForSong(song.id);
                     if (currentSongRef.current !== song.id) return;
-                    if (cachedDualTheme) {
-                        const selectedTheme = isDaylight ? cachedDualTheme.light : cachedDualTheme.dark;
-                        setTheme(selectedTheme);
-                        setAiTheme(cachedDualTheme);
-                        setBgMode('ai');
-                    } else {
-                        // Try legacy single theme cache
-                        const legacyTheme = await getFromCache<Theme>(`theme_${song.id}`);
-                        if (currentSongRef.current !== song.id) return;
-                        if (legacyTheme) {
-                            setTheme(legacyTheme);
-                            setBgMode('ai');
-                        } else {
-                            // Default theme for local songs if no AI theme generated yet
-                            setTheme(prev => ({
-                                ...prev,
-                                wordColors: [],
-                                lyricsIcons: []
-                            }));
-                        }
-                    }
                 } catch (e) {
                     console.warn("Theme load error", e);
                 }
@@ -1587,49 +955,31 @@ export default function App() {
         const prefetched = getPrefetchedData(song.id, audioQuality);
 
         // 2. Load Cached Cover (Visual Feedback)
-        const cachedCoverBlob = await getFromCache<Blob>(`cover_${song.id}`);
+        const cachedCoverUrl = await getCachedCoverUrl(`cover_${song.id}`);
         if (currentSongRef.current !== song.id) return;
-        if (cachedCoverBlob) {
-            setCachedCoverUrl(URL.createObjectURL(cachedCoverBlob));
+        if (cachedCoverUrl) {
+            setCachedCoverUrl(cachedCoverUrl);
         } else if (prefetched?.coverUrl) {
             // Use prefetched cover URL as fallback
             setCachedCoverUrl(prefetched.coverUrl);
         }
 
         // 3. Audio Loading (Prefetch Cache vs IndexedDB vs Network)
-        let audioBlobUrl: string | null = null;
         try {
-            // Check IndexedDB Audio Cache first
-            const cachedAudioBlob = await getFromCache<Blob>(`audio_${song.id}`);
+            const audioResult = await loadOnlineSongAudioSource(song.id, audioQuality, prefetched);
             if (currentSongRef.current !== song.id) return;
-            if (cachedAudioBlob) {
-                console.log("[App] Playing from IndexedDB Cache");
-                audioBlobUrl = URL.createObjectURL(cachedAudioBlob);
-                blobUrlRef.current = audioBlobUrl;
-                setAudioSrc(audioBlobUrl);
-            } else if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
-                // Use prefetched URL (still valid, quality already validated)
-                console.log(`[App] Playing from Prefetch Cache (quality: ${audioQuality})`);
-                setAudioSrc(prefetched.audioUrl);
-            } else {
-                // Fetch URL from API
-                console.log(`[App] Fetching audio URL from API (quality: ${audioQuality})`);
-                const urlRes = await neteaseApi.getSongUrl(song.id, audioQuality);
-                if (currentSongRef.current !== song.id) return;
-                let url = urlRes.data?.[0]?.url;
-                if (!url) {
-                    console.warn("[App] Song URL is empty, likely unavailable");
-                    setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
-                    setPlayerState(PlayerState.IDLE);
-                    setIsLyricsLoading(false); // Stop loading if failed
-                    return;
-                }
-                if (url && url.startsWith('http:')) {
-                    url = url.replace('http:', 'https:');
-                }
-                setAudioSrc(url);
-                // NOTE: We don't cache immediately. We cache when the song FINISHES playing.
+            if (audioResult.kind === 'unavailable') {
+                console.warn("[App] Song URL is empty, likely unavailable");
+                setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+                setPlayerState(PlayerState.IDLE);
+                setIsLyricsLoading(false);
+                return;
             }
+
+            if (audioResult.blobUrl) {
+                blobUrlRef.current = audioResult.blobUrl;
+            }
+            setAudioSrc(audioResult.audioSrc);
         } catch (e) {
             console.error("[App] Failed to fetch song URL:", e);
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
@@ -1639,141 +989,11 @@ export default function App() {
 
         // 4. Fetch Lyrics (Prefetch Cache vs IndexedDB vs Network)
         try {
-            const cachedLyrics = await getFromCache<LyricData>(`lyric_${song.id}`);
-            if (currentSongRef.current !== song.id) return;
-            if (cachedLyrics) {
-                setLyrics(cachedLyrics);
-                setIsLyricsLoading(false); // Cached lyrics ready immediately
-            } else if (prefetched?.lyrics) {
-                // Use prefetched lyrics (already parsed by worker)
-                console.log("[App] Using prefetched lyrics");
-                setLyrics(prefetched.lyrics);
-                // Run chorus detection and cache
-                if (prefetched.lyricRaw?.mainLrc && !prefetched.lyricRaw.isPureMusic) {
-                    setTimeout(() => {
-                        if (currentSongRef.current !== song.id) return;
-                        try {
-                            const chorusLines = detectChorusLines(prefetched.lyricRaw!.mainLrc!);
-                            if (chorusLines.size > 0 && prefetched.lyrics) {
-                                const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
-                                const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
-                                chorusLines.forEach(text => {
-                                    effectMap.set(text, effects[Math.floor(Math.random() * effects.length)]);
-                                });
-                                const newLines = prefetched.lyrics.lines.map(line => {
-                                    const text = line.fullText.trim();
-                                    if (chorusLines.has(text)) {
-                                        return { ...line, isChorus: true, chorusEffect: effectMap.get(text) };
-                                    }
-                                    return line;
-                                });
-                                const updatedLyrics = { ...prefetched.lyrics, lines: newLines };
-                                setLyrics(updatedLyrics);
-                                saveToCache(`lyric_${song.id}`, updatedLyrics);
-                            } else if (prefetched.lyrics) {
-                                saveToCache(`lyric_${song.id}`, prefetched.lyrics);
-                            }
-                        } catch (err) {
-                            console.warn("[App] Chorus detection on prefetched lyrics failed", err);
-                            if (prefetched.lyrics) saveToCache(`lyric_${song.id}`, prefetched.lyrics);
-                        } finally {
-                            setIsLyricsLoading(false);
-                        }
-                    }, 0);
-                } else {
-                    if (prefetched.lyrics) saveToCache(`lyric_${song.id}`, prefetched.lyrics);
-                    setIsLyricsLoading(false);
-                }
-            } else {
-                // Fetch from API and parse using Web Worker
-                console.log("[App] Fetching lyrics from API");
-                const lyricRes = await neteaseApi.getLyric(song.id);
-                const mainLrc = lyricRes.lrc?.lyric;
-                const yrcLrc = lyricRes.yrc?.lyric || lyricRes.lrc?.yrc?.lyric;
-                const ytlrc = lyricRes.ytlrc?.lyric || lyricRes.lrc?.ytlrc?.lyric;
-                const tlyric = lyricRes.tlyric?.lyric || "";
-
-                const transLrc = (yrcLrc && ytlrc) ? ytlrc : tlyric;
-
-                // Parse using Web Worker for better performance
-                let parsedLyrics = null;
-                if (yrcLrc) {
-                    parsedLyrics = await parseLyricsAsync('yrc', yrcLrc, transLrc);
-                } else if (mainLrc) {
-                    parsedLyrics = await parseLyricsAsync('lrc', mainLrc, transLrc);
-                }
-
-                if (parsedLyrics) {
-                    if (currentSongRef.current !== song.id) return;
-                    // 1. Render immediately without chorus info to unblock UI
-                    // But keep isLyricsLoading TRUE until chorus is done
-                    setLyrics(parsedLyrics);
-
-                    // 2. Schedule Chorus Detection
-                    // Check pureMusic flag from API (it might be on lrc object or root)
-                    const isPureMusic = lyricRes.pureMusic || lyricRes.lrc?.pureMusic;
-
-                    if (!isPureMusic && mainLrc) {
-                        const runChorusDetection = () => {
-                            // Check if song changed while waiting
-                            if (currentSongRef.current !== song.id) return;
-
-                            try {
-                                const chorusLines = detectChorusLines(mainLrc);
-                                if (chorusLines.size > 0) {
-                                    // Assign a stable random effect for each unique chorus line text
-                                    const effectMap = new Map<string, 'bars' | 'circles' | 'beams'>();
-                                    const effects: ('bars' | 'circles' | 'beams')[] = ['bars', 'circles', 'beams'];
-
-                                    chorusLines.forEach(text => {
-                                        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
-                                        effectMap.set(text, randomEffect);
-                                    });
-
-                                    // Clone and update lines
-                                    // @ts-ignore
-                                    const newLines = parsedLyrics.lines.map(line => {
-                                        const text = line.fullText.trim();
-                                        if (chorusLines.has(text)) {
-                                            return {
-                                                ...line,
-                                                isChorus: true,
-                                                chorusEffect: effectMap.get(text)
-                                            };
-                                        }
-                                        return line;
-                                    });
-
-                                    // @ts-ignore
-                                    const updatedLyrics = { ...parsedLyrics, lines: newLines };
-                                    setLyrics(updatedLyrics);
-                                    saveToCache(`lyric_${song.id}`, updatedLyrics);
-                                } else {
-                                    // No chorus found, but cache the lyrics anyway
-                                    saveToCache(`lyric_${song.id}`, parsedLyrics);
-                                }
-                            } catch (err) {
-                                console.warn("[App] Chorus detection failed", err);
-                                // Ensure we cache even if detection fails
-                                saveToCache(`lyric_${song.id}`, parsedLyrics);
-                            } finally {
-                                setIsLyricsLoading(false); // Done loading
-                            }
-                        };
-
-                        // Use setTimeout(0) for immediate async execution to unblock main thread
-                        // but prioritize it over idle callback for faster playback start
-                        setTimeout(runChorusDetection, 0);
-                    } else {
-                        // Pure music or no lrc, just cache
-                        saveToCache(`lyric_${song.id}`, parsedLyrics);
-                        setIsLyricsLoading(false); // Done loading
-                    }
-                } else {
-                    setLyrics(null);
-                    setIsLyricsLoading(false); // No lyrics found
-                }
-            }
+            await loadOnlineSongLyrics(song.id, prefetched, {
+                isCurrent: () => currentSongRef.current === song.id,
+                onLyrics: (resolvedLyrics) => setLyrics(resolvedLyrics),
+                onDone: () => setIsLyricsLoading(false),
+            });
         } catch (e) {
             console.warn("[App] Lyric fetch failed", e);
             setLyrics(null);
@@ -1782,28 +1002,8 @@ export default function App() {
 
         // 5. Handle Theme
         try {
-            const cachedDualTheme = await getFromCache<DualTheme>(`dual_theme_${song.id}`);
+            await restoreCachedThemeForSong(song.id);
             if (currentSongRef.current !== song.id) return;
-            if (cachedDualTheme) {
-                const selectedTheme = isDaylight ? cachedDualTheme.light : cachedDualTheme.dark;
-                setTheme(selectedTheme);
-                setAiTheme(cachedDualTheme);
-                setBgMode('ai');
-            } else {
-                // Try legacy single theme
-                const legacyTheme = await getFromCache<Theme>(`theme_${song.id}`);
-                if (currentSongRef.current !== song.id) return;
-                if (legacyTheme) {
-                    setTheme(legacyTheme);
-                    setBgMode('ai');
-                } else {
-                    setTheme(prev => ({
-                        ...prev,
-                        wordColors: [],
-                        lyricsIcons: []
-                    }));
-                }
-            }
         } catch (e) {
             console.warn("Theme load error", e);
         }
@@ -1966,6 +1166,14 @@ export default function App() {
             invalidateAndRefetch(currentId, newQueue, audioQuality);
         }
     }, [playQueue, currentSong, t, audioQuality]);
+
+    // Volume & Mute Sync
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = volume;
+            audioRef.current.muted = isMuted;
+        }
+    }, [volume, isMuted]);
 
     // Media Session API Integration
     useEffect(() => {
@@ -2143,88 +1351,6 @@ export default function App() {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
     }, [updateLoop]);
-
-    // AI Theme Generation
-    const generateAITheme = async () => {
-        if (!lyrics || isGeneratingTheme) return;
-        setIsGeneratingTheme(true);
-        setStatusMsg({ type: 'info', text: t('status.generatingTheme') });
-        try {
-            const allText = lyrics.lines.map(l => l.fullText).join("\n");
-
-            // Generate dual theme (both light and dark variants)
-            const dualTheme = await generateThemeFromLyrics(allText);
-
-            // Apply the appropriate variant based on current isDaylight setting
-            const selectedTheme = isDaylight ? dualTheme.light : dualTheme.dark;
-            setTheme(selectedTheme);
-            setAiTheme(dualTheme); // Store full dual theme for mode switching
-            setBgMode('ai'); // Auto switch to AI bg when generated
-            setStatusMsg({ type: 'success', text: t('status.themeApplied', { themeName: selectedTheme.name }) });
-
-            // Persist DualTheme for this song
-            if (currentSong) {
-                saveToCache(`dual_theme_${currentSong.id}`, dualTheme);
-            }
-            // Save as last used AI theme
-            saveToCache('last_dual_theme', dualTheme);
-        } catch (err: any) {
-            console.error(err);
-            const errMsg = err.message || '';
-            if (errMsg.includes('not configured')) {
-                setStatusMsg({ type: 'error', text: t('status.missingApiKey') || 'Please configure AI API Key in Settings' });
-            } else {
-                setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
-            }
-        } finally {
-            setIsGeneratingTheme(false);
-        }
-    };
-
-    const handleResetTheme = () => {
-        setTheme(isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME);
-        setAiTheme(null); // Clear stored AI theme
-        setBgMode('default'); // Reset to default mode
-    };
-
-    const handleSetThemePreset = (preset: 'midnight' | 'daylight') => {
-        const isLight = preset === 'daylight';
-        handleToggleDaylight(isLight);
-        setStatusMsg({ type: 'success', text: `默认主题: ${isLight ? 'Daylight' : 'Midnight'} Default` });
-        // NOTE: We don't force 'ai' mode here anymore, we just switch the default preference.
-        // If the user wants to use this as a base for AI, they can generate AI theme afterwards.
-    };
-
-    const handleBgModeChange = (mode: 'default' | 'ai') => {
-        setBgMode(mode);
-
-        if (mode === 'default') {
-            // Apply default background color only, keep AI text colors
-            const baseTheme = isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME;
-            if (aiTheme) {
-                const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
-                setTheme(prev => ({
-                    ...selectedAiTheme,
-                    backgroundColor: baseTheme.backgroundColor,
-                    wordColors: prev.wordColors,
-                    lyricsIcons: prev.lyricsIcons
-                }));
-            } else {
-                setTheme(baseTheme);
-            }
-        } else {
-            // When switching to AI mode, restore the full AI theme
-            if (aiTheme) {
-                const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
-                setTheme(prev => ({
-                    ...selectedAiTheme,
-                    wordColors: prev.wordColors,
-                    lyricsIcons: prev.lyricsIcons
-                }));
-            }
-            // If no AI theme stored, keep current theme (which might already be AI)
-        }
-    };
 
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
@@ -2714,7 +1840,6 @@ export default function App() {
                         onSeek={(time) => {
                             if (audioRef.current) {
                                 audioRef.current.currentTime = time;
-                                // Auto-play when seeking (e.g. from timeline lyric dots)
                                 if (audioRef.current.paused) {
                                     audioRef.current.play();
                                     setPlayerState(PlayerState.PLAYING);
@@ -2750,7 +1875,7 @@ export default function App() {
                         onToggleLoop={toggleLoop}
                         onLike={handleLike}
                         isLiked={currentSong ? likedSongIds.has(currentSong.id) : false}
-                        onGenerateAITheme={generateAITheme}
+                        onGenerateAITheme={() => generateAITheme(lyrics, currentSong)}
                         isGeneratingTheme={isGeneratingTheme}
                         hasLyrics={!!lyrics}
                         theme={theme}
@@ -2784,6 +1909,11 @@ export default function App() {
                         onPrevTrack={handlePrevTrack}
                         playerState={playerState}
                         onTogglePlay={togglePlay}
+                        volume={volume}
+                        isMuted={isMuted}
+                        onVolumePreview={handlePreviewVolume}
+                        onVolumeChange={handleSetVolume}
+                        onToggleMute={handleToggleMute}
                     />
                 )
             }

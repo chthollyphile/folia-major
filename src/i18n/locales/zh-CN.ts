@@ -58,7 +58,8 @@ export default {
     "selectTrack": "选择音轨",
     "foundMatches": "找到 {{count}} 个匹配项",
     "waitingForMusic": "",
-    "options": "选项"
+    "options": "选项",
+    "volume": "音量"
   },
   "panel": {
     "cover": "封面",
