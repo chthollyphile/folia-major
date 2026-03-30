@@ -222,6 +222,7 @@ export default {
     "original": "Original",
     "translation": "Translation",
     "statusLocal": "Local",
+    "statusEmbedded": "Embedded",
     "statusOnline": "Online",
     "statusNone": "None",
     "selectLrcFile": "Select LRC File",
@@ -232,7 +233,9 @@ export default {
     "artistLabel": "Artist",
     "albumLabel": "Album",
     "noSelection": "Select a song on the left",
-    "save": "Save"
+    "save": "Save",
+    "permissionNeeded": "Restore Folder Access",
+    "grantPermission": "Restore"
   },
   "navidrome": {
     "title": "Navi",

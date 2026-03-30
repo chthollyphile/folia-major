@@ -126,6 +126,7 @@ export interface LocalSong {
   embeddedArtist?: string;
   embeddedAlbum?: string;
   embeddedCover?: Blob; // Stored as Blob in IndexedDB
+  replayGain?: number; // ReplayGain track gain in dB
 
   // Lyrics matching result
   matchedSongId?: number; // Netease song ID
@@ -139,15 +140,19 @@ export interface LocalSong {
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
 
   // User preferences for online data override (set via LyricMatchModal)
-  useOnlineLyrics?: boolean;    // Prefer online lyrics over local LRC
+  lyricsSource?: 'local' | 'embedded' | 'online';  // Explicit lyrics source selection; undefined = default priority (local > embedded > online)
   useOnlineCover?: boolean;     // Prefer online cover over embedded cover
   useOnlineMetadata?: boolean;  // Prefer online artist/album over embedded tags
 
-  // Local Lyrics
+  // Local Lyrics (.lrc files)
   hasLocalLyrics?: boolean;
   localLyricsContent?: string;
   hasLocalTranslationLyrics?: boolean;
   localTranslationLyricsContent?: string;
+
+  // Embedded Lyrics (from file tags: ID3 USLT, Vorbis LYRICS, etc.)
+  hasEmbeddedLyrics?: boolean;
+  embeddedLyricsContent?: string;
 }
 
 // Extend SongResult to support local files

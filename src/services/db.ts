@@ -563,3 +563,12 @@ export const clearAllData = async (): Promise<void> => {
     console.error("Failed to clear all data", e);
   }
 };
+
+export const saveDirHandles = async (handles: Record<string, FileSystemDirectoryHandle>): Promise<void> => {
+  await saveToCache('local_dir_handles', handles);
+};
+
+export const getDirHandles = async (): Promise<Record<string, FileSystemDirectoryHandle>> => {
+  return (await getFromCache<Record<string, FileSystemDirectoryHandle>>('local_dir_handles')) || {};
+};
+

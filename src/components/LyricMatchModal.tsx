@@ -44,7 +44,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     const [isMatching, setIsMatching] = useState(false);
 
     // Online data toggle state (dots)
-    const [useOnlineLyrics, setUseOnlineLyrics] = useState(song.useOnlineLyrics ?? !song.hasLocalLyrics);
+    const [lyricsSource, setLyricsSource] = useState<'local' | 'embedded' | 'online' | undefined>(song.lyricsSource);
     const [useOnlineCover, setUseOnlineCover] = useState(song.useOnlineCover ?? !song.embeddedCover);
     const [useOnlineMetadata, setUseOnlineMetadata] = useState(song.useOnlineMetadata ?? true);
 
@@ -93,10 +93,14 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
     // Derive lyrics source label
     const lyricsSourceLabel = useMemo(() => {
-        if (useOnlineLyrics) return t('localMusic.statusOnline');
+        if (lyricsSource === 'online') return t('localMusic.statusOnline');
+        if (lyricsSource === 'embedded') return t('localMusic.statusEmbedded');
+        if (lyricsSource === 'local') return t('localMusic.statusLocal');
+        // Default: show what would be selected by priority
         if (song.hasLocalLyrics) return t('localMusic.statusLocal');
+        if (song.hasEmbeddedLyrics) return t('localMusic.statusEmbedded');
         return t('localMusic.statusNone');
-    }, [useOnlineLyrics, song, t]);
+    }, [lyricsSource, song, t]);
 
     // Initialize search
     useEffect(() => {
@@ -194,7 +198,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             song.matchedSongId = selectedResult.id;
 
             // Save lyrics if online is selected
-            if (useOnlineLyrics) {
+            if (lyricsSource === 'online') {
                 song.matchedLyrics = parsedLyrics || undefined;
             }
 
@@ -212,7 +216,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             song.matchedAlbumName = editAlbum;
 
             // Persist user override preferences
-            song.useOnlineLyrics = useOnlineLyrics;
+            song.lyricsSource = lyricsSource;
             song.useOnlineCover = useOnlineCover;
             song.useOnlineMetadata = useOnlineMetadata;
 
@@ -246,7 +250,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         try {
             song.noAutoMatch = true;
             // Set all data sources to local
-            song.useOnlineLyrics = false;
+            // Set all data sources to local / reset
+            delete song.lyricsSource;
             song.useOnlineCover = false;
             song.useOnlineMetadata = false;
 
@@ -407,12 +412,12 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                     </span>
                                 </button>
                                 <button
-                                    onClick={() => setUseOnlineLyrics(!useOnlineLyrics)}
+                                    onClick={() => setLyricsSource(lyricsSource === 'online' ? undefined : 'online')}
                                     className="flex items-center gap-1.5 group"
                                     title={t('localMusic.lyricsSource')}
                                 >
-                                    <div className={`w-2 h-2 rounded-full transition-all duration-200 ${useOnlineLyrics ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
-                                    <span className={`text-[11px] ${useOnlineLyrics ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
+                                <div className={`w-2 h-2 rounded-full transition-all duration-200 ${lyricsSource === 'online' ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
+                                    <span className={`text-[11px] ${lyricsSource === 'online' ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
                                         {t('localMusic.lyricsSource')}
                                     </span>
                                 </button>
@@ -461,9 +466,9 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                     {/* Lyrics source (display only) */}
                                     <div className="flex items-center justify-center gap-2 pt-1">
                                         <span className={`text-xs ${textSecondary}`}>{t('localMusic.lyricsSource')}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${useOnlineLyrics
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${lyricsSource === 'online'
                                             ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300')
-                                            : (song.hasLocalLyrics ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60')
+                                            : ((song.hasLocalLyrics || song.hasEmbeddedLyrics) ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60')
                                             }`}>
                                             {lyricsSourceLabel}
                                         </span>

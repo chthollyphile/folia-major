@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, Music, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
 import { LocalSong } from '../types';
 import { importFolder, matchLyrics, deleteLocalSong, resyncFolder, deleteFolderSongs } from '../services/localMusicService';
 import LyricMatchModal from './LyricMatchModal';
@@ -49,6 +50,45 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     const [matchingLyricsFor, setMatchingLyricsFor] = useState<string | null>(null);
     const [showMatchModal, setShowMatchModal] = useState(false);
     const [selectedSong, setSelectedSong] = useState<LocalSong | null>(null);
+
+    const [needsPermission, setNeedsPermission] = useState(false);
+
+    useEffect(() => {
+        const checkPermissions = async () => {
+            try {
+                if (!('showDirectoryPicker' in window)) return;
+                const { getDirHandles } = await import('../services/db');
+                const handles = await getDirHandles();
+                let needs = false;
+                for (const value of Object.values(handles)) {
+                    if (await (value as any).queryPermission({ mode: 'read' }) !== 'granted') {
+                        needs = true;
+                        break;
+                    }
+                }
+                setNeedsPermission(needs);
+            } catch (e) {
+                console.error("Failed to check permissions", e);
+            }
+        };
+        checkPermissions();
+    }, [localSongs]);
+
+    const handleRestorePermissions = async () => {
+        try {
+            const { getDirHandles } = await import('../services/db');
+            const handles = await getDirHandles();
+            for (const value of Object.values(handles)) {
+                if (await (value as any).queryPermission({ mode: 'read' }) !== 'granted') {
+                    await (value as any).requestPermission({ mode: 'read' });
+                }
+            }
+            setNeedsPermission(false);
+            onRefresh();
+        } catch (e) {
+            console.error("Failed to restore permissions", e);
+        }
+    };
 
     // Navigation State (Lifted to Parent)
     // const [activeRow, setActiveRow] = useState<0 | 1>(0); 
@@ -327,6 +367,18 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             </div>
 
             {/* Dashboard Content */}
+            {needsPermission && (
+                <div className={`w-fit mx-auto mb-4 p-2 px-4 rounded-full flex items-center gap-6 z-10 shrink-0 backdrop-blur-md shadow-lg ${isDaylight ? 'bg-black/5 border border-black/10 text-zinc-700' : 'bg-white/5 border border-white/10 text-zinc-300'}`}>
+                    <div className="flex items-center gap-2">
+                        <FolderOpen size={16} className="opacity-70" />
+                        <span className="text-sm font-medium">{t('localMusic.permissionNeeded')}</span>
+                    </div>
+                    <button onClick={handleRestorePermissions} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95 ${isDaylight ? 'bg-black/10 hover:bg-black/20 text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                        {t('localMusic.grantPermission')}
+                    </button>
+                </div>
+            )}
+
             <div className="flex-1 relative overflow-hidden">
                 {localSongs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full opacity-50">

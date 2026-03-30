@@ -102,6 +102,7 @@ export default function App() {
     const animationFrameRef = useRef<number>(0);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
+    const gainNodeRef = useRef<GainNode | null>(null);
     const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
     const blobUrlRef = useRef<string | null>(null);
     const queueScrollRef = useRef<HTMLDivElement>(null);
@@ -319,13 +320,18 @@ export default function App() {
                                 setAudioSrc(blobUrl);
                                 console.log("[restoreSession] Successfully restored local song audio");
 
-                                // Also restore local lyrics if available
-                                if (songToRestore.hasLocalLyrics && songToRestore.localLyricsContent) {
-                                    const localLyrics = parseLRC(
-                                        songToRestore.localLyricsContent,
-                                        songToRestore.localTranslationLyricsContent || ''
-                                    );
-                                    setLyrics(localLyrics);
+                                // Also restore lyrics using lyricsSource priority
+                                const source = songToRestore.lyricsSource;
+                                if (source === 'online' && songToRestore.matchedLyrics) {
+                                    setLyrics(songToRestore.matchedLyrics);
+                                } else if (source === 'embedded' && songToRestore.embeddedLyricsContent) {
+                                    setLyrics(parseLRC(songToRestore.embeddedLyricsContent, ''));
+                                } else if (source === 'local' && songToRestore.localLyricsContent) {
+                                    setLyrics(parseLRC(songToRestore.localLyricsContent, songToRestore.localTranslationLyricsContent || ''));
+                                } else if (songToRestore.hasLocalLyrics && songToRestore.localLyricsContent) {
+                                    setLyrics(parseLRC(songToRestore.localLyricsContent, songToRestore.localTranslationLyricsContent || ''));
+                                } else if (songToRestore.hasEmbeddedLyrics && songToRestore.embeddedLyricsContent) {
+                                    setLyrics(parseLRC(songToRestore.embeddedLyricsContent, ''));
                                 } else if (songToRestore.matchedLyrics) {
                                     setLyrics(songToRestore.matchedLyrics);
                                 }
@@ -455,7 +461,7 @@ export default function App() {
         let matchedSongResult: SongResult | null = null;
 
         // Only match online if: no local lyrics AND (no matched lyrics OR no matched cover) AND auto-match is enabled
-        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.matchedLyrics;
+        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics && !localSong.matchedLyrics;
         const needsCoverMatch = !localSong.embeddedCover && !localSong.matchedCoverUrl;
         if ((needsLyricsMatch || needsCoverMatch) && !localSong.noAutoMatch) {
             setStatusMsg({ type: 'info', text: '正在匹配歌词和封面...' });
@@ -521,7 +527,7 @@ export default function App() {
         // Use updated data, respecting user's online data preferences
         // If user explicitly chose to use online data (useOnline* flags), override default priority
         const preferOnlineCover = updatedLocalSong.useOnlineCover === true;
-        const preferOnlineLyrics = updatedLocalSong.useOnlineLyrics === true;
+        const preferOnlineLyrics = updatedLocalSong.lyricsSource === 'online';
         const preferOnlineMetadata = updatedLocalSong.useOnlineMetadata === true;
 
         // Cover priority: default is Embedded > Online, but useOnlineCover reverses it
@@ -530,21 +536,30 @@ export default function App() {
             : (embeddedCoverUrl || updatedLocalSong.matchedCoverUrl || null);
         const matchedSong = matchedSongResult;
 
-        // Lyrics priority: default is Local LRC > Online, but useOnlineLyrics reverses it
+        // Lyrics priority: uses lyricsSource if set, otherwise default local > embedded > online
         let lyrics: LyricData | null = null;
-        if (preferOnlineLyrics && updatedLocalSong.matchedLyrics) {
+        const source = updatedLocalSong.lyricsSource;
+        if (source === 'online' && updatedLocalSong.matchedLyrics) {
             lyrics = updatedLocalSong.matchedLyrics;
             console.log('[App] Using online matched lyrics (user preference)');
-        } else if (updatedLocalSong.hasLocalLyrics && updatedLocalSong.localLyricsContent) {
-            // Parse local LRC file content
-            lyrics = parseLRC(
-                updatedLocalSong.localLyricsContent,
-                updatedLocalSong.localTranslationLyricsContent || ''
-            );
-            console.log('[App] Using local lyrics file');
-        } else if (updatedLocalSong.matchedLyrics && updatedLocalSong.useOnlineLyrics !== false) {
-            lyrics = updatedLocalSong.matchedLyrics;
-            console.log('[App] Using online matched lyrics (fallback)');
+        } else if (source === 'embedded' && updatedLocalSong.embeddedLyricsContent) {
+            lyrics = parseLRC(updatedLocalSong.embeddedLyricsContent, '');
+            console.log('[App] Using embedded lyrics (user preference)');
+        } else if (source === 'local' && updatedLocalSong.localLyricsContent) {
+            lyrics = parseLRC(updatedLocalSong.localLyricsContent, updatedLocalSong.localTranslationLyricsContent || '');
+            console.log('[App] Using local lyrics file (user preference)');
+        } else if (!source) {
+            // Default priority: local > embedded > online
+            if (updatedLocalSong.hasLocalLyrics && updatedLocalSong.localLyricsContent) {
+                lyrics = parseLRC(updatedLocalSong.localLyricsContent, updatedLocalSong.localTranslationLyricsContent || '');
+                console.log('[App] Using local lyrics file (default)');
+            } else if (updatedLocalSong.hasEmbeddedLyrics && updatedLocalSong.embeddedLyricsContent) {
+                lyrics = parseLRC(updatedLocalSong.embeddedLyricsContent, '');
+                console.log('[App] Using embedded lyrics (default)');
+            } else if (updatedLocalSong.matchedLyrics) {
+                lyrics = updatedLocalSong.matchedLyrics;
+                console.log('[App] Using online matched lyrics (default fallback)');
+            }
         }
 
         const unifiedSong = buildUnifiedLocalSong({
@@ -615,7 +630,7 @@ export default function App() {
             let coverUrl: string | undefined;
 
             if (matchData) {
-                if (matchData.useOnlineLyrics && matchData.matchedLyrics) {
+                if (matchData.lyricsSource === 'online' && matchData.matchedLyrics) {
                     lyrics = matchData.matchedLyrics;
                     console.log('[App] Using manually matched OpenSubsonic online lyrics');
                 }
@@ -701,9 +716,11 @@ export default function App() {
             if (isAutoMatched) {
                 (navidromeSong as any).matchedLyrics = autoMatchedLyrics;
                 (navidromeSong as any).useOnlineLyrics = true;
+                (navidromeSong as any).lyricsSource = 'online';
             } else {
                 (navidromeSong as any).matchedLyrics = matchData?.matchedLyrics;
                 (navidromeSong as any).useOnlineLyrics = matchData?.useOnlineLyrics;
+                (navidromeSong as any).lyricsSource = matchData?.lyricsSource;
             }
 
             // Get cover art URL
@@ -794,8 +811,12 @@ export default function App() {
             analyser.smoothingTimeConstant = 0.6;
             analyserRef.current = analyser;
 
+            const gainNode = ctx.createGain();
+            gainNodeRef.current = gainNode;
+
             const source = ctx.createMediaElementSource(audioRef.current);
-            source.connect(analyser);
+            source.connect(gainNode);
+            gainNode.connect(analyser);
             analyser.connect(ctx.destination);
             sourceRef.current = source;
         } catch (e) {
@@ -919,11 +940,19 @@ export default function App() {
                         setCachedCoverUrl(null);
                     }
 
-                    // Lyrics
-                    if (currentLocalData.hasLocalLyrics && currentLocalData.localLyricsContent) {
-                        // Parse local existing lyrics
+                    // Lyrics - use lyricsSource priority chain
+                    const lyricsSource = currentLocalData.lyricsSource;
+                    if (lyricsSource === 'online' && currentLocalData.matchedLyrics) {
+                        setLyrics(currentLocalData.matchedLyrics);
+                    } else if (lyricsSource === 'embedded' && currentLocalData.embeddedLyricsContent) {
+                        setLyrics(parseLRC(currentLocalData.embeddedLyricsContent, ''));
+                    } else if (lyricsSource === 'local' && currentLocalData.localLyricsContent) {
+                        setLyrics(parseLRC(currentLocalData.localLyricsContent, currentLocalData.localTranslationLyricsContent || ''));
+                    } else if (currentLocalData.hasLocalLyrics && currentLocalData.localLyricsContent) {
                         const parsed = parseLRC(currentLocalData.localLyricsContent, currentLocalData.localTranslationLyricsContent || "");
                         setLyrics(parsed);
+                    } else if (currentLocalData.hasEmbeddedLyrics && currentLocalData.embeddedLyricsContent) {
+                        setLyrics(parseLRC(currentLocalData.embeddedLyricsContent, ''));
                     } else if (currentLocalData.matchedLyrics) {
                         setLyrics(currentLocalData.matchedLyrics);
                     } else {
@@ -1174,6 +1203,30 @@ export default function App() {
             audioRef.current.muted = isMuted;
         }
     }, [volume, isMuted]);
+
+    // ReplayGain Effect
+    useEffect(() => {
+        if (!currentSong || !gainNodeRef.current || !audioContextRef.current) return;
+        
+        let replayGainDb = 0;
+        if ((currentSong as any).isLocal && (currentSong as any).localData) {
+            const localData = (currentSong as any).localData;
+            replayGainDb = typeof localData.replayGain === 'number' ? localData.replayGain : 0;
+        }
+
+        const linearGain = Math.pow(10, replayGainDb / 20);
+        
+        try {
+            gainNodeRef.current.gain.setTargetAtTime(
+                linearGain, 
+                audioContextRef.current.currentTime, 
+                0.1
+            );
+            console.log(`[AudioContext] ReplayGain set to ${replayGainDb}dB (Linear: ${linearGain.toFixed(2)})`);
+        } catch (e) {
+            console.warn('[AudioContext] Failed to apply ReplayGain', e);
+        }
+    }, [currentSong]);
 
     // Media Session API Integration
     useEffect(() => {
@@ -1492,6 +1545,47 @@ export default function App() {
         } catch (e) {
             console.error("Failed to save local lyrics", e);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics' });
+        }
+    };
+
+    const handleChangeLyricsSource = async (source: 'local' | 'embedded' | 'online') => {
+        if (!currentSong || !((currentSong as any).isLocal || currentSong.id < 0)) return;
+
+        const localData = (currentSong as any).localData as LocalSong;
+        if (!localData) return;
+
+        const updatedLocalSong = { ...localData };
+        updatedLocalSong.lyricsSource = source;
+
+        // Save to DB
+        try {
+            const { saveLocalSong } = await import('./services/db');
+            await saveLocalSong(updatedLocalSong);
+
+            // Parse and apply lyrics from the selected source
+            let newLyrics: LyricData | null = null;
+            if (source === 'local' && updatedLocalSong.localLyricsContent) {
+                newLyrics = parseLRC(updatedLocalSong.localLyricsContent, updatedLocalSong.localTranslationLyricsContent || '');
+            } else if (source === 'embedded' && updatedLocalSong.embeddedLyricsContent) {
+                newLyrics = parseLRC(updatedLocalSong.embeddedLyricsContent, '');
+            } else if (source === 'online' && updatedLocalSong.matchedLyrics) {
+                newLyrics = updatedLocalSong.matchedLyrics;
+            }
+            setLyrics(newLyrics);
+            setCurrentLineIndex(-1);
+
+            // Update current song's localData reference
+            const updatedSong = { ...currentSong };
+            (updatedSong as any).localData = updatedLocalSong;
+            setCurrentSong(updatedSong);
+
+            // Refresh local songs list
+            await loadLocalSongs();
+
+            setStatusMsg({ type: 'success', text: '歌词来源已切换' });
+        } catch (e) {
+            console.error("Failed to save lyrics source", e);
+            setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
         }
     };
 
@@ -1903,6 +1997,7 @@ export default function App() {
                         onToggleDaylight={() => handleToggleDaylight(!isDaylight)}
                         onMatchOnline={handleManualMatchOnline}
                         onUpdateLocalLyrics={handleUpdateLocalLyrics}
+                        onChangeLyricsSource={handleChangeLyricsSource}
                         isFmMode={isFmMode}
                         onFmTrash={handleFmTrash}
                         onNextTrack={handleNextTrack}

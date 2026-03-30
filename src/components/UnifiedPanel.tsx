@@ -60,6 +60,7 @@ interface UnifiedPanelProps {
     // Local Tab Props
     onMatchOnline: () => void;
     onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
+    onChangeLyricsSource: (source: 'local' | 'embedded' | 'online') => void;
     // FM Mode Props
     isFmMode: boolean;
     onFmTrash: () => void;
@@ -116,6 +117,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onToggleDaylight,
     onMatchOnline,
     onUpdateLocalLyrics,
+    onChangeLyricsSource,
     isFmMode,
     onFmTrash,
     onNextTrack,
@@ -299,6 +301,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             currentSong={currentSong}
                                             onMatchOnline={onMatchOnline}
                                             onUpdateLocalLyrics={onUpdateLocalLyrics}
+                                            onChangeLyricsSource={onChangeLyricsSource}
                                             isDaylight={isDaylight}
                                         />
                                     )}

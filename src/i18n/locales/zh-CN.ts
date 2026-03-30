@@ -222,6 +222,7 @@ export default {
     "original": "原文",
     "translation": "译文",
     "statusLocal": "本地",
+    "statusEmbedded": "内嵌",
     "statusOnline": "在线",
     "statusNone": "无",
     "selectLrcFile": "选择 LRC 文件",
@@ -232,7 +233,9 @@ export default {
     "artistLabel": "歌手",
     "albumLabel": "专辑",
     "noSelection": "请在左侧选择一首歌曲",
-    "save": "保存"
+    "save": "保存",
+    "permissionNeeded": "需要恢复本地音乐访问权限",
+    "grantPermission": "点击恢复"
   },
   "navidrome": {
     "title": "Navi",

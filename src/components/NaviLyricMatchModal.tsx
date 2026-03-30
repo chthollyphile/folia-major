@@ -17,7 +17,8 @@ export interface NavidromeMatchData {
     matchedArtists?: string;
     matchedAlbumId?: number;
     matchedAlbumName?: string;
-    useOnlineLyrics?: boolean;
+    useOnlineLyrics?: boolean; // Legacy, kept for backward compatibility
+    lyricsSource?: 'navi' | 'online';
     useOnlineCover?: boolean;
     useOnlineMetadata?: boolean;
     noAutoMatch?: boolean;
@@ -61,7 +62,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
     const [initialMatchData, setInitialMatchData] = useState<NavidromeMatchData | null>(null);
 
     // Online data toggle state
-    const [useOnlineLyrics, setUseOnlineLyrics] = useState(true);
+    const [lyricsSource, setLyricsSource] = useState<'navi' | 'online'>('online');
 
     const navidromeArtist = song.artists?.map(a => a.name).join(', ') || song.ar?.map(a => a.name).join(', ') || '';
     const navidromeAlbum = song.album?.name || song.al?.name || '';
@@ -72,9 +73,9 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             const data = await getFromCache<NavidromeMatchData>(`navidrome_match_${song.navidromeData.id}`);
             if (data) {
                 setInitialMatchData(data);
-                setUseOnlineLyrics(data.useOnlineLyrics ?? false);
+                setLyricsSource(data.lyricsSource ?? (data.useOnlineLyrics ? 'online' : 'navi'));
             } else {
-                setUseOnlineLyrics(true);
+                setLyricsSource('online');
             }
         };
         loadExistingMatch();
@@ -148,7 +149,8 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             const matchData: NavidromeMatchData = {
                 matchedSongId: selectedResult.id,
                 matchedLyrics: parsedLyrics || undefined,
-                useOnlineLyrics,
+                useOnlineLyrics: lyricsSource === 'online',
+                lyricsSource,
                 hasManualLyricSelection: true
             };
 
@@ -169,6 +171,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             const matchData: NavidromeMatchData = {
                 noAutoMatch: true,
                 useOnlineLyrics: false,
+                lyricsSource: 'navi' as const,
                 hasManualLyricSelection: true
             };
             await saveToCache(`navidrome_match_${song.navidromeData.id}`, matchData);
@@ -254,8 +257,8 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                 {selectedResult && (
                                     <div className="flex items-center justify-center gap-2 pt-2">
                                         <span className={`text-xs ${textSecondary}`}>匹配状态</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${useOnlineLyrics ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300') : (isDaylight ? 'bg-orange-500/10 text-orange-600' : 'bg-orange-500/20 text-orange-300')}`}>
-                                            {useOnlineLyrics ? '优先使用在线歌词' : '强制回退服务器歌词'}
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${lyricsSource === 'online' ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300') : (isDaylight ? 'bg-orange-500/10 text-orange-600' : 'bg-orange-500/20 text-orange-300')}`}>
+                                            {lyricsSource === 'online' ? '优先使用在线歌词' : '强制回退服务器歌词'}
                                         </span>
                                     </div>
                                 )}

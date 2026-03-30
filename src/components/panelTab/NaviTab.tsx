@@ -36,9 +36,9 @@ const NaviTab: React.FC<NaviTabProps> = ({ currentSong, hasLyrics, onMatchOnline
     // Let's attach 'useOnlineLyrics', 'hasMatchedLyrics' in App.tsx when we build the Navidrome song, or use a new prop.
     // Let's assume currentSong has useOnlineLyrics attached, or we simply check:
     const matchedLyrics = currentSong.matchedLyrics || navidromeData?.matchedLyrics;
-    const useOnlineLyrics = currentSong.useOnlineLyrics ?? (navidromeData as any)?.useOnlineLyrics;
+    const songLyricsSource = (currentSong as any).lyricsSource ?? (navidromeData as any)?.lyricsSource;
     const hasMatchedLyrics = (matchedLyrics?.lines?.length ?? 0) > 0;
-    const isOnline = hasMatchedLyrics && useOnlineLyrics !== false;
+    const isOnline = hasMatchedLyrics && songLyricsSource === 'online';
     
     let lyricsSourceLabel = '无';
     if (isOnline) {

@@ -149,7 +149,7 @@ export interface NavidromeSong extends SongResult {
     matchedSongId?: number;
     matchedLyrics?: LyricData;
     hasManualLyricSelection?: boolean;
-    useOnlineLyrics?: boolean;
+    lyricsSource?: 'navi' | 'online';
     useOnlineCover?: boolean;
     useOnlineMetadata?: boolean;
     noAutoMatch?: boolean;

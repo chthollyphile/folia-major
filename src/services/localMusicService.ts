@@ -1,10 +1,10 @@
 import { LocalSong, LyricData } from '../types';
-import { saveLocalSong, deleteLocalSong as dbDeleteLocalSong } from './db';
+import { saveLocalSong, deleteLocalSong as dbDeleteLocalSong, saveDirHandles, getDirHandles } from './db';
 import { neteaseApi } from './netease';
 import { parseLRC } from '../utils/lrcParser';
 import { parseYRC } from '../utils/yrcParser';
 import { detectChorusLines } from '../utils/chorusDetector';
-import { parseBlob } from 'music-metadata-browser';
+import { parseBlob } from 'music-metadata';
 
 // In-memory storage for FileSystemFileHandle (cannot be persisted to IndexedDB)
 // Maps song ID to FileSystemFileHandle
@@ -115,6 +115,17 @@ export async function importFolder(expectedRootName?: string): Promise<LocalSong
             }
         }
 
+        // Save directory handle for persistence
+        try {
+            const { getDirHandles, saveDirHandles } = await import('./db');
+            const dirHandles = await getDirHandles();
+            dirHandles[rootFolderName] = dirHandle;
+            await saveDirHandles(dirHandles);
+            console.log(`[LocalMusic] Saved directory handle for ${rootFolderName}`);
+        } catch (e) {
+            console.error('[LocalMusic] Failed to save directory handle:', e);
+        }
+
         const entries: { handle: FileSystemFileHandle, folderName: string, relativePath: string }[] = [];
 
         async function traverseDirectory(handle: FileSystemDirectoryHandle, currentPath: string) {
@@ -200,16 +211,35 @@ export async function importFolder(expectedRootName?: string): Promise<LocalSong
                     album?: string;
                     cover?: Blob;
                     bitrate?: number;
+                    lyrics?: string;
+                    replayGain?: number;
                 } = {};
 
                 try {
                     const parsed = await parseBlob(file);
+                    // DEBUG: dump lyrics-related fields
+                    console.log(`[LocalMusic DEBUG] ${file.name} parsed.common keys:`, Object.keys(parsed.common));
+                    console.log(`[LocalMusic DEBUG] ${file.name} parsed.common.lyrics:`, parsed.common.lyrics);
+                    console.log(`[LocalMusic DEBUG] ${file.name} parsed.native keys:`, Object.keys(parsed.native || {}));
+                    // Check native tags for lyrics in different formats
+                    for (const [format, tags] of Object.entries(parsed.native || {})) {
+                        const lyricTags = (tags as any[]).filter((t: any) => 
+                            t.id?.toLowerCase().includes('lyric') || 
+                            t.id?.toLowerCase().includes('uslt') ||
+                            t.id?.toLowerCase().includes('sylt')
+                        );
+                        if (lyricTags.length > 0) {
+                            console.log(`[LocalMusic DEBUG] ${file.name} native[${format}] lyrics tags:`, lyricTags);
+                        }
+                    }
                     embeddedMetadata = {
                         title: parsed.common.title,
                         artist: parsed.common.artist,
                         album: parsed.common.album,
                         cover: parsed.common.picture?.[0] ? new Blob([parsed.common.picture[0].data as any], { type: parsed.common.picture[0].format }) : undefined,
-                        bitrate: parsed.format.bitrate
+                        bitrate: parsed.format.bitrate,
+                        lyrics: parsed.common.lyrics?.[0]?.text, // Extract embedded lyrics text (ILyricsTag.text)
+                        replayGain: parsed.format.trackGain
                     };
                 } catch (e) {
                     console.warn(`[LocalMusic] Failed to parse metadata for ${file.name}:`, e);
@@ -243,10 +273,13 @@ export async function importFolder(expectedRootName?: string): Promise<LocalSong
                     hasLocalLyrics: !!localLyricsContent,
                     localLyricsContent,
                     hasLocalTranslationLyrics: !!localTranslationLyricsContent,
-                    localTranslationLyricsContent
+                    localTranslationLyricsContent,
+                    hasEmbeddedLyrics: !!embeddedMetadata.lyrics,
+                    embeddedLyricsContent: embeddedMetadata.lyrics,
+                    replayGain: embeddedMetadata.replayGain
                 };
 
-                // Store fileHandle in memory (cannot persist to IndexedDB)
+                // Store fileHandle in memory
                 fileHandleMap.set(songId, fileHandle);
                 localSong.fileHandle = fileHandle;
 
@@ -336,9 +369,9 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         console.log(`[LocalMusic] Found exact title match: ${matchedSong.name} by ${matchedSong.ar?.map(a => a.name).join(', ')}`);
 
-        // Check if we should skip lyrics fetching (local lyrics take priority)
-        if (song.hasLocalLyrics && song.localLyricsContent) {
-            console.log(`[LocalMusic] Local lyrics exist, skipping online lyrics fetch. Only fetching cover/metadata.`);
+        // Check if we should skip lyrics fetching (local or embedded lyrics take priority)
+        if ((song.hasLocalLyrics && song.localLyricsContent) || (song.hasEmbeddedLyrics && song.embeddedLyricsContent)) {
+            console.log(`[LocalMusic] Local/embedded lyrics exist, skipping online lyrics fetch. Only fetching cover/metadata.`);
 
             // Only update metadata and cover, preserve local lyrics
             song.matchedSongId = matchedSong.id;
