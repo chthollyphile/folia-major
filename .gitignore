@@ -32,3 +32,4 @@ release/
 packaging/aur/folia-major-bin/FIRST_RELEASE.md
 packaging/aur/folia-major-bin/README.md
 test/test-song/*
+.codex

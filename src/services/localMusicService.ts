@@ -6,6 +6,27 @@ import { parseYRC } from '../utils/yrcParser';
 import { detectChorusLines } from '../utils/chorusDetector';
 import { parseBlob } from 'music-metadata';
 
+interface ParsedLyricLine {
+    text?: string;
+    timestamp?: number;
+}
+
+interface ParsedLyricTag {
+    id?: string;
+    value?: unknown;
+    text?: string;
+    language?: string;
+    descriptor?: string;
+    syncText?: ParsedLyricLine[];
+    timeStampFormat?: number;
+}
+
+interface LyricCandidate {
+    text: string;
+    isTranslation: boolean;
+    hasTimeline: boolean;
+}
+
 // In-memory storage for FileSystemFileHandle (cannot be persisted to IndexedDB)
 // Maps song ID to FileSystemFileHandle
 const fileHandleMap = new Map<string, FileSystemFileHandle>();
@@ -76,6 +97,84 @@ async function getAudioDuration(file: File): Promise<number> {
 
         audio.src = url;
     });
+}
+
+function formatLrcTimestamp(timestampMs: number): string {
+    const safeTimestamp = Math.max(0, Math.floor(timestampMs));
+    const minutes = Math.floor(safeTimestamp / 60000);
+    const seconds = Math.floor((safeTimestamp % 60000) / 1000);
+    const centiseconds = Math.floor((safeTimestamp % 1000) / 10);
+    return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}]`;
+}
+
+function syncTextToLrc(syncText: ParsedLyricLine[] | undefined, timeStampFormat?: number): string | undefined {
+    if (!syncText || syncText.length === 0) {
+        return undefined;
+    }
+
+    if (timeStampFormat && timeStampFormat !== 2) {
+        return undefined;
+    }
+
+    const lines = syncText
+        .filter(line => typeof line?.timestamp === 'number' && typeof line?.text === 'string' && line.text.trim())
+        .map(line => `${formatLrcTimestamp(line.timestamp!)}${line.text!.trim()}`);
+
+    return lines.length > 0 ? `${lines.join('\n')}\n` : undefined;
+}
+
+function hasTimelineMarkers(text: string): boolean {
+    return /\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/.test(text);
+}
+
+function normalizeLyricCandidateText(text: string): string {
+    return text
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .trim();
+}
+
+function isTranslationLyricTag(tag: ParsedLyricTag): boolean {
+    const language = tag.language?.toLowerCase();
+    const descriptor = tag.descriptor?.toLowerCase() || '';
+    const id = tag.id?.toLowerCase() || '';
+
+    return language === 'chi' ||
+        language === 'zho' ||
+        descriptor.includes('translation') ||
+        descriptor.includes('trans') ||
+        descriptor.includes('译') ||
+        id.includes('translation') ||
+        id.includes('trans');
+}
+
+function extractLyricText(tag: ParsedLyricTag): { text?: string; hasTimeline: boolean } {
+    const directSyncText = syncTextToLrc(tag.syncText, tag.timeStampFormat);
+    if (directSyncText) {
+        return { text: directSyncText, hasTimeline: true };
+    }
+
+    const value = tag.value as ParsedLyricTag | string | undefined;
+    if (typeof value === 'string' && value.trim()) {
+        return { text: value, hasTimeline: hasTimelineMarkers(value) };
+    }
+
+    if (value && typeof value === 'object') {
+        const nestedSyncText = syncTextToLrc(value.syncText, value.timeStampFormat);
+        if (nestedSyncText) {
+            return { text: nestedSyncText, hasTimeline: true };
+        }
+
+        if (typeof value.text === 'string' && value.text.trim()) {
+            return { text: value.text, hasTimeline: hasTimelineMarkers(value.text) };
+        }
+    }
+
+    if (typeof tag.text === 'string' && tag.text.trim()) {
+        return { text: tag.text, hasTimeline: hasTimelineMarkers(tag.text) };
+    }
+
+    return { text: undefined, hasTimeline: false };
 }
 
 
@@ -233,29 +332,58 @@ export async function importFolder(expectedRootName?: string): Promise<LocalSong
                             console.log(`[LocalMusic DEBUG] ${file.name} native[${format}] lyrics tags:`, lyricTags);
                         }
                     }
-                    // Extract original and translation from multiple USLT tags
+                    // Extract original and translation from multiple USLT/LYRICS tags
                     let originalLyric: string | undefined;
                     let translationLyric: string | undefined;
 
-                    if (parsed.common.lyrics && parsed.common.lyrics.length > 0) {
-                        // If there's only one, treat it as original
-                        if (parsed.common.lyrics.length === 1) {
-                            originalLyric = parsed.common.lyrics[0].text;
+                    const collectLyricCandidates = (tags: ParsedLyricTag[]): LyricCandidate[] => {
+                        const lyricCandidates: LyricCandidate[] = [];
+
+                        const addLyricCandidate = (tag: ParsedLyricTag) => {
+                        const { text, hasTimeline } = extractLyricText(tag);
+                        if (typeof text === 'string' && text.trim()) {
+                            const normalizedText = normalizeLyricCandidateText(text);
+                            if (lyricCandidates.some(c => c.text === normalizedText)) return;
+                            lyricCandidates.push({
+                                text: normalizedText,
+                                isTranslation: isTranslationLyricTag(tag),
+                                hasTimeline
+                            });
+                        }
+                        };
+
+                        tags.forEach(tag => addLyricCandidate(tag));
+                        return lyricCandidates;
+                    };
+
+                    const commonCandidates = collectLyricCandidates((parsed.common.lyrics || []) as ParsedLyricTag[]);
+
+                    let lyricCandidates = commonCandidates;
+                    if (lyricCandidates.length === 0) {
+                        const nativeLyricTags: ParsedLyricTag[] = [];
+                        for (const tags of Object.values(parsed.native || {})) {
+                            (tags as ParsedLyricTag[]).forEach(t => {
+                                const id = t.id?.toLowerCase() || '';
+                                if (id.includes('lyric') || id.includes('uslt') || id.includes('sylt')) {
+                                    nativeLyricTags.push(t);
+                                }
+                            });
+                        }
+                        lyricCandidates = collectLyricCandidates(nativeLyricTags);
+                    }
+
+                    if (lyricCandidates.length > 0) {
+                        const withTimeline = lyricCandidates.filter(c => c.hasTimeline);
+                        const source = withTimeline.length > 0 ? withTimeline : lyricCandidates;
+
+                        const translation = source.find(c => c.isTranslation);
+                        if (translation) {
+                            translationLyric = translation.text;
+                            originalLyric = source.find(c => !c.isTranslation)?.text || source[0].text;
                         } else {
-                            // Find 'chi' or 'zho' or other translation keywords
-                            const chiLyric = parsed.common.lyrics.find(l => 
-                                l.language?.toLowerCase() === 'chi' || 
-                                l.language?.toLowerCase() === 'zho' || 
-                                l.descriptor?.toLowerCase().includes('translation')
-                            );
-                            
-                            if (chiLyric) {
-                                translationLyric = chiLyric.text;
-                                originalLyric = parsed.common.lyrics.find(l => l !== chiLyric)?.text;
-                            } else {
-                                // Default to first for original, second for translation
-                                originalLyric = parsed.common.lyrics[0].text;
-                                translationLyric = parsed.common.lyrics[1].text;
+                            originalLyric = source[0].text;
+                            if (source.length > 1) {
+                                translationLyric = source[1].text;
                             }
                         }
                     }
@@ -580,4 +708,3 @@ export async function deleteFolderSongs(folderName: string): Promise<void> {
 
     console.log(`[LocalMusic] Deleted ${songsToDelete.length} songs from folder tree: ${folderName}`);
 }
-
