@@ -30,6 +30,7 @@ import { useThemeController } from './hooks/useThemeController';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const LOCAL_PREWARM_OFFSETS = [-1, 1, 2] as const;
+const LOCAL_PREWARM_DELAY_MS = 1000;
 
 // Default Theme
 // 午夜墨染
@@ -609,11 +610,13 @@ export default function App() {
             return;
         }
 
-        void (async () => {
-            for (const nearbySong of nearbySongs) {
-                await prewarmLocalSongMetadata(nearbySong);
-            }
-        })();
+        window.setTimeout(() => {
+            void (async () => {
+                for (const nearbySong of nearbySongs) {
+                    await prewarmLocalSongMetadata(nearbySong);
+                }
+            })();
+        }, LOCAL_PREWARM_DELAY_MS);
     };
 
     const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
