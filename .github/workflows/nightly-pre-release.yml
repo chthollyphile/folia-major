@@ -1,0 +1,132 @@
+name: Nightly Pre-Release
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-pre-release
+  cancel-in-progress: true
+
+jobs:
+  check-updates:
+    name: Check for new commits since nightly
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Determine whether nightly should run
+        id: check
+        shell: bash
+        run: |
+          if ! git rev-parse --verify refs/tags/nightly >/dev/null 2>&1; then
+            echo "No existing nightly tag found. Building nightly."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git rev-list --count refs/tags/nightly..HEAD | grep -qx '0'; then
+            echo "No new commits since the last nightly release."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New commits detected since the last nightly release."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build on ${{ matrix.os }}
+    needs: check-updates
+    if: needs.check-updates.outputs.should_build == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web App for Electron
+        env:
+          ELECTRON: "true"
+        run: npm run build
+
+      - name: Package Electron App
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --publish never
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: release/**
+          if-no-files-found: error
+
+  publish:
+    name: Publish nightly pre-release
+    runs-on: ubuntu-latest
+    needs: [check-updates, build]
+    if: needs.check-updates.outputs.should_build == 'true'
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: nightly-artifacts
+
+      - name: Prepare release metadata
+        id: meta
+        shell: bash
+        run: |
+          echo "published_at=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release delete nightly --cleanup-tag --yes >/dev/null 2>&1 || true
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" >/dev/null 2>&1 || true
+
+      - name: Publish nightly pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          published_at='${{ steps.meta.outputs.published_at }}'
+          mapfile -d '' files < <(find nightly-artifacts -type f -print0)
+          cat > release-notes.txt <<EOF
+          Automated nightly build for commit ${GITHUB_SHA}.
+
+          Source commit: https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          Published at: ${published_at}
+          EOF
+
+          gh release create nightly \
+            "${files[@]}" \
+            --title "Nightly Build (${published_at})" \
+            --notes-file release-notes.txt \
+            --target "${GITHUB_SHA}" \
+            --prerelease
