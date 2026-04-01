@@ -303,7 +303,10 @@ export default function App() {
                     setPlayQueue([lastSong]);
                 }
 
-                const restoredThemeKind = await restoreCachedThemeForSong(lastSong.id, { allowLastUsedFallback: true });
+                const restoredThemeKind = await restoreCachedThemeForSong(lastSong.id, {
+                    allowLastUsedFallback: true,
+                    preserveCurrentOnMiss: false,
+                });
                 if (restoredThemeKind === 'fallback-dual') {
                     console.log("[restoreSession] Using last_dual_theme fallback");
                 } else if (restoredThemeKind === 'none') {

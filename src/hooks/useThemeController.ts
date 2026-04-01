@@ -126,7 +126,10 @@ export function useThemeController({
         setBgMode('default');
     };
 
-    const restoreCachedThemeForSong = async (songId: number, options?: { allowLastUsedFallback?: boolean }) => {
+    const restoreCachedThemeForSong = async (
+        songId: number,
+        options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean }
+    ) => {
         const cachedTheme = await getCachedThemeState(songId);
 
         if (cachedTheme.kind === 'dual') {
@@ -150,6 +153,10 @@ export function useThemeController({
                 }));
                 return 'fallback-dual' as const;
             }
+        }
+
+        if (options?.preserveCurrentOnMiss ?? true) {
+            return 'none' as const;
         }
 
         applyThemeFallback();
