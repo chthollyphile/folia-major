@@ -1,25 +1,22 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-type PagesContext = {
-  request: Request;
-  env: {
-    GEMINI_API_KEY?: string;
-  };
+type WorkerEnv = {
+  GEMINI_API_KEY?: string;
 };
 
-export const onRequest = async (context: PagesContext) => {
-  if (context.request.method !== "POST") {
+export async function handleGenerateTheme(request: Request, env: WorkerEnv) {
+  if (request.method !== "POST") {
     return Response.json({ error: "Method Not Allowed" }, { status: 405 });
   }
 
   try {
-    const { lyricsText } = await context.request.json() as { lyricsText?: string };
+    const { lyricsText } = await request.json() as { lyricsText?: string };
 
     if (!lyricsText) {
       return Response.json({ error: "Missing lyricsText" }, { status: 400 });
     }
 
-    const apiKey = context.env.GEMINI_API_KEY;
+    const apiKey = env.GEMINI_API_KEY;
 
     if (!apiKey) {
       console.error("Gemini API Key is missing in server environment.");
@@ -153,4 +150,4 @@ export const onRequest = async (context: PagesContext) => {
     const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
     return Response.json({ error: errorMessage }, { status: 500 });
   }
-};
+}

@@ -1,25 +1,22 @@
-type PagesContext = {
-  request: Request;
-  env: {
-    OPENAI_API_KEY?: string;
-    OPENAI_API_URL?: string;
-  };
+type WorkerEnv = {
+  OPENAI_API_KEY?: string;
+  OPENAI_API_URL?: string;
 };
 
-export const onRequest = async (context: PagesContext) => {
-  if (context.request.method !== "POST") {
+export async function handleGenerateOpenAITheme(request: Request, env: WorkerEnv) {
+  if (request.method !== "POST") {
     return Response.json({ error: "Method Not Allowed" }, { status: 405 });
   }
 
   try {
-    const { lyricsText } = await context.request.json() as { lyricsText?: string };
+    const { lyricsText } = await request.json() as { lyricsText?: string };
 
     if (!lyricsText) {
       return Response.json({ error: "Missing lyricsText" }, { status: 400 });
     }
 
-    const apiKey = context.env.OPENAI_API_KEY;
-    const apiUrl = context.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
+    const apiKey = env.OPENAI_API_KEY;
+    const apiUrl = env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions";
 
     if (!apiKey) {
       console.error("OpenAI API Key is missing in server environment.");
@@ -185,4 +182,4 @@ JSON Schema:
     const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
     return Response.json({ error: errorMessage }, { status: 500 });
   }
-};
+}
