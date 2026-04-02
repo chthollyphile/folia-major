@@ -3,6 +3,12 @@
   "name": "folia-major",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-04-02",
+  "secrets": {
+    "required": [
+      "GEMINI_API_KEY",
+      "OPENAI_API_KEY"
+    ]
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
