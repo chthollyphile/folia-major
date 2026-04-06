@@ -9,6 +9,18 @@ import LyricMatchModal from './LyricMatchModal';
 import LocalPlaylistView from './LocalPlaylistView';
 import Carousel3D from './Carousel3D';
 
+type LocalMusicGroup = {
+    type: 'folder' | 'album';
+    name: string;
+    songs: LocalSong[];
+    coverUrl?: string;
+    id?: string;
+    isVirtual?: boolean;
+    trackCount?: number;
+    description?: string;
+    albumId?: number;
+};
+
 interface LocalMusicViewProps {
     localSongs: LocalSong[];
     onRefresh: () => void;
@@ -17,8 +29,8 @@ interface LocalMusicViewProps {
     onPlaylistVisibilityChange?: (isOpen: boolean) => void;
     activeRow: 0 | 1;
     setActiveRow: (row: 0 | 1) => void;
-    selectedGroup: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; id?: string; isVirtual?: boolean; } | null;
-    setSelectedGroup: (group: { type: 'folder' | 'album', name: string, songs: LocalSong[], coverUrl?: string; id?: string; isVirtual?: boolean; } | null) => void;
+    selectedGroup: LocalMusicGroup | null;
+    setSelectedGroup: (group: LocalMusicGroup | null) => void;
     onMatchSong?: (song: LocalSong) => void;
     focusedFolderIndex?: number;
     setFocusedFolderIndex?: (index: number) => void;
@@ -163,7 +175,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         });
 
         // Sort folders alphabetically
-        const folderList = Object.entries(folders).map(([name, songs]) => ({
+        const folderList: LocalMusicGroup[] = Object.entries(folders).map(([name, songs]) => ({
             id: `folder-${name}`,
             name,
             songs,
@@ -187,7 +199,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         }
 
         // Sort albums
-        const albumList = Object.entries(albums).map(([key, songs]) => {
+        const albumList: LocalMusicGroup[] = Object.entries(albums).map(([key, songs]) => {
             // Try to find a song with matched info to get the best metadata
             const representative = songs.find(s => s.matchedAlbumId) || songs[0];
             const name = representative.matchedAlbumName || representative.album || t('localMusic.unknownAlbum');

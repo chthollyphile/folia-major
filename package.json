@@ -7,7 +7,7 @@
     "email": "chthollyphile@users.noreply.github.com"
   },
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -96,6 +96,7 @@
     "@tailwindcss/postcss": "^4.1.17",
     "@types/blueimp-md5": "^2.18.2",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.14",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.22",
     "baseline-browser-mapping": "^2.10.10",

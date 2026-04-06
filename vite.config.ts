@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv, type ConfigEnv, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
@@ -8,7 +8,7 @@ import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig(async ({ mode }) => {
+export default async function viteConfig({ mode }: ConfigEnv): Promise<UserConfig> {
   const env = loadEnv(mode, '.', '');
 
   let commitHash = '';
@@ -104,4 +104,4 @@ export default defineConfig(async ({ mode }) => {
       }
     }
   };
-});
+}
