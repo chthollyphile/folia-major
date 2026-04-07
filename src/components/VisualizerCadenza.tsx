@@ -6,6 +6,7 @@ import { layoutWithLines, prepareWithSegments, type LayoutLine, type LayoutCurso
 import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../types';
 import GeometricBackground from './GeometricBackground';
 import FluidBackground from './FluidBackground';
+import { getLineTransitionTiming, type LineTransitionTiming } from '../utils/lyrics/renderHints';
 
 interface VisualizerProps {
     currentTime: MotionValue<number>;
@@ -124,6 +125,7 @@ interface ResolvedLineRenderTiming {
     wordRevealMode: 'normal' | 'fast' | 'instant';
     lastWordEndTime: number;
     linePassHold: number;
+    transitionTiming: LineTransitionTiming;
 }
 
 const createOverlayWordNodes = (): OverlayWordNodes => {
@@ -466,8 +468,8 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
     }
 
     if (renderHints?.lineTransitionMode === 'fast') {
-        const enterDuration = clamp(renderHints.rawDuration * 0.45, 0.045, 0.06);
-        const exitDuration = clamp(renderHints.rawDuration * 0.22, 0.03, 0.04);
+        const enterDuration = lineTiming.transitionTiming.enterDuration;
+        const exitDuration = lineTiming.transitionTiming.exitDuration;
         const exitStart = Math.max(line.startTime + enterDuration + 0.01, linePassStart, lineEndTime - exitDuration);
         const enterProgress = easeOutCubic(clamp((time - line.startTime) / enterDuration, 0, 1));
         let opacity = mix(0.65, 1, enterProgress);
@@ -488,9 +490,8 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
         };
     }
 
-    const duration = Math.max(lineEndTime - line.startTime, 0.12);
-    const enterDuration = Math.min(0.42, Math.max(0.22, duration * 0.34));
-    const exitDuration = Math.min(0.32, Math.max(0.18, duration * 0.18));
+    const enterDuration = lineTiming.transitionTiming.enterDuration;
+    const exitDuration = lineTiming.transitionTiming.exitDuration;
     const preEnter = Math.min(0.1, enterDuration * 0.35);
 
     const enterProgress = easeOutCubic(clamp((time - (line.startTime - preEnter)) / (enterDuration + preEnter), 0, 1));
@@ -525,13 +526,20 @@ const resolveLineRenderTiming = (line: Line): ResolvedLineRenderTiming => {
     const renderHints = line.renderHints ?? null;
     const wordRevealMode = renderHints?.wordRevealMode ?? 'normal';
     const lastWord = line.words[line.words.length - 1];
+    const rawDuration = renderHints?.rawDuration ?? Math.max(line.endTime - line.startTime, 0);
+    const transitionTiming = getLineTransitionTiming(
+        rawDuration,
+        renderHints?.lineTransitionMode ?? 'normal',
+        wordRevealMode
+    );
 
     return {
         renderHints,
         lineRenderEndTime: renderHints?.renderEndTime ?? line.endTime,
         wordRevealMode,
         lastWordEndTime: lastWord?.endTime ?? line.endTime,
-        linePassHold: wordRevealMode === 'fast' ? 0.03 : wordRevealMode === 'instant' ? 0 : 0.06,
+        linePassHold: transitionTiming.linePassHold,
+        transitionTiming,
     };
 };
 
