@@ -4,6 +4,12 @@ import { saveToCache } from '../services/db';
 import { DualTheme, LyricData, SongResult, Theme } from '../types';
 import { getCachedThemeState, getLastDualTheme } from '../services/themeCache';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
+import {
+    buildThemeFallback,
+    getBaseThemeForMode,
+    resolveBgModeTheme,
+    resolveDaylightToggleTheme
+} from './themeControllerState';
 
 type StatusSetter = Dispatch<SetStateAction<{ type: 'error' | 'success' | 'info', text: string; } | null>>;
 
@@ -22,7 +28,7 @@ export function useThemeController({
     setStatusMsg: StatusSetter;
     t: (key: string, options?: Record<string, unknown>) => string;
 }) {
-    const getBaseTheme = () => (isDaylight ? daylightTheme : defaultTheme);
+    const getBaseTheme = () => getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
 
     const [theme, setTheme] = useState<Theme>(() => getBaseTheme());
     const [aiTheme, setAiTheme] = useState<DualTheme | null>(null);
@@ -37,59 +43,26 @@ export function useThemeController({
 
     const handleToggleDaylight = (isLight: boolean) => {
         setDaylightPreference(isLight);
-
-        if (aiTheme) {
-            const selectedTheme = isLight ? aiTheme.light : aiTheme.dark;
-            setTheme(prev => {
-                if (bgMode === 'default') {
-                    const baseTheme = isLight ? daylightTheme : defaultTheme;
-                    return {
-                        ...selectedTheme,
-                        backgroundColor: baseTheme.backgroundColor,
-                        wordColors: prev.wordColors,
-                        lyricsIcons: prev.lyricsIcons
-                    };
-                }
-
-                return {
-                    ...selectedTheme,
-                    wordColors: prev.wordColors,
-                    lyricsIcons: prev.lyricsIcons
-                };
-            });
-            return;
-        }
-
-        setTheme(isLight ? daylightTheme : defaultTheme);
+        setTheme(prev => resolveDaylightToggleTheme({
+            aiTheme,
+            bgMode,
+            isLight,
+            defaultTheme,
+            daylightTheme,
+            previousTheme: prev
+        }));
     };
 
     const handleBgModeChange = (mode: 'default' | 'ai') => {
         setBgMode(mode);
-
-        if (mode === 'default') {
-            const baseTheme = isDaylight ? daylightTheme : defaultTheme;
-            if (aiTheme) {
-                const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
-                setTheme(prev => ({
-                    ...selectedAiTheme,
-                    backgroundColor: baseTheme.backgroundColor,
-                    wordColors: prev.wordColors,
-                    lyricsIcons: prev.lyricsIcons
-                }));
-            } else {
-                setTheme(baseTheme);
-            }
-            return;
-        }
-
-        if (aiTheme) {
-            const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
-            setTheme(prev => ({
-                ...selectedAiTheme,
-                wordColors: prev.wordColors,
-                lyricsIcons: prev.lyricsIcons
-            }));
-        }
+        setTheme(prev => resolveBgModeTheme({
+            mode,
+            aiTheme,
+            isDaylight,
+            defaultTheme,
+            daylightTheme,
+            previousTheme: prev
+        }));
     };
 
     const handleResetTheme = () => {
@@ -119,11 +92,7 @@ export function useThemeController({
 
     const applyThemeFallback = () => {
         setAiTheme(null);
-        setTheme({
-            ...getBaseTheme(),
-            wordColors: [],
-            lyricsIcons: []
-        });
+        setTheme(buildThemeFallback(getBaseTheme()));
         setBgMode('default');
     };
 
