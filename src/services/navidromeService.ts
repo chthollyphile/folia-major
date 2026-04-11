@@ -13,6 +13,7 @@ import {
     StructuredLyric,
     PlaylistsResponse,
     PlaylistResponse,
+    CreatePlaylistResponse,
     SubsonicPlaylist,
     RandomSongsResponse,
     Starred2Response,
@@ -95,7 +96,7 @@ const buildAuthParams = (config: NavidromeConfig): URLSearchParams => {
 const fetchSubsonic = async <T>(
     config: NavidromeConfig,
     endpoint: string,
-    extraParams?: Record<string, string>
+    extraParams?: Record<string, string | string[]>
 ): Promise<SubsonicResponse<T>> => {
     const url = new URL(`${config.serverUrl}/rest/${endpoint}`);
     const authParams = buildAuthParams(config);
@@ -108,6 +109,11 @@ const fetchSubsonic = async <T>(
     // Add extra params
     if (extraParams) {
         Object.entries(extraParams).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(item => url.searchParams.append(key, item));
+                return;
+            }
+
             url.searchParams.set(key, value);
         });
     }
@@ -190,6 +196,52 @@ export const navidromeApi = {
             console.error('[Navidrome] getPlaylist failed:', e);
         }
         return null;
+    },
+
+    createPlaylist: async (
+        config: NavidromeConfig,
+        name: string,
+        songIds: string[] = []
+    ): Promise<SubsonicPlaylist | null> => {
+        try {
+            const res = await fetchSubsonic<CreatePlaylistResponse>(config, 'createPlaylist', {
+                name,
+                songId: songIds,
+            });
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].playlist || null;
+            }
+        } catch (e) {
+            console.error('[Navidrome] createPlaylist failed:', e);
+        }
+        return null;
+    },
+
+    updatePlaylist: async (
+        config: NavidromeConfig,
+        playlistId: string,
+        options: {
+            name?: string;
+            comment?: string;
+            public?: boolean;
+            songIdsToAdd?: string[];
+            songIndexesToRemove?: number[];
+        }
+    ): Promise<boolean> => {
+        try {
+            const res = await fetchSubsonic<Record<string, never>>(config, 'updatePlaylist', {
+                playlistId,
+                ...(options.name ? { name: options.name } : {}),
+                ...(options.comment ? { comment: options.comment } : {}),
+                ...(typeof options.public === 'boolean' ? { public: String(options.public) } : {}),
+                ...(options.songIdsToAdd?.length ? { songIdToAdd: options.songIdsToAdd } : {}),
+                ...(options.songIndexesToRemove?.length ? { songIndexToRemove: options.songIndexesToRemove.map(String) } : {}),
+            });
+            return res['subsonic-response'].status === 'ok';
+        } catch (e) {
+            console.error('[Navidrome] updatePlaylist failed:', e);
+        }
+        return false;
     },
 
     getRandomSongs: async (config: NavidromeConfig, size: number = 100): Promise<SubsonicSong[]> => {

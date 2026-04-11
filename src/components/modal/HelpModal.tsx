@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../services/db';
-import { Theme, type CadenzaTuning, type VisualizerMode } from '../types';
-import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../services/navidromeService';
-import { NavidromeConfig } from '../types/navidrome';
-import VisPlayground from './VisPlayground';
+import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
+import { Theme, type CadenzaTuning, type VisualizerMode } from '../../types';
+import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
+import { NavidromeConfig } from '../../types/navidrome';
+import VisPlayground from '../VisPlayground';
 
 interface HelpModalProps {
     onClose: () => void;

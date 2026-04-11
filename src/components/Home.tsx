@@ -9,7 +9,7 @@ import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
 import NavidromeMusicView from './navidrome/NavidromeMusicView';
-import HelpModal from './HelpModal';
+import HelpModal from './modal/HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
 import Carousel3D from './Carousel3D';
@@ -62,6 +62,7 @@ interface HomeProps {
     }>>;
     onMatchSong?: (song: LocalSong) => void;
     onPlayNavidromeSong?: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onAddNavidromeSongsToQueue?: (songs: NavidromeSong[]) => void;
     onMatchNavidromeSong?: (song: NavidromeSong) => void;
     navidromeFocusedAlbumIndex?: number;
     setNavidromeFocusedAlbumIndex?: (index: number) => void;
@@ -167,6 +168,7 @@ const Home: React.FC<HomeProps> = ({
     setLocalMusicState,
     onMatchSong,
     onPlayNavidromeSong,
+    onAddNavidromeSongsToQueue,
     onMatchNavidromeSong,
     navidromeFocusedAlbumIndex = 0,
     setNavidromeFocusedAlbumIndex,
@@ -851,6 +853,7 @@ const Home: React.FC<HomeProps> = ({
                                         >
                                             <NavidromeMusicView
                                                 onPlaySong={onPlayNavidromeSong || (() => { })}
+                                                onAddSongsToQueue={onAddNavidromeSongsToQueue}
                                                 onOpenSettings={() => setShowHelpModal(true)}
                                                 onMatchSong={onMatchNavidromeSong}
                                                 theme={theme}

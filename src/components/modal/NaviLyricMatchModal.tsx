@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
-import { SongResult, LyricData } from '../types';
-import { NavidromeSong } from '../types/navidrome';
-import { neteaseApi } from '../services/netease';
-import { saveToCache, getFromCacheWithMigration } from '../services/db';
-import { formatSongName } from '../utils/songNameFormatter';
-import { migrateMatchedLyricsCarrierRenderHints } from '../utils/lyrics/storageMigration';
-import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
+import { SongResult, LyricData } from '../../types';
+import { NavidromeSong } from '../../types/navidrome';
+import { neteaseApi } from '../../services/netease';
+import { saveToCache, getFromCacheWithMigration } from '../../services/db';
+import { formatSongName } from '../../utils/songNameFormatter';
+import { migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/storageMigration';
+import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 
 export interface NavidromeMatchData {
     matchedSongId?: number;

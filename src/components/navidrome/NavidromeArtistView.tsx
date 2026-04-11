@@ -13,7 +13,11 @@ interface NavidromeArtistViewProps {
     config: NavidromeConfig;
     onBack: () => void;
     onPlaySong: (song: any, queue?: any[]) => void;
+    onAddAllToQueue?: (songs: any[]) => void;
     onSelectAlbum?: (albumId: string) => void;
+    availablePlaylists?: Array<{ id: string | number; name: string; description?: string; }>;
+    onAddToPlaylist?: (playlistId: string | number, songs: any[]) => Promise<void> | void;
+    onCreatePlaylist?: (name: string, songs: any[]) => Promise<void> | void;
     theme: Theme;
     isDaylight: boolean;
 }
@@ -23,7 +27,11 @@ const NavidromeArtistView: React.FC<NavidromeArtistViewProps> = ({
     config,
     onBack,
     onPlaySong,
+    onAddAllToQueue,
     onSelectAlbum,
+    availablePlaylists = [],
+    onAddToPlaylist,
+    onCreatePlaylist,
     theme,
     isDaylight,
 }) => {
@@ -91,7 +99,11 @@ const NavidromeArtistView: React.FC<NavidromeArtistViewProps> = ({
             config={config}
             onBack={onBack}
             onPlaySong={onPlaySong}
+            onAddAllToQueue={onAddAllToQueue}
             onSelectAlbum={onSelectAlbum}
+            availablePlaylists={availablePlaylists}
+            onAddToPlaylist={onAddToPlaylist}
+            onCreatePlaylist={onCreatePlaylist}
             theme={theme}
             isDaylight={isDaylight}
         />

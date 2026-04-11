@@ -17,6 +17,8 @@ interface PlaylistSelectionDialogProps {
     isDaylight?: boolean;
     onClose: () => void;
     onSelect: (playlistId: string | number) => Promise<void> | void;
+    onCreate?: () => void;
+    createLabel?: string;
 }
 
 const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
@@ -27,6 +29,8 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
     isDaylight = false,
     onClose,
     onSelect,
+    onCreate,
+    createLabel,
 }) => {
     const { t } = useTranslation();
     const [submittingId, setSubmittingId] = React.useState<string | number | null>(null);
@@ -48,7 +52,19 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
             maxWidthClass="max-w-lg"
         >
             {playlists.length > 0 ? (
-                <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-3">
+                    {onCreate && (
+                        <button
+                            type="button"
+                            onClick={onCreate}
+                            disabled={submittingId !== null}
+                            className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed px-5 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${panelClass}`}
+                        >
+                            <Plus size={16} />
+                            {createLabel || t('localMusic.saveQueueAsPlaylist') || 'Create Playlist'}
+                        </button>
+                    )}
+                    <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                     {playlists.map((playlist) => (
                         <button
                             key={playlist.id}
@@ -74,10 +90,24 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
                             <Plus size={16} className="opacity-35" />
                         </button>
                     ))}
+                    </div>
                 </div>
             ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm opacity-50">
-                    {t('localMusic.noPlaylistsFound') || 'No playlists yet'}
+                <div className="space-y-3">
+                    {onCreate && (
+                        <button
+                            type="button"
+                            onClick={onCreate}
+                            disabled={submittingId !== null}
+                            className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed px-5 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${panelClass}`}
+                        >
+                            <Plus size={16} />
+                            {createLabel || t('localMusic.saveQueueAsPlaylist') || 'Create Playlist'}
+                        </button>
+                    )}
+                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm opacity-50">
+                        {t('localMusic.noPlaylistsFound') || 'No playlists yet'}
+                    </div>
                 </div>
             )}
         </ThemedDialog>

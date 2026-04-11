@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
-import { LocalSong, SongResult, LyricData } from '../types';
-import { neteaseApi } from '../services/netease';
-import { saveLocalSong, removeFromCache, saveToCache } from '../services/db';
-import { formatSongName } from '../utils/songNameFormatter';
-import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
+import { LocalSong, SongResult, LyricData } from '../../types';
+import { neteaseApi } from '../../services/netease';
+import { saveLocalSong, removeFromCache, saveToCache } from '../../services/db';
+import { formatSongName } from '../../utils/songNameFormatter';
+import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 
 interface LyricMatchModalProps {
     song: LocalSong;

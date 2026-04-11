@@ -114,6 +114,10 @@ export interface PlaylistResponse {
     playlist: SubsonicPlaylist;
 }
 
+export interface CreatePlaylistResponse {
+    playlist?: SubsonicPlaylist;
+}
+
 export interface ArtistsIndexResponse {
     artists?: {
         ignoredArticles?: string;

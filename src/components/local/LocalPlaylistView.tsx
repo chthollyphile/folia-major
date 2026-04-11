@@ -3,7 +3,7 @@ import { Play, ChevronLeft, Folder, RefreshCw, Trash2, Plus, Pencil, X } from 'l
 import { LocalSong } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import DeleteFolderConfirmModal from '../DeleteFolderConfirmModal';
+import DeleteFolderConfirmModal from '../modal/DeleteFolderConfirmModal';
 import { removeSongsFromLocalPlaylist } from '../../services/localPlaylistService';
 
 interface LocalPlaylistViewProps {

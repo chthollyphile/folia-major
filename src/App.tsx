@@ -18,8 +18,8 @@ import Home from './components/Home';
 import AlbumView from './components/AlbumView';
 import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
-import LyricMatchModal from './components/LyricMatchModal';
-import NaviLyricMatchModal, { NavidromeMatchData } from './components/NaviLyricMatchModal';
+import LyricMatchModal from './components/modal/LyricMatchModal';
+import NaviLyricMatchModal, { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
 import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist } from './types';
 import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
 import { neteaseApi } from './services/netease';
@@ -1066,8 +1066,23 @@ export default function App() {
 
         setPlayQueue(nextQueue);
         saveToCache('last_queue', nextQueue);
-        setStatusMsg({ type: 'success', text: '已添加到播放队列' });
+        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
     };
+
+    const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
+        if (songs.length === 0) {
+            return;
+        }
+
+        const unifiedSongs = buildNavidromeQueue(songs);
+        const existingIds = new Set(playQueue.map(song => song.id));
+        const appendedSongs = unifiedSongs.filter(song => !existingIds.has(song.id));
+        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
+
+        setPlayQueue(nextQueue);
+        saveToCache('last_queue', nextQueue);
+        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+    }, [playQueue, t]);
 
     const prewarmLocalSongMetadata = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
@@ -2481,6 +2496,7 @@ export default function App() {
                                 }
                             }}
                             onPlayNavidromeSong={onPlayNavidromeSong}
+                            onAddNavidromeSongsToQueue={addNavidromeSongsToQueue}
                             onMatchNavidromeSong={onMatchNavidromeSong}
                             navidromeFocusedAlbumIndex={navidromeFocusedAlbumIndex}
                             setNavidromeFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, MotionValue, useMotionValueEvent } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { LyricData, Theme } from '../types';
+import { LyricData, Theme } from '../../types';
 
 interface LyricsTimelineModalProps {
     isOpen: boolean;

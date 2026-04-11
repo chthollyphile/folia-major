@@ -1,18 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, Pencil } from 'lucide-react';
+import { Play, ChevronLeft, Disc, Loader2, Pencil, ListPlus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { SubsonicAlbum, SubsonicSong, NavidromeSong, NavidromeConfig } from '../../types/navidrome';
 import { navidromeApi } from '../../services/navidromeService';
 import { Theme } from '../../types';
+import PlaylistSelectionDialog from '../shared/PlaylistSelectionDialog';
+import TextInputDialog from '../shared/TextInputDialog';
 
 interface NavidromeAlbumViewProps {
     album: SubsonicAlbum;
     config: NavidromeConfig;
     onBack: () => void;
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onAddAllToQueue?: (songs: NavidromeSong[]) => void;
     onMatchSong?: (song: NavidromeSong) => void;
     onSelectArtist?: (artistId: string) => void;
+    availablePlaylists?: Array<{ id: string | number; name: string; description?: string; }>;
+    onAddToPlaylist?: (playlistId: string | number, songs: NavidromeSong[]) => Promise<void> | void;
+    onCreatePlaylist?: (name: string, songs: NavidromeSong[]) => Promise<void> | void;
     theme: Theme;
     isDaylight: boolean;
 }
@@ -22,8 +28,12 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
     config,
     onBack,
     onPlaySong,
+    onAddAllToQueue,
     onMatchSong,
     onSelectArtist,
+    availablePlaylists = [],
+    onAddToPlaylist,
+    onCreatePlaylist,
     theme,
     isDaylight
 }) => {
@@ -33,6 +43,8 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
     const [songs, setSongs] = useState<SubsonicSong[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = useState(false);
+    const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
 
     // Styles based on theme
     const glassBg = isDaylight
@@ -164,6 +176,31 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                             )}
                             {t('playlist.playAll')}
                         </button>
+
+                        <button
+                            onClick={() => {
+                                const queue = convertToNavidromeSongs();
+                                if (queue.length > 0) {
+                                    onAddAllToQueue?.(queue);
+                                }
+                            }}
+                            disabled={isLoading || songs.length === 0}
+                            className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
+                        >
+                            <ListPlus size={18} />
+                            {t('navidrome.addToQueue') || '加入播放队列'}
+                        </button>
+
+                        <button
+                            onClick={() => setIsPlaylistPickerOpen(true)}
+                            disabled={isLoading || songs.length === 0 || (!availablePlaylists.length && !onCreatePlaylist)}
+                            className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
+                        >
+                            <Plus size={18} />
+                            {t('localMusic.addToPlaylist') || '添加到歌单'}
+                        </button>
                     </div>
                 </div>
 
@@ -256,6 +293,36 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                     </div>
                 </div>
             </div>
+
+            <PlaylistSelectionDialog
+                isOpen={isPlaylistPickerOpen}
+                onClose={() => setIsPlaylistPickerOpen(false)}
+                isDaylight={isDaylight}
+                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                description={t('home.playlists') || 'Playlists'}
+                playlists={availablePlaylists}
+                onSelect={async (playlistId) => {
+                    await onAddToPlaylist?.(playlistId, convertToNavidromeSongs());
+                }}
+                onCreate={onCreatePlaylist ? () => {
+                    setIsPlaylistPickerOpen(false);
+                    setIsCreatePlaylistOpen(true);
+                } : undefined}
+                createLabel={t('navidrome.createPlaylist') || '新建歌单'}
+            />
+
+            <TextInputDialog
+                isOpen={isCreatePlaylistOpen}
+                onClose={() => setIsCreatePlaylistOpen(false)}
+                isDaylight={isDaylight}
+                title={t('navidrome.createPlaylist') || '新建歌单'}
+                description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                confirmLabel={t('options.save') || '保存'}
+                onConfirm={async (name) => {
+                    await onCreatePlaylist?.(name, convertToNavidromeSongs());
+                }}
+            />
         </motion.div>
     );
 };

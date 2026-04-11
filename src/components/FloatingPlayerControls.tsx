@@ -4,7 +4,7 @@ import { Play, Pause, Repeat, Repeat1, ChartBar } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 import { PlayerState, LyricData, Theme } from '../types';
-import LyricsTimelineModal from './LyricsTimelineModal';
+import LyricsTimelineModal from './modal/LyricsTimelineModal';
 
 interface FloatingPlayerControlsProps {
     currentSong: { name: string; } | null;
@@ -341,4 +341,3 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
 };
 
 export default FloatingPlayerControls;
-

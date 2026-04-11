@@ -46,11 +46,11 @@ src/
 │  ├─ FloatingPlayerControls.tsx
 │  ├─ Visualizer.tsx
 │  ├─ VisualizerCadenza.tsx
-│  ├─ LyricsTimelineModal.tsx
-│  ├─ LyricMatchModal.tsx
-│  ├─ NaviLyricMatchModal.tsx
-│  ├─ HelpModal.tsx
-│  ├─ DeleteFolderConfirmModal.tsx
+│  ├─ modal/LyricsTimelineModal.tsx
+│  ├─ modal/LyricMatchModal.tsx
+│  ├─ modal/NaviLyricMatchModal.tsx
+│  ├─ modal/HelpModal.tsx
+│  ├─ modal/DeleteFolderConfirmModal.tsx
 │  ├─ Carousel3D.tsx
 │  ├─ ProgressBar.tsx
 │  ├─ GeometricBackground.tsx
@@ -141,7 +141,7 @@ src/
 | `components/FluidBackground.tsx` | Cover-color-driven blurred fluid background. |
 | `components/FloatingPlayerControls.tsx` | Mini player / mobile player controls shown globally. |
 | `components/ProgressBar.tsx` | Shared draggable progress / slider UI. |
-| `components/LyricsTimelineModal.tsx` | Fullscreen timeline-oriented lyrics view. |
+| `components/modal/LyricsTimelineModal.tsx` | Fullscreen timeline-oriented lyrics view. |
 
 ### Panel, Modals, and Supporting UI
 
@@ -155,10 +155,10 @@ src/
 | `components/panelTab/LocalTab.tsx` | Local-track-only tools: lyric source, online match, manual lyric editing, ReplayGain mode. |
 | `components/panelTab/NaviTab.tsx` | Navidrome-track-only tools: lyric availability and online match entry. |
 | `components/panelTab/FmTab.tsx` | Personal FM quick controls. |
-| `components/LyricMatchModal.tsx` | Manual Netease metadata/lyric matching for local songs. |
-| `components/NaviLyricMatchModal.tsx` | Manual Netease metadata/lyric matching for Navidrome songs. |
-| `components/HelpModal.tsx` | Help + options center. Also owns cache cleanup, visual options, Navidrome settings, and Electron AI settings. |
-| `components/DeleteFolderConfirmModal.tsx` | Confirm deletion of imported local folders. |
+| `components/modal/LyricMatchModal.tsx` | Manual Netease metadata/lyric matching for local songs. |
+| `components/modal/NaviLyricMatchModal.tsx` | Manual Netease metadata/lyric matching for Navidrome songs. |
+| `components/modal/HelpModal.tsx` | Help + options center. Also owns cache cleanup, visual options, Navidrome settings, and Electron AI settings. |
+| `components/modal/DeleteFolderConfirmModal.tsx` | Confirm deletion of imported local folders. |
 | `components/Carousel3D.tsx` | Shared 3D carousel used by playlists, albums, radio, and Navidrome browsing. |
 
 ## 4. Hooks Layer
@@ -247,7 +247,7 @@ If you want to understand the codebase quickly, read in this order:
 ## 9. Notes
 
 - The app now uses a unified playback model for cloud, local, and Navidrome tracks.
-- `HelpModal.tsx` is no longer only a help dialog; it is also the options/settings hub.
+- `modal/HelpModal.tsx` is no longer only a help dialog; it is also the options/settings hub.
 - `UnifiedPanel.tsx` is now composition-based through `panelTab/*`, instead of one monolithic control panel body.
 - Local library import is incremental and snapshot-based, not just a simple one-time folder scan.
 - The lyric pipeline now supports multiple sources and off-main-thread parsing.

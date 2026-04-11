@@ -32,6 +32,7 @@ export default {
     "playlistUpdated": "歌单已更新",
     "songUnavailable": "歌曲已下架",
     "queueShuffled": "播放队列已打乱",
+    "queueUpdated": "已添加到播放队列",
   },
   "ui": {
     "noTrack": "无音轨",
@@ -332,6 +333,8 @@ export default {
     "randomDesc": "即时随机播放列表",
     "favorites": "收藏",
     "favoritesDesc": "已标星歌曲",
+    "addToQueue": "加入播放队列",
+    "createPlaylist": "新建歌单",
     "fetchingLyrics": "正在匹配歌词...",
     "lyricsFromNetease": "歌词来自网易云音乐",
     "saveSettings": "保存设置",

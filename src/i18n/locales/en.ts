@@ -32,6 +32,7 @@ export default {
     "playlistUpdated": "Playlist updated",
     "songUnavailable": "Song has been taken down",
     "queueShuffled": "Queue shuffled",
+    "queueUpdated": "Added to queue",
   },
   "ui": {
     "noTrack": "No Track",
@@ -333,6 +334,8 @@ export default {
     "randomDesc": "Instant random mix",
     "favorites": "Favorites",
     "favoritesDesc": "Starred songs",
+    "addToQueue": "Add to Queue",
+    "createPlaylist": "Create Playlist",
     "fetchingLyrics": "Matching lyrics...",
     "lyricsFromNetease": "Lyrics from Netease",
     "saveSettings": "Save Settings",

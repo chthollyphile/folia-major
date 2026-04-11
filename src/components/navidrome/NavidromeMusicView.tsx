@@ -13,6 +13,7 @@ import { createCoverPlaceholder, pickRandomSongCoverUrl } from '../../utils/cove
 
 interface NavidromeMusicViewProps {
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onAddSongsToQueue?: (songs: NavidromeSong[]) => void;
     onOpenSettings: () => void;
     onMatchSong?: (song: NavidromeSong) => void;
     theme: Theme;
@@ -33,6 +34,7 @@ type NaviSelection =
 
 const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
     onPlaySong,
+    onAddSongsToQueue,
     onOpenSettings,
     onMatchSong,
     theme,
@@ -219,6 +221,12 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
         return [...virtualItems, ...playlistCards];
     }, [config, favoriteSongs, playlists, randomSongs, t]);
 
+    const playlistDialogItems = useMemo(() => playlists.map(playlist => ({
+        id: playlist.id,
+        name: playlist.name,
+        description: `${playlist.songCount} ${t('playlist.tracks')}`,
+    })), [playlists, t]);
+
     const artistItems = useMemo(() => artists.map(artist => ({
         id: artist.id,
         name: artist.name,
@@ -273,6 +281,30 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
         }
     };
 
+    const handleAddSongsToPlaylist = useCallback(async (playlistId: string | number, songsToAdd: NavidromeSong[]) => {
+        if (!config || songsToAdd.length === 0) {
+            return;
+        }
+
+        await navidromeApi.updatePlaylist(config, String(playlistId), {
+            songIdsToAdd: songsToAdd.map(song => song.navidromeData.id),
+        });
+        void fetchLibrary();
+    }, [config, fetchLibrary]);
+
+    const handleCreatePlaylist = useCallback(async (name: string, songsToAdd: NavidromeSong[]) => {
+        if (!config) {
+            return;
+        }
+
+        await navidromeApi.createPlaylist(
+            config,
+            name,
+            songsToAdd.map(song => song.navidromeData.id)
+        );
+        void fetchLibrary();
+    }, [config, fetchLibrary]);
+
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/10 hover:bg-white/20';
     const textColor = isDaylight ? 'text-black' : 'text-white';
 
@@ -284,8 +316,12 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                     config={config}
                     onBack={() => setSelectedItem(null)}
                     onPlaySong={onPlaySong}
+                    onAddAllToQueue={onAddSongsToQueue}
                     onMatchSong={onMatchSong}
                     onSelectArtist={openArtistById}
+                    availablePlaylists={playlistDialogItems}
+                    onAddToPlaylist={handleAddSongsToPlaylist}
+                    onCreatePlaylist={handleCreatePlaylist}
                     theme={theme}
                     isDaylight={isDaylight}
                 />
@@ -299,7 +335,11 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                     config={config}
                     onBack={() => setSelectedItem(null)}
                     onPlaySong={onPlaySong}
+                    onAddAllToQueue={onAddSongsToQueue}
                     onSelectAlbum={openAlbumById}
+                    availablePlaylists={playlistDialogItems}
+                    onAddToPlaylist={handleAddSongsToPlaylist}
+                    onCreatePlaylist={handleCreatePlaylist}
                     theme={theme}
                     isDaylight={isDaylight}
                 />
@@ -340,8 +380,12 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                 config={config}
                 onBack={() => setSelectedItem(null)}
                 onPlaySong={onPlaySong}
+                onAddAllToQueue={onAddSongsToQueue}
                 onSelectArtist={openArtistById}
                 onSelectAlbum={openAlbumById}
+                availablePlaylists={playlistDialogItems}
+                onAddToPlaylist={handleAddSongsToPlaylist}
+                onCreatePlaylist={handleCreatePlaylist}
                 theme={theme}
                 isDaylight={isDaylight}
             />

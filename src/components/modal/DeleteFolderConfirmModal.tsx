@@ -48,7 +48,6 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                         onClick={(e) => e.stopPropagation()}
                         className={`${bgClass} border rounded-3xl max-w-md w-full p-8 shadow-2xl backdrop-blur-md`}
                     >
-                        {/* Close Button */}
                         <button
                             onClick={onCancel}
                             className={`absolute top-4 right-4 p-2 rounded-full transition-colors opacity-50 hover:opacity-100 ${closeBtnHover} ${textPrimary}`}
@@ -56,17 +55,14 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                             <X size={20} />
                         </button>
 
-                        {/* Warning Icon */}
                         <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
                             <AlertTriangle size={32} className="text-red-500" />
                         </div>
 
-                        {/* Title */}
                         <h2 className={`text-2xl font-bold text-center mb-4 ${textPrimary}`}>
                             {t('localMusic.deleteFolderTitle')}
                         </h2>
 
-                        {/* Description */}
                         <div className="space-y-3 mb-8">
                             <p className={`text-center ${textPrimary} opacity-80`}>
                                 {t('localMusic.deleteFolderMessage', { folderName })}
@@ -76,7 +72,6 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                                 {t('localMusic.deleteFolderCount', { count: songCount })}
                             </p>
 
-                            {/* Important Notice */}
                             <div className={`${noteBg} border rounded-xl p-4 mt-4`}>
                                 <p className={`text-sm text-center opacity-90 ${noteText}`}>
                                     {t('localMusic.deleteFolderNote')}
@@ -84,13 +79,11 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex gap-3">
                             <button
                                 onClick={onCancel}
                                 className={`flex-1 py-3 px-6 rounded-full font-medium text-sm transition-colors border ${cancelBtnBg} ${cancelBtnText}`}
                             >
-
                                 {t('localMusic.cancel')}
                             </button>
                             <button
@@ -100,7 +93,6 @@ const DeleteFolderConfirmModal: React.FC<DeleteFolderConfirmModalProps> = ({
                                 }}
                                 className="flex-1 py-3 px-6 rounded-full font-medium text-sm transition-colors bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20"
                             >
-
                                 {t('localMusic.deleteFromLibrary')}
                             </button>
                         </div>
