@@ -14,6 +14,8 @@ interface CoverTabProps {
     onAddCurrentSongToNeteasePlaylist: (playlistId: number) => Promise<void>;
     onOpenCurrentLocalAlbum: () => void;
     onOpenCurrentLocalArtist: () => void;
+    onOpenCurrentNavidromeAlbum: () => void;
+    onOpenCurrentNavidromeArtist: () => void;
     isDaylight?: boolean;
     openPlaylistPickerSignal?: number;
 }
@@ -28,6 +30,8 @@ const CoverTab: React.FC<CoverTabProps> = ({
     onAddCurrentSongToNeteasePlaylist,
     onOpenCurrentLocalAlbum,
     onOpenCurrentLocalArtist,
+    onOpenCurrentNavidromeAlbum,
+    onOpenCurrentNavidromeArtist,
     isDaylight = false,
     openPlaylistPickerSignal = 0,
 }) => {
@@ -37,6 +41,8 @@ const CoverTab: React.FC<CoverTabProps> = ({
     const isLocalSong = Boolean(currentSong && (((currentSong as any).isLocal === true) || (currentSong as any).localData));
     const isNavidromeSong = Boolean(currentSong && (currentSong as any).isNavidrome === true);
     const isNeteaseSong = Boolean(currentSong && !isLocalSong && !isNavidromeSong);
+    const displayArtists = currentSong?.ar?.length ? currentSong.ar : (currentSong?.artists || []);
+    const displayAlbumName = currentSong?.al?.name || currentSong?.album?.name || '';
     const availablePlaylists = React.useMemo(() => {
         if (isLocalSong) {
             return localPlaylists.map((playlist) => ({
@@ -82,7 +88,7 @@ const CoverTab: React.FC<CoverTabProps> = ({
                     </div>
                     <div className="text-sm opacity-60 space-y-1">
                         <div className="font-medium">
-                            {currentSong?.ar?.map((a, i) => (
+                            {displayArtists.map((a, i) => (
                                 <React.Fragment key={a.id}>
                                     {i > 0 && ", "}
                                     <span
@@ -90,6 +96,10 @@ const CoverTab: React.FC<CoverTabProps> = ({
                                         onClick={() => {
                                             if (isLocalSong) {
                                                 onOpenCurrentLocalArtist();
+                                                return;
+                                            }
+                                            if (isNavidromeSong) {
+                                                onOpenCurrentNavidromeArtist();
                                                 return;
                                             }
                                             onSelectArtist(a.id);
@@ -107,12 +117,17 @@ const CoverTab: React.FC<CoverTabProps> = ({
                                     onOpenCurrentLocalAlbum();
                                     return;
                                 }
-                                if (currentSong?.al?.id || currentSong?.album?.id) {
-                                    onAlbumSelect(currentSong?.al?.id || currentSong?.album?.id);
+                                if (isNavidromeSong) {
+                                    onOpenCurrentNavidromeAlbum();
+                                    return;
+                                }
+                                const albumId = currentSong?.al?.id || currentSong?.album?.id;
+                                if (albumId) {
+                                    onAlbumSelect(albumId);
                                 }
                             }}
                         >
-                            {currentSong?.al?.name || currentSong?.album?.name}
+                            {displayAlbumName}
                         </div>
                     </div>
                 </div>

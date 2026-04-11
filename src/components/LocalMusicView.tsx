@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { LocalSong, LocalLibraryGroup, LocalPlaylist } from '../types';
 import { importFolder, matchLyrics, resyncFolder, deleteFolderSongs, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import LyricMatchModal from './LyricMatchModal';
-import LocalPlaylistView from './LocalPlaylistView';
+import LocalPlaylistView from './local/LocalPlaylistView';
 import Carousel3D from './Carousel3D';
 import LocalArtistView from './local/LocalArtistView';
 import { deleteLocalPlaylist, updateLocalPlaylist } from '../services/localPlaylistService';

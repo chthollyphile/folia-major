@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Play, ChevronLeft, Folder, RefreshCw, Trash2, Plus, Pencil, X } from 'lucide-react';
-import { LocalSong } from '../types';
+import { LocalSong } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import DeleteFolderConfirmModal from './DeleteFolderConfirmModal';
-import { removeSongsFromLocalPlaylist } from '../services/localPlaylistService';
+import DeleteFolderConfirmModal from '../DeleteFolderConfirmModal';
+import { removeSongsFromLocalPlaylist } from '../../services/localPlaylistService';
 
 interface LocalPlaylistViewProps {
     title: string;

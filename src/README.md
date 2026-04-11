@@ -39,9 +39,9 @@ src/
 │  ├─ AlbumView.tsx
 │  ├─ ArtistView.tsx
 │  ├─ LocalMusicView.tsx
-│  ├─ LocalPlaylistView.tsx
-│  ├─ NavidromeMusicView.tsx
-│  ├─ NavidromeAlbumView.tsx
+│  ├─ local/LocalPlaylistView.tsx
+│  ├─ navidrome/NavidromeMusicView.tsx
+│  ├─ navidrome/NavidromeAlbumView.tsx
 │  ├─ UnifiedPanel.tsx
 │  ├─ FloatingPlayerControls.tsx
 │  ├─ Visualizer.tsx
@@ -127,9 +127,9 @@ src/
 | `components/AlbumView.tsx` | Netease album detail page. |
 | `components/ArtistView.tsx` | Netease artist detail page. |
 | `components/LocalMusicView.tsx` | Local library root view with folder / album grouping, refresh, match entry, and scan progress integration. |
-| `components/LocalPlaylistView.tsx` | Local folder or local album detail list. |
-| `components/NavidromeMusicView.tsx` | Navidrome album browser with sort modes and configuration-aware empty state. |
-| `components/NavidromeAlbumView.tsx` | Navidrome album detail and playback entry. |
+| `components/local/LocalPlaylistView.tsx` | Local folder or local album detail list. |
+| `components/navidrome/NavidromeMusicView.tsx` | Navidrome album browser with sort modes and configuration-aware empty state. |
+| `components/navidrome/NavidromeAlbumView.tsx` | Navidrome album detail and playback entry. |
 
 ### Player and Visual Layer
 

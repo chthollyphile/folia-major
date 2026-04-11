@@ -83,6 +83,8 @@ interface UnifiedPanelProps {
     onAddCurrentSongToNeteasePlaylist: (playlistId: number) => Promise<void>;
     onOpenCurrentLocalAlbum: () => void;
     onOpenCurrentLocalArtist: () => void;
+    onOpenCurrentNavidromeAlbum: () => void;
+    onOpenCurrentNavidromeArtist: () => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -149,6 +151,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onAddCurrentSongToNeteasePlaylist,
     onOpenCurrentLocalAlbum,
     onOpenCurrentLocalArtist,
+    onOpenCurrentNavidromeAlbum,
+    onOpenCurrentNavidromeArtist,
 }) => {
     const { t } = useTranslation();
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
@@ -386,6 +390,14 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             }}
                                             onOpenCurrentLocalArtist={() => {
                                                 onOpenCurrentLocalArtist();
+                                                onToggle();
+                                            }}
+                                            onOpenCurrentNavidromeAlbum={() => {
+                                                onOpenCurrentNavidromeAlbum();
+                                                onToggle();
+                                            }}
+                                            onOpenCurrentNavidromeArtist={() => {
+                                                onOpenCurrentNavidromeArtist();
                                                 onToggle();
                                             }}
                                             isDaylight={isDaylight}

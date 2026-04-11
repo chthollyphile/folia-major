@@ -134,23 +134,27 @@ export function buildUnifiedNavidromeSong(
         matchedAlbumName?: string;
     }
 ): SongResult {
+    const displayArtists = (options?.useOnlineMetadata && options.matchedArtists)
+        ? [{ id: 0, name: options.matchedArtists }]
+        : (navidromeSong.artists || navidromeSong.ar || []);
+    const displayAlbum = navidromeSong.album || (navidromeSong.al ? {
+        id: navidromeSong.al.id,
+        name: navidromeSong.al.name,
+        picUrl: navidromeSong.al.picUrl
+    } : { id: 0, name: '' });
+    const displayAl = options?.coverUrl
+        ? { ...(navidromeSong.al || displayAlbum || { id: 0, name: '' }), picUrl: options.coverUrl }
+        : (navidromeSong.al || displayAlbum);
+
     return {
         id: navidromeSong.id,
         name: (options?.useOnlineMetadata && options.matchedAlbumName) ? options.matchedAlbumName : navidromeSong.name,
-        artists: (options?.useOnlineMetadata && options.matchedArtists)
-            ? [{ id: 0, name: options.matchedArtists }]
-            : (navidromeSong.artists || navidromeSong.ar || []),
-        album: navidromeSong.album || (navidromeSong.al ? {
-            id: navidromeSong.al.id,
-            name: navidromeSong.al.name,
-            picUrl: navidromeSong.al.picUrl
-        } : { id: 0, name: '' }),
+        artists: displayArtists,
+        album: displayAlbum,
         duration: navidromeSong.duration || navidromeSong.dt || 0,
         isPureMusic: navidromeSong.lyricsSource === 'online' ? navidromeSong.matchedIsPureMusic : false,
-        ar: navidromeSong.ar || [],
-        al: options?.coverUrl
-            ? { ...(navidromeSong.al || { id: 0, name: '' }), picUrl: options.coverUrl }
-            : navidromeSong.al,
+        ar: navidromeSong.ar || displayArtists,
+        al: displayAl,
         dt: navidromeSong.dt,
         isNavidrome: true,
         navidromeData: navidromeSong

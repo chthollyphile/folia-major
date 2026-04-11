@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2, Pencil } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { SubsonicAlbum, SubsonicSong, NavidromeSong, NavidromeConfig } from '../types/navidrome';
-import { navidromeApi } from '../services/navidromeService';
-import { Theme } from '../types';
+import { SubsonicAlbum, SubsonicSong, NavidromeSong, NavidromeConfig } from '../../types/navidrome';
+import { navidromeApi } from '../../services/navidromeService';
+import { Theme } from '../../types';
 
 interface NavidromeAlbumViewProps {
     album: SubsonicAlbum;
@@ -12,6 +12,7 @@ interface NavidromeAlbumViewProps {
     onBack: () => void;
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
     onMatchSong?: (song: NavidromeSong) => void;
+    onSelectArtist?: (artistId: string) => void;
     theme: Theme;
     isDaylight: boolean;
 }
@@ -22,6 +23,7 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
     onBack,
     onPlaySong,
     onMatchSong,
+    onSelectArtist,
     theme,
     isDaylight
 }) => {
@@ -131,7 +133,15 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                         <h1 className="text-2xl md:text-3xl font-bold line-clamp-2" style={{ color: 'var(--text-primary)' }}>
                             {album.name}
                         </h1>
-                        <div className="text-sm opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                        <div
+                            className={`text-sm opacity-60 ${onSelectArtist ? 'cursor-pointer hover:underline hover:opacity-100 transition-opacity' : ''}`}
+                            style={{ color: 'var(--text-secondary)' }}
+                            onClick={() => {
+                                if (onSelectArtist) {
+                                    onSelectArtist(album.artistId);
+                                }
+                            }}
+                        >
                             {album.artist}
                         </div>
                         <div className="text-xs mt-2 opacity-30" style={{ color: 'var(--text-secondary)' }}>
@@ -204,7 +214,18 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                                             className="text-xs truncate opacity-40 group-hover:opacity-60"
                                             style={{ color: 'var(--text-secondary)' }}
                                         >
-                                            {song.artist}
+                                            <span
+                                                className={onSelectArtist ? 'cursor-pointer hover:underline hover:opacity-100 transition-opacity' : ''}
+                                                onClick={(event) => {
+                                                    if (!onSelectArtist) {
+                                                        return;
+                                                    }
+                                                    event.stopPropagation();
+                                                    onSelectArtist(song.artistId);
+                                                }}
+                                            >
+                                                {song.artist}
+                                            </span>
                                         </div>
                                     </div>
 

@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Settings2, Loader2, RefreshCw, User, ListMusic, Shuffle, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Carousel3D from './Carousel3D';
+import Carousel3D from '../Carousel3D';
 import NavidromeAlbumView from './NavidromeAlbumView';
-import NavidromeCollectionView from './navidrome/NavidromeCollectionView';
-import NavidromeArtistView from './navidrome/NavidromeArtistView';
-import { SubsonicAlbum, NavidromeSong, NavidromeConfig, SubsonicPlaylist, SubsonicSong, SubsonicArtist } from '../types/navidrome';
-import { navidromeApi, getNavidromeConfig } from '../services/navidromeService';
-import { Theme } from '../types';
-import { createCoverPlaceholder, pickRandomSongCoverUrl } from '../utils/coverPlaceholders';
+import NavidromeCollectionView from './NavidromeCollectionView';
+import NavidromeArtistView from './NavidromeArtistView';
+import { SubsonicAlbum, NavidromeSong, NavidromeConfig, SubsonicPlaylist, SubsonicSong, SubsonicArtist, NavidromeViewSelection } from '../../types/navidrome';
+import { navidromeApi, getNavidromeConfig } from '../../services/navidromeService';
+import { Theme } from '../../types';
+import { createCoverPlaceholder, pickRandomSongCoverUrl } from '../../utils/coverPlaceholders';
 
 interface NavidromeMusicViewProps {
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
@@ -19,6 +19,8 @@ interface NavidromeMusicViewProps {
     isDaylight: boolean;
     focusedAlbumIndex?: number;
     setFocusedAlbumIndex?: (index: number) => void;
+    externalSelection?: NavidromeViewSelection | null;
+    onExternalSelectionHandled?: () => void;
 }
 
 type NaviSection = 'albums' | 'playlists' | 'artists';
@@ -36,7 +38,9 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
     theme,
     isDaylight,
     focusedAlbumIndex = 0,
-    setFocusedAlbumIndex
+    setFocusedAlbumIndex,
+    externalSelection = null,
+    onExternalSelectionHandled,
 }) => {
     const { t } = useTranslation();
 
@@ -97,6 +101,74 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
             void fetchLibrary();
         }
     }, [config, fetchLibrary, isConfigured]);
+
+    const openAlbumById = useCallback(async (albumId: string) => {
+        if (!config) {
+            return;
+        }
+
+        const existingAlbum = albums.find(entry => entry.id === albumId);
+        if (existingAlbum) {
+            setSelectedItem({ type: 'album', album: existingAlbum });
+            return;
+        }
+
+        const fetchedAlbum = await navidromeApi.getAlbum(config, albumId);
+        if (fetchedAlbum) {
+            setSelectedItem({ type: 'album', album: fetchedAlbum });
+        }
+    }, [albums, config]);
+
+    const openArtistById = useCallback(async (artistId: string) => {
+        if (!config) {
+            return;
+        }
+
+        const existingArtist = artists.find(entry => entry.id === artistId);
+        if (existingArtist) {
+            setSelectedItem({ type: 'artist', artist: existingArtist });
+            return;
+        }
+
+        const fetchedArtist = await navidromeApi.getArtist(config, artistId);
+        if (fetchedArtist) {
+            setSelectedItem({ type: 'artist', artist: fetchedArtist });
+        }
+    }, [artists, config]);
+
+    useEffect(() => {
+        if (!config || !externalSelection) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const openExternalSelection = async () => {
+            if (externalSelection.type === 'album') {
+                const existingAlbum = albums.find(entry => entry.id === externalSelection.albumId);
+                const album = existingAlbum ?? await navidromeApi.getAlbum(config, externalSelection.albumId);
+                if (!cancelled && album) {
+                    setSelectedItem({ type: 'album', album });
+                }
+            } else {
+                const existingArtist = artists.find(entry => entry.id === externalSelection.artistId);
+                const artist = existingArtist ?? await navidromeApi.getArtist(config, externalSelection.artistId);
+                if (!cancelled && artist) {
+                    setSelectedItem({ type: 'artist', artist });
+                }
+            }
+
+            if (!cancelled) {
+                onExternalSelectionHandled?.();
+            }
+        };
+
+        void openExternalSelection();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [albums, artists, config, externalSelection, onExternalSelectionHandled]);
 
     const albumItems = useMemo(() => albums.map(album => ({
         id: album.id,
@@ -213,6 +285,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                     onBack={() => setSelectedItem(null)}
                     onPlaySong={onPlaySong}
                     onMatchSong={onMatchSong}
+                    onSelectArtist={openArtistById}
                     theme={theme}
                     isDaylight={isDaylight}
                 />
@@ -226,6 +299,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                     config={config}
                     onBack={() => setSelectedItem(null)}
                     onPlaySong={onPlaySong}
+                    onSelectAlbum={openAlbumById}
                     theme={theme}
                     isDaylight={isDaylight}
                 />
@@ -266,6 +340,8 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                 config={config}
                 onBack={() => setSelectedItem(null)}
                 onPlaySong={onPlaySong}
+                onSelectArtist={openArtistById}
+                onSelectAlbum={openAlbumById}
                 theme={theme}
                 isDaylight={isDaylight}
             />

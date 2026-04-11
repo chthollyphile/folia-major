@@ -16,6 +16,8 @@ interface NavidromeCollectionViewProps {
     config: NavidromeConfig;
     onBack: () => void;
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onSelectArtist?: (artistId: string) => void;
+    onSelectAlbum?: (albumId: string) => void;
     theme: Theme;
     isDaylight: boolean;
 }
@@ -35,6 +37,8 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
     config,
     onBack,
     onPlaySong,
+    onSelectArtist,
+    onSelectAlbum,
     isDaylight,
 }) => {
     const { t } = useTranslation();
@@ -121,7 +125,35 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                         {song.title}
                                     </div>
                                     <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                        {song.artist}
+                                        <span
+                                            className={onSelectArtist ? 'cursor-pointer hover:underline hover:opacity-100 transition-opacity' : ''}
+                                            onClick={(event) => {
+                                                if (!onSelectArtist) {
+                                                    return;
+                                                }
+                                                event.stopPropagation();
+                                                onSelectArtist(song.artistId);
+                                            }}
+                                        >
+                                            {song.artist}
+                                        </span>
+                                        {song.album && (
+                                            <>
+                                                <span className="mx-1.5">•</span>
+                                                <span
+                                                    className={onSelectAlbum ? 'cursor-pointer hover:underline hover:opacity-100 transition-opacity' : ''}
+                                                    onClick={(event) => {
+                                                        if (!onSelectAlbum) {
+                                                            return;
+                                                        }
+                                                        event.stopPropagation();
+                                                        onSelectAlbum(song.albumId);
+                                                    }}
+                                                >
+                                                    {song.album}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="w-12 md:w-16 text-right text-xs font-medium opacity-30 group-hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>

@@ -21,7 +21,7 @@ import UnifiedPanel from './components/UnifiedPanel';
 import LyricMatchModal from './components/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/NaviLyricMatchModal';
 import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist } from './types';
-import { NavidromeSong, NavidromeConfig, StructuredLyric } from './types/navidrome';
+import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
 import { neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
 import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, removeSongsFromLocalPlaylist, setLocalSongFavorite } from './services/localPlaylistService';
@@ -338,6 +338,7 @@ export default function App() {
     const [focusedFavoriteAlbumIndex, setFocusedFavoriteAlbumIndex] = useState(0);
     const [focusedRadioIndex, setFocusedRadioIndex] = useState(0);
     const [navidromeFocusedAlbumIndex, setNavidromeFocusedAlbumIndex] = useState(0);
+    const [pendingNavidromeSelection, setPendingNavidromeSelection] = useState<NavidromeViewSelection | null>(null);
     const [localMusicState, setLocalMusicState] = useState<{
         activeRow: 0 | 1 | 2 | 3;
         selectedGroup: LocalLibraryGroup | null;
@@ -534,6 +535,36 @@ export default function App() {
         localStorage.setItem(LAST_HOME_VIEW_TAB_KEY, tab);
         setHomeViewTab(tab);
     }, []);
+
+    const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
+        setPendingNavidromeSelection(selection);
+        handleSetHomeViewTab('navidrome');
+        navigateToHome();
+    }, [handleSetHomeViewTab, navigateToHome]);
+
+    const resolveCurrentNavidromeTargetIds = useCallback(() => {
+        const currentNavidromeSong = (currentSong as any)?.navidromeData;
+        const playbackCarrier = currentNavidromeSong?.navidromeData;
+
+        return {
+            albumId: currentNavidromeSong?.albumId || playbackCarrier?.albumId,
+            artistId: currentNavidromeSong?.artistId || playbackCarrier?.artistId,
+        } as { albumId?: string; artistId?: string; };
+    }, [currentSong]);
+
+    const openCurrentNavidromeAlbum = useCallback(() => {
+        const { albumId } = resolveCurrentNavidromeTargetIds();
+        if (albumId) {
+            openNavidromeSelection({ type: 'album', albumId });
+        }
+    }, [openNavidromeSelection, resolveCurrentNavidromeTargetIds]);
+
+    const openCurrentNavidromeArtist = useCallback(() => {
+        const { artistId } = resolveCurrentNavidromeTargetIds();
+        if (artistId) {
+            openNavidromeSelection({ type: 'artist', artistId });
+        }
+    }, [openNavidromeSelection, resolveCurrentNavidromeTargetIds]);
 
     useEffect(() => {
         const handleLocalMusicUpdated = () => {
@@ -2453,6 +2484,8 @@ export default function App() {
                             onMatchNavidromeSong={onMatchNavidromeSong}
                             navidromeFocusedAlbumIndex={navidromeFocusedAlbumIndex}
                             setNavidromeFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
+                            pendingNavidromeSelection={pendingNavidromeSelection}
+                            onPendingNavidromeSelectionHandled={() => setPendingNavidromeSelection(null)}
                         />
                     </motion.div>
                 )}
@@ -2672,6 +2705,8 @@ export default function App() {
                         onAddCurrentSongToNeteasePlaylist={addCurrentSongToNeteasePlaylist}
                         onOpenCurrentLocalAlbum={openCurrentLocalAlbum}
                         onOpenCurrentLocalArtist={openCurrentLocalArtist}
+                        onOpenCurrentNavidromeAlbum={openCurrentNavidromeAlbum}
+                        onOpenCurrentNavidromeArtist={openCurrentNavidromeArtist}
                     />
                 )
             }

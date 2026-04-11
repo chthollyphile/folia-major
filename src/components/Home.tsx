@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Disc, ArrowRight, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
 import { NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, UnifiedSong, LocalLibraryGroup, LocalPlaylist, type CadenzaTuning, type VisualizerMode } from '../types';
-import { NavidromeSong } from '../types/navidrome';
+import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled, getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
-import NavidromeMusicView from './NavidromeMusicView';
+import NavidromeMusicView from './navidrome/NavidromeMusicView';
 import HelpModal from './HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -65,6 +65,8 @@ interface HomeProps {
     onMatchNavidromeSong?: (song: NavidromeSong) => void;
     navidromeFocusedAlbumIndex?: number;
     setNavidromeFocusedAlbumIndex?: (index: number) => void;
+    pendingNavidromeSelection?: NavidromeViewSelection | null;
+    onPendingNavidromeSelectionHandled?: () => void;
     staticMode?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     enableMediaCache?: boolean;
@@ -168,6 +170,8 @@ const Home: React.FC<HomeProps> = ({
     onMatchNavidromeSong,
     navidromeFocusedAlbumIndex = 0,
     setNavidromeFocusedAlbumIndex,
+    pendingNavidromeSelection = null,
+    onPendingNavidromeSelectionHandled,
     staticMode = false,
     onToggleStaticMode,
     enableMediaCache = false,
@@ -230,6 +234,7 @@ const Home: React.FC<HomeProps> = ({
     // Search State
     const [searchResults, setSearchResults] = useState<SongResult[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
+    const [searchNavidromeSelection, setSearchNavidromeSelection] = useState<NavidromeViewSelection | null>(null);
 
     // Login QR
     const [qrCodeImg, setQrCodeImg] = useState<string>("");
@@ -397,6 +402,16 @@ const Home: React.FC<HomeProps> = ({
         } catch (e) {
             setQrStatus(t('home.loginError'));
         }
+    };
+
+    const openNavidromeAlbum = (albumId: string) => {
+        setViewTab('navidrome');
+        setSearchNavidromeSelection({ type: 'album', albumId });
+    };
+
+    const openNavidromeArtist = (artistId: string) => {
+        setViewTab('navidrome');
+        setSearchNavidromeSelection({ type: 'artist', artistId });
     };
 
     const handleSearch = async (e?: React.FormEvent) => {
@@ -842,6 +857,14 @@ const Home: React.FC<HomeProps> = ({
                                                 isDaylight={isDaylight}
                                                 focusedAlbumIndex={navidromeFocusedAlbumIndex}
                                                 setFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
+                                                externalSelection={pendingNavidromeSelection ?? searchNavidromeSelection}
+                                                onExternalSelectionHandled={() => {
+                                                    if (pendingNavidromeSelection) {
+                                                        onPendingNavidromeSelectionHandled?.();
+                                                        return;
+                                                    }
+                                                    setSearchNavidromeSelection(null);
+                                                }}
                                             />
                                         </motion.div>
                                     )}
@@ -922,8 +945,11 @@ const Home: React.FC<HomeProps> = ({
                                                                         className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            if ((track as UnifiedSong).isLocal) {
+                                                                            const unifiedTrack = track as UnifiedSong;
+                                                                            if (unifiedTrack.isLocal) {
                                                                                 onSelectLocalArtist?.(a.name);
+                                                                            } else if (unifiedTrack.isNavidrome && unifiedTrack.navidromeData) {
+                                                                                openNavidromeArtist(unifiedTrack.navidromeData.artistId);
                                                                             } else {
                                                                                 onSelectArtist(a.id);
                                                                             }
@@ -938,12 +964,18 @@ const Home: React.FC<HomeProps> = ({
                                                                 className="cursor-pointer hover:opacity-100 hover:underline transition-all"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    if ((track as UnifiedSong).isLocal) {
+                                                                    const unifiedTrack = track as UnifiedSong;
+                                                                    if (unifiedTrack.isLocal) {
                                                                         const albumName = track.al?.name || track.album?.name;
                                                                         if (albumName) {
                                                                             onSelectLocalAlbum?.(albumName);
                                                                             setSearchResults(null);
                                                                         }
+                                                                        return;
+                                                                    }
+                                                                    if (unifiedTrack.isNavidrome && unifiedTrack.navidromeData) {
+                                                                        openNavidromeAlbum(unifiedTrack.navidromeData.albumId);
+                                                                        setSearchResults(null);
                                                                         return;
                                                                     }
                                                                     const albumId = track.al?.id || track.album?.id;
