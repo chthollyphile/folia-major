@@ -296,19 +296,22 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     )}
                                     <AnimatePresence>
                                         {isCoverActionsVisible && (
-                                            <motion.div
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="absolute inset-0 pointer-events-none"
-                                            >
-                                                <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                                            <>
                                                 <motion.div
-                                                    initial={{ opacity: 0, y: 18 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, y: 12 }}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="absolute inset-0 pointer-events-none"
+                                                >
+                                                    <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                                                </motion.div>
+
+                                                <motion.div
+                                                    initial={{ opacity: 0, x: -12, y: 12 }}
+                                                    animate={{ opacity: 1, x: 0, y: 0 }}
+                                                    exit={{ opacity: 0, x: -10, y: 10 }}
                                                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                                                    className="absolute inset-x-0 bottom-4 flex items-center justify-center gap-3 pointer-events-auto"
+                                                    className="absolute left-3 bottom-3 pointer-events-auto"
                                                     onMouseEnter={() => clearHideActionLayerTimeout()}
                                                     onMouseLeave={() => {
                                                         if (supportsHover) {
@@ -327,8 +330,22 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                     >
                                                         <HomeIcon size={18} />
                                                     </button>
+                                                </motion.div>
 
-                                                    {canAddCurrentSongToPlaylist && (
+                                                {canAddCurrentSongToPlaylist && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, x: 12, y: 12 }}
+                                                        animate={{ opacity: 1, x: 0, y: 0 }}
+                                                        exit={{ opacity: 0, x: 10, y: 10 }}
+                                                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                                                        className="absolute right-3 bottom-3 pointer-events-auto"
+                                                        onMouseEnter={() => clearHideActionLayerTimeout()}
+                                                        onMouseLeave={() => {
+                                                            if (supportsHover) {
+                                                                hideCoverActions(120);
+                                                            }
+                                                        }}
+                                                    >
                                                         <button
                                                             type="button"
                                                             onClick={(event) => {
@@ -341,9 +358,9 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                         >
                                                             <Star size={18} />
                                                         </button>
-                                                    )}
-                                                </motion.div>
-                                            </motion.div>
+                                                    </motion.div>
+                                                )}
+                                            </>
                                         )}
                                     </AnimatePresence>
                                 </div>
