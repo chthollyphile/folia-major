@@ -8,9 +8,12 @@ import {
 describe('coverPlaceholders', () => {
     it('creates a light-blue svg placeholder data url', () => {
         const placeholder = createCoverPlaceholder('Artist Name', 'artist');
+        const decoded = decodeURIComponent(placeholder);
 
         expect(placeholder.startsWith('data:image/svg+xml')).toBe(true);
-        expect(decodeURIComponent(placeholder)).toContain('#8ec5ff');
+        expect(decoded).toContain('<svg');
+        expect(decoded).toContain('linearGradient');
+        expect(decoded).toContain('stop-color="#e0f2fe"');
     });
 
     it('prefers artistImageUrl over coverArt for navidrome artists', () => {

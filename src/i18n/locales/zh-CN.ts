@@ -76,7 +76,8 @@ export default {
       "widthRatio": "行宽",
       "motionAmount": "动势",
       "glowIntensity": "辉光"
-    }
+    },
+    "backToHome": "返回主页"
   },
   "panel": {
     "cover": "封面",

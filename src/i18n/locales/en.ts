@@ -76,7 +76,8 @@ export default {
       "widthRatio": "Line Width",
       "motionAmount": "Motion",
       "glowIntensity": "Glow"
-    }
+    },
+    "backToHome": "Back to Home",
   },
   "panel": {
     "cover": "Cover",

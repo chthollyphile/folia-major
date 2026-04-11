@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
 import { LocalPlaylist, NeteasePlaylist, SongResult } from '../../types';
 import PlaylistSelectionDialog from '../shared/PlaylistSelectionDialog';
 
@@ -16,6 +15,7 @@ interface CoverTabProps {
     onOpenCurrentLocalAlbum: () => void;
     onOpenCurrentLocalArtist: () => void;
     isDaylight?: boolean;
+    openPlaylistPickerSignal?: number;
 }
 
 const CoverTab: React.FC<CoverTabProps> = ({
@@ -29,9 +29,11 @@ const CoverTab: React.FC<CoverTabProps> = ({
     onOpenCurrentLocalAlbum,
     onOpenCurrentLocalArtist,
     isDaylight = false,
+    openPlaylistPickerSignal = 0,
 }) => {
     const { t } = useTranslation();
     const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = React.useState(false);
+    const lastHandledOpenSignalRef = React.useRef(openPlaylistPickerSignal);
     const isLocalSong = Boolean(currentSong && (((currentSong as any).isLocal === true) || (currentSong as any).localData));
     const isNavidromeSong = Boolean(currentSong && (currentSong as any).isNavidrome === true);
     const isNeteaseSong = Boolean(currentSong && !isLocalSong && !isNavidromeSong);
@@ -55,6 +57,18 @@ const CoverTab: React.FC<CoverTabProps> = ({
         return [];
     }, [isLocalSong, isNeteaseSong, localPlaylists, neteasePlaylists, t]);
 
+    React.useEffect(() => {
+        if (openPlaylistPickerSignal === lastHandledOpenSignalRef.current) {
+            return;
+        }
+
+        lastHandledOpenSignalRef.current = openPlaylistPickerSignal;
+
+        if (openPlaylistPickerSignal > 0 && availablePlaylists.length > 0) {
+            setIsPlaylistPickerOpen(true);
+        }
+    }, [availablePlaylists.length, openPlaylistPickerSignal]);
+
     return (
         <>
             <motion.div
@@ -65,16 +79,6 @@ const CoverTab: React.FC<CoverTabProps> = ({
                 <div className="space-y-1 relative w-full">
                     <div className="flex items-start justify-center gap-2">
                         <h2 className="text-2xl font-bold line-clamp-2">{currentSong?.name || t('ui.noTrack')}</h2>
-                        {(isLocalSong || isNeteaseSong) && availablePlaylists.length > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => setIsPlaylistPickerOpen(true)}
-                                className="mt-1 shrink-0 rounded-full p-1 opacity-50 transition-all hover:bg-white/10 hover:opacity-100"
-                                title={t('localMusic.addToPlaylist') || '添加到歌单'}
-                            >
-                                <Plus size={14} />
-                            </button>
-                        )}
                     </div>
                     <div className="text-sm opacity-60 space-y-1">
                         <div className="font-medium">
