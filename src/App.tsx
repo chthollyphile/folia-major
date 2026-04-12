@@ -1015,6 +1015,38 @@ export default function App() {
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
     }, [currentSong, refreshUserData, t]);
 
+    const addCurrentSongToNavidromePlaylist = useCallback(async (playlistId: string) => {
+        if (!isNavidromePlaybackSong(currentSong)) {
+            throw new Error('Current song is not a Navidrome song');
+        }
+
+        const config = getNavidromeConfig();
+        const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+        if (!config || !navidromeSong?.navidromeData?.id) {
+            throw new Error('Navidrome is not configured');
+        }
+
+        await navidromeApi.updatePlaylist(config, playlistId, {
+            songIdsToAdd: [navidromeSong.navidromeData.id],
+        });
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+    }, [currentSong, t]);
+
+    const createCurrentNavidromePlaylist = useCallback(async (name: string) => {
+        if (!isNavidromePlaybackSong(currentSong)) {
+            throw new Error('Current song is not a Navidrome song');
+        }
+
+        const config = getNavidromeConfig();
+        const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+        if (!config || !navidromeSong?.navidromeData?.id) {
+            throw new Error('Navidrome is not configured');
+        }
+
+        await navidromeApi.createPlaylist(config, name, [navidromeSong.navidromeData.id]);
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+    }, [currentSong, t]);
+
     const handleLocalSongMatch = async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong, matchedSongResult: SongResult | null; }> => {
         let updatedLocalSong = localSong;
         let matchedSongResult: SongResult | null = null;
@@ -2770,6 +2802,8 @@ export default function App() {
                         onSaveCurrentQueueAsPlaylist={saveCurrentQueueAsLocalPlaylist}
                         onAddCurrentSongToLocalPlaylist={addCurrentSongToLocalPlaylist}
                         onAddCurrentSongToNeteasePlaylist={addCurrentSongToNeteasePlaylist}
+                        onAddCurrentSongToNavidromePlaylist={addCurrentSongToNavidromePlaylist}
+                        onCreateCurrentNavidromePlaylist={createCurrentNavidromePlaylist}
                         onOpenCurrentLocalAlbum={openCurrentLocalAlbum}
                         onOpenCurrentLocalArtist={openCurrentLocalArtist}
                         onOpenCurrentNavidromeAlbum={openCurrentNavidromeAlbum}

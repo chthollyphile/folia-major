@@ -118,6 +118,23 @@ export interface CreatePlaylistResponse {
     playlist?: SubsonicPlaylist;
 }
 
+export interface NavidromePlaylistDialogItem {
+    id: string;
+    name: string;
+    description?: string;
+}
+
+export type NavidromeCollectionDescriptor =
+    | {
+        kind: 'playlist';
+        playlist: SubsonicPlaylist;
+        editable: true;
+    }
+    | {
+        kind: 'favorites' | 'random' | 'artist';
+        editable?: false;
+    };
+
 export interface ArtistsIndexResponse {
     artists?: {
         ignoredArticles?: string;

@@ -217,6 +217,18 @@ export const navidromeApi = {
         return null;
     },
 
+    deletePlaylist: async (config: NavidromeConfig, playlistId: string): Promise<boolean> => {
+        try {
+            const res = await fetchSubsonic<Record<string, never>>(config, 'deletePlaylist', {
+                id: playlistId,
+            });
+            return res['subsonic-response'].status === 'ok';
+        } catch (e) {
+            console.error('[Navidrome] deletePlaylist failed:', e);
+        }
+        return false;
+    },
+
     updatePlaylist: async (
         config: NavidromeConfig,
         playlistId: string,

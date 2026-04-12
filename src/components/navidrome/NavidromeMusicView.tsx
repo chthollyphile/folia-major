@@ -6,7 +6,16 @@ import Carousel3D from '../Carousel3D';
 import NavidromeAlbumView from './NavidromeAlbumView';
 import NavidromeCollectionView from './NavidromeCollectionView';
 import NavidromeArtistView from './NavidromeArtistView';
-import { SubsonicAlbum, NavidromeSong, NavidromeConfig, SubsonicPlaylist, SubsonicSong, SubsonicArtist, NavidromeViewSelection } from '../../types/navidrome';
+import {
+    SubsonicAlbum,
+    NavidromeSong,
+    NavidromeConfig,
+    NavidromePlaylistDialogItem,
+    SubsonicPlaylist,
+    SubsonicSong,
+    SubsonicArtist,
+    NavidromeViewSelection,
+} from '../../types/navidrome';
 import { navidromeApi, getNavidromeConfig } from '../../services/navidromeService';
 import { Theme } from '../../types';
 import { createCoverPlaceholder, pickRandomSongCoverUrl } from '../../utils/coverPlaceholders';
@@ -221,7 +230,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
         return [...virtualItems, ...playlistCards];
     }, [config, favoriteSongs, playlists, randomSongs, t]);
 
-    const playlistDialogItems = useMemo(() => playlists.map(playlist => ({
+    const playlistDialogItems = useMemo<NavidromePlaylistDialogItem[]>(() => playlists.map(playlist => ({
         id: playlist.id,
         name: playlist.name,
         description: `${playlist.songCount} ${t('playlist.tracks')}`,
@@ -305,6 +314,73 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
         void fetchLibrary();
     }, [config, fetchLibrary]);
 
+    const handleRenamePlaylist = useCallback(async (playlistId: string, name: string) => {
+        if (!config) {
+            return;
+        }
+
+        await navidromeApi.updatePlaylist(config, playlistId, { name });
+
+        setSelectedItem((prev) => {
+            if (!prev || prev.type !== 'playlist' || prev.playlist.id !== playlistId) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+                playlist: {
+                    ...prev.playlist,
+                    name,
+                },
+            };
+        });
+
+        void fetchLibrary();
+    }, [config, fetchLibrary]);
+
+    const handleDeletePlaylist = useCallback(async (playlistId: string) => {
+        if (!config) {
+            return;
+        }
+
+        await navidromeApi.deletePlaylist(config, playlistId);
+        setSelectedItem((prev) => (prev?.type === 'playlist' && prev.playlist.id === playlistId ? null : prev));
+        void fetchLibrary();
+    }, [config, fetchLibrary]);
+
+    const handleRemoveSongFromPlaylist = useCallback(async (playlistId: string, songIndex: number) => {
+        if (!config) {
+            return;
+        }
+
+        await navidromeApi.updatePlaylist(config, playlistId, {
+            songIndexesToRemove: [songIndex],
+        });
+
+        setSelectedItem((prev) => {
+            if (!prev || prev.type !== 'playlist' || prev.playlist.id !== playlistId) {
+                return prev;
+            }
+
+            const nextSongs = prev.songs.filter((_, index) => index !== songIndex);
+            return {
+                ...prev,
+                songs: nextSongs,
+                playlist: {
+                    ...prev.playlist,
+                    songCount: nextSongs.length,
+                    entry: nextSongs,
+                },
+            };
+        });
+
+        void fetchLibrary();
+    }, [config, fetchLibrary]);
+
+    const handleAddCurrentNavidromeSongToPlaylist = useCallback(async (playlistId: string | number, song: NavidromeSong) => {
+        await handleAddSongsToPlaylist(playlistId, [song]);
+    }, [handleAddSongsToPlaylist]);
+
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/10 hover:bg-white/20';
     const textColor = isDaylight ? 'text-black' : 'text-white';
 
@@ -340,6 +416,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                     availablePlaylists={playlistDialogItems}
                     onAddToPlaylist={handleAddSongsToPlaylist}
                     onCreatePlaylist={handleCreatePlaylist}
+                    onAddSongToPlaylist={handleAddCurrentNavidromeSongToPlaylist}
                     theme={theme}
                     isDaylight={isDaylight}
                 />
@@ -378,6 +455,11 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                 placeholderVariant="playlist"
                 songs={selectedItem.songs}
                 config={config}
+                collection={selectedItem.type === 'playlist'
+                    ? { kind: 'playlist', playlist: selectedItem.playlist, editable: true }
+                    : selectedItem.type === 'favorites'
+                        ? { kind: 'favorites' }
+                        : { kind: 'random' }}
                 onBack={() => setSelectedItem(null)}
                 onPlaySong={onPlaySong}
                 onAddAllToQueue={onAddSongsToQueue}
@@ -385,7 +467,11 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                 onSelectAlbum={openAlbumById}
                 availablePlaylists={playlistDialogItems}
                 onAddToPlaylist={handleAddSongsToPlaylist}
+                onAddSongToPlaylist={handleAddCurrentNavidromeSongToPlaylist}
                 onCreatePlaylist={handleCreatePlaylist}
+                onRenamePlaylist={handleRenamePlaylist}
+                onDeletePlaylist={handleDeletePlaylist}
+                onRemoveSongFromPlaylist={handleRemoveSongFromPlaylist}
                 theme={theme}
                 isDaylight={isDaylight}
             />

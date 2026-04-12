@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Loader2, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { NavidromeConfig, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../types/navidrome';
+import { NavidromeConfig, NavidromePlaylistDialogItem, NavidromeSong, SubsonicArtist, SubsonicSong } from '../../types/navidrome';
 import { navidromeApi } from '../../services/navidromeService';
 import { Theme } from '../../types';
 import NavidromeCollectionView from './NavidromeCollectionView';
@@ -12,12 +12,13 @@ interface NavidromeArtistViewProps {
     artist: SubsonicArtist;
     config: NavidromeConfig;
     onBack: () => void;
-    onPlaySong: (song: any, queue?: any[]) => void;
-    onAddAllToQueue?: (songs: any[]) => void;
+    onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
+    onAddAllToQueue?: (songs: NavidromeSong[]) => void;
     onSelectAlbum?: (albumId: string) => void;
-    availablePlaylists?: Array<{ id: string | number; name: string; description?: string; }>;
-    onAddToPlaylist?: (playlistId: string | number, songs: any[]) => Promise<void> | void;
-    onCreatePlaylist?: (name: string, songs: any[]) => Promise<void> | void;
+    availablePlaylists?: NavidromePlaylistDialogItem[];
+    onAddToPlaylist?: (playlistId: string | number, songs: NavidromeSong[]) => Promise<void> | void;
+    onCreatePlaylist?: (name: string, songs: NavidromeSong[]) => Promise<void> | void;
+    onAddSongToPlaylist?: (playlistId: string | number, song: NavidromeSong) => Promise<void> | void;
     theme: Theme;
     isDaylight: boolean;
 }
@@ -32,6 +33,7 @@ const NavidromeArtistView: React.FC<NavidromeArtistViewProps> = ({
     availablePlaylists = [],
     onAddToPlaylist,
     onCreatePlaylist,
+    onAddSongToPlaylist,
     theme,
     isDaylight,
 }) => {
@@ -97,6 +99,7 @@ const NavidromeArtistView: React.FC<NavidromeArtistViewProps> = ({
             placeholderVariant="artist"
             songs={songs}
             config={config}
+            collection={{ kind: 'artist' }}
             onBack={onBack}
             onPlaySong={onPlaySong}
             onAddAllToQueue={onAddAllToQueue}
@@ -104,6 +107,7 @@ const NavidromeArtistView: React.FC<NavidromeArtistViewProps> = ({
             availablePlaylists={availablePlaylists}
             onAddToPlaylist={onAddToPlaylist}
             onCreatePlaylist={onCreatePlaylist}
+            onAddSongToPlaylist={onAddSongToPlaylist}
             theme={theme}
             isDaylight={isDaylight}
         />

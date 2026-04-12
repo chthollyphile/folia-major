@@ -11,6 +11,7 @@ import LocalTab from './panelTab/LocalTab';
 import FmTab from './panelTab/FmTab';
 import NaviTab from './panelTab/NaviTab';
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
+import TextInputDialog from './shared/TextInputDialog';
 
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi';
 
@@ -82,6 +83,8 @@ interface UnifiedPanelProps {
     onSaveCurrentQueueAsPlaylist: (name: string) => Promise<void>;
     onAddCurrentSongToLocalPlaylist: (playlistId: string) => Promise<void>;
     onAddCurrentSongToNeteasePlaylist: (playlistId: number) => Promise<void>;
+    onAddCurrentSongToNavidromePlaylist: (playlistId: string) => Promise<void>;
+    onCreateCurrentNavidromePlaylist: (name: string) => Promise<void>;
     onOpenCurrentLocalAlbum: () => void;
     onOpenCurrentLocalArtist: () => void;
     onOpenCurrentNavidromeAlbum: () => void;
@@ -150,6 +153,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onSaveCurrentQueueAsPlaylist,
     onAddCurrentSongToLocalPlaylist,
     onAddCurrentSongToNeteasePlaylist,
+    onAddCurrentSongToNavidromePlaylist,
+    onCreateCurrentNavidromePlaylist,
     onOpenCurrentLocalAlbum,
     onOpenCurrentLocalArtist,
     onOpenCurrentNavidromeAlbum,
@@ -160,12 +165,34 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const hideActionLayerTimeoutRef = React.useRef<number | null>(null);
     const [isCoverActionsVisible, setIsCoverActionsVisible] = React.useState(false);
     const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = React.useState(false);
+    const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = React.useState(false);
+    const [navidromePlaylists, setNavidromePlaylists] = React.useState<Array<{ id: string; name: string; description?: string; }>>([]);
 
     const isNavidrome = currentSong && (currentSong as any).isNavidrome === true;
     const isLocal = currentSong && !isNavidrome && (((currentSong as any).isLocal === true) || Boolean((currentSong as any).localData));
     const isNetease = Boolean(currentSong && !isLocal && !isNavidrome);
-    const canAddCurrentSongToPlaylist = (isLocal && localPlaylists.length > 0) || (isNetease && neteasePlaylists.length > 0);
+    const canCreateNavidromePlaylist = isNavidrome;
+    const canAddCurrentSongToPlaylist =
+        (isLocal && localPlaylists.length > 0)
+        || (isNetease && neteasePlaylists.length > 0)
+        || (isNavidrome && (navidromePlaylists.length > 0 || canCreateNavidromePlaylist));
     const supportsHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const refreshNavidromePlaylists = React.useCallback(async () => {
+        const { getNavidromeConfig, navidromeApi } = await import('../services/navidromeService');
+        const config = getNavidromeConfig();
+        if (!config) {
+            setNavidromePlaylists([]);
+            return;
+        }
+
+        const playlists = await navidromeApi.getPlaylists(config);
+        setNavidromePlaylists(playlists.map((playlist) => ({
+            id: playlist.id,
+            name: playlist.name,
+            description: `${playlist.songCount} ${t('playlist.tracks')}`,
+        })));
+    }, [t]);
+
     const availablePlaylists = React.useMemo(() => {
         if (isLocal) {
             return localPlaylists.map((playlist) => ({
@@ -183,8 +210,33 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             }));
         }
 
+        if (isNavidrome) {
+            return navidromePlaylists;
+        }
+
         return [];
-    }, [isLocal, isNetease, localPlaylists, neteasePlaylists, t]);
+    }, [isLocal, isNetease, isNavidrome, localPlaylists, navidromePlaylists, neteasePlaylists, t]);
+
+    React.useEffect(() => {
+        let cancelled = false;
+
+        const loadNavidromePlaylists = async () => {
+            if (!isNavidrome) {
+                setNavidromePlaylists([]);
+                return;
+            }
+
+            if (!cancelled) {
+                await refreshNavidromePlaylists();
+            }
+        };
+
+        void loadNavidromePlaylists();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [currentSong?.id, isNavidrome, refreshNavidromePlaylists]);
 
     const tabs = [
         { id: 'cover' as PanelTab, label: t('panel.cover'), icon: Disc },
@@ -242,6 +294,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         if (!isOpen) {
             setIsCoverActionsVisible(false);
             setIsPlaylistPickerOpen(false);
+            setIsCreatePlaylistOpen(false);
         }
     }, [isOpen]);
 
@@ -555,7 +608,32 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 
                         if (isNetease) {
                             await onAddCurrentSongToNeteasePlaylist(Number(playlistId));
+                            return;
                         }
+
+                        if (isNavidrome) {
+                            await onAddCurrentSongToNavidromePlaylist(String(playlistId));
+                            await refreshNavidromePlaylists();
+                        }
+                    }}
+                    onCreate={isNavidrome ? () => {
+                        setIsPlaylistPickerOpen(false);
+                        setIsCreatePlaylistOpen(true);
+                    } : undefined}
+                    createLabel={t('navidrome.createPlaylist') || '新建歌单'}
+                />
+
+                <TextInputDialog
+                    isOpen={isCreatePlaylistOpen}
+                    onClose={() => setIsCreatePlaylistOpen(false)}
+                    isDaylight={isDaylight}
+                    title={t('navidrome.createPlaylist') || '新建歌单'}
+                    description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                    placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                    confirmLabel={t('options.save') || '保存'}
+                    onConfirm={async (name) => {
+                        await onCreateCurrentNavidromePlaylist(name);
+                        await refreshNavidromePlaylists();
                     }}
                 />
             </div>
