@@ -269,3 +269,30 @@ export interface AudioBands {
   vocal: MotionValue<number>;   // 1000-3500Hz (Icons)
   treble: MotionValue<number>;  // 3500Hz+ (Crosses)
 }
+
+export interface DesktopVisualizerBandSnapshot {
+  bass: number;
+  lowMid: number;
+  mid: number;
+  vocal: number;
+  treble: number;
+}
+
+export interface DesktopVisualizerSnapshot {
+  visualizerMode: VisualizerMode;
+  lines: Line[];
+  theme: Theme;
+  coverUrl: string | null;
+  seed: string | number;
+  staticMode: boolean;
+  backgroundOpacity: number;
+  showText: boolean;
+  currentTime: number;
+  currentLineIndex: number;
+  audioPower: number;
+  audioBands: DesktopVisualizerBandSnapshot;
+  cadenzaTuning: CadenzaTuning;
+  partitaTuning: PartitaTuning;
+  lyricsFontScale: number;
+  desktopMode?: boolean;
+}

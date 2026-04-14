@@ -23,6 +23,7 @@ interface VisualizerProps {
     backgroundOpacity?: number;
     lyricsFontScale?: number;
     onBack?: () => void;
+    desktopMode?: boolean;
 }
 
 interface WordLayoutConfig {
@@ -252,7 +253,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
-    onBack
+    onBack,
+    desktopMode = false,
 }) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
@@ -587,7 +589,13 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
             {!staticMode && (
                 <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
+                    <GeometricBackground
+                        theme={theme}
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        seed={seed}
+                        showVignette={!desktopMode}
+                    />
                 </div>
             )}
 

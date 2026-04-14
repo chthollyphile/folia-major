@@ -25,6 +25,7 @@ interface VisualizerProps {
     cadenzaTuning?: CadenzaTuning;
     lyricsFontScale?: number;
     onBack?: () => void;
+    desktopMode?: boolean;
 }
 
 interface SegmentMeta {
@@ -1355,6 +1356,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     lyricsFontScale = 1,
     onBack,
+    desktopMode = false,
 }) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
@@ -1820,7 +1822,13 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
 
             {!staticMode && (
                 <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
+                    <GeometricBackground
+                        theme={theme}
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        seed={seed}
+                        showVignette={!desktopMode}
+                    />
                 </div>
             )}
 

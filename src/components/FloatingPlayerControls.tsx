@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Repeat, Repeat1, ChartBar } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, ChartBar, Monitor } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 import { PlayerState, LyricData, Theme } from '../types';
@@ -34,6 +34,10 @@ interface FloatingPlayerControlsProps {
     secondaryColor?: string;
     theme?: Theme;
     isDaylight: boolean;
+    showDesktopVisualizerButton?: boolean;
+    isDesktopVisualizerOpen?: boolean;
+    onToggleDesktopVisualizer?: () => void;
+    desktopVisualizerLabel?: string;
 }
 
 
@@ -54,7 +58,11 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     primaryColor = 'var(--text-primary)',
     secondaryColor = 'var(--text-secondary)',
     theme,
-    isDaylight
+    isDaylight,
+    showDesktopVisualizerButton = false,
+    isDesktopVisualizerOpen = false,
+    onToggleDesktopVisualizer,
+    desktopVisualizerLabel = 'Desktop Visualizer',
 }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
@@ -166,6 +174,10 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     trackColor={trackColor}
                                     hasLyrics={!!lyrics}
                                     isDaylight={isDaylight}
+                                    showDesktopVisualizerButton={showDesktopVisualizerButton}
+                                    isDesktopVisualizerOpen={isDesktopVisualizerOpen}
+                                    onToggleDesktopVisualizer={onToggleDesktopVisualizer}
+                                    desktopVisualizerLabel={desktopVisualizerLabel}
                                 />
                             ) : (
                                 <CollapsedView
@@ -217,6 +229,10 @@ interface ExpandedViewProps {
     hasLyrics: boolean;
     trackColor?: string;
     isDaylight?: boolean;
+    showDesktopVisualizerButton?: boolean;
+    isDesktopVisualizerOpen?: boolean;
+    onToggleDesktopVisualizer?: () => void;
+    desktopVisualizerLabel?: string;
 }
 
 const ExpandedView: React.FC<ExpandedViewProps> = ({
@@ -235,7 +251,11 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     secondaryColor,
     hasLyrics,
     trackColor,
-    isDaylight
+    isDaylight,
+    showDesktopVisualizerButton = false,
+    isDesktopVisualizerOpen = false,
+    onToggleDesktopVisualizer,
+    desktopVisualizerLabel = 'Desktop Visualizer',
 }) => {
     return (
         <>
@@ -274,6 +294,20 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1">
+                    {showDesktopVisualizerButton && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleDesktopVisualizer?.();
+                            }}
+                            className={`p-2 rounded-full transition-colors ${isDesktopVisualizerOpen ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/20') : `opacity-40 hover:opacity-100 ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}`}
+                            style={{ color: primaryColor }}
+                            title={desktopVisualizerLabel}
+                        >
+                            <Monitor size={18} />
+                        </button>
+                    )}
+
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -309,6 +343,20 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
 
                 {/* Row 3: Loop Button, Play Button, Lyrics Button */}
                 <div className="flex items-center justify-center gap-4">
+                    {showDesktopVisualizerButton && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleDesktopVisualizer?.();
+                            }}
+                            className={`p-2 rounded-full transition-colors ${isDesktopVisualizerOpen ? 'bg-white/20' : 'opacity-40 hover:opacity-100'}`}
+                            style={{ color: primaryColor }}
+                            title={desktopVisualizerLabel}
+                        >
+                            <Monitor size={20} />
+                        </button>
+                    )}
+
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

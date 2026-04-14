@@ -21,7 +21,7 @@ import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
 import LyricMatchModal from './components/modal/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist } from './types';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, type DesktopVisualizerSnapshot } from './types';
 import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
 import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
@@ -296,6 +296,7 @@ const hydrateNavidromeLyricPayload = async (config: NavidromeConfig, navidromeSo
 export default function App() {
     const { t } = useTranslation();
     const isDev = import.meta.env.DEV;
+    const isElectronDesktop = Boolean(window.electron);
 
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
@@ -314,6 +315,7 @@ export default function App() {
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
+    const [isDesktopVisualizerOpen, setIsDesktopVisualizerOpen] = useState(false);
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -547,6 +549,31 @@ export default function App() {
         handleAlbumSelect,
         handleArtistSelect,
     } = useAppNavigation();
+
+    useEffect(() => {
+        if (!window.electron) {
+            return;
+        }
+
+        let disposed = false;
+
+        window.electron.getDesktopVisualizerStatus().then(({ isOpen }) => {
+            if (!disposed) {
+                setIsDesktopVisualizerOpen(isOpen);
+            }
+        }).catch((error) => {
+            console.error('[DesktopVisualizer] Failed to read window status:', error);
+        });
+
+        const unsubscribeClosed = window.electron.onDesktopVisualizerClosed(() => {
+            setIsDesktopVisualizerOpen(false);
+        });
+
+        return () => {
+            disposed = true;
+            unsubscribeClosed?.();
+        };
+    }, []);
 
     // Netease Library Hook
     // manages user data, playlists, liked songs, and related actions
@@ -2458,6 +2485,92 @@ export default function App() {
         ...cadenzaTuning,
         fontScale: cadenzaTuning.fontScale * lyricsFontScale,
     }), [cadenzaTuning, lyricsFontScale]);
+    const pushDesktopVisualizerSnapshot = useCallback(() => {
+        if (!window.electron) {
+            return;
+        }
+
+        const snapshot: DesktopVisualizerSnapshot = {
+            visualizerMode,
+            lines: lyrics?.lines || [],
+            theme: visualizerTheme,
+            coverUrl,
+            seed: visualizerGeometrySeed,
+            staticMode,
+            backgroundOpacity,
+            showText: currentView === 'player',
+            currentTime: currentTime.get(),
+            currentLineIndex,
+            audioPower: audioPower.get(),
+            audioBands: {
+                bass: audioBands.bass.get(),
+                lowMid: audioBands.lowMid.get(),
+                mid: audioBands.mid.get(),
+                vocal: audioBands.vocal.get(),
+                treble: audioBands.treble.get(),
+            },
+            cadenzaTuning: effectiveCadenzaTuning,
+            partitaTuning,
+            lyricsFontScale,
+        };
+
+        void window.electron.setDesktopVisualizerState(snapshot).catch((error) => {
+            console.error('[DesktopVisualizer] Failed to push snapshot:', error);
+        });
+    }, [
+        audioBands.bass,
+        audioBands.lowMid,
+        audioBands.mid,
+        audioBands.treble,
+        audioBands.vocal,
+        audioPower,
+        backgroundOpacity,
+        coverUrl,
+        currentLineIndex,
+        currentTime,
+        currentView,
+        effectiveCadenzaTuning,
+        lyrics?.lines,
+        lyricsFontScale,
+        partitaTuning,
+        staticMode,
+        visualizerGeometrySeed,
+        visualizerMode,
+        visualizerTheme,
+    ]);
+    const handleToggleDesktopVisualizer = useCallback(async () => {
+        if (!window.electron) {
+            return;
+        }
+
+        try {
+            if (isDesktopVisualizerOpen) {
+                await window.electron.closeDesktopVisualizer();
+                setIsDesktopVisualizerOpen(false);
+                return;
+            }
+
+            await window.electron.openDesktopVisualizer();
+            setIsDesktopVisualizerOpen(true);
+            pushDesktopVisualizerSnapshot();
+        } catch (error) {
+            console.error('[DesktopVisualizer] Failed to toggle window:', error);
+        }
+    }, [isDesktopVisualizerOpen, pushDesktopVisualizerSnapshot]);
+    useEffect(() => {
+        if (!isDesktopVisualizerOpen || !window.electron) {
+            return;
+        }
+
+        pushDesktopVisualizerSnapshot();
+        const timer = window.setInterval(() => {
+            pushDesktopVisualizerSnapshot();
+        }, 50);
+
+        return () => {
+            window.clearInterval(timer);
+        };
+    }, [isDesktopVisualizerOpen, pushDesktopVisualizerSnapshot]);
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const debugCurrentTimeValue = currentTime.get();
     const debugActiveLine = lyrics && currentLineIndex >= 0 ? lyrics.lines[currentLineIndex] ?? null : null;
@@ -2893,6 +3006,12 @@ export default function App() {
                         secondaryColor="var(--text-secondary)"
                         theme={theme}
                         isDaylight={isDaylight}
+                        showDesktopVisualizerButton={isElectronDesktop}
+                        isDesktopVisualizerOpen={isDesktopVisualizerOpen}
+                        onToggleDesktopVisualizer={handleToggleDesktopVisualizer}
+                        desktopVisualizerLabel={isDesktopVisualizerOpen
+                            ? (t('ui.desktopVisualizerOn') || '关闭桌面视觉层')
+                            : (t('ui.desktopVisualizerOff') || '开启桌面视觉层')}
                     />
                 )
             }

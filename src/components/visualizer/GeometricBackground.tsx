@@ -8,9 +8,10 @@ interface GeometricBackgroundProps {
   audioPower: MotionValue<number>;
   audioBands?: AudioBands;
   seed?: string | number;
+  showVignette?: boolean;
 }
 
-const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower, audioBands, seed }) => {
+const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower, audioBands, seed, showVignette = true }) => {
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
     const availableIcons = theme.lyricsIcons || [];
@@ -190,10 +191,12 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower,
         />
       ))}
 
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
-      />
+      {showVignette && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
+        />
+      )}
     </motion.div>
   );
 };

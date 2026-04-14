@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, globalShortcut } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
@@ -34,6 +34,12 @@ if (process.platform === 'linux') {
 
 const store = new Store();
 let mainWindow = null;
+let desktopVisualizerWindow = null;
+let desktopVisualizerSnapshot = null;
+let desktopVisualizerOptions = {
+  clickThrough: false,
+  showBorder: false,
+};
 
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -46,6 +52,14 @@ function focusMainWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+}
+
+function getAppEntryUrl(search = '') {
+  if (process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development') {
+    return `http://localhost:3000/${search}`;
+  }
+
+  return path.join(__dirname, `../dist/index.html${search}`);
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -316,7 +330,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true // Disable for local app
+      webSecurity: true, // Disable for local app
+      backgroundThrottling: false
     }
   });
 
@@ -338,11 +353,119 @@ function createWindow() {
   return win;
 }
 
+function notifyMainWindowDesktopVisualizerClosed() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send('desktop-visualizer-closed');
+}
+
+function broadcastDesktopVisualizerState() {
+  if (!desktopVisualizerWindow || desktopVisualizerWindow.isDestroyed()) {
+    return;
+  }
+
+  desktopVisualizerWindow.webContents.send('desktop-visualizer-state', desktopVisualizerSnapshot);
+}
+
+function broadcastDesktopVisualizerOptions() {
+  if (!desktopVisualizerWindow || desktopVisualizerWindow.isDestroyed()) {
+    return;
+  }
+
+  desktopVisualizerWindow.webContents.send('desktop-visualizer-options', desktopVisualizerOptions);
+}
+
+function applyDesktopVisualizerOptions() {
+  if (!desktopVisualizerWindow || desktopVisualizerWindow.isDestroyed()) {
+    return;
+  }
+
+  desktopVisualizerWindow.setIgnoreMouseEvents(Boolean(desktopVisualizerOptions.clickThrough), {
+    forward: Boolean(desktopVisualizerOptions.clickThrough),
+  });
+  broadcastDesktopVisualizerOptions();
+}
+
+function createDesktopVisualizerWindow() {
+  if (desktopVisualizerWindow && !desktopVisualizerWindow.isDestroyed()) {
+    return desktopVisualizerWindow;
+  }
+
+  const win = new BrowserWindow({
+    width: 960,
+    height: 540,
+    transparent: true,
+    frame: false,
+    thickFrame: true,
+    hasShadow: false,
+    resizable: true,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    closable: true,
+    skipTaskbar: true,
+    focusable: true,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    show: false,
+    backgroundColor: '#00000000',
+    title: 'Folia Desktop Visualizer',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      backgroundThrottling: false
+    }
+  });
+
+  if (process.platform === 'win32') {
+    win.setAlwaysOnTop(true, 'screen-saver');
+  } else {
+    win.setAlwaysOnTop(true);
+  }
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  if (process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development') {
+    win.loadURL(getAppEntryUrl('?desktopVisualizer=1'));
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'), { search: '?desktopVisualizer=1' });
+  }
+
+  win.once('ready-to-show', () => {
+    win.center();
+    win.showInactive();
+    applyDesktopVisualizerOptions();
+    broadcastDesktopVisualizerState();
+  });
+
+  win.on('closed', () => {
+    desktopVisualizerWindow = null;
+    notifyMainWindowDesktopVisualizerClosed();
+  });
+
+  desktopVisualizerWindow = win;
+  return win;
+}
+
 app.whenReady().then(async () => {
   setupFileSystemAccessPermissionHandlers();
   await startApi();
   createWindow();
   focusMainWindow();
+  globalShortcut.register('Alt+Shift+V', () => {
+    if (!desktopVisualizerWindow || desktopVisualizerWindow.isDestroyed()) {
+      return;
+    }
+
+    desktopVisualizerOptions = {
+      ...desktopVisualizerOptions,
+      clickThrough: !desktopVisualizerOptions.clickThrough,
+    };
+    applyDesktopVisualizerOptions();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -359,6 +482,10 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 // Settings Management IPC
 ipcMain.handle('get-settings', () => {
   return store.store;
@@ -372,6 +499,48 @@ ipcMain.handle('save-settings', (event, key, value) => {
 // Retrieve dynamic port of local Netease API Server
 ipcMain.handle('get-netease-port', () => {
   return assignedPort;
+});
+
+ipcMain.handle('open-desktop-visualizer', () => {
+  createDesktopVisualizerWindow();
+  return { isOpen: true };
+});
+
+ipcMain.handle('close-desktop-visualizer', () => {
+  if (desktopVisualizerWindow && !desktopVisualizerWindow.isDestroyed()) {
+    desktopVisualizerWindow.close();
+  }
+
+  return { isOpen: false };
+});
+
+ipcMain.handle('get-desktop-visualizer-status', () => {
+  return {
+    isOpen: Boolean(desktopVisualizerWindow && !desktopVisualizerWindow.isDestroyed()),
+  };
+});
+
+ipcMain.handle('get-desktop-visualizer-state', () => {
+  return desktopVisualizerSnapshot;
+});
+
+ipcMain.handle('set-desktop-visualizer-state', (_event, snapshot) => {
+  desktopVisualizerSnapshot = snapshot;
+  broadcastDesktopVisualizerState();
+  return { ok: true };
+});
+
+ipcMain.handle('get-desktop-visualizer-options', () => {
+  return desktopVisualizerOptions;
+});
+
+ipcMain.handle('set-desktop-visualizer-options', (_event, nextOptions = {}) => {
+  desktopVisualizerOptions = {
+    ...desktopVisualizerOptions,
+    ...nextOptions,
+  };
+  applyDesktopVisualizerOptions();
+  return desktopVisualizerOptions;
 });
 
 // Integrate AI logic locally into Electron

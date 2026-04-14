@@ -25,6 +25,7 @@ interface VisualizerPartitaProps {
     partitaTuning?: PartitaTuning;
     lyricsFontScale?: number;
     onBack?: () => void;
+    desktopMode?: boolean;
 }
 
 interface WordLayoutConfig {
@@ -610,6 +611,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
     partitaTuning = DEFAULT_PARTITA_TUNING,
     lyricsFontScale = 1,
     onBack,
+    desktopMode = false,
 }) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
@@ -897,7 +899,13 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
 
             {!staticMode && (
                 <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
+                    <GeometricBackground
+                        theme={theme}
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        seed={seed}
+                        showVignette={!desktopMode}
+                    />
                 </div>
             )}
 

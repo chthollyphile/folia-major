@@ -7,6 +7,7 @@ import ReactDOM from 'react-dom/client';
 import './i18n/config';
 import './index.css';
 import App from './App';
+import DesktopVisualizerApp from './DesktopVisualizerApp';
 
 
 const rootElement = document.getElementById('root');
@@ -15,8 +16,10 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+const isDesktopVisualizerWindow = new URLSearchParams(window.location.search).get('desktopVisualizer') === '1';
+
 root.render(
   <React.StrictMode>
-    <App />
+    {isDesktopVisualizerWindow ? <DesktopVisualizerApp /> : <App />}
   </React.StrictMode>
 );
