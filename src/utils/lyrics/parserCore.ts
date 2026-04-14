@@ -34,6 +34,11 @@ interface LrcMetadata {
     artist?: string;
 }
 
+interface ParsedTimedEntriesResult {
+    entries: TimedTextEntry[];
+    isSorted: boolean;
+}
+
 const GLOBAL_LRC_TIME_REGEX = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
 const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2}):(\d{2})[.:](\d{2,3})>/g;
 const LRC_LINE_TIME_REGEX = /^\[(\d{2}):(\d{2})[.:](\d{2,3})\]/;
@@ -145,10 +150,55 @@ const attachInterludes = (lines: Line[]): Line[] => {
     return finalLines;
 };
 
-const findClosestTranslation = (entries: TimedTextEntry[], startTime: number): string | undefined => {
-    const candidates = entries.filter(entry => Math.abs(entry.startTime - startTime) < 1.0);
-    candidates.sort((left, right) => Math.abs(left.startTime - startTime) - Math.abs(right.startTime - startTime));
-    return candidates[0]?.text;
+const sortByStartTimeIfNeeded = <T extends { startTime: number }>(items: T[], isSorted: boolean): T[] => {
+    if (isSorted) {
+        return items;
+    }
+
+    return [...items].sort((left, right) => left.startTime - right.startTime);
+};
+
+const findTranslationsForSortedStartTimes = (
+    startTimes: number[],
+    entries: TimedTextEntry[]
+): Array<string | undefined> => {
+    if (startTimes.length === 0 || entries.length === 0) {
+        return startTimes.map(() => undefined);
+    }
+
+    const translations: Array<string | undefined> = [];
+    let upperIndex = 0;
+
+    for (const startTime of startTimes) {
+        while (upperIndex < entries.length && entries[upperIndex].startTime < startTime) {
+            upperIndex += 1;
+        }
+
+        let bestEntry: TimedTextEntry | undefined;
+        let bestDiff = 1.0;
+
+        const previous = entries[upperIndex - 1];
+        if (previous) {
+            const diff = Math.abs(previous.startTime - startTime);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                bestEntry = previous;
+            }
+        }
+
+        const current = entries[upperIndex];
+        if (current) {
+            const diff = Math.abs(current.startTime - startTime);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                bestEntry = current;
+            }
+        }
+
+        translations.push(bestEntry?.text);
+    }
+
+    return translations;
 };
 
 const parseTimestamp = (minute: string, second: string, fraction: string): number => {
@@ -187,6 +237,19 @@ const parseMetadataLine = (line: string, metadata: LrcMetadata): boolean => {
     }
 
     return true;
+};
+
+const maybeBuildPreciseLineDraft = (
+    content: string,
+    pattern: RegExp,
+    enabled: boolean
+): DraftLine | null => {
+    if (!enabled) {
+        return null;
+    }
+
+    const markers = collectTimestampMarkers(content, pattern);
+    return buildPreciseLineDraft(content, markers);
 };
 
 const buildPreciseLineDraft = (content: string, markers: TimestampMarker[]): DraftLine | null => {
@@ -258,64 +321,95 @@ const parseSimpleTimedTextEntry = (line: string): TimedTextEntry | null => {
     };
 };
 
-const parseTimedTextEntries = (content: string): TimedTextEntry[] => {
+const parseTimedTextEntries = (content: string): ParsedTimedEntriesResult => {
     const metadata: LrcMetadata = {};
+    const entries: TimedTextEntry[] = [];
+    let isSorted = true;
+    let lastStartTime = Number.NEGATIVE_INFINITY;
 
-    return content
-        .replace(/^\uFEFF/, '')
-        .split(/\r?\n/)
-        .map(rawLine => {
-            const line = rawLine.trim();
-            if (!line) {
-                return null;
+    const rawLines = content.replace(/^\uFEFF/, '').split(/\r?\n/);
+
+    for (const rawLine of rawLines) {
+        const line = rawLine.trim();
+        if (!line) {
+            continue;
+        }
+
+        if (parseMetadataLine(line, metadata)) {
+            continue;
+        }
+
+        const lineTagMatch = line.match(LRC_LINE_TIME_REGEX);
+        const body = lineTagMatch ? line.slice(lineTagMatch[0].length) : line;
+        const angleDraft = maybeBuildPreciseLineDraft(body, GLOBAL_ANGLE_TIME_REGEX, body.includes('<'));
+        const bracketDraft = angleDraft
+            ? null
+            : maybeBuildPreciseLineDraft(
+                line,
+                GLOBAL_LRC_TIME_REGEX,
+                line.indexOf('[', 1) !== -1
+            );
+        const entry = angleDraft
+            ? {
+                startTime: angleDraft.startTime,
+                endTime: angleDraft.endTime,
+                text: angleDraft.fullText
             }
-
-            if (parseMetadataLine(line, metadata)) {
-                return null;
-            }
-
-            const lineTagMatch = line.match(LRC_LINE_TIME_REGEX);
-            const body = lineTagMatch ? line.slice(lineTagMatch[0].length) : line;
-
-            const angleDraft = buildPreciseLineDraft(body, collectTimestampMarkers(body, GLOBAL_ANGLE_TIME_REGEX));
-            if (angleDraft) {
-                return {
-                    startTime: angleDraft.startTime,
-                    endTime: angleDraft.endTime,
-                    text: angleDraft.fullText
-                };
-            }
-
-            const bracketDraft = buildPreciseLineDraft(line, collectTimestampMarkers(line, GLOBAL_LRC_TIME_REGEX));
-            if (bracketDraft) {
-                return {
+            : bracketDraft
+                ? {
                     startTime: bracketDraft.startTime,
                     endTime: bracketDraft.endTime,
                     text: bracketDraft.fullText
-                };
-            }
+                }
+                : parseSimpleTimedTextEntry(line);
 
-            return parseSimpleTimedTextEntry(line);
-        })
-        .filter((entry): entry is TimedTextEntry => entry !== null && entry.text.length > 0)
-        .sort((left, right) => left.startTime - right.startTime);
+        if (!entry || entry.text.length === 0) {
+            continue;
+        }
+
+        if (entry.startTime < lastStartTime) {
+            isSorted = false;
+        }
+        lastStartTime = entry.startTime;
+        entries.push(entry);
+    }
+
+    return {
+        entries: sortByStartTimeIfNeeded(entries, isSorted),
+        isSorted
+    };
 };
 
 export const parseLRC = (lrcString: string, translationString: string = ''): LyricData => {
     const lines: Line[] = [];
+    const rawEntries: TimedTextEntry[] = [];
+    let rawEntriesSorted = true;
+    let lastStartTime = Number.NEGATIVE_INFINITY;
 
-    const rawEntries = lrcString
-        .replace(/^\uFEFF/, '')
-        .split(/\r?\n/)
-        .map(line => parseSimpleTimedTextEntry(line))
-        .filter((entry): entry is TimedTextEntry => entry !== null && entry.text.length > 0)
-        .sort((left, right) => left.startTime - right.startTime);
-    const transEntries = parseTimedTextEntries(translationString);
+    for (const rawLine of lrcString.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+        const entry = parseSimpleTimedTextEntry(rawLine);
+        if (!entry || entry.text.length === 0) {
+            continue;
+        }
 
-    for (let index = 0; index < rawEntries.length; index += 1) {
-        const current = rawEntries[index];
-        const next = rawEntries[index + 1];
-        const translation = findClosestTranslation(transEntries, current.startTime);
+        if (entry.startTime < lastStartTime) {
+            rawEntriesSorted = false;
+        }
+        lastStartTime = entry.startTime;
+        rawEntries.push(entry);
+    }
+
+    const sortedRawEntries = sortByStartTimeIfNeeded(rawEntries, rawEntriesSorted);
+    const transEntries = parseTimedTextEntries(translationString).entries;
+    const translations = findTranslationsForSortedStartTimes(
+        sortedRawEntries.map(entry => entry.startTime),
+        transEntries
+    );
+
+    for (let index = 0; index < sortedRawEntries.length; index += 1) {
+        const current = sortedRawEntries[index];
+        const next = sortedRawEntries[index + 1];
+        const translation = translations[index];
 
         let duration = next ? next.startTime - current.startTime : 5;
         const estimatedReadingTime = current.text.length * 0.5;
@@ -337,9 +431,16 @@ export const parseLRC = (lrcString: string, translationString: string = ''): Lyr
 };
 
 export const parseYRC = (yrcString: string, translationString: string = ''): LyricData => {
-    const lines: Line[] = [];
-    const translationEntries = parseTimedTextEntries(translationString);
+    const rawLinesData: Array<{
+        words: Word[];
+        startTime: number;
+        endTime: number;
+        fullText: string;
+    }> = [];
+    const translationEntries = parseTimedTextEntries(translationString).entries;
     const rawLines = yrcString.replace(/^\uFEFF/, '').split(/\r?\n/);
+    let isSorted = true;
+    let lastStartTime = Number.NEGATIVE_INFINITY;
 
     for (const rawLine of rawLines) {
         const lineMatch = rawLine.match(/^\[(\d+),(\d+)\](.*)/);
@@ -373,17 +474,28 @@ export const parseYRC = (yrcString: string, translationString: string = ''): Lyr
         }
 
         if (words.length > 0) {
-            lines.push({
+            if (lineStartTime < lastStartTime) {
+                isSorted = false;
+            }
+            lastStartTime = lineStartTime;
+            rawLinesData.push({
                 words,
                 startTime: lineStartTime,
                 endTime: lineEndTime,
-                fullText,
-                translation: findClosestTranslation(translationEntries, lineStartTime)
+                fullText
             });
         }
     }
 
-    lines.sort((left, right) => left.startTime - right.startTime);
+    const sortedRawLines = sortByStartTimeIfNeeded(rawLinesData, isSorted);
+    const translations = findTranslationsForSortedStartTimes(
+        sortedRawLines.map(line => line.startTime),
+        translationEntries
+    );
+    const lines: Line[] = sortedRawLines.map((line, index) => ({
+        ...line,
+        translation: translations[index]
+    }));
 
     return { lines: annotateLyricLines(attachInterludes(lines)) };
 };
@@ -469,6 +581,10 @@ const parseVTTEntries = (vttString: string): TimedTextEntry[] => {
 export const parseVTT = (vttString: string, translationString: string = ''): LyricData => {
     const entries = parseVTTEntries(vttString);
     const translationEntries = parseVTTEntries(translationString);
+    const translations = findTranslationsForSortedStartTimes(
+        entries.map(entry => entry.startTime),
+        translationEntries
+    );
     const lines: Line[] = [];
 
     for (let index = 0; index < entries.length; index += 1) {
@@ -482,7 +598,7 @@ export const parseVTT = (vttString: string, translationString: string = ''): Lyr
             startTime: current.startTime,
             endTime,
             fullText: current.text,
-            translation: findClosestTranslation(translationEntries, current.startTime)
+            translation: translations[index]
         });
     }
 
@@ -492,8 +608,10 @@ export const parseVTT = (vttString: string, translationString: string = ''): Lyr
 export const parseEnhancedLRC = (lrcString: string, translationString: string = ''): LyricData => {
     const metadata: LrcMetadata = {};
     const drafts: DraftLine[] = [];
-    const translationEntries = parseTimedTextEntries(translationString);
+    const translationEntries = parseTimedTextEntries(translationString).entries;
     const rawLines = lrcString.replace(/^\uFEFF/, '').split(/\r?\n/);
+    let isSorted = true;
+    let lastStartTime = Number.NEGATIVE_INFINITY;
 
     for (const rawLine of rawLines) {
         const line = rawLine.trim();
@@ -507,21 +625,32 @@ export const parseEnhancedLRC = (lrcString: string, translationString: string = 
 
         const lineTagMatch = line.match(LRC_LINE_TIME_REGEX);
         const body = lineTagMatch ? line.slice(lineTagMatch[0].length) : line;
-
-        const angleDraft = buildPreciseLineDraft(body, collectTimestampMarkers(body, GLOBAL_ANGLE_TIME_REGEX));
+        const angleDraft = maybeBuildPreciseLineDraft(body, GLOBAL_ANGLE_TIME_REGEX, body.includes('<'));
         if (angleDraft) {
+            if (angleDraft.startTime < lastStartTime) {
+                isSorted = false;
+            }
+            lastStartTime = angleDraft.startTime;
             drafts.push(angleDraft);
             continue;
         }
 
-        const bracketDraft = buildPreciseLineDraft(line, collectTimestampMarkers(line, GLOBAL_LRC_TIME_REGEX));
+        const bracketDraft = maybeBuildPreciseLineDraft(line, GLOBAL_LRC_TIME_REGEX, line.indexOf('[', 1) !== -1);
         if (bracketDraft) {
+            if (bracketDraft.startTime < lastStartTime) {
+                isSorted = false;
+            }
+            lastStartTime = bracketDraft.startTime;
             drafts.push(bracketDraft);
             continue;
         }
 
         const simpleEntry = parseSimpleTimedTextEntry(line);
         if (simpleEntry) {
+            if (simpleEntry.startTime < lastStartTime) {
+                isSorted = false;
+            }
+            lastStartTime = simpleEntry.startTime;
             drafts.push({
                 words: [],
                 startTime: simpleEntry.startTime,
@@ -530,10 +659,14 @@ export const parseEnhancedLRC = (lrcString: string, translationString: string = 
         }
     }
 
-    drafts.sort((left, right) => left.startTime - right.startTime);
+    const sortedDrafts = sortByStartTimeIfNeeded(drafts, isSorted);
+    const translations = findTranslationsForSortedStartTimes(
+        sortedDrafts.map(draft => draft.startTime),
+        translationEntries
+    );
 
-    const lines: Line[] = drafts.map((draft, index) => {
-        let lineEndTime = Math.max(draft.endTime ?? drafts[index + 1]?.startTime ?? (draft.startTime + 5), draft.startTime + 0.001);
+    const lines: Line[] = sortedDrafts.map((draft, index) => {
+        let lineEndTime = Math.max(draft.endTime ?? sortedDrafts[index + 1]?.startTime ?? (draft.startTime + 5), draft.startTime + 0.001);
 
         const words = draft.words.length > 0
             ? draft.words.map((word, wordIndex) => {
@@ -557,7 +690,7 @@ export const parseEnhancedLRC = (lrcString: string, translationString: string = 
             startTime: draft.startTime,
             endTime: lineEndTime,
             fullText: draft.fullText,
-            translation: findClosestTranslation(translationEntries, draft.startTime)
+            translation: translations[index]
         };
     });
 

@@ -86,6 +86,20 @@ describe('parserCore', () => {
         expect(lyrics.lines[0].words.map(word => word.text)).toEqual(['A', 'B']);
     });
 
+    it('preserves parsing semantics for out-of-order LRC input after conditional sorting', () => {
+        const lyrics = parseLRC(
+            '[00:10.00]Second\n[00:04.00]First',
+            '[00:10.10]Deuxieme\n[00:04.20]Premier'
+        );
+
+        expect(lyrics.lines).toHaveLength(3);
+        expect(lyrics.lines[0].fullText).toBe('......');
+        expect(lyrics.lines[1].fullText).toBe('First');
+        expect(lyrics.lines[1].translation).toBe('Premier');
+        expect(lyrics.lines[2].fullText).toBe('Second');
+        expect(lyrics.lines[2].translation).toBe('Deuxieme');
+    });
+
     it('parses excerpted normal LRC lines from the Hello/How are you fixture', () => {
         const excerpt = [
             '[00:12.428]ハロ窓を開けて小さく呟いた',

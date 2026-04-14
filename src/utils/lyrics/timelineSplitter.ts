@@ -8,27 +8,37 @@ export function splitCombinedTimeline(rawText: string): { main: string, trans: s
 
     const extracted: Array<{
         raw: string,
-        timestamp: string,
+        timestampSignature: string,
         startTimestamp: string,
         isEnhancedLike: boolean,
     }> = [];
 
     for (const line of lines) {
-        const matches = [...line.matchAll(timeRegex)];
-        if (matches.length > 0) {
-            const tagsRaw = matches.map(m => m[0]).join('');
-            const startTimestamp = matches[0][0];
+        timeRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        let timestampSignature = '';
+        let startTimestamp = '';
+
+        while ((match = timeRegex.exec(line)) !== null) {
+            if (!startTimestamp) {
+                startTimestamp = match[0];
+            }
+            timestampSignature += match[0];
+        }
+
+        if (timestampSignature) {
+            const hasMultipleBracketTimestamps = line.indexOf('[', 1) !== -1;
 
             extracted.push({
                 raw: line,
-                timestamp: tagsRaw,
+                timestampSignature,
                 startTimestamp,
-                isEnhancedLike: enhancedAngleRegex.test(line) || enhancedBracketRegex.test(line)
+                isEnhancedLike: enhancedAngleRegex.test(line) || (hasMultipleBracketTimestamps && enhancedBracketRegex.test(line))
             });
         } else {
             extracted.push({
                 raw: line,
-                timestamp: '',
+                timestampSignature: '',
                 startTimestamp: '',
                 isEnhancedLike: false
             });
@@ -48,7 +58,7 @@ export function splitCombinedTimeline(rawText: string): { main: string, trans: s
         }
 
         const next = extracted[i + 1];
-        const isExactPair = current.timestamp !== '' && current.timestamp === next.timestamp;
+        const isExactPair = current.timestampSignature !== '' && current.timestampSignature === next.timestampSignature;
         const isEnhancedPair =
             current.startTimestamp !== '' &&
             current.startTimestamp === next.startTimestamp &&
