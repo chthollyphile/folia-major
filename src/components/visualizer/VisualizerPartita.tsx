@@ -1,12 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import { AnimatePresence, motion, MotionValue, useMotionValueEvent } from 'framer-motion';
+import React, { useMemo, useState, useEffect } from 'react';
+import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
-import { AudioBands, Line, Theme, Word as WordType } from '../../types';
+import { Line, Theme, Word as WordType, AudioBands } from '../../types';
 import { getLineRenderEndTime, getLineRenderHints } from '../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
-import FluidBackground from './FluidBackground';
 import GeometricBackground from './GeometricBackground';
+import FluidBackground from './FluidBackground';
+
+// Visualizer Partita
+
+// ─── Partita Tuning Parameters ───────────────────────────────────────────────
+/** Whether to render the cross-shaped guide lines on each chunk row */
+const PARTITA_SHOW_GUIDE_LINES = true;
+/** Horizontal stagger spread range [min, max] in px for chunk rows */
+const PARTITA_STAGGER_RANGE: [number, number] = [20, 100];
 
 interface VisualizerPartitaProps {
     currentTime: MotionValue<number>;
@@ -24,15 +32,56 @@ interface VisualizerPartitaProps {
     onBack?: () => void;
 }
 
-interface PartitaRenderProfile {
+interface WordLayoutConfig {
+    id: string;
+    x: number;
+    y: number;
+    rotate: number;
+    scale: number;
+    marginBottom: string;
+    alignSelf: string;
+    passedRotate: number;
+}
+
+interface LineLayoutConfig {
+    perspective: number;
+    justifyContent: string;
+    alignItems: string;
+    columnGap: string;
+}
+
+interface PartitaLineRenderProfile {
+    renderHints: NonNullable<Line['renderHints']> | null;
     lineRenderEndTime: number;
+    lineTransitionMode: 'normal' | 'fast' | 'none';
     wordRevealMode: 'normal' | 'fast' | 'instant';
     wordLookahead: number;
 }
 
-const isCJK = (text: string) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
+interface PartitaColumn {
+    id: string;
+    words: Array<{
+        chunkWords: WordType[];
+        config: WordLayoutConfig;
+        order: number;
+        rowIndex: number;
+    }>;
+}
 
-const resolvePartitaRenderProfile = (line: Line | null | undefined): PartitaRenderProfile | null => {
+const isCJK = (text: string) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
+const graphemeSegmenter = typeof Intl !== 'undefined'
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+const splitGraphemes = (text: string) => {
+    if (!text) return [] as string[];
+    if (graphemeSegmenter) {
+        return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
+    }
+    return Array.from(text);
+};
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const resolvePartitaLineRenderProfile = (line: Line | null | undefined): PartitaLineRenderProfile | null => {
     if (!line) {
         return null;
     }
@@ -41,13 +90,15 @@ const resolvePartitaRenderProfile = (line: Line | null | undefined): PartitaRend
     const wordRevealMode = renderHints?.wordRevealMode ?? 'normal';
 
     return {
+        renderHints,
         lineRenderEndTime: getLineRenderEndTime(line),
+        lineTransitionMode: renderHints?.lineTransitionMode ?? 'normal',
         wordRevealMode,
-        wordLookahead: wordRevealMode === 'instant' ? 0.03 : wordRevealMode === 'fast' ? 0.08 : 0.18,
+        wordLookahead: wordRevealMode === 'instant' ? 0.03 : wordRevealMode === 'fast' ? 0.08 : 0.15,
     };
 };
 
-const getPartitaWordActiveEndTime = (word: WordType, renderProfile: PartitaRenderProfile) => {
+const getPartitaWordActiveEndTime = (word: WordType, renderProfile: PartitaLineRenderProfile) => {
     if (renderProfile.wordRevealMode === 'instant') {
         return renderProfile.lineRenderEndTime;
     }
@@ -57,6 +108,52 @@ const getPartitaWordActiveEndTime = (word: WordType, renderProfile: PartitaRende
     }
 
     return word.endTime;
+};
+
+const getPartitaWordDisplayDuration = (word: WordType, renderProfile: PartitaLineRenderProfile) => {
+    const activeEndTime = getPartitaWordActiveEndTime(word, renderProfile);
+    const minDuration = renderProfile.wordRevealMode === 'instant'
+        ? 0.08
+        : renderProfile.wordRevealMode === 'fast'
+            ? 0.12
+            : 0.1;
+
+    return Math.max(activeEndTime - word.startTime, minDuration);
+};
+
+const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile | null) => {
+    if (renderProfile?.lineTransitionMode === 'none') {
+        return {
+            initial: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+            animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
+            exit: { opacity: 0, scale: 1.02, filter: 'blur(6px)', transition: { duration: 0.12, ease: 'easeOut' as const } },
+        };
+    }
+
+    if (renderProfile?.lineTransitionMode === 'fast') {
+        return {
+            initial: { opacity: 0.35, scale: 0.96, filter: 'blur(4px)' },
+            animate: {
+                opacity: 1,
+                scale: 1,
+                filter: 'blur(0px)',
+                transition: { duration: 0.16, ease: 'easeOut' as const },
+                transitionEnd: { filter: 'none' },
+            },
+            exit: {
+                opacity: 0,
+                scale: 1.04,
+                filter: 'blur(10px)',
+                transition: { duration: 0.16, ease: 'easeInOut' as const },
+            },
+        };
+    }
+
+    return {
+        initial: { opacity: 0, scale: 0.9, filter: 'blur(10px)' },
+        animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
+        exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
+    };
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
@@ -79,153 +176,409 @@ const getActiveColor = (wordText: string, theme: Theme) => {
     return matched?.color ?? theme.accentColor;
 };
 
+const getTargetColumnCount = (totalGraphemes: number, wordCount: number) => {
+    if (wordCount <= 2 || totalGraphemes <= 5) return 1;
+    if (totalGraphemes <= 10) return 2;
+    if (totalGraphemes <= 16) return 3;
+    if (totalGraphemes <= 24) return 4;
+    return 5;
+};
+
+const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number) => {
+    const intensity = theme.animationIntensity;
+    const isChaotic = intensity === 'chaotic';
+    const isCalm = intensity === 'calm';
+    const totalGraphemes = Math.max(splitGraphemes(line.fullText.replace(/\s+/g, '')).length, line.words.length, 1);
+
+    const columns: PartitaColumn[] = [];
+    let currentWords: PartitaColumn['words'] = [];
+
+    const baseRowHeight = 100;
+    const availableHeight = windowHeight * 0.65;
+    const targetRowCount = Math.max(1, Math.floor(availableHeight / baseRowHeight));
+    const actualRowCount = Math.min(line.words.length, targetRowCount);
+
+    let seed = line.startTime;
+    const random = () => {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+
+    const chunks: WordType[][] = [];
+    let remainingWords = line.words.length;
+    let remainingChunks = actualRowCount;
+    let wordIndex = 0;
+
+    for (let c = 0; c < actualRowCount; c++) {
+        const isLastChunk = c === actualRowCount - 1;
+        const avg = remainingWords / remainingChunks;
+
+        let chunkLength = 1;
+        if (isLastChunk) {
+            chunkLength = remainingWords;
+        } else {
+            const max = Math.ceil(avg * 1.5);
+            const min = 1;
+            const randVal = random();
+            chunkLength = Math.max(min, Math.min(max, Math.round(avg + (randVal - 0.5) * avg)));
+        }
+
+        chunkLength = Math.max(1, Math.min(chunkLength, remainingWords - (remainingChunks - 1)));
+
+        chunks.push(line.words.slice(wordIndex, wordIndex + chunkLength));
+        wordIndex += chunkLength;
+        remainingWords -= chunkLength;
+        remainingChunks--;
+    }
+
+    chunks.forEach((chunkWords, rowIndex) => {
+        if (chunkWords.length === 0) return;
+
+        const mergedTextForConfig = chunkWords.map(w => w.text.trim()).join('');
+        const graphemeCount = splitGraphemes(mergedTextForConfig.replace(/\s+/g, '')).length;
+        const rowBias = rowIndex - (actualRowCount - 1) / 2;
+
+        const isStaggeredLeft = rowIndex % 2 === 0;
+
+        const staggerMagnitude = isCalm ? 0 : PARTITA_STAGGER_RANGE[0] + random() * (PARTITA_STAGGER_RANGE[1] - PARTITA_STAGGER_RANGE[0]);
+        const staggerX = isStaggeredLeft ? -staggerMagnitude : staggerMagnitude;
+
+        const staggerScale = isCalm ? 1 : 0.8 + random() * 0.9;
+
+        currentWords.push({
+            chunkWords,
+            order: rowIndex,
+            rowIndex,
+            config: {
+                id: `${rowIndex}-${chunkWords[0].startTime}`,
+                x: staggerX,
+                y: isCalm ? 0 : rowBias * 2.5,
+                rotate: isChaotic ? (isStaggeredLeft ? -3 : 3) : 0,
+                scale: (isChaotic ? 1 + Math.min(graphemeCount * 0.01, 0.05) : 1) * staggerScale,
+                marginBottom: isChaotic ? '0.4rem' : '0.6rem',
+                alignSelf: 'center',
+                passedRotate: (rowIndex % 2 === 0 ? 1 : -1) * (isChaotic ? 6 : 3),
+            },
+        });
+    });
+
+    if (currentWords.length > 0) {
+        columns.push({
+            id: `column-${line.startTime}-0`,
+            words: currentWords,
+        });
+    }
+
+    return {
+        columns,
+        totalGraphemes,
+        lineConfig: {
+            perspective: theme.animationIntensity === 'chaotic' ? 720 : 1000,
+            alignItems: 'items-center',
+            justifyContent: 'justify-center',
+            columnGap: '2rem',
+        },
+    };
+};
+
+// Word component — exact clone of Classic's Word with full independent animation per word
 const PartitaWord: React.FC<{
     word: WordType;
+    config: WordLayoutConfig;
     currentTime: MotionValue<number>;
-    renderProfile: PartitaRenderProfile;
     theme: Theme;
-    fontSize: string;
+    layoutVariants: Variants;
+    bodyVariants: Variants;
+    glowVariants: Variants;
+    baseColor: string;
     activeColor: string;
-    index: number;
-}> = ({ word, currentTime, renderProfile, theme, fontSize, activeColor, index }) => {
+    renderProfile: PartitaLineRenderProfile;
+    isChorus?: boolean;
+    fontSize: string;
+}> = ({ word, config, currentTime, theme, layoutVariants, bodyVariants, glowVariants, baseColor, activeColor, renderProfile, isChorus, fontSize }) => {
     const [status, setStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
-    const [progress, setProgress] = useState(0);
+    const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
+    const duration = getPartitaWordDisplayDuration(word, renderProfile);
     const activeEndTime = getPartitaWordActiveEndTime(word, renderProfile);
-    const trimmedText = word.text.trim();
-    const displayText = trimmedText.length > 0 ? trimmedText : word.text;
-    const verticalWord = isCJK(displayText);
 
     useMotionValueEvent(currentTime, 'change', (latest: number) => {
-        const nextStatus = latest >= word.startTime - renderProfile.wordLookahead && latest <= activeEndTime
-            ? 'active'
-            : latest > activeEndTime
-                ? 'passed'
-                : 'waiting';
-        setStatus(prev => (prev === nextStatus ? prev : nextStatus));
-
-        const duration = Math.max(activeEndTime - word.startTime, 0.08);
-        const nextProgress = latest < word.startTime
-            ? 0
-            : latest > activeEndTime
-                ? 1
-                : Math.max(0, Math.min(1, (latest - word.startTime) / duration));
-        setProgress(prev => (Math.abs(prev - nextProgress) < 0.018 ? prev : nextProgress));
+        let newStatus: 'waiting' | 'active' | 'passed' = 'waiting';
+        if (latest >= word.startTime - renderProfile.wordLookahead && latest <= activeEndTime) {
+            newStatus = 'active';
+        } else if (latest > activeEndTime) {
+            newStatus = 'passed';
+        }
+        if (newStatus !== status) setStatus(newStatus);
     });
 
     return (
         <motion.div
-            initial={false}
-            animate={status === 'active'
-                ? {
-                    opacity: 1,
-                    scale: 1.08,
-                    x: 0,
-                    filter: 'blur(0px)',
-                }
-                : status === 'passed'
-                    ? {
-                        opacity: 0.56,
-                        scale: 0.98,
-                        x: -2,
-                        filter: 'blur(0px)',
-                    }
-                    : {
-                        opacity: 0.22,
-                        scale: 0.92,
-                        x: 10,
-                        filter: 'blur(6px)',
-                    }}
-            transition={{
-                type: status === 'active' ? 'spring' : 'tween',
-                stiffness: 260,
-                damping: 24,
-                duration: status === 'waiting' ? 0.22 : 0.28,
+            key={`${config.id}`}
+            custom={{
+                config,
+                activeColor,
+                baseColor,
+                duration,
+                wordRevealMode: renderProfile.wordRevealMode,
             }}
-            className="relative flex items-center justify-center"
+            variants={layoutVariants}
+            initial="waiting"
+            animate={status}
+            className="font-bold inline-block origin-center relative will-change-transform whitespace-nowrap"
             style={{
-                marginTop: index === 0 ? '0' : '0.55rem',
+                fontSize,
+                lineHeight: 1.22,
+                marginRight: '0.8rem',
             }}
         >
-            <div
-                className="absolute inset-0 rounded-[1.4rem] border"
-                style={{
-                    borderColor: status === 'active' ? `${activeColor}88` : 'rgba(255,255,255,0.06)',
-                    background: status === 'active'
-                        ? `linear-gradient(180deg, ${activeColor}1f 0%, rgba(255,255,255,0.03) 100%)`
-                        : 'rgba(255,255,255,0.03)',
-                    boxShadow: status === 'active'
-                        ? `0 0 26px ${activeColor}30, inset 0 0 0 1px ${activeColor}18`
-                        : 'none',
-                    transform: 'translateZ(0)',
-                }}
-            />
-            <div
-                className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full"
-                style={{
-                    width: '3px',
-                    height: `${Math.max(10, Math.round(34 * progress))}px`,
-                    background: activeColor,
-                    opacity: status === 'waiting' ? 0 : 0.9,
-                    boxShadow: `0 0 14px ${activeColor}`,
-                }}
-            />
-            <div
-                className="relative z-10 flex min-h-[5rem] min-w-[4.5rem] items-center justify-center px-3 py-5 font-semibold tracking-[0.08em]"
-                style={{
-                    color: status === 'active' ? activeColor : theme.primaryColor,
-                    fontSize,
-                    textShadow: status === 'active' ? `0 0 22px ${activeColor}55` : 'none',
-                }}
+            {/* Glow Layer */}
+            <span
+                className="absolute inset-0 select-none pointer-events-none block"
+                aria-hidden="true"
             >
-                <span
-                    className="block whitespace-pre"
-                    style={verticalWord
-                        ? {
-                            writingMode: 'vertical-rl',
-                            textOrientation: 'upright',
-                            letterSpacing: '0.14em',
-                        }
-                        : {
-                            display: 'inline-block',
-                            transform: 'rotate(90deg)',
-                            transformOrigin: 'center',
-                            letterSpacing: '0.12em',
-                        }}
-                >
-                    {displayText}
-                </span>
-            </div>
+                {!isCJK(word.text) && word.text.length > 1 ? (
+                    word.text.split('').map((char, index) => (
+                        <motion.span
+                            key={index}
+                            variants={glowVariants}
+                            custom={{ config, activeColor, baseColor, duration, index, total: word.text.length, wordRevealMode: renderProfile.wordRevealMode }}
+                        >
+                            {char}
+                        </motion.span>
+                    ))
+                ) : (
+                    <motion.span
+                        variants={glowVariants}
+                        custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
+                    >
+                        {word.text}
+                    </motion.span>
+                )}
+            </span>
+
+            {/* Body Layer */}
+            <motion.span
+                variants={bodyVariants}
+                custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
+                className="relative z-10 block"
+            >
+                {word.text}
+            </motion.span>
+
+            {/* Chorus Ripple */}
+            <AnimatePresence>
+                {isChorus && status === 'active' && (
+                    <motion.span
+                        key="ripple"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[150%] aspect-square rounded-full border-1 pointer-events-none z-0"
+                        style={{ borderColor: activeColor, filter: 'blur(1px)' }}
+                        initial={{ scale: 0.2, opacity: 0.8 }}
+                        animate={{ scale: rippleScale, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                    />
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };
 
-const ContextColumn: React.FC<{
-    line: Line;
+// Chunk — pure layout container, no animation. Only tracks status for guide line colors.
+const PartitaChunk: React.FC<{
+    chunkWords: WordType[];
+    config: WordLayoutConfig;
+    guideIndex: number;
+    currentTime: MotionValue<number>;
     theme: Theme;
+    layoutVariants: Variants;
+    bodyVariants: Variants;
+    glowVariants: Variants;
+    baseColor: string;
+    renderProfile: PartitaLineRenderProfile;
+    isChorus?: boolean;
     fontSize: string;
-}> = ({ line, theme, fontSize }) => (
-    <div
-        className="flex h-full items-center justify-center rounded-[2rem] border px-3 py-6"
-        style={{
-            borderColor: 'rgba(255,255,255,0.06)',
-            background: 'rgba(255,255,255,0.03)',
-            color: theme.secondaryColor,
-        }}
-    >
-        <div
-            className="max-h-full whitespace-pre-wrap"
+}> = ({ chunkWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, glowVariants, baseColor, renderProfile, isChorus, fontSize }) => {
+    const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
+
+    const chunkStartTime = chunkWords[0].startTime;
+    const chunkEndTime = getPartitaWordActiveEndTime(chunkWords[chunkWords.length - 1], renderProfile);
+
+    useMotionValueEvent(currentTime, 'change', (latest: number) => {
+        let newStatus: 'waiting' | 'active' | 'passed' = 'waiting';
+        if (latest >= chunkStartTime - renderProfile.wordLookahead && latest <= chunkEndTime) {
+            newStatus = 'active';
+        } else if (latest > chunkEndTime) {
+            newStatus = 'passed';
+        }
+        if (newStatus !== chunkStatus) setChunkStatus(newStatus);
+    });
+
+    const activeColor = getActiveColor(chunkWords.map(w => w.text).join(' '), theme);
+    const guidePosition = guideIndex % 2 === 0 ? 'left' : 'right';
+
+    return (
+        <motion.div
+            className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"
             style={{
-                writingMode: 'vertical-rl',
-                textOrientation: 'upright',
-                fontSize,
-                letterSpacing: '0.1em',
-                lineHeight: 1.5,
+                marginBottom: config.marginBottom,
+                alignSelf: config.alignSelf,
+                lineHeight: 1,
+                minWidth: 'auto',
+                minHeight: 'auto',
+                padding: '0.2rem 0.5rem',
+            }}
+            animate={{
+                opacity: chunkStatus === 'waiting' ? 0 : 1,
+                scale: chunkStatus === 'waiting' ? 0.85 : 1,
+                x: config.x,
+                y: config.y,
+                rotate: config.rotate,
+            }}
+            transition={chunkStatus === 'active' ? {
+                type: 'spring' as const,
+                stiffness: 200,
+                damping: 20,
+                opacity: { duration: 0.1 },
+            } : {
+                duration: 0.4,
+                ease: 'easeOut' as const,
             }}
         >
-            {line.fullText}
-        </div>
-    </div>
-);
+            {PARTITA_SHOW_GUIDE_LINES && guidePosition === 'left' && (
+                <>
+                    <motion.span
+                        className="absolute w-px pointer-events-none"
+                        style={{
+                            left: '-8px',
+                            bottom: '-12px',
+                            height: '32px',
+                            transformOrigin: 'bottom',
+                            backgroundColor: chunkStatus === 'active' ? activeColor : chunkStatus === 'passed' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)',
+                            boxShadow: chunkStatus === 'active' ? `0 0 10px ${activeColor}45` : 'none',
+                        }}
+                        animate={{
+                            scaleY: chunkStatus === 'waiting' ? 0 : 1,
+                            opacity: chunkStatus === 'waiting' ? 0 : 1,
+                        }}
+                        transition={{
+                            duration: 0.4,
+                            ease: 'easeOut' as const,
+                        }}
+                        aria-hidden="true"
+                    />
+                    <motion.span
+                        className="absolute h-px pointer-events-none"
+                        style={{
+                            left: '-16px',
+                            bottom: '-4px',
+                            width: 'calc(100% + 36px)',
+                            transformOrigin: 'left',
+                            backgroundColor: chunkStatus === 'active' ? activeColor : chunkStatus === 'passed' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)',
+                            boxShadow: chunkStatus === 'active' ? `0 0 10px ${activeColor}35` : 'none',
+                        }}
+                        animate={{
+                            scaleX: chunkStatus === 'waiting' ? 0 : 1,
+                            opacity: chunkStatus === 'waiting' ? 0 : 1,
+                        }}
+                        transition={{
+                            duration: 0.4,
+                            ease: 'easeOut' as const,
+                        }}
+                        aria-hidden="true"
+                    />
+                </>
+            )}
+            {PARTITA_SHOW_GUIDE_LINES && guidePosition === 'right' && (
+                <>
+                    <motion.span
+                        className="absolute w-px pointer-events-none"
+                        style={{
+                            right: '-8px',
+                            bottom: '-12px',
+                            height: '32px',
+                            transformOrigin: 'bottom',
+                            backgroundColor: chunkStatus === 'active' ? activeColor : chunkStatus === 'passed' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)',
+                            boxShadow: chunkStatus === 'active' ? `0 0 10px ${activeColor}45` : 'none',
+                        }}
+                        animate={{
+                            scaleY: chunkStatus === 'waiting' ? 0 : 1,
+                            opacity: chunkStatus === 'waiting' ? 0 : 1,
+                        }}
+                        transition={{
+                            duration: 0.4,
+                            ease: 'easeOut' as const,
+                        }}
+                        aria-hidden="true"
+                    />
+                    <motion.span
+                        className="absolute h-px pointer-events-none"
+                        style={{
+                            right: '-16px',
+                            bottom: '-4px',
+                            width: 'calc(100% + 36px)',
+                            transformOrigin: 'right',
+                            backgroundColor: chunkStatus === 'active' ? activeColor : chunkStatus === 'passed' ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)',
+                            boxShadow: chunkStatus === 'active' ? `0 0 10px ${activeColor}35` : 'none',
+                        }}
+                        animate={{
+                            scaleX: chunkStatus === 'waiting' ? 0 : 1,
+                            opacity: chunkStatus === 'waiting' ? 0 : 1,
+                        }}
+                        transition={{
+                            duration: 0.4,
+                            ease: 'easeOut' as const,
+                        }}
+                        aria-hidden="true"
+                    />
+                </>
+            )}
+
+            {chunkWords.map((w, idx) => {
+                // Per-word random offset only (chunk position is on the container)
+                const wordSeed = chunkWords[0].startTime + idx * 7.13;
+                const random = (offset: number) => {
+                    const x = Math.sin(wordSeed + offset) * 10000;
+                    return x - Math.floor(x);
+                };
+
+                const intensity = theme.animationIntensity;
+                const isCalm = intensity === 'calm';
+                const isChaotic = intensity === 'chaotic';
+                const baseSpread = isChaotic ? 15 : isCalm ? 0 : 6;
+                const baseRotate = isChaotic ? 8 : isCalm ? 0 : 3;
+
+                const wordConfig: WordLayoutConfig = {
+                    id: `${config.id}-w${idx}`,
+                    x: (random(1) - 0.5) * baseSpread * 2,
+                    y: (random(2) - 0.5) * baseSpread * 2,
+                    rotate: (random(3) - 0.5) * baseRotate * 2,
+                    scale: config.scale,
+                    marginBottom: '0',
+                    alignSelf: 'auto',
+                    passedRotate: (random(8) - 0.5) * 20,
+                };
+
+                return (
+                    <PartitaWord
+                        key={`${w.text}-${idx}`}
+                        word={w}
+                        config={wordConfig}
+                        currentTime={currentTime}
+                        theme={theme}
+                        layoutVariants={layoutVariants}
+                        bodyVariants={bodyVariants}
+                        glowVariants={glowVariants}
+                        baseColor={baseColor}
+                        activeColor={getActiveColor(w.text, theme)}
+                        renderProfile={renderProfile}
+                        isChorus={isChorus}
+                        fontSize={fontSize}
+                    />
+                );
+            })}
+        </motion.div>
+    );
+};
 
 const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolean; }> = ({
     currentTime,
@@ -245,12 +598,21 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
 }) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+    const [windowHeight, setWindowHeight] = useState(800);
+
+    useEffect(() => {
+        setWindowHeight(window.innerHeight);
+        const handleResize = () => setWindowHeight(window.innerHeight);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const currentTimeValue = currentTime.get();
     const activeLine = lines[currentLineIndex];
-    const renderProfile = resolvePartitaRenderProfile(activeLine);
+    const activeLineRenderProfile = activeLine ? resolvePartitaLineRenderProfile(activeLine) : null;
+    const activeLineContainerMotion = getPartitaLineContainerMotion(activeLineRenderProfile);
 
-    let recentCompletedLine: Line | null = null;
+    let recentCompletedLine = null;
     if (currentLineIndex === -1 && lines.length > 0) {
         for (let i = lines.length - 1; i >= 0; i--) {
             if (currentTimeValue > getLineRenderEndTime(lines[i])) {
@@ -260,15 +622,205 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
         }
     }
 
-    const nextLines = useMemo(() => lines.slice(currentLineIndex + 1, currentLineIndex + 3), [currentLineIndex, lines]);
+    const nextLines = lines.slice(currentLineIndex + 1, currentLineIndex + 3);
+    const fontClassName = theme.fontStyle === 'mono' ? 'font-mono' : theme.fontStyle === 'serif' ? 'font-serif' : 'font-sans';
     const resolvedFontFamily = resolveThemeFontStack(theme);
-    const mainFontSize = `clamp(${(1.18 * lyricsFontScale).toFixed(3)}rem, ${(2.35 * lyricsFontScale).toFixed(3)}vw, ${(1.72 * lyricsFontScale).toFixed(3)}rem)`;
-    const contextFontSize = `clamp(${(0.92 * lyricsFontScale).toFixed(3)}rem, ${(1.4 * lyricsFontScale).toFixed(3)}vw, ${(1.06 * lyricsFontScale).toFixed(3)}rem)`;
-    const translationFontSize = `clamp(${(0.98 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1.12 * lyricsFontScale).toFixed(3)}rem)`;
+
+    const sequentialLayout = useMemo(() => {
+        if (!activeLine) {
+            return {
+                columns: [] as PartitaColumn[],
+                totalGraphemes: 0,
+                lineConfig: {
+                    perspective: 1000,
+                    justifyContent: 'justify-center',
+                    alignItems: 'items-center',
+                    columnGap: '1.6rem',
+                },
+            };
+        }
+
+        return buildSequentialColumns(activeLine, theme, windowHeight);
+    }, [activeLine, theme, windowHeight]);
+
+    const densityScale = sequentialLayout.totalGraphemes > 40 ? 0.8 : 1;
+    const mainFontSize = `clamp(${(2.5 * densityScale * lyricsFontScale).toFixed(3)}rem, ${(5.5 * densityScale * lyricsFontScale).toFixed(3)}vw, ${(4.5 * densityScale * lyricsFontScale).toFixed(3)}rem)`;
+    const emptyFontSize = `clamp(${(1.2 * lyricsFontScale).toFixed(3)}rem, ${(2.8 * lyricsFontScale).toFixed(3)}vw, ${(1.9 * lyricsFontScale).toFixed(3)}rem)`;
+    const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
+    const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
+
+    const layoutVariants: Variants = {
+        waiting: ({ config }: any) => ({
+            opacity: 0,
+            scale: 0.5,
+            x: config.x + (Math.sin(config.y) * 100),
+            y: config.y + (Math.cos(config.x) * 50),
+            rotate: config.rotate + 20,
+            transition: { duration: 0.4 },
+        }),
+        active: ({ config }: any) => ({
+            opacity: 1,
+            scale: isNaN(config.scale) ? 1.5 : config.scale * 1.4,
+            x: config.x,
+            y: config.y,
+            rotate: config.rotate,
+            transition: {
+                type: 'spring' as const,
+                stiffness: 200,
+                damping: 20,
+                opacity: { duration: 0.1 },
+            },
+        }),
+        passed: ({ config }: any) => ({
+            opacity: theme.animationIntensity === 'chaotic' ? 0.9 : 0.82,
+            scale: config.scale || 1,
+            x: config.x,
+            y: config.y,
+            rotate: config.rotate + config.passedRotate,
+            transition: {
+                duration: 0.5,
+                rotate: {
+                    duration: 5,
+                    ease: 'linear',
+                },
+            },
+        }),
+    };
+
+    const bodyVariants: Variants = {
+        waiting: ({ baseColor }: any) => ({
+            color: baseColor,
+            filter: 'blur(10px)',
+            transition: { duration: 0.4 },
+        }),
+        active: ({ activeColor, duration, wordRevealMode }: any) => ({
+            color: activeColor,
+            filter: 'none',
+            transition: {
+                color: { duration: duration || 0.2, ease: 'linear' },
+                filter: { type: 'tween', duration: wordRevealMode === 'instant' ? 0.08 : wordRevealMode === 'fast' ? 0.12 : 0.2 },
+            },
+            transitionEnd: {
+                filter: 'none',
+            },
+        }),
+        passed: ({ baseColor, wordRevealMode }: any) => ({
+            color: baseColor,
+            filter: 'blur(0px)',
+            transition: {
+                color: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.24 : 0.8, ease: 'easeInOut' },
+                filter: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.2 : 0.5 },
+            },
+            transitionEnd: {
+                filter: 'none',
+            },
+        }),
+    };
+
+    const glowVariants: Variants = {
+        waiting: {
+            color: 'transparent',
+            textShadow: 'none',
+        },
+        active: ({ activeColor, duration, index, total, wordRevealMode }: any) => {
+            if (wordRevealMode === 'instant') {
+                return {
+                    color: 'transparent',
+                    textShadow: [
+                        'none',
+                        `0 0 14px ${activeColor}, 0 0 24px ${activeColor}`,
+                        'none',
+                    ],
+                    transition: {
+                        duration: Math.min(duration || 0.08, 0.12),
+                        times: [0, 0.35, 1],
+                        ease: 'easeOut',
+                    },
+                };
+            }
+
+            if (wordRevealMode === 'fast') {
+                return {
+                    color: 'transparent',
+                    textShadow: [
+                        'none',
+                        `0 0 18px ${activeColor}, 0 0 32px ${activeColor}`,
+                        'none',
+                    ],
+                    transition: {
+                        duration: Math.min(Math.max(duration || 0.12, 0.12), 0.2),
+                        times: [0, 0.4, 1],
+                        ease: 'easeInOut',
+                    },
+                };
+            }
+
+            // Letter-level sweep glow (Classic style)
+            if (total !== undefined && total > 1) {
+                const singleDuration = duration / total;
+                return {
+                    color: 'transparent',
+                    textShadow: [
+                        'none',
+                        `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
+                        'none',
+                    ],
+                    transition: {
+                        duration: singleDuration * 6,
+                        times: [0, 0.3, 1],
+                        delay: singleDuration * index,
+                        ease: 'easeInOut',
+                    },
+                };
+            }
+
+            // Single char / CJK: sustained glow (Classic style)
+            return {
+                color: 'transparent',
+                textShadow: [
+                    'none',
+                    `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
+                    `0 0 20px ${activeColor}, 0 0 40px ${activeColor}`,
+                ],
+                transition: {
+                    duration: (duration || 0.1),
+                    times: [0, 0.9, 1],
+                    ease: 'easeInOut',
+                },
+            };
+        },
+        passed: ({ wordRevealMode }: any) => ({
+            color: 'transparent',
+            textShadow: 'none',
+            transition: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.22 : 0.9, ease: 'easeOut' },
+        }),
+    };
+
+    const lyricContainerFloat = useMemo(() => {
+        const configByIntensity = {
+            calm: { distance: 10, duration: 8.5 },
+            normal: { distance: 14, duration: 7 },
+            chaotic: { distance: 18, duration: 5.8 },
+        } as const;
+
+        const { distance, duration } = configByIntensity[theme.animationIntensity];
+
+        return {
+            animate: {
+                y: [0, -distance, 0, distance * 0.45, 0],
+                scale: [1, 1.01, 1, 0.995, 1],
+            },
+            transition: {
+                duration,
+                repeat: Infinity,
+                ease: 'easeInOut' as const,
+            },
+        };
+    }, [theme.animationIntensity]);
 
     return (
         <div
-            className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative transition-colors duration-1000"
+            className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontClassName} transition-colors duration-1000`}
             style={{
                 backgroundColor: 'transparent',
                 fontFamily: resolvedFontFamily,
@@ -333,104 +885,110 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
                 </div>
             )}
 
-            <div className="absolute inset-y-12 left-1/2 z-10 hidden w-px -translate-x-1/2 bg-white/10 md:block" />
-            <div className="absolute inset-y-20 left-[30%] z-10 hidden w-px bg-white/5 lg:block" />
-            <div className="absolute inset-y-20 right-[30%] z-10 hidden w-px bg-white/5 lg:block" />
-
             <motion.div
-                className="relative z-20 flex h-[72vh] w-full items-center justify-center gap-4 px-4 sm:px-8 lg:gap-8"
-                animate={{
-                    y: [0, -8, 0, 6, 0],
-                }}
-                transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                }}
+                className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
+                animate={lyricContainerFloat.animate}
+                transition={lyricContainerFloat.transition}
             >
-                {showText && nextLines[1] && (
-                    <div className="hidden h-full max-h-[34rem] lg:block">
-                        <ContextColumn line={nextLines[1]} theme={theme} fontSize={contextFontSize} />
-                    </div>
-                )}
+                <AnimatePresence mode="popLayout">
+                    {showText && activeLine && activeLineRenderProfile && (
+                        <motion.div
+                            key={activeLine.startTime}
+                            initial={activeLineContainerMotion.initial}
+                            animate={activeLineContainerMotion.animate}
+                            exit={activeLineContainerMotion.exit}
+                            className="flex flex-row-reverse items-stretch justify-center w-full max-w-5xl"
+                            style={{
+                                perspective: `${sequentialLayout.lineConfig.perspective}px`,
+                                gap: sequentialLayout.lineConfig.columnGap,
+                                minHeight: '320px',
+                            }}
+                        >
+                            {sequentialLayout.columns.map((column) => {
+                                return (
+                                    <div
+                                        key={column.id}
+                                        className="relative flex min-h-[24rem] min-w-[3.8rem] items-center justify-center px-3"
+                                    >
+                                        <div className="relative z-10 flex flex-col items-center justify-start">
+                                            {column.words.map(({ chunkWords, config, order, rowIndex }) => (
+                                                <PartitaChunk
+                                                    key={`${config.id}`}
+                                                    chunkWords={chunkWords}
+                                                    config={config}
+                                                    guideIndex={rowIndex}
+                                                    currentTime={currentTime}
+                                                    theme={theme}
+                                                    layoutVariants={layoutVariants}
+                                                    bodyVariants={bodyVariants}
+                                                    glowVariants={glowVariants}
+                                                    baseColor={theme.primaryColor}
+                                                    renderProfile={activeLineRenderProfile}
+                                                    isChorus={activeLine.isChorus}
+                                                    fontSize={mainFontSize}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </motion.div>
+                    )}
 
-                {showText && nextLines[0] && (
-                    <div className="hidden h-full max-h-[38rem] md:block">
-                        <ContextColumn line={nextLines[0]} theme={theme} fontSize={contextFontSize} />
-                    </div>
-                )}
+                    {showText && !activeLine && (
+                        <motion.div
+                            key="empty"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-2xl opacity-50 absolute"
+                            style={{
+                                color: theme.secondaryColor,
+                                fontSize: emptyFontSize,
+                            }}
+                        >
+                            {t('ui.waitingForMusic')}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
 
-                <div className="relative flex h-full min-w-[11rem] max-w-[22rem] flex-col items-center justify-center">
-                    <div
-                        className="absolute inset-0 rounded-[2.2rem] border backdrop-blur-[14px]"
-                        style={{
-                            borderColor: 'rgba(255,255,255,0.08)',
-                            background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                            boxShadow: `0 30px 80px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255,255,255,0.06)`,
-                        }}
-                    />
-                    <AnimatePresence mode="wait">
-                        {showText && activeLine && renderProfile ? (
+            <AnimatePresence>
+                {showText && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 0.6, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="absolute bottom-28 w-full text-center space-y-2 px-4 z-20 pointer-events-none"
+                    >
+                        {(activeLine?.translation || recentCompletedLine?.translation) ? (
                             <motion.div
-                                key={activeLine.startTime}
-                                initial={{ opacity: 0, y: 18, scale: 0.96, filter: 'blur(8px)' }}
-                                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                                exit={{ opacity: 0, y: -18, scale: 1.04, filter: 'blur(12px)' }}
-                                transition={{ duration: 0.3, ease: 'easeOut' }}
-                                className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-8 sm:px-5"
-                            >
-                                <div className="mb-4 text-[10px] uppercase tracking-[0.34em] text-white/40">
-                                    Partita
-                                </div>
-                                <div className="flex max-h-full flex-col items-center justify-center overflow-hidden">
-                                    {activeLine.words.map((word, index) => (
-                                        <PartitaWord
-                                            key={`${activeLine.startTime}-${index}-${word.text}`}
-                                            word={word}
-                                            currentTime={currentTime}
-                                            renderProfile={renderProfile}
-                                            theme={theme}
-                                            fontSize={mainFontSize}
-                                            activeColor={getActiveColor(word.text, theme)}
-                                            index={index}
-                                        />
-                                    ))}
-                                </div>
-                            </motion.div>
-                        ) : showText ? (
-                            <motion.div
-                                key="partita-empty"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 0.55 }}
+                                key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0 }}
-                                className="relative z-10 flex h-full items-center justify-center px-6 text-center"
+                                className="font-medium max-w-4xl mx-auto"
                                 style={{
                                     color: theme.secondaryColor,
                                     fontSize: translationFontSize,
                                 }}
                             >
-                                {t('ui.waitingForMusic')}
+                                {activeLine?.translation || recentCompletedLine?.translation}
                             </motion.div>
-                        ) : null}
-                    </AnimatePresence>
-                </div>
-            </motion.div>
-
-            <AnimatePresence>
-                {showText && (activeLine?.translation || recentCompletedLine?.translation) && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 12 }}
-                        className="absolute bottom-10 left-1/2 z-20 w-[min(78vw,36rem)] -translate-x-1/2 rounded-[1.4rem] border px-5 py-3 text-center backdrop-blur-md"
-                        style={{
-                            borderColor: 'rgba(255,255,255,0.08)',
-                            background: 'rgba(0,0,0,0.22)',
-                            color: theme.secondaryColor,
-                            fontSize: translationFontSize,
-                        }}
-                    >
-                        {activeLine?.translation || recentCompletedLine?.translation}
+                        ) : (
+                            activeLine && nextLines.map((line, index) => (
+                                <p
+                                    key={index}
+                                    className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
+                                    style={{
+                                        color: theme.secondaryColor,
+                                        fontSize: upcomingFontSize,
+                                    }}
+                                >
+                                    {line.fullText}
+                                </p>
+                            ))
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
