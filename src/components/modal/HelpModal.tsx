@@ -884,6 +884,9 @@ const HelpModal: React.FC<HelpModalProps> = ({
                     backgroundOpacity={backgroundOpacity}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
+                    lyricsFontStyle={lyricsFontStyle}
+                    lyricsFontScale={lyricsFontScale}
+                    lyricsCustomFontFamily={lyricsCustomFontFamily}
                     onSaveTheme={(dualTheme) => {
                         onSaveCustomTheme(dualTheme);
                         setShowThemePark(false);

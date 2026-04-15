@@ -27,6 +27,9 @@ interface ThemeParkProps {
     backgroundOpacity?: number;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
+    lyricsFontStyle: Theme['fontStyle'];
+    lyricsFontScale: number;
+    lyricsCustomFontFamily?: string | null;
     onClose: () => void;
     onSaveTheme: (dualTheme: DualTheme) => void;
 }
@@ -72,50 +75,52 @@ const createCharacterWords = (text: string, startTime: number, endTime: number) 
     }));
 };
 
+const createTokenWords = (tokens: string[], startTime: number, endTime: number) => {
+    const duration = endTime - startTime;
+
+    return tokens.map((token, index) => ({
+        text: token,
+        startTime: startTime + duration * (index / tokens.length),
+        endTime: startTime + duration * ((index + 1) / tokens.length),
+    }));
+};
+
 const PREVIEW_LINES: Line[] = [
     {
         startTime: 0.7,
         endTime: 3.6,
-        fullText: 'この愛は、すべての太陽を織り上げた。',
-        translation: '这份爱编织了所有的太阳。',
-        words: createCharacterWords('この愛は、すべての太陽を織り上げた。', 0.7, 3.6),
+        fullText: '詩情を持たずとも、あなたを現実へと導くその神文の詩を紡ぐ。',
+        translation: '编织那没有诗意，却能将你带到现实的神文之诗。',
+        words: createCharacterWords('詩情を持たずとも、あなたを現実へと導くその神文の詩を紡ぐ。', 0.7, 3.6),
     },
     {
         startTime: 4.2,
         endTime: 7.2,
-        fullText: 'This love has woven all the suns.',
-        translation: '这份爱编织了所有的太阳。',
-        words: [
-            { text: 'This', startTime: 4.2, endTime: 4.7 },
-            { text: 'love', startTime: 4.7, endTime: 5.15 },
-            { text: 'has', startTime: 5.15, endTime: 5.55 },
-            { text: 'woven', startTime: 5.55, endTime: 6.1 },
-            { text: 'all', startTime: 6.1, endTime: 6.45 },
-            { text: 'the', startTime: 6.45, endTime: 6.7 },
-            { text: 'suns.', startTime: 6.7, endTime: 7.2 },
-        ],
+        fullText: 'Weave that poem of divine words, devoid of poetry, yet capable of bringing you to reality.',
+        translation: '编织那没有诗意，却能将你带到现实的神文之诗。',
+        words: createTokenWords(
+            ['Weave', 'that', 'poem', 'of', 'divine', 'words', 'devoid', 'of', 'poetry,', 'yet', 'capable', 'of', 'bringing', 'you', 'to', 'reality.'],
+            4.2,
+            7.2,
+        ),
     },
     {
         startTime: 7.8,
         endTime: 10.9,
-        fullText: 'Cet amour a tisse tous les soleils.',
-        translation: '这份爱编织了所有的太阳。',
-        words: [
-            { text: 'Cet', startTime: 7.8, endTime: 8.25 },
-            { text: 'amour', startTime: 8.25, endTime: 8.85 },
-            { text: 'a', startTime: 8.85, endTime: 9.05 },
-            { text: 'tisse', startTime: 9.05, endTime: 9.6 },
-            { text: 'tous', startTime: 9.6, endTime: 10.05 },
-            { text: 'les', startTime: 10.05, endTime: 10.35 },
-            { text: 'soleils.', startTime: 10.35, endTime: 10.9 },
-        ],
+        fullText: "Tisser ce poème de mots divins, dénué de poésie, mais capable de t'amener à la réalité.",
+        translation: '编织那没有诗意，却能将你带到现实的神文之诗。',
+        words: createTokenWords(
+            ['Tisser', 'ce', 'poème', 'de', 'mots', 'divins,', 'dénué', 'de', 'poésie,', 'mais', 'capable', 'de', "t'amener", 'à', 'la', 'réalité.'],
+            7.8,
+            10.9,
+        ),
     },
     {
         startTime: 11.5,
         endTime: 14.4,
-        fullText: '这份爱编织了所有的太阳。',
-        translation: '这份爱编织了所有的太阳。',
-        words: createCharacterWords('这份爱编织了所有的太阳。', 11.5, 14.4),
+        fullText: '编织那没有诗意，却能将你带到现实的神文之诗。',
+        translation: '编织那没有诗意，却能将你带到现实的神文之诗。',
+        words: createCharacterWords('编织那没有诗意，却能将你带到现实的神文之诗。', 11.5, 14.4),
     },
 ];
 
@@ -144,6 +149,7 @@ const ThemePreviewLayer: React.FC<{
     backgroundOpacity: number;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
+    lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
     audioPower: ReturnType<typeof useMotionValue<number>>;
@@ -160,6 +166,7 @@ const ThemePreviewLayer: React.FC<{
     backgroundOpacity,
     cadenzaTuning,
     partitaTuning,
+    lyricsFontScale,
     currentTime,
     currentLineIndex,
     audioPower,
@@ -195,7 +202,7 @@ const ThemePreviewLayer: React.FC<{
                         showText
                         staticMode={staticMode}
                         backgroundOpacity={backgroundOpacity}
-                        lyricsFontScale={1}
+                        lyricsFontScale={lyricsFontScale}
                         seed={`theme-park-${mode}-classic`}
                     />
                 ) : visualizerMode === 'cadenza' ? (
@@ -210,7 +217,7 @@ const ThemePreviewLayer: React.FC<{
                         staticMode={staticMode}
                         backgroundOpacity={backgroundOpacity}
                         cadenzaTuning={cadenzaTuning}
-                        lyricsFontScale={1}
+                        lyricsFontScale={lyricsFontScale}
                         seed={`theme-park-${mode}-cadenza`}
                     />
                 ) : (
@@ -225,7 +232,7 @@ const ThemePreviewLayer: React.FC<{
                         staticMode={staticMode}
                         backgroundOpacity={backgroundOpacity}
                         partitaTuning={partitaTuning}
-                        lyricsFontScale={1}
+                        lyricsFontScale={lyricsFontScale}
                         seed={`theme-park-${mode}-partita`}
                     />
                 )}
@@ -282,6 +289,7 @@ const DiagonalThemePreview: React.FC<{
     backgroundOpacity: number;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
+    lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
     audioPower: ReturnType<typeof useMotionValue<number>>;
@@ -297,6 +305,7 @@ const DiagonalThemePreview: React.FC<{
     backgroundOpacity,
     cadenzaTuning,
     partitaTuning,
+    lyricsFontScale,
     currentTime,
     currentLineIndex,
     audioPower,
@@ -335,6 +344,7 @@ const DiagonalThemePreview: React.FC<{
                 backgroundOpacity={backgroundOpacity}
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
+                lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
                 audioPower={audioPower}
@@ -352,6 +362,7 @@ const DiagonalThemePreview: React.FC<{
                 backgroundOpacity={backgroundOpacity}
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
+                lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
                 audioPower={audioPower}
@@ -372,6 +383,9 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     backgroundOpacity = 0.75,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
+    lyricsFontStyle,
+    lyricsFontScale,
+    lyricsCustomFontFamily,
     onClose,
     onSaveTheme,
 }) => {
@@ -446,6 +460,18 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const activeTheme = draftTheme[pickerState.mode];
     const activeColor = activeTheme[pickerState.key];
     const pickerField = COLOR_FIELDS.find(field => field.key === pickerState.key) ?? COLOR_FIELDS[0];
+    const previewTheme = useMemo<DualTheme>(() => ({
+        light: {
+            ...draftTheme.light,
+            fontStyle: lyricsFontStyle,
+            fontFamily: lyricsCustomFontFamily ?? undefined,
+        },
+        dark: {
+            ...draftTheme.dark,
+            fontStyle: lyricsFontStyle,
+            fontFamily: lyricsCustomFontFamily ?? undefined,
+        },
+    }), [draftTheme, lyricsCustomFontFamily, lyricsFontStyle]);
 
     const updateColor = (mode: EditableMode, key: EditableColorKey, value: string) => {
         setDraftTheme(previous => ({
@@ -520,8 +546,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                 <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_380px] lg:items-stretch">
                     <div className="min-h-[300px] lg:min-h-0 lg:h-full">
                         <DiagonalThemePreview
-                            lightTheme={draftTheme.light}
-                            darkTheme={draftTheme.dark}
+                            lightTheme={previewTheme.light}
+                            darkTheme={previewTheme.dark}
                             activeMode={pickerState.mode}
                             visualizerMode={visualizerMode}
                             visualizerModeLabel={visualizerModeLabel}
@@ -529,6 +555,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             backgroundOpacity={backgroundOpacity}
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
+                            lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}
                             audioPower={audioPower}
