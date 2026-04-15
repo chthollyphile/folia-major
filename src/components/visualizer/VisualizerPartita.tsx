@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
@@ -62,6 +62,27 @@ interface PartitaColumn {
         rowIndex: number;
     }>;
 }
+
+interface PartitaSequentialLayout {
+    columns: PartitaColumn[];
+    totalGraphemes: number;
+    lineConfig: LineLayoutConfig;
+}
+
+const EMPTY_PARTITA_LAYOUT: PartitaSequentialLayout = {
+    columns: [],
+    totalGraphemes: 0,
+    lineConfig: {
+        perspective: 1000,
+        justifyContent: 'justify-center',
+        alignItems: 'items-center',
+        columnGap: '1.6rem',
+    },
+};
+
+const PARTITA_LAYOUT_CACHE_LIMIT = 48;
+const PARTITA_PREHEAT_MIN_LEAD = 0.18;
+const PARTITA_PREHEAT_MAX_LEAD = 1.2;
 
 const isCJK = (text: string) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
 const graphemeSegmenter = typeof Intl !== 'undefined'
@@ -193,7 +214,7 @@ const getTargetColumnCount = (totalGraphemes: number, wordCount: number) => {
     return 5;
 };
 
-const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, tuning: PartitaTuning) => {
+const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, tuning: PartitaTuning): PartitaSequentialLayout => {
     const intensity = theme.animationIntensity;
     const isChaotic = intensity === 'chaotic';
     const isCalm = intensity === 'calm';
@@ -290,6 +311,52 @@ const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, 
             columnGap: '2rem',
         },
     };
+};
+
+const buildPartitaLayoutCacheKey = (
+    line: Line,
+    theme: Theme,
+    windowHeight: number,
+    tuning: PartitaTuning
+) => {
+    const windowHeightBucket = Math.round(windowHeight / 24);
+    return [
+        line.startTime,
+        line.endTime,
+        line.words.length,
+        line.fullText,
+        theme.animationIntensity,
+        windowHeightBucket,
+        tuning.staggerMin,
+        tuning.staggerMax,
+        tuning.showGuideLines ? 1 : 0,
+    ].join('|');
+};
+
+const getOrBuildPartitaLayout = (
+    cache: Map<string, PartitaSequentialLayout>,
+    line: Line,
+    theme: Theme,
+    windowHeight: number,
+    tuning: PartitaTuning
+): PartitaSequentialLayout => {
+    const cacheKey = buildPartitaLayoutCacheKey(line, theme, windowHeight, tuning);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const layout = buildSequentialColumns(line, theme, windowHeight, tuning);
+    cache.set(cacheKey, layout);
+
+    if (cache.size > PARTITA_LAYOUT_CACHE_LIMIT) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey) {
+            cache.delete(oldestKey);
+        }
+    }
+
+    return layout;
 };
 
 // Word component — exact clone of Classic's Word with full independent animation per word
@@ -615,6 +682,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
     const [showBackButton, setShowBackButton] = useState(false);
     const [windowHeight, setWindowHeight] = useState(800);
     const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
+    const layoutCacheRef = useRef<Map<string, PartitaSequentialLayout>>(new Map());
 
     useEffect(() => {
         setWindowHeight(window.innerHeight);
@@ -644,20 +712,30 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
 
     const sequentialLayout = useMemo(() => {
         if (!activeLine) {
-            return {
-                columns: [] as PartitaColumn[],
-                totalGraphemes: 0,
-                lineConfig: {
-                    perspective: 1000,
-                    justifyContent: 'justify-center',
-                    alignItems: 'items-center',
-                    columnGap: '1.6rem',
-                },
-            };
+            return EMPTY_PARTITA_LAYOUT;
         }
 
-        return buildSequentialColumns(activeLine, theme, windowHeight, resolvedPartitaTuning);
+        return getOrBuildPartitaLayout(layoutCacheRef.current, activeLine, theme, windowHeight, resolvedPartitaTuning);
     }, [activeLine, theme, windowHeight, resolvedPartitaTuning]);
+
+    const nextLineRef = useRef<Line | undefined>(nextLines[0]);
+    useEffect(() => {
+        nextLineRef.current = nextLines[0];
+    }, [nextLines]);
+
+    useMotionValueEvent(currentTime, 'change', (latest: number) => {
+        const nextLine = nextLineRef.current;
+        if (!nextLine) {
+            return;
+        }
+
+        const leadTime = nextLine.startTime - latest;
+        if (leadTime < PARTITA_PREHEAT_MIN_LEAD || leadTime > PARTITA_PREHEAT_MAX_LEAD) {
+            return;
+        }
+
+        getOrBuildPartitaLayout(layoutCacheRef.current, nextLine, theme, windowHeight, resolvedPartitaTuning);
+    });
 
     const densityScale = sequentialLayout.totalGraphemes > 40 ? 0.8 : 1;
     const mainFontSize = `clamp(${(2.5 * densityScale * lyricsFontScale).toFixed(3)}rem, ${(5.5 * densityScale * lyricsFontScale).toFixed(3)}vw, ${(4.5 * densityScale * lyricsFontScale).toFixed(3)}rem)`;
