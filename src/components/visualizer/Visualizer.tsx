@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft } from 'lucide-react';
 import { Line, Theme, Word as WordType, AudioBands } from '../../types';
 import { getLineRenderEndTime, getLineRenderHints } from '../../utils/lyrics/renderHints';
-import { resolveThemeFontStack } from '../../utils/fontStacks';
-import GeometricBackground from './GeometricBackground';
-import FluidBackground from './FluidBackground';
+import { useVisualizerRuntime } from './runtime';
+import VisualizerShell from './VisualizerShell';
+import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
 
 // Visualizer classic
 interface VisualizerProps {
@@ -255,32 +254,20 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     onBack
 }) => {
     const { t } = useTranslation();
-    const [showBackButton, setShowBackButton] = useState(false);
-
-    // Read current time directly from MotionValue (no state, no re-renders)
-    const currentTimeValue = currentTime.get();
-
-    const activeLine = lines[currentLineIndex];
+    const {
+        activeLine,
+        recentCompletedLine,
+        nextLines,
+    } = useVisualizerRuntime({
+        currentTime,
+        currentLineIndex,
+        lines,
+        getLineEndTime: getLineRenderEndTime,
+    });
     const activeLineRenderProfile = activeLine ? resolveClassicLineRenderProfile(activeLine) : null;
     const activeWordRenderProfile = activeLineRenderProfile ?? (activeLine ? resolveClassicLineRenderProfile(activeLine) : null);
     const activeLineContainerMotion = getClassicLineContainerMotion(activeLineRenderProfile);
 
-    // Find the most recent completed lyric (for translation display during breaks)
-    let recentCompletedLine = null;
-    if (currentLineIndex === -1 && lines.length > 0) {
-        for (let i = lines.length - 1; i >= 0; i--) {
-            if (currentTimeValue > getLineRenderEndTime(lines[i])) {
-                recentCompletedLine = lines[i];
-                break;
-            }
-        }
-    }
-
-    // Find recent previous and next lines for context subtitles
-    const nextLines = lines.slice(currentLineIndex + 1, currentLineIndex + 3);
-
-    const fontClassName = theme.fontStyle === 'mono' ? 'font-mono' : theme.fontStyle === 'serif' ? 'font-serif' : 'font-sans';
-    const resolvedFontFamily = resolveThemeFontStack(theme);
     const mainFontSize = `clamp(${(2.25 * lyricsFontScale).toFixed(3)}rem, ${(6 * lyricsFontScale).toFixed(3)}vw, ${(4.5 * lyricsFontScale).toFixed(3)}rem)`;
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
@@ -525,72 +512,17 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     }, [theme.animationIntensity]);
 
     return (
-        <div
-            className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontClassName} transition-colors duration-1000`}
-            style={{
-                backgroundColor: 'transparent',
-                fontFamily: resolvedFontFamily,
-            }} // Main bg transparent to show fluid
-            onMouseMove={(event) => {
-                const nearBackArea = event.clientX <= 120 && event.clientY <= 120;
-                if (nearBackArea !== showBackButton) {
-                    setShowBackButton(nearBackArea);
-                }
-            }}
-            onMouseLeave={() => {
-                if (showBackButton) {
-                    setShowBackButton(false);
-                }
-            }}
+        <VisualizerShell
+            theme={theme}
+            audioPower={audioPower}
+            audioBands={audioBands}
+            coverUrl={coverUrl}
+            useCoverColorBg={useCoverColorBg}
+            seed={seed}
+            staticMode={staticMode}
+            backgroundOpacity={backgroundOpacity}
+            onBack={onBack}
         >
-            {onBack && (
-                <motion.button
-                    type="button"
-                    aria-label={t('ui.backToHome')}
-                    initial={false}
-                    animate={{
-                        opacity: showBackButton ? 1 : 0,
-                        scale: showBackButton ? 1 : 0.92,
-                        x: showBackButton ? 0 : -6,
-                    }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onBack();
-                    }}
-                    className="absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
-                    style={{ pointerEvents: showBackButton ? 'auto' : 'none' }}
-                >
-                    <ChevronLeft size={20} />
-                </motion.button>
-            )}
-
-            <AnimatePresence>
-                {useCoverColorBg && (
-                    <motion.div
-                        key="fluid-bg"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
-                        className="absolute inset-0 z-0"
-                    >
-                        <FluidBackground coverUrl={coverUrl} theme={theme} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div
-                className="absolute inset-0 z-0 transition-all duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
-            />
-
-            {!staticMode && (
-                <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
-                </div>
-            )}
-
             {/* Main Container */}
             <motion.div
                 className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"
@@ -669,49 +601,16 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 </AnimatePresence>
             </motion.div>
 
-            {/* Subtitles (Future lines OR Translation) */}
-            <AnimatePresence>
-                {showText && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 0.6, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="absolute bottom-28 w-full text-center space-y-2 px-4 z-20 pointer-events-none"
-                    >
-                        {/* Show translation of active line OR recent completed line */}
-                        {(activeLine?.translation || recentCompletedLine?.translation) ? (
-                            <motion.div
-                                key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="font-medium max-w-4xl mx-auto"
-                                style={{
-                                    color: theme.secondaryColor,
-                                    fontSize: translationFontSize,
-                                }}
-                            >
-                                {activeLine?.translation || recentCompletedLine?.translation}
-                            </motion.div>
-                        ) : (
-                            /* Show next lines only when there's an active line (not during breaks) */
-                            activeLine && nextLines.map((line, i) => (
-                                <p
-                                    key={i}
-                                    className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
-                                    style={{
-                                        color: theme.secondaryColor,
-                                        fontSize: upcomingFontSize,
-                                    }}
-                                >
-                                    {line.fullText}
-                                </p>
-                            ))
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+            <VisualizerSubtitleOverlay
+                showText={showText}
+                activeLine={activeLine}
+                recentCompletedLine={recentCompletedLine}
+                nextLines={nextLines}
+                theme={theme}
+                translationFontSize={translationFontSize}
+                upcomingFontSize={upcomingFontSize}
+            />
+        </VisualizerShell>
     );
 };
 

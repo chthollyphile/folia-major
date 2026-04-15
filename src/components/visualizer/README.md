@@ -7,6 +7,9 @@
 - `Visualizer.tsx`: 经典流光模式
 - `VisualizerCadenza.tsx`: 心象模式
 - `VisualizerPartita.tsx`: 云阶模式
+- `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
+- `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
+- `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
 - `GeometricBackground.tsx`: 通用几何背景
 - `FluidBackground.tsx`: 封面取色流体背景
 - `VisPlayground.tsx`: 可视化预览和样式设置面板
@@ -114,23 +117,82 @@ export default VisualizerFoo;
 
 只有在传入 `onBack` 时才显示返回按钮。
 
+## 当前模块化架构
+
+当前目录已经开始按“共享基座 + 各自 renderer”组织，而不是每个 visualizer 都各写一整棵树。
+
+### 1. 共享壳层
+
+- `VisualizerShell.tsx`
+  负责：
+  - 根容器
+  - 返回按钮显隐与点击
+  - `FluidBackground`
+  - 背景底色
+  - `GeometricBackground`
+  - `staticMode` / `useCoverColorBg` / `backgroundOpacity` 这些通用外层行为
+
+### 2. 共享 runtime
+
+- `runtime.ts`
+  当前提供的共享能力包括：
+  - `useVisualizerRuntime(...)`
+    统一计算：
+    - `activeLine`
+    - `recentCompletedLine`
+    - `upcomingLine`
+    - `nextLines`
+  - `getRecentCompletedLine(...)`
+  - `getUpcomingLine(...)`
+  - `getUpcomingLines(...)`
+  - `shouldPreheatLine(...)`
+  - `prepareActiveAndUpcoming(...)`
+
+这层的目标是统一“播放器运行时上下文”，而不是统一具体的 renderer 细节。
+
+### 3. 共享字幕层
+
+- `VisualizerSubtitleOverlay.tsx`
+  负责：
+  - 当前句翻译显示
+  - 空窗期最近完成句翻译显示
+  - 下一句 / 下两句提示显示
+
+### 4. renderer 层
+
+每个 visualizer 仍然保留自己的主歌词渲染引擎：
+
+- `Visualizer.tsx`
+  DOM + Framer Motion 的自由散点词布局
+- `VisualizerPartita.tsx`
+  DOM + Framer Motion 的分列 / 分块布局
+- `VisualizerCadenza.tsx`
+  canvas + DOM overlay 的重型排版 / 动画引擎
+
+不要把这三种 renderer 强行揉成一个统一组件。共享的是壳层、runtime、字幕层、预热入口，不是具体渲染算法。
+
 ## 推荐的内部结构
 
-大多数 visualizer 都遵循类似层级：
+新 visualizer 推荐保留下面这层组合关系：
 
-1. 根容器：全屏 `div`
-2. 返回按钮层：依赖 `onBack`
-3. 封面流体背景层：`FluidBackground`
-4. 底色层：`theme.backgroundColor`
-5. 几何背景层：`GeometricBackground`
-6. 主歌词层
-7. 翻译/下一句提示层
+1. `VisualizerShell`
+2. renderer 主歌词层
+3. `VisualizerSubtitleOverlay`
 
-推荐保留这套层次，这样新模式不会破坏现有的整体体验。
+也就是：
+
+```tsx
+<VisualizerShell ...>
+    <YourRenderer ... />
+    <VisualizerSubtitleOverlay ... />
+</VisualizerShell>
+```
+
+这样可以保证新增模式自动继承现有播放器体验，而不会把背景、按钮、字幕、空态逻辑再复制一遍。
 
 ## 推荐复用的工具和方法
 
-实现新 visualizer 时，优先复用现有歌词渲染辅助工具，而不是自己再发明一套时序逻辑。
+实现新 visualizer 时，优先复用现有共享层和歌词渲染辅助工具，而不是自己再发明一套外层 runtime。
 
 常用工具：
 
@@ -143,6 +205,19 @@ export default VisualizerFoo;
 - `resolveThemeFontStack`
   作用：根据主题和自定义字体解析实际 `font-family`
 
+常用共享模块：
+
+- `VisualizerShell`
+  作用：复用背景、返回按钮、外层容器
+- `VisualizerSubtitleOverlay`
+  作用：复用底部翻译 / 下一句提示
+- `useVisualizerRuntime`
+  作用：统一当前句、最近完成句、下一句和预热上下文
+- `shouldPreheatLine`
+  作用：统一“是否进入预热窗口”的判断
+- `prepareActiveAndUpcoming`
+  作用：在 renderer 内部统一“当前句 + 下一句”的预备流程
+
 如果新模式也有“逐词激活 / 已播放 / 未播放”状态，建议保持和现有模式一致的三态语义：
 
 - `waiting`
@@ -151,20 +226,48 @@ export default VisualizerFoo;
 
 这样更容易复用已有的视觉语言和 render hints。
 
+## 预热与缓存
+
+当前架构把“预热入口”收敛到了共享 runtime 层，但缓存内容仍然由各 renderer 自己决定。
+
+### 已有模式
+
+- `VisualizerPartita.tsx`
+  使用布局缓存，并在进入时间窗口时预热下一句布局
+- `VisualizerCadenza.tsx`
+  使用更重的 prepared-state 缓存，并在计算当前句时顺手准备 upcoming line
+- `Visualizer.tsx`
+  当前没有专门的重型预热层，保持即时布局计算
+
+### 设计原则
+
+- 统一的是：
+  - `upcomingLine` 的选择方式
+  - 预热触发入口
+  - runtime 上下文
+- 不统一的是：
+  - cache 存储结构
+  - renderer 的具体 prepare 产物
+  - 各模式独有的布局 / 动画算法
+
+如果你要新增一个 renderer，建议先判断它是否存在明显的 prepare 成本：
+
+- 如果 prepare 很轻，直接即时计算即可
+- 如果 prepare 很重，再接入共享的 preheat 入口和本地 cache
+
 ## 最小实现骨架
 
 下面是一个推荐骨架，可以作为新文件起点。
 
 ```tsx
-import React, { useMemo, useState } from 'react';
-import { motion, AnimatePresence, MotionValue } from 'framer-motion';
+import React from 'react';
+import { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft } from 'lucide-react';
-import { Line, Theme, Word as WordType, AudioBands } from '../../types';
+import { Line, Theme, AudioBands } from '../../types';
 import { getLineRenderEndTime } from '../../utils/lyrics/renderHints';
-import { resolveThemeFontStack } from '../../utils/fontStacks';
-import GeometricBackground from './GeometricBackground';
-import FluidBackground from './FluidBackground';
+import { useVisualizerRuntime } from './runtime';
+import VisualizerShell from './VisualizerShell';
+import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
 
 interface VisualizerFooProps {
     currentTime: MotionValue<number>;
@@ -199,60 +302,25 @@ const VisualizerFoo: React.FC<VisualizerFooProps & { staticMode?: boolean; }> = 
     onBack,
 }) => {
     const { t } = useTranslation();
-    const [showBackButton, setShowBackButton] = useState(false);
-
-    const activeLine = lines[currentLineIndex];
-    const resolvedFontFamily = resolveThemeFontStack(theme);
-    const fontClassName = theme.fontStyle === 'mono'
-        ? 'font-mono'
-        : theme.fontStyle === 'serif'
-            ? 'font-serif'
-            : 'font-sans';
+    const { activeLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
+        currentTime,
+        currentLineIndex,
+        lines,
+        getLineEndTime: getLineRenderEndTime,
+    });
 
     return (
-        <div
-            className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontClassName}`}
-            style={{ backgroundColor: 'transparent', fontFamily: resolvedFontFamily }}
-            onMouseMove={(event) => {
-                const nearBackArea = event.clientX <= 120 && event.clientY <= 120;
-                if (nearBackArea !== showBackButton) {
-                    setShowBackButton(nearBackArea);
-                }
-            }}
-            onMouseLeave={() => setShowBackButton(false)}
+        <VisualizerShell
+            theme={theme}
+            audioPower={audioPower}
+            audioBands={audioBands}
+            coverUrl={coverUrl}
+            useCoverColorBg={useCoverColorBg}
+            seed={seed}
+            staticMode={staticMode}
+            backgroundOpacity={backgroundOpacity}
+            onBack={onBack}
         >
-            {onBack && (
-                <motion.button
-                    type="button"
-                    aria-label={t('ui.backToHome')}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onBack();
-                    }}
-                >
-                    <ChevronLeft size={20} />
-                </motion.button>
-            )}
-
-            <AnimatePresence>
-                {useCoverColorBg && (
-                    <motion.div className="absolute inset-0 z-0">
-                        <FluidBackground coverUrl={coverUrl} theme={theme} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div
-                className="absolute inset-0 z-0"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
-            />
-
-            {!staticMode && (
-                <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
-                </div>
-            )}
-
             <div className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none">
                 {showText && activeLine ? (
                     <div>{activeLine.fullText}</div>
@@ -260,7 +328,17 @@ const VisualizerFoo: React.FC<VisualizerFooProps & { staticMode?: boolean; }> = 
                     <div>{t('ui.waitingForMusic')}</div>
                 )}
             </div>
-        </div>
+
+            <VisualizerSubtitleOverlay
+                showText={showText}
+                activeLine={activeLine}
+                recentCompletedLine={recentCompletedLine}
+                nextLines={nextLines}
+                theme={theme}
+                translationFontSize="1rem"
+                upcomingFontSize="0.875rem"
+            />
+        </VisualizerShell>
     );
 };
 

@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft } from 'lucide-react';
 import { layoutWithLines, prepareWithSegments, type LayoutLine, type LayoutCursor, type PreparedTextWithSegments } from '@chenglou/pretext';
 import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../../types';
-import GeometricBackground from './GeometricBackground';
-import FluidBackground from './FluidBackground';
-import { getLineTransitionTiming, type LineTransitionTiming } from '../../utils/lyrics/renderHints';
+import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
+import { prepareActiveAndUpcoming, useVisualizerRuntime } from './runtime';
+import VisualizerShell from './VisualizerShell';
+import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
 
 // Visualizer cadenza
 interface VisualizerProps {
@@ -1357,7 +1357,6 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     onBack,
 }) => {
     const { t } = useTranslation();
-    const [showBackButton, setShowBackButton] = useState(false);
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
     const containerRef = useRef<HTMLDivElement>(null);
     const lineLayerRef = useRef<HTMLDivElement>(null);
@@ -1369,20 +1368,17 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     const preparedStateCacheContextKeyRef = useRef<string>('');
     const lastFrameTimeRef = useRef<number | null>(null);
 
-    const currentTimeValue = currentTime.get();
-    const activeLine = lines[currentLineIndex];
-
-    let recentCompletedLine = null;
-    if (currentLineIndex === -1 && lines.length > 0) {
-        for (let i = lines.length - 1; i >= 0; i--) {
-            if (currentTimeValue > lines[i].endTime) {
-                recentCompletedLine = lines[i];
-                break;
-            }
-        }
-    }
-
-    const nextLines = lines.slice(currentLineIndex + 1, currentLineIndex + 3);
+    const {
+        activeLine,
+        recentCompletedLine,
+        upcomingLine,
+        nextLines,
+    } = useVisualizerRuntime({
+        currentTime,
+        currentLineIndex,
+        lines,
+        getLineEndTime: getLineRenderEndTime,
+    });
     const tuning = cadenzaTuning;
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
@@ -1442,21 +1438,6 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
         line.words.length,
     ].join('|');
 
-    const getUpcomingLine = () => {
-        if (activeLine) {
-            return lines[currentLineIndex + 1] ?? null;
-        }
-
-        for (const line of lines) {
-            if (line.startTime > currentTimeValue) {
-                return line;
-            }
-        }
-
-        return null;
-    };
-    const upcomingLine = getUpcomingLine();
-
     useEffect(() => {
         const element = containerRef.current;
         if (!element) return;
@@ -1493,14 +1474,16 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
             return nextState;
         };
 
-        if (!activeLine || !showText || viewport.width <= 0 || viewport.height <= 0) {
+        if (!showText || viewport.width <= 0 || viewport.height <= 0) {
             getOrPrepareState(upcomingLine);
             return null;
         }
 
-        const currentState = getOrPrepareState(activeLine);
-        getOrPrepareState(upcomingLine);
-        return currentState;
+        return prepareActiveAndUpcoming({
+            activeLine,
+            upcomingLine,
+            prepareLine: getOrPrepareState,
+        });
     }, [activeLine, preparedStateContext, upcomingLine, showText, viewport.height, viewport.width]);
 
     useEffect(() => {
@@ -1757,73 +1740,18 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     ]);
 
     return (
-        <div
+        <VisualizerShell
             ref={containerRef}
-            className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative transition-colors duration-1000"
-            style={{
-                backgroundColor: 'transparent',
-                fontFamily: resolveThemeFontStack(theme),
-            }}
-            onMouseMove={(event) => {
-                const nearBackArea = event.clientX <= 120 && event.clientY <= 120;
-                if (nearBackArea !== showBackButton) {
-                    setShowBackButton(nearBackArea);
-                }
-            }}
-            onMouseLeave={() => {
-                if (showBackButton) {
-                    setShowBackButton(false);
-                }
-            }}
+            theme={theme}
+            audioPower={audioPower}
+            audioBands={audioBands}
+            coverUrl={coverUrl}
+            useCoverColorBg={useCoverColorBg}
+            seed={seed}
+            staticMode={staticMode}
+            backgroundOpacity={backgroundOpacity}
+            onBack={onBack}
         >
-            {onBack && (
-                <motion.button
-                    type="button"
-                    aria-label={t('ui.backToHome')}
-                    initial={false}
-                    animate={{
-                        opacity: showBackButton ? 1 : 0,
-                        scale: showBackButton ? 1 : 0.92,
-                        x: showBackButton ? 0 : -6,
-                    }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onBack();
-                    }}
-                    className="absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
-                    style={{ pointerEvents: showBackButton ? 'auto' : 'none' }}
-                >
-                    <ChevronLeft size={20} />
-                </motion.button>
-            )}
-
-            <AnimatePresence>
-                {useCoverColorBg && (
-                    <motion.div
-                        key="fluid-bg"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
-                        className="absolute inset-0 z-0"
-                    >
-                        <FluidBackground coverUrl={coverUrl} theme={theme} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div
-                className="absolute inset-0 z-0 transition-all duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
-            />
-
-            {!staticMode && (
-                <div className="absolute inset-0 z-0">
-                    <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
-                </div>
-            )}
-
             <div
                 ref={lineLayerRef}
                 className="absolute inset-0 z-10 pointer-events-none"
@@ -1859,46 +1787,17 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
                 </AnimatePresence>
             </div>
 
-            <AnimatePresence>
-                {showText && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 0.72, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="absolute bottom-28 w-full text-center space-y-2 px-4 z-20 pointer-events-none"
-                    >
-                        {(activeLine?.translation || recentCompletedLine?.translation) ? (
-                            <motion.div
-                                key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="font-medium max-w-4xl mx-auto"
-                                style={{
-                                    color: theme.secondaryColor,
-                                    fontSize: translationFontSize,
-                                }}
-                            >
-                                {activeLine?.translation || recentCompletedLine?.translation}
-                            </motion.div>
-                        ) : (
-                            activeLine && nextLines.map((line, index) => (
-                                <p
-                                    key={index}
-                                    className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
-                                    style={{
-                                        color: theme.secondaryColor,
-                                        fontSize: upcomingFontSize,
-                                    }}
-                                >
-                                    {line.fullText}
-                                </p>
-                            ))
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+            <VisualizerSubtitleOverlay
+                showText={showText}
+                activeLine={activeLine}
+                recentCompletedLine={recentCompletedLine}
+                nextLines={nextLines}
+                theme={theme}
+                translationFontSize={translationFontSize}
+                upcomingFontSize={upcomingFontSize}
+                opacity={0.72}
+            />
+        </VisualizerShell>
     );
 };
 
