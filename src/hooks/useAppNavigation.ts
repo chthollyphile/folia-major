@@ -29,6 +29,12 @@ type NavigationHistoryState = {
     search?: { query: string; sourceTab: HomeViewTab; } | null;
 };
 
+type OverlayDisplayState = {
+    view: ViewState;
+    overlayView: ViewState | null;
+    overlayOriginView: ViewState | null;
+};
+
 const LAST_APP_VIEW_KEY = 'last_app_view';
 const NAV_DEBUG_ENABLED = false;
 
@@ -44,6 +50,25 @@ const buildHistoryState = (
     overlayView,
     overlayOriginView,
     search: searchState,
+});
+
+export const resolveOverlayPushState = (
+    currentView: ViewState,
+    overlayStackLength: number,
+    overlayOriginView: ViewState | null
+): OverlayDisplayState => ({
+    view: 'home',
+    overlayView: 'home',
+    overlayOriginView: overlayStackLength > 0 ? overlayOriginView : currentView,
+});
+
+export const resolveOverlayPopState = (
+    nextOverlayCount: number,
+    overlayOriginView: ViewState | null
+): OverlayDisplayState => ({
+    view: nextOverlayCount > 0 ? 'home' : (overlayOriginView ?? 'home'),
+    overlayView: nextOverlayCount > 0 ? 'home' : null,
+    overlayOriginView: nextOverlayCount > 0 ? overlayOriginView : null,
 });
 
 export function useAppNavigation() {
@@ -336,14 +361,19 @@ export function useAppNavigation() {
     const navigateToHome = () => {
         if (overlayStack.length > 0) {
             if (currentView === 'player' && overlayView === null) {
+                const overlayState = resolveOverlayPushState(
+                    overlayOriginView ?? 'home',
+                    overlayStack.length - 1,
+                    overlayOriginView
+                );
                 pushNavigationState({
-                    view: 'player',
+                    view: overlayState.view,
                     overlays: overlayStack,
-                    overlayView: 'player',
-                    overlayOriginView,
+                    overlayView: overlayState.overlayView,
+                    overlayOriginView: overlayState.overlayOriginView,
                     replace: true,
                     hash: `#${overlayStack[overlayStack.length - 1].type}`,
-                    search: overlayOriginView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+                    search: overlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                         ? {
                             query: useSearchNavigationStore.getState().searchQuery,
                             sourceTab: useSearchNavigationStore.getState().searchSourceTab,
@@ -354,31 +384,29 @@ export function useAppNavigation() {
             }
 
             const nextOverlays = overlayStack.slice(0, -1);
-            const nextView = nextOverlays.length > 0
-                ? (overlayView ?? 'player')
-                : (overlayOriginView ?? 'home');
+            const nextOverlayState = resolveOverlayPopState(nextOverlays.length, overlayOriginView);
             logNavigation('navigateToHome:popOverlay', {
-                view: nextView,
+                view: nextOverlayState.view,
                 overlays: nextOverlays,
-                overlayView: nextOverlays.length > 0 ? overlayView : null,
-                overlayOriginView: nextOverlays.length > 0 ? overlayOriginView : null,
-                search: nextView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+                overlayView: nextOverlayState.overlayView,
+                overlayOriginView: nextOverlayState.overlayOriginView,
+                search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                     ? {
                         query: useSearchNavigationStore.getState().searchQuery,
                         sourceTab: useSearchNavigationStore.getState().searchSourceTab,
                     }
                     : null,
                 replace: true,
-                hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextView === 'player' ? '#player' : '#home'),
+                hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextOverlayState.view === 'player' ? '#player' : '#home'),
             });
             pushNavigationState({
-                view: nextView,
+                view: nextOverlayState.view,
                 overlays: nextOverlays,
-                overlayView: nextOverlays.length > 0 ? overlayView : null,
-                overlayOriginView: nextOverlays.length > 0 ? overlayOriginView : null,
+                overlayView: nextOverlayState.overlayView,
+                overlayOriginView: nextOverlayState.overlayOriginView,
                 replace: true,
-                hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextView === 'player' ? '#player' : '#home'),
-                search: nextView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+                hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextOverlayState.view === 'player' ? '#player' : '#home'),
+                search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                     ? {
                         query: useSearchNavigationStore.getState().searchQuery,
                         sourceTab: useSearchNavigationStore.getState().searchSourceTab,
@@ -411,16 +439,13 @@ export function useAppNavigation() {
 
     const pushOverlay = (overlay: HomeOverlay) => {
         const nextOverlays = [...overlayStack, overlay];
-        const nextOverlayOriginView = overlayStack.length > 0
-            ? overlayOriginView
-            : currentView;
-        const nextView: ViewState = 'player';
+        const nextOverlayState = resolveOverlayPushState(currentView, overlayStack.length, overlayOriginView);
         logNavigation('pushOverlay', {
-            view: nextView,
+            view: nextOverlayState.view,
             overlays: nextOverlays,
-            overlayView: 'player',
-            overlayOriginView: nextOverlayOriginView,
-            search: nextOverlayOriginView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+            overlayView: nextOverlayState.overlayView,
+            overlayOriginView: nextOverlayState.overlayOriginView,
+            search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                 ? {
                     query: useSearchNavigationStore.getState().searchQuery,
                     sourceTab: useSearchNavigationStore.getState().searchSourceTab,
@@ -429,12 +454,12 @@ export function useAppNavigation() {
             hash: `#${overlay.type}`,
         });
         pushNavigationState({
-            view: nextView,
+            view: nextOverlayState.view,
             overlays: nextOverlays,
-            overlayView: 'player',
-            overlayOriginView: nextOverlayOriginView,
+            overlayView: nextOverlayState.overlayView,
+            overlayOriginView: nextOverlayState.overlayOriginView,
             hash: `#${overlay.type}`,
-            search: nextOverlayOriginView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+            search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                 ? {
                     query: useSearchNavigationStore.getState().searchQuery,
                     sourceTab: useSearchNavigationStore.getState().searchSourceTab,
@@ -462,31 +487,29 @@ export function useAppNavigation() {
         }
 
         const nextOverlays = overlayStack.slice(0, -1);
-        const nextView = nextOverlays.length > 0
-            ? (overlayView ?? 'player')
-            : (overlayOriginView ?? 'home');
+        const nextOverlayState = resolveOverlayPopState(nextOverlays.length, overlayOriginView);
         logNavigation('popOverlay', {
-            view: nextView,
+            view: nextOverlayState.view,
             overlays: nextOverlays,
-            overlayView: nextOverlays.length > 0 ? overlayView : null,
-            overlayOriginView: nextOverlays.length > 0 ? overlayOriginView : null,
-            search: nextView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+            overlayView: nextOverlayState.overlayView,
+            overlayOriginView: nextOverlayState.overlayOriginView,
+            search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                 ? {
                     query: useSearchNavigationStore.getState().searchQuery,
                     sourceTab: useSearchNavigationStore.getState().searchSourceTab,
                 }
                 : null,
             replace: true,
-            hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextView === 'player' ? '#player' : '#home'),
+            hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextOverlayState.view === 'player' ? '#player' : '#home'),
         });
         pushNavigationState({
-            view: nextView,
+            view: nextOverlayState.view,
             overlays: nextOverlays,
-            overlayView: nextOverlays.length > 0 ? overlayView : null,
-            overlayOriginView: nextOverlays.length > 0 ? overlayOriginView : null,
+            overlayView: nextOverlayState.overlayView,
+            overlayOriginView: nextOverlayState.overlayOriginView,
             replace: true,
-            hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextView === 'player' ? '#player' : '#home'),
-            search: nextView === 'home' && useSearchNavigationStore.getState().isSearchOpen
+            hash: nextOverlays.length > 0 ? `#${nextOverlays[nextOverlays.length - 1].type}` : (nextOverlayState.view === 'player' ? '#player' : '#home'),
+            search: nextOverlayState.view === 'home' && useSearchNavigationStore.getState().isSearchOpen
                 ? {
                     query: useSearchNavigationStore.getState().searchQuery,
                     sourceTab: useSearchNavigationStore.getState().searchSourceTab,

@@ -2955,7 +2955,7 @@ export default function App() {
 
             {/* --- HOME VIEW (Overlay) --- */}
             <AnimatePresence>
-                {currentView === 'home' && (
+                {currentView === 'home' && !isOverlayVisible && (
                     <motion.div
                         className="absolute inset-0 z-50"
                         initial={{ opacity: 0 }}
