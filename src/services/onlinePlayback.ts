@@ -1,5 +1,6 @@
 import { LyricData, SongResult } from '../types';
-import { getFromCache, getFromCacheWithMigration, saveToCache } from './db';
+import { getFromCacheWithMigration, saveToCache } from './db';
+import { getCachedAudioBlob } from './audioCache';
 import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from './netease';
 import { PrefetchedSongData, isUrlValid, updatePrefetchedAudioUrl } from './prefetchService';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
@@ -30,7 +31,7 @@ export async function loadOnlineSongAudioSource(
     | { kind: 'unavailable' }
 > {
     const audioCacheKey = getOnlineSongCacheKey('audio', song);
-    const cachedAudioBlob = await getFromCache<Blob>(audioCacheKey);
+    const cachedAudioBlob = await getCachedAudioBlob(audioCacheKey);
     if (cachedAudioBlob) {
         const blobUrl = URL.createObjectURL(cachedAudioBlob);
         return { kind: 'ok', audioSrc: blobUrl, blobUrl };

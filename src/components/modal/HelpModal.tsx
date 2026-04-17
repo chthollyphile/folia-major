@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type PartitaTuning, type VisualizerMode } from '../../types';
@@ -100,6 +100,9 @@ const HelpModal: React.FC<HelpModalProps> = ({
         USE_SYSTEM_PROXY_FOR_AI: false
     });
     const [electronSaveStatus, setElectronSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const [cacheDirectory, setCacheDirectory] = useState<string>('');
+    const [cacheDirectoryIsDefault, setCacheDirectoryIsDefault] = useState(true);
+    const [cacheDirectoryStatus, setCacheDirectoryStatus] = useState<'idle' | 'choosing'>('idle');
 
     useEffect(() => {
         if ((window as any).electron) {
@@ -107,6 +110,12 @@ const HelpModal: React.FC<HelpModalProps> = ({
             (window as any).electron.getSettings().then((settings: any) => {
                 if (settings) {
                     setElectronSettings(prev => ({ ...prev, ...settings }));
+                }
+            });
+            (window as any).electron.getCacheDirectory().then((result: ElectronCacheDirectoryResult) => {
+                if (result?.path) {
+                    setCacheDirectory(result.path);
+                    setCacheDirectoryIsDefault(result.isDefault);
                 }
             });
         }
@@ -217,6 +226,23 @@ const HelpModal: React.FC<HelpModalProps> = ({
         await clearCacheByCategory(category);
         await fetchCacheUsage();
         setIsCleaning(null);
+    };
+
+    const handleChooseCacheDirectory = async () => {
+        if (!(window as any).electron) {
+            return;
+        }
+
+        setCacheDirectoryStatus('choosing');
+        try {
+            const result = await (window as any).electron.chooseCacheDirectory();
+            if (result?.path) {
+                setCacheDirectory(result.path);
+                setCacheDirectoryIsDefault(result.isDefault);
+            }
+        } finally {
+            setCacheDirectoryStatus('idle');
+        }
     };
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
@@ -573,6 +599,47 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableMediaCache ? 'translate-x-6' : 'translate-x-0'}`} />
                                         </button>
                                     </div>
+
+                                    {isElectron && (
+                                        <div className="pt-3 border-t border-white/10 space-y-3">
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                                    <FolderOpen size={14} />
+                                                    {t('options.cacheDirectory') || "Cache Directory"}
+                                                </div>
+                                                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                    {t('options.cacheDirectoryDesc') || "Choose where large desktop cache files should be stored."}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 bg-black/10 rounded-lg border border-white/5 px-3 py-2 min-w-0">
+                                                    <div className="text-[11px] break-all font-mono" style={{ color: 'var(--text-primary)' }}>
+                                                        {cacheDirectory || '...'}
+                                                    </div>
+                                                    <div className="text-[10px] opacity-45 mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                                        {cacheDirectoryIsDefault
+                                                            ? (t('options.cacheDirectoryDefaultHint') || "Using the default desktop cache location.")
+                                                            : (t('options.cacheDirectoryCustomHint') || "Using a custom cache location.")}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={handleChooseCacheDirectory}
+                                                    disabled={cacheDirectoryStatus !== 'idle'}
+                                                    className="shrink-0 w-12 rounded-lg text-sm font-medium transition-colors flex items-center justify-center bg-white/10 hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    style={{ color: 'var(--text-primary)' }}
+                                                    title={t('options.chooseCacheDirectory') || 'Choose Folder'}
+                                                    aria-label={t('options.chooseCacheDirectory') || 'Choose Folder'}
+                                                >
+                                                    {cacheDirectoryStatus === 'choosing' ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />}
+                                                </button>
+                                            </div>
+
+                                            {/* <div className="text-[10px] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.cacheDirectoryPendingDesc') || "Electron now stores audio cache files in this directory. Lyrics, covers, and other browser-side caches still use the app data directory."}
+                                            </div> */}
+                                        </div>
+                                    )}
 
                                     <div className="pt-3 border-t border-white/10 flex justify-between items-center text-xs opacity-50">
                                         <span>{t('options.cachedSongsCount') || "Cached Songs"}:</span>

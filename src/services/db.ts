@@ -29,6 +29,14 @@ export interface CacheData {
   timestamp: number;
 }
 
+const hasElectronAudioCacheBridge = () =>
+  typeof window !== 'undefined' &&
+  Boolean(window.electron?.getAudioCacheUsage && window.electron?.clearAudioCache);
+
+const hasElectronAudioCacheStatsBridge = () =>
+  typeof window !== 'undefined' &&
+  Boolean(window.electron?.getAudioCacheStats);
+
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -349,6 +357,10 @@ export const clearCache = async (preserveKeys: string[] = []): Promise<void> => 
     });
 
     await Promise.all(clearPromises);
+
+    if (hasElectronAudioCacheBridge() && !preserveKeys.some(key => key.startsWith('audio_'))) {
+      await window.electron!.clearAudioCache();
+    }
   } catch (e) {
     console.error("Clear cache failed", e);
   }
@@ -385,14 +397,26 @@ export const getCacheUsage = async (): Promise<number> => {
             totalSize += storeSize;
             completed++;
             if (completed === stores.length) {
-              resolve(totalSize);
+              if (hasElectronAudioCacheBridge()) {
+                window.electron!.getAudioCacheUsage()
+                  .then(audioCacheSize => resolve(totalSize + audioCacheSize))
+                  .catch(() => resolve(totalSize));
+              } else {
+                resolve(totalSize);
+              }
             }
           }
         };
         req.onerror = () => {
           completed++;
           if (completed === stores.length) {
-            resolve(totalSize);
+            if (hasElectronAudioCacheBridge()) {
+              window.electron!.getAudioCacheUsage()
+                .then(audioCacheSize => resolve(totalSize + audioCacheSize))
+                .catch(() => resolve(totalSize));
+            } else {
+              resolve(totalSize);
+            }
           }
         };
       });
@@ -461,13 +485,49 @@ export const getCacheUsageByCategory = async (): Promise<{
           } else {
             completed++;
             if (completed === stores.length) {
-              resolve(usage);
+              if (hasElectronAudioCacheStatsBridge()) {
+                window.electron!.getAudioCacheStats()
+                  .then(audioCacheStats => {
+                    usage.media += audioCacheStats.size;
+                    usage.mediaCount += audioCacheStats.count;
+                    resolve(usage);
+                  })
+                  .catch(() => resolve(usage));
+              } else if (hasElectronAudioCacheBridge()) {
+                window.electron!.getAudioCacheUsage()
+                  .then(audioCacheSize => {
+                    usage.media += audioCacheSize;
+                    resolve(usage);
+                  })
+                  .catch(() => resolve(usage));
+              } else {
+                resolve(usage);
+              }
             }
           }
         };
         req.onerror = () => {
           completed++;
-          if (completed === stores.length) resolve(usage);
+          if (completed === stores.length) {
+            if (hasElectronAudioCacheStatsBridge()) {
+              window.electron!.getAudioCacheStats()
+                .then(audioCacheStats => {
+                  usage.media += audioCacheStats.size;
+                  usage.mediaCount += audioCacheStats.count;
+                  resolve(usage);
+                })
+                .catch(() => resolve(usage));
+            } else if (hasElectronAudioCacheBridge()) {
+              window.electron!.getAudioCacheUsage()
+                .then(audioCacheSize => {
+                  usage.media += audioCacheSize;
+                  resolve(usage);
+                })
+                .catch(() => resolve(usage));
+            } else {
+              resolve(usage);
+            }
+          }
         };
       });
     });
@@ -516,6 +576,10 @@ export const clearCacheByCategory = async (category: 'playlist' | 'lyrics' | 'co
     });
 
     await Promise.all(clearPromises);
+
+    if (category === 'media' && hasElectronAudioCacheBridge()) {
+      await window.electron!.clearAudioCache();
+    }
   } catch (e) {
     console.error("Failed to clear cache by category", e);
   }
@@ -616,6 +680,10 @@ export const deleteLocalSongs = async (ids: string[]): Promise<void> => {
 
 export const clearAllData = async (): Promise<void> => {
   try {
+    if (hasElectronAudioCacheBridge()) {
+      await window.electron!.clearAudioCache();
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.deleteDatabase(DB_NAME);
       request.onsuccess = () => {

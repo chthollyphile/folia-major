@@ -7,7 +7,7 @@
     "email": "chthollyphile@users.noreply.github.com"
   },
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -62,6 +62,10 @@
         "nsis"
       ],
       "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "linux": {
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",

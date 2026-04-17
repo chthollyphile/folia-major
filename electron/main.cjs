@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
+const crypto = require('crypto');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
   process.platform === 'linux' &&
@@ -34,6 +35,105 @@ if (process.platform === 'linux') {
 
 const store = new Store();
 let mainWindow = null;
+const DEFAULT_WINDOW_BOUNDS = {
+  width: 1200,
+  height: 800,
+};
+const CACHE_DIRECTORY_SETTING_KEY = 'CACHE_DIRECTORY';
+
+function getStoredWindowState() {
+  const storedBounds = store.get('WINDOW_BOUNDS');
+  const storedMaximized = store.get('WINDOW_IS_MAXIMIZED');
+
+  return {
+    bounds:
+      storedBounds &&
+      typeof storedBounds.width === 'number' &&
+      typeof storedBounds.height === 'number'
+        ? storedBounds
+        : DEFAULT_WINDOW_BOUNDS,
+    isMaximized: Boolean(storedMaximized),
+  };
+}
+
+function ensureWindowBoundsVisible(bounds) {
+  if (typeof bounds.x !== 'number' || typeof bounds.y !== 'number') {
+    return bounds;
+  }
+
+  const displays = screen.getAllDisplays();
+
+  if (!displays.length) {
+    return bounds;
+  }
+
+  const visibleDisplay = displays.find(({ workArea }) => {
+    const horizontalOverlap =
+      Math.min(bounds.x + bounds.width, workArea.x + workArea.width) - Math.max(bounds.x, workArea.x);
+    const verticalOverlap =
+      Math.min(bounds.y + bounds.height, workArea.y + workArea.height) - Math.max(bounds.y, workArea.y);
+
+    return horizontalOverlap > 0 && verticalOverlap > 0;
+  });
+
+  if (visibleDisplay) {
+    return bounds;
+  }
+
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea;
+
+  return {
+    width: Math.min(bounds.width, primaryWorkArea.width),
+    height: Math.min(bounds.height, primaryWorkArea.height),
+    x: primaryWorkArea.x + Math.max(0, Math.floor((primaryWorkArea.width - Math.min(bounds.width, primaryWorkArea.width)) / 2)),
+    y: primaryWorkArea.y + Math.max(0, Math.floor((primaryWorkArea.height - Math.min(bounds.height, primaryWorkArea.height)) / 2)),
+  };
+}
+
+function saveWindowState(win) {
+  if (!win || win.isDestroyed()) {
+    return;
+  }
+
+  const isMaximized = win.isMaximized();
+  store.set('WINDOW_IS_MAXIMIZED', isMaximized);
+
+  if (isMaximized) {
+    return;
+  }
+
+  store.set('WINDOW_BOUNDS', win.getBounds());
+}
+
+function getDefaultCacheDirectory() {
+  return path.join(app.getPath('userData'), 'media-cache');
+}
+
+function getConfiguredCacheDirectory() {
+  const configured = store.get(CACHE_DIRECTORY_SETTING_KEY);
+  return typeof configured === 'string' && configured.trim().length > 0
+    ? configured
+    : getDefaultCacheDirectory();
+}
+
+function getAudioCacheDirectory() {
+  return path.join(getConfiguredCacheDirectory(), 'audio');
+}
+
+function getAudioCacheBaseName(cacheKey) {
+  return crypto.createHash('sha256').update(cacheKey).digest('hex');
+}
+
+function getAudioCachePaths(cacheKey) {
+  const baseName = getAudioCacheBaseName(cacheKey);
+  const directory = getAudioCacheDirectory();
+
+  return {
+    directory,
+    dataPath: path.join(directory, `${baseName}.bin`),
+    metaPath: path.join(directory, `${baseName}.json`),
+  };
+}
 
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -271,10 +371,140 @@ process.env.ENABLE_GENERAL_UNBLOCK = 'false';
 // Issue: Netease API module reads 'anonymous_token' synchronously from tmp dir upon require.
 // If not present, Electron crashes with ENOENT. We pre-create it safely.
 const fs = require('fs');
+const fsp = fs.promises;
 const os = require('os');
 const tokenPath = path.resolve(os.tmpdir(), 'anonymous_token');
 if (!fs.existsSync(tokenPath)) {
   fs.writeFileSync(tokenPath, '', 'utf-8');
+}
+
+async function ensureAudioCacheDirectory() {
+  await fsp.mkdir(getAudioCacheDirectory(), { recursive: true });
+}
+
+async function hasAudioCacheEntry(cacheKey) {
+  const { dataPath } = getAudioCachePaths(cacheKey);
+
+  try {
+    await fsp.access(dataPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readAudioCacheEntry(cacheKey) {
+  const { dataPath, metaPath } = getAudioCachePaths(cacheKey);
+
+  try {
+    const [dataBuffer, rawMeta] = await Promise.all([
+      fsp.readFile(dataPath),
+      fsp.readFile(metaPath, 'utf-8').catch(() => null),
+    ]);
+
+    let mimeType = 'audio/mpeg';
+    if (rawMeta) {
+      try {
+        const parsedMeta = JSON.parse(rawMeta);
+        if (typeof parsedMeta.mimeType === 'string' && parsedMeta.mimeType.trim()) {
+          mimeType = parsedMeta.mimeType;
+        }
+      } catch {
+        // Ignore malformed metadata and keep the default content type.
+      }
+    }
+
+    return {
+      found: true,
+      data: dataBuffer,
+      mimeType,
+    };
+  } catch {
+    return {
+      found: false,
+      data: null,
+      mimeType: null,
+    };
+  }
+}
+
+async function writeAudioCacheEntry(cacheKey, data, mimeType) {
+  const { dataPath, metaPath } = getAudioCachePaths(cacheKey);
+  await ensureAudioCacheDirectory();
+
+  const buffer = Buffer.isBuffer(data)
+    ? data
+    : Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data);
+
+  await Promise.all([
+    fsp.writeFile(dataPath, buffer),
+    fsp.writeFile(metaPath, JSON.stringify({
+      cacheKey,
+      mimeType: mimeType || 'audio/mpeg',
+      size: buffer.byteLength,
+      updatedAt: Date.now(),
+    }), 'utf-8'),
+  ]);
+}
+
+async function getAudioCacheUsageBytes() {
+  const audioDirectory = getAudioCacheDirectory();
+
+  try {
+    const entries = await fsp.readdir(audioDirectory, { withFileTypes: true });
+    let total = 0;
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.bin')) {
+        continue;
+      }
+
+      const stat = await fsp.stat(path.join(audioDirectory, entry.name));
+      total += stat.size;
+    }
+
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+async function getAudioCacheStats() {
+  const audioDirectory = getAudioCacheDirectory();
+
+  try {
+    const entries = await fsp.readdir(audioDirectory, { withFileTypes: true });
+    let totalSize = 0;
+    let totalCount = 0;
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.bin')) {
+        continue;
+      }
+
+      const stat = await fsp.stat(path.join(audioDirectory, entry.name));
+      totalSize += stat.size;
+      totalCount += 1;
+    }
+
+    return {
+      size: totalSize,
+      count: totalCount,
+    };
+  } catch {
+    return {
+      size: 0,
+      count: 0,
+    };
+  }
+}
+
+async function clearAudioCacheDirectory() {
+  try {
+    await fsp.rm(getAudioCacheDirectory(), { recursive: true, force: true });
+  } catch (error) {
+    console.warn('[AudioCache] Failed to clear cache directory', error);
+  }
 }
 
 const { serveNcmApi } = require('@neteasecloudmusicapienhanced/api/server');
@@ -308,9 +538,12 @@ async function startApi() {
 }
 
 function createWindow() {
+  const { bounds: storedBounds, isMaximized } = getStoredWindowState();
+  const windowBounds = ensureWindowBoundsVisible(storedBounds);
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    ...windowBounds,
+    minWidth: 350,
+    minHeight: 100,
     frame: false,
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
@@ -330,7 +563,26 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  if (isMaximized) {
+    win.maximize();
+  }
+
   mainWindow = win;
+  win.on('resize', () => {
+    saveWindowState(win);
+  });
+  win.on('move', () => {
+    saveWindowState(win);
+  });
+  win.on('maximize', () => {
+    saveWindowState(win);
+  });
+  win.on('unmaximize', () => {
+    saveWindowState(win);
+  });
+  win.on('close', () => {
+    saveWindowState(win);
+  });
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
@@ -369,6 +621,80 @@ ipcMain.handle('get-settings', () => {
 ipcMain.handle('save-settings', (event, key, value) => {
   store.set(key, value);
   return store.store;
+});
+
+ipcMain.handle('get-cache-directory', () => {
+  return {
+    path: getConfiguredCacheDirectory(),
+    isDefault: !store.has(CACHE_DIRECTORY_SETTING_KEY),
+  };
+});
+
+ipcMain.handle('choose-cache-directory', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return {
+      canceled: true,
+      path: getConfiguredCacheDirectory(),
+      isDefault: !store.has(CACHE_DIRECTORY_SETTING_KEY),
+    };
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose cache directory',
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: getConfiguredCacheDirectory(),
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return {
+      canceled: true,
+      path: getConfiguredCacheDirectory(),
+      isDefault: !store.has(CACHE_DIRECTORY_SETTING_KEY),
+    };
+  }
+
+  const selectedPath = result.filePaths[0];
+  store.set(CACHE_DIRECTORY_SETTING_KEY, selectedPath);
+
+  return {
+    canceled: false,
+    path: selectedPath,
+    isDefault: false,
+  };
+});
+
+ipcMain.handle('reset-cache-directory', () => {
+  store.delete(CACHE_DIRECTORY_SETTING_KEY);
+  return {
+    path: getConfiguredCacheDirectory(),
+    isDefault: true,
+  };
+});
+
+ipcMain.handle('get-audio-cache', async (event, cacheKey) => {
+  return readAudioCacheEntry(cacheKey);
+});
+
+ipcMain.handle('has-audio-cache', async (event, cacheKey) => {
+  return hasAudioCacheEntry(cacheKey);
+});
+
+ipcMain.handle('save-audio-cache', async (event, cacheKey, data, mimeType) => {
+  await writeAudioCacheEntry(cacheKey, data, mimeType);
+  return true;
+});
+
+ipcMain.handle('get-audio-cache-usage', async () => {
+  return getAudioCacheUsageBytes();
+});
+
+ipcMain.handle('get-audio-cache-stats', async () => {
+  return getAudioCacheStats();
+});
+
+ipcMain.handle('clear-audio-cache', async () => {
+  await clearAudioCacheDirectory();
+  return true;
 });
 
 // Retrieve dynamic port of local Netease API Server

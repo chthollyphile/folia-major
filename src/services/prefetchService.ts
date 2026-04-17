@@ -7,7 +7,8 @@
 
 import { SongResult, LyricData } from '../types';
 import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from './netease';
-import { getFromCache, getFromCacheWithMigration } from './db';
+import { getFromCacheWithMigration } from './db';
+import { hasCachedAudio } from './audioCache';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
 import { detectTimedLyricFormat } from '../utils/lyrics/formatDetection';
@@ -138,10 +139,9 @@ const prefetchSong = async (
     // Prefetch audio URL (if not cached or expired)
     if (!data.audioUrl) {
         try {
-            // Check IndexedDB cache first
-            const cachedAudio = await getFromCache<Blob>(getOnlineSongCacheKey('audio', song));
-            if (cachedAudio) {
-                console.log(`[Prefetch] Audio in IndexedDB for: ${song.name}`);
+            const audioExists = await hasCachedAudio(getOnlineSongCacheKey('audio', song));
+            if (audioExists) {
+                console.log(`[Prefetch] Audio already cached for: ${song.name}`);
                 data.audioUrl = 'CACHED_IN_DB';
                 data.audioUrlFetchedAt = Date.now();
             } else if (!signal.aborted) {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { LyricParserFactory } from './utils/lyrics/LyricParserFactory';
 import { saveSessionData, getSessionData, getFromCache, getFromCacheWithMigration, saveToCache, getLocalSongs, removeFromCache } from './services/db';
+import { getCachedAudioBlob, hasCachedAudio, saveAudioBlob } from './services/audioCache';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from './services/coverCache';
 import { ensureLocalSongEmbeddedCover, getAudioFromLocalSong } from './services/localMusicService';
 import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from './services/onlinePlayback';
@@ -917,7 +918,7 @@ export default function App() {
                         }
                     } else {
                         // Cloud song - original logic
-                        const cachedAudio = await getFromCache<Blob>(getOnlineSongCacheKey('audio', lastSong));
+                        const cachedAudio = await getCachedAudioBlob(getOnlineSongCacheKey('audio', lastSong));
                         if (cachedAudio) {
                             const blobUrl = URL.createObjectURL(cachedAudio);
                             if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -1801,13 +1802,13 @@ export default function App() {
             prefetched?.audioUrl &&
             prefetched.audioUrl !== 'CACHED_IN_DB'
         );
-        const cachedAudio = hasImmediatePrefetchedAudio
+        const hasCachedAudioBlob = hasImmediatePrefetchedAudio
             ? null
-            : await getFromCache<Blob>(getOnlineSongCacheKey('audio', song));
+            : await hasCachedAudio(getOnlineSongCacheKey('audio', song));
 
         if (currentSongRef.current !== song.id) return;
 
-        if (!hasImmediatePrefetchedAudio && !cachedAudio) {
+        if (!hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
             setStatusMsg({ type: 'info', text: t('status.loadingSong') });
         }
 
@@ -1886,7 +1887,7 @@ export default function App() {
         if (!currentSong || !audioSrc || audioSrc.startsWith('blob:')) return;
 
         // Don't re-cache if already in cache
-        const existing = await getFromCache(getOnlineSongCacheKey('audio', currentSong));
+        const existing = await hasCachedAudio(getOnlineSongCacheKey('audio', currentSong));
         if (existing) return;
 
         if (!enableMediaCache) return;
@@ -1897,7 +1898,7 @@ export default function App() {
         try {
             const response = await fetch(audioSrc);
             const blob = await response.blob();
-            await saveToCache(getOnlineSongCacheKey('audio', currentSong), blob);
+            await saveAudioBlob(getOnlineSongCacheKey('audio', currentSong), blob);
             console.log("[Cache] Audio saved");
         } catch (e) {
             console.error("[Cache] Failed to download audio for cache", e);
