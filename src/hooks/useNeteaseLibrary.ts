@@ -59,16 +59,12 @@ const getUserCloudPlaylist = async (user: NeteaseUser): Promise<NeteasePlaylist 
 
 export function useNeteaseLibrary({
     currentView,
-    selectedPlaylist,
-    selectedAlbumId,
-    selectedArtistId,
+    hasOverlay,
     setStatusMsg,
     t,
 }: {
     currentView: 'home' | 'player';
-    selectedPlaylist: NeteasePlaylist | null;
-    selectedAlbumId: number | null;
-    selectedArtistId: number | null;
+    hasOverlay: boolean;
     setStatusMsg: StatusSetter;
     t: (key: string) => string;
 }) {
@@ -341,14 +337,14 @@ export function useNeteaseLibrary({
     }, [loadUserData]);
 
     useEffect(() => {
-        if (currentView === 'home' && user && !selectedPlaylist && !selectedAlbumId && !selectedArtistId) {
+        if (currentView === 'home' && user && !hasOverlay) {
             const now = Date.now();
             if (now - lastCheckTimeRef.current > 10000) {
                 lastCheckTimeRef.current = now;
                 checkAndUpdatePlaylists();
             }
         }
-    }, [checkAndUpdatePlaylists, currentView, selectedAlbumId, selectedArtistId, selectedPlaylist, user]);
+    }, [checkAndUpdatePlaylists, currentView, hasOverlay, user]);
 
     return {
         user,

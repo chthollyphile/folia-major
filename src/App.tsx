@@ -18,6 +18,7 @@ import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
 import Home from './components/Home';
 import SearchResultsOverlay from './components/SearchResultsOverlay';
+import PlaylistView from './components/PlaylistView';
 import AlbumView from './components/AlbumView';
 import ArtistView from './components/ArtistView';
 import UnifiedPanel from './components/UnifiedPanel';
@@ -672,16 +673,19 @@ export default function App() {
     // manages current view, selected items, and navigation functions across the app
     const {
         currentView,
-        selectedPlaylist,
-        selectedAlbumId,
-        selectedArtistId,
+        overlayStack,
+        isOverlayVisible,
+        topOverlay,
+        hasOverlay,
         navigateToPlayer,
         navigateToHome,
+        navigateDirectHome,
         navigateToSearch,
         closeSearchView,
         handlePlaylistSelect,
         handleAlbumSelect,
         handleArtistSelect,
+        popOverlay,
     } = useAppNavigation();
     const {
         searchQuery,
@@ -713,9 +717,7 @@ export default function App() {
         setLikedSongIds,
     } = useNeteaseLibrary({
         currentView,
-        selectedPlaylist,
-        selectedAlbumId,
-        selectedArtistId,
+        hasOverlay,
         setStatusMsg,
         t,
     });
@@ -757,6 +759,16 @@ export default function App() {
             openNavidromeSelection({ type: 'artist', artistId });
         }
     }, [openNavidromeSelection, resolveCurrentNavidromeTargetIds]);
+
+    const handleDirectHomeFromPanel = useCallback(() => {
+        setPendingNavidromeSelection(null);
+        setLocalMusicState(prev => ({
+            ...prev,
+            activeRow: 0,
+            selectedGroup: null,
+        }));
+        navigateDirectHome();
+    }, [navigateDirectHome]);
 
     useEffect(() => {
         const handleLocalMusicUpdated = () => {
@@ -1964,7 +1976,7 @@ export default function App() {
             navigateToSearch({
                 query: trimmedQuery,
                 sourceTab: searchSourceTab,
-                replace: window.history.state?.view === 'search',
+                replace: Boolean(window.history.state?.search),
             });
         }
     }, [localSongs, navigateToSearch, searchQuery, searchSourceTab, submitSearch, t]);
@@ -1979,6 +1991,8 @@ export default function App() {
     }, [loadMoreSearchResults, localSongs, t]);
 
     const handleSearchResultPlay = useCallback((track: UnifiedSong) => {
+        navigateToPlayer();
+
         if (track.isLocal && track.localData) {
             void onPlayLocalSong(track.localData);
             return;
@@ -1990,17 +2004,17 @@ export default function App() {
         }
 
         handleQueueAddAndPlay(track);
-    }, [handleQueueAddAndPlay, onPlayLocalSong, onPlayNavidromeSong]);
+    }, [handleQueueAddAndPlay, navigateToPlayer, onPlayLocalSong, onPlayNavidromeSong]);
 
     const handleSearchResultArtistSelect = useCallback((track: UnifiedSong, artistName: string, artistId?: number) => {
-        hideSearchOverlay();
-
         if (track.isLocal) {
+            hideSearchOverlay();
             openLocalArtistByName(artistName);
             return;
         }
 
         if (track.isNavidrome && track.navidromeData?.artistId) {
+            hideSearchOverlay();
             setHomeViewTab('navidrome');
             setPendingNavidromeSelection({ type: 'artist', artistId: track.navidromeData.artistId });
             return;
@@ -2012,14 +2026,14 @@ export default function App() {
     }, [handleArtistSelect, hideSearchOverlay, openLocalArtistByName, setHomeViewTab]);
 
     const handleSearchResultAlbumSelect = useCallback((track: UnifiedSong, albumName: string, albumId?: number) => {
-        hideSearchOverlay();
-
         if (track.isLocal) {
+            hideSearchOverlay();
             openLocalAlbumByName(albumName);
             return;
         }
 
         if (track.isNavidrome && track.navidromeData?.albumId) {
+            hideSearchOverlay();
             setHomeViewTab('navidrome');
             setPendingNavidromeSelection({ type: 'album', albumId: track.navidromeData.albumId });
             return;
@@ -2964,7 +2978,6 @@ export default function App() {
                             cloudPlaylist={cloudPlaylist}
                             currentTrack={currentSong}
                             isPlaying={playerState === PlayerState.PLAYING}
-                            selectedPlaylist={selectedPlaylist}
                             onSelectPlaylist={handlePlaylistSelect}
                             onSelectAlbum={handleAlbumSelect}
                             onSelectArtist={handleArtistSelect}
@@ -3089,7 +3102,7 @@ export default function App() {
                 )}
             </AnimatePresence>
 
-            {currentView === 'home' && !selectedPlaylist && (
+            {currentView === 'home' && (
                 <SearchResultsOverlay
                     theme={theme}
                     isDaylight={isDaylight}
@@ -3102,93 +3115,70 @@ export default function App() {
                 />
             )}
 
-            {/* --- ALBUM VIEW (Overlay) --- */}
             <AnimatePresence>
-                {selectedAlbumId && currentView === 'home' && (
-                    <AlbumView
-                        albumId={selectedAlbumId}
-                        onBack={() => handleAlbumSelect(null)}
-                        onPlaySong={(song, ctx) => {
-                            playSong(song, ctx, false);
-                            // We don't need to close AlbumView here explicitly if we rely on currentView check?
-                            // But keeping it open in state allows returning to it.
-                            // So we don't call handleAlbumSelect(null) here?
-                            // Original code called handleAlbumSelect(null) inside onPlaySong prop!
-                            // Wait, previous code:
-                            /* 
+                {isOverlayVisible && topOverlay && (() => {
+                    const key = topOverlay.type === 'playlist'
+                        ? `playlist-${topOverlay.playlist.id}-${overlayStack.length - 1}`
+                        : `${topOverlay.type}-${topOverlay.id}-${overlayStack.length - 1}`;
+
+                    if (topOverlay.type === 'playlist') {
+                        return (
+                            <PlaylistView
+                                key={key}
+                                playlist={topOverlay.playlist}
+                                onBack={popOverlay}
+                                onPlaySong={(song, ctx) => {
+                                    playSong(song, ctx, false);
+                                }}
+                                onPlayAll={(songs) => {
+                                    playSong(songs[0], songs, false);
+                                }}
+                                onSelectAlbum={handleAlbumSelect}
+                                onSelectArtist={handleArtistSelect}
+                                currentUserId={user?.userId}
+                                isLikedSongsPlaylist={playlists[0]?.id === topOverlay.playlist.id}
+                                onPlaylistMutated={async () => {
+                                    await refreshUserData();
+                                }}
+                                theme={theme}
+                                isDaylight={isDaylight}
+                            />
+                        );
+                    }
+
+                    if (topOverlay.type === 'album') {
+                        return (
+                            <AlbumView
+                                key={key}
+                                albumId={topOverlay.id}
+                                onBack={popOverlay}
+                                onPlaySong={(song, ctx) => {
+                                    playSong(song, ctx, false);
+                                }}
+                                onPlayAll={(songs) => {
+                                    playSong(songs[0], songs, false);
+                                }}
+                                onSelectArtist={handleArtistSelect}
+                                theme={theme}
+                                isDaylight={isDaylight}
+                            />
+                        );
+                    }
+
+                    return (
+                        <ArtistView
+                            key={key}
+                            artistId={topOverlay.id}
+                            onBack={popOverlay}
                             onPlaySong={(song, ctx) => {
                                 playSong(song, ctx, false);
-                                handleAlbumSelect(null);
                             }}
-                            */
-                            // If we call handleAlbumSelect(null), it calls history.back().
-                            // That removes the album state.
-                            // Maybe we SHOULDN'T remove it if we want to come back?
-                            // But if we seek strict "close on play", then yes.
-                            // The user didn't ask to change "close on play" behavior for Album, but complained about stacking.
-                            // However, my previous analysis said rendering guard solves the "covering player" issue.
-                            // If I keep AlbumView open in state, but hidden by currentView='player', then 'Back' from player goes to Home(AlbumView).
-                            // That seems nicer.
-                            // BUT, the original code had: `handleAlbumSelect(null)`.
-                            // So it was INTIONALLY closing the album view.
-                            // I should preserve that unless I have a reason to change.
-                            // Wait, handleAlbumSelect(null) calls history.back().
-                            // If I'm in AlbumView, playing a song navigates to Player.
-                            // If I ALSO history.back(), I might mess up the history stack (Play navigates forward? or just view switch?)
-                            // navigateToPlayer pushes state.
-                            // So: Album -> Play: push(Player).
-                            // AND reset AlbumId?
-                            // If I reset AlbumId, do I need to manipulate history?
-                            // `handleAlbumSelect(null)` calls `history.back()`.
-                            // So: Album -> Play -> (Back trigger) -> Home.
-                            // Then push(Player) -> Player.
-                            // History: Home -> Player.
-                            // This means "Back" from Player goes to Home (root), not Album.
-                            // This seems to be the INTENDED behavior of the current app.
-                            // So I will keep passing `handleAlbumSelect(null)`.
-                        }}
-                        onPlayAll={(songs) => {
-                            playSong(songs[0], songs, false);
-                        }}
-                        onSelectArtist={handleArtistSelect}
-                        theme={theme}
-                        isDaylight={isDaylight}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* --- ARTIST VIEW (Overlay) --- */}
-            <AnimatePresence>
-                {selectedArtistId && currentView === 'home' && (
-                    <ArtistView
-                        artistId={selectedArtistId}
-                        onBack={() => handleArtistSelect(null)}
-                        onPlaySong={(song, ctx) => {
-                            playSong(song, ctx, false);
-                            // Keep consistency with AlbumView behavior in original code?
-                            // Original code for Artist:
-                            /*
-                             onPlaySong={(song, ctx) => {
-                                playSong(song, ctx, false);
-                                handleArtistSelect(null);
-                             }}
-                            */
-                            // Wait, lookup lines 1965-1970 in original:
-                            /*
-                             onPlaySong={(song, ctx) => {
-                                 playSong(song, ctx, false);
-                                 // Do we close artist view? 
-                                 // Keep consistency with AlbumView
-                                 handleArtistSelect(null);
-                             }}
-                            */
-                            // Yes, it was closing it.
-                        }}
-                        onSelectAlbum={handleAlbumSelect}
-                        theme={theme}
-                        isDaylight={isDaylight}
-                    />
-                )}
+                            onSelectAlbum={handleAlbumSelect}
+                            theme={theme}
+                            isDaylight={isDaylight}
+                        />
+                    );
+                })()}
             </AnimatePresence>
 
             {isDev && currentView === 'player' && isDevDebugOverlayVisible && (
@@ -3258,6 +3248,7 @@ export default function App() {
                         onTabChange={setPanelTab}
                         onToggle={() => setIsPanelOpen(!isPanelOpen)}
                         onNavigateHome={navigateToHome}
+                        onNavigateHomeDirect={handleDirectHomeFromPanel}
                         coverUrl={coverUrl}
                         currentSong={currentSong}
                         onAlbumSelect={handleAlbumSelect}

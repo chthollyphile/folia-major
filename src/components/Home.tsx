@@ -6,7 +6,6 @@ import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
-import PlaylistView from './PlaylistView';
 import LocalMusicView from './LocalMusicView';
 import NavidromeMusicView from './navidrome/NavidromeMusicView';
 import HelpModal from './modal/HelpModal';
@@ -24,10 +23,9 @@ interface HomeProps {
     cloudPlaylist?: NeteasePlaylist | null;
     currentTrack?: SongResult | null;
     isPlaying: boolean;
-    selectedPlaylist: NeteasePlaylist | null;
-    onSelectPlaylist: (playlist: NeteasePlaylist | null) => void;
-    onSelectAlbum: (albumId: number | null) => void;
-    onSelectArtist: (artistId: number | null) => void;
+    onSelectPlaylist: (playlist: NeteasePlaylist) => void;
+    onSelectAlbum: (albumId: number) => void;
+    onSelectArtist: (artistId: number) => void;
     onSelectLocalAlbum?: (albumName: string) => void;
     onSelectLocalArtist?: (artistName: string) => void;
     localSongs: LocalSong[];
@@ -106,7 +104,6 @@ const Home: React.FC<HomeProps> = ({
     cloudPlaylist = null,
     currentTrack,
     isPlaying,
-    selectedPlaylist,
     onSelectPlaylist,
     onSelectAlbum,
     onSelectArtist,
@@ -436,38 +433,17 @@ const Home: React.FC<HomeProps> = ({
 
     return (
         <AnimatePresence>
-            {selectedPlaylist ? (
-                <PlaylistView
-                    key="playlist-view"
-                    playlist={selectedPlaylist}
-                    onBack={() => onSelectPlaylist(null)}
-                    onPlaySong={onPlaySong}
-                    onPlayAll={(songs) => {
-                        if (songs.length > 0) onPlaySong(songs[0], songs);
-                    }}
-                    onSelectAlbum={(id) => onSelectAlbum(id)}
-                    onSelectArtist={onSelectArtist}
-                    currentUserId={user?.userId}
-                    isLikedSongsPlaylist={selectedPlaylist.specialType !== 'cloud' && Boolean(playlists[0] && playlists[0].id === selectedPlaylist.id)}
-                    onPlaylistMutated={onRefreshUser}
-                    theme={theme}
-                    isDaylight={isDaylight}
-                />
-            ) : (
-                <motion.div
-                    key="home-main"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-
-                    className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar`}
-                    style={{ color: 'var(--text-primary)' }}
-                // onTouchStart={onTouchStart}
-                // onTouchEnd={onTouchEnd}
-                >
-                    {/* Header Section */}
-                    {!isLocalPlaylistOpen && (
+            <motion.div
+                key="home-main"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto backdrop-blur-sm overflow-y-auto custom-scrollbar`}
+                style={{ color: 'var(--text-primary)' }}
+            >
+                {/* Header Section */}
+                {!isLocalPlaylistOpen && (
                         <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto z-20 relative mb-8 p-4 md:p-8 gap-y-4 md:gap-y-0">
                             {/* Left: Title & Help */}
                             <div className="flex items-center justify-start order-1 md:order-none">
@@ -890,11 +866,9 @@ const Home: React.FC<HomeProps> = ({
                                 </div>
                             </div>
                         )
-                    }
-                </motion.div >
-            )
-            }
-        </AnimatePresence >
+                }
+            </motion.div>
+        </AnimatePresence>
     );
 };
 

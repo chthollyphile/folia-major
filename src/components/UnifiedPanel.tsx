@@ -21,6 +21,7 @@ interface UnifiedPanelProps {
     onTabChange: (tab: PanelTab) => void;
     onToggle: () => void;
     onNavigateHome: () => void;
+    onNavigateHomeDirect: () => void;
     coverUrl: string | null;
     // Cover Tab Props
     currentSong: SongResult | null;
@@ -98,6 +99,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onTabChange,
     onToggle,
     onNavigateHome,
+    onNavigateHomeDirect,
     coverUrl,
     currentSong,
     onAlbumSelect,
@@ -265,7 +267,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const handleNavigateHome = () => {
         setIsCoverActionsVisible(false);
         onToggle();
-        onNavigateHome();
+        onNavigateHomeDirect();
     };
 
     const clearHideActionLayerTimeout = () => {
