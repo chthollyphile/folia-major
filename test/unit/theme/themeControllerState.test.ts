@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildBuiltinDualTheme,
-    buildThemeFallback,
     getBaseThemeForMode,
-    resolveBgModeTheme,
-    resolveDaylightToggleTheme
+    resolveBgModeTheme
 } from '@/hooks/themeControllerState';
 import type { DualTheme, Theme } from '@/types';
 
@@ -52,11 +50,11 @@ describe('themeControllerState', () => {
         expect(getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight: true })).toBe(daylightTheme);
     });
 
-    it('resolves daylight toggle without AI theme by switching to the selected preset', () => {
-        const nextTheme = resolveDaylightToggleTheme({
+    it('returns the selected preset when using default background mode without AI theme', () => {
+        const nextTheme = resolveBgModeTheme({
             aiTheme: null,
-            bgMode: 'default',
-            isLight: true,
+            mode: 'default',
+            isDaylight: true,
             defaultTheme,
             daylightTheme,
             previousTheme: defaultTheme
@@ -65,17 +63,17 @@ describe('themeControllerState', () => {
         expect(nextTheme).toBe(daylightTheme);
     });
 
-    it('preserves visual tokens while toggling daylight with AI theme in default background mode', () => {
+    it('preserves visual tokens while using AI foreground in daylight default background mode', () => {
         const previousTheme: Theme = {
             ...dualTheme.dark,
             wordColors: [{ word: 'keep-me', color: '#00ff00' }],
             lyricsIcons: ['keep-icon']
         };
 
-        const nextTheme = resolveDaylightToggleTheme({
+        const nextTheme = resolveBgModeTheme({
             aiTheme: dualTheme,
-            bgMode: 'default',
-            isLight: true,
+            mode: 'default',
+            isDaylight: true,
             defaultTheme,
             daylightTheme,
             previousTheme
@@ -85,6 +83,26 @@ describe('themeControllerState', () => {
         expect(nextTheme.backgroundColor).toBe(daylightTheme.backgroundColor);
         expect(nextTheme.wordColors).toEqual(previousTheme.wordColors);
         expect(nextTheme.lyricsIcons).toEqual(previousTheme.lyricsIcons);
+    });
+
+    it('keeps the previous theme when AI background mode is requested without AI theme', () => {
+        const previousTheme: Theme = {
+            ...defaultTheme,
+            name: 'Legacy Theme',
+            wordColors: [{ word: 'legacy', color: '#999999' }],
+            lyricsIcons: ['legacy-icon']
+        };
+
+        const nextTheme = resolveBgModeTheme({
+            mode: 'ai',
+            aiTheme: null,
+            isDaylight: false,
+            defaultTheme,
+            daylightTheme,
+            previousTheme
+        });
+
+        expect(nextTheme).toBe(previousTheme);
     });
 
     it('switches bg mode back to default while retaining AI foreground tokens', () => {
@@ -129,14 +147,6 @@ describe('themeControllerState', () => {
         expect(nextTheme.backgroundColor).toBe(dualTheme.dark.backgroundColor);
         expect(nextTheme.wordColors).toEqual(previousTheme.wordColors);
         expect(nextTheme.lyricsIcons).toEqual(previousTheme.lyricsIcons);
-    });
-
-    it('builds fallback themes with cleared visual token arrays', () => {
-        expect(buildThemeFallback(defaultTheme)).toEqual({
-            ...defaultTheme,
-            wordColors: [],
-            lyricsIcons: []
-        });
     });
 
     it('builds a built-in dual theme from warm cover colors', () => {
