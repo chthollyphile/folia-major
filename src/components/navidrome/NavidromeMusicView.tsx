@@ -518,42 +518,6 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
 
     return (
         <div className="w-full h-full flex flex-col p-0 relative">
-            <div className="flex items-center justify-center gap-3 mb-3 z-10 flex-wrap">
-                <div className="flex gap-2 text-xs">
-                    <button
-                        onClick={() => setSection('albums')}
-                        className={`px-3 py-1.5 rounded-full transition-all ${section === 'albums' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                    >
-                        {t('navidrome.albums')}
-                    </button>
-                    <button
-                        onClick={() => setSection('playlists')}
-                        className={`px-3 py-1.5 rounded-full transition-all ${section === 'playlists' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                    >
-                        <span className="inline-flex items-center gap-1"><ListMusic size={12} />{t('home.playlists')}</span>
-                    </button>
-                    <button
-                        onClick={() => setSection('artists')}
-                        className={`px-3 py-1.5 rounded-full transition-all ${section === 'artists' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                    >
-                        <span className="inline-flex items-center gap-1"><User size={12} />{t('navidrome.artists')}</span>
-                    </button>
-                </div>
-
-                <button
-                    onClick={fetchLibrary}
-                    className={`p-1.5 rounded-full ${buttonBg} transition-colors`}
-                    disabled={isLoading}
-                    title="Refresh"
-                >
-                    {isLoading ? (
-                        <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-primary)' }} />
-                    ) : (
-                        <RefreshCw size={14} style={{ color: 'var(--text-primary)' }} />
-                    )}
-                </button>
-            </div>
-
             <div className="flex-1 min-h-0 relative">
                 <AnimatePresence mode="wait">
                     <motion.div
@@ -564,6 +528,41 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                         transition={{ duration: 0.2 }}
                         className="w-full h-full min-h-0 flex flex-col justify-center"
                     >
+                        <div className="flex shrink-0 items-center justify-center gap-3 mb-3 z-10 flex-wrap">
+                            <div className="flex gap-2 text-xs">
+                                <button
+                                    onClick={() => setSection('albums')}
+                                    className={`px-3 py-1.5 rounded-full transition-all ${section === 'albums' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                                >
+                                    {t('navidrome.albums')}
+                                </button>
+                                <button
+                                    onClick={() => setSection('playlists')}
+                                    className={`px-3 py-1.5 rounded-full transition-all ${section === 'playlists' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                                >
+                                    <span className="inline-flex items-center gap-1"><ListMusic size={12} />{t('home.playlists')}</span>
+                                </button>
+                                <button
+                                    onClick={() => setSection('artists')}
+                                    className={`px-3 py-1.5 rounded-full transition-all ${section === 'artists' ? 'bg-white/10 opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                                >
+                                    <span className="inline-flex items-center gap-1"><User size={12} />{t('navidrome.artists')}</span>
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={fetchLibrary}
+                                className={`p-1.5 rounded-full ${buttonBg} transition-colors`}
+                                disabled={isLoading}
+                                title="Refresh"
+                            >
+                                {isLoading ? (
+                                    <Loader2 size={14} className="animate-spin" style={{ color: 'var(--text-primary)' }} />
+                                ) : (
+                                    <RefreshCw size={14} style={{ color: 'var(--text-primary)' }} />
+                                )}
+                            </button>
+                        </div>
                         <div className="w-full flex-[0_1_clamp(460px,40vh,760px)] min-h-0 max-h-[clamp(460px,40vh,760px)]">
                             <Carousel3D
                                 items={currentItems}
