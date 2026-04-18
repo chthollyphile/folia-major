@@ -358,6 +358,7 @@ export default function App() {
     const queueScrollRef = useRef<HTMLDivElement>(null);
     const shouldAutoPlay = useRef(false);
     const currentSongRef = useRef<number | null>(null);
+    const replayGainLogSignatureRef = useRef<string | null>(null);
     const volumePreviewFrameRef = useRef<number | null>(null);
     const pendingVolumePreviewRef = useRef<number | null>(null);
     const pendingResumeTimeRef = useRef<number | null>(null);
@@ -584,6 +585,11 @@ export default function App() {
             });
 
             if (recovered) {
+                return;
+            }
+
+            if (!audioRef.current.paused && !audioRef.current.ended) {
+                setPlayerState(PlayerState.PLAYING);
                 return;
             }
 
@@ -2212,7 +2218,18 @@ export default function App() {
         
         try {
             syncOutputGain(getTargetPlaybackVolume(), 0.1);
-            console.log(`[AudioContext] ReplayGain mode=${replayGainMode} gain=${effectiveReplayGainDb}dB (raw=${replayGainDb}dB, peak=${replayGainPeak ?? 'n/a'}, linear=${linearGain.toFixed(2)})`);
+            const replayGainLogSignature = JSON.stringify({
+                songId: currentSong.id,
+                mode: replayGainMode,
+                raw: replayGainDb,
+                effective: effectiveReplayGainDb,
+                peak: replayGainPeak ?? null,
+            });
+
+            if (replayGainLogSignatureRef.current !== replayGainLogSignature) {
+                replayGainLogSignatureRef.current = replayGainLogSignature;
+                console.log(`[AudioContext] ReplayGain mode=${replayGainMode} gain=${effectiveReplayGainDb}dB (raw=${replayGainDb}dB, peak=${replayGainPeak ?? 'n/a'}, linear=${linearGain.toFixed(2)})`);
+            }
         } catch (e) {
             console.warn('[AudioContext] Failed to apply ReplayGain', e);
         }
@@ -2334,13 +2351,18 @@ export default function App() {
                             setupAudioAnalyzer();
                         })
                         .catch(e => {
+                            if (audioRef.current && !audioRef.current.paused && !audioRef.current.ended) {
+                                setPlayerState(PlayerState.PLAYING);
+                                return;
+                            }
+
                             if (e.name === 'NotAllowedError') {
                                 setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
                                 setPlayerState(PlayerState.PAUSED);
                             }
                         });
                 }
-            } else if (!shouldAutoPlay.current) {
+            } else if (!shouldAutoPlay.current && audioRef.current.paused) {
                 // If we're not auto-playing (e.g. restore session), just set state to paused
                 setPlayerState(PlayerState.PAUSED);
             }
@@ -2353,8 +2375,11 @@ export default function App() {
 
     // Sync Logic & Audio Power
     const updateLoop = useCallback(() => {
+        const audioElement = audioRef.current;
+        const isActuallyPlaying = Boolean(audioElement && !audioElement.paused && !audioElement.ended);
+
         // 1. Audio Power / Visualizer Data
-        if (playerState === PlayerState.PLAYING && audioRef.current && !audioRef.current.paused && analyserRef.current) {
+        if (isActuallyPlaying && analyserRef.current) {
             const bufferLength = analyserRef.current.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyserRef.current.getByteFrequencyData(dataArray);
@@ -2411,8 +2436,8 @@ export default function App() {
         }
 
         // 2. Playback Time & Lyrics Sync
-        if (playerState === PlayerState.PLAYING && audioRef.current && !audioRef.current.paused) {
-            const time = audioRef.current.currentTime;
+        if (isActuallyPlaying && audioElement) {
+            const time = audioElement.currentTime;
             currentTime.set(time);
 
             if (lyrics) {
@@ -2425,7 +2450,7 @@ export default function App() {
         }
 
         animationFrameRef.current = requestAnimationFrame(updateLoop);
-    }, [lyrics, audioPower, playerState]);
+    }, [lyrics, audioPower]);
 
     useEffect(() => {
         animationFrameRef.current = requestAnimationFrame(updateLoop);
@@ -2437,7 +2462,7 @@ export default function App() {
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
         if (audioRef.current) {
-            if (playerState === PlayerState.PLAYING) {
+            if (!audioRef.current.paused && !audioRef.current.ended) {
                 pausePlayback();
             } else {
                 void resumePlayback();
@@ -2823,6 +2848,30 @@ export default function App() {
                 src={audioSrc || undefined}
                 crossOrigin="anonymous"
                 loop={loopMode === 'one'}
+                onPlay={(e) => {
+                    currentTime.set(e.currentTarget.currentTime);
+                    setPlayerState(PlayerState.PLAYING);
+                }}
+                onPlaying={(e) => {
+                    currentTime.set(e.currentTarget.currentTime);
+                    setupAudioAnalyzer();
+                    setPlayerState(PlayerState.PLAYING);
+                }}
+                onPause={(e) => {
+                    if (!e.currentTarget.ended) {
+                        setPlayerState(PlayerState.PAUSED);
+                    }
+                }}
+                onTimeUpdate={(e) => {
+                    const audioElement = e.currentTarget;
+                    if (!audioElement.paused && !audioElement.ended) {
+                        currentTime.set(audioElement.currentTime);
+                        setPlayerState(PlayerState.PLAYING);
+                    }
+                }}
+                onSeeked={(e) => {
+                    currentTime.set(e.currentTarget.currentTime);
+                }}
                 onEnded={() => {
                     // Cache if playing fully
                     if (audioSrc && !audioSrc.startsWith('blob:') && currentSong) {
@@ -2872,7 +2921,7 @@ export default function App() {
                             const recovered = await recoverOnlinePlaybackSource({
                                 failedSrc,
                                 resumeAt: e.currentTarget.currentTime,
-                                autoplay: playerState === PlayerState.PLAYING || shouldAutoPlay.current,
+                                autoplay: (!e.currentTarget.paused && !e.currentTarget.ended) || playerState === PlayerState.PLAYING || shouldAutoPlay.current,
                             });
 
                             if (!recovered) {
