@@ -531,7 +531,7 @@ const Home: React.FC<HomeProps> = ({
 
                             {/* Center: Tab Switcher */}
                             <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
-                                <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
+                                <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
                                     <div className="inline-flex items-center gap-0">
                                         {homeTabs.map((tab) => {
                                             const isActive = viewTab === tab.key;
@@ -540,7 +540,7 @@ const Home: React.FC<HomeProps> = ({
                                                 <button
                                                     key={tab.key}
                                                     onClick={() => setHomeViewTab(tab.key)}
-                                                    className={`relative inline-flex items-center justify-center px-2 md:px-2.5 py-1.5 rounded-full text-xs md:text-sm leading-none font-medium transition-colors duration-300 whitespace-nowrap ${isActive ? activeTabBg : navPillInactiveText}`}
+                                                    className={`relative inline-flex items-center justify-center px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${isActive ? activeTabBg : navPillInactiveText}`}
                                                 >
                                                     {isActive && (
                                                         <motion.span
@@ -588,7 +588,7 @@ const Home: React.FC<HomeProps> = ({
                 {/* Main Content Area */}
                 <div className={`flex-1 min-h-0 flex flex-col items-center relative ${homeContentBottomPadding}`}>
                     {!hasNeteaseLogin && isNeteaseTab ? (
-                        <div className="flex flex-col items-center justify-center space-y-6">
+                        <div className="flex flex-1 w-full flex-col items-center justify-center space-y-6">
                             <div className={`w-24 h-24 rounded-3xl ${cardBg} border border-white/10 flex items-center justify-center backdrop-blur-md`}>
                                 <User size={40} className="opacity-20" />
                             </div>
@@ -614,7 +614,7 @@ const Home: React.FC<HomeProps> = ({
                                         transition={{ duration: 0.2 }}
                                         className="w-full h-full flex-1 min-h-0 flex flex-col justify-center"
                                     >
-                                        <div className="w-full flex-[0_1_520px] min-h-0 max-h-[520px]">
+                                        <div className="w-full flex-[0_1_clamp(520px,46vh,760px)] min-h-0 max-h-[clamp(520px,46vh,760px)]">
                                             <Carousel3D
                                                 items={favoriteAlbums.map(a => ({
                                                     id: a.id,
@@ -642,7 +642,7 @@ const Home: React.FC<HomeProps> = ({
                                         transition={{ duration: 0.2 }}
                                         className="w-full h-full flex-1 min-h-0 flex flex-col justify-center"
                                     >
-                                        <div className="w-full flex-[0_1_520px] min-h-0 max-h-[520px]">
+                                        <div className="w-full flex-[0_1_clamp(520px,46vh,760px)] min-h-0 max-h-[clamp(520px,46vh,760px)]">
                                             <Carousel3D
                                                 items={playlistCards.map(p => ({
                                                     ...p,
@@ -667,7 +667,7 @@ const Home: React.FC<HomeProps> = ({
                                         transition={{ duration: 0.2 }}
                                         className="w-full h-full flex-1 min-h-0 flex flex-col justify-center"
                                     >
-                                        <div className="w-full flex-[0_1_520px] min-h-0 max-h-[520px]">
+                                        <div className="w-full flex-[0_1_clamp(520px,46vh,760px)] min-h-0 max-h-[clamp(520px,46vh,760px)]">
                                             <Carousel3D
                                                 items={radioItems}
                                                 onSelect={async (item) => {

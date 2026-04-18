@@ -564,7 +564,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                         transition={{ duration: 0.2 }}
                         className="w-full h-full min-h-0 flex flex-col justify-center"
                     >
-                        <div className="w-full flex-[0_1_460px] min-h-0 max-h-[460px]">
+                        <div className="w-full flex-[0_1_clamp(460px,40vh,760px)] min-h-0 max-h-[clamp(460px,40vh,760px)]">
                             <Carousel3D
                                 items={currentItems}
                                 onSelect={currentSelect}

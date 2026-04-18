@@ -254,27 +254,35 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
     const isNarrowLayout = containerSize.width > 0 && containerSize.width < 768;
     const isShortLayout = containerSize.height > 0 && containerSize.height < (hasFloatingPlayer ? 420 : 380);
     const useCompactMetrics = compactLayout && (isNarrowLayout || isShortLayout);
+    const isLargeDesktop = !useCompactMetrics
+        && isDesktopWidth
+        && containerSize.width >= 1600
+        && containerSize.height >= (hasFloatingPlayer ? 700 : 640);
+    const isUltraDesktop = !useCompactMetrics
+        && isDesktopWidth
+        && containerSize.width >= 2200
+        && containerSize.height >= (hasFloatingPlayer ? 840 : 760);
     const coverSize = useCompactMetrics
         ? (isDesktopWidth ? 208 : 192)
-        : (isDesktopWidth ? 256 : 224);
+        : (isDesktopWidth ? (isUltraDesktop ? 360 : isLargeDesktop ? 312 : 256) : 224);
     const carouselMinHeight = useCompactMetrics
         ? (isDesktopWidth ? 260 : 240)
-        : (isDesktopWidth ? 320 : 300);
+        : (isDesktopWidth ? (isUltraDesktop ? 440 : isLargeDesktop ? 380 : 320) : 300);
     const stageMinHeight = useCompactMetrics
         ? (isDesktopWidth ? 210 : 190)
-        : (isDesktopWidth ? 260 : 220);
+        : (isDesktopWidth ? (isUltraDesktop ? 360 : isLargeDesktop ? 300 : 260) : 220);
     const focusDecorationSize = useCompactMetrics
         ? (isDesktopWidth ? 340 : 300)
-        : (isDesktopWidth ? 400 : 340);
+        : (isDesktopWidth ? (isUltraDesktop ? 560 : isLargeDesktop ? 480 : 400) : 340);
     const mapButtonPadding = useCompactMetrics
         ? (isDesktopWidth ? 8 : 7)
-        : (isDesktopWidth ? 12 : 10);
+        : (isDesktopWidth ? (isUltraDesktop ? 14 : isLargeDesktop ? 13 : 12) : 10);
     const mapButtonIconSize = useCompactMetrics
         ? (isDesktopWidth ? 20 : 18)
-        : (isDesktopWidth ? 24 : 20);
+        : (isDesktopWidth ? (isUltraDesktop ? 28 : isLargeDesktop ? 26 : 24) : 20);
     const sideOffset = useCompactMetrics
         ? (isDesktopWidth ? 210 : 180)
-        : (isDesktopWidth ? 240 : 210);
+        : (isDesktopWidth ? (isUltraDesktop ? 336 : isLargeDesktop ? 288 : 240) : 210);
 
     const titleSpacingClass = useCompactMetrics
         ? (hasFloatingPlayer ? 'pt-4 pb-0 -mb-3 md:-mb-4' : 'pt-4 pb-4')
