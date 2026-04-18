@@ -184,6 +184,7 @@ const Home: React.FC<HomeProps> = ({
     const viewTab = homeViewTab;
     const hasNeteaseLogin = Boolean(user);
     const isNeteaseTab = viewTab === 'playlist' || viewTab === 'albums' || viewTab === 'radio';
+    const homeContentBottomPadding = currentTrack ? 'pb-28 md:pb-32' : '';
     const playlistCards = cloudPlaylist
         ? (playlists.length > 0
             ? [playlists[0], cloudPlaylist, ...playlists.slice(1)]
@@ -214,6 +215,13 @@ const Home: React.FC<HomeProps> = ({
     const scanProgressPercent = scanProgress?.totalSongs
         ? Math.min(100, Math.round((scanProgress.completedSongs / scanProgress.totalSongs) * 100))
         : 0;
+    const homeTabs: Array<{ key: HomeViewTab; label: string; }> = [
+        { key: 'playlist', label: t('home.playlists') },
+        { key: 'radio', label: t('home.radio') || '电台' },
+        { key: 'albums', label: t('home.albums') || '专辑' },
+        { key: 'local', label: t('localMusic.folder') },
+        ...(navidromeEnabled ? [{ key: 'navidrome' as HomeViewTab, label: t('navidrome.title') || 'Navidrome' }] : []),
+    ];
 
     const handleToggleNavidrome = (enabled: boolean) => {
         setNavidromeEnabled(enabled);
@@ -523,61 +531,35 @@ const Home: React.FC<HomeProps> = ({
 
                             {/* Center: Tab Switcher */}
                             <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
-                                <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
-                                    <div className={`grid ${navidromeEnabled ? 'grid-cols-5' : 'grid-cols-4 transition-all duration-300'}`}>
-                                        <div
-                                            className="absolute top-1 bottom-1 rounded-full bg-white shadow-sm transition-all duration-300 ease-spring"
-                                            style={{
-                                                left: viewTab === 'playlist' ? '4px'
-                                                    : viewTab === 'radio' ? (navidromeEnabled ? 'calc(20% + 1px)' : 'calc(25% + 1px)')
-                                                    : viewTab === 'albums' ? (navidromeEnabled ? 'calc(40% + 1px)' : 'calc(50% + 1px)')
-                                                        : viewTab === 'local' ? (navidromeEnabled ? 'calc(60%)' : 'calc(75% - 1px)')
-                                                            : 'calc(80% - 1px)',
-                                                width: navidromeEnabled ? 'calc(20% - 2px)' : 'calc(25% - 2px)'
-                                            }}
-                                        />
-                                        <button
-                                            onClick={() => setHomeViewTab('playlist')}
-                                            className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'playlist' ? activeTabBg : navPillInactiveText}`}
-                                        >
-                                            {t('home.playlists')}
-                                        </button>
-                                        <button
-                                            onClick={() => setHomeViewTab('radio')}
-                                            className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'radio' ? activeTabBg : navPillInactiveText}`}
-                                        >
-                                            {t('home.radio') || '电台'}
-                                        </button>
-                                        <button
-                                            onClick={() => setHomeViewTab('albums')}
-                                            className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'albums' ? activeTabBg : navPillInactiveText
-                                                }`}
-                                        >
-                                            {t('home.albums') || '专辑'}
-                                        </button>
-                                        <button
-                                            onClick={() => setHomeViewTab('local')}
-                                            className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'local' ? activeTabBg : navPillInactiveText
-                                                }`}
-                                        >
-                                            {t('localMusic.folder')}
-                                        </button>
-                                        {navidromeEnabled && (
-                                            <button
-                                                onClick={() => setHomeViewTab('navidrome')}
-                                                className={`relative z-10 px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${viewTab === 'navidrome' ? activeTabBg : navPillInactiveText
-                                                    }`}
-                                            >
-                                                {t('navidrome.title') || 'Navidrome'}
-                                            </button>
-                                        )}
+                                <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
+                                    <div className="inline-flex items-center gap-0">
+                                        {homeTabs.map((tab) => {
+                                            const isActive = viewTab === tab.key;
+
+                                            return (
+                                                <button
+                                                    key={tab.key}
+                                                    onClick={() => setHomeViewTab(tab.key)}
+                                                    className={`relative inline-flex items-center justify-center px-2 md:px-2.5 py-1.5 rounded-full text-xs md:text-sm leading-none font-medium transition-colors duration-300 whitespace-nowrap ${isActive ? activeTabBg : navPillInactiveText}`}
+                                                >
+                                                    {isActive && (
+                                                        <motion.span
+                                                            layoutId="home-active-tab-pill"
+                                                            className="absolute inset-0 rounded-full bg-white shadow-sm"
+                                                            transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.9 }}
+                                                        />
+                                                    )}
+                                                    <span className="relative z-10">{tab.label}</span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Right: Search Bar */}
                             <div className="flex justify-end order-2 md:order-none">
-                                <form onSubmit={handleSearch} className="relative group w-full md:w-64 transition-all focus-within:w-full md:focus-within:w-80">
+                                <form onSubmit={handleSearch} className="relative group w-full md:w-56 lg:w-60 transition-all focus-within:w-full md:focus-within:w-72 lg:focus-within:w-80">
                                     {isSearching ? (
                                         <Loader2
                                             className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40"
@@ -604,7 +586,7 @@ const Home: React.FC<HomeProps> = ({
                     )}
 
                     {/* Main Content Area */}
-                    <div className={`flex-1 min-h-0 flex flex-col items-center relative ${currentTrack ? 'pb-28 md:pb-32' : ''}`}>
+                    <div className={`flex-1 min-h-0 flex flex-col items-center relative ${homeContentBottomPadding}`}>
                         {!hasNeteaseLogin && isNeteaseTab ? (
                             <div className="flex flex-col items-center justify-center space-y-6">
                                 <div className={`w-24 h-24 rounded-3xl ${cardBg} border border-white/10 flex items-center justify-center backdrop-blur-md`}>
@@ -646,6 +628,7 @@ const Home: React.FC<HomeProps> = ({
                                                 initialFocusedIndex={focusedFavoriteAlbumIndex}
                                                 onFocusedIndexChange={setFocusedFavoriteAlbumIndex}
                                                 isDaylight={isDaylight}
+                                                hasFloatingPlayer={Boolean(currentTrack)}
                                             />
                                         </motion.div>
                                     ) : viewTab === 'playlist' ? (
@@ -668,6 +651,7 @@ const Home: React.FC<HomeProps> = ({
                                                 initialFocusedIndex={focusedPlaylistIndex}
                                                 onFocusedIndexChange={setFocusedPlaylistIndex}
                                                 isDaylight={isDaylight}
+                                                hasFloatingPlayer={Boolean(currentTrack)}
                                             />
                                         </motion.div>
                                     ) : viewTab === 'radio' ? (
@@ -702,6 +686,7 @@ const Home: React.FC<HomeProps> = ({
                                                 initialFocusedIndex={focusedRadioIndex}
                                                 onFocusedIndexChange={setFocusedRadioIndex}
                                                 isDaylight={isDaylight}
+                                                hasFloatingPlayer={Boolean(currentTrack)}
                                             />
                                         </motion.div>
                                     ) : viewTab === 'local' ? (
@@ -711,7 +696,7 @@ const Home: React.FC<HomeProps> = ({
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                             transition={{ duration: 0.2 }}
-                                            className="w-full h-full flex-1 overflow-hidden"
+                                            className="w-full h-full flex-1"
                                         >
                                             <LocalMusicView
                                                 localSongs={localSongs}
@@ -767,6 +752,7 @@ const Home: React.FC<HomeProps> = ({
                                                 onSelectAlbumGroup={onSelectLocalAlbum}
                                                 theme={theme}
                                                 isDaylight={isDaylight}
+                                                hasFloatingPlayer={Boolean(currentTrack)}
                                             />
                                         </motion.div>
                                     ) : (
@@ -776,7 +762,7 @@ const Home: React.FC<HomeProps> = ({
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                             transition={{ duration: 0.2 }}
-                                            className="w-full h-full flex-1 overflow-hidden"
+                                            className="w-full h-full flex-1"
                                         >
                                             <NavidromeMusicView
                                                 onPlaySong={onPlayNavidromeSong || (() => { })}
@@ -788,6 +774,7 @@ const Home: React.FC<HomeProps> = ({
                                                 focusedAlbumIndex={navidromeFocusedAlbumIndex}
                                                 setFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
                                                 externalSelection={pendingNavidromeSelection ?? searchNavidromeSelection}
+                                                hasFloatingPlayer={Boolean(currentTrack)}
                                                 onExternalSelectionHandled={() => {
                                                     if (pendingNavidromeSelection) {
                                                         onPendingNavidromeSelectionHandled?.();

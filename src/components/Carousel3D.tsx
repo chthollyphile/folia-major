@@ -25,7 +25,8 @@ const CarouselItem: React.FC<{
     rotateY: number;
     onSelect: () => void;
     onFocus: () => void;
-}> = ({ item, distance, isActive, xOffset, scale, opacity, zIndex, rotateY, onSelect, onFocus }) => {
+    compactLayout?: boolean;
+}> = ({ item, distance, isActive, xOffset, scale, opacity, zIndex, rotateY, onSelect, onFocus, compactLayout = false }) => {
     const blurTarget = isActive ? 0 : 2;
     const blurMotion = useMotionValue(blurTarget);
     const blurString = useTransform(blurMotion, (value) => {
@@ -44,7 +45,7 @@ const CarouselItem: React.FC<{
 
     return (
         <motion.div
-            className="absolute cursor-pointer"
+            className="absolute cursor-pointer origin-bottom"
             initial={false}
             animate={{
                 x: xOffset,
@@ -62,7 +63,7 @@ const CarouselItem: React.FC<{
                 else onFocus();
             }}
         >
-            <div className={`w-56 h-56 md:w-64 md:h-64 rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
+            <div className={`${compactLayout ? 'w-48 h-48 md:w-52 md:h-52' : 'w-56 h-56 md:w-64 md:h-64'} rounded-2xl overflow-hidden shadow-2xl relative transition-all duration-300 ${isActive ? 'ring-2 ring-white/30' : ''}`}>
                 {item.coverUrl ? (
                     <img src={toSafeUrl(item.coverUrl)} alt={item.name} className="w-full h-full object-cover pointer-events-none" />
                 ) : (
@@ -85,9 +86,22 @@ interface Carousel3DProps {
     initialFocusedIndex?: number;
     onFocusedIndexChange?: (index: number) => void;
     isDaylight?: boolean;
+    compactLayout?: boolean;
+    hasFloatingPlayer?: boolean;
 }
 
-const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = false, emptyMessage = "No items", textBottomClass = "bottom-24", initialFocusedIndex = 0, onFocusedIndexChange, isDaylight = false }) => {
+const Carousel3D: React.FC<Carousel3DProps> = ({
+    items,
+    onSelect,
+    isLoading = false,
+    emptyMessage = "No items",
+    textBottomClass = "bottom-24",
+    initialFocusedIndex = 0,
+    onFocusedIndexChange,
+    isDaylight = false,
+    compactLayout = false,
+    hasFloatingPlayer = false
+}) => {
     const { t } = useTranslation();
     const [focusedIndex, setFocusedIndex] = useState(initialFocusedIndex);
     const [showMap, setShowMap] = useState(false);
@@ -195,34 +209,38 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [items.length]);
 
+    const titleSpacingClass = compactLayout
+        ? (hasFloatingPlayer ? 'pt-4 pb-0 -mb-3 md:-mb-4' : 'pt-4 pb-4')
+        : (hasFloatingPlayer ? 'pt-6 md:pt-8 pb-0 -mb-4 md:-mb-6' : 'pt-5 md:pt-6 pb-4');
+
     return (
         <div className="w-full h-full min-h-0 flex flex-col relative">
             <div
                 ref={carouselRef}
-                className="w-full flex-1 min-h-[320px] relative perspective-1000 touch-pan-y"
+                className={`w-full flex-1 relative perspective-1000 touch-pan-y ${compactLayout ? 'min-h-[260px]' : 'min-h-[320px]'}`}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             >
-                <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-5">
+                <div className={`relative z-10 flex h-full w-full flex-col items-center justify-center ${compactLayout ? 'gap-3' : 'gap-5'}`}>
                     {!showMap && items.length > 0 && (
                         <motion.button
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className={`shrink-0 p-3 rounded-full transition-all ${isDaylight ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-white/50 hover:text-white'}`}
+                            className={`shrink-0 rounded-full transition-all ${compactLayout ? 'p-2' : 'p-3'} ${isDaylight ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-white/50 hover:text-white'}`}
                             onClick={() => setShowMap(true)}
                             title={t('home.allAlbums') || 'Show All'}
                         >
-                            <MapIcon size={24} />
+                            <MapIcon size={compactLayout ? 20 : 24} />
                         </motion.button>
                     )}
 
-                    <div className="relative flex w-full flex-1 min-h-[260px] items-center justify-center">
+                    <div className={`relative flex w-full flex-1 items-center justify-center ${compactLayout ? 'min-h-[210px]' : 'min-h-[260px]'}`}>
                         {/* Decorative Line Behind */}
                         <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-y-1/2 z-0" />
 
                         {/* Center Focus Decoration */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border border-white/5 -z-10" />
+                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5 -z-10 ${compactLayout ? 'w-[340px] h-[340px]' : 'w-[400px] h-[400px]'}`} />
 
                         {isLoading ? (
                             <div className="opacity-50 flex flex-col items-center gap-4">
@@ -236,9 +254,9 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                                 const distance = i - focusedIndex;
                                 const isActive = distance === 0;
 
-                                const scale = isActive ? 1.1 : 1 - Math.abs(distance) * 0.15;
+                                const scale = isActive ? (compactLayout ? 1.04 : 1.1) : 1 - Math.abs(distance) * 0.15;
                                 const opacity = isActive ? 1 : 0.6 - Math.abs(distance) * 0.15;
-                                const xOffset = distance * 240;
+                                const xOffset = distance * (compactLayout ? 210 : 240);
                                 const zIndex = 10 - Math.abs(distance);
                                 const rotateY = distance > 0 ? -15 : distance < 0 ? 15 : 0;
 
@@ -255,6 +273,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                                         rotateY={rotateY}
                                         onSelect={() => onSelect(item)}
                                         onFocus={() => setFocusedIndex(i)}
+                                        compactLayout={compactLayout}
                                     />
                                 );
                             })
@@ -273,7 +292,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({ items, onSelect, isLoading = fa
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="relative shrink-0 text-center z-10 px-8 pb-10 pointer-events-none"
+                    className={`relative shrink-0 text-center z-10 px-8 pointer-events-none ${titleSpacingClass}`}
                 >
                     <h3 className="font-bold text-2xl truncate max-w-xl mx-auto" style={{ color: 'var(--text-primary)' }}>
                         {items[focusedIndex].name}

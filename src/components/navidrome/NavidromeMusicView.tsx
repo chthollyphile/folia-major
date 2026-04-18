@@ -31,6 +31,7 @@ interface NavidromeMusicViewProps {
     setFocusedAlbumIndex?: (index: number) => void;
     externalSelection?: NavidromeViewSelection | null;
     onExternalSelectionHandled?: () => void;
+    hasFloatingPlayer?: boolean;
 }
 
 type NaviSection = 'albums' | 'playlists' | 'artists';
@@ -52,6 +53,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
     setFocusedAlbumIndex,
     externalSelection = null,
     onExternalSelectionHandled,
+    hasFloatingPlayer = false,
 }) => {
     const { t } = useTranslation();
 
@@ -515,7 +517,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
             : (t('navidrome.noArtistsFound') || 'No artists found');
 
     return (
-        <div className="w-full h-full flex flex-col p-6 pb-32 overflow-hidden relative">
+        <div className="w-full h-full flex flex-col p-0 relative">
             <div className="flex items-center justify-center gap-3 mb-4 z-10 flex-wrap">
                 <div className="flex gap-2 text-xs">
                     <button
@@ -553,13 +555,14 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
             </div>
 
             {section === 'playlists' && (
+                // TODO: remove this
                 <div className="flex items-center justify-center gap-4 mb-2 opacity-50 text-xs">
                     <span className="inline-flex items-center gap-1"><Shuffle size={12} />{t('navidrome.random') || '随机音乐'}</span>
                     <span className="inline-flex items-center gap-1"><Heart size={12} />{t('navidrome.favorites') || '收藏'}</span>
                 </div>
             )}
 
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 min-h-0 relative">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={section}
@@ -567,18 +570,21 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="w-full h-full"
+                        className="w-full h-full min-h-0 flex flex-col"
                     >
+                        <div className="flex-1 min-h-0">
                         <Carousel3D
                             items={currentItems}
                             onSelect={currentSelect}
                             isLoading={isLoading}
                             emptyMessage={currentEmptyMessage}
-                            textBottomClass="-bottom-1"
                             initialFocusedIndex={currentFocusedIndex}
                             onFocusedIndexChange={currentFocusedSetter}
                             isDaylight={isDaylight}
+                            compactLayout
+                            hasFloatingPlayer={hasFloatingPlayer}
                         />
+                        </div>
                     </motion.div>
                 </AnimatePresence>
             </div>

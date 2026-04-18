@@ -35,6 +35,7 @@ interface LocalMusicViewProps {
     onSelectAlbumGroup?: (albumName: string) => void;
     theme: any;
     isDaylight: boolean;
+    hasFloatingPlayer?: boolean;
 }
 
 /**
@@ -77,7 +78,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     onSelectArtistGroup,
     onSelectAlbumGroup,
     theme,
-    isDaylight
+    isDaylight,
+    hasFloatingPlayer = false
 }) => {
     const { t } = useTranslation();
     const allSongsLabel = t('localMusic.allSongs');
@@ -594,7 +596,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
 
     return (
         <div
-            className="w-full h-full flex flex-col p-6 pb-32 overflow-hidden relative"
+            className="w-full h-full flex flex-col p-0 relative"
             // onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
@@ -617,7 +619,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 </div>
             )}
 
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 min-h-0 relative">
                 {localSongs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
                         <Music size={64} className="mb-4" />
@@ -645,7 +647,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                         </button>
                     </div>
                 ) : (
-                    <div className="w-full h-full relative">
+                    <div className="w-full h-full min-h-0 relative">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeSection.key}
@@ -653,9 +655,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="w-full h-full flex flex-col justify-center"
+                                className="w-full h-full min-h-0 flex flex-col"
                             >
-                                <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
+                                <div className="flex shrink-0 items-center justify-center gap-2 mb-4 flex-wrap">
                                     {sections.map(section => (
                                         <button
                                             key={section.key}
@@ -681,15 +683,16 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                         </button>
                                     )}
                                 </div>
-                                <div className="h-[400px]">
+                                <div className="flex-1 min-h-0">
                                     <Carousel3D
                                         items={activeSection.items}
                                         onSelect={(item) => setSelectedGroup(item)}
                                         emptyMessage={activeSection.emptyMessage}
-                                        textBottomClass="-bottom-1"
                                         initialFocusedIndex={activeSection.focusedIndex}
                                         onFocusedIndexChange={activeSection.onFocusedIndexChange}
                                         isDaylight={isDaylight}
+                                        compactLayout
+                                        hasFloatingPlayer={hasFloatingPlayer}
                                     />
                                 </div>
                             </motion.div>
