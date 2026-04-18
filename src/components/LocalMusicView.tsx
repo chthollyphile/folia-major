@@ -683,7 +683,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                         </button>
                                     )}
                                 </div>
-                                <div className="w-full flex-[0_1_clamp(460px,40vh,760px)] min-h-0 max-h-[clamp(460px,40vh,760px)]">
+                                <div className="w-full flex-[0_1_clamp(460px,46vh,760px)] min-h-0 max-h-[clamp(460px,46vh,760px)]">
                                     <Carousel3D
                                         items={activeSection.items}
                                         onSelect={(item) => setSelectedGroup(item)}

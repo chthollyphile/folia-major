@@ -563,7 +563,7 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                                 )}
                             </button>
                         </div>
-                        <div className="w-full flex-[0_1_clamp(460px,40vh,760px)] min-h-0 max-h-[clamp(460px,40vh,760px)]">
+                        <div className="w-full flex-[0_1_clamp(460px,46vh,760px)] min-h-0 max-h-[clamp(460px,46vh,760px)]">
                             <Carousel3D
                                 items={currentItems}
                                 onSelect={currentSelect}
