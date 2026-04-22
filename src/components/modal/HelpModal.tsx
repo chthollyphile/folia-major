@@ -106,6 +106,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [cacheDirectory, setCacheDirectory] = useState<string>('');
     const [cacheDirectoryIsDefault, setCacheDirectoryIsDefault] = useState(true);
     const [cacheDirectoryStatus, setCacheDirectoryStatus] = useState<'idle' | 'choosing'>('idle');
+    const configuredAiProvider = isElectron ? electronSettings.AI_PROVIDER : import.meta.env.VITE_AI_PROVIDER;
+    const aiServiceLabel = configuredAiProvider === 'openai' ? 'OpenAI Compatible' : 'Google Gemini';
 
     useEffect(() => {
         if ((window as any).electron) {
@@ -453,11 +455,9 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         ? '已复制'
                                         : `folia-major v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`}
                                 </button>
-                                {theme?.provider && (
-                                    <p className="text-xs font-mono opacity-30 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                                        AI Service: {theme.provider}
-                                    </p>
-                                )}
+                                <p className="text-xs font-mono opacity-30 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                    AI Service: {aiServiceLabel}
+                                </p>
                             </div>
                         </div>
                     ) : (
