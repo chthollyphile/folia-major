@@ -10,6 +10,7 @@ describe('fontStacks', () => {
 
         const stack = resolveThemeFontStack(theme);
 
+        expect(stack.startsWith('"獅尾四季春加糖SC-Regular"')).toBe(true);
         expect(stack).toContain('"Iowan Old Style"');
         expect(stack).toContain('serif');
     });
