@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Line, Theme } from '../../types';
+import { resolveThemeTranslationFontStack } from '../../utils/fontStacks';
 
 interface VisualizerSubtitleOverlayProps {
     showText: boolean;
@@ -38,10 +39,12 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
+                            data-font-debug-target="visualizer-translation"
                             className="font-medium max-w-4xl mx-auto"
                             style={{
                                 color: theme.secondaryColor,
                                 fontSize: translationFontSize,
+                                fontFamily: resolveThemeTranslationFontStack(theme),
                             }}
                         >
                             {activeLine?.translation || recentCompletedLine?.translation}

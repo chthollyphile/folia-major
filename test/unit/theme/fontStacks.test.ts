@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveThemeFontStack } from '@/utils/fontStacks';
+import { resolveThemeFontStack, resolveThemeTranslationFontStack } from '@/utils/fontStacks';
 import type { Theme } from '@/types';
 
 describe('fontStacks', () => {
@@ -11,6 +11,8 @@ describe('fontStacks', () => {
         const stack = resolveThemeFontStack(theme);
 
         expect(stack).toContain('"Iowan Old Style"');
+        expect(stack).toContain('"SimSun"');
+        expect(stack).toContain('"Yu Mincho"');
         expect(stack).toContain('serif');
     });
 
@@ -48,5 +50,18 @@ describe('fontStacks', () => {
         const stack = resolveThemeFontStack(theme);
 
         expect(stack.startsWith('"Inter"')).toBe(true);
+    });
+
+    it('keeps translation text on the built-in stack even when a custom font is selected', () => {
+        const theme: Pick<Theme, 'fontStyle' | 'fontFamily'> = {
+            fontStyle: 'sans',
+            fontFamily: 'SF Pro Display',
+        };
+
+        const stack = resolveThemeTranslationFontStack(theme);
+
+        expect(stack.startsWith('"Inter"')).toBe(true);
+        expect(stack).not.toContain('SF Pro Display');
+        expect(stack).toContain('"Microsoft YaHei"');
     });
 });

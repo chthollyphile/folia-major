@@ -231,7 +231,7 @@ export default {
     "fontSerif": "衬线",
     "fontMono": "等宽",
     "previewOriginal": "风会记住你唱过的每一句话",
-    "previewTranslation": "译文行也会跟随同一套排版偏好。",
+    "previewTranslation": "译文会沿用字号风格，但优先使用更稳定的中日韩字体回退。",
     "backgroundOpacity": "背景透明度",
     "themePresets": "主题预设",
     "themePresetsDefault": "墨染 / 素白",
