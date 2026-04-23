@@ -174,8 +174,17 @@ function isFontAccessPermission(permission) {
   return permission === 'local-fonts';
 }
 
+function isClipboardWritePermission(permission) {
+  return permission === 'clipboard-sanitized-write';
+}
+
 function isAllowedMainWindowPermission(permission) {
-  return isFileSystemPermission(permission) || isFontAccessPermission(permission) || permission === 'unknown';
+  return (
+    isFileSystemPermission(permission) ||
+    isFontAccessPermission(permission) ||
+    isClipboardWritePermission(permission) ||
+    permission === 'unknown'
+  );
 }
 
 function isTrustedMainWindowContents(webContents) {
