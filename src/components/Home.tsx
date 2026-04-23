@@ -93,9 +93,11 @@ interface HomeProps {
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
     lyricsCustomFontLabel: string | null;
+    showOpenPanelCloseButton: boolean;
     onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
     onLyricsFontScaleChange: (fontScale: number) => void;
     onLyricsCustomFontChange: (font: { family: string; label?: string | null; } | null) => void;
+    onToggleOpenPanelCloseButton: (enable: boolean) => void;
     onSearchCommitted: (query: string, sourceTab: HomeViewTab, replace?: boolean) => void;
 }
 
@@ -160,9 +162,11 @@ const Home: React.FC<HomeProps> = ({
     lyricsFontScale,
     lyricsCustomFontFamily,
     lyricsCustomFontLabel,
+    showOpenPanelCloseButton,
     onLyricsFontStyleChange,
     onLyricsFontScaleChange,
     onLyricsCustomFontChange,
+    onToggleOpenPanelCloseButton,
     onSearchCommitted,
 }) => {
     const { t } = useTranslation();
@@ -836,6 +840,7 @@ const Home: React.FC<HomeProps> = ({
                     }
 
                     {/* Help Modal */}
+                    <AnimatePresence>
                     {
                         showHelpModal && (
                             <HelpModal
@@ -867,12 +872,15 @@ const Home: React.FC<HomeProps> = ({
                                 lyricsFontScale={lyricsFontScale}
                                 lyricsCustomFontFamily={lyricsCustomFontFamily}
                                 lyricsCustomFontLabel={lyricsCustomFontLabel}
+                                showOpenPanelCloseButton={showOpenPanelCloseButton}
                                 onLyricsFontStyleChange={onLyricsFontStyleChange}
                                 onLyricsFontScaleChange={onLyricsFontScaleChange}
                                 onLyricsCustomFontChange={onLyricsCustomFontChange}
+                                onToggleOpenPanelCloseButton={onToggleOpenPanelCloseButton}
                             />
                         )
                     }
+                    </AnimatePresence>
 
                     {/* User Avatar - Back to Player */}
                     {

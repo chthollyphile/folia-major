@@ -399,6 +399,7 @@ export default function App() {
         lyricsFontScale,
         lyricsCustomFontFamily,
         lyricsCustomFontLabel,
+        showOpenPanelCloseButton,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleMediaCache,
@@ -412,6 +413,7 @@ export default function App() {
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
+        handleToggleOpenPanelCloseButton,
         volume,
         isMuted,
         handleSetVolume,
@@ -3080,9 +3082,11 @@ export default function App() {
                             lyricsFontScale={lyricsFontScale}
                             lyricsCustomFontFamily={lyricsCustomFontFamily}
                             lyricsCustomFontLabel={lyricsCustomFontLabel}
+                            showOpenPanelCloseButton={showOpenPanelCloseButton}
                             onLyricsFontStyleChange={handleSetLyricsFontStyle}
                             onLyricsFontScaleChange={handleSetLyricsFontScale}
                             onLyricsCustomFontChange={handleSetLyricsCustomFont}
+                            onToggleOpenPanelCloseButton={handleToggleOpenPanelCloseButton}
                             onMatchSong={async (song) => {
                                 await loadLocalSongs();
 
@@ -3371,6 +3375,7 @@ export default function App() {
                         onOpenCurrentLocalArtist={openCurrentLocalArtist}
                         onOpenCurrentNavidromeAlbum={openCurrentNavidromeAlbum}
                         onOpenCurrentNavidromeArtist={openCurrentNavidromeArtist}
+                        showOpenPanelCloseButton={showOpenPanelCloseButton}
                     />
                 )
             }

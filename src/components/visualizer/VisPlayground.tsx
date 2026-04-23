@@ -359,6 +359,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const tabSwitcherBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
     const activeTabBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const controlCardBg = isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)';
+    const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
 
     const handleReset = () => {
         onCustomFontChange(null);
@@ -514,7 +515,15 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[130] bg-black/65 backdrop-blur-xl px-3 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-5" onClick={onClose}>
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-[130] backdrop-blur-xl px-3 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-5"
+            style={{ backgroundColor: overlayBackground }}
+            onClick={onClose}
+        >
             <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -797,7 +806,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                     </div>
                 )}
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 

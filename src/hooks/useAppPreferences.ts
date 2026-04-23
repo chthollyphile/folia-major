@@ -114,6 +114,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [lyricsFontStyle, setLyricsFontStyle] = useState<Theme['fontStyle']>(readStoredLyricsFontStyle);
     const [lyricsFontScale, setLyricsFontScale] = useState<number>(readStoredLyricsFontScale);
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
+    const [showOpenPanelCloseButton, setShowOpenPanelCloseButton] = useState(() => getStoredBoolean('show_open_panel_close_button', true));
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('player_volume');
         return saved !== null ? parseFloat(saved) : 1.0;
@@ -251,6 +252,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         localStorage.setItem('lyrics_custom_font', JSON.stringify(next));
     }, []);
 
+    const handleToggleOpenPanelCloseButton = useCallback((enable: boolean) => {
+        setShowOpenPanelCloseButton(enable);
+        localStorage.setItem('show_open_panel_close_button', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '已显示面板关闭按钮' : '已隐藏面板关闭按钮'
+        });
+    }, [setStatusMsg]);
+
     const handleSetVolume = useCallback((val: number) => {
         setVolume(val);
         localStorage.setItem('player_volume', String(val));
@@ -277,6 +287,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         lyricsFontScale,
         lyricsCustomFontFamily: lyricsCustomFont?.family ?? null,
         lyricsCustomFontLabel: lyricsCustomFont?.label ?? null,
+        showOpenPanelCloseButton,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleMediaCache,
@@ -290,6 +301,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
+        handleToggleOpenPanelCloseButton,
         volume,
         isMuted,
         handleSetVolume,

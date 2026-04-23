@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type PartitaTuning, type VisualizerMode } from '../../types';
@@ -37,9 +38,11 @@ interface HelpModalProps {
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
     lyricsCustomFontLabel: string | null;
+    showOpenPanelCloseButton: boolean;
     onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
     onLyricsFontScaleChange: (fontScale: number) => void;
     onLyricsCustomFontChange: (font: { family: string; label?: string | null; } | null) => void;
+    onToggleOpenPanelCloseButton: (enable: boolean) => void;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -71,14 +74,17 @@ const HelpModal: React.FC<HelpModalProps> = ({
     lyricsFontScale,
     lyricsCustomFontFamily,
     lyricsCustomFontLabel,
+    showOpenPanelCloseButton,
     onLyricsFontStyleChange,
     onLyricsFontScaleChange,
     onLyricsCustomFontChange,
+    onToggleOpenPanelCloseButton,
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
+    const [showLabSettings, setShowLabSettings] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
     const [authorClickCount, setAuthorClickCount] = useState(0);
     const [meowEasterEgg, setMeowEasterEgg] = useState<{ id: number; color: string; } | null>(null);
@@ -311,10 +317,32 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const successBgColor = isDaylight ? 'bg-green-500/10' : 'bg-green-500/20';
     const errorTextColor = isDaylight ? 'text-red-600' : 'text-red-400';
     const errorBgColor = isDaylight ? 'bg-red-500/10' : 'bg-red-500/10';
+    const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
+    const shellTransition = { duration: 0.24, ease: 'easeOut' as const };
+    const panelMotion = {
+        initial: { opacity: 0, y: 20, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        exit: { opacity: 0, y: 16, scale: 0.985 },
+    };
+    const contentMotion = {
+        initial: { opacity: 0, x: 18 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: -18 },
+    };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-200">
-            <div className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[85vh]`}>
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={shellTransition}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4"
+        >
+            <motion.div
+                {...panelMotion}
+                transition={shellTransition}
+                className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl overflow-hidden flex flex-col max-h-[85vh]`}
+            >
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors z-20"
@@ -341,8 +369,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
                 </h2>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                    <AnimatePresence mode="wait" initial={false}>
                     {activeTab === 'help' ? (
-                        <div className="space-y-6">
+                        <motion.div
+                            key="help-tab"
+                            {...contentMotion}
+                            transition={shellTransition}
+                            className="space-y-6"
+                        >
                             {/* Navigation - REMOVED requested items */}
                             {/* 
                                 Removed:
@@ -459,9 +493,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     AI Service: {aiServiceLabel}
                                 </p>
                             </div>
-                        </div>
+                        </motion.div>
                     ) : (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <motion.div
+                            key="options-tab"
+                            {...contentMotion}
+                            transition={shellTransition}
+                            className="space-y-8"
+                        >
                             {/* Visual Settings */}
                             <section>
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
@@ -858,6 +897,31 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 </div>
                             </section>
 
+                            <section>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLabSettings(true)}
+                                    className="w-full bg-white/5 p-4 rounded-xl border border-white/5 transition-colors hover:bg-white/8"
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-start gap-3 text-left">
+                                            <div className="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0" style={{ color: 'var(--text-primary)' }}>
+                                                <FlaskConical size={18} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('options.labSettings') || "Lab Settings"}
+                                                </div>
+                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {t('options.labSettingsDesc') || "Open a separate page for experimental playback and panel behavior settings."}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                    </div>
+                                </button>
+                            </section>
+
                             {/* Electron Settings */}
                             {isElectron && (
                                 <section>
@@ -975,21 +1039,120 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     </div>
                                 </section>
                             )}
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+                </div>
 
-                            {/* Static Mode */}
-                            <section>
-                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Monitor size={14} /> {t('options.staticMode') || "Static Mode"}
-                                </h3>
-                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                {/* Footer (Empty now) */}
+                {/* <div className="mt-8 pt-0 border-t-0 p-0" /> */}
+            </motion.div>
+            <AnimatePresence>
+                {showVisPlayground && (
+                    <VisPlayground
+                        theme={theme}
+                        isDaylight={isDaylight}
+                        visualizerMode={visualizerMode}
+                        backgroundOpacity={backgroundOpacity}
+                        staticMode={staticMode}
+                        cadenzaTuning={cadenzaTuning}
+                        partitaTuning={partitaTuning}
+                        fontStyle={lyricsFontStyle}
+                        fontScale={lyricsFontScale}
+                        customFontFamily={lyricsCustomFontFamily}
+                        customFontLabel={lyricsCustomFontLabel}
+                        onFontStyleChange={onLyricsFontStyleChange}
+                        onFontScaleChange={onLyricsFontScaleChange}
+                        onCustomFontChange={onLyricsCustomFontChange}
+                        onPartitaTuningChange={onPartitaTuningChange}
+                        onResetPartitaTuning={onResetPartitaTuning}
+                        onClose={() => setShowVisPlayground(false)}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {showThemePark && (
+                    <ThemePark
+                        initialTheme={themeParkInitialTheme}
+                        isDaylight={isDaylight}
+                        visualizerMode={visualizerMode}
+                        staticMode={staticMode}
+                        backgroundOpacity={backgroundOpacity}
+                        cadenzaTuning={cadenzaTuning}
+                        partitaTuning={partitaTuning}
+                        lyricsFontStyle={lyricsFontStyle}
+                        lyricsFontScale={lyricsFontScale}
+                        lyricsCustomFontFamily={lyricsCustomFontFamily}
+                        onSaveTheme={(dualTheme) => {
+                            onSaveCustomTheme(dualTheme);
+                            setShowThemePark(false);
+                        }}
+                        onClose={() => setShowThemePark(false)}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+            {showLabSettings && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={shellTransition}
+                    className="fixed inset-0 z-[136] backdrop-blur-xl px-3 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-5"
+                    style={{ backgroundColor: overlayBackground }}
+                    onClick={() => setShowLabSettings(false)}
+                >
+                    <motion.div
+                        {...panelMotion}
+                        transition={shellTransition}
+                        className={`mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLabSettings(false)}
+                                    className="h-10 w-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center transition-colors hover:bg-white/10"
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <ChevronLeft size={18} />
+                                </button>
+                                <div className="min-w-0">
+                                    <div className="text-lg sm:text-xl font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                                        {t('options.labSettings') || '实验室'}
+                                    </div>
+                                    <div className="text-xs opacity-50 mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('options.labSettingsDesc') || 'Open a separate page for experimental playback and panel behavior settings.'}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onToggleStaticMode?.(false);
+                                    onToggleOpenPanelCloseButton(true);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
+                                style={{ color: 'var(--text-primary)' }}
+                            >
+                                <RotateCcw size={14} />
+                                <span>{t('ui.default') || '默认'}</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-5 sm:px-6">
+                            <div className="space-y-4">
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between gap-4">
                                     <div className="space-y-1">
-                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Monitor size={14} />
                                             {t('options.enableStaticMode') || "Static Mode"}
                                         </div>
-                                        <div className="text-xs opacity-50 max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>
+                                        <div className="text-xs opacity-50 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
                                             {t('options.enableStaticModeDesc') || "Disable geometric backgrounds."}
                                         </div>
-                                        <div className="text-[11px] opacity-40 max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>
+                                        <div className="text-[11px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
                                             {t('options.enableStaticModeDescSub') || "Does not affect lyric text effects or rendering."}
                                         </div>
                                     </div>
@@ -1001,54 +1164,34 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${staticMode ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
-                            </section>
-                        </div>
-                    )}
-                </div>
 
-                {/* Footer (Empty now) */}
-                {/* <div className="mt-8 pt-0 border-t-0 p-0" /> */}
-            </div>
-            {showVisPlayground && (
-                <VisPlayground
-                    theme={theme}
-                    isDaylight={isDaylight}
-                    visualizerMode={visualizerMode}
-                    backgroundOpacity={backgroundOpacity}
-                    staticMode={staticMode}
-                    cadenzaTuning={cadenzaTuning}
-                    partitaTuning={partitaTuning}
-                    fontStyle={lyricsFontStyle}
-                    fontScale={lyricsFontScale}
-                    customFontFamily={lyricsCustomFontFamily}
-                    customFontLabel={lyricsCustomFontLabel}
-                    onFontStyleChange={onLyricsFontStyleChange}
-                    onFontScaleChange={onLyricsFontScaleChange}
-                    onCustomFontChange={onLyricsCustomFontChange}
-                    onPartitaTuningChange={onPartitaTuningChange}
-                    onResetPartitaTuning={onResetPartitaTuning}
-                    onClose={() => setShowVisPlayground(false)}
-                />
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <GamepadDirectional size={14} />
+                                            {t('options.showOpenPanelCloseButton') || "Show panel close button"}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.showOpenPanelCloseButtonDesc') || "Keep the floating close button visible after the song info card opens."}
+                                        </div>
+                                        {/* <div className="text-[11px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.showOpenPanelCloseButtonDescSub') || "Turn this off for cleaner screen recordings. Mobile users may still prefer leaving it on."}
+                                        </div> */}
+                                    </div>
+                                    <button
+                                        onClick={() => onToggleOpenPanelCloseButton(!showOpenPanelCloseButton)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!showOpenPanelCloseButton ? 'bg-white/10' : ''}`}
+                                        style={{ backgroundColor: showOpenPanelCloseButton ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${showOpenPanelCloseButton ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
             )}
-            {showThemePark && (
-                <ThemePark
-                    initialTheme={themeParkInitialTheme}
-                    isDaylight={isDaylight}
-                    visualizerMode={visualizerMode}
-                    staticMode={staticMode}
-                    backgroundOpacity={backgroundOpacity}
-                    cadenzaTuning={cadenzaTuning}
-                    partitaTuning={partitaTuning}
-                    lyricsFontStyle={lyricsFontStyle}
-                    lyricsFontScale={lyricsFontScale}
-                    lyricsCustomFontFamily={lyricsCustomFontFamily}
-                    onSaveTheme={(dualTheme) => {
-                        onSaveCustomTheme(dualTheme);
-                        setShowThemePark(false);
-                    }}
-                    onClose={() => setShowThemePark(false)}
-                />
-            )}
+            </AnimatePresence>
             <style>{`
                 @keyframes meow-pop {
                     0% {
@@ -1065,7 +1208,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                     }
                 }
             `}</style>
-        </div>
+        </motion.div>
     );
 };
 

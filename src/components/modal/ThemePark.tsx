@@ -452,6 +452,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-950/88';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const controlCardBg = isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)';
+    const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
     const visualizerModeLabel = visualizerMode === 'classic'
         ? (t('ui.visualizerClassic') || '流光')
         : visualizerMode === 'cadenza'
@@ -492,7 +493,15 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[135] bg-black/65 backdrop-blur-xl px-3 pt-3 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(5rem+env(safe-area-inset-bottom))]" onClick={onClose}>
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-[135] backdrop-blur-xl px-3 pt-3 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(5rem+env(safe-area-inset-bottom))]"
+            style={{ backgroundColor: overlayBackground }}
+            onClick={onClose}
+        >
             <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -677,7 +686,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                     </div>
                 </div>
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 
