@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Disc, Loader2, Search } from 'lucide-react';
+import { Disc, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { HomeViewTab, Theme, UnifiedSong } from '../types';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -110,7 +110,9 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
         setSearchScrollTop: state.setSearchScrollTop,
     })));
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-    const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
+    const closeButtonClass = isDaylight
+        ? 'bg-black/5 text-black/60 hover:bg-black/10 hover:text-black'
+        : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white';
     const resultItemBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
 
     useEffect(() => {
@@ -133,16 +135,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                     className={`fixed inset-0 z-50 ${isDaylight ? 'bg-white/95' : 'bg-black/90'} backdrop-blur-xl flex flex-col p-6 md:p-12 overflow-hidden`}
                     style={{ color: theme.primaryColor }}
                 >
-                    <button
-                        onClick={onClose}
-                        className={`fixed md:absolute top-6 left-6 md:top-12 md:left-12 z-30 w-10 h-10 rounded-full ${closeBtnBg} flex items-center justify-center transition-colors backdrop-blur-md`}
-                        style={{ color: 'var(--text-primary)' }}
-                        aria-label={t('ui.backToHome')}
-                    >
-                        <ChevronLeft size={20} />
-                    </button>
-
-                    <div className="mb-8 max-w-4xl mx-auto w-full pl-16 xl:pl-0">
+                    <div className="flex items-center gap-4 mb-8 max-w-4xl mx-auto w-full">
                         <form
                             onSubmit={(event) => {
                                 event.preventDefault();
@@ -170,6 +163,13 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                 style={{ color: 'var(--text-primary)' }}
                             />
                         </form>
+                        <button
+                            onClick={onClose}
+                            className={`rounded-full p-3 transition-colors ${closeButtonClass}`}
+                            aria-label={t('ui.backToHome')}
+                        >
+                            <X size={20} />
+                        </button>
                     </div>
 
                     <div

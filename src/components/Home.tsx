@@ -204,7 +204,6 @@ const Home: React.FC<HomeProps> = ({
     // For pill nav container
     const navPillBg = isDaylight ? 'bg-black/5' : 'bg-white/10';
     const navPillInactiveText = isDaylight ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white';
-
     // UI State
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
