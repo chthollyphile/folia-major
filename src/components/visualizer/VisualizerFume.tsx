@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, MotionValue, useMotionValueEvent } from 'framer-motion';
+import { motion, MotionValue } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
 import { AudioBands, Line, Theme, Word as WordType } from '../../types';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
-import { useVisualizerRuntime } from './runtime';
+import { getRecentCompletedLine, getUpcomingLines } from './runtime';
 import VisualizerShell from './VisualizerShell';
 import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
 
@@ -785,6 +785,23 @@ const resolveBlockFocusPoint = (
     };
 };
 
+const resolveBlockEntryFocusPoint = (
+    block: FumeBlock,
+) => {
+    const firstRenderLine = block.renderLines[0];
+    if (!firstRenderLine) {
+        return {
+            x: block.x + block.width * 0.5,
+            y: block.y + block.height * 0.5,
+        };
+    }
+
+    return {
+        x: block.x + firstRenderLine.left,
+        y: block.y + firstRenderLine.top + block.lineHeight * 0.5,
+    };
+};
+
 const buildCanvasFont = (block: FumeBlock, theme: Theme) => {
     const fontFamily = resolveThemeFontStack(theme);
     const fontWeight = block.variant === 'hero' ? 780 : 640;
@@ -803,7 +820,7 @@ const resolveCameraScaleForBlock = (
 const resolveCameraRetargetDuration = (line: Line) => {
     const hints = getLineRenderHints(line);
     if (!hints) {
-        return 0.18;
+        return 0.09;
     }
 
     const transitionTiming = getLineTransitionTiming(
@@ -813,21 +830,21 @@ const resolveCameraRetargetDuration = (line: Line) => {
     );
 
     if (hints.lineTransitionMode === 'none') {
-        return clamp(Math.max(hints.rawDuration, 0.08) * 0.64, 0.075, 0.13);
+        return clamp(Math.max(hints.rawDuration, 0.08) * 0.34, 0.04, 0.075);
     }
 
     if (hints.lineTransitionMode === 'fast') {
         return clamp(
-            transitionTiming.enterDuration + transitionTiming.exitDuration * 0.3,
-            0.09,
-            0.17,
+            transitionTiming.enterDuration * 0.5 + transitionTiming.exitDuration * 0.12,
+            0.055,
+            0.095,
         );
     }
 
     return clamp(
-        transitionTiming.enterDuration * 0.78 + transitionTiming.linePassHold * 0.6,
-        0.14,
-        0.24,
+        transitionTiming.enterDuration * 0.44 + transitionTiming.linePassHold * 0.22,
+        0.075,
+        0.13,
     );
 };
 
@@ -898,12 +915,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         focusScale: 1,
     });
     const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
-    const [displayTime, setDisplayTime] = useState(() => currentTime.get());
-
-    useMotionValueEvent(currentTime, 'change', latest => {
-        const rounded = Math.round(latest * 18) / 18;
-        setDisplayTime(previous => (previous === rounded ? previous : rounded));
-    });
+    const [hasPrintedContent, setHasPrintedContent] = useState(false);
+    const hasPrintedContentRef = useRef(false);
 
     useEffect(() => {
         currentLineIndexRef.current = currentLineIndex;
@@ -931,20 +944,24 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         return () => observer.disconnect();
     }, []);
 
-    const runtime = useVisualizerRuntime({
-        currentTime,
-        currentLineIndex,
-        lines,
-        getLineEndTime: getLineRenderEndTime,
-    });
+    const runtime = useMemo(() => {
+        const activeLine = lines[currentLineIndex] ?? null;
+        const timeNow = currentTime.get();
+        return {
+            activeLine,
+            recentCompletedLine: getRecentCompletedLine({
+                lines,
+                currentLineIndex,
+                currentTime: timeNow,
+                getLineEndTime: getLineRenderEndTime,
+            }),
+            nextLines: getUpcomingLines(lines, currentLineIndex, 2),
+        };
+    }, [currentLineIndex, lines]);
 
     const article = useMemo(
         () => buildArticleLayout(lines, viewport, theme, lyricsFontScale),
         [lines, viewport, theme, lyricsFontScale],
-    );
-    const hasPrintedContent = useMemo(
-        () => lines.some(line => displayTime >= line.startTime),
-        [displayTime, lines],
     );
 
     useEffect(() => {
@@ -1022,10 +1039,21 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             context.clearRect(0, 0, currentWidth, currentHeight);
 
             const time = currentTime.get();
+
+            // One-shot detection: once any block starts printing, flip hasPrintedContent
+            if (!hasPrintedContentRef.current) {
+                const anyPrinted = article.blocks.some(block => time >= block.line.startTime);
+                if (anyPrinted) {
+                    hasPrintedContentRef.current = true;
+                    setHasPrintedContent(true);
+                }
+            }
+
             const focusBlock = resolveFocusBlock(article, currentLineIndexRef.current, time);
             let targetCameraX = article.width * 0.5;
             let targetCameraY = article.height * 0.5;
             let targetCameraScale = 1.18;
+            let entryFocusPoint: { x: number; y: number; } | null = null;
 
             if (focusBlock) {
                 const focusPrintedCount = resolvePrintedGraphemeCount(
@@ -1036,6 +1064,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     time,
                 );
                 const focusPoint = resolveBlockFocusPoint(focusBlock, focusPrintedCount);
+                entryFocusPoint = resolveBlockEntryFocusPoint(focusBlock);
                 targetCameraX = focusPoint.x;
                 targetCameraY = focusPoint.y;
                 targetCameraScale = resolveCameraScaleForBlock(focusBlock, viewport);
@@ -1062,29 +1091,36 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 1,
             );
             const retargetBoost = 1 - easeOutCubic(retargetPhase);
+            const entryFocusBias = Math.pow(retargetBoost, 0.58);
+
+            if (entryFocusPoint) {
+                targetCameraX = mix(targetCameraX, entryFocusPoint.x, entryFocusBias);
+                targetCameraY = mix(targetCameraY, entryFocusPoint.y, entryFocusBias);
+            }
+
             const cameraDistance = Math.hypot(
                 targetCameraX - cameraRef.current.x,
                 targetCameraY - cameraRef.current.y,
             );
             const boostedCatchUpRate = clamp(
-                2.9 / Math.max(cameraRetargetRef.current.duration, 0.08),
-                12,
-                28,
+                4.8 / Math.max(cameraRetargetRef.current.duration, 0.05),
+                20,
+                54,
             );
             const targetCatchUp = 1 - Math.exp(-dt * mix(8.4, boostedCatchUpRate, retargetBoost));
             cameraRef.current.focusX += (targetCameraX - cameraRef.current.focusX) * targetCatchUp;
             cameraRef.current.focusY += (targetCameraY - cameraRef.current.focusY) * targetCatchUp;
             cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale)
-                * (1 - Math.exp(-dt * mix(4.2, 8.6, retargetBoost)));
+                * (1 - Math.exp(-dt * mix(4.2, 11.8, retargetBoost)));
 
             const springStrength = mix(
                 152,
-                clamp(8.8 / Math.max(cameraRetargetRef.current.duration * cameraRetargetRef.current.duration, 0.01), 188, 410),
+                clamp(15.8 / Math.max(cameraRetargetRef.current.duration * cameraRetargetRef.current.duration, 0.0064), 260, 780),
                 retargetBoost,
             );
             const damping = mix(
                 20.5,
-                clamp(Math.sqrt(springStrength) * 1.48, 22, 34),
+                clamp(Math.sqrt(springStrength) * 1.34, 23, 38),
                 retargetBoost,
             );
             const accelX = (cameraRef.current.focusX - cameraRef.current.x) * springStrength - cameraRef.current.velocityX * damping;
@@ -1093,7 +1129,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             cameraRef.current.velocityY += accelY * dt;
             const maxVelocity = mix(
                 1320,
-                clamp(cameraDistance / Math.max(cameraRetargetRef.current.duration * 0.58, 0.05), 1720, 5200),
+                clamp(cameraDistance / Math.max(cameraRetargetRef.current.duration * 0.28, 0.028), 2600, 8800),
                 retargetBoost,
             );
             cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -maxVelocity, maxVelocity);
@@ -1101,8 +1137,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             cameraRef.current.x += cameraRef.current.velocityX * dt;
             cameraRef.current.y += cameraRef.current.velocityY * dt;
 
-            const scaleSpringStrength = mix(54, 86, retargetBoost);
-            const scaleDamping = mix(13.5, 18.5, retargetBoost);
+            const scaleSpringStrength = mix(54, 108, retargetBoost);
+            const scaleDamping = mix(13.5, 21, retargetBoost);
             const accelScale = (cameraRef.current.focusScale - cameraRef.current.scale) * scaleSpringStrength
                 - cameraRef.current.velocityScale * scaleDamping;
             cameraRef.current.velocityScale += accelScale * dt;
