@@ -94,6 +94,13 @@ interface FumeLayoutAttemptOptions {
 interface CameraTarget {
     x: number;
     y: number;
+    velocityX: number;
+    velocityY: number;
+    focusX: number;
+    focusY: number;
+    scale: number;
+    velocityScale: number;
+    focusScale: number;
 }
 
 const graphemeSegmenter = typeof Intl !== 'undefined'
@@ -177,40 +184,37 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
 };
 
 const findWordRanges = (line: Line, graphemes: string[]) => {
-    if (line.words.length === 0) {
+    if (line.words.length === 0 || graphemes.length === 0) {
+        return [] as WordRange[];
+    }
+
+    const validWords = line.words.filter(word => word.endTime > word.startTime);
+    if (validWords.length === 0) {
+        return [] as WordRange[];
+    }
+
+    const totalDuration = validWords.reduce((sum, word) => sum + (word.endTime - word.startTime), 0);
+    if (totalDuration <= 0) {
         return [] as WordRange[];
     }
 
     const ranges: WordRange[] = [];
     let cursor = 0;
+    let accumulatedDuration = 0;
 
-    for (let wordIndex = 0; wordIndex < line.words.length; wordIndex += 1) {
-        const word = line.words[wordIndex]!;
-        const target = splitGraphemes(word.text);
-        if (target.length === 0) {
-            continue;
-        }
+    for (let wordIndex = 0; wordIndex < validWords.length; wordIndex += 1) {
+        const word = validWords[wordIndex]!;
+        const start = cursor;
+        accumulatedDuration += (word.endTime - word.startTime);
 
-        let start = -1;
-        for (let graphemeIndex = cursor; graphemeIndex <= graphemes.length - target.length; graphemeIndex += 1) {
-            let matched = true;
-            for (let innerIndex = 0; innerIndex < target.length; innerIndex += 1) {
-                if (graphemes[graphemeIndex + innerIndex] !== target[innerIndex]) {
-                    matched = false;
-                    break;
-                }
-            }
-            if (matched) {
-                start = graphemeIndex;
-                break;
-            }
-        }
+        const isLastWord = wordIndex === validWords.length - 1;
+        const idealEnd = isLastWord
+            ? graphemes.length
+            : Math.round((accumulatedDuration / totalDuration) * graphemes.length);
+        const remainingWords = validWords.length - wordIndex - 1;
+        const maxEnd = graphemes.length - remainingWords;
+        const end = clamp(Math.max(start + 1, idealEnd), start + 1, Math.max(start + 1, maxEnd));
 
-        if (start === -1) {
-            start = clamp(cursor, 0, graphemes.length);
-        }
-
-        const end = clamp(start + target.length, start, graphemes.length);
         ranges.push({
             wordIndex,
             word,
@@ -218,6 +222,10 @@ const findWordRanges = (line: Line, graphemes: string[]) => {
             end,
         });
         cursor = end;
+    }
+
+    if (ranges.length > 0) {
+        ranges[ranges.length - 1]!.end = graphemes.length;
     }
 
     return ranges;
@@ -392,7 +400,8 @@ const resolvePrintedGraphemeCount = (
     }
 
     if (variant === 'hero') {
-        const stampDuration = Math.min(0.32, Math.max(getLineRenderEndTime(line) - line.startTime, 0.18));
+        const lineDuration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.18);
+        const stampDuration = clamp(lineDuration * 0.94, 0.24, lineDuration);
         const progress = clamp((currentTimeValue - line.startTime) / stampDuration, 0, 1);
         return clamp(Math.floor(progress * graphemeCount + (progress > 0 ? 1 : 0)), 0, graphemeCount);
     }
@@ -646,6 +655,15 @@ const buildCanvasFont = (block: FumeBlock, theme: Theme) => {
     return `${fontWeight} ${block.fontPx}px ${fontFamily}`;
 };
 
+const resolveCameraScaleForBlock = (
+    block: FumeBlock,
+    viewport: ViewportSize,
+) => {
+    const minViewportSide = Math.max(Math.min(viewport.width, viewport.height), 1);
+    const targetLineHeight = clamp(minViewportSide * 0.115, 64, 124);
+    return clamp(targetLineHeight / Math.max(block.lineHeight, 1), 0.88, 2.2);
+};
+
 const resolveFocusBlock = (
     article: FumeArticleLayout,
     currentLineIndex: number,
@@ -694,7 +712,19 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const cameraRef = useRef<CameraTarget>({ x: 0, y: 0 });
+    const currentLineIndexRef = useRef(currentLineIndex);
+    const cameraInitializedRef = useRef(false);
+    const cameraRef = useRef<CameraTarget>({
+        x: 0,
+        y: 0,
+        velocityX: 0,
+        velocityY: 0,
+        focusX: 0,
+        focusY: 0,
+        scale: 1,
+        velocityScale: 0,
+        focusScale: 1,
+    });
     const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
     const [displayTime, setDisplayTime] = useState(() => currentTime.get());
 
@@ -702,6 +732,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         const rounded = Math.round(latest * 18) / 18;
         setDisplayTime(previous => (previous === rounded ? previous : rounded));
     });
+
+    useEffect(() => {
+        currentLineIndexRef.current = currentLineIndex;
+    }, [currentLineIndex]);
 
     useEffect(() => {
         const element = viewportRef.current;
@@ -770,13 +804,29 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             return;
         }
 
-        cameraRef.current = {
-            x: article.width * 0.5,
-            y: article.height * 0.5,
-        };
+        if (!cameraInitializedRef.current) {
+            cameraRef.current = {
+                x: article.width * 0.5,
+                y: article.height * 0.5,
+                velocityX: 0,
+                velocityY: 0,
+                focusX: article.width * 0.5,
+                focusY: article.height * 0.5,
+                scale: 1.18,
+                velocityScale: 0,
+                focusScale: 1.18,
+            };
+            cameraInitializedRef.current = true;
+        } else {
+            cameraRef.current.x = clamp(cameraRef.current.x, 0, article.width);
+            cameraRef.current.y = clamp(cameraRef.current.y, 0, article.height);
+            cameraRef.current.focusX = clamp(cameraRef.current.focusX, 0, article.width);
+            cameraRef.current.focusY = clamp(cameraRef.current.focusY, 0, article.height);
+            cameraRef.current.scale = clamp(cameraRef.current.scale, 0.84, 2.24);
+            cameraRef.current.focusScale = clamp(cameraRef.current.focusScale, 0.84, 2.24);
+        }
         let frameId = 0;
         let lastFrameAt: number | null = null;
-        const cameraScale = 1.36;
 
         const draw = () => {
             const now = performance.now();
@@ -800,9 +850,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             context.clearRect(0, 0, currentWidth, currentHeight);
 
             const time = currentTime.get();
-            const focusBlock = resolveFocusBlock(article, currentLineIndex, time);
+            const focusBlock = resolveFocusBlock(article, currentLineIndexRef.current, time);
             let targetCameraX = article.width * 0.5;
             let targetCameraY = article.height * 0.5;
+            let targetCameraScale = 1.18;
 
             if (focusBlock) {
                 const focusPrintedCount = resolvePrintedGraphemeCount(
@@ -815,17 +866,39 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const focusPoint = resolveBlockFocusPoint(focusBlock, focusPrintedCount);
                 targetCameraX = focusPoint.x;
                 targetCameraY = focusPoint.y;
+                targetCameraScale = resolveCameraScaleForBlock(focusBlock, viewport);
             }
 
-            const catchUp = 1 - Math.exp(-dt * 3.45);
-            cameraRef.current.x += (targetCameraX - cameraRef.current.x) * catchUp;
-            cameraRef.current.y += (targetCameraY - cameraRef.current.y) * catchUp;
+            const targetCatchUp = 1 - Math.exp(-dt * 8.4);
+            cameraRef.current.focusX += (targetCameraX - cameraRef.current.focusX) * targetCatchUp;
+            cameraRef.current.focusY += (targetCameraY - cameraRef.current.focusY) * targetCatchUp;
+            cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale) * (1 - Math.exp(-dt * 4.2));
+
+            const springStrength = 152;
+            const damping = 20.5;
+            const accelX = (cameraRef.current.focusX - cameraRef.current.x) * springStrength - cameraRef.current.velocityX * damping;
+            const accelY = (cameraRef.current.focusY - cameraRef.current.y) * springStrength - cameraRef.current.velocityY * damping;
+            cameraRef.current.velocityX += accelX * dt;
+            cameraRef.current.velocityY += accelY * dt;
+            cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -1320, 1320);
+            cameraRef.current.velocityY = clamp(cameraRef.current.velocityY, -1320, 1320);
+            cameraRef.current.x += cameraRef.current.velocityX * dt;
+            cameraRef.current.y += cameraRef.current.velocityY * dt;
+
+            const scaleSpringStrength = 54;
+            const scaleDamping = 13.5;
+            const accelScale = (cameraRef.current.focusScale - cameraRef.current.scale) * scaleSpringStrength
+                - cameraRef.current.velocityScale * scaleDamping;
+            cameraRef.current.velocityScale += accelScale * dt;
+            cameraRef.current.velocityScale = clamp(cameraRef.current.velocityScale, -1.6, 1.6);
+            cameraRef.current.scale += cameraRef.current.velocityScale * dt;
+            cameraRef.current.scale = clamp(cameraRef.current.scale, 0.84, 2.24);
 
             const viewportCenterX = viewport.width * 0.5;
             const viewportCenterY = viewport.height * 0.5;
             context.save();
             context.translate(viewportCenterX, viewportCenterY);
-            context.scale(cameraScale, cameraScale);
+            context.scale(cameraRef.current.scale, cameraRef.current.scale);
             context.translate(-cameraRef.current.x, -cameraRef.current.y);
 
             for (const block of article.blocks) {
@@ -891,7 +964,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(frameId);
             lastFrameAt = null;
         };
-    }, [article, currentLineIndex, currentTime, showText, theme, viewport.height, viewport.width]);
+    }, [article, currentTime, showText, theme, viewport.height, viewport.width]);
 
     return (
         <VisualizerShell
