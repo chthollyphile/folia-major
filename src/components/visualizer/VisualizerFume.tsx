@@ -3,7 +3,7 @@ import { motion, MotionValue, useMotionValueEvent } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
 import { AudioBands, Line, Theme, Word as WordType } from '../../types';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
-import { getLineRenderEndTime } from '../../utils/lyrics/renderHints';
+import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
 import { useVisualizerRuntime } from './runtime';
 import VisualizerShell from './VisualizerShell';
 import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
@@ -40,6 +40,7 @@ interface WordRange {
     word: WordType;
     start: number;
     end: number;
+    activeColor: string;
 }
 
 interface RenderLineSlice {
@@ -48,6 +49,7 @@ interface RenderLineSlice {
     start: number;
     end: number;
     graphemes: string[];
+    glyphOffsets: number[];
     left: number;
     top: number;
     width: number;
@@ -70,6 +72,7 @@ interface FumeBlock {
     graphemes: string[];
     segmentMetas: SegmentMeta[];
     wordRanges: WordRange[];
+    wordRangeIndexByOffset: number[];
     renderLines: RenderLineSlice[];
 }
 
@@ -103,6 +106,12 @@ interface CameraTarget {
     focusScale: number;
 }
 
+interface CameraRetargetState {
+    sourceLineIndex: number;
+    startedAt: number;
+    duration: number;
+}
+
 const graphemeSegmenter = typeof Intl !== 'undefined'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     : null;
@@ -116,6 +125,14 @@ const splitGraphemes = (text: string) => {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const easeOutCubic = (value: number) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
+const easeInOutCubic = (value: number) => {
+    const normalized = clamp(value, 0, 1);
+    return normalized < 0.5
+        ? 4 * normalized * normalized * normalized
+        : 1 - Math.pow(-2 * normalized + 2, 3) / 2;
+};
 
 const isCJK = (text: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(text);
 
@@ -148,6 +165,73 @@ const colorWithAlpha = (color: string, alpha: number) => {
     }
 
     return color;
+};
+
+const parseColorChannels = (color: string) => {
+    if (color.startsWith('#')) {
+        const hex = color.slice(1);
+        const parse = (value: string) => Number.parseInt(value, 16);
+
+        if (hex.length === 3) {
+            return {
+                r: parse(hex[0] + hex[0]),
+                g: parse(hex[1] + hex[1]),
+                b: parse(hex[2] + hex[2]),
+            };
+        }
+
+        if (hex.length === 6) {
+            return {
+                r: parse(hex.slice(0, 2)),
+                g: parse(hex.slice(2, 4)),
+                b: parse(hex.slice(4, 6)),
+            };
+        }
+    }
+
+    const rgbMatch = color.match(/^rgba?\(([^)]+)\)$/);
+    if (rgbMatch) {
+        const [r = '255', g = '255', b = '255'] = rgbMatch[1].split(',').slice(0, 3).map(part => part.trim());
+        return {
+            r: Number.parseFloat(r),
+            g: Number.parseFloat(g),
+            b: Number.parseFloat(b),
+        };
+    }
+
+    return null;
+};
+
+const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
+    const normalizedAmount = clamp(amount, 0, 1);
+    const fromChannels = parseColorChannels(from);
+    const toChannels = parseColorChannels(to);
+
+    if (!fromChannels || !toChannels) {
+        return colorWithAlpha(normalizedAmount >= 0.5 ? to : from, alpha);
+    }
+
+    return `rgba(${Math.round(mix(fromChannels.r, toChannels.r, normalizedAmount))}, ${Math.round(mix(fromChannels.g, toChannels.g, normalizedAmount))}, ${Math.round(mix(fromChannels.b, toChannels.b, normalizedAmount))}, ${clamp(alpha, 0, 1)})`;
+};
+
+const getActiveColor = (wordText: string, theme: Theme) => {
+    if (!theme.wordColors || theme.wordColors.length === 0) {
+        return theme.accentColor;
+    }
+
+    const cleanCurrent = wordText.trim();
+    const matched = theme.wordColors.find(entry => {
+        const target = entry.word;
+        if (isCJK(cleanCurrent)) {
+            return target.includes(cleanCurrent) || cleanCurrent.includes(target);
+        }
+
+        const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
+        const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
+        return targetWords.includes(normalizedCurrent);
+    });
+
+    return matched?.color ?? theme.accentColor;
 };
 
 const hashString = (input: string) => {
@@ -183,7 +267,7 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
-const findWordRanges = (line: Line, graphemes: string[]) => {
+const findWordRanges = (line: Line, graphemes: string[], theme: Theme) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
     }
@@ -220,6 +304,7 @@ const findWordRanges = (line: Line, graphemes: string[]) => {
             word,
             start,
             end,
+            activeColor: getActiveColor(word.text, theme),
         });
         cursor = end;
     }
@@ -299,6 +384,49 @@ const widthBetweenOffsets = (
     }
 
     return width;
+};
+
+const buildGlyphOffsets = (
+    prepared: PreparedTextWithSegments,
+    segmentMetas: SegmentMeta[],
+    startOffset: number,
+    graphemeCount: number,
+) => {
+    const offsets = new Array<number>(graphemeCount);
+    for (let index = 0; index < graphemeCount; index += 1) {
+        offsets[index] = widthBetweenOffsets(
+            prepared,
+            segmentMetas,
+            startOffset,
+            startOffset + index,
+        );
+    }
+    return offsets;
+};
+
+const resolveGlyphAdvance = (
+    renderLine: RenderLineSlice,
+    graphemeIndex: number,
+) => {
+    const currentOffset = renderLine.glyphOffsets[graphemeIndex] ?? 0;
+    const nextOffset = graphemeIndex < renderLine.graphemes.length - 1
+        ? (renderLine.glyphOffsets[graphemeIndex + 1] ?? renderLine.width)
+        : renderLine.width;
+    return Math.max(nextOffset - currentOffset, 0);
+};
+
+const buildWordRangeIndexByOffset = (
+    graphemeCount: number,
+    wordRanges: WordRange[],
+) => {
+    const indices = new Array<number>(graphemeCount).fill(-1);
+    for (let rangeIndex = 0; rangeIndex < wordRanges.length; rangeIndex += 1) {
+        const range = wordRanges[rangeIndex]!;
+        for (let offset = range.start; offset < range.end && offset < graphemeCount; offset += 1) {
+            indices[offset] = rangeIndex;
+        }
+    }
+    return indices;
 };
 
 const chooseBlockVariant = (line: Line, index: number, total: number) => {
@@ -488,7 +616,8 @@ const buildArticleLayoutAttempt = (
         const lineHeight = Math.round(fontPx * (variant === 'hero' ? 1.02 : 1.06));
         const prepared = preparedSingleLine.prepared;
         const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
-        const wordRanges = findWordRanges(line, graphemes);
+        const wordRanges = findWordRanges(line, graphemes, theme);
+        const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
         const layout = preparedSingleLine.layout;
         const renderLines = layout.lines.map((layoutLine, lineIndex) => ({
             id: `${line.startTime}-${lineIndex}`,
@@ -496,6 +625,12 @@ const buildArticleLayoutAttempt = (
             start: cursorToGlobalOffset(layoutLine.start, segmentMetas),
             end: cursorToGlobalOffset(layoutLine.end, segmentMetas),
             graphemes: splitGraphemes(layoutLine.text),
+            glyphOffsets: buildGlyphOffsets(
+                prepared,
+                segmentMetas,
+                cursorToGlobalOffset(layoutLine.start, segmentMetas),
+                splitGraphemes(layoutLine.text).length,
+            ),
             left: variant === 'hero'
                 ? Math.max((blockWidth - layoutLine.width) * 0.08, 0)
                 : 0,
@@ -545,6 +680,7 @@ const buildArticleLayoutAttempt = (
             graphemes,
             segmentMetas,
             wordRanges,
+            wordRangeIndexByOffset,
             renderLines,
         });
     });
@@ -664,6 +800,37 @@ const resolveCameraScaleForBlock = (
     return clamp(targetLineHeight / Math.max(block.lineHeight, 1), 0.88, 2.2);
 };
 
+const resolveCameraRetargetDuration = (line: Line) => {
+    const hints = getLineRenderHints(line);
+    if (!hints) {
+        return 0.18;
+    }
+
+    const transitionTiming = getLineTransitionTiming(
+        hints.rawDuration,
+        hints.lineTransitionMode,
+        hints.wordRevealMode,
+    );
+
+    if (hints.lineTransitionMode === 'none') {
+        return clamp(Math.max(hints.rawDuration, 0.08) * 0.64, 0.075, 0.13);
+    }
+
+    if (hints.lineTransitionMode === 'fast') {
+        return clamp(
+            transitionTiming.enterDuration + transitionTiming.exitDuration * 0.3,
+            0.09,
+            0.17,
+        );
+    }
+
+    return clamp(
+        transitionTiming.enterDuration * 0.78 + transitionTiming.linePassHold * 0.6,
+        0.14,
+        0.24,
+    );
+};
+
 const resolveFocusBlock = (
     article: FumeArticleLayout,
     currentLineIndex: number,
@@ -714,6 +881,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const currentLineIndexRef = useRef(currentLineIndex);
     const cameraInitializedRef = useRef(false);
+    const cameraRetargetRef = useRef<CameraRetargetState>({
+        sourceLineIndex: -1,
+        startedAt: 0,
+        duration: 0.18,
+    });
     const cameraRef = useRef<CameraTarget>({
         x: 0,
         y: 0,
@@ -867,26 +1039,70 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 targetCameraX = focusPoint.x;
                 targetCameraY = focusPoint.y;
                 targetCameraScale = resolveCameraScaleForBlock(focusBlock, viewport);
+
+                if (cameraRetargetRef.current.sourceLineIndex !== focusBlock.sourceLineIndex) {
+                    cameraRetargetRef.current = {
+                        sourceLineIndex: focusBlock.sourceLineIndex,
+                        startedAt: time,
+                        duration: resolveCameraRetargetDuration(focusBlock.line),
+                    };
+                }
+            } else if (cameraRetargetRef.current.sourceLineIndex !== -1) {
+                cameraRetargetRef.current = {
+                    sourceLineIndex: -1,
+                    startedAt: time,
+                    duration: 0.18,
+                };
             }
 
-            const targetCatchUp = 1 - Math.exp(-dt * 8.4);
+            const retargetElapsed = Math.max(time - cameraRetargetRef.current.startedAt, 0);
+            const retargetPhase = clamp(
+                retargetElapsed / Math.max(cameraRetargetRef.current.duration, 0.001),
+                0,
+                1,
+            );
+            const retargetBoost = 1 - easeOutCubic(retargetPhase);
+            const cameraDistance = Math.hypot(
+                targetCameraX - cameraRef.current.x,
+                targetCameraY - cameraRef.current.y,
+            );
+            const boostedCatchUpRate = clamp(
+                2.9 / Math.max(cameraRetargetRef.current.duration, 0.08),
+                12,
+                28,
+            );
+            const targetCatchUp = 1 - Math.exp(-dt * mix(8.4, boostedCatchUpRate, retargetBoost));
             cameraRef.current.focusX += (targetCameraX - cameraRef.current.focusX) * targetCatchUp;
             cameraRef.current.focusY += (targetCameraY - cameraRef.current.focusY) * targetCatchUp;
-            cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale) * (1 - Math.exp(-dt * 4.2));
+            cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale)
+                * (1 - Math.exp(-dt * mix(4.2, 8.6, retargetBoost)));
 
-            const springStrength = 152;
-            const damping = 20.5;
+            const springStrength = mix(
+                152,
+                clamp(8.8 / Math.max(cameraRetargetRef.current.duration * cameraRetargetRef.current.duration, 0.01), 188, 410),
+                retargetBoost,
+            );
+            const damping = mix(
+                20.5,
+                clamp(Math.sqrt(springStrength) * 1.48, 22, 34),
+                retargetBoost,
+            );
             const accelX = (cameraRef.current.focusX - cameraRef.current.x) * springStrength - cameraRef.current.velocityX * damping;
             const accelY = (cameraRef.current.focusY - cameraRef.current.y) * springStrength - cameraRef.current.velocityY * damping;
             cameraRef.current.velocityX += accelX * dt;
             cameraRef.current.velocityY += accelY * dt;
-            cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -1320, 1320);
-            cameraRef.current.velocityY = clamp(cameraRef.current.velocityY, -1320, 1320);
+            const maxVelocity = mix(
+                1320,
+                clamp(cameraDistance / Math.max(cameraRetargetRef.current.duration * 0.58, 0.05), 1720, 5200),
+                retargetBoost,
+            );
+            cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -maxVelocity, maxVelocity);
+            cameraRef.current.velocityY = clamp(cameraRef.current.velocityY, -maxVelocity, maxVelocity);
             cameraRef.current.x += cameraRef.current.velocityX * dt;
             cameraRef.current.y += cameraRef.current.velocityY * dt;
 
-            const scaleSpringStrength = 54;
-            const scaleDamping = 13.5;
+            const scaleSpringStrength = mix(54, 86, retargetBoost);
+            const scaleDamping = mix(13.5, 18.5, retargetBoost);
             const accelScale = (cameraRef.current.focusScale - cameraRef.current.scale) * scaleSpringStrength
                 - cameraRef.current.velocityScale * scaleDamping;
             cameraRef.current.velocityScale += accelScale * dt;
@@ -896,12 +1112,33 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
             const viewportCenterX = viewport.width * 0.5;
             const viewportCenterY = viewport.height * 0.5;
+            const screenScale = cameraRef.current.scale;
             context.save();
             context.translate(viewportCenterX, viewportCenterY);
-            context.scale(cameraRef.current.scale, cameraRef.current.scale);
+            context.scale(screenScale, screenScale);
             context.translate(-cameraRef.current.x, -cameraRef.current.y);
+            const activeGlowBoost = theme.animationIntensity === 'chaotic'
+                ? 1.15
+                : theme.animationIntensity === 'calm'
+                    ? 0.72
+                    : 0.92;
+            const passedGlowBase = theme.animationIntensity === 'chaotic'
+                ? 0.95
+                : theme.animationIntensity === 'calm'
+                    ? 0.35
+                    : 0.62;
 
             for (const block of article.blocks) {
+                const screenLeft = viewportCenterX + (block.x - cameraRef.current.x) * screenScale;
+                const screenTop = viewportCenterY + (block.y - cameraRef.current.y) * screenScale;
+                const screenRight = screenLeft + block.width * screenScale;
+                const screenBottom = screenTop + block.height * screenScale;
+                const overscan = 180;
+
+                if (screenRight < -overscan || screenLeft > viewport.width + overscan || screenBottom < -overscan || screenTop > viewport.height + overscan) {
+                    continue;
+                }
+
                 const printedCount = resolvePrintedGraphemeCount(
                     block.line,
                     block.variant,
@@ -911,8 +1148,15 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 );
                 const totalGraphemeCount = block.graphemes.length;
                 const waitingOpacity = block.variant === 'hero' ? 0.06 : 0.035;
-                const printedOpacity = block.variant === 'hero' ? 0.98 : 0.88;
+                const activeOpacity = block.variant === 'hero' ? 0.985 : 0.92;
+                const passedOpacity = block.variant === 'hero' ? 0.74 : 0.58;
                 const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
+                const lineDuration = Math.max(getLineRenderEndTime(block.line) - block.line.startTime, 0.18);
+                const colorTrailDuration = clamp(
+                    lineDuration * (block.variant === 'hero' ? 0.68 : 0.82),
+                    0.9,
+                    2.8,
+                );
 
                 context.save();
                 context.font = buildCanvasFont(block, theme);
@@ -926,29 +1170,143 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     for (let graphemeIndex = 0; graphemeIndex < renderLine.graphemes.length; graphemeIndex += 1) {
                         const grapheme = renderLine.graphemes[graphemeIndex]!;
                         const globalOffset = renderLine.start + graphemeIndex;
+                        const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
+                        const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                         const isPrinted = globalOffset < printedCount;
                         const isFrontier = printedCount > 0
                             && globalOffset === printedCount
                             && printedCount < totalGraphemeCount;
-                        const alpha = isPrinted
-                            ? printedOpacity
+
+                        let alpha = isPrinted
+                            ? activeOpacity
                             : isFrontier
                                 ? 0.82
                                 : waitingOpacity;
+                        let shadowBlur = 0;
+                        let shadowColor = 'transparent';
+                        let fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                        let activationBlockAlpha = 0;
+                        let activationBlockY = baseY;
+                        let activationBlockWidth = 0;
+                        let activationBlockHeight = 0;
+                        let activationBlockColor = theme.accentColor;
+                        let activationBlockBlur = 0;
+
+                        if (range) {
+                            const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+                            const wordProgress = clamp((time - range.word.startTime) / wordDuration, 0, 1);
+                            const glyphCount = Math.max(range.end - range.start, 1);
+                            const glyphIndexInRange = globalOffset - range.start;
+                            const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
+                            const easedGlyphProgress = easeOutCubic(glyphProgress);
+                            const activeColor = range.activeColor;
+                            const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
+                            const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
+                            const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
+
+                            if (time < range.word.startTime) {
+                                alpha = waitingOpacity;
+                                fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                            } else if (time <= glyphTrailStart) {
+                                alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
+                                fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
+                                shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
+                                shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
+                            } else {
+                                alpha = mix(activeOpacity, passedOpacity, colorTrailProgress);
+                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
+                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase;
+                                shadowColor = colorWithAlpha(
+                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
+                                    0.1 + (1 - colorTrailProgress) * 0.16,
+                                );
+                            }
+
+                            if (grapheme.trim().length > 0) {
+                                const glyphWindowDuration = Math.max(wordDuration / glyphCount, 0.04);
+                                const activationLeadDuration = clamp(
+                                    Math.min(glyphWindowDuration * 0.86, lineDuration * 0.16),
+                                    0.055,
+                                    block.variant === 'hero' ? 0.2 : 0.16,
+                                );
+                                const activationReleaseDuration = activationLeadDuration * 0.42;
+                                const activationWindowStart = glyphTrailStart - activationLeadDuration;
+                                const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
+                                const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
+                                const stampProgress = clamp(
+                                    (time - activationWindowStart) / Math.max(activationWindowEnd - activationWindowStart, 0.001),
+                                    0,
+                                    1,
+                                );
+
+                                if (stampProgress > 0 && stampProgress < 1) {
+                                    const isDropping = time <= glyphTrailStart;
+                                    const dropProgress = isDropping
+                                        ? easeOutCubic(
+                                            clamp(
+                                                (time - activationWindowStart) / Math.max(glyphTrailStart - activationWindowStart, 0.001),
+                                                0,
+                                                1,
+                                            ),
+                                        )
+                                        : 1;
+                                    const fadeProgress = isDropping
+                                        ? 0
+                                        : easeInOutCubic(
+                                            clamp(
+                                                (time - glyphTrailStart) / Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                                0,
+                                                1,
+                                            ),
+                                        );
+                                    const blockPulse = isDropping
+                                        ? mix(0.18, 1, Math.pow(dropProgress, 0.78))
+                                        : Math.pow(1 - fadeProgress, 1.2);
+                                    const glyphVisualWidth = Math.max(
+                                        glyphAdvance * 0.88,
+                                        isCJK(grapheme) ? block.fontPx * 0.56 : block.fontPx * 0.38,
+                                    );
+                                    const blockCenterX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0) + glyphAdvance * 0.5;
+                                    const dropDistance = block.lineHeight * (block.variant === 'hero' ? 0.24 : 0.2);
+                                    activationBlockAlpha = blockPulse * (block.variant === 'hero' ? 0.82 : 0.72);
+                                    activationBlockWidth = glyphVisualWidth + block.fontPx * (block.variant === 'hero' ? 0.18 : 0.12);
+                                    activationBlockHeight = block.fontPx * (block.variant === 'hero' ? 0.72 : 0.62);
+                                    activationBlockY = baseY
+                                        - block.fontPx * 0.38
+                                        - mix(dropDistance, 0, dropProgress);
+                                    activationBlockColor = activeColor;
+                                    activationBlockBlur = (8 + block.fontPx * 0.24) * blockPulse * activeGlowBoost;
+
+                                    if (activationBlockWidth > 0) {
+                                        const blockLeft = blockCenterX - activationBlockWidth * 0.5;
+                                        context.save();
+                                        context.fillStyle = colorWithAlpha(activationBlockColor, activationBlockAlpha);
+                                        context.shadowBlur = activationBlockBlur;
+                                        context.shadowColor = colorWithAlpha(activationBlockColor, 0.56 * blockPulse);
+                                        context.fillRect(
+                                            blockLeft,
+                                            activationBlockY - activationBlockHeight * 0.5,
+                                            activationBlockWidth,
+                                            activationBlockHeight,
+                                        );
+                                        context.restore();
+                                    }
+                                }
+                            }
+                        }
 
                         if (alpha <= 0.002) {
                             continue;
                         }
 
-                        const glyphX = baseX + widthBetweenOffsets(
-                            block.prepared,
-                            block.segmentMetas,
-                            renderLine.start,
-                            globalOffset,
-                        );
+                        const glyphX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
 
-                        context.fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                        context.fillStyle = fillStyle;
+                        context.shadowBlur = shadowBlur;
+                        context.shadowColor = shadowColor;
                         context.fillText(grapheme, glyphX, baseY);
+                        context.shadowBlur = 0;
+                        context.shadowColor = 'transparent';
                     }
                 }
 
