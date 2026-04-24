@@ -76,6 +76,20 @@ export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
   staggerMax: 100,
 };
 
+export interface FumeTuning {
+  hidePrintSymbols: boolean;
+  cameraSpeed: number;
+  glowIntensity: number;
+  heroScale: number;
+}
+
+export const DEFAULT_FUME_TUNING: FumeTuning = {
+  hidePrintSymbols: false,
+  cameraSpeed: 1,
+  glowIntensity: 1,
+  heroScale: 1,
+};
+
 export enum PlayerState {
   IDLE = 'IDLE',
   PLAYING = 'PLAYING',

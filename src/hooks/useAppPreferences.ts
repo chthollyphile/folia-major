@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type PartitaTuning, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type Theme, type VisualizerMode } from '../types';
 
 type StatusSetter = Dispatch<SetStateAction<{ type: 'error' | 'success' | 'info', text: string; } | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
@@ -50,6 +50,47 @@ const readStoredPartitaTuning = (): PartitaTuning => {
         };
     } catch {
         return DEFAULT_PARTITA_TUNING;
+    }
+};
+
+const clampFumeCameraSpeed = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1.85, Math.max(0.55, value));
+};
+
+const clampFumeGlowIntensity = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1.8, Math.max(0, value));
+};
+
+const clampFumeHeroScale = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1.32, Math.max(0.82, value));
+};
+
+const readStoredFumeTuning = (): FumeTuning => {
+    const saved = localStorage.getItem('fume_tuning');
+    if (!saved) return DEFAULT_FUME_TUNING;
+
+    try {
+        const parsed = JSON.parse(saved) as Partial<FumeTuning>;
+        return {
+            hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
+            cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, DEFAULT_FUME_TUNING.cameraSpeed),
+            glowIntensity: clampFumeGlowIntensity(parsed.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, DEFAULT_FUME_TUNING.glowIntensity),
+            heroScale: clampFumeHeroScale(parsed.heroScale ?? DEFAULT_FUME_TUNING.heroScale, DEFAULT_FUME_TUNING.heroScale),
+        };
+    } catch {
+        return DEFAULT_FUME_TUNING;
     }
 };
 
@@ -114,6 +155,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     });
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
     const [partitaTuning, setPartitaTuning] = useState<PartitaTuning>(readStoredPartitaTuning);
+    const [fumeTuning, setFumeTuning] = useState<FumeTuning>(readStoredFumeTuning);
     const [lyricsFontStyle, setLyricsFontStyle] = useState<Theme['fontStyle']>(readStoredLyricsFontStyle);
     const [lyricsFontScale, setLyricsFontScale] = useState<number>(readStoredLyricsFontScale);
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
@@ -184,7 +226,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                 : mode === 'partita'
                     ? '已切换到云阶歌词'
                     : mode === 'fume'
-                        ? '已切换到雾刊歌词'
+                        ? '已切换到浮名歌词'
                     : '已切换到流光歌词'
         });
     };
@@ -227,6 +269,29 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: '云阶参数已重置'
+        });
+    };
+
+    const handleSetFumeTuning = useCallback((patch: Partial<FumeTuning>) => {
+        setFumeTuning(prev => {
+            const next = {
+                hidePrintSymbols: patch.hidePrintSymbols ?? prev.hidePrintSymbols,
+                cameraSpeed: clampFumeCameraSpeed(patch.cameraSpeed ?? prev.cameraSpeed, prev.cameraSpeed),
+                glowIntensity: clampFumeGlowIntensity(patch.glowIntensity ?? prev.glowIntensity, prev.glowIntensity),
+                heroScale: clampFumeHeroScale(patch.heroScale ?? prev.heroScale, prev.heroScale),
+            };
+
+            localStorage.setItem('fume_tuning', JSON.stringify(next));
+            return next;
+        });
+    }, []);
+
+    const handleResetFumeTuning = () => {
+        setFumeTuning(DEFAULT_FUME_TUNING);
+        localStorage.setItem('fume_tuning', JSON.stringify(DEFAULT_FUME_TUNING));
+        setStatusMsg({
+            type: 'info',
+            text: '浮名参数已重置'
         });
     };
 
@@ -288,6 +353,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         visualizerMode,
         cadenzaTuning,
         partitaTuning,
+        fumeTuning,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily: lyricsCustomFont?.family ?? null,
@@ -303,6 +369,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleResetCadenzaTuning,
         handleSetPartitaTuning,
         handleResetPartitaTuning,
+        handleSetFumeTuning,
+        handleResetFumeTuning,
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,

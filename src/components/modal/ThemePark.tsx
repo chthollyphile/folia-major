@@ -537,7 +537,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
             ? (t('ui.visualizerCadenze') || '心象')
             : visualizerMode === 'partita'
                 ? (t('ui.visualizerPartita') || '云阶')
-                : (t('ui.visualizerFume') || '雾刊');
+                : (t('ui.visualizerFume') || '浮名');
     const activeTheme = draftTheme[pickerState.mode];
     const activeColor = activeTheme[pickerState.key];
     const pickerField = COLOR_FIELDS.find(field => field.key === pickerState.key) ?? COLOR_FIELDS[0];

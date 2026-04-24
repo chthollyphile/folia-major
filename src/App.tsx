@@ -396,6 +396,7 @@ export default function App() {
         visualizerMode,
         cadenzaTuning,
         partitaTuning,
+        fumeTuning,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -411,6 +412,8 @@ export default function App() {
         handleResetCadenzaTuning,
         handleSetPartitaTuning,
         handleResetPartitaTuning,
+        handleSetFumeTuning,
+        handleResetFumeTuning,
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
@@ -3015,6 +3018,7 @@ export default function App() {
                         staticMode={staticMode}
                         backgroundOpacity={backgroundOpacity}
                         lyricsFontScale={lyricsFontScale}
+                        fumeTuning={fumeTuning}
                         onBack={navigateToHome}
                     />
                 ) : (
@@ -3093,9 +3097,12 @@ export default function App() {
                             visualizerMode={visualizerMode}
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
+                            fumeTuning={fumeTuning}
                             onVisualizerModeChange={handleSetVisualizerMode}
                             onPartitaTuningChange={handleSetPartitaTuning}
                             onResetPartitaTuning={handleResetPartitaTuning}
+                            onFumeTuningChange={handleSetFumeTuning}
+                            onResetFumeTuning={handleResetFumeTuning}
                             lyricsFontStyle={lyricsFontStyle}
                             lyricsFontScale={lyricsFontScale}
                             lyricsCustomFontFamily={lyricsCustomFontFamily}

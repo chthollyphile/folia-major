@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
 import { Hourglass } from 'lucide-react';
-import { AudioBands, Line, Theme, Word as WordType } from '../../types';
+import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../types';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
 import { buildFumeBackgroundScene, drawFumeBackground } from './FumeBackground';
@@ -23,6 +23,7 @@ interface VisualizerProps {
     seed?: string | number;
     backgroundOpacity?: number;
     lyricsFontScale?: number;
+    fumeTuning?: FumeTuning;
     onBack?: () => void;
 }
 
@@ -486,6 +487,7 @@ const buildPreparedSingleLine = (
     variant: 'body' | 'hero',
     lyricsFontScale: number,
     densityScale: number,
+    heroScale: number,
 ) => {
     let low = variant === 'hero' ? 18 : 10;
     let high = variant === 'hero' ? 58 : 30;
@@ -496,7 +498,10 @@ const buildPreparedSingleLine = (
     } | null = null;
 
     for (let iteration = 0; iteration < 8; iteration += 1) {
-        const candidateFontPx = ((low + high) / 2) * lyricsFontScale * densityScale;
+        const candidateFontPx = ((low + high) / 2)
+            * lyricsFontScale
+            * densityScale
+            * (variant === 'hero' ? heroScale : 1);
         const prepared = prepareWithSegments(text, `700 ${candidateFontPx}px ${fontFamily}`);
         const layout = layoutWithLines(prepared, width, Math.round(candidateFontPx * (variant === 'hero' ? 1.02 : 1.06)));
 
@@ -516,7 +521,10 @@ const buildPreparedSingleLine = (
         return best;
     }
 
-    const fallbackFontPx = (variant === 'hero' ? 18 : 10) * lyricsFontScale * densityScale;
+    const fallbackFontPx = (variant === 'hero' ? 18 : 10)
+        * lyricsFontScale
+        * densityScale
+        * (variant === 'hero' ? heroScale : 1);
     const prepared = prepareWithSegments(text, `700 ${fallbackFontPx}px ${fontFamily}`);
     return {
         fontPx: fallbackFontPx,
@@ -581,6 +589,7 @@ const buildArticleLayoutAttempt = (
     viewport: ViewportSize,
     theme: Theme,
     lyricsFontScale: number,
+    fumeTuning: FumeTuning,
     options: FumeLayoutAttemptOptions,
 ): FumeArticleLayout | null => {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
@@ -638,6 +647,7 @@ const buildArticleLayoutAttempt = (
             variant,
             lyricsFontScale,
             densityScale,
+            fumeTuning.heroScale,
         );
         const fontPx = preparedSingleLine.fontPx;
         const lineHeight = Math.round(fontPx * (variant === 'hero' ? 1.02 : 1.06));
@@ -770,6 +780,7 @@ const buildArticleLayout = (
     viewport: ViewportSize,
     theme: Theme,
     lyricsFontScale: number,
+    fumeTuning: FumeTuning,
 ): FumeArticleLayout | null => {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
         return null;
@@ -790,7 +801,7 @@ const buildArticleLayout = (
 
         for (let iteration = 0; iteration < 8; iteration += 1) {
             const densityScale = (low + high) / 2;
-        const layout = buildArticleLayoutAttempt(lines, viewport, theme, lyricsFontScale, {
+        const layout = buildArticleLayoutAttempt(lines, viewport, theme, lyricsFontScale, fumeTuning, {
                 paperWidth,
                 viewportHeight,
                 columns,
@@ -1065,6 +1076,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
+    fumeTuning,
     onBack,
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1136,6 +1148,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             nextLines: getUpcomingLines(lines, currentLineIndex, 2),
         };
     }, [currentLineIndex, lines]);
+    const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
+        hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
+        cameraSpeed: clamp(fumeTuning?.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, 0.55, 1.85),
+        glowIntensity: clamp(fumeTuning?.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, 0, 1.8),
+        heroScale: clamp(fumeTuning?.heroScale ?? DEFAULT_FUME_TUNING.heroScale, 0.82, 1.32),
+    }), [fumeTuning]);
 
     useEffect(() => {
         const requestVersion = layoutBuildVersionRef.current + 1;
@@ -1160,7 +1178,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     return;
                 }
 
-                const nextArticle = buildArticleLayout(lines, viewport, theme, lyricsFontScale);
+                const nextArticle = buildArticleLayout(lines, viewport, theme, lyricsFontScale, resolvedFumeTuning);
                 if (layoutBuildVersionRef.current !== requestVersion) {
                     return;
                 }
@@ -1175,7 +1193,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(rafId);
             window.clearTimeout(timeoutId);
         };
-    }, [lines, lyricsFontScale, theme, viewport]);
+    }, [lines, lyricsFontScale, resolvedFumeTuning, theme, viewport]);
     const finalLyricRenderEndTime = useMemo(
         () => lines.reduce(
             (latest, line) => (
@@ -1208,6 +1226,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         () => (article ? resolveArticleOverviewCamera(article, viewport) : null),
         [article, viewport],
     );
+    const cameraSpeed = resolvedFumeTuning.cameraSpeed;
+    const glowIntensity = resolvedFumeTuning.glowIntensity;
+    const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
+    const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
+    const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
 
     useEffect(() => {
         staticBlockSnapshotCacheRef.current.clear();
@@ -1314,7 +1337,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     cameraRetargetRef.current = {
                         sourceLineIndex: OVERVIEW_CAMERA_SOURCE,
                         startedAt: time,
-                        duration: resolveOverviewRetargetDuration(viewport),
+                        duration: clamp(resolveOverviewRetargetDuration(viewport) / cameraSpeed, 0.12, 1.2),
                     };
                 }
             } else if (focusBlock) {
@@ -1335,14 +1358,14 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     cameraRetargetRef.current = {
                         sourceLineIndex: focusBlock.sourceLineIndex,
                         startedAt: time,
-                        duration: resolveCameraRetargetDuration(focusBlock.line),
+                        duration: clamp(resolveCameraRetargetDuration(focusBlock.line) / cameraSpeed, 0.03, 0.3),
                     };
                 }
             } else if (cameraRetargetRef.current.sourceLineIndex !== -1) {
                 cameraRetargetRef.current = {
                     sourceLineIndex: -1,
                     startedAt: time,
-                    duration: 0.18,
+                    duration: clamp(0.18 / cameraSpeed, 0.05, 0.4),
                 };
             }
 
@@ -1425,16 +1448,16 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 });
             }
 
-            const activeGlowBoost = theme.animationIntensity === 'chaotic'
+            const activeGlowBoost = (theme.animationIntensity === 'chaotic'
                 ? 1.15
                 : theme.animationIntensity === 'calm'
                     ? 0.72
-                    : 0.92;
-            const passedGlowBase = theme.animationIntensity === 'chaotic'
+                    : 0.92) * glowIntensity;
+            const passedGlowBase = (theme.animationIntensity === 'chaotic'
                 ? 0.95
                 : theme.animationIntensity === 'calm'
                     ? 0.35
-                    : 0.62;
+                    : 0.62) * glowIntensity;
 
             if (showText) {
                 for (const block of article.blocks) {
@@ -1514,8 +1537,14 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 if (isLineActive) {
                     const lineProgress = clamp((time - block.line.startTime) / lineDuration, 0, 1);
                     const lineGlowEnvelope = Math.sin(lineProgress * Math.PI);
-                    const lineGlowAlpha = (block.variant === 'hero' ? 0.16 : 0.12) + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2);
-                    const lineGlowBlur = (block.variant === 'hero' ? 12 : 8) + lineGlowEnvelope * (block.fontPx * (block.variant === 'hero' ? 0.7 : 0.52));
+                    const lineGlowAlpha = (
+                        (block.variant === 'hero' ? 0.16 : 0.12)
+                        + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2)
+                    ) * glowIntensity;
+                    const lineGlowBlur = (
+                        (block.variant === 'hero' ? 12 : 8)
+                        + lineGlowEnvelope * (block.fontPx * (block.variant === 'hero' ? 0.7 : 0.52))
+                    ) * glowIntensity;
                     const lineGlowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha);
 
                     context.save();
@@ -1600,7 +1629,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 );
                             }
 
-                            if (grapheme.trim().length > 0) {
+                            if (showPrintStamp && grapheme.trim().length > 0) {
                                 const glyphWindowDuration = Math.max(wordDuration / glyphCount, 0.04);
                                 const activationLeadDuration = clamp(
                                     Math.min(glyphWindowDuration * 0.86, lineDuration * 0.16),
@@ -1701,7 +1730,21 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(frameId);
             lastFrameAt = null;
         };
-    }, [article, audioBands, audioPower, backgroundScene, currentTime, showText, staticMode, theme, viewport.height, viewport.width]);
+    }, [
+        article,
+        audioBands,
+        audioPower,
+        backgroundScene,
+        cameraSpeed,
+        currentTime,
+        glowIntensity,
+        showPrintStamp,
+        showText,
+        staticMode,
+        theme,
+        viewport.height,
+        viewport.width,
+    ]);
 
     return (
         <VisualizerShell
@@ -1785,8 +1828,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 recentCompletedLine={runtime.recentCompletedLine}
                 nextLines={runtime.nextLines}
                 theme={theme}
-                translationFontSize="0.98rem"
-                upcomingFontSize="0.82rem"
+                translationFontSize={translationFontSize}
+                upcomingFontSize={upcomingFontSize}
                 opacity={0.48}
             />
         </VisualizerShell>

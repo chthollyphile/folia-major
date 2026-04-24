@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type PartitaTuning, type VisualizerMode } from '../../types';
+import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -32,9 +32,12 @@ interface HelpModalProps {
     visualizerMode?: VisualizerMode;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
+    fumeTuning?: FumeTuning;
     onVisualizerModeChange?: (mode: VisualizerMode) => void;
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning?: () => void;
+    onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
+    onResetFumeTuning?: () => void;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
@@ -68,9 +71,12 @@ const HelpModal: React.FC<HelpModalProps> = ({
     visualizerMode = 'classic',
     cadenzaTuning,
     partitaTuning,
+    fumeTuning,
     onVisualizerModeChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
+    onFumeTuningChange,
+    onResetFumeTuning,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -1076,6 +1082,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         staticMode={staticMode}
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
+                        fumeTuning={fumeTuning}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
                         customFontFamily={lyricsCustomFontFamily}
@@ -1085,6 +1092,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         onCustomFontChange={onLyricsCustomFontChange}
                         onPartitaTuningChange={onPartitaTuningChange}
                         onResetPartitaTuning={onResetPartitaTuning}
+                        onFumeTuningChange={onFumeTuningChange}
+                        onResetFumeTuning={onResetFumeTuning}
                         onClose={() => setShowVisPlayground(false)}
                     />
                 )}

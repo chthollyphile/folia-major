@@ -9,9 +9,11 @@ import VisualizerPartita from './VisualizerPartita';
 import VisualizerFume from './VisualizerFume';
 import {
     DEFAULT_CADENZA_TUNING,
+    DEFAULT_FUME_TUNING,
     DEFAULT_PARTITA_TUNING,
     type AudioBands,
     type CadenzaTuning,
+    type FumeTuning,
     type Line,
     type PartitaTuning,
     type Theme,
@@ -28,6 +30,7 @@ interface VisPlaygroundProps {
     staticMode?: boolean;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
+    fumeTuning?: FumeTuning;
     fontStyle: Theme['fontStyle'];
     fontScale: number;
     customFontFamily: string | null;
@@ -37,6 +40,8 @@ interface VisPlaygroundProps {
     onCustomFontChange: (font: { family: string; label?: string | null; } | null) => void;
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning?: () => void;
+    onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
+    onResetFumeTuning?: () => void;
     onClose: () => void;
 }
 
@@ -93,6 +98,9 @@ const FONT_ROW_HEIGHT = 94;
 
 const clampFontScale = (value: number) => Math.min(1.4, Math.max(0.85, value));
 const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value));
+const clampFumeCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55, value));
+const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, value));
+const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
 
 const createCharacterWords = (text: string, startTime: number, endTime: number) => {
     const chars = Array.from(text);
@@ -320,6 +328,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     staticMode = false,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
+    fumeTuning = DEFAULT_FUME_TUNING,
     fontStyle,
     fontScale,
     customFontFamily,
@@ -329,6 +338,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     onCustomFontChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
+    onFumeTuningChange,
+    onResetFumeTuning,
     onClose,
 }) => {
     const { t } = useTranslation();
@@ -346,6 +357,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [fontSearchQuery, setFontSearchQuery] = useState('');
     const [fontPickerError, setFontPickerError] = useState<string | null>(null);
     const [fontListHeight, setFontListHeight] = useState(420);
+    const [draftFumeTuning, setDraftFumeTuning] = useState<FumeTuning>(fumeTuning);
     const fontListRef = React.useRef<HTMLDivElement>(null);
     const fontVirtualListRef = useListRef(null);
 
@@ -383,6 +395,12 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             staggerMax: Math.max(rawMin, rawMax),
         };
     }, [partitaTuning]);
+    const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
+        hidePrintSymbols: draftFumeTuning.hidePrintSymbols,
+        cameraSpeed: clampFumeCameraSpeed(draftFumeTuning.cameraSpeed),
+        glowIntensity: clampFumeGlowIntensity(draftFumeTuning.glowIntensity),
+        heroScale: clampFumeHeroScale(draftFumeTuning.heroScale),
+    }), [draftFumeTuning]);
     const currentFontLabel = customFontLabel || customFontFamily || (t('options.customFont') || '自定义字体');
     const fontStyleOptions: PresetOption<Theme['fontStyle'] | 'custom'>[] = useMemo(() => ([
         ...builtinFontOptions,
@@ -392,6 +410,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         { value: true, label: t('options.partitaGuideLinesOn') || '显示' },
         { value: false, label: t('options.partitaGuideLinesOff') || '隐藏' },
     ]), [t]);
+    const visibilityOptions: PresetOption<boolean>[] = useMemo(() => ([
+        { value: false, label: t('options.partitaGuideLinesOn') || '显示' },
+        { value: true, label: t('options.partitaGuideLinesOff') || '隐藏' },
+    ]), [t]);
     const filteredSystemFonts = useMemo(() => {
         const query = fontSearchQuery.trim().toLocaleLowerCase();
         if (!query) {
@@ -400,6 +422,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
 
         return systemFonts.filter(font => font.label.toLocaleLowerCase().includes(query));
     }, [fontSearchQuery, systemFonts]);
+
+    useEffect(() => {
+        setDraftFumeTuning(fumeTuning);
+    }, [fumeTuning]);
 
     useEffect(() => {
         let frameId = 0;
@@ -438,7 +464,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             ? (t('ui.visualizerCadenze') || '心象')
             : visualizerMode === 'partita'
                 ? (t('ui.visualizerPartita') || '云阶')
-                : (t('ui.visualizerFume') || '雾刊');
+                : (t('ui.visualizerFume') || '浮名');
     const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-950/88';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const tabSwitcherBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
@@ -452,6 +478,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         onFontScaleChange(1);
         if (visualizerMode === 'partita') {
             onResetPartitaTuning?.();
+        }
+        if (visualizerMode === 'fume') {
+            setDraftFumeTuning(DEFAULT_FUME_TUNING);
+            onResetFumeTuning?.();
         }
     };
 
@@ -599,6 +629,11 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         });
     };
 
+    const handleFumeTuningChange = (patch: Partial<FumeTuning>) => {
+        setDraftFumeTuning(previous => ({ ...previous, ...patch }));
+        onFumeTuningChange?.(patch);
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -711,6 +746,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                     staticMode={staticMode}
                                     backgroundOpacity={backgroundOpacity}
                                     lyricsFontScale={normalizedFontScale}
+                                    fumeTuning={resolvedFumeTuning}
                                     seed="vis-playground-fume"
                                 />
                             )}
@@ -828,6 +864,84 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="5"
                                             value={resolvedPartitaTuning.staggerMax}
                                             onChange={(event) => handlePartitaMaxChange(parseFloat(event.target.value))}
+                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {visualizerMode === 'fume' && (
+                                <div
+                                    className="rounded-[24px] border border-white/10 p-4 space-y-4"
+                                    style={{ backgroundColor: controlCardBg }}
+                                >
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                            {t('options.fumeSettings') || '浮名参数'}
+                                        </div>
+                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.fumeSettingsDesc') || '控制打印方块、镜头节奏、辉光和大标题比例。'}
+                                        </div>
+                                    </div>
+
+                                    <PresetGroup
+                                        label={t('options.fumeHidePrintSymbols') || '隐藏打印方块'}
+                                        value={resolvedFumeTuning.hidePrintSymbols}
+                                        options={visibilityOptions}
+                                        onChange={(next) => handleFumeTuningChange({ hidePrintSymbols: next })}
+                                        isDaylight={isDaylight}
+                                    />
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.fumeCameraSpeed') || '摄影机移动速度'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {resolvedFumeTuning.cameraSpeed.toFixed(2)}x
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.55"
+                                            max="1.85"
+                                            step="0.05"
+                                            value={resolvedFumeTuning.cameraSpeed}
+                                            onChange={(event) => handleFumeTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
+                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.fumeGlowIntensity') || '当前句辉光强度'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {resolvedFumeTuning.glowIntensity.toFixed(2)}x
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1.8"
+                                            step="0.05"
+                                            value={resolvedFumeTuning.glowIntensity}
+                                            onChange={(event) => handleFumeTuningChange({ glowIntensity: parseFloat(event.target.value) })}
+                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.fumeHeroScale') || '大标题比例'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {resolvedFumeTuning.heroScale.toFixed(2)}x
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0.82"
+                                            max="1.32"
+                                            step="0.02"
+                                            value={resolvedFumeTuning.heroScale}
+                                            onChange={(event) => handleFumeTuningChange({ heroScale: parseFloat(event.target.value) })}
                                             className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
                                         />
                                     </div>
