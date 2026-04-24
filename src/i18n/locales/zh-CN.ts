@@ -59,6 +59,7 @@ export default {
     "visualizerClassic": "流光",
     "visualizerCadenze": "心象",
     "visualizerPartita": "云阶",
+    "visualizerFume": "雾刊",
     "cadenzeTuning": "心象参数",
     "resetVisualizerTuning": "重置视觉参数",
     "livePreview": "实时预览",

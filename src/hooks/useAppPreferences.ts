@@ -107,6 +107,9 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         if (saved === 'partita') {
             return 'partita';
         }
+        if (saved === 'fume') {
+            return 'fume';
+        }
         return 'classic';
     });
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
@@ -180,6 +183,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                 ? '已切换到心象歌词'
                 : mode === 'partita'
                     ? '已切换到云阶歌词'
+                    : mode === 'fume'
+                        ? '已切换到雾刊歌词'
                     : '已切换到流光歌词'
         });
     };

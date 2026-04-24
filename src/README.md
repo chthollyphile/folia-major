@@ -67,7 +67,7 @@ src/
 
 - `components/visualizer/*`
   歌词可视化层。
-  `Visualizer.tsx` / `VisualizerCadenza.tsx` / `VisualizerPartita.tsx` 是三种主要表现形式。
+  `Visualizer.tsx` / `VisualizerCadenza.tsx` / `VisualizerPartita.tsx` / `VisualizerFume.tsx` 是当前四种主要表现形式。
 
 ### Hooks
 

@@ -7,6 +7,7 @@
 - `Visualizer.tsx`: 经典流光模式
 - `VisualizerCadenza.tsx`: 心象模式
 - `VisualizerPartita.tsx`: 云阶模式
+- `VisualizerFume.tsx`: 报纸混排模式
 - `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）

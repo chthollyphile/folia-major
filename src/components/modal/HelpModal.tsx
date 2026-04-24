@@ -590,7 +590,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 <Settings2 size={16} />
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                             <button
                                                 onClick={() => onVisualizerModeChange?.('classic')}
                                                 className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
@@ -625,6 +625,18 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             >
                                                 <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                                                     {t('ui.visualizerPartita')}
+                                                </span>
+                                            </button>
+                                            <button
+                                                onClick={() => onVisualizerModeChange?.('fume')}
+                                                className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
+                                                style={{
+                                                    borderColor: visualizerMode === 'fume' ? theme?.accentColor || 'var(--text-accent)' : 'transparent',
+                                                    backgroundColor: visualizerMode === 'fume' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)'
+                                                }}
+                                            >
+                                                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('ui.visualizerFume')}
                                                 </span>
                                             </button>
                                         </div>
@@ -897,31 +909,6 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 </div>
                             </section>
 
-                            <section>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowLabSettings(true)}
-                                    className="w-full bg-white/5 p-4 rounded-xl border border-white/5 transition-colors hover:bg-white/8"
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0" style={{ color: 'var(--text-primary)' }}>
-                                                <FlaskConical size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.labSettings') || "Lab Settings"}
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.labSettingsDesc') || "Open a separate page for experimental playback and panel behavior settings."}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
-                            </section>
-
                             {/* Electron Settings */}
                             {isElectron && (
                                 <section>
@@ -1039,6 +1026,32 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     </div>
                                 </section>
                             )}
+
+                            {/* 保持实验室入口位于整个 options 列表最底部；Electron 版本下还会多出桌面端专属设置，所以这里必须放在 Electron Settings 之后。 */}
+                            <section>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLabSettings(true)}
+                                    className="w-full bg-white/5 p-4 rounded-xl border border-white/5 transition-colors hover:bg-white/8"
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-start gap-3 text-left">
+                                            <div className="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center shrink-0" style={{ color: 'var(--text-primary)' }}>
+                                                <FlaskConical size={18} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('options.labSettings') || "Lab Settings"}
+                                                </div>
+                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {t('options.labSettingsDesc') || "Open a separate page for experimental playback and panel behavior settings."}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                    </div>
+                                </button>
+                            </section>
                         </motion.div>
                     )}
                     </AnimatePresence>

@@ -13,6 +13,7 @@ import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch } from './
 import Visualizer from './components/visualizer/Visualizer';
 import VisualizerCadenza from './components/visualizer/VisualizerCadenza';
 import VisualizerPartita from './components/visualizer/VisualizerPartita';
+import VisualizerFume from './components/visualizer/VisualizerFume';
 import DevDebugOverlay from './components/DevDebugOverlay';
 import ProgressBar from './components/ProgressBar';
 import FloatingPlayerControls from './components/FloatingPlayerControls';
@@ -2996,6 +2997,23 @@ export default function App() {
                         staticMode={staticMode}
                         backgroundOpacity={backgroundOpacity}
                         partitaTuning={partitaTuning}
+                        lyricsFontScale={lyricsFontScale}
+                        onBack={navigateToHome}
+                    />
+                ) : visualizerMode === 'fume' ? (
+                    <VisualizerFume
+                        currentTime={currentTime}
+                        currentLineIndex={currentLineIndex}
+                        lines={lyrics?.lines || []}
+                        theme={visualizerTheme}
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        coverUrl={getCoverUrl()}
+                        showText={currentView === 'player'}
+                        useCoverColorBg={useCoverColorBg}
+                        seed={visualizerGeometrySeed}
+                        staticMode={staticMode}
+                        backgroundOpacity={backgroundOpacity}
                         lyricsFontScale={lyricsFontScale}
                         onBack={navigateToHome}
                     />
