@@ -808,6 +808,49 @@ const buildCanvasFont = (block: FumeBlock, theme: Theme) => {
     return `${fontWeight} ${block.fontPx}px ${fontFamily}`;
 };
 
+const createStaticBlockSnapshot = (
+    block: FumeBlock,
+    theme: Theme,
+    fillStyle: string,
+    shadowBlur = 0,
+    shadowColor = 'transparent',
+) => {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    const rasterScale = clamp(window.devicePixelRatio || 1, 1, 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(block.width * rasterScale));
+    canvas.height = Math.max(1, Math.ceil(block.height * rasterScale));
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+        return null;
+    }
+
+    const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
+    context.setTransform(rasterScale, 0, 0, rasterScale, 0, 0);
+    context.font = buildCanvasFont(block, theme);
+    context.textAlign = 'left';
+    context.textBaseline = 'middle';
+    context.fillStyle = fillStyle;
+    context.shadowBlur = shadowBlur;
+    context.shadowColor = shadowColor;
+
+    for (const renderLine of block.renderLines) {
+        context.fillText(
+            renderLine.text,
+            renderLine.left,
+            renderLine.top + baselineOffset,
+        );
+    }
+
+    context.shadowBlur = 0;
+    context.shadowColor = 'transparent';
+    return canvas;
+};
+
 const resolveCameraScaleForBlock = (
     block: FumeBlock,
     viewport: ViewportSize,
@@ -914,6 +957,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         velocityScale: 0,
         focusScale: 1,
     });
+    const staticBlockSnapshotCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
     const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
     const [hasPrintedContent, setHasPrintedContent] = useState(false);
     const hasPrintedContentRef = useRef(false);
@@ -963,6 +1007,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         () => buildArticleLayout(lines, viewport, theme, lyricsFontScale),
         [lines, viewport, theme, lyricsFontScale],
     );
+
+    useEffect(() => {
+        staticBlockSnapshotCacheRef.current.clear();
+    }, [article, theme]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -1175,6 +1223,54 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     continue;
                 }
 
+                const waitingOpacity = block.variant === 'hero' ? 0.06 : 0.035;
+                const activeOpacity = block.variant === 'hero' ? 0.985 : 0.92;
+                const passedOpacity = block.variant === 'hero' ? 0.74 : 0.58;
+                const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
+                const lineEndTime = getLineRenderEndTime(block.line);
+                const lineDuration = Math.max(lineEndTime - block.line.startTime, 0.18);
+                const colorTrailDuration = clamp(
+                    lineDuration * (block.variant === 'hero' ? 0.68 : 0.82),
+                    0.9,
+                    2.8,
+                );
+                const staticState = time < block.line.startTime
+                    ? 'waiting'
+                    : time >= lineEndTime + colorTrailDuration
+                        ? 'passed'
+                        : null;
+
+                if (staticState) {
+                    const snapshotScale = clamp(window.devicePixelRatio || 1, 1, 2);
+                    const cacheKey = `${block.id}:${staticState}:${snapshotScale}`;
+                    let snapshot = staticBlockSnapshotCacheRef.current.get(cacheKey);
+
+                    if (!snapshot) {
+                        snapshot = createStaticBlockSnapshot(
+                            block,
+                            theme,
+                            staticState === 'waiting'
+                                ? colorWithAlpha(theme.primaryColor, waitingOpacity)
+                                : colorWithAlpha(theme.primaryColor, passedOpacity),
+                            staticState === 'waiting'
+                                ? 0
+                                : (2 + block.fontPx * 0.1) * 0.65 * passedGlowBase,
+                            staticState === 'waiting'
+                                ? 'transparent'
+                                : colorWithAlpha(theme.primaryColor, 0.1),
+                        ) ?? undefined;
+
+                        if (snapshot) {
+                            staticBlockSnapshotCacheRef.current.set(cacheKey, snapshot);
+                        }
+                    }
+
+                    if (snapshot) {
+                        context.drawImage(snapshot, block.x, block.y, block.width, block.height);
+                        continue;
+                    }
+                }
+
                 const printedCount = resolvePrintedGraphemeCount(
                     block.line,
                     block.variant,
@@ -1183,21 +1279,35 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     time,
                 );
                 const totalGraphemeCount = block.graphemes.length;
-                const waitingOpacity = block.variant === 'hero' ? 0.06 : 0.035;
-                const activeOpacity = block.variant === 'hero' ? 0.985 : 0.92;
-                const passedOpacity = block.variant === 'hero' ? 0.74 : 0.58;
-                const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
-                const lineDuration = Math.max(getLineRenderEndTime(block.line) - block.line.startTime, 0.18);
-                const colorTrailDuration = clamp(
-                    lineDuration * (block.variant === 'hero' ? 0.68 : 0.82),
-                    0.9,
-                    2.8,
-                );
 
                 context.save();
                 context.font = buildCanvasFont(block, theme);
                 context.textAlign = 'left';
                 context.textBaseline = 'middle';
+
+                const isLineActive = time >= block.line.startTime && time <= lineEndTime;
+                if (isLineActive) {
+                    const lineProgress = clamp((time - block.line.startTime) / lineDuration, 0, 1);
+                    const lineGlowEnvelope = Math.sin(lineProgress * Math.PI);
+                    const lineGlowAlpha = (block.variant === 'hero' ? 0.16 : 0.12) + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2);
+                    const lineGlowBlur = (block.variant === 'hero' ? 12 : 8) + lineGlowEnvelope * (block.fontPx * (block.variant === 'hero' ? 0.7 : 0.52));
+                    const lineGlowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha);
+
+                    context.save();
+                    context.fillStyle = lineGlowColor;
+                    context.shadowBlur = lineGlowBlur;
+                    context.shadowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha * 1.35);
+
+                    for (const renderLine of block.renderLines) {
+                        context.fillText(
+                            renderLine.text,
+                            block.x + renderLine.left,
+                            block.y + renderLine.top + baselineOffset,
+                        );
+                    }
+
+                    context.restore();
+                }
 
                 for (const renderLine of block.renderLines) {
                     const baseX = block.x + renderLine.left;
