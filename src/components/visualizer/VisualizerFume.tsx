@@ -1524,11 +1524,18 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     context.shadowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha * 1.35);
 
                     for (const renderLine of block.renderLines) {
-                        context.fillText(
-                            renderLine.text,
-                            block.x + renderLine.left,
-                            block.y + renderLine.top + baselineOffset,
-                        );
+                        const glowBaseX = block.x + renderLine.left;
+                        const glowBaseY = block.y + renderLine.top + baselineOffset;
+
+                        for (let graphemeIndex = 0; graphemeIndex < renderLine.graphemes.length; graphemeIndex += 1) {
+                            const grapheme = renderLine.graphemes[graphemeIndex]!;
+                            if (grapheme.trim().length === 0) {
+                                continue;
+                            }
+
+                            const glyphX = glowBaseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
+                            context.fillText(grapheme, glyphX, glowBaseY);
+                        }
                     }
 
                     context.restore();
