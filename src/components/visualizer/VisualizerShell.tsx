@@ -16,6 +16,7 @@ interface VisualizerShellProps {
     seed?: string | number;
     backgroundOpacity?: number;
     staticMode?: boolean;
+    disableGeometricBackground?: boolean;
     onBack?: () => void;
     children: React.ReactNode;
     className?: string;
@@ -30,6 +31,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     seed,
     backgroundOpacity = 0.75,
     staticMode = false,
+    disableGeometricBackground = false,
     onBack,
     children,
     className = '',
@@ -104,7 +106,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
             />
 
-            {!staticMode && (
+            {!staticMode && !disableGeometricBackground && (
                 <div className="absolute inset-0 z-0">
                     <GeometricBackground theme={theme} audioPower={audioPower} audioBands={audioBands} seed={seed} />
                 </div>

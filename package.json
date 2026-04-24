@@ -37,7 +37,8 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "build/miao.png"
     ],
     "extraResources": [
       {

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
+import { Hourglass } from 'lucide-react';
 import { AudioBands, Line, Theme, Word as WordType } from '../../types';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
+import { buildFumeBackgroundScene, drawFumeBackground } from './FumeBackground';
 import { getRecentCompletedLine, getUpcomingLines } from './runtime';
 import VisualizerShell from './VisualizerShell';
 import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
@@ -112,6 +114,12 @@ interface CameraRetargetState {
     duration: number;
 }
 
+interface CameraViewTarget {
+    x: number;
+    y: number;
+    scale: number;
+}
+
 const graphemeSegmenter = typeof Intl !== 'undefined'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     : null;
@@ -166,6 +174,11 @@ const colorWithAlpha = (color: string, alpha: number) => {
 
     return color;
 };
+
+const CAMERA_SCALE_MIN = 0.22;
+const CAMERA_SCALE_MAX = 2.24;
+const OVERVIEW_CAMERA_SOURCE = -2;
+const LAYOUT_REBUILD_DEBOUNCE_MS = 96;
 
 const parseColorChannels = (color: string) => {
     if (color.startsWith('#')) {
@@ -597,10 +610,24 @@ const buildArticleLayoutAttempt = (
 
     const blocks: FumeBlock[] = [];
     const columnHeights = Array.from({ length: columns }, () => verticalMargin);
+    let bodyColumnTieCursor = 0;
+    let heroPlacementTieCursor = 0;
 
     filteredLines.forEach(({ line, index }, blockIndex) => {
         const variant = chooseBlockVariant(line, blockIndex, filteredLines.length);
-        const blockWidth = variant === 'hero' ? paperWidth : columnWidth;
+        const heroSpanColumns = variant === 'hero'
+            ? Math.min(columns, columns <= 1 ? 1 : 2)
+            : 1;
+        const heroSpanWidth = heroSpanColumns > 1
+            ? columnWidth * heroSpanColumns + gap * (heroSpanColumns - 1)
+            : paperWidth;
+        const blockWidth = variant === 'hero'
+            ? heroSpanColumns === 1
+                ? paperWidth
+                : columns === 2
+                    ? columnWidth * 1.5 + gap * 0.5
+                    : heroSpanWidth
+            : columnWidth;
         const paddingX = 0;
         const paddingY = 0;
         const innerWidth = Math.max(blockWidth - paddingX * 2, 120);
@@ -645,19 +672,60 @@ const buildArticleLayoutAttempt = (
         let y = 0;
 
         if (variant === 'hero') {
-            y = Math.max(...columnHeights);
-            x = horizontalMargin;
-            for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {
-                columnHeights[columnIndex] = y + blockHeight + blockGap;
+            if (heroSpanColumns === 1) {
+                y = Math.max(...columnHeights);
+                x = horizontalMargin;
+                columnHeights[0] = y + blockHeight + blockGap;
+            } else {
+                let bestHeight = Number.POSITIVE_INFINITY;
+                let candidateStarts: number[] = [];
+
+                for (let startColumn = 0; startColumn <= columns - heroSpanColumns; startColumn += 1) {
+                    let coveredHeight = 0;
+                    for (let columnIndex = startColumn; columnIndex < startColumn + heroSpanColumns; columnIndex += 1) {
+                        coveredHeight = Math.max(coveredHeight, columnHeights[columnIndex] ?? 0);
+                    }
+
+                    if (coveredHeight < bestHeight) {
+                        bestHeight = coveredHeight;
+                        candidateStarts = [startColumn];
+                    } else if (coveredHeight === bestHeight) {
+                        candidateStarts.push(startColumn);
+                    }
+                }
+
+                const targetStart = candidateStarts.length > 0
+                    ? candidateStarts[heroPlacementTieCursor % candidateStarts.length]!
+                    : 0;
+                heroPlacementTieCursor += 1;
+                y = bestHeight;
+                x = horizontalMargin
+                    + targetStart * (columnWidth + gap)
+                    + Math.max((heroSpanWidth - blockWidth) * 0.5, 0);
+
+                for (let columnIndex = targetStart; columnIndex < targetStart + heroSpanColumns; columnIndex += 1) {
+                    columnHeights[columnIndex] = y + blockHeight + blockGap;
+                }
             }
         } else {
             let targetColumn = 0;
+            let minHeight = columnHeights[0] ?? 0;
+            const candidateColumns = [0];
+
             for (let columnIndex = 1; columnIndex < columns; columnIndex += 1) {
-                if (columnHeights[columnIndex]! < columnHeights[targetColumn]!) {
-                    targetColumn = columnIndex;
+                const height = columnHeights[columnIndex] ?? 0;
+
+                if (height < minHeight) {
+                    minHeight = height;
+                    candidateColumns.length = 0;
+                    candidateColumns.push(columnIndex);
+                } else if (height === minHeight) {
+                    candidateColumns.push(columnIndex);
                 }
             }
 
+            targetColumn = candidateColumns[bodyColumnTieCursor % candidateColumns.length] ?? 0;
+            bodyColumnTieCursor += 1;
             x = horizontalMargin + targetColumn * (columnWidth + gap);
             y = columnHeights[targetColumn]!;
             columnHeights[targetColumn] = y + blockHeight + blockGap;
@@ -891,6 +959,57 @@ const resolveCameraRetargetDuration = (line: Line) => {
     );
 };
 
+const resolveOverviewRetargetDuration = (viewport: ViewportSize) => clamp(
+    Math.min(viewport.width, viewport.height) / 1500,
+    0.38,
+    0.58,
+);
+
+const resolveArticleOverviewCamera = (
+    article: FumeArticleLayout,
+    viewport: ViewportSize,
+): CameraViewTarget => {
+    if (article.blocks.length === 0) {
+        const fitScale = Math.min(
+            viewport.width / Math.max(article.width, 1),
+            viewport.height / Math.max(article.height, 1),
+        );
+
+        return {
+            x: article.width * 0.5,
+            y: article.height * 0.5,
+            scale: clamp(fitScale * 0.92, CAMERA_SCALE_MIN, 0.72),
+        };
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const block of article.blocks) {
+        minX = Math.min(minX, block.x);
+        minY = Math.min(minY, block.y);
+        maxX = Math.max(maxX, block.x + block.width);
+        maxY = Math.max(maxY, block.y + block.height);
+    }
+
+    const paddingX = clamp(viewport.width * 0.2, 120, 280);
+    const paddingY = clamp(viewport.height * 0.2, 96, 220);
+    const framedWidth = Math.max(maxX - minX + paddingX * 2, 1);
+    const framedHeight = Math.max(maxY - minY + paddingY * 2, 1);
+    const fitScale = Math.min(
+        viewport.width / framedWidth,
+        viewport.height / framedHeight,
+    );
+
+    return {
+        x: (minX + maxX) * 0.5,
+        y: (minY + maxY) * 0.5,
+        scale: clamp(fitScale, CAMERA_SCALE_MIN, 0.72),
+    };
+};
+
 const resolveFocusBlock = (
     article: FumeArticleLayout,
     currentLineIndex: number,
@@ -901,6 +1020,17 @@ const resolveFocusBlock = (
         if (active) {
             return active;
         }
+    }
+
+    const chronologicalLastBlock = article.blocks.reduce<FumeBlock | null>((latest, block) => {
+        if (!latest || block.sourceLineIndex > latest.sourceLineIndex) {
+            return block;
+        }
+        return latest;
+    }, null);
+
+    if (chronologicalLastBlock && currentTimeValue >= getLineRenderEndTime(chronologicalLastBlock.line)) {
+        return chronologicalLastBlock;
     }
 
     for (let index = article.blocks.length - 1; index >= 0; index -= 1) {
@@ -958,7 +1088,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         focusScale: 1,
     });
     const staticBlockSnapshotCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+    const layoutBuildVersionRef = useRef(0);
+    const hasResolvedArticleRef = useRef(false);
     const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
+    const [article, setArticle] = useState<FumeArticleLayout | null>(null);
+    const [isLayoutPending, setIsLayoutPending] = useState(false);
     const [hasPrintedContent, setHasPrintedContent] = useState(false);
     const hasPrintedContentRef = useRef(false);
 
@@ -1003,9 +1137,76 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         };
     }, [currentLineIndex, lines]);
 
-    const article = useMemo(
-        () => buildArticleLayout(lines, viewport, theme, lyricsFontScale),
-        [lines, viewport, theme, lyricsFontScale],
+    useEffect(() => {
+        const requestVersion = layoutBuildVersionRef.current + 1;
+        layoutBuildVersionRef.current = requestVersion;
+
+        if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
+            hasResolvedArticleRef.current = false;
+            setArticle(null);
+            setIsLayoutPending(false);
+            return;
+        }
+
+        setIsLayoutPending(true);
+
+        let rafId = 0;
+        let timeoutId = 0;
+        const delay = hasResolvedArticleRef.current ? LAYOUT_REBUILD_DEBOUNCE_MS : 0;
+
+        rafId = window.requestAnimationFrame(() => {
+            timeoutId = window.setTimeout(() => {
+                if (layoutBuildVersionRef.current !== requestVersion) {
+                    return;
+                }
+
+                const nextArticle = buildArticleLayout(lines, viewport, theme, lyricsFontScale);
+                if (layoutBuildVersionRef.current !== requestVersion) {
+                    return;
+                }
+
+                hasResolvedArticleRef.current = nextArticle !== null;
+                setArticle(nextArticle);
+                setIsLayoutPending(false);
+            }, delay);
+        });
+
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            window.clearTimeout(timeoutId);
+        };
+    }, [lines, lyricsFontScale, theme, viewport]);
+    const finalLyricRenderEndTime = useMemo(
+        () => lines.reduce(
+            (latest, line) => (
+                line.fullText.trim().length > 0
+                    ? Math.max(latest, getLineRenderEndTime(line))
+                    : latest
+            ),
+            0,
+        ),
+        [lines],
+    );
+    const overviewStartTime = useMemo(() => {
+        if (finalLyricRenderEndTime > 0) {
+            return finalLyricRenderEndTime;
+        }
+        return Number.POSITIVE_INFINITY;
+    }, [finalLyricRenderEndTime]);
+    const backgroundScene = useMemo(
+        () => buildFumeBackgroundScene({
+            viewport,
+            world: {
+                width: article?.width ?? Math.max(viewport.width * 1.8, viewport.width),
+                height: article?.height ?? Math.max(viewport.height * 1.8, viewport.height),
+            },
+            seed: `${seed ?? 'fume'}:${theme.name}`,
+        }),
+        [article?.height, article?.width, seed, theme.name, viewport],
+    );
+    const overviewCamera = useMemo(
+        () => (article ? resolveArticleOverviewCamera(article, viewport) : null),
+        [article, viewport],
     );
 
     useEffect(() => {
@@ -1037,7 +1238,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
         context.clearRect(0, 0, width, height);
 
-        if (!article || !showText) {
+        if (!article) {
             return;
         }
 
@@ -1059,8 +1260,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             cameraRef.current.y = clamp(cameraRef.current.y, 0, article.height);
             cameraRef.current.focusX = clamp(cameraRef.current.focusX, 0, article.width);
             cameraRef.current.focusY = clamp(cameraRef.current.focusY, 0, article.height);
-            cameraRef.current.scale = clamp(cameraRef.current.scale, 0.84, 2.24);
-            cameraRef.current.focusScale = clamp(cameraRef.current.focusScale, 0.84, 2.24);
+            cameraRef.current.scale = clamp(cameraRef.current.scale, CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
+            cameraRef.current.focusScale = clamp(cameraRef.current.focusScale, CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
         }
         let frameId = 0;
         let lastFrameAt: number | null = null;
@@ -1098,12 +1299,25 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             }
 
             const focusBlock = resolveFocusBlock(article, currentLineIndexRef.current, time);
+            const shouldShowOverview = overviewCamera !== null && time >= overviewStartTime;
             let targetCameraX = article.width * 0.5;
             let targetCameraY = article.height * 0.5;
             let targetCameraScale = 1.18;
             let entryFocusPoint: { x: number; y: number; } | null = null;
 
-            if (focusBlock) {
+            if (shouldShowOverview && overviewCamera) {
+                targetCameraX = overviewCamera.x;
+                targetCameraY = overviewCamera.y;
+                targetCameraScale = overviewCamera.scale;
+
+                if (cameraRetargetRef.current.sourceLineIndex !== OVERVIEW_CAMERA_SOURCE) {
+                    cameraRetargetRef.current = {
+                        sourceLineIndex: OVERVIEW_CAMERA_SOURCE,
+                        startedAt: time,
+                        duration: resolveOverviewRetargetDuration(viewport),
+                    };
+                }
+            } else if (focusBlock) {
                 const focusPrintedCount = resolvePrintedGraphemeCount(
                     focusBlock.line,
                     focusBlock.variant,
@@ -1192,7 +1406,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             cameraRef.current.velocityScale += accelScale * dt;
             cameraRef.current.velocityScale = clamp(cameraRef.current.velocityScale, -1.6, 1.6);
             cameraRef.current.scale += cameraRef.current.velocityScale * dt;
-            cameraRef.current.scale = clamp(cameraRef.current.scale, 0.84, 2.24);
+            cameraRef.current.scale = clamp(cameraRef.current.scale, CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
 
             const viewportCenterX = viewport.width * 0.5;
             const viewportCenterY = viewport.height * 0.5;
@@ -1201,6 +1415,16 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             context.translate(viewportCenterX, viewportCenterY);
             context.scale(screenScale, screenScale);
             context.translate(-cameraRef.current.x, -cameraRef.current.y);
+
+            if (!staticMode) {
+                drawFumeBackground({
+                    context,
+                    scene: backgroundScene,
+                    theme,
+                    time,
+                });
+            }
+
             const activeGlowBoost = theme.animationIntensity === 'chaotic'
                 ? 1.15
                 : theme.animationIntensity === 'calm'
@@ -1212,7 +1436,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     ? 0.35
                     : 0.62;
 
-            for (const block of article.blocks) {
+            if (showText) {
+                for (const block of article.blocks) {
                 const screenLeft = viewportCenterX + (block.x - cameraRef.current.x) * screenScale;
                 const screenTop = viewportCenterY + (block.y - cameraRef.current.y) * screenScale;
                 const screenRight = screenLeft + block.width * screenScale;
@@ -1458,6 +1683,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                 context.restore();
             }
+            }
             context.restore();
 
             frameId = window.requestAnimationFrame(draw);
@@ -1468,7 +1694,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(frameId);
             lastFrameAt = null;
         };
-    }, [article, currentTime, showText, theme, viewport.height, viewport.width]);
+    }, [article, audioBands, audioPower, backgroundScene, currentTime, showText, staticMode, theme, viewport.height, viewport.width]);
 
     return (
         <VisualizerShell
@@ -1483,12 +1709,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             onBack={onBack}
         >
             <div ref={viewportRef} className="relative z-10 h-full w-full pointer-events-none">
-                {showText && article && (
+                {article && (
                     <motion.div
                         initial={false}
                         animate={{
-                            opacity: hasPrintedContent ? 1 : 0,
-                            scale: hasPrintedContent ? 1 : 0.985,
+                            opacity: showText ? (hasPrintedContent ? 1 : 0) : 1,
+                            scale: showText ? (hasPrintedContent ? 1 : 0.985) : 1,
                         }}
                         transition={{ duration: 0.45, ease: 'easeOut' }}
                         className="absolute left-1/2 top-0 -translate-x-1/2"
@@ -1498,6 +1724,50 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         }}
                     >
                         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+                    </motion.div>
+                )}
+
+                {isLayoutPending && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 flex items-center justify-center"
+                    >
+                        <div
+                            className="flex min-w-40 flex-col items-center gap-4 rounded-3xl border px-6 py-5"
+                            style={{
+                                backgroundColor: theme.backgroundColor,
+                                borderColor: colorWithAlpha(theme.secondaryColor, 0.24),
+                                boxShadow: `0 18px 60px ${colorWithAlpha(theme.backgroundColor, 0.52)}`,
+                            }}
+                        >
+                            <Hourglass
+                                size={24}
+                                className="animate-pulse"
+                                style={{ color: colorWithAlpha(theme.primaryColor, 0.78) }}
+                            />
+                            <div className="flex w-28 flex-col gap-2.5">
+                                <div
+                                    className="h-2 rounded-full animate-pulse"
+                                    style={{ backgroundColor: colorWithAlpha(theme.primaryColor, 0.32) }}
+                                />
+                                <div
+                                    className="h-2 rounded-full animate-pulse"
+                                    style={{
+                                        width: '78%',
+                                        backgroundColor: colorWithAlpha(theme.primaryColor, 0.22),
+                                    }}
+                                />
+                                <div
+                                    className="h-2 rounded-full animate-pulse"
+                                    style={{
+                                        width: '56%',
+                                        backgroundColor: colorWithAlpha(theme.secondaryColor, 0.2),
+                                    }}
+                                />
+                            </div>
+                        </div>
                     </motion.div>
                 )}
             </div>

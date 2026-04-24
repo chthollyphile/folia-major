@@ -12,6 +12,7 @@
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
 - `GeometricBackground.tsx`: 通用几何背景
+- `FumeBackground.ts`: Fume 专用 canvas 几何背景
 - `FluidBackground.tsx`: 封面取色流体背景
 - `VisPlayground.tsx`: 可视化预览和样式设置面板
 
@@ -131,6 +132,7 @@ export default VisualizerFoo;
   - `FluidBackground`
   - 背景底色
   - `GeometricBackground`
+  - 按 renderer 需要关闭默认几何背景
   - `staticMode` / `useCoverColorBg` / `backgroundOpacity` 这些通用外层行为
 
 ### 2. 共享 runtime
