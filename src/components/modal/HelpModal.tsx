@@ -470,24 +470,6 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         </button>{' '}
                                         <a href="https://github.com/chthollyphile/folia-major" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile</a>
                                     </p>
-                                    <AnimatePresence>
-                                        {meowEasterEgg && (
-                                            <motion.img
-                                                key={meowEasterEgg.id}
-                                                src={meowImageUrl}
-                                                alt=""
-                                                aria-hidden="true"
-                                                className="pointer-events-none absolute left-1/2 top-full z-10 w-32 -translate-x-1/2 drop-shadow-[0_18px_32px_rgba(0,0,0,0.4)] select-none"
-                                                initial={{ opacity: 0, y: 72, scale: 0.92 }}
-                                                animate={{ opacity: 1, y: -12, scale: 1 }}
-                                                exit={{ opacity: 0, y: 60, scale: 0.96 }}
-                                                transition={{
-                                                    duration: 0.6,
-                                                    ease: [0.22, 1, 0.36, 1],
-                                                }}
-                                            />
-                                        )}
-                                    </AnimatePresence>
                                 </div>
                                 <button
                                     type="button"
@@ -1071,6 +1053,24 @@ const HelpModal: React.FC<HelpModalProps> = ({
 
                 {/* Footer (Empty now) */}
                 {/* <div className="mt-8 pt-0 border-t-0 p-0" /> */}
+                <AnimatePresence>
+                    {meowEasterEgg && (
+                        <motion.img
+                            key={meowEasterEgg.id}
+                            src={meowImageUrl}
+                            alt=""
+                            aria-hidden="true"
+                            className="pointer-events-none absolute bottom-5 left-1/2 z-20 w-28 -translate-x-1/2 drop-shadow-[0_18px_32px_rgba(0,0,0,0.4)] select-none sm:w-32"
+                            initial={{ opacity: 0, y: 140, scale: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 120, scale: 0.96 }}
+                            transition={{
+                                duration: 0.6,
+                                ease: [0.22, 1, 0.36, 1],
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
             </motion.div>
             <AnimatePresence>
                 {showVisPlayground && (

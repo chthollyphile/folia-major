@@ -1383,6 +1383,30 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 targetCameraY = mix(targetCameraY, entryFocusPoint.y, entryFocusBias);
             }
 
+            if (!staticMode) {
+                const floatConfig = theme.animationIntensity === 'chaotic'
+                    ? { distance: 10, duration: 5.8, scaleAmplitude: 0.008 }
+                    : theme.animationIntensity === 'calm'
+                        ? { distance: 5.5, duration: 8.5, scaleAmplitude: 0.0045 }
+                        : { distance: 7.5, duration: 7, scaleAmplitude: 0.006 };
+                const floatPhase = (now / 1000 / floatConfig.duration) * Math.PI * 2;
+                const overviewAttenuation = shouldShowOverview ? 0.36 : 1;
+                const screenFloatX = Math.sin(floatPhase * 0.74 + 0.8) * floatConfig.distance * 0.2;
+                const screenFloatY = (
+                    Math.sin(floatPhase) * floatConfig.distance
+                    + Math.sin(floatPhase * 0.5 + 1.1) * floatConfig.distance * 0.22
+                ) * overviewAttenuation;
+                const worldFloatDivisor = Math.max(targetCameraScale, 0.001);
+
+                targetCameraX -= screenFloatX / worldFloatDivisor;
+                targetCameraY -= screenFloatY / worldFloatDivisor;
+                targetCameraScale = clamp(
+                    targetCameraScale * (1 + Math.sin(floatPhase + 0.9) * floatConfig.scaleAmplitude * overviewAttenuation),
+                    CAMERA_SCALE_MIN,
+                    CAMERA_SCALE_MAX,
+                );
+            }
+
             const cameraDistance = Math.hypot(
                 targetCameraX - cameraRef.current.x,
                 targetCameraY - cameraRef.current.y,

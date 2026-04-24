@@ -21,6 +21,11 @@ import {
 } from '../../types';
 import { getLineRenderEndTime } from '../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
+import {
+    getVisPlaygroundPreviewStartOffset,
+    VIS_PLAYGROUND_PREVIEW_LINES,
+    VIS_PLAYGROUND_PREVIEW_LOOP_DURATION,
+} from './visPlaygroundPreview';
 
 interface VisPlaygroundProps {
     theme?: Theme;
@@ -92,8 +97,6 @@ const FONT_SCALE_OPTIONS: PresetOption<number>[] = [
     { label: '125%', value: 1.25 },
 ];
 
-const LOOP_DURATION = 25.8;
-const getPreviewStartOffset = (mode: VisualizerMode) => mode === 'fume' ? 18.4 : 0;
 const FONT_ROW_HEIGHT = 94;
 
 const clampFontScale = (value: number) => Math.min(1.4, Math.max(0.85, value));
@@ -101,149 +104,6 @@ const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value))
 const clampFumeCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55, value));
 const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, value));
 const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
-
-const createCharacterWords = (text: string, startTime: number, endTime: number) => {
-    const chars = Array.from(text);
-    const duration = endTime - startTime;
-
-    return chars.map((char, index) => {
-        const charStart = startTime + duration * (index / chars.length);
-        const charEnd = startTime + duration * ((index + 1) / chars.length);
-
-        return {
-            text: char,
-            startTime: charStart,
-            endTime: charEnd,
-        };
-    });
-};
-
-const PREVIEW_LINES: Line[] = [
-    {
-        startTime: 0.6,
-        endTime: 2.9,
-        fullText: 'この愛は、すべての太陽を織り上げた。',
-        translation: '这份爱编织了所有的太阳。',
-        words: createCharacterWords('この愛は、すべての太陽を織り上げた。', 0.6, 2.9),
-    },
-    {
-        startTime: 3.1,
-        endTime: 5.3,
-        fullText: 'This love has woven all the suns.',
-        translation: '这份爱编织了所有的太阳。',
-        words: [
-            { text: 'This', startTime: 3.1, endTime: 3.45 },
-            { text: 'love', startTime: 3.45, endTime: 3.78 },
-            { text: 'has', startTime: 3.78, endTime: 4.06 },
-            { text: 'woven', startTime: 4.06, endTime: 4.48 },
-            { text: 'all', startTime: 4.48, endTime: 4.76 },
-            { text: 'the', startTime: 4.76, endTime: 5.0 },
-            { text: 'suns.', startTime: 5.0, endTime: 5.3 },
-        ],
-    },
-    {
-        startTime: 5.55,
-        endTime: 7.95,
-        fullText: 'Cet amour a tisse tous les soleils.',
-        translation: '这份爱编织了所有的太阳。',
-        words: [
-            { text: 'Cet', startTime: 5.55, endTime: 5.88 },
-            { text: 'amour', startTime: 5.88, endTime: 6.34 },
-            { text: 'a', startTime: 6.34, endTime: 6.52 },
-            { text: 'tisse', startTime: 6.52, endTime: 6.98 },
-            { text: 'tous', startTime: 6.98, endTime: 7.3 },
-            { text: 'les', startTime: 7.3, endTime: 7.55 },
-            { text: 'soleils.', startTime: 7.55, endTime: 7.95 },
-        ],
-    },
-    {
-        startTime: 8.1,
-        endTime: 10.0,
-        fullText: '編んで、重ねて、また光へ戻していく。',
-        translation: '把它编起、叠起，再送回光里。',
-        words: createCharacterWords('編んで、重ねて、また光へ戻していく。', 8.1, 10.0),
-    },
-    {
-        startTime: 10.2,
-        endTime: 12.25,
-        fullText: 'Fold the ash into headlines, let the vowels breathe in rows.',
-        translation: '让灰烬折成标题，让元音在字列里呼吸。',
-        words: [
-            { text: 'Fold', startTime: 10.2, endTime: 10.5 },
-            { text: 'the', startTime: 10.5, endTime: 10.7 },
-            { text: 'ash', startTime: 10.7, endTime: 10.95 },
-            { text: 'into', startTime: 10.95, endTime: 11.2 },
-            { text: 'headlines,', startTime: 11.2, endTime: 11.55 },
-            { text: 'let', startTime: 11.55, endTime: 11.72 },
-            { text: 'the', startTime: 11.72, endTime: 11.9 },
-            { text: 'vowels', startTime: 11.9, endTime: 12.08 },
-            { text: 'breathe', startTime: 12.08, endTime: 12.17 },
-            { text: 'in', startTime: 12.17, endTime: 12.21 },
-            { text: 'rows.', startTime: 12.21, endTime: 12.25 },
-        ],
-    },
-    {
-        startTime: 12.45,
-        endTime: 14.2,
-        fullText: '字与字贴得很近，像夜里仍旧发热的铅字。',
-        translation: '字符彼此贴近，像夜里仍旧发热的铅字。',
-        words: createCharacterWords('字与字贴得很近，像夜里仍旧发热的铅字。', 12.45, 14.2),
-    },
-    {
-        startTime: 14.45,
-        endTime: 16.5,
-        fullText: 'No white gap remains between the breath and the ink.',
-        translation: '呼吸与油墨之间，不再留下空白。',
-        words: [
-            { text: 'No', startTime: 14.45, endTime: 14.68 },
-            { text: 'white', startTime: 14.68, endTime: 14.98 },
-            { text: 'gap', startTime: 14.98, endTime: 15.16 },
-            { text: 'remains', startTime: 15.16, endTime: 15.48 },
-            { text: 'between', startTime: 15.48, endTime: 15.76 },
-            { text: 'the', startTime: 15.76, endTime: 15.9 },
-            { text: 'breath', startTime: 15.9, endTime: 16.12 },
-            { text: 'and', startTime: 16.12, endTime: 16.25 },
-            { text: 'the', startTime: 16.25, endTime: 16.36 },
-            { text: 'ink.', startTime: 16.36, endTime: 16.5 },
-        ],
-    },
-    {
-        startTime: 16.75,
-        endTime: 18.7,
-        fullText: '紙面の奥で、沈黙だけが大きく組まれていた。',
-        translation: '在版面的深处，只有沉默被排成了大标题。',
-        words: createCharacterWords('紙面の奥で、沈黙だけが大きく組まれていた。', 16.75, 18.7),
-    },
-    {
-        startTime: 18.95,
-        endTime: 21.0,
-        fullText: '这份爱编织了所有的太阳。',
-        translation: '这份爱编织了所有的太阳。',
-        words: createCharacterWords('这份爱编织了所有的太阳。', 18.95, 21.0),
-    },
-    {
-        startTime: 21.3,
-        endTime: 23.6,
-        fullText: '这份爱编织了所有的太阳。',
-        translation: '这份爱编织了所有的太阳。',
-        words: createCharacterWords('这份爱编织了所有的太阳。', 21.3, 23.6),
-    },
-    {
-        startTime: 23.85,
-        endTime: 25.8,
-        fullText: 'And every column learns how to glow.',
-        translation: '于是每一列文字都学会了发光。',
-        words: [
-            { text: 'And', startTime: 23.85, endTime: 24.16 },
-            { text: 'every', startTime: 24.16, endTime: 24.5 },
-            { text: 'column', startTime: 24.5, endTime: 24.92 },
-            { text: 'learns', startTime: 24.92, endTime: 25.2 },
-            { text: 'how', startTime: 25.2, endTime: 25.42 },
-            { text: 'to', startTime: 25.42, endTime: 25.57 },
-            { text: 'glow.', startTime: 25.57, endTime: 25.8 },
-        ],
-    },
-];
 
 const findPreviewLineIndex = (lines: Line[], time: number) => {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -350,7 +210,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const mid = useMotionValue(0.12);
     const vocal = useMotionValue(0.2);
     const treble = useMotionValue(0.1);
-    const [currentLineIndex, setCurrentLineIndex] = useState(() => findPreviewLineIndex(PREVIEW_LINES, 0));
+    const [currentLineIndex, setCurrentLineIndex] = useState(() => findPreviewLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, 0));
     const [isFontPickerOpen, setIsFontPickerOpen] = useState(false);
     const [isLoadingSystemFonts, setIsLoadingSystemFonts] = useState(false);
     const [systemFonts, setSystemFonts] = useState<LocalFontEntry[]>([]);
@@ -430,10 +290,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => {
         let frameId = 0;
         const startedAt = performance.now();
-        const previewOffset = getPreviewStartOffset(visualizerMode);
+        const previewOffset = getVisPlaygroundPreviewStartOffset(visualizerMode);
 
         const tick = (now: number) => {
-            const elapsed = (previewOffset + (now - startedAt) / 1000) % LOOP_DURATION;
+            const elapsed = (previewOffset + (now - startedAt) / 1000) % VIS_PLAYGROUND_PREVIEW_LOOP_DURATION;
             currentTime.set(elapsed);
 
             const wave = (offset: number, speed: number, floor: number, amplitude: number) =>
@@ -454,7 +314,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     }, [audioPower, bass, currentTime, lowMid, mid, treble, visualizerMode, vocal]);
 
     useMotionValueEvent(currentTime, 'change', latest => {
-        const nextIndex = findPreviewLineIndex(PREVIEW_LINES, latest);
+        const nextIndex = findPreviewLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, latest);
         setCurrentLineIndex(prev => (prev === nextIndex ? prev : nextIndex));
     });
 
@@ -694,7 +554,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 <Visualizer
                                     currentTime={currentTime}
                                     currentLineIndex={currentLineIndex}
-                                    lines={PREVIEW_LINES}
+                                    lines={VIS_PLAYGROUND_PREVIEW_LINES}
                                     theme={previewTheme}
                                     audioPower={audioPower}
                                     audioBands={audioBands}
@@ -708,7 +568,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 <VisualizerCadenza
                                     currentTime={currentTime}
                                     currentLineIndex={currentLineIndex}
-                                    lines={PREVIEW_LINES}
+                                    lines={VIS_PLAYGROUND_PREVIEW_LINES}
                                     theme={previewTheme}
                                     audioPower={audioPower}
                                     audioBands={audioBands}
@@ -723,7 +583,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 <VisualizerPartita
                                     currentTime={currentTime}
                                     currentLineIndex={currentLineIndex}
-                                    lines={PREVIEW_LINES}
+                                    lines={VIS_PLAYGROUND_PREVIEW_LINES}
                                     theme={previewTheme}
                                     audioPower={audioPower}
                                     audioBands={audioBands}
@@ -738,7 +598,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 <VisualizerFume
                                     currentTime={currentTime}
                                     currentLineIndex={currentLineIndex}
-                                    lines={PREVIEW_LINES}
+                                    lines={VIS_PLAYGROUND_PREVIEW_LINES}
                                     theme={previewTheme}
                                     audioPower={audioPower}
                                     audioBands={audioBands}
