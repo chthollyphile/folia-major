@@ -1194,23 +1194,24 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.clearTimeout(timeoutId);
         };
     }, [lines, lyricsFontScale, resolvedFumeTuning, theme, viewport]);
-    const finalLyricRenderEndTime = useMemo(
-        () => lines.reduce(
-            (latest, line) => (
-                line.fullText.trim().length > 0
-                    ? Math.max(latest, getLineRenderEndTime(line))
-                    : latest
-            ),
-            0,
-        ),
-        [lines],
-    );
-    const overviewStartTime = useMemo(() => {
-        if (finalLyricRenderEndTime > 0) {
-            return finalLyricRenderEndTime;
+    const lastRenderableLine = useMemo(() => {
+        for (let index = lines.length - 1; index >= 0; index -= 1) {
+            const line = lines[index];
+            if (line?.fullText.trim().length) {
+                return line;
+            }
         }
-        return Number.POSITIVE_INFINITY;
-    }, [finalLyricRenderEndTime]);
+        return null;
+    }, [lines]);
+    const overviewStartTime = useMemo(() => {
+        if (!lastRenderableLine) {
+            return Number.POSITIVE_INFINITY;
+        }
+
+        const lineStartTime = lastRenderableLine.startTime;
+        const lineRenderEndTime = getLineRenderEndTime(lastRenderableLine);
+        return lineStartTime + Math.max(lineRenderEndTime - lineStartTime, 0) * 0.5;
+    }, [lastRenderableLine]);
     const backgroundScene = useMemo(
         () => buildFumeBackgroundScene({
             viewport,
