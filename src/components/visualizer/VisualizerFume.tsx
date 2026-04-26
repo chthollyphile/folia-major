@@ -6,6 +6,7 @@ import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordT
 import { resolveThemeFontStack } from '../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
 import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from './FumeBackground';
+import CoverTextMosaicBackground from './CoverTextMosaicBackground';
 import { getRecentCompletedLine, getUpcomingLines } from './runtime';
 import VisualizerShell from './VisualizerShell';
 import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
@@ -1111,6 +1112,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const coverMosaicLayerRef = useRef<HTMLDivElement | null>(null);
     const currentLineIndexRef = useRef(currentLineIndex);
     const cameraInitializedRef = useRef(false);
     const cameraRetargetRef = useRef<CameraRetargetState>({
@@ -1267,6 +1269,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
     const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
+    const coverMosaicText = useMemo(
+        () => lines.map(line => line.fullText).join(' ').trim() || theme.name || 'FOLIA',
+        [lines, theme.name],
+    );
 
     useEffect(() => {
         staticBlockSnapshotCacheRef.current.clear();
@@ -1347,6 +1353,14 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             const time = currentTime.get();
             const viewportCenterX = viewport.width * 0.5;
             const viewportCenterY = viewport.height * 0.5;
+            const applyCoverMosaicCamera = (cameraX: number, cameraY: number, scale: number) => {
+                const layer = coverMosaicLayerRef.current;
+                if (!layer) return;
+                layer.style.transform = `translate3d(${viewportCenterX - cameraX * scale}px, ${viewportCenterY - cameraY * scale}px, 0) scale(${scale})`;
+            };
+            if (staticMode) {
+                applyCoverMosaicCamera(backgroundScene.width * 0.5, backgroundScene.height * 0.5, 1);
+            }
             const fumeBackgroundAudioLevels: FumeBackgroundAudioLevels = {
                 power: audioPower.get(),
                 bass: audioBands.bass.get(),
@@ -1358,6 +1372,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
             if (!article) {
                 if (!staticMode) {
+                    applyCoverMosaicCamera(backgroundScene.width * 0.5, backgroundScene.height * 0.5, 1);
+
                     context.save();
                     context.translate(viewportCenterX, viewportCenterY);
                     context.translate(-backgroundScene.width * 0.5, -backgroundScene.height * 0.5);
@@ -1588,6 +1604,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     CAMERA_SCALE_MIN,
                     CAMERA_SCALE_MAX,
                 );
+                applyCoverMosaicCamera(backgroundCameraX, backgroundCameraY, backgroundScale);
 
                 context.save();
                 context.translate(viewportCenterX, viewportCenterY);
@@ -1925,6 +1942,16 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             backgroundOpacity={backgroundOpacity}
             onBack={onBack}
         >
+            <CoverTextMosaicBackground
+                ref={coverMosaicLayerRef}
+                coverUrl={coverUrl}
+                theme={theme}
+                text={coverMosaicText}
+                opacity={1}
+                width={backgroundScene.width}
+                height={backgroundScene.height}
+            />
+
             <div ref={viewportRef} className="relative z-10 h-full w-full pointer-events-none">
                 {(article || lines.length === 0) && (
                     <motion.div
