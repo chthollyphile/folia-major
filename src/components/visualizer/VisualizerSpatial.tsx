@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionValue, motion, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { AudioBands, Line, Theme, Word } from '../../types';
@@ -185,7 +185,8 @@ const SpatialWordCloud: React.FC<{
     lyricsFontScale: number;
     audioPower: MotionValue<number>;
     now: number;
-}> = ({ line, role, theme, lyricsFontScale, audioPower, now }) => {
+    horizontalScale: number;
+}> = ({ line, role, theme, lyricsFontScale, audioPower, now, horizontalScale }) => {
     const energy = clamp(audioPower.get() / 255, 0, 1);
     const isCurrentLine = role === 'current';
     const intensityPreset = SPATIAL_INTENSITY_PRESETS[theme.animationIntensity];
@@ -294,6 +295,8 @@ const SpatialWordCloud: React.FC<{
                 const graphemes = layout.graphemes;
                 const glyphCount = Math.max(graphemes.length, 1);
 
+                const positionedX = layout.x * horizontalScale;
+
                 return (
                     <motion.span
                         key={layout.id}
@@ -305,7 +308,7 @@ const SpatialWordCloud: React.FC<{
                             textShadow: `0 0 20px color-mix(in srgb, ${activeColor} ${Math.round(glow * 100)}%, transparent)`,
                         }}
                         initial={{
-                            x: layout.x * 1.12,
+                            x: positionedX * 1.12,
                             y: layout.y + 26,
                             z: layout.z + (role === 'next' ? intensityPreset.nextWordInitialZ : role === 'previous' ? 140 : -24),
                             rotateZ: layout.rotateZ + 6,
@@ -313,7 +316,7 @@ const SpatialWordCloud: React.FC<{
                             opacity: role === 'next' ? 0.04 : 0,
                         }}
                         animate={{
-                            x: layout.x,
+                            x: positionedX,
                             y: layout.y + (status === 'active' ? -2 : 0),
                             z: layout.z + (status === 'active' ? -36 : status === 'passed' ? 46 : intensityPreset.waitingWordDepth),
                             rotateZ: layout.rotateZ + (status === 'passed' ? 4 : 0),
@@ -394,6 +397,8 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
     const { t } = useTranslation();
     const [now, setNow] = useState(() => currentTime.get());
     const lastNowUpdateRef = useRef(now);
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [contentWidth, setContentWidth] = useState(1200);
     const intensityPreset = SPATIAL_INTENSITY_PRESETS[theme.animationIntensity];
     const { activeLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
         currentTime,
@@ -427,7 +432,22 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
         setNow(latest);
     });
 
+    useEffect(() => {
+        const element = contentRef.current;
+        if (!element || typeof ResizeObserver === 'undefined') return;
+
+        const observer = new ResizeObserver(entries => {
+            const entry = entries[0];
+            if (!entry) return;
+            setContentWidth(entry.contentRect.width);
+        });
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
+
     const cameraEnergy = clamp(audioPower.get() / 255, 0, 1);
+    const horizontalScale = clamp((contentWidth - 80) / 1200, 0.52, 1);
     const emptyFontSize = `clamp(${(1.4 * lyricsFontScale).toFixed(3)}rem, ${(3.4 * lyricsFontScale).toFixed(3)}vw, ${(2.2 * lyricsFontScale).toFixed(3)}rem)`;
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(2 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
@@ -454,7 +474,7 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
             >
-                <div className="relative w-full h-full max-w-6xl" style={{ transformStyle: 'preserve-3d' }}>
+                <div ref={contentRef} className="relative w-full h-full max-w-6xl" style={{ transformStyle: 'preserve-3d' }}>
                     <AnimatePresence mode="popLayout">
                         {showText && recentCompletedLine && (
                             <SpatialWordCloud
@@ -465,6 +485,7 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                                 lyricsFontScale={lyricsFontScale}
                                 audioPower={audioPower}
                                 now={now}
+                                horizontalScale={horizontalScale}
                             />
                         )}
                         {showText && activeLine && (
@@ -476,6 +497,7 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                                 lyricsFontScale={lyricsFontScale}
                                 audioPower={audioPower}
                                 now={now}
+                                horizontalScale={horizontalScale}
                             />
                         )}
                         {showText && upcomingLine && (
@@ -487,6 +509,7 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                                 lyricsFontScale={lyricsFontScale}
                                 audioPower={audioPower}
                                 now={now}
+                                horizontalScale={horizontalScale}
                             />
                         )}
                     </AnimatePresence>
