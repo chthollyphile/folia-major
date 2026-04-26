@@ -60,6 +60,7 @@ export default {
     "visualizerCadenze": "心象",
     "visualizerPartita": "云阶",
     "visualizerFume": "浮名",
+    "visualizerSpatial": "空庭",
     "cadenzeTuning": "心象参数",
     "resetVisualizerTuning": "重置视觉参数",
     "livePreview": "实时预览",
