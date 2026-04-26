@@ -88,6 +88,11 @@ interface FumeArticleLayout {
     blocks: FumeBlock[];
 }
 
+interface StaticBlockSnapshot {
+    canvas: HTMLCanvasElement;
+    padding: number;
+}
+
 interface FumeLayoutAttemptOptions {
     paperWidth: number;
     viewportHeight: number;
@@ -907,9 +912,10 @@ const createStaticBlockSnapshot = (
     }
 
     const rasterScale = clamp(window.devicePixelRatio || 1, 1, 2);
+    const padding = Math.ceil(Math.max(block.fontPx * 0.32, shadowBlur + block.fontPx * 0.08, 4));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.ceil(block.width * rasterScale));
-    canvas.height = Math.max(1, Math.ceil(block.height * rasterScale));
+    canvas.width = Math.max(1, Math.ceil((block.width + padding * 2) * rasterScale));
+    canvas.height = Math.max(1, Math.ceil((block.height + padding * 2) * rasterScale));
 
     const context = canvas.getContext('2d');
     if (!context) {
@@ -928,14 +934,14 @@ const createStaticBlockSnapshot = (
     for (const renderLine of block.renderLines) {
         context.fillText(
             renderLine.text,
-            renderLine.left,
-            renderLine.top + baselineOffset,
+            renderLine.left + padding,
+            renderLine.top + baselineOffset + padding,
         );
     }
 
     context.shadowBlur = 0;
     context.shadowColor = 'transparent';
-    return canvas;
+    return { canvas, padding };
 };
 
 const resolveCameraScaleForBlock = (
@@ -1127,7 +1133,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         velocityScale: 0,
         focusScale: 1,
     });
-    const staticBlockSnapshotCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+    const staticBlockSnapshotCacheRef = useRef<Map<string, StaticBlockSnapshot>>(new Map());
     const layoutBuildVersionRef = useRef(0);
     const hasResolvedArticleRef = useRef(false);
     const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
@@ -1668,7 +1674,13 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     }
 
                     if (snapshot) {
-                        context.drawImage(snapshot, block.x, block.y, block.width, block.height);
+                        context.drawImage(
+                            snapshot.canvas,
+                            block.x - snapshot.padding,
+                            block.y - snapshot.padding,
+                            block.width + snapshot.padding * 2,
+                            block.height + snapshot.padding * 2,
+                        );
                         continue;
                     }
                 }
