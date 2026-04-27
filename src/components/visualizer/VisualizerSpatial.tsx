@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, MotionValue, motion, useMotionValueEvent } from 'framer-motion';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionValue, motion, useAnimationControls, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { AudioBands, Line, Theme, Word } from '../../types';
 import { getLineRenderEndTime, getLineRenderHints } from '../../utils/lyrics/renderHints';
@@ -280,7 +280,6 @@ interface SpatialExitCanvasSnapshot {
     id: string;
     line: Line;
     preparedLayout: SpatialPreparedLayout;
-    now: number;
     theme: Theme;
     lyricsFontScale: number;
     horizontalScale: number;
@@ -435,30 +434,70 @@ const getOrBuildSpatialLayout = (
 const getSpatialNextHintProfile = (line: Line): SpatialNextHintProfile | null => {
     const { renderTier } = resolveSpatialRenderProfile(line);
     if (renderTier === 'full') {
-        return null;
+        return {
+            renderTier,
+            opacity: 0.38,
+            blur: 7,
+            scale: 0.78,
+            z: -520,
+            y: -46,
+            duration: 0.34,
+        };
     }
 
     if (renderTier === 'instant') {
         return {
             renderTier,
-            opacity: 0.12,
-            blur: 7,
-            scale: 0.58,
-            z: -660,
-            y: -28,
-            duration: 0.08,
+            opacity: 0.2,
+            blur: 4,
+            scale: 0.68,
+            z: -420,
+            y: -38,
+            duration: 0.16,
         };
     }
 
     return {
         renderTier,
-        opacity: 0.24,
-        blur: 11,
-        scale: 0.64,
-        z: -820,
-        y: -36,
-        duration: 0.14,
+        opacity: 0.34,
+        blur: 6,
+        scale: 0.74,
+        z: -480,
+        y: -44,
+        duration: 0.24,
     };
+};
+
+const shouldUseSpatialDomNext = (activeLine: Line | null, upcomingLine: Line | null) => {
+    if (!upcomingLine) {
+        return false;
+    }
+
+    const upcomingProfile = resolveSpatialRenderProfile(upcomingLine);
+    if (upcomingProfile.renderTier !== 'full') {
+        return false;
+    }
+
+    if (!activeLine) {
+        return true;
+    }
+
+    const activeProfile = resolveSpatialRenderProfile(activeLine);
+    if (activeProfile.renderTier !== 'full') {
+        return false;
+    }
+
+    const activeRawDuration = activeLine.renderHints?.rawDuration ?? Math.max(activeLine.endTime - activeLine.startTime, 0);
+    const upcomingRawDuration = upcomingLine.renderHints?.rawDuration ?? Math.max(upcomingLine.endTime - upcomingLine.startTime, 0);
+    const leadToUpcoming = upcomingLine.startTime - activeLine.startTime;
+    const gapAfterActive = upcomingLine.startTime - activeProfile.lineRenderEndTime;
+
+    return (
+        activeRawDuration >= 0.55
+        && upcomingRawDuration >= 0.55
+        && leadToUpcoming >= 0.58
+        && gapAfterActive >= -0.12
+    );
 };
 
 const getSpatialFontStack = (theme: Theme) => theme.fontFamily || (
@@ -510,21 +549,17 @@ const buildSpatialCanvasWordStates = ({
     const intensityPreset = SPATIAL_INTENSITY_PRESETS[theme.animationIntensity];
     const { lineRenderEndTime, wordRevealMode } = preparedLayout.renderProfile;
     const overflowFitScale = getSpatialOverflowFitScale(preparedLayout.words, horizontalScale, viewportWidth);
-    const passedGlowHold = getPassedGlowHold(wordRevealMode, theme.animationIntensity);
     const glowRadii = getClassicGlowRadii(wordRevealMode);
 
     return line.words.map((word, index) => {
         const layout = preparedLayout.words[index]!;
-        const highlightStatus = mode === 'next' ? 'ambient' : getWordStatus(now, word, true);
-        const spatialStatus = mode === 'next'
-            ? 'waiting'
-            : getSpatialWordStatus(now, word, true, lineRenderEndTime, wordRevealMode);
+        const outerY = mode === 'next' ? -34 : 0;
+        const outerZ = mode === 'next' ? intensityPreset.nextTargetZ : 0;
+        const highlightStatus = mode === 'next' ? 'ambient' : 'passed';
+        const spatialStatus = mode === 'next' ? 'waiting' : 'passed';
         const progress = getWordProgress(now, word, lineRenderEndTime, wordRevealMode);
         const activeGlow = getClassicGlowPulse(progress, wordRevealMode);
-        const passedElapsed = Math.max(0, now - word.endTime);
-        const passedFade = highlightStatus === 'passed'
-            ? Math.pow(1 - clamp(passedElapsed / passedGlowHold, 0, 1), 2)
-            : 0;
+        const passedFade = mode === 'exit' ? 0.42 : 0;
         const activeColor = layout.activeColor;
         const color = highlightStatus === 'active'
             ? activeColor
@@ -539,21 +574,21 @@ const buildSpatialCanvasWordStates = ({
                     ? 0.62 + passedFade * 0.22
                     : 0.35;
         const targetZ = mode === 'next'
-            ? layout.z + intensityPreset.waitingWordDepth
+            ? outerZ + layout.z + intensityPreset.waitingWordDepth
             : layout.z + (spatialStatus === 'active' ? -36 : spatialStatus === 'passed' ? 46 : intensityPreset.waitingWordDepth);
         const shadowStrength = highlightStatus === 'active'
             ? clamp(activeGlow * 0.92, 0, 1)
             : highlightStatus === 'passed'
                 ? passedFade * 0.38
-                : mode === 'next' ? 0.24 : 0;
+                : 0;
 
         return {
             text: word.text,
             x: layout.x * horizontalScale * overflowFitScale,
-            y: mode === 'next' ? layout.y : layout.y + (spatialStatus === 'active' ? -2 : 0),
+            y: mode === 'next' ? outerY + layout.y : layout.y + (spatialStatus === 'active' ? -2 : 0),
             z: targetZ,
             rotateZ: layout.rotateZ + (mode === 'exit' && spatialStatus === 'passed' ? 4 : 0),
-            scale: layout.scale * (mode === 'next' ? 0.9 : spatialStatus === 'active' ? 1.08 : spatialStatus === 'waiting' ? 0.9 : 1),
+            scale: layout.scale * (mode === 'next' ? 0.9 : 1),
             opacity: baseOpacity,
             color,
             shadowColor: activeColor,
@@ -579,9 +614,14 @@ const drawSpatialCanvasWords = (
 
     const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
     const cssWidth = Math.max(320, Math.min(viewportWidth, 1120));
-    const cssHeight = 520;
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
+    const cssHeight = 620;
+    const centerY = cssHeight / 2;
+    const targetWidth = Math.round(cssWidth * dpr);
+    const targetHeight = Math.round(cssHeight * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+    }
     canvas.style.width = `${cssWidth}px`;
     canvas.style.height = `${cssHeight}px`;
 
@@ -598,7 +638,7 @@ const drawSpatialCanvasWords = (
     for (const word of words) {
         const projectedScale = clamp(1450 / Math.max(860, 1450 - word.z), 0.62, 1.42);
         context.save();
-        context.translate(cssWidth / 2 + word.x * projectedScale, cssHeight / 2 + word.y * projectedScale);
+        context.translate(cssWidth / 2 + word.x * projectedScale, centerY + word.y * projectedScale);
         context.rotate(word.rotateZ * Math.PI / 180);
         context.scale(word.scale * projectedScale, word.scale * projectedScale);
         context.globalAlpha = clamp(word.opacity * options.baseOpacity, 0, 1);
@@ -616,22 +656,29 @@ const drawSpatialCanvasWords = (
 };
 
 const SpatialCanvasNextHint: React.FC<{
-    line: Line;
+    line: Line | null;
+    visible: boolean;
     theme: Theme;
     lyricsFontScale: number;
     horizontalScale: number;
     viewportWidth: number;
-}> = ({ line, theme, lyricsFontScale, horizontalScale, viewportWidth }) => {
+}> = ({ line, visible, theme, lyricsFontScale, horizontalScale, viewportWidth }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const profile = useMemo(() => getSpatialNextHintProfile(line), [line]);
+    const profile = useMemo(() => line ? getSpatialNextHintProfile(line) : null, [line]);
     const preparedLayout = useMemo(
-        () => getOrBuildSpatialLayout(line, 'next', theme, SPATIAL_INTENSITY_PRESETS[theme.animationIntensity]),
+        () => line ? getOrBuildSpatialLayout(line, 'next', theme, SPATIAL_INTENSITY_PRESETS[theme.animationIntensity]) : null,
         [line, theme]
     );
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !profile) return;
+        if (!canvas) return;
+        if (!line || !profile || !preparedLayout) {
+            const context = canvas.getContext('2d');
+            context?.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+
         const words = buildSpatialCanvasWordStates({
             line,
             preparedLayout,
@@ -648,84 +695,78 @@ const SpatialCanvasNextHint: React.FC<{
         });
     }, [horizontalScale, line, lyricsFontScale, preparedLayout, profile, theme, viewportWidth]);
 
-    if (!profile) {
-        return null;
-    }
-
     return (
         <motion.canvas
             ref={canvasRef}
-            className="absolute left-1/2 top-1/2 pointer-events-none select-none"
+            className="absolute inset-0 m-auto pointer-events-none select-none"
             style={{
-                x: '-50%',
-                y: '-50%',
                 transformStyle: 'preserve-3d',
             }}
-            initial={{
-                opacity: 0,
-                y: profile.y - 8,
-                z: profile.z - 120,
-                scale: 0.96,
-            }}
+            initial={false}
             animate={{
-                opacity: profile.opacity,
-                y: profile.y,
-                z: profile.z,
-                scale: 1,
+                opacity: visible && profile ? profile.opacity : 0,
+                y: visible && profile ? profile.y : 0,
+                z: visible && profile ? profile.z : 0,
+                scale: visible ? 1 : 0.98,
             }}
-            exit={{
-                opacity: 0,
-                y: profile.y - 4,
-                z: profile.z,
-                transition: { duration: profile.duration * 0.75, ease: 'easeOut' },
-            }}
-            transition={{ duration: profile.duration, ease: [0.2, 0.8, 0.22, 1] }}
+            transition={{ duration: profile?.duration ?? 0.12, ease: [0.2, 0.8, 0.22, 1] }}
             aria-hidden="true"
         />
     );
 };
 
 const SpatialExitCanvas: React.FC<{
-    snapshot: SpatialExitCanvasSnapshot;
+    snapshot: SpatialExitCanvasSnapshot | null;
     onDone: (id: string) => void;
 }> = ({ snapshot, onDone }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const renderTier = snapshot.preparedLayout.renderProfile.renderTier;
-    const duration = renderTier === 'instant' ? 0.1 : 0.16;
-    const blur = renderTier === 'instant' ? 5 : 8;
+    const controls = useAnimationControls();
+    const renderTier = snapshot?.preparedLayout.renderProfile.renderTier ?? 'full';
+    const intensityPreset = snapshot ? SPATIAL_INTENSITY_PRESETS[snapshot.theme.animationIntensity] : SPATIAL_INTENSITY_PRESETS.normal;
+    const duration = intensityPreset.roleDurationCurrent;
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        if (!snapshot) {
+            return;
+        }
+
+        controls.stop();
         const words = buildSpatialCanvasWordStates({
             line: snapshot.line,
             preparedLayout: snapshot.preparedLayout,
             theme: snapshot.theme,
-            now: snapshot.now,
+            now: snapshot.line.endTime,
             horizontalScale: snapshot.horizontalScale,
             viewportWidth: snapshot.viewportWidth,
             mode: 'exit',
         });
         drawSpatialCanvasWords(canvas, words, snapshot.theme, snapshot.lyricsFontScale, snapshot.viewportWidth, {
-            baseOpacity: renderTier === 'instant' ? 0.72 : 0.82,
-            baseBlur: blur,
+            baseOpacity: renderTier === 'instant' ? 0.72 : renderTier === 'reduced' ? 0.82 : 0.9,
+            baseBlur: 0,
             fontScale: 1,
         });
-    }, [blur, renderTier, snapshot]);
+        controls.set({ opacity: 1, y: 0, z: 0, scale: 1, filter: 'blur(0px)' });
+        controls.start({
+            opacity: 0,
+            y: 94,
+            z: 760,
+            scale: 1,
+            filter: 'blur(8px)',
+            transition: { duration, ease: [0.2, 0.8, 0.22, 1] },
+        }).then(() => onDone(snapshot.id));
+    }, [controls, duration, onDone, renderTier, snapshot]);
 
     return (
         <motion.canvas
             ref={canvasRef}
-            className="absolute left-1/2 top-1/2 pointer-events-none select-none"
+            className="absolute inset-0 m-auto pointer-events-none select-none"
             style={{
-                x: '-50%',
-                y: '-50%',
                 transformStyle: 'preserve-3d',
             }}
-            initial={{ opacity: 0.72, y: 0, z: 0, scale: 1 }}
-            animate={{ opacity: 0, y: 16, z: 120, scale: 1.015 }}
-            transition={{ duration, ease: 'easeOut' }}
-            onAnimationComplete={() => onDone(snapshot.id)}
+            initial={false}
+            animate={controls}
             aria-hidden="true"
         />
     );
@@ -829,11 +870,11 @@ const SpatialWordCloud: React.FC<{
             }}
             exit={{
                 opacity: 0,
-                z: isInstantLine || isReducedLine ? roleEnvelope.z : role === 'next' ? 60 : 760,
-                y: isInstantLine || isReducedLine ? roleEnvelope.y : role === 'next' ? 4 : 94,
-                filter: isInstantLine || isReducedLine ? 'none' : 'blur(8px)',
+                z: roleEnvelope.z,
+                y: roleEnvelope.y,
+                filter: 'none',
                 transition: {
-                    duration: isInstantLine || isReducedLine ? 0.01 : isCurrentLine ? intensityPreset.roleDurationCurrent : intensityPreset.roleDurationOther,
+                    duration: 0.01,
                     ease: 'easeOut',
                 },
             }}
@@ -1071,7 +1112,7 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
     const latestTimeRef = useRef(now);
     const contentRef = useRef<HTMLDivElement>(null);
     const [contentWidth, setContentWidth] = useState(1200);
-    const [exitSnapshots, setExitSnapshots] = useState<SpatialExitCanvasSnapshot[]>([]);
+    const [exitSnapshot, setExitSnapshot] = useState<SpatialExitCanvasSnapshot | null>(null);
     const previousActiveLineRef = useRef<Line | null>(null);
     const intensityPreset = SPATIAL_INTENSITY_PRESETS[theme.animationIntensity];
     const { activeLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
@@ -1140,45 +1181,31 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(2 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingLine = nextLines[0] ?? null;
-    const upcomingSpatialProfile = upcomingLine ? resolveSpatialRenderProfile(upcomingLine) : null;
-    const shouldRenderUpcomingSpatial = Boolean(
-        upcomingLine
-        && (!activeLine || resolveSpatialRenderProfile(activeLine).renderTier === 'full')
-        && upcomingSpatialProfile?.renderTier === 'full'
-    );
-    const shouldRenderCanvasNextHint = Boolean(
-        upcomingLine
-        && !shouldRenderUpcomingSpatial
-        && upcomingSpatialProfile
-        && upcomingSpatialProfile.renderTier !== 'full'
-    );
+    const shouldRenderUpcomingSpatial = shouldUseSpatialDomNext(activeLine, upcomingLine);
+    const shouldRenderCanvasNextHint = Boolean(upcomingLine && !shouldRenderUpcomingSpatial);
 
     useEffect(() => {
         const previousLine = previousActiveLineRef.current;
         if (previousLine && previousLine !== activeLine && showText) {
-            const previousProfile = resolveSpatialRenderProfile(previousLine);
-            if (previousProfile.renderTier !== 'full') {
-                const preparedLayout = getOrBuildSpatialLayout(previousLine, 'current', theme, intensityPreset);
-                const snapshot: SpatialExitCanvasSnapshot = {
-                    id: `exit-${previousLine.startTime}-${latestTimeRef.current}`,
-                    line: previousLine,
-                    preparedLayout,
-                    now: latestTimeRef.current,
-                    theme,
-                    lyricsFontScale,
-                    horizontalScale,
-                    viewportWidth: contentWidth,
-                };
-                setExitSnapshots(current => [...current.slice(-1), snapshot]);
-            }
+            const preparedLayout = getOrBuildSpatialLayout(previousLine, 'current', theme, intensityPreset);
+            const snapshot: SpatialExitCanvasSnapshot = {
+                id: `exit-${previousLine.startTime}-${latestTimeRef.current}`,
+                line: previousLine,
+                preparedLayout,
+                theme,
+                lyricsFontScale,
+                horizontalScale,
+                viewportWidth: contentWidth,
+            };
+            setExitSnapshot(snapshot);
         }
 
         previousActiveLineRef.current = activeLine;
     }, [activeLine, contentWidth, horizontalScale, intensityPreset, lyricsFontScale, showText, theme]);
 
-    const handleExitCanvasDone = (id: string) => {
-        setExitSnapshots(current => current.filter(snapshot => snapshot.id !== id));
-    };
+    const handleExitCanvasDone = useCallback((id: string) => {
+        setExitSnapshot(current => current?.id === id ? null : current);
+    }, []);
 
     return (
         <VisualizerShell
@@ -1202,27 +1229,11 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                 transition={{ duration: 0.2, ease: 'easeOut' }}
             >
                 <div ref={contentRef} className="relative w-full h-full max-w-6xl" style={{ transformStyle: 'preserve-3d' }}>
-                    {showText && exitSnapshots.map(snapshot => (
-                        <SpatialExitCanvas
-                            key={snapshot.id}
-                            snapshot={snapshot}
-                            onDone={handleExitCanvasDone}
-                        />
-                    ))}
+                    <SpatialExitCanvas
+                        snapshot={showText ? exitSnapshot : null}
+                        onDone={handleExitCanvasDone}
+                    />
                     <AnimatePresence mode="popLayout">
-                        {showText && recentCompletedLine && (
-                            <SpatialWordCloud
-                                key={`previous-${recentCompletedLine.startTime}`}
-                                line={recentCompletedLine}
-                                role="previous"
-                                theme={theme}
-                                lyricsFontScale={lyricsFontScale}
-                                audioPower={audioPower}
-                                now={now}
-                                horizontalScale={horizontalScale}
-                                viewportWidth={contentWidth}
-                            />
-                        )}
                         {showText && activeLine && (
                             <SpatialWordCloud
                                 key={`current-${activeLine.startTime}`}
@@ -1249,16 +1260,14 @@ const VisualizerSpatial: React.FC<VisualizerSpatialProps & { staticMode?: boolea
                                 viewportWidth={contentWidth}
                             />
                         )}
-                        {showText && upcomingLine && shouldRenderCanvasNextHint && (
-                            <SpatialCanvasNextHint
-                                key={`next-hint-${upcomingLine.startTime}`}
-                                line={upcomingLine}
-                                theme={theme}
-                                lyricsFontScale={lyricsFontScale}
-                                horizontalScale={horizontalScale}
-                                viewportWidth={contentWidth}
-                            />
-                        )}
+                        <SpatialCanvasNextHint
+                            line={showText && shouldRenderCanvasNextHint ? upcomingLine : null}
+                            visible={showText && shouldRenderCanvasNextHint}
+                            theme={theme}
+                            lyricsFontScale={lyricsFontScale}
+                            horizontalScale={horizontalScale}
+                            viewportWidth={contentWidth}
+                        />
                     </AnimatePresence>
                 </div>
 
