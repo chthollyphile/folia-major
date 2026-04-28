@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { generateThemeFromLyrics, isMissingAiApiKeyError } from '../services/gemini';
 import { saveToCache } from '../services/db';
-import { DualTheme, LyricData, SongResult, Theme, ThemeMode } from '../types';
+import { DualTheme, LyricData, SongResult, StatusMessage, Theme, ThemeMode } from '../types';
 import { getCachedThemeState, getLastDualTheme } from '../services/themeCache';
 import { extractColors } from '../utils/colorExtractor';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
@@ -11,7 +11,7 @@ import {
     resolveBgModeTheme,
 } from './themeControllerState';
 
-type StatusSetter = Dispatch<SetStateAction<{ type: 'error' | 'success' | 'info', text: string; } | null>>;
+type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 
 const CUSTOM_DUAL_THEME_KEY = 'custom_dual_theme';
 const CUSTOM_THEME_PREFERRED_KEY = 'custom_theme_preferred';

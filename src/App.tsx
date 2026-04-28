@@ -24,9 +24,10 @@ import TitlebarDragZone from './components/TitlebarDragZone';
 import WindowControls from './components/WindowControls';
 import LyricMatchModal from './components/modal/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong } from './types';
+import UnavailableReplacementDialog from './components/modal/UnavailableReplacementDialog';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage } from './types';
 import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
-import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from './services/netease';
+import { getOnlineSongCacheKey, getSongAlternativeVersionId, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
 import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, removeSongsFromLocalPlaylist, setLocalSongFavorite } from './services/localPlaylistService';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -47,15 +48,29 @@ const LOCAL_PREWARM_DELAY_MS = 1000;
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
+const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
+const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
+const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
 const clampMediaVolume = (value: number) => Math.min(1, Math.max(0, value));
 
 type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
+    unavailableSkipCount?: number;
 };
 
 type NextTrackOptions = PlaybackNavigationOptions & {
     allowStopOnMissing?: boolean;
 };
+
+type UnavailableReplacementRequest = {
+    originalSong: SongResult;
+    replacementSongId: number;
+    queue: SongResult[];
+    isFmCall: boolean;
+    options: PlaybackNavigationOptions;
+};
+
+type SkipPromptMessageKey = 'status.songUnavailablePrompt' | 'status.playbackErrorPrompt';
 
 const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -326,7 +341,7 @@ export default function App() {
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
 
     // UI State
-    const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success' | 'info', text: string; } | null>(null);
+    const [statusMsg, setStatusMsg] = useState<StatusMessage | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
@@ -364,6 +379,10 @@ export default function App() {
     const queueScrollRef = useRef<HTMLDivElement>(null);
     const shouldAutoPlay = useRef(false);
     const currentSongRef = useRef<number | null>(null);
+    const playbackRequestIdRef = useRef(0);
+    const playbackAutoSkipCountRef = useRef(0);
+    const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
+    const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
     const replayGainLogSignatureRef = useRef<string | null>(null);
     const volumePreviewFrameRef = useRef<number | null>(null);
     const pendingVolumePreviewRef = useRef<number | null>(null);
@@ -372,6 +391,7 @@ export default function App() {
     const lastAudioRecoverySourceRef = useRef<string | null>(null);
     const currentOnlineAudioUrlFetchedAtRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
+    const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
 
     // Local Music State
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
@@ -1635,13 +1655,170 @@ export default function App() {
 
     // Toast Auto-Dismiss
     useEffect(() => {
-        if (statusMsg) {
-            const timer = setTimeout(() => {
-                setStatusMsg(null);
-            }, 3000);
-            return () => clearTimeout(timer);
+        if (!statusMsg || statusMsg.persistent) {
+            return;
         }
+
+        const timer = window.setTimeout(() => {
+            setStatusMsg(null);
+        }, 3000);
+        return () => window.clearTimeout(timer);
     }, [statusMsg]);
+
+    const clearPendingUnavailableSkip = useCallback(() => {
+        if (pendingUnavailableSkipTimerRef.current !== null) {
+            window.clearTimeout(pendingUnavailableSkipTimerRef.current);
+            pendingUnavailableSkipTimerRef.current = null;
+        }
+
+        if (pendingUnavailableSkipIntervalRef.current !== null) {
+            window.clearInterval(pendingUnavailableSkipIntervalRef.current);
+            pendingUnavailableSkipIntervalRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => clearPendingUnavailableSkip();
+    }, [clearPendingUnavailableSkip]);
+
+    const getPlayableOnlineQueue = useCallback((queue: SongResult[]) => {
+        return queue.filter(queuedSong => {
+            if (isLocalPlaybackSong(queuedSong) || isNavidromePlaybackSong(queuedSong)) {
+                return true;
+            }
+            return !isSongMarkedUnavailable(queuedSong);
+        });
+    }, []);
+
+    const getNextPlayableQueueSong = useCallback((queue: SongResult[], songId: number) => {
+        const currentIndex = queue.findIndex(queuedSong => queuedSong.id === songId);
+        if (currentIndex === -1) {
+            return null;
+        }
+
+        for (let index = currentIndex + 1; index < queue.length; index += 1) {
+            const candidate = queue[index];
+            if (isLocalPlaybackSong(candidate) || isNavidromePlaybackSong(candidate) || !isSongMarkedUnavailable(candidate)) {
+                return candidate;
+            }
+        }
+
+        if (loopMode === 'all' && queue.length > 1) {
+            for (let index = 0; index < currentIndex; index += 1) {
+                const candidate = queue[index];
+                if (isLocalPlaybackSong(candidate) || isNavidromePlaybackSong(candidate) || !isSongMarkedUnavailable(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }, [loopMode]);
+
+    const buildQueueWithReplacementSong = useCallback((
+        queue: SongResult[],
+        originalSong: SongResult,
+        replacementSong: SongResult
+    ) => {
+        const normalizedQueue = queue.length > 0 ? queue : [originalSong];
+        const replacedQueue = normalizedQueue.flatMap((queuedSong) => {
+            if (isLocalPlaybackSong(queuedSong) || isNavidromePlaybackSong(queuedSong)) {
+                return [queuedSong];
+            }
+
+            if (queuedSong.id === originalSong.id) {
+                return [replacementSong];
+            }
+
+            if (isSongMarkedUnavailable(queuedSong)) {
+                return [];
+            }
+
+            return [queuedSong];
+        });
+
+        if (replacedQueue.length === 0) {
+            return [replacementSong];
+        }
+
+        if (!replacedQueue.some((queuedSong) => queuedSong.id === replacementSong.id)) {
+            replacedQueue.push(replacementSong);
+        }
+
+        return replacedQueue;
+    }, []);
+
+    const handleMarkedUnavailableSong = useCallback((
+        song: SongResult,
+        queue: SongResult[],
+        isFmCall: boolean,
+        options: PlaybackNavigationOptions
+    ) => {
+        setIsLyricsLoading(false);
+        const replacementSongId = getSongAlternativeVersionId(song);
+        if (replacementSongId) {
+            setPendingUnavailableReplacement({
+                originalSong: song,
+                replacementSongId,
+                queue,
+                isFmCall,
+                options,
+            });
+            return true;
+        }
+
+        setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+        return true;
+    }, [t]);
+
+    const showTimedSkipPrompt = useCallback((
+        messageKey: SkipPromptMessageKey,
+        onSkip: () => void,
+        onCancel?: () => void
+    ) => {
+        clearPendingUnavailableSkip();
+
+        let remainingSeconds = Math.ceil(UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS / 1000);
+        const skip = () => {
+            clearPendingUnavailableSkip();
+            setStatusMsg(null);
+            onSkip();
+        };
+        const cancel = () => {
+            clearPendingUnavailableSkip();
+            setStatusMsg(null);
+            onCancel?.();
+        };
+        const buildMessage = (seconds: number): StatusMessage => ({
+            type: 'error',
+            text: t(messageKey, { seconds }),
+            persistent: true,
+            actionLabel: t('status.skipUnavailableAction'),
+            cancelLabel: t('status.cancel'),
+            onAction: skip,
+            onCancel: cancel,
+        });
+
+        setStatusMsg(buildMessage(remainingSeconds));
+        pendingUnavailableSkipTimerRef.current = window.setTimeout(skip, UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS);
+        pendingUnavailableSkipIntervalRef.current = window.setInterval(() => {
+            remainingSeconds -= 1;
+            if (remainingSeconds <= 0) {
+                if (pendingUnavailableSkipIntervalRef.current !== null) {
+                    window.clearInterval(pendingUnavailableSkipIntervalRef.current);
+                    pendingUnavailableSkipIntervalRef.current = null;
+                }
+                return;
+            }
+
+            setStatusMsg(current => {
+                if (!current?.persistent) {
+                    return current;
+                }
+                return buildMessage(remainingSeconds);
+            });
+        }, UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS);
+    }, [clearPendingUnavailableSkip, t]);
 
     // Audio Analyzer Setup
     // TODO: LOW PRIORITY::
@@ -1682,12 +1859,86 @@ export default function App() {
         options: PlaybackNavigationOptions = {}
     ) => {
         console.log("[App] playSong initiated:", song.name, song.id, "isFm:", isFmCall);
+        clearPendingUnavailableSkip();
+        setStatusMsg(prev => prev?.persistent ? null : prev);
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         setIsFmMode(isFmCall);
         if (isFmCall && !isFmMode) {
             // Only auto-open panel when first entering FM mode
             setPanelTab('queue');
             setIsPanelOpen(true);
+        }
+
+        const playbackRequestId = ++playbackRequestIdRef.current;
+        const isLatestPlaybackRequest = () => playbackRequestIdRef.current === playbackRequestId;
+        const isLocal = isLocalPlaybackSong(song);
+        const isNavidrome = isNavidromePlaybackSong(song);
+        let prefetched: ReturnType<typeof getPrefetchedData> = null;
+        let preloadedOnlineAudioResult: Awaited<ReturnType<typeof loadOnlineSongAudioSource>> | null = null;
+        const queueContext = queue.length > 0 ? queue : playQueue.length === 0 ? [song] : playQueue;
+        let newQueue = getPlayableOnlineQueue(queueContext);
+        const skipCount = options.unavailableSkipCount ?? 0;
+        playbackAutoSkipCountRef.current = skipCount;
+
+        if (!isLocal && !isNavidrome && isSongMarkedUnavailable(song)) {
+            if (handleMarkedUnavailableSong(song, queueContext, isFmCall, options)) {
+                return;
+            }
+        }
+
+        if (!isLocal && !isNavidrome) {
+            prefetched = getPrefetchedData(song, audioQuality);
+
+            const hasImmediatePrefetchedAudio = Boolean(
+                prefetched?.audioUrl &&
+                prefetched.audioUrl !== 'CACHED_IN_DB'
+            );
+            const hasCachedAudioBlob = hasImmediatePrefetchedAudio
+                ? null
+                : await hasCachedAudio(getOnlineSongCacheKey('audio', song));
+
+            if (!isLatestPlaybackRequest()) return;
+
+            if (!hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
+                setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+            }
+
+            try {
+                preloadedOnlineAudioResult = await loadOnlineSongAudioSource(song, audioQuality, prefetched);
+                if (!isLatestPlaybackRequest()) {
+                    if (preloadedOnlineAudioResult.kind === 'ok' && preloadedOnlineAudioResult.blobUrl) {
+                        URL.revokeObjectURL(preloadedOnlineAudioResult.blobUrl);
+                    }
+                    return;
+                }
+
+                if (preloadedOnlineAudioResult.kind === 'unavailable') {
+                    console.warn("[App] Song URL is empty, likely unavailable");
+
+                    const nextSong = getNextPlayableQueueSong(queueContext, song.id);
+                    const canSkip = Boolean(nextSong) && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT;
+
+                    setIsLyricsLoading(false);
+
+                    if (canSkip && nextSong) {
+                        showTimedSkipPrompt('status.songUnavailablePrompt', () => {
+                            if (playbackRequestIdRef.current !== playbackRequestId) return;
+                            void playSong(nextSong, newQueue, isFmCall, {
+                                ...options,
+                                unavailableSkipCount: skipCount + 1
+                            });
+                        });
+                    } else {
+                        setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.error("[App] Failed to fetch song URL:", e);
+                setStatusMsg({ type: 'error', text: t('status.playbackError') });
+                setIsLyricsLoading(false);
+                return;
+            }
         }
 
         // Enable autoplay for user-initiated song changes
@@ -1714,13 +1965,10 @@ export default function App() {
         }
 
         // 1. Queue Management
-        let newQueue = playQueue;
         if (queue.length > 0) {
-            setPlayQueue(queue);
-            newQueue = queue;
+            setPlayQueue(newQueue);
         } else if (playQueue.length === 0) {
-            setPlayQueue([song]);
-            newQueue = [song];
+            setPlayQueue(newQueue);
         }
 
         // Save for next reload
@@ -1731,11 +1979,6 @@ export default function App() {
             navigateToPlayer();
         }
         setPlayerState(PlayerState.IDLE);
-
-        // Check if it is a local song
-        const isLocal = isLocalPlaybackSong(song);
-        const isNavidrome = isNavidromePlaybackSong(song);
-        let prefetched = null;
 
         if (isNavidrome) {
             const navidromeSong = resolveNavidromePlaybackCarrier(song);
@@ -1853,23 +2096,6 @@ export default function App() {
 
         // --- ONLINE SONG LOGIC BELOW ---
 
-        // Check prefetch cache for this song (with quality validation)
-        prefetched = getPrefetchedData(song, audioQuality);
-
-        const hasImmediatePrefetchedAudio = Boolean(
-            prefetched?.audioUrl &&
-            prefetched.audioUrl !== 'CACHED_IN_DB'
-        );
-        const hasCachedAudioBlob = hasImmediatePrefetchedAudio
-            ? null
-            : await hasCachedAudio(getOnlineSongCacheKey('audio', song));
-
-        if (currentSongRef.current !== song.id) return;
-
-        if (!hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
-            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
-        }
-
         // 2. Load Cached Cover (Visual Feedback)
         const cachedCoverUrl = await getCachedCoverUrl(getOnlineSongCacheKey('cover', song));
         if (currentSongRef.current !== song.id) return;
@@ -1881,35 +2107,26 @@ export default function App() {
         }
 
         // 3. Audio Loading (Prefetch Cache vs IndexedDB vs Network)
-        try {
-            const audioResult = await loadOnlineSongAudioSource(song, audioQuality, prefetched);
-            if (currentSongRef.current !== song.id) return;
-            if (audioResult.kind === 'unavailable') {
-                console.warn("[App] Song URL is empty, likely unavailable");
-                setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
-                setPlayerState(PlayerState.IDLE);
-                setIsLyricsLoading(false);
-                return;
-            }
-
-            if (audioResult.blobUrl) {
-                blobUrlRef.current = audioResult.blobUrl;
-                currentOnlineAudioUrlFetchedAtRef.current = null;
-            } else if (audioResult.audioSrc.startsWith('http')) {
-                currentOnlineAudioUrlFetchedAtRef.current =
-                    prefetched?.audioUrl === audioResult.audioSrc
-                        ? prefetched.audioUrlFetchedAt
-                        : Date.now();
-            } else {
-                currentOnlineAudioUrlFetchedAtRef.current = null;
-            }
-            setAudioSrc(audioResult.audioSrc);
-        } catch (e) {
-            console.error("[App] Failed to fetch song URL:", e);
+        const audioResult = preloadedOnlineAudioResult;
+        if (!audioResult || audioResult.kind !== 'ok') {
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            setIsLyricsLoading(false); // Stop loading if failed
+            setPlayerState(PlayerState.IDLE);
+            setIsLyricsLoading(false);
             return;
         }
+
+        if (audioResult.blobUrl) {
+            blobUrlRef.current = audioResult.blobUrl;
+            currentOnlineAudioUrlFetchedAtRef.current = null;
+        } else if (audioResult.audioSrc.startsWith('http')) {
+            currentOnlineAudioUrlFetchedAtRef.current =
+                prefetched?.audioUrl === audioResult.audioSrc
+                    ? prefetched.audioUrlFetchedAt
+                    : Date.now();
+        } else {
+            currentOnlineAudioUrlFetchedAtRef.current = null;
+        }
+        setAudioSrc(audioResult.audioSrc);
 
         // 4. Fetch Lyrics (Prefetch Cache vs IndexedDB vs Network)
         try {
@@ -1981,6 +2198,16 @@ export default function App() {
         if (isPanelOpen && panelTab === 'account') updateCacheSize();
     };
 
+    const playOnlineQueueFromStart = (songs: SongResult[]) => {
+        const playableSongs = getPlayableOnlineQueue(songs);
+        if (playableSongs.length === 0) {
+            setStatusMsg({ type: 'error', text: t('status.noPlayableSongs') });
+            return;
+        }
+
+        void playSong(playableSongs[0], playableSongs, false);
+    };
+
     const handleQueueAddAndPlay = (song: SongResult) => {
         // Check if song exists in queue
         const existingIndex = playQueue.findIndex(s => s.id === song.id);
@@ -2030,8 +2257,6 @@ export default function App() {
     }, [loadMoreSearchResults, localSongs, t]);
 
     const handleSearchResultPlay = useCallback((track: UnifiedSong) => {
-        navigateToPlayer();
-
         if (track.isLocal && track.localData) {
             void onPlayLocalSong(track.localData);
             return;
@@ -2043,7 +2268,33 @@ export default function App() {
         }
 
         handleQueueAddAndPlay(track);
-    }, [handleQueueAddAndPlay, navigateToPlayer, onPlayLocalSong, onPlayNavidromeSong]);
+    }, [handleQueueAddAndPlay, onPlayLocalSong, onPlayNavidromeSong]);
+
+    const handleUnavailableReplacementConfirm = useCallback(async () => {
+        if (!pendingUnavailableReplacement) {
+            return;
+        }
+
+        const { originalSong, replacementSongId, queue, isFmCall, options } = pendingUnavailableReplacement;
+        setPendingUnavailableReplacement(null);
+        setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+
+        try {
+            const detailRes = await neteaseApi.getSongDetail(replacementSongId);
+            const replacementSong = detailRes.songs?.find((candidate: SongResult) => candidate.id === replacementSongId) || detailRes.songs?.[0];
+
+            if (!replacementSong || isSongMarkedUnavailable(replacementSong)) {
+                setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+                return;
+            }
+
+            const replacementQueue = buildQueueWithReplacementSong(queue, originalSong, replacementSong);
+            await playSong(replacementSong, replacementQueue, isFmCall, options);
+        } catch (error) {
+            console.error('[App] Failed to load replacement song:', error);
+            setStatusMsg({ type: 'error', text: t('status.playbackError') });
+        }
+    }, [buildQueueWithReplacementSong, pendingUnavailableReplacement, t]);
 
     const handleSearchResultArtistSelect = useCallback((track: UnifiedSong, artistName: string, artistId?: number) => {
         if (track.isLocal) {
@@ -2096,7 +2347,10 @@ export default function App() {
                 if (fmRes.data && fmRes.data.length > 0) {
                     const newQueue = [...playQueue, ...fmRes.data];
                     setPlayQueue(newQueue);
-                    playSong(newQueue[currentIndex + 1], newQueue, true, { shouldNavigateToPlayer });
+                    playSong(newQueue[currentIndex + 1], newQueue, true, {
+                        shouldNavigateToPlayer,
+                        unavailableSkipCount: options?.unavailableSkipCount
+                    });
                     return;
                 }
             } catch (e) {
@@ -2114,7 +2368,10 @@ export default function App() {
         }
 
         if (nextIndex >= 0) {
-            playSong(playQueue[nextIndex], playQueue, isFmMode, { shouldNavigateToPlayer });
+            playSong(playQueue[nextIndex], playQueue, isFmMode, {
+                shouldNavigateToPlayer,
+                unavailableSkipCount: options?.unavailableSkipCount
+            });
         } else if (options?.allowStopOnMissing) {
             if (audioRef.current) {
                 audioRef.current.pause();
@@ -2139,6 +2396,31 @@ export default function App() {
             playSong(playQueue[prevIndex], playQueue, isFmMode);
         }
     }, [currentSong, playQueue, loopMode, isFmMode]);
+
+    const skipAfterPlaybackFailure = useCallback(() => {
+        clearPendingUnavailableSkip();
+        const skipCount = playbackAutoSkipCountRef.current;
+        const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
+        const hasNextTrack = currentIndex >= 0 && (
+            currentIndex < playQueue.length - 1 ||
+            (loopMode === 'all' && playQueue.length > 1)
+        );
+
+        if (!hasNextTrack || skipCount >= MAX_UNAVAILABLE_AUTO_SKIP_COUNT) {
+            setPlayerState(PlayerState.IDLE);
+            return;
+        }
+
+        const nextSkipCount = skipCount + 1;
+        showTimedSkipPrompt('status.playbackErrorPrompt', () => {
+            playbackAutoSkipCountRef.current = nextSkipCount;
+            void handleNextTrack({
+                allowStopOnMissing: true,
+                shouldNavigateToPlayer: false,
+                unavailableSkipCount: nextSkipCount
+            });
+        });
+    }, [clearPendingUnavailableSkip, currentSong, handleNextTrack, loopMode, playQueue, showTimedSkipPrompt]);
 
     const mediaSessionPlayRef = useRef(resumePlayback);
     const mediaSessionPauseRef = useRef(pausePlayback);
@@ -2891,6 +3173,7 @@ export default function App() {
                 onPlaying={(e) => {
                     currentTime.set(e.currentTarget.currentTime);
                     setupAudioAnalyzer();
+                    playbackAutoSkipCountRef.current = 0;
                     setPlayerState(PlayerState.PLAYING);
                 }}
                 onPause={(e) => {
@@ -2961,19 +3244,13 @@ export default function App() {
                             });
 
                             if (!recovered) {
-                                setStatusMsg({ type: 'error', text: t('status.playbackError') });
-                                setTimeout(() => {
-                                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
-                                }, 2000);
+                                skipAfterPlaybackFailure();
                             }
                         })();
                         return;
                     }
 
-                    setStatusMsg({ type: 'error', text: t('status.playbackError') });
-                    setTimeout(() => {
-                        void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
-                    }, 2000);
+                    skipAfterPlaybackFailure();
                 }}
             />
 
@@ -3181,7 +3458,7 @@ export default function App() {
                                     playSong(song, ctx, false);
                                 }}
                                 onPlayAll={(songs) => {
-                                    playSong(songs[0], songs, false);
+                                    playOnlineQueueFromStart(songs);
                                 }}
                                 onSelectAlbum={handleAlbumSelect}
                                 onSelectArtist={handleArtistSelect}
@@ -3206,7 +3483,7 @@ export default function App() {
                                     playSong(song, ctx, false);
                                 }}
                                 onPlayAll={(songs) => {
-                                    playSong(songs[0], songs, false);
+                                    playOnlineQueueFromStart(songs);
                                 }}
                                 onSelectArtist={handleArtistSelect}
                                 theme={theme}
@@ -3246,12 +3523,30 @@ export default function App() {
                         initial={{ opacity: 0, y: -20, x: "-50%" }}
                         animate={{ opacity: 1, y: 30, x: "-50%" }}
                         exit={{ opacity: 0, y: -20, x: "-50%" }}
-                        className={`absolute top-0 left-1/2 z-[70] px-6 py-3 backdrop-blur-md rounded-full font-medium text-sm shadow-xl flex items-center gap-3 pointer-events-none ${isDaylight ? 'bg-white/70 text-zinc-800 border border-black/5' : 'bg-white/10 text-white'}`}
+                        className={`absolute top-0 left-1/2 z-[70] px-6 py-3 backdrop-blur-md rounded-full font-medium text-sm shadow-xl flex items-center gap-3 ${statusMsg.onAction || statusMsg.onCancel ? 'pointer-events-auto' : 'pointer-events-none'} ${isDaylight ? 'bg-white/70 text-zinc-800 border border-black/5' : 'bg-white/10 text-white'}`}
                     >
                         {statusMsg.type === 'error' ? <AlertCircle size={18} className={isDaylight ? "text-red-500" : "text-red-400"} /> :
                             statusMsg.type === 'success' ? <CheckCircle2 size={18} className={isDaylight ? "text-green-600" : "text-green-400"} /> :
                                 <Sparkles size={18} className={isDaylight ? "text-blue-600" : "text-blue-400"} />}
-                        {statusMsg.text}
+                        <span>{statusMsg.text}</span>
+                        {statusMsg.onCancel && statusMsg.cancelLabel && (
+                            <button
+                                type="button"
+                                onClick={statusMsg.onCancel}
+                                className={`px-2.5 py-1 rounded-full text-xs transition-colors ${isDaylight ? 'text-zinc-500 hover:bg-black/5 hover:text-zinc-800' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+                            >
+                                {statusMsg.cancelLabel}
+                            </button>
+                        )}
+                        {statusMsg.onAction && statusMsg.actionLabel && (
+                            <button
+                                type="button"
+                                onClick={statusMsg.onAction}
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${isDaylight ? 'bg-zinc-900 text-white hover:bg-zinc-700' : 'bg-white text-zinc-950 hover:bg-white/85'}`}
+                            >
+                                {statusMsg.actionLabel}
+                            </button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -3386,6 +3681,15 @@ export default function App() {
                     isDaylight={isDaylight}
                 />
             )}
+
+            <UnavailableReplacementDialog
+                isOpen={Boolean(pendingUnavailableReplacement)}
+                song={pendingUnavailableReplacement?.originalSong || null}
+                typeDesc={pendingUnavailableReplacement?.originalSong.noCopyrightRcmd?.typeDesc}
+                isDaylight={isDaylight}
+                onClose={() => setPendingUnavailableReplacement(null)}
+                onConfirm={handleUnavailableReplacementConfirm}
+            />
         </div >
     );
 }

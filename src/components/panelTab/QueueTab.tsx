@@ -5,6 +5,7 @@ import { Shuffle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
+import { isSongMarkedUnavailable } from '../../services/netease';
 
 interface QueueTabProps {
     playQueue: SongResult[];
@@ -102,6 +103,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     }) => {
         const song = playQueue[index];
         const isActive = currentSong?.id === song.id;
+        const isUnavailable = isSongMarkedUnavailable(song);
 
         return (
             <div
@@ -110,11 +112,18 @@ const QueueTab: React.FC<QueueTabProps> = ({
                 data-active={isActive}
                 {...ariaAttributes}
                 className={`flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
-                    ${isActive ? 'bg-white/20' : 'hover:bg-white/5'}`}
+                    ${isActive ? 'bg-white/20' : 'hover:bg-white/5'} ${isUnavailable ? 'opacity-55' : ''}`}
             >
                 <div className={`w-1 h-6 rounded-full ${isActive ? 'bg-white' : 'bg-transparent'}`} />
                 <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium truncate">{song.name}</div>
+                    <div className="text-xs font-medium truncate">
+                        {song.name}
+                        {isUnavailable && (
+                            <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                                {t('status.songUnavailableTag')}
+                            </span>
+                        )}
+                    </div>
                     <div className="text-[10px] opacity-40 truncate">{song.ar?.map(a => a.name).join(', ')}</div>
                 </div>
             </div>

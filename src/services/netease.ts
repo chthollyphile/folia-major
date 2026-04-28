@@ -1,4 +1,4 @@
-import { NeteaseUser, NeteasePlaylist, SongResult } from "../types";
+import { NeteaseUser, NeteasePlaylist, NoCopyrightRecommendation, SongPrivilege, SongResult } from "../types";
 
 // Robustly check for environment variable, falling back if undefined
 let API_BASE: string | null = null;
@@ -101,6 +101,72 @@ const getCloudCoverFallback = (raw: any) =>
   raw?.album?.picUrl ||
   raw?.cover;
 
+const normalizeSongPrivilege = (raw: any): SongPrivilege | undefined => {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  return {
+    id: typeof raw.id === 'number' ? raw.id : undefined,
+    fee: typeof raw.fee === 'number' ? raw.fee : undefined,
+    payed: typeof raw.payed === 'number' ? raw.payed : undefined,
+    st: typeof raw.st === 'number' ? raw.st : undefined,
+    pl: typeof raw.pl === 'number' ? raw.pl : undefined,
+    dl: typeof raw.dl === 'number' ? raw.dl : undefined,
+    flag: typeof raw.flag === 'number' ? raw.flag : undefined,
+    cs: typeof raw.cs === 'boolean' ? raw.cs : undefined,
+  };
+};
+
+const normalizeNoCopyrightRecommendation = (raw: any): NoCopyrightRecommendation | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  return {
+    type: typeof raw.type === 'number' ? raw.type : undefined,
+    typeDesc: typeof raw.typeDesc === 'string' ? raw.typeDesc : undefined,
+    songId: typeof raw.songId === 'string' || typeof raw.songId === 'number' ? raw.songId : undefined,
+    thirdPartySong: raw.thirdPartySong ?? null,
+    expInfo: raw.expInfo ?? null,
+  };
+};
+
+const mergeSongsWithPrivileges = (songs: any, privileges: any): SongResult[] => {
+  const normalizedSongs = Array.isArray(songs)
+    ? songs.map((song: any) => normalizeSongResult(song))
+    : [];
+
+  if (!Array.isArray(privileges) || privileges.length === 0 || normalizedSongs.length === 0) {
+    return normalizedSongs;
+  }
+
+  const normalizedPrivileges = privileges.map((privilege: any) => normalizeSongPrivilege(privilege));
+  const privilegeById = new Map<number, SongPrivilege>();
+
+  normalizedPrivileges.forEach((privilege) => {
+    if (typeof privilege?.id === 'number') {
+      privilegeById.set(privilege.id, privilege);
+    }
+  });
+
+  return normalizedSongs.map((song, index) => {
+    const alignedPrivilege = normalizedPrivileges[index];
+    const privilege = alignedPrivilege?.id === song.id
+      ? alignedPrivilege
+      : privilegeById.get(song.id) ?? alignedPrivilege;
+
+    if (!privilege) {
+      return song;
+    }
+
+    return {
+      ...song,
+      privilege,
+    };
+  });
+};
+
 const normalizeSongResult = (raw: any): SongResult => {
   const base = raw?.simpleSong || raw;
   const tValue = Number(base?.t ?? raw?.t ?? 0) as 0 | 1 | 2;
@@ -154,7 +220,45 @@ const normalizeSongResult = (raw: any): SongResult => {
     dt: duration,
     alia: Array.isArray(base?.alia) ? base.alia : [],
     tns: Array.isArray(base?.tns) ? base.tns : [],
+    fee: typeof (base?.fee ?? raw?.fee) === 'number' ? Number(base?.fee ?? raw?.fee) : undefined,
+    noCopyrightRcmd: normalizeNoCopyrightRecommendation(base?.noCopyrightRcmd ?? raw?.noCopyrightRcmd),
+    resourceState: typeof (base?.resourceState ?? raw?.resourceState) === 'boolean'
+      ? Boolean(base?.resourceState ?? raw?.resourceState)
+      : undefined,
+    privilege: normalizeSongPrivilege(base?.privilege ?? raw?.privilege),
   };
+};
+
+export const isSongMarkedUnavailable = (
+  song?: Pick<SongResult, 'privilege'> | null
+): boolean => {
+  if (!song) {
+    return false;
+  }
+
+  return typeof song.privilege?.st === 'number' && song.privilege.st < 0;
+};
+
+export const getSongAlternativeVersionId = (
+  song?: Pick<SongResult, 'privilege' | 'noCopyrightRcmd'> | null
+): number | null => {
+  if (!song || !isSongMarkedUnavailable(song)) {
+    return null;
+  }
+
+  const candidate = song.noCopyrightRcmd?.songId;
+  if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
+    return candidate;
+  }
+
+  if (typeof candidate === 'string' && candidate.trim()) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
 };
 
 export const isCloudSong = (song?: Pick<SongResult, 't'> | null): boolean =>
@@ -249,9 +353,7 @@ export const neteaseApi = {
   // --- Playlist Data ---
   getPlaylistTracks: async (id: number, limit = 50, offset = 0) => {
     const res = await fetchWithCreds(`/playlist/track/all?id=${id}&limit=${limit}&offset=${offset}`);
-    if (res.songs) {
-      res.songs = res.songs.map((song: any) => normalizeSongResult(song));
-    }
+    res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
     return res;
   },
 
@@ -261,7 +363,7 @@ export const neteaseApi = {
       res.playlist.coverImgUrl = toHttps(res.playlist.coverImgUrl);
       if (res.playlist.creator) res.playlist.creator.avatarUrl = toHttps(res.playlist.creator.avatarUrl);
       if (res.playlist.tracks) {
-        res.playlist.tracks = res.playlist.tracks.map((track: any) => normalizeSongResult(track));
+        res.playlist.tracks = mergeSongsWithPrivileges(res.playlist.tracks, res.privileges);
       }
     }
     return res;
@@ -278,8 +380,15 @@ export const neteaseApi = {
       res.album.picUrl = toHttps(res.album.picUrl);
     }
     if (res.songs) {
-      res.songs = res.songs.map((song: any) => normalizeSongResult(song));
+      res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
     }
+    return res;
+  },
+
+  getSongDetail: async (ids: number[] | number) => {
+    const idParam = Array.isArray(ids) ? ids.join(',') : String(ids);
+    const res = await fetchWithCreds(`/song/detail?ids=${idParam}`);
+    res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
     return res;
   },
 
@@ -316,17 +425,13 @@ export const neteaseApi = {
 
   getArtistTopSongs: async (id: number) => {
     const res = await fetchWithCreds(`/artist/top/song?id=${id}`);
-    if (res.songs) {
-      res.songs = res.songs.map((song: any) => normalizeSongResult(song));
-    }
+    res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
     return res;
   },
 
   getArtistSongs: async (id: number, limit = 50, offset = 0, order = 'hot') => {
     const res = await fetchWithCreds(`/artist/songs?id=${id}&limit=${limit}&offset=${offset}&order=${order}`);
-    if (res.songs) {
-      res.songs = res.songs.map((song: any) => normalizeSongResult(song));
-    }
+    res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
     return res;
   },
 
@@ -383,8 +488,8 @@ export const neteaseApi = {
   // --- Search ---
   cloudSearch: async (keywords: string, limit = 30, offset = 0) => {
     const res = await fetchWithCreds(`/cloudsearch?keywords=${encodeURIComponent(keywords)}&limit=${limit}&offset=${offset}`);
-    if (res.result && res.result.songs) {
-      res.result.songs = res.result.songs.map((song: any) => normalizeSongResult(song));
+    if (res.result) {
+      res.result.songs = mergeSongsWithPrivileges(res.result.songs, res.result.privileges ?? res.privileges);
     }
     return res;
   },

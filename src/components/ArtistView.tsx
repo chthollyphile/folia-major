@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2, User } from 'lucide-react';
 import { SongResult } from '../types';
-import { neteaseApi } from '../services/netease';
+import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -142,11 +142,13 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                     className="w-full"
                                     ref={topSongsRef}
                                 >
-                                    {topSongs.map((track, idx) => (
+                                    {topSongs.map((track, idx) => {
+                                        const isUnavailable = isSongMarkedUnavailable(track);
+                                        return (
                                         <div
                                             key={track.id}
                                             onClick={() => onPlaySong(track, topSongs)}
-                                            className={`group flex items-center py-3 px-3 rounded-lg ${itemHoverBg} cursor-pointer transition-colors`}
+                                            className={`group flex items-center py-3 px-3 rounded-lg cursor-pointer transition-colors ${isUnavailable ? 'opacity-55' : itemHoverBg}`}
                                         >
                                             <div className="w-8 text-center text-sm font-medium opacity-40 group-hover:opacity-100 shrink-0">
                                                 {idx + 1}
@@ -159,6 +161,11 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                             <div className="flex-1 min-w-0 mr-4">
                                                 <div className="text-sm font-medium opacity-90 group-hover:opacity-100 truncate">
                                                     {formatSongName(track)}
+                                                    {isUnavailable && (
+                                                        <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                                                            {t('status.songUnavailableTag')}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs opacity-40 truncate">
                                                     {track.al?.name}
@@ -169,7 +176,8 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                                 {formatDuration(track.dt || track.duration)}
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

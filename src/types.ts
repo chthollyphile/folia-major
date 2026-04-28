@@ -98,6 +98,16 @@ export enum PlayerState {
   PAUSED = 'PAUSED',
 }
 
+export interface StatusMessage {
+  type: 'error' | 'success' | 'info';
+  text: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  cancelLabel?: string;
+  onCancel?: () => void;
+  persistent?: boolean;
+}
+
 // Netease / Search API Types
 
 export interface NeteaseUser {
@@ -132,6 +142,25 @@ export interface Album {
   picUrl?: string;
 }
 
+export interface SongPrivilege {
+  id?: number;
+  fee?: number;
+  payed?: number;
+  st?: number;
+  pl?: number;
+  dl?: number;
+  flag?: number;
+  cs?: boolean;
+}
+
+export interface NoCopyrightRecommendation {
+  type?: number;
+  typeDesc?: string;
+  songId?: string | number;
+  thirdPartySong?: unknown | null;
+  expInfo?: unknown | null;
+}
+
 export interface SongResult {
   id: number;
   name: string;
@@ -151,6 +180,10 @@ export interface SongResult {
   dt?: number; // duration in ms
   alia?: string[]; // 别名
   tns?: string[]; // 翻译名
+  fee?: number;
+  noCopyrightRcmd?: NoCopyrightRecommendation | null;
+  resourceState?: boolean;
+  privilege?: SongPrivilege;
 }
 
 export interface SearchResponse {

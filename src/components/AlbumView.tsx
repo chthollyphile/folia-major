@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2 } from 'lucide-react';
 import { SongResult } from '../types';
-import { neteaseApi } from '../services/netease';
+import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -28,6 +28,7 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
     const [tracks, setTracks] = useState<SongResult[]>([]);
     const [albumInfo, setAlbumInfo] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const playableTracks = tracks.filter(track => !isSongMarkedUnavailable(track));
 
     // Scroll Ref
     const containerRef = useRef<HTMLDivElement>(null);
@@ -152,8 +153,9 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
 
                                 <div className="w-full pb-2">
                                     <button
-                                        onClick={() => onPlayAll(tracks)}
-                                        className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
+                                        onClick={() => onPlayAll(playableTracks)}
+                                        disabled={playableTracks.length === 0}
+                                        className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-lg"
                                         style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                     >
                                         <Play size={18} fill="currentColor" />
@@ -173,11 +175,13 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                     <div className="w-16 text-right">{t('playlist.headerTime')}</div>
                                 </div>
 
-                                {tracks.map((track, idx) => (
+                                {tracks.map((track, idx) => {
+                                    const isUnavailable = isSongMarkedUnavailable(track);
+                                    return (
                                     <div
                                         key={track.id}
                                         onClick={() => onPlaySong(track, tracks)}
-                                        className={`group flex items-center py-3 px-2 rounded-xl ${itemHoverBg} cursor-pointer transition-colors`}
+                                        className={`group flex items-center py-3 px-2 rounded-xl cursor-pointer transition-colors ${isUnavailable ? 'opacity-55' : itemHoverBg}`}
                                     >
                                         <div className="w-8 md:w-10 text-center text-sm font-medium opacity-30 group-hover:opacity-100" style={{ color: 'var(--text-secondary)' }}>
                                             {idx + 1}
@@ -186,6 +190,11 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                         <div className="flex-1 min-w-0 pl-3 md:pl-4">
                                             <div className="text-sm font-medium opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
                                                 {formatSongName(track)}
+                                                {isUnavailable && (
+                                                    <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                                                        {t('status.songUnavailableTag')}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                                                 {track.ar?.map((a, i) => (
@@ -209,7 +218,8 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                             {formatDuration(track.dt || track.duration)}
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </>

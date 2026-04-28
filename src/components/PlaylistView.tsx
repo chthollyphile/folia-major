@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2, Pencil, X } from 'lucide-react';
 import { NeteasePlaylist, SongResult } from '../types';
-import { neteaseApi } from '../services/netease';
+import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -33,6 +33,8 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
+  const playableTracks = tracks.filter(track => !isSongMarkedUnavailable(track));
+  const CACHE_SCHEMA_VERSION = 3;
 
   // Scroll Ref
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,10 +54,11 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
       const targetTime = playlist.trackUpdateTime || playlist.updateTime || 0;
 
       if (reset) {
-        const cached = await getFromCache<{ tracks: SongResult[], snapshotTime: number; } | SongResult[]>(CACHE_KEY);
+        const cached = await getFromCache<{ tracks: SongResult[], snapshotTime: number; schemaVersion?: number; } | SongResult[]>(CACHE_KEY);
 
         let cachedTracks: SongResult[] = [];
         let cachedTime = 0;
+        let cachedSchemaVersion = 0;
 
         if (Array.isArray(cached)) {
           // Old format migration
@@ -63,10 +66,11 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
         } else if (cached && cached.tracks) {
           cachedTracks = cached.tracks;
           cachedTime = cached.snapshotTime;
+          cachedSchemaVersion = cached.schemaVersion ?? 0;
         }
 
         // Check if cache is valid and fresh
-        if (cachedTracks.length > 0 && targetTime > 0 && cachedTime === targetTime) {
+        if (cachedTracks.length > 0 && targetTime > 0 && cachedTime === targetTime && cachedSchemaVersion === CACHE_SCHEMA_VERSION) {
           // console.log("[Playlist] Cache hit and fresh", { cachedTime, targetTime });
           setTracks(cachedTracks);
           setOffset(cachedTracks.length);
@@ -94,7 +98,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
           setHasMore(needsMore);
 
           // Save partial result immediately
-          saveToCache(CACHE_KEY, { tracks: initialTracks, snapshotTime: targetTime });
+          saveToCache(CACHE_KEY, { tracks: initialTracks, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
 
           // Trigger background sync for the rest
           if (needsMore) {
@@ -112,7 +116,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
         if (res.songs && res.songs.length > 0) {
           setTracks(prev => {
             const combined = [...prev, ...res.songs];
-            saveToCache(CACHE_KEY, { tracks: combined, snapshotTime: targetTime });
+            saveToCache(CACHE_KEY, { tracks: combined, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
             return combined;
           });
           setOffset(currentOffset + res.songs.length);
@@ -154,7 +158,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
           setTracks([...currentTracks]);
 
           // Update cache
-          saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime });
+          saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
 
           if ((playlist.specialType === 'cloud' && !res.hasMore) || (playlist.specialType !== 'cloud' && newChunk.length < BATCH_LIMIT)) {
             fetching = false;
@@ -252,7 +256,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
       }
       const nextTracks = tracks.filter(track => track.id !== trackId);
       setTracks(nextTracks);
-      await saveToCache(CACHE_KEY, { tracks: nextTracks, snapshotTime: Date.now() });
+      await saveToCache(CACHE_KEY, { tracks: nextTracks, snapshotTime: Date.now(), schemaVersion: CACHE_SCHEMA_VERSION });
       await removeFromCache(`playlist_detail_${playlist.id}`);
       await onPlaylistMutated?.();
     } catch (error) {
@@ -315,8 +319,9 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
           <div className="w-full">
             <div className="space-y-2">
               <button
-                onClick={() => onPlayAll(tracks)}
-                className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
+                onClick={() => onPlayAll(playableTracks)}
+                disabled={playableTracks.length === 0}
+                className="w-full py-3.5 rounded-full font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 transform duration-200 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-lg"
                 style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
               >
                 <Play size={18} fill="currentColor" />
@@ -349,12 +354,14 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
               <div className="w-16 text-right">{t('playlist.headerTime')}</div>
             </div>
 
-            {tracks.map((track, idx) => (
+            {tracks.map((track, idx) => {
+              const isUnavailable = isSongMarkedUnavailable(track);
+              return (
               <div
                 key={`${track.id}-${idx}`}
                 id={`track-${playlist.id}-${idx}`}
                 onClick={() => handlePlaySongWrapper(track, idx)}
-                className="group flex items-center py-3 px-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"
+                className={`group flex items-center py-3 px-2 rounded-xl cursor-pointer transition-colors ${isUnavailable ? 'opacity-55' : 'hover:bg-white/5'}`}
               >
                 <div className="w-8 md:w-10 text-center text-sm font-medium opacity-30 group-hover:opacity-100" style={{ color: 'var(--text-secondary)' }}>
                   {idx + 1}
@@ -363,6 +370,11 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 <div className="flex-1 min-w-0 pl-3 md:pl-4">
                   <div className="text-sm font-medium opacity-90 group-hover:opacity-100" style={{ color: 'var(--text-primary)' }}>
                     {formatSongName(track)}
+                    {isUnavailable && (
+                      <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                        {t('status.songUnavailableTag')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs truncate opacity-40 group-hover:opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {track.ar?.map((a, i) => (
@@ -416,7 +428,8 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
 
             {hasMore && (
               <button

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { clearCache, getCacheUsage, getFromCache, openDB, saveToCache } from '../services/db';
 import { neteaseApi } from '../services/netease';
-import { NeteasePlaylist, NeteaseUser } from '../types';
+import { NeteasePlaylist, NeteaseUser, StatusMessage } from '../types';
 
-type StatusSetter = Dispatch<SetStateAction<{ type: 'error' | 'success' | 'info', text: string; } | null>>;
+type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 
 const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type StatusMessage, type Theme, type VisualizerMode } from '../types';
 
-type StatusSetter = Dispatch<SetStateAction<{ type: 'error' | 'success' | 'info', text: string; } | null>>;
+type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 type StoredCustomLyricsFont = { family: string; label?: string | null; };
 

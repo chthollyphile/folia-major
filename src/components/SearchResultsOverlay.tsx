@@ -6,6 +6,7 @@ import type { HomeViewTab, Theme, UnifiedSong } from '../types';
 import { formatSongName } from '../utils/songNameFormatter';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
+import { isSongMarkedUnavailable } from '../services/netease';
 
 const toSafeRemoteUrl = (url: string | null | undefined): string | undefined => {
     if (!url) {
@@ -183,14 +184,16 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                             <div className="text-center opacity-50 p-20 text-lg">{t('home.noResults')}</div>
                         ) : (
                             <div className="space-y-3 max-w-4xl mx-auto pb-20">
-                                {searchResults.map((track, index) => (
+                                {searchResults.map((track, index) => {
+                                    const isUnavailable = isSongMarkedUnavailable(track);
+                                    return (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: Math.min(index, 10) * 0.03 }}
                                         key={`${track.id}-${index}`}
                                         onClick={() => onPlayTrack(track)}
-                                        className={`flex items-center gap-4 p-4 rounded-xl ${resultItemBg} cursor-pointer group transition-colors border border-transparent hover:border-white/10`}
+                                        className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer group transition-colors border border-transparent ${isUnavailable ? 'opacity-55' : `${resultItemBg} hover:border-white/10`}`}
                                     >
                                         <div className="w-12 h-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0 shadow-lg relative">
                                             <SearchResultCover track={track} />
@@ -199,8 +202,16 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
+                                            <div
+                                                className={`font-bold text-base ${isUnavailable ? (isDaylight ? 'text-zinc-500' : 'text-zinc-400') : ''}`}
+                                                style={isUnavailable ? undefined : { color: 'var(--text-primary)' }}
+                                            >
                                                 {formatSongName(track)}
+                                                {isUnavailable && (
+                                                    <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                                                        {t('status.songUnavailableTag')}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-xs opacity-50 truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                                                 {track.ar?.map((artist, artistIndex) => (
@@ -236,7 +247,8 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                             {((track.dt || track.duration) / 60000).toFixed(2).replace('.', ':')}
                                         </div>
                                     </motion.div>
-                                ))}
+                                    );
+                                })}
                                 {hasMore && (
                                     <div className="flex justify-center pt-6">
                                         <button
