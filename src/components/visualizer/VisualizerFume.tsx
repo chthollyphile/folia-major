@@ -43,7 +43,6 @@ interface WordRange {
     word: WordType;
     start: number;
     end: number;
-    activeColor: string;
 }
 
 interface RenderLineSlice {
@@ -88,6 +87,14 @@ interface FumeArticleLayout {
     blocks: FumeBlock[];
 }
 
+interface FumeArticleLayoutMetrics {
+    width: number;
+    height: number;
+    viewportHeight: number;
+    columns: number;
+    gap: number;
+}
+
 interface StaticBlockSnapshot {
     canvas: HTMLCanvasElement;
     padding: number;
@@ -100,6 +107,16 @@ interface FumeLayoutAttemptOptions {
     gap: number;
     densityScale: number;
     seedKey: string;
+    mode?: 'measure' | 'render';
+    measurePrecision?: 'estimate' | 'exact';
+    timing?: FumeLayoutAttemptTiming;
+}
+
+interface FumeLayoutAttemptTiming {
+    lines: number;
+    prepareLayoutMs: number;
+    placementMs: number;
+    renderDetailsMs: number;
 }
 
 interface CameraTarget {
@@ -151,6 +168,26 @@ const easeInOutCubic = (value: number) => {
         ? 4 * normalized * normalized * normalized
         : 1 - Math.pow(-2 * normalized + 2, 3) / 2;
 };
+
+const nowMs = () => (
+    typeof performance !== 'undefined'
+        ? performance.now()
+        : Date.now()
+);
+
+const createFumeLayoutTiming = (): FumeLayoutAttemptTiming => ({
+    lines: 0,
+    prepareLayoutMs: 0,
+    placementMs: 0,
+    renderDetailsMs: 0,
+});
+
+const roundMs = (value: number) => Number(value.toFixed(2));
+
+let lastFumeLayoutCache: {
+    key: string;
+    article: FumeArticleLayout | null;
+} | null = null;
 
 const isCJK = (text: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(text);
 
@@ -294,7 +331,7 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
-const findWordRanges = (line: Line, graphemes: string[], theme: Theme) => {
+const findWordRanges = (line: Line, graphemes: string[]) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
     }
@@ -331,7 +368,6 @@ const findWordRanges = (line: Line, graphemes: string[], theme: Theme) => {
             word,
             start,
             end,
-            activeColor: getActiveColor(word.text, theme),
         });
         cursor = end;
     }
@@ -546,6 +582,58 @@ const buildPreparedSingleLine = (
     };
 };
 
+const buildMeasuredSingleLine = (
+    line: Line,
+    fontFamily: string,
+    width: number,
+    variant: 'body' | 'hero',
+    lyricsFontScale: number,
+    densityScale: number,
+    heroScale: number,
+) => {
+    const fontPx = chooseFontPx(
+        line,
+        variant,
+        width,
+        lyricsFontScale,
+        densityScale,
+    ) * (variant === 'hero' ? heroScale : 1);
+    const prepared = prepareWithSegments(line.fullText, `700 ${fontPx}px ${fontFamily}`);
+    const layout = layoutWithLines(prepared, width, Math.round(fontPx * (variant === 'hero' ? 1.02 : 1.06)));
+
+    return {
+        fontPx,
+        prepared,
+        layout,
+    };
+};
+
+const buildLayoutCacheKey = (
+    lines: Line[],
+    viewport: ViewportSize,
+    layoutTheme: Pick<Theme, 'fontStyle' | 'fontFamily'>,
+    lyricsFontScale: number,
+    fumeTuning: FumeTuning,
+) => {
+    let linesHash = 2166136261;
+    for (const line of lines) {
+        const lineKey = `${line.startTime}:${line.endTime}:${line.fullText}:${line.words.length}:${line.isChorus ? 1 : 0}`;
+        linesHash ^= hashString(lineKey);
+        linesHash = Math.imul(linesHash, 16777619);
+    }
+
+    return [
+        Math.round(viewport.width),
+        Math.round(viewport.height),
+        layoutTheme.fontStyle,
+        layoutTheme.fontFamily ?? '',
+        lyricsFontScale.toFixed(4),
+        fumeTuning.heroScale.toFixed(4),
+        lines.length,
+        linesHash >>> 0,
+    ].join('|');
+};
+
 const resolvePrintedGraphemeCount = (
     line: Line,
     variant: 'body' | 'hero',
@@ -597,14 +685,30 @@ const resolvePrintedGraphemeCount = (
     return clamp(printed, 0, graphemeCount);
 };
 
-const buildArticleLayoutAttempt = (
+function buildArticleLayoutAttempt(
     lines: Line[],
     viewport: ViewportSize,
-    theme: Theme,
+    layoutTheme: Pick<Theme, 'fontStyle' | 'fontFamily'>,
+    lyricsFontScale: number,
+    fumeTuning: FumeTuning,
+    options: FumeLayoutAttemptOptions & { mode: 'measure' },
+): FumeArticleLayoutMetrics | null;
+function buildArticleLayoutAttempt(
+    lines: Line[],
+    viewport: ViewportSize,
+    layoutTheme: Pick<Theme, 'fontStyle' | 'fontFamily'>,
+    lyricsFontScale: number,
+    fumeTuning: FumeTuning,
+    options: FumeLayoutAttemptOptions & { mode?: 'render' },
+): FumeArticleLayout | null;
+function buildArticleLayoutAttempt(
+    lines: Line[],
+    viewport: ViewportSize,
+    layoutTheme: Pick<Theme, 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
     options: FumeLayoutAttemptOptions,
-): FumeArticleLayout | null => {
+): FumeArticleLayout | FumeArticleLayoutMetrics | null {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
         return null;
     }
@@ -616,11 +720,16 @@ const buildArticleLayoutAttempt = (
         gap,
         densityScale,
         seedKey,
+        mode = 'render',
+        measurePrecision = 'estimate',
+        timing,
     } = options;
+    const shouldBuildRenderDetails = mode === 'render';
+    const shouldUseExactLineLayout = shouldBuildRenderDetails || measurePrecision === 'exact';
     const horizontalMargin = Math.max(viewport.width * 0.86, 280);
     const verticalMargin = Math.max(viewport.height * 0.82, 220);
     const columnWidth = (paperWidth - gap * (columns - 1)) / columns;
-    const fontFamily = resolveThemeFontStack(theme);
+    const fontFamily = resolveThemeFontStack(layoutTheme);
     const filteredLines = lines
         .map((line, index) => ({ line, index }))
         .filter(entry => entry.line.fullText.trim().length > 0)
@@ -636,6 +745,7 @@ const buildArticleLayoutAttempt = (
     let heroPlacementTieCursor = 0;
 
     filteredLines.forEach(({ line, index }, blockIndex) => {
+        timing && (timing.lines += 1);
         const variant = chooseBlockVariant(line, blockIndex, filteredLines.length);
         const heroSpanColumns = variant === 'hero'
             ? Math.min(columns, columns <= 1 ? 1 : 2)
@@ -653,46 +763,39 @@ const buildArticleLayoutAttempt = (
         const paddingX = 0;
         const paddingY = 0;
         const innerWidth = Math.max(blockWidth - paddingX * 2, 120);
-        const preparedSingleLine = buildPreparedSingleLine(
-            line.fullText,
-            fontFamily,
-            innerWidth,
-            variant,
-            lyricsFontScale,
-            densityScale,
-            fumeTuning.heroScale,
-        );
+        const prepareLayoutStart = timing ? nowMs() : 0;
+        const preparedSingleLine = shouldUseExactLineLayout
+            ? buildPreparedSingleLine(
+                line.fullText,
+                fontFamily,
+                innerWidth,
+                variant,
+                lyricsFontScale,
+                densityScale,
+                fumeTuning.heroScale,
+            )
+            : buildMeasuredSingleLine(
+                line,
+                fontFamily,
+                innerWidth,
+                variant,
+                lyricsFontScale,
+                densityScale,
+                fumeTuning.heroScale,
+            );
+        if (timing) {
+            timing.prepareLayoutMs += nowMs() - prepareLayoutStart;
+        }
         const fontPx = preparedSingleLine.fontPx;
         const lineHeight = Math.round(fontPx * (variant === 'hero' ? 1.02 : 1.06));
-        const prepared = preparedSingleLine.prepared;
-        const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
-        const wordRanges = findWordRanges(line, graphemes, theme);
-        const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
         const layout = preparedSingleLine.layout;
-        const renderLines = layout.lines.map((layoutLine, lineIndex) => ({
-            id: `${line.startTime}-${lineIndex}`,
-            text: layoutLine.text,
-            start: cursorToGlobalOffset(layoutLine.start, segmentMetas),
-            end: cursorToGlobalOffset(layoutLine.end, segmentMetas),
-            graphemes: splitGraphemes(layoutLine.text),
-            glyphOffsets: buildGlyphOffsets(
-                prepared,
-                segmentMetas,
-                cursorToGlobalOffset(layoutLine.start, segmentMetas),
-                splitGraphemes(layoutLine.text).length,
-            ),
-            left: variant === 'hero'
-                ? Math.max((blockWidth - layoutLine.width) * 0.08, 0)
-                : 0,
-            top: paddingY + lineIndex * lineHeight,
-            width: layoutLine.width,
-        }));
         const blockGap = variant === 'hero'
             ? Math.max(Math.round(lineHeight * 0.2), 6)
             : Math.max(Math.round(lineHeight * 0.08), 2);
         const blockHeight = paddingY * 2 + layout.lines.length * lineHeight;
         let x = 0;
         let y = 0;
+        const placementStart = timing ? nowMs() : 0;
 
         if (variant === 'hero') {
             if (heroSpanColumns === 1) {
@@ -753,45 +856,90 @@ const buildArticleLayoutAttempt = (
             y = columnHeights[targetColumn]!;
             columnHeights[targetColumn] = y + blockHeight + blockGap;
         }
+        if (timing) {
+            timing.placementMs += nowMs() - placementStart;
+        }
 
-        blocks.push({
-            id: `fume-${line.startTime}-${index}`,
-            sourceLineIndex: index,
-            line,
-            variant,
-            x,
-            y,
-            width: blockWidth,
-            height: blockHeight,
-            innerWidth,
-            fontPx,
-            lineHeight,
-            prepared,
-            layout,
-            graphemes,
-            segmentMetas,
-            wordRanges,
-            wordRangeIndexByOffset,
-            renderLines,
-        });
+        if (shouldBuildRenderDetails) {
+            const renderDetailsStart = timing ? nowMs() : 0;
+            const prepared = preparedSingleLine.prepared;
+            const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
+            const wordRanges = findWordRanges(line, graphemes);
+            const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
+            const renderLines = layout.lines.map((layoutLine, lineIndex) => {
+                const start = cursorToGlobalOffset(layoutLine.start, segmentMetas);
+                const lineGraphemes = splitGraphemes(layoutLine.text);
+
+                return {
+                    id: `${line.startTime}-${lineIndex}`,
+                    text: layoutLine.text,
+                    start,
+                    end: cursorToGlobalOffset(layoutLine.end, segmentMetas),
+                    graphemes: lineGraphemes,
+                    glyphOffsets: buildGlyphOffsets(
+                        prepared,
+                        segmentMetas,
+                        start,
+                        lineGraphemes.length,
+                    ),
+                    left: variant === 'hero'
+                        ? Math.max((blockWidth - layoutLine.width) * 0.08, 0)
+                        : 0,
+                    top: paddingY + lineIndex * lineHeight,
+                    width: layoutLine.width,
+                };
+            });
+
+            blocks.push({
+                id: `fume-${line.startTime}-${index}`,
+                sourceLineIndex: index,
+                line,
+                variant,
+                x,
+                y,
+                width: blockWidth,
+                height: blockHeight,
+                innerWidth,
+                fontPx,
+                lineHeight,
+                prepared,
+                layout,
+                graphemes,
+                segmentMetas,
+                wordRanges,
+                wordRangeIndexByOffset,
+                renderLines,
+            });
+            if (timing) {
+                timing.renderDetailsMs += nowMs() - renderDetailsStart;
+            }
+        }
     });
 
-    const articleHeight = Math.max(0, ...columnHeights, blocks[blocks.length - 1]?.height ?? 0) + verticalMargin;
+    const articleHeight = Math.max(0, ...columnHeights) + verticalMargin;
 
-    return {
+    const metrics = {
         width: paperWidth + horizontalMargin * 2,
         height: articleHeight,
         viewportHeight,
         columns,
         gap,
+    };
+
+    if (!shouldBuildRenderDetails) {
+        return metrics;
+    }
+
+    return {
+        ...metrics,
         blocks,
     };
-};
+}
 
 const buildArticleLayout = (
     lines: Line[],
     viewport: ViewportSize,
-    theme: Theme,
+    layoutTheme: Pick<Theme, 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
 ): FumeArticleLayout | null => {
@@ -803,25 +951,83 @@ const buildArticleLayout = (
     const viewportHeight = Math.max(viewport.height, 240);
     const maxColumns = paperWidth >= 1120 ? 4 : paperWidth >= 760 ? 3 : paperWidth >= 500 ? 2 : 1;
     const targetHeight = viewportHeight * 2.45;
+    const layoutSeedKey = `${layoutTheme.fontStyle}:${layoutTheme.fontFamily ?? ''}`;
 
-    let bestLayout: FumeArticleLayout | null = null;
+    let bestOptions: (FumeLayoutAttemptOptions & { mode: 'render' }) | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
+    let bestHeight = 0;
+    const totalStart = nowMs();
+    const measureTiming = createFumeLayoutTiming();
+    const renderTiming = createFumeLayoutTiming();
+    const calibrationTiming = createFumeLayoutTiming();
+    const measureColumnTimings = new Map<number, FumeLayoutAttemptTiming>();
+    let measureAttemptCount = 0;
+    let calibrationAttemptCount = 0;
+    let skippedBinarySearchColumns = 0;
 
     for (let columns = maxColumns; columns >= 1; columns -= 1) {
         let low = 0.82;
         let high = 1.42;
         const gap = clamp(Math.round(paperWidth * (columns >= 4 ? 0.0065 : columns === 3 ? 0.0085 : 0.0115)), 6, 14);
+        const columnTiming = createFumeLayoutTiming();
+        measureColumnTimings.set(columns, columnTiming);
+        const lowDensityOptions: FumeLayoutAttemptOptions & { mode: 'measure' } = {
+            paperWidth,
+            viewportHeight,
+            columns,
+            gap,
+            densityScale: low,
+            seedKey: `${layoutSeedKey}:${columns}:${paperWidth}`,
+            mode: 'measure',
+            timing: columnTiming,
+        };
+        measureAttemptCount += 1;
+        const lowDensityLayout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, lowDensityOptions);
+
+        if (lowDensityLayout) {
+            const coveragePenalty = Math.abs(lowDensityLayout.height - targetHeight);
+            const overflowPenalty = lowDensityLayout.height < targetHeight ? 0 : (lowDensityLayout.height - targetHeight) * 0.14;
+            const score = coveragePenalty + overflowPenalty;
+
+            if (score < bestScore) {
+                bestScore = score;
+                bestHeight = lowDensityLayout.height;
+                bestOptions = {
+                    paperWidth,
+                    viewportHeight,
+                    columns,
+                    gap,
+                    densityScale: low,
+                    seedKey: `${layoutSeedKey}:${columns}:${paperWidth}`,
+                    mode: 'render',
+                    timing: renderTiming,
+                };
+            }
+
+            if (lowDensityLayout.height >= targetHeight) {
+                skippedBinarySearchColumns += 1;
+                measureTiming.lines += columnTiming.lines;
+                measureTiming.prepareLayoutMs += columnTiming.prepareLayoutMs;
+                measureTiming.placementMs += columnTiming.placementMs;
+                measureTiming.renderDetailsMs += columnTiming.renderDetailsMs;
+                continue;
+            }
+        }
 
         for (let iteration = 0; iteration < 8; iteration += 1) {
             const densityScale = (low + high) / 2;
-        const layout = buildArticleLayoutAttempt(lines, viewport, theme, lyricsFontScale, fumeTuning, {
+            measureAttemptCount += 1;
+            const attemptOptions: FumeLayoutAttemptOptions & { mode: 'measure' } = {
                 paperWidth,
                 viewportHeight,
                 columns,
                 gap,
                 densityScale,
-                seedKey: `${theme.name}:${columns}:${paperWidth}`,
-            });
+                seedKey: `${layoutSeedKey}:${columns}:${paperWidth}`,
+                mode: 'measure',
+                timing: columnTiming,
+            };
+            const layout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, attemptOptions);
 
             if (!layout) {
                 continue;
@@ -833,7 +1039,17 @@ const buildArticleLayout = (
 
             if (score < bestScore) {
                 bestScore = score;
-                bestLayout = layout;
+                bestHeight = layout.height;
+                bestOptions = {
+                    paperWidth,
+                    viewportHeight,
+                    columns,
+                    gap,
+                    densityScale,
+                    seedKey: `${layoutSeedKey}:${columns}:${paperWidth}`,
+                    mode: 'render',
+                    timing: renderTiming,
+                };
             }
 
             if (layout.height < targetHeight) {
@@ -842,9 +1058,123 @@ const buildArticleLayout = (
                 high = densityScale;
             }
         }
+
+        measureTiming.lines += columnTiming.lines;
+        measureTiming.prepareLayoutMs += columnTiming.prepareLayoutMs;
+        measureTiming.placementMs += columnTiming.placementMs;
+        measureTiming.renderDetailsMs += columnTiming.renderDetailsMs;
     }
 
-    return bestLayout;
+    if (bestOptions && bestHeight < targetHeight * 1.18 && skippedBinarySearchColumns < maxColumns) {
+        const estimatedBestOptions = bestOptions;
+        let calibrationBestOptions: (FumeLayoutAttemptOptions & { mode: 'render' }) | null = null;
+        let calibrationBestHeight = 0;
+        let calibrationBestScore = Number.POSITIVE_INFINITY;
+        let low = clamp(estimatedBestOptions.densityScale - 0.28, 0.82, 1.42);
+        let high = clamp(estimatedBestOptions.densityScale + 0.08, 0.82, 1.42);
+
+        for (let iteration = 0; iteration < 5; iteration += 1) {
+            const densityScale = (low + high) / 2;
+            calibrationAttemptCount += 1;
+            const calibrationOptions: FumeLayoutAttemptOptions & { mode: 'measure' } = {
+                paperWidth,
+                viewportHeight,
+                columns: estimatedBestOptions.columns,
+                gap: estimatedBestOptions.gap,
+                densityScale,
+                seedKey: estimatedBestOptions.seedKey,
+                mode: 'measure',
+                measurePrecision: 'exact',
+                timing: calibrationTiming,
+            };
+            const layout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, calibrationOptions);
+
+            if (!layout) {
+                continue;
+            }
+
+            const coveragePenalty = Math.abs(layout.height - targetHeight);
+            const overflowPenalty = layout.height < targetHeight ? 0 : (layout.height - targetHeight) * 0.14;
+            const score = coveragePenalty + overflowPenalty;
+
+            if (score < calibrationBestScore) {
+                calibrationBestScore = score;
+                calibrationBestHeight = layout.height;
+                calibrationBestOptions = {
+                    ...estimatedBestOptions,
+                    densityScale,
+                    mode: 'render',
+                    timing: renderTiming,
+                };
+            }
+
+            if (layout.height < targetHeight) {
+                low = densityScale;
+            } else {
+                high = densityScale;
+            }
+        }
+
+        if (calibrationBestOptions) {
+            bestScore = calibrationBestScore;
+            bestHeight = calibrationBestHeight;
+            bestOptions = calibrationBestOptions;
+        }
+    }
+
+    const renderStart = nowMs();
+    const article = bestOptions
+        ? buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, bestOptions)
+        : null;
+    const renderMs = nowMs() - renderStart;
+    const totalMs = nowMs() - totalStart;
+
+    if (import.meta.env.DEV) {
+        console.info('[VisualizerFume] layout timing', {
+            totalMs: roundMs(totalMs),
+            measureMs: roundMs(measureTiming.prepareLayoutMs + measureTiming.placementMs),
+            renderMs: roundMs(renderMs),
+            attempts: measureAttemptCount,
+            calibrationAttempts: calibrationAttemptCount,
+            skippedBinarySearchColumns,
+            measuredLines: measureTiming.lines,
+            calibratedLines: calibrationTiming.lines,
+            renderedLines: renderTiming.lines,
+            inputLines: lines.length,
+            blocks: article?.blocks.length ?? 0,
+            viewport: `${Math.round(viewport.width)}x${Math.round(viewport.height)}`,
+            paperWidth: Math.round(paperWidth),
+            targetHeight: Math.round(targetHeight),
+            bestHeight: Math.round(bestHeight),
+            finalHeight: Math.round(article?.height ?? 0),
+            heightDelta: Math.round((article?.height ?? 0) - targetHeight),
+            bestColumns: bestOptions?.columns ?? null,
+            bestDensityScale: bestOptions ? Number(bestOptions.densityScale.toFixed(4)) : null,
+            measureBreakdown: {
+                prepareLayoutMs: roundMs(measureTiming.prepareLayoutMs),
+                placementMs: roundMs(measureTiming.placementMs),
+                renderDetailsMs: roundMs(measureTiming.renderDetailsMs),
+            },
+            renderBreakdown: {
+                prepareLayoutMs: roundMs(renderTiming.prepareLayoutMs),
+                placementMs: roundMs(renderTiming.placementMs),
+                renderDetailsMs: roundMs(renderTiming.renderDetailsMs),
+            },
+            calibrationBreakdown: {
+                prepareLayoutMs: roundMs(calibrationTiming.prepareLayoutMs),
+                placementMs: roundMs(calibrationTiming.placementMs),
+                renderDetailsMs: roundMs(calibrationTiming.renderDetailsMs),
+            },
+            measureByColumns: Array.from(measureColumnTimings.entries()).map(([columns, timing]) => ({
+                columns,
+                lines: timing.lines,
+                prepareLayoutMs: roundMs(timing.prepareLayoutMs),
+                placementMs: roundMs(timing.placementMs),
+            })),
+        });
+    }
+
+    return article;
 };
 
 const resolveBlockFocusPoint = (
@@ -1189,6 +1519,17 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         glowIntensity: clamp(fumeTuning?.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, 0, 1.8),
         heroScale: clamp(fumeTuning?.heroScale ?? DEFAULT_FUME_TUNING.heroScale, 0.82, 1.32),
     }), [fumeTuning]);
+    const layoutTheme = useMemo(
+        () => ({
+            fontStyle: theme.fontStyle,
+            fontFamily: theme.fontFamily,
+        }),
+        [theme.fontFamily, theme.fontStyle],
+    );
+    const layoutFumeTuning = useMemo<FumeTuning>(() => ({
+        ...DEFAULT_FUME_TUNING,
+        heroScale: resolvedFumeTuning.heroScale,
+    }), [resolvedFumeTuning.heroScale]);
 
     useEffect(() => {
         const requestVersion = layoutBuildVersionRef.current + 1;
@@ -1213,11 +1554,18 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     return;
                 }
 
-                const nextArticle = buildArticleLayout(lines, viewport, theme, lyricsFontScale, resolvedFumeTuning);
+                const layoutCacheKey = buildLayoutCacheKey(lines, viewport, layoutTheme, lyricsFontScale, layoutFumeTuning);
+                const nextArticle = lastFumeLayoutCache?.key === layoutCacheKey
+                    ? lastFumeLayoutCache.article
+                    : buildArticleLayout(lines, viewport, layoutTheme, lyricsFontScale, layoutFumeTuning);
                 if (layoutBuildVersionRef.current !== requestVersion) {
                     return;
                 }
 
+                lastFumeLayoutCache = {
+                    key: layoutCacheKey,
+                    article: nextArticle,
+                };
                 hasResolvedArticleRef.current = nextArticle !== null;
                 setArticle(nextArticle);
                 setIsLayoutPending(false);
@@ -1228,7 +1576,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(rafId);
             window.clearTimeout(timeoutId);
         };
-    }, [lines, lyricsFontScale, resolvedFumeTuning, theme, viewport]);
+    }, [layoutFumeTuning, layoutTheme, lines, lyricsFontScale, viewport]);
     const lastRenderableLine = useMemo(() => {
         for (let index = lines.length - 1; index >= 0; index -= 1) {
             const line = lines[index];
@@ -1772,7 +2120,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const glyphIndexInRange = globalOffset - range.start;
                             const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
-                            const activeColor = range.activeColor;
+                            const activeColor = getActiveColor(range.word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
                             const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
@@ -1930,7 +2278,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     <motion.div
                         initial={false}
                         animate={{
-                            opacity: article && showText ? (hasPrintedContent ? 1 : 0) : 1,
+                            opacity: 1,
                             scale: article && showText ? (hasPrintedContent ? 1 : 0.985) : 1,
                         }}
                         transition={{ duration: 0.45, ease: 'easeOut' }}
