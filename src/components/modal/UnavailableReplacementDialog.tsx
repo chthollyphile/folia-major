@@ -1,12 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { ArrowDown } from 'lucide-react';
 import type { SongResult } from '../../types';
 import ThemedDialog from '../shared/ThemedDialog';
 import { formatSongName } from '../../utils/songNameFormatter';
 
 interface UnavailableReplacementDialogProps {
     isOpen: boolean;
-    song: SongResult | null;
+    originalSong: SongResult | null;
+    replacementSong: SongResult | null;
     typeDesc?: string;
     isDaylight?: boolean;
     onClose: () => void;
@@ -15,7 +17,8 @@ interface UnavailableReplacementDialogProps {
 
 const UnavailableReplacementDialog: React.FC<UnavailableReplacementDialogProps> = ({
     isOpen,
-    song,
+    originalSong,
+    replacementSong,
     typeDesc,
     isDaylight = false,
     onClose,
@@ -46,9 +49,36 @@ const UnavailableReplacementDialog: React.FC<UnavailableReplacementDialogProps> 
         }
     };
 
-    const songName = song?.name || t('status.songUnavailable');
-    const artistText = song?.ar?.map((artist) => artist.name).join(', ') || song?.artists?.map((artist) => artist.name).join(', ') || '';
-    const albumText = song?.al?.name || song?.album?.name || '';
+    const songName = originalSong?.name || t('status.songUnavailable');
+
+    const renderSongCard = (song: SongResult | null, tone: 'muted' | 'normal') => {
+        const artistText = song?.ar?.map((artist) => artist.name).join(', ') || song?.artists?.map((artist) => artist.name).join(', ') || '';
+        const albumText = song?.al?.name || song?.album?.name || '';
+        const cardClass = tone === 'muted'
+            ? (isDaylight ? 'border-black/8 bg-black/[0.025]' : 'border-white/10 bg-white/[0.025]')
+            : (isDaylight ? 'border-black/8 bg-black/[0.045]' : 'border-white/10 bg-white/[0.05]');
+        const titleClass = tone === 'muted'
+            ? (isDaylight ? 'text-zinc-500' : 'text-zinc-400')
+            : (isDaylight ? 'text-zinc-700' : 'text-zinc-200');
+        const metaClass = tone === 'muted'
+            ? (isDaylight ? 'text-zinc-400' : 'text-zinc-500')
+            : (isDaylight ? 'text-zinc-500' : 'text-zinc-400');
+
+        return (
+            <div className={`rounded-2xl border px-4 py-3 ${cardClass}`}>
+                <div className={`text-sm font-medium ${titleClass}`}>
+                    {song ? formatSongName(song) : t('status.songUnavailable')}
+                </div>
+                {(artistText || albumText) && (
+                    <div className={`mt-1 text-xs ${metaClass}`}>
+                        {artistText}
+                        {artistText && albumText ? ' • ' : ''}
+                        {albumText}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <ThemedDialog
@@ -85,17 +115,12 @@ const UnavailableReplacementDialog: React.FC<UnavailableReplacementDialogProps> 
                 </>
             )}
         >
-            <div className={`rounded-2xl border px-4 py-3 ${isDaylight ? 'border-black/8 bg-black/[0.035]' : 'border-white/10 bg-white/[0.04]'}`}>
-                <div className={`text-sm font-medium ${isDaylight ? 'text-zinc-700' : 'text-zinc-200'}`}>
-                    {song ? formatSongName(song) : songName}
+            <div className="space-y-3">
+                {renderSongCard(originalSong, 'muted')}
+                <div className="flex justify-center">
+                    <ArrowDown size={18} className={isDaylight ? 'text-zinc-500' : 'text-zinc-400'} />
                 </div>
-                {(artistText || albumText) && (
-                    <div className={`mt-1 text-xs ${isDaylight ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                        {artistText}
-                        {artistText && albumText ? ' • ' : ''}
-                        {albumText}
-                    </div>
-                )}
+                {renderSongCard(replacementSong, 'normal')}
             </div>
         </ThemedDialog>
     );

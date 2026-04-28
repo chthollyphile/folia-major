@@ -64,6 +64,7 @@ type NextTrackOptions = PlaybackNavigationOptions & {
 
 type UnavailableReplacementRequest = {
     originalSong: SongResult;
+    replacementSong: SongResult;
     replacementSongId: number;
     queue: SongResult[];
     isFmCall: boolean;
@@ -1748,7 +1749,7 @@ export default function App() {
         return replacedQueue;
     }, []);
 
-    const handleMarkedUnavailableSong = useCallback((
+    const handleMarkedUnavailableSong = useCallback(async (
         song: SongResult,
         queue: SongResult[],
         isFmCall: boolean,
@@ -1757,14 +1758,31 @@ export default function App() {
         setIsLyricsLoading(false);
         const replacementSongId = getSongAlternativeVersionId(song);
         if (replacementSongId) {
-            setPendingUnavailableReplacement({
-                originalSong: song,
-                replacementSongId,
-                queue,
-                isFmCall,
-                options,
-            });
-            return true;
+            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+            try {
+                const detailRes = await neteaseApi.getSongDetail(replacementSongId);
+                const replacementSong = detailRes.songs?.find((candidate: SongResult) => candidate.id === replacementSongId) || detailRes.songs?.[0];
+
+                if (!replacementSong || isSongMarkedUnavailable(replacementSong)) {
+                    setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
+                    return true;
+                }
+
+                setStatusMsg(null);
+                setPendingUnavailableReplacement({
+                    originalSong: song,
+                    replacementSong,
+                    replacementSongId,
+                    queue,
+                    isFmCall,
+                    options,
+                });
+                return true;
+            } catch (error) {
+                console.error('[App] Failed to load replacement song before dialog:', error);
+                setStatusMsg({ type: 'error', text: t('status.playbackError') });
+                return true;
+            }
         }
 
         setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
@@ -1881,7 +1899,7 @@ export default function App() {
         playbackAutoSkipCountRef.current = skipCount;
 
         if (!isLocal && !isNavidrome && isSongMarkedUnavailable(song)) {
-            if (handleMarkedUnavailableSong(song, queueContext, isFmCall, options)) {
+            if (await handleMarkedUnavailableSong(song, queueContext, isFmCall, options)) {
                 return;
             }
         }
@@ -2275,15 +2293,11 @@ export default function App() {
             return;
         }
 
-        const { originalSong, replacementSongId, queue, isFmCall, options } = pendingUnavailableReplacement;
+        const { originalSong, replacementSong, replacementSongId, queue, isFmCall, options } = pendingUnavailableReplacement;
         setPendingUnavailableReplacement(null);
-        setStatusMsg({ type: 'info', text: t('status.loadingSong') });
 
         try {
-            const detailRes = await neteaseApi.getSongDetail(replacementSongId);
-            const replacementSong = detailRes.songs?.find((candidate: SongResult) => candidate.id === replacementSongId) || detailRes.songs?.[0];
-
-            if (!replacementSong || isSongMarkedUnavailable(replacementSong)) {
+            if (!replacementSong || replacementSong.id !== replacementSongId || isSongMarkedUnavailable(replacementSong)) {
                 setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
                 return;
             }
@@ -3684,7 +3698,8 @@ export default function App() {
 
             <UnavailableReplacementDialog
                 isOpen={Boolean(pendingUnavailableReplacement)}
-                song={pendingUnavailableReplacement?.originalSong || null}
+                originalSong={pendingUnavailableReplacement?.originalSong || null}
+                replacementSong={pendingUnavailableReplacement?.replacementSong || null}
                 typeDesc={pendingUnavailableReplacement?.originalSong.noCopyrightRcmd?.typeDesc}
                 isDaylight={isDaylight}
                 onClose={() => setPendingUnavailableReplacement(null)}
