@@ -2141,10 +2141,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     const cacheKey = `${block.id}:${staticState}:${cacheStyleKey}:${snapshotScale}`;
                     let snapshot = staticBlockSnapshotCacheRef.current.get(cacheKey);
 
-                        if (!snapshot) {
-                            snapshot = createStaticBlockSnapshot(
-                                block,
-                                theme,
+                    if (!snapshot) {
+                        snapshot = createStaticBlockSnapshot(
+                            block,
+                            theme,
                             staticState === 'waiting'
                                 ? colorWithAlpha(theme.primaryColor, waitingOpacity)
                                 : colorWithAlpha(theme.primaryColor, passedOpacity),
