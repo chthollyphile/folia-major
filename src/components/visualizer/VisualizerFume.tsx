@@ -43,6 +43,8 @@ interface WordRange {
     word: WordType;
     start: number;
     end: number;
+    colorStart: number;
+    colorEnd: number;
 }
 
 interface RenderLineSlice {
@@ -75,6 +77,7 @@ interface FumeBlock {
     segmentMetas: SegmentMeta[];
     wordRanges: WordRange[];
     wordRangeIndexByOffset: number[];
+    colorRangeIndexByOffset: number[];
     renderLines: RenderLineSlice[];
 }
 
@@ -410,6 +413,30 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
+const isLatinTokenGrapheme = (value: string) => /^[A-Za-z0-9_]$/.test(value);
+
+const expandRangeToLatinToken = (
+    graphemes: string[],
+    start: number,
+    end: number,
+) => {
+    let expandedStart = clamp(start, 0, graphemes.length);
+    let expandedEnd = clamp(end, expandedStart, graphemes.length);
+
+    while (expandedStart > 0 && isLatinTokenGrapheme(graphemes[expandedStart - 1] ?? '')) {
+        expandedStart -= 1;
+    }
+
+    while (expandedEnd < graphemes.length && isLatinTokenGrapheme(graphemes[expandedEnd] ?? '')) {
+        expandedEnd += 1;
+    }
+
+    return {
+        start: expandedStart,
+        end: expandedEnd,
+    };
+};
+
 const findWordRanges = (line: Line, graphemes: string[]) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
@@ -441,12 +468,17 @@ const findWordRanges = (line: Line, graphemes: string[]) => {
         const remainingWords = validWords.length - wordIndex - 1;
         const maxEnd = graphemes.length - remainingWords;
         const end = clamp(Math.max(start + 1, idealEnd), start + 1, Math.max(start + 1, maxEnd));
+        const expandedRange = isCJK(word.text)
+            ? { start, end }
+            : expandRangeToLatinToken(graphemes, start, end);
 
         ranges.push({
             wordIndex,
             word,
             start,
             end,
+            colorStart: expandedRange.start,
+            colorEnd: expandedRange.end,
         });
         cursor = end;
     }
@@ -560,11 +592,14 @@ const resolveGlyphAdvance = (
 const buildWordRangeIndexByOffset = (
     graphemeCount: number,
     wordRanges: WordRange[],
+    rangeKind: 'timing' | 'color' = 'timing',
 ) => {
     const indices = new Array<number>(graphemeCount).fill(-1);
     for (let rangeIndex = 0; rangeIndex < wordRanges.length; rangeIndex += 1) {
         const range = wordRanges[rangeIndex]!;
-        for (let offset = range.start; offset < range.end && offset < graphemeCount; offset += 1) {
+        const start = rangeKind === 'color' ? range.colorStart : range.start;
+        const end = rangeKind === 'color' ? range.colorEnd : range.end;
+        for (let offset = start; offset < end && offset < graphemeCount; offset += 1) {
             indices[offset] = rangeIndex;
         }
     }
@@ -987,6 +1022,7 @@ function buildArticleLayoutAttempt(
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
             const wordRanges = findWordRanges(line, graphemes);
             const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
+            const colorRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges, 'color');
             const renderLines = layout.lines.map((layoutLine, lineIndex) => {
                 const start = cursorToGlobalOffset(layoutLine.start, segmentMetas);
                 const lineGraphemes = splitGraphemes(layoutLine.text);
@@ -1029,6 +1065,7 @@ function buildArticleLayoutAttempt(
                 segmentMetas,
                 wordRanges,
                 wordRangeIndexByOffset,
+                colorRangeIndexByOffset,
                 renderLines,
             });
             if (timing) {
@@ -2254,6 +2291,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         const globalOffset = renderLine.start + graphemeIndex;
                         const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
                         const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
+                        const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
+                        const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
                         const isPrinted = globalOffset < printedCount;
                         const isFrontier = printedCount > 0
                             && globalOffset === printedCount
@@ -2281,7 +2320,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const glyphIndexInRange = globalOffset - range.start;
                             const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
-                            const activeColor = getActiveColor(range.word.text, theme);
+                            const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
                             const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
