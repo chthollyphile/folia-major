@@ -247,6 +247,7 @@ export default {
     "fumeSettingsDesc": "控制打印方块、镜头节奏、辉光和大标题比例。",
     "fumeHidePrintSymbols": "隐藏打印方块",
     "fumeGeometricBackground": "通用几何图形",
+    "fumeTextHoldRatio": "文字停留比例",
     "fumeCameraSpeed": "摄影机移动速度",
     "fumeGlowIntensity": "当前句辉光强度",
     "fumeHeroScale": "大标题比例",

@@ -43,6 +43,8 @@ interface WordRange {
     word: WordType;
     start: number;
     end: number;
+    colorStart: number;
+    colorEnd: number;
 }
 
 interface RenderLineSlice {
@@ -75,6 +77,7 @@ interface FumeBlock {
     segmentMetas: SegmentMeta[];
     wordRanges: WordRange[];
     wordRangeIndexByOffset: number[];
+    colorRangeIndexByOffset: number[];
     renderLines: RenderLineSlice[];
 }
 
@@ -161,6 +164,7 @@ const splitGraphemes = (text: string) => {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 const easeOutCubic = (value: number) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
+const easeInCubic = (value: number) => Math.pow(clamp(value, 0, 1), 3);
 const easeInOutCubic = (value: number) => {
     const normalized = clamp(value, 0, 1);
     return normalized < 0.5
@@ -187,6 +191,13 @@ let lastFumeLayoutCache: {
     key: string;
     article: FumeArticleLayout | null;
 } | null = null;
+
+let lastFumePassedFadeDurationCache: {
+    key: string;
+    duration: number;
+} | null = null;
+
+let lastLoggedFumePassedFadeDuration: number | null = null;
 
 const isCJK = (text: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(text);
 
@@ -229,6 +240,78 @@ const FUME_BACKGROUND_PARALLAX_X = 0.9;
 const FUME_BACKGROUND_PARALLAX_Y = 0.74;
 const FUME_BACKGROUND_SCALE_FACTOR = 0.94;
 const FUME_BACKGROUND_VERTICAL_OFFSET_RATIO = 0.22;
+const FUME_CAMERA_TELEPORT_TRIGGER_SCREENS = 2.75;
+const FUME_CAMERA_TELEPORT_START_SCREENS = 1;
+
+const resolvePassedTextStyle = (
+    variant: 'body' | 'hero',
+    textHoldStyle: 'standard' | 'dimmed',
+) => (
+    textHoldStyle === 'dimmed'
+        ? {
+            opacity: variant === 'hero' ? 0.11 : 0.075,
+            glowMultiplier: 0,
+            shadowAlphaBase: 0,
+            shadowAlphaTrail: 0,
+        }
+        : {
+            opacity: variant === 'hero' ? 0.74 : 0.58,
+            glowMultiplier: 1,
+            shadowAlphaBase: 0.1,
+            shadowAlphaTrail: 0.16,
+        }
+);
+
+const resolvePassedDimAmount = (
+    currentTimeValue: number,
+    passedAt: number,
+    fadeDuration: number,
+) => {
+    if (!Number.isFinite(currentTimeValue) || !Number.isFinite(passedAt) || !Number.isFinite(fadeDuration) || fadeDuration <= 0) {
+        return 1;
+    }
+
+    const passedAge = Math.max(currentTimeValue - passedAt, 0);
+    return easeInCubic(clamp(passedAge / fadeDuration, 0, 1));
+};
+
+const resolveFumePassedFadeDuration = (lines: Line[], textHoldRatio: number) => {
+    if (textHoldRatio >= 1) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const timedLines = lines
+        .map(line => ({
+            startTime: line.startTime,
+            endTime: getLineRenderEndTime(line),
+        }))
+        .filter(line => (
+            Number.isFinite(line.startTime)
+            && Number.isFinite(line.endTime)
+            && line.endTime >= line.startTime
+        ))
+        .sort((left, right) => left.startTime - right.startTime);
+    const cacheKey = timedLines
+        .map(line => `${line.startTime.toFixed(3)}:${line.endTime.toFixed(3)}`)
+        .join('|') + `:${textHoldRatio.toFixed(3)}`;
+
+    if (lastFumePassedFadeDurationCache?.key === cacheKey) {
+        return lastFumePassedFadeDurationCache.duration;
+    }
+
+    if (timedLines.length <= 1) {
+        const duration = clamp(8 * textHoldRatio, 2.4, 130);
+        lastFumePassedFadeDurationCache = { key: cacheKey, duration };
+        return duration;
+    }
+
+    const first = timedLines[0]!;
+    const last = timedLines[timedLines.length - 1]!;
+    const totalDuration = Math.max(last.endTime - first.startTime, 0);
+    const duration = clamp(totalDuration * textHoldRatio, 2.4, 130);
+    lastFumePassedFadeDurationCache = { key: cacheKey, duration };
+    return duration;
+};
 
 const parseColorChannels = (color: string) => {
     if (color.startsWith('#')) {
@@ -330,6 +413,30 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
+const isLatinTokenGrapheme = (value: string) => /^[A-Za-z0-9_]$/.test(value);
+
+const expandRangeToLatinToken = (
+    graphemes: string[],
+    start: number,
+    end: number,
+) => {
+    let expandedStart = clamp(start, 0, graphemes.length);
+    let expandedEnd = clamp(end, expandedStart, graphemes.length);
+
+    while (expandedStart > 0 && isLatinTokenGrapheme(graphemes[expandedStart - 1] ?? '')) {
+        expandedStart -= 1;
+    }
+
+    while (expandedEnd < graphemes.length && isLatinTokenGrapheme(graphemes[expandedEnd] ?? '')) {
+        expandedEnd += 1;
+    }
+
+    return {
+        start: expandedStart,
+        end: expandedEnd,
+    };
+};
+
 const findWordRanges = (line: Line, graphemes: string[]) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
@@ -361,12 +468,17 @@ const findWordRanges = (line: Line, graphemes: string[]) => {
         const remainingWords = validWords.length - wordIndex - 1;
         const maxEnd = graphemes.length - remainingWords;
         const end = clamp(Math.max(start + 1, idealEnd), start + 1, Math.max(start + 1, maxEnd));
+        const expandedRange = isCJK(word.text)
+            ? { start, end }
+            : expandRangeToLatinToken(graphemes, start, end);
 
         ranges.push({
             wordIndex,
             word,
             start,
             end,
+            colorStart: expandedRange.start,
+            colorEnd: expandedRange.end,
         });
         cursor = end;
     }
@@ -480,11 +592,14 @@ const resolveGlyphAdvance = (
 const buildWordRangeIndexByOffset = (
     graphemeCount: number,
     wordRanges: WordRange[],
+    rangeKind: 'timing' | 'color' = 'timing',
 ) => {
     const indices = new Array<number>(graphemeCount).fill(-1);
     for (let rangeIndex = 0; rangeIndex < wordRanges.length; rangeIndex += 1) {
         const range = wordRanges[rangeIndex]!;
-        for (let offset = range.start; offset < range.end && offset < graphemeCount; offset += 1) {
+        const start = rangeKind === 'color' ? range.colorStart : range.start;
+        const end = rangeKind === 'color' ? range.colorEnd : range.end;
+        for (let offset = start; offset < end && offset < graphemeCount; offset += 1) {
             indices[offset] = rangeIndex;
         }
     }
@@ -907,6 +1022,7 @@ function buildArticleLayoutAttempt(
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
             const wordRanges = findWordRanges(line, graphemes);
             const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
+            const colorRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges, 'color');
             const renderLines = layout.lines.map((layoutLine, lineIndex) => {
                 const start = cursorToGlobalOffset(layoutLine.start, segmentMetas);
                 const lineGraphemes = splitGraphemes(layoutLine.text);
@@ -949,6 +1065,7 @@ function buildArticleLayoutAttempt(
                 segmentMetas,
                 wordRanges,
                 wordRangeIndexByOffset,
+                colorRangeIndexByOffset,
                 renderLines,
             });
             if (timing) {
@@ -1252,6 +1369,42 @@ const resolveOverviewRetargetDuration = (viewport: ViewportSize) => clamp(
     0.58,
 );
 
+const resolveCameraTeleportStart = ({
+    fromX,
+    fromY,
+    targetX,
+    targetY,
+    scale,
+    viewport,
+}: {
+    fromX: number;
+    fromY: number;
+    targetX: number;
+    targetY: number;
+    scale: number;
+    viewport: ViewportSize;
+}) => {
+    const safeScale = Math.max(scale, 0.001);
+    const minViewportSide = Math.max(Math.min(viewport.width, viewport.height), 1);
+    const deltaX = fromX - targetX;
+    const deltaY = fromY - targetY;
+    const worldDistance = Math.hypot(deltaX, deltaY);
+    const screenDistance = worldDistance * safeScale;
+
+    if (worldDistance <= 0 || screenDistance < minViewportSide * FUME_CAMERA_TELEPORT_TRIGGER_SCREENS) {
+        return null;
+    }
+
+    const startWorldDistance = (minViewportSide * FUME_CAMERA_TELEPORT_START_SCREENS) / safeScale;
+    const directionX = deltaX / worldDistance;
+    const directionY = deltaY / worldDistance;
+
+    return {
+        x: targetX + directionX * startWorldDistance,
+        y: targetY + directionY * startWorldDistance,
+    };
+};
+
 const resolveArticleOverviewCamera = (
     article: FumeArticleLayout,
     viewport: ViewportSize,
@@ -1447,6 +1600,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
         disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+        textHoldRatio: clamp(fumeTuning?.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio, 0, 1),
         cameraSpeed: clamp(fumeTuning?.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, 0.55, 1.85),
         glowIntensity: clamp(fumeTuning?.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, 0, 1.8),
         heroScale: clamp(fumeTuning?.heroScale ?? DEFAULT_FUME_TUNING.heroScale, 0.82, 1.32),
@@ -1546,6 +1700,18 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const cameraSpeed = resolvedFumeTuning.cameraSpeed;
     const glowIntensity = resolvedFumeTuning.glowIntensity;
     const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
+    const textHoldRatio = resolvedFumeTuning.textHoldRatio;
+    const passedFadeDuration = useMemo(() => {
+        const duration = resolveFumePassedFadeDuration(lines, textHoldRatio);
+        if (
+            lastLoggedFumePassedFadeDuration === null
+            || Math.abs(lastLoggedFumePassedFadeDuration - duration) > 0.001
+        ) {
+            console.log('[VisualizerFume] passed fade duration:', duration);
+            lastLoggedFumePassedFadeDuration = duration;
+        }
+        return duration;
+    }, [lines, textHoldRatio]);
     const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
 
@@ -1730,6 +1896,13 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             }
 
             const retargetElapsed = Math.max(time - cameraRetargetRef.current.startedAt, 0);
+            const overviewTextRestoreProgress = shouldShowOverview && cameraRetargetRef.current.sourceLineIndex === OVERVIEW_CAMERA_SOURCE
+                ? easeInOutCubic(clamp(
+                    retargetElapsed / Math.max(cameraRetargetRef.current.duration, 0.001),
+                    0,
+                    1,
+                ))
+                : 0;
             const retargetPhase = clamp(
                 retargetElapsed / Math.max(cameraRetargetRef.current.duration, 0.001),
                 0,
@@ -1773,6 +1946,29 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const screenDeltaY = Math.abs(targetCameraY - cameraRetargetRef.current.fromY) * bridgeScale;
                 const screenDistance = Math.hypot(screenDeltaX, screenDeltaY);
                 cameraRetargetRef.current.useLinearBridge = screenDistance >= Math.min(viewport.width, viewport.height) * 0.42;
+
+                if (cameraRetargetRef.current.sourceLineIndex >= 0) {
+                    const teleportStart = resolveCameraTeleportStart({
+                        fromX: cameraRetargetRef.current.fromX,
+                        fromY: cameraRetargetRef.current.fromY,
+                        targetX: targetCameraX,
+                        targetY: targetCameraY,
+                        scale: bridgeScale,
+                        viewport,
+                    });
+
+                    if (teleportStart) {
+                        cameraRef.current.x = clamp(teleportStart.x, 0, article.width);
+                        cameraRef.current.y = clamp(teleportStart.y, 0, article.height);
+                        cameraRef.current.focusX = cameraRef.current.x;
+                        cameraRef.current.focusY = cameraRef.current.y;
+                        cameraRef.current.velocityX = 0;
+                        cameraRef.current.velocityY = 0;
+                        cameraRetargetRef.current.fromX = cameraRef.current.x;
+                        cameraRetargetRef.current.fromY = cameraRef.current.y;
+                        cameraRetargetRef.current.useLinearBridge = true;
+                    }
+                }
             }
 
             const cameraDistance = Math.hypot(
@@ -1921,14 +2117,17 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                 const waitingOpacity = block.variant === 'hero' ? 0.06 : 0.035;
                 const activeOpacity = block.variant === 'hero' ? 0.985 : 0.92;
-                const passedOpacity = block.variant === 'hero' ? 0.74 : 0.58;
+                const effectiveTextHoldStyle = textHoldRatio >= 1 ? 'standard' : 'dimmed';
+                const passedStyle = resolvePassedTextStyle(block.variant, effectiveTextHoldStyle);
+                const passedOpacity = passedStyle.opacity;
+                const transitionPassedStyle = resolvePassedTextStyle(block.variant, 'standard');
                 const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
                 const lineEndTime = getLineRenderEndTime(block.line);
                 const lineDuration = Math.max(lineEndTime - block.line.startTime, 0.18);
                 const colorTrailDuration = clamp(
-                    lineDuration * (block.variant === 'hero' ? 0.68 : 0.82),
-                    0.9,
-                    2.8,
+                    lineDuration * (block.variant === 'hero' ? 0.42 : 0.52),
+                    0.45,
+                    1.45,
                 );
                 const staticState = time < block.line.startTime
                     ? 'waiting'
@@ -1938,7 +2137,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                 if (staticState) {
                     const snapshotScale = clamp(window.devicePixelRatio || 1, 1, 2);
-                    const cacheKey = `${block.id}:${staticState}:${snapshotScale}`;
+                    const cacheStyleKey = staticState === 'passed' ? effectiveTextHoldStyle : 'base';
+                    const cacheKey = `${block.id}:${staticState}:${cacheStyleKey}:${snapshotScale}`;
                     let snapshot = staticBlockSnapshotCacheRef.current.get(cacheKey);
 
                     if (!snapshot) {
@@ -1950,10 +2150,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 : colorWithAlpha(theme.primaryColor, passedOpacity),
                             staticState === 'waiting'
                                 ? 0
-                                : (2 + block.fontPx * 0.1) * 0.65 * passedGlowBase,
+                                : (2 + block.fontPx * 0.1) * 0.65 * passedGlowBase * passedStyle.glowMultiplier,
                             staticState === 'waiting'
                                 ? 'transparent'
-                                : colorWithAlpha(theme.primaryColor, 0.1),
+                                : colorWithAlpha(theme.primaryColor, passedStyle.shadowAlphaBase),
                         ) ?? undefined;
 
                         if (snapshot) {
@@ -1962,6 +2162,64 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     }
 
                     if (snapshot) {
+                        if (staticState === 'passed' && effectiveTextHoldStyle === 'dimmed') {
+                            const passedAt = lineEndTime + colorTrailDuration;
+                            const baseDimAmount = resolvePassedDimAmount(time, passedAt, passedFadeDuration);
+                            const dimAmount = baseDimAmount * (1 - overviewTextRestoreProgress);
+                            const standardStyle = resolvePassedTextStyle(block.variant, 'standard');
+                            const standardCacheKey = `${block.id}:passed:standard:${snapshotScale}`;
+                            let standardSnapshot = staticBlockSnapshotCacheRef.current.get(standardCacheKey);
+
+                            if (!standardSnapshot) {
+                                standardSnapshot = createStaticBlockSnapshot(
+                                    block,
+                                    theme,
+                                    colorWithAlpha(theme.primaryColor, standardStyle.opacity),
+                                    (2 + block.fontPx * 0.1) * 0.65 * passedGlowBase * standardStyle.glowMultiplier,
+                                    colorWithAlpha(theme.primaryColor, standardStyle.shadowAlphaBase),
+                                ) ?? undefined;
+
+                                if (standardSnapshot) {
+                                    staticBlockSnapshotCacheRef.current.set(standardCacheKey, standardSnapshot);
+                                }
+                            }
+
+                            if (standardSnapshot) {
+                                if (dimAmount <= 0) {
+                                    context.drawImage(
+                                        standardSnapshot.canvas,
+                                        block.x - standardSnapshot.padding,
+                                        block.y - standardSnapshot.padding,
+                                        block.width + standardSnapshot.padding * 2,
+                                        block.height + standardSnapshot.padding * 2,
+                                    );
+                                    continue;
+                                }
+
+                                if (dimAmount < 1) {
+                                    const previousAlpha = context.globalAlpha;
+                                    context.globalAlpha = previousAlpha * (1 - dimAmount);
+                                    context.drawImage(
+                                        standardSnapshot.canvas,
+                                        block.x - standardSnapshot.padding,
+                                        block.y - standardSnapshot.padding,
+                                        block.width + standardSnapshot.padding * 2,
+                                        block.height + standardSnapshot.padding * 2,
+                                    );
+                                    context.globalAlpha = previousAlpha * dimAmount;
+                                    context.drawImage(
+                                        snapshot.canvas,
+                                        block.x - snapshot.padding,
+                                        block.y - snapshot.padding,
+                                        block.width + snapshot.padding * 2,
+                                        block.height + snapshot.padding * 2,
+                                    );
+                                    context.globalAlpha = previousAlpha;
+                                    continue;
+                                }
+                            }
+                        }
+
                         context.drawImage(
                             snapshot.canvas,
                             block.x - snapshot.padding,
@@ -2033,6 +2291,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         const globalOffset = renderLine.start + graphemeIndex;
                         const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
                         const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
+                        const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
+                        const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
                         const isPrinted = globalOffset < printedCount;
                         const isFrontier = printedCount > 0
                             && globalOffset === printedCount
@@ -2060,7 +2320,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const glyphIndexInRange = globalOffset - range.start;
                             const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
-                            const activeColor = getActiveColor(range.word.text, theme);
+                            const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
                             const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
@@ -2074,12 +2334,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
                                 shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
                             } else {
-                                alpha = mix(activeOpacity, passedOpacity, colorTrailProgress);
+                                alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
                                 fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
-                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase;
+                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
                                 shadowColor = colorWithAlpha(
                                     mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
-                                    0.1 + (1 - colorTrailProgress) * 0.16,
+                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
                                 );
                             }
 
@@ -2192,9 +2452,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         cameraSpeed,
         currentTime,
         glowIntensity,
+        passedFadeDuration,
         showPrintStamp,
         showText,
         staticMode,
+        textHoldRatio,
         theme,
         viewport.height,
         viewport.width,
