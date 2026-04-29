@@ -77,15 +77,27 @@ const clampFumeHeroScale = (value: number, fallback: number) => {
     return Math.min(1.32, Math.max(0.82, value));
 };
 
+const clampFumeTextHoldRatio = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, value));
+};
+
 const readStoredFumeTuning = (): FumeTuning => {
     const saved = localStorage.getItem('fume_tuning');
     if (!saved) return DEFAULT_FUME_TUNING;
 
     try {
-        const parsed = JSON.parse(saved) as Partial<FumeTuning>;
+        const parsed = JSON.parse(saved) as Partial<FumeTuning> & { textHoldStyle?: 'standard' | 'dimmed'; };
+        const migratedTextHoldRatio = parsed.textHoldStyle === 'dimmed'
+            ? 0.5
+            : DEFAULT_FUME_TUNING.textHoldRatio;
         return {
             hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
             disableGeometricBackground: parsed.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+            textHoldRatio: clampFumeTextHoldRatio(parsed.textHoldRatio ?? migratedTextHoldRatio, DEFAULT_FUME_TUNING.textHoldRatio),
             cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, DEFAULT_FUME_TUNING.cameraSpeed),
             glowIntensity: clampFumeGlowIntensity(parsed.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, DEFAULT_FUME_TUNING.glowIntensity),
             heroScale: clampFumeHeroScale(parsed.heroScale ?? DEFAULT_FUME_TUNING.heroScale, DEFAULT_FUME_TUNING.heroScale),
@@ -278,6 +290,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             const next = {
                 hidePrintSymbols: patch.hidePrintSymbols ?? prev.hidePrintSymbols,
                 disableGeometricBackground: patch.disableGeometricBackground ?? prev.disableGeometricBackground,
+                textHoldRatio: clampFumeTextHoldRatio(patch.textHoldRatio ?? prev.textHoldRatio, prev.textHoldRatio),
                 cameraSpeed: clampFumeCameraSpeed(patch.cameraSpeed ?? prev.cameraSpeed, prev.cameraSpeed),
                 glowIntensity: clampFumeGlowIntensity(patch.glowIntensity ?? prev.glowIntensity, prev.glowIntensity),
                 heroScale: clampFumeHeroScale(patch.heroScale ?? prev.heroScale, prev.heroScale),

@@ -416,6 +416,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const errorTextColor = isDaylight ? 'text-red-600' : 'text-red-400';
     const errorBgColor = isDaylight ? 'bg-red-500/10' : 'bg-red-500/10';
     const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
+    const rangeInputClass = [
+        'w-full h-1.5 rounded-full appearance-none cursor-pointer',
+        '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform',
+        '[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:transition-transform',
+        isDaylight
+            ? 'bg-black/15 [&::-webkit-slider-thumb]:bg-zinc-700 [&::-moz-range-thumb]:bg-zinc-700'
+            : 'bg-white/10 [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:bg-white',
+    ].join(' ');
     const shellTransition = { duration: 0.24, ease: 'easeOut' as const };
     const panelMotion = {
         initial: { opacity: 0, y: 20, scale: 0.98 },
@@ -773,7 +781,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             step="0.05"
                                             value={backgroundOpacity}
                                             onChange={(e) => setBackgroundOpacity?.(parseFloat(e.target.value))}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
                                 </div>
