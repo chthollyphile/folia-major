@@ -237,6 +237,8 @@ const FUME_BACKGROUND_PARALLAX_X = 0.9;
 const FUME_BACKGROUND_PARALLAX_Y = 0.74;
 const FUME_BACKGROUND_SCALE_FACTOR = 0.94;
 const FUME_BACKGROUND_VERTICAL_OFFSET_RATIO = 0.22;
+const FUME_CAMERA_TELEPORT_TRIGGER_SCREENS = 2.75;
+const FUME_CAMERA_TELEPORT_START_SCREENS = 1;
 
 const resolvePassedTextStyle = (
     variant: 'body' | 'hero',
@@ -1330,6 +1332,42 @@ const resolveOverviewRetargetDuration = (viewport: ViewportSize) => clamp(
     0.58,
 );
 
+const resolveCameraTeleportStart = ({
+    fromX,
+    fromY,
+    targetX,
+    targetY,
+    scale,
+    viewport,
+}: {
+    fromX: number;
+    fromY: number;
+    targetX: number;
+    targetY: number;
+    scale: number;
+    viewport: ViewportSize;
+}) => {
+    const safeScale = Math.max(scale, 0.001);
+    const minViewportSide = Math.max(Math.min(viewport.width, viewport.height), 1);
+    const deltaX = fromX - targetX;
+    const deltaY = fromY - targetY;
+    const worldDistance = Math.hypot(deltaX, deltaY);
+    const screenDistance = worldDistance * safeScale;
+
+    if (worldDistance <= 0 || screenDistance < minViewportSide * FUME_CAMERA_TELEPORT_TRIGGER_SCREENS) {
+        return null;
+    }
+
+    const startWorldDistance = (minViewportSide * FUME_CAMERA_TELEPORT_START_SCREENS) / safeScale;
+    const directionX = deltaX / worldDistance;
+    const directionY = deltaY / worldDistance;
+
+    return {
+        x: targetX + directionX * startWorldDistance,
+        y: targetY + directionY * startWorldDistance,
+    };
+};
+
 const resolveArticleOverviewCamera = (
     article: FumeArticleLayout,
     viewport: ViewportSize,
@@ -1871,6 +1909,29 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const screenDeltaY = Math.abs(targetCameraY - cameraRetargetRef.current.fromY) * bridgeScale;
                 const screenDistance = Math.hypot(screenDeltaX, screenDeltaY);
                 cameraRetargetRef.current.useLinearBridge = screenDistance >= Math.min(viewport.width, viewport.height) * 0.42;
+
+                if (cameraRetargetRef.current.sourceLineIndex >= 0) {
+                    const teleportStart = resolveCameraTeleportStart({
+                        fromX: cameraRetargetRef.current.fromX,
+                        fromY: cameraRetargetRef.current.fromY,
+                        targetX: targetCameraX,
+                        targetY: targetCameraY,
+                        scale: bridgeScale,
+                        viewport,
+                    });
+
+                    if (teleportStart) {
+                        cameraRef.current.x = clamp(teleportStart.x, 0, article.width);
+                        cameraRef.current.y = clamp(teleportStart.y, 0, article.height);
+                        cameraRef.current.focusX = cameraRef.current.x;
+                        cameraRef.current.focusY = cameraRef.current.y;
+                        cameraRef.current.velocityX = 0;
+                        cameraRef.current.velocityY = 0;
+                        cameraRetargetRef.current.fromX = cameraRef.current.x;
+                        cameraRetargetRef.current.fromY = cameraRef.current.y;
+                        cameraRetargetRef.current.useLinearBridge = true;
+                    }
+                }
             }
 
             const cameraDistance = Math.hypot(
