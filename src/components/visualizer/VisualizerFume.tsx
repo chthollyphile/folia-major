@@ -103,19 +103,6 @@ interface StaticBlockSnapshot {
     padding: number;
 }
 
-interface FumeDrawDiagnostics {
-    lastLoggedAt: number;
-    frames: number;
-    createdSnapshots: number;
-    staticDraws: number;
-    dynamicBlocks: number;
-    dynamicGlyphs: number;
-    maxCreatedSnapshots: number;
-    maxStaticDraws: number;
-    maxDynamicBlocks: number;
-    maxDynamicGlyphs: number;
-}
-
 interface FumeLayoutAttemptOptions {
     paperWidth: number;
     viewportHeight: number;
@@ -1541,18 +1528,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const currentLineIndexRef = useRef(currentLineIndex);
     const cameraInitializedRef = useRef(false);
-    const drawDiagnosticsRef = useRef<FumeDrawDiagnostics>({
-        lastLoggedAt: 0,
-        frames: 0,
-        createdSnapshots: 0,
-        staticDraws: 0,
-        dynamicBlocks: 0,
-        dynamicGlyphs: 0,
-        maxCreatedSnapshots: 0,
-        maxStaticDraws: 0,
-        maxDynamicBlocks: 0,
-        maxDynamicGlyphs: 0,
-    });
     const cameraRetargetRef = useRef<CameraRetargetState>({
         sourceLineIndex: -1,
         startedAt: 0,
@@ -1797,10 +1772,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
         const draw = () => {
             const now = performance.now();
-            let frameCreatedSnapshots = 0;
-            let frameStaticDraws = 0;
-            let frameDynamicBlocks = 0;
-            let frameDynamicGlyphs = 0;
             const dt = lastFrameAt === null
                 ? 1 / 60
                 : clamp((now - lastFrameAt) / 1000, 1 / 240, 0.05);
@@ -2170,10 +2141,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     const cacheKey = `${block.id}:${staticState}:${cacheStyleKey}:${snapshotScale}`;
                     let snapshot = staticBlockSnapshotCacheRef.current.get(cacheKey);
 
-                    if (!snapshot) {
-                        snapshot = createStaticBlockSnapshot(
-                            block,
-                            theme,
+                        if (!snapshot) {
+                            snapshot = createStaticBlockSnapshot(
+                                block,
+                                theme,
                             staticState === 'waiting'
                                 ? colorWithAlpha(theme.primaryColor, waitingOpacity)
                                 : colorWithAlpha(theme.primaryColor, passedOpacity),
@@ -2187,7 +2158,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                         if (snapshot) {
                             staticBlockSnapshotCacheRef.current.set(cacheKey, snapshot);
-                            frameCreatedSnapshots += 1;
                         }
                     }
 
@@ -2211,13 +2181,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                                 if (standardSnapshot) {
                                     staticBlockSnapshotCacheRef.current.set(standardCacheKey, standardSnapshot);
-                                    frameCreatedSnapshots += 1;
                                 }
                             }
 
                             if (standardSnapshot) {
                                 if (dimAmount <= 0) {
-                                    frameStaticDraws += 1;
                                     context.drawImage(
                                         standardSnapshot.canvas,
                                         block.x - standardSnapshot.padding,
@@ -2231,7 +2199,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 if (dimAmount < 1) {
                                     const previousAlpha = context.globalAlpha;
                                     context.globalAlpha = previousAlpha * (1 - dimAmount);
-                                    frameStaticDraws += 2;
                                     context.drawImage(
                                         standardSnapshot.canvas,
                                         block.x - standardSnapshot.padding,
@@ -2253,7 +2220,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             }
                         }
 
-                        frameStaticDraws += 1;
                         context.drawImage(
                             snapshot.canvas,
                             block.x - snapshot.padding,
@@ -2273,7 +2239,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     time,
                 );
                 const totalGraphemeCount = block.graphemes.length;
-                frameDynamicBlocks += 1;
 
                 context.save();
                 context.font = buildCanvasFont(block, theme);
@@ -2310,7 +2275,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             }
 
                             const glyphX = glowBaseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
-                            frameDynamicGlyphs += 1;
                             context.fillText(grapheme, glyphX, glowBaseY);
                         }
                     }
@@ -2461,7 +2425,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         context.fillStyle = fillStyle;
                         context.shadowBlur = shadowBlur;
                         context.shadowColor = shadowColor;
-                        frameDynamicGlyphs += 1;
                         context.fillText(grapheme, glyphX, baseY);
                         context.shadowBlur = 0;
                         context.shadowColor = 'transparent';
@@ -2472,42 +2435,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             }
             }
             context.restore();
-
-            const diagnostics = drawDiagnosticsRef.current;
-            diagnostics.frames += 1;
-            diagnostics.createdSnapshots += frameCreatedSnapshots;
-            diagnostics.staticDraws += frameStaticDraws;
-            diagnostics.dynamicBlocks += frameDynamicBlocks;
-            diagnostics.dynamicGlyphs += frameDynamicGlyphs;
-            diagnostics.maxCreatedSnapshots = Math.max(diagnostics.maxCreatedSnapshots, frameCreatedSnapshots);
-            diagnostics.maxStaticDraws = Math.max(diagnostics.maxStaticDraws, frameStaticDraws);
-            diagnostics.maxDynamicBlocks = Math.max(diagnostics.maxDynamicBlocks, frameDynamicBlocks);
-            diagnostics.maxDynamicGlyphs = Math.max(diagnostics.maxDynamicGlyphs, frameDynamicGlyphs);
-
-            if (now - diagnostics.lastLoggedAt >= 1000) {
-                const frames = Math.max(diagnostics.frames, 1);
-                console.log(
-                    '[VisualizerFume] draw diagnostics '
-                    + `frames=${frames} `
-                    + `created=${(diagnostics.createdSnapshots / frames).toFixed(2)}/${diagnostics.maxCreatedSnapshots} `
-                    + `static=${(diagnostics.staticDraws / frames).toFixed(2)}/${diagnostics.maxStaticDraws} `
-                    + `dynamicBlocks=${(diagnostics.dynamicBlocks / frames).toFixed(2)}/${diagnostics.maxDynamicBlocks} `
-                    + `dynamicGlyphs=${(diagnostics.dynamicGlyphs / frames).toFixed(2)}/${diagnostics.maxDynamicGlyphs} `
-                    + `cache=${staticBlockSnapshotCacheRef.current.size}`
-                );
-                drawDiagnosticsRef.current = {
-                    lastLoggedAt: now,
-                    frames: 0,
-                    createdSnapshots: 0,
-                    staticDraws: 0,
-                    dynamicBlocks: 0,
-                    dynamicGlyphs: 0,
-                    maxCreatedSnapshots: 0,
-                    maxStaticDraws: 0,
-                    maxDynamicBlocks: 0,
-                    maxDynamicGlyphs: 0,
-                };
-            }
 
             frameId = window.requestAnimationFrame(draw);
         };
