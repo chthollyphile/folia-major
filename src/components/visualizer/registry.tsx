@@ -14,8 +14,9 @@ import Visualizer from './Visualizer';
 import VisualizerCadenza from './VisualizerCadenza';
 import VisualizerPartita from './VisualizerPartita';
 import VisualizerFume from './VisualizerFume';
+import VisualizerSpatial from './VisualizerSpatial';
 
-export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
+export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume' | 'spatial';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -192,6 +193,40 @@ const renderFume = ({
     />
 );
 
+const renderSpatial = ({
+    currentTime,
+    currentLineIndex,
+    lines,
+    theme,
+    audioPower,
+    audioBands,
+    showText,
+    coverUrl,
+    useCoverColorBg,
+    seed,
+    staticMode,
+    backgroundOpacity,
+    lyricsFontScale,
+    onBack,
+}: VisualizerSharedProps) => (
+    <VisualizerSpatial
+        currentTime={currentTime}
+        currentLineIndex={currentLineIndex}
+        lines={lines}
+        theme={theme}
+        audioPower={audioPower}
+        audioBands={audioBands}
+        showText={showText}
+        coverUrl={coverUrl}
+        useCoverColorBg={useCoverColorBg}
+        seed={seed}
+        staticMode={staticMode}
+        backgroundOpacity={backgroundOpacity}
+        lyricsFontScale={lyricsFontScale}
+        onBack={onBack}
+    />
+);
+
 const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntry> = {
     classic: {
         mode: 'classic',
@@ -228,6 +263,15 @@ const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntr
         previewStartOffset: 18.4,
         tuningKind: 'fume',
         render: renderFume,
+    },
+    spatial: {
+        mode: 'spatial',
+        labelKey: 'ui.visualizerSpatial',
+        labelFallback: '空庭',
+        previewSeed: 'spatial',
+        previewStartOffset: 8.2,
+        tuningKind: 'spatial',
+        render: renderSpatial,
     },
 };
 
