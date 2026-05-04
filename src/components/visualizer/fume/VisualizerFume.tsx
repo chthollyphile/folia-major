@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
 import { Hourglass } from 'lucide-react';
-import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../types';
-import { resolveThemeFontStack } from '../../utils/fontStacks';
-import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../utils/lyrics/renderHints';
-import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from './FumeBackground';
-import { getRecentCompletedLine, getUpcomingLines } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../../types';
+import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
+import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from '../FumeBackground';
+import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 interface VisualizerProps {
     currentTime: MotionValue<number>;

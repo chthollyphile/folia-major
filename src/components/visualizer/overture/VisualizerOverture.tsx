@@ -3,12 +3,12 @@ import { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import { layoutWithLines, prepareWithSegments, type LayoutLine } from '@chenglou/pretext';
-import { AudioBands, Line, Theme } from '../../types';
-import { resolveThemeFontStack } from '../../utils/fontStacks';
-import { getLineRenderEndTime } from '../../utils/lyrics/renderHints';
-import { useVisualizerRuntime } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { AudioBands, Line, Theme } from '../../../types';
+import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { useVisualizerRuntime } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 // Visualizer overture
 interface VisualizerProps {

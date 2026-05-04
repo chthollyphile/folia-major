@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments, type LayoutLine, type LayoutCursor, type PreparedTextWithSegments } from '@chenglou/pretext';
-import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../../types';
-import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../utils/lyrics/renderHints';
-import { resolveThemeFontStack } from '../../utils/fontStacks';
-import { prepareActiveAndUpcoming, useVisualizerRuntime } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../../../types';
+import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../../utils/lyrics/renderHints';
+import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 // Visualizer cadenza
 interface VisualizerProps {

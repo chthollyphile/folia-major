@@ -4,10 +4,11 @@
 
 当前已有实现：
 
-- `Visualizer.tsx`: 经典流光模式
-- `VisualizerCadenza.tsx`: 心象模式
-- `VisualizerPartita.tsx`: 云阶模式
-- `VisualizerFume.tsx`: 浮名模式
+- `classic/Visualizer.tsx`: 经典流光模式
+- `cadenza/VisualizerCadenza.tsx`: 心象模式
+- `partita/VisualizerPartita.tsx`: 云阶模式
+- `fume/VisualizerFume.tsx`: 浮名模式
+- `overture/VisualizerOverture.tsx`: 序曲模式
 - `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
@@ -124,6 +125,33 @@ export default VisualizerFoo;
 
 当前目录已经开始按“共享基座 + 各自 renderer”组织，而不是每个 visualizer 都各写一整棵树。
 
+当前推荐目录结构：
+
+```text
+visualizer/
+├─ FluidBackground.tsx
+├─ FumeBackground.ts
+├─ GeometricBackground.tsx
+├─ PreviewPlaceholder.ts
+├─ README.md
+├─ registry.tsx
+├─ runtime.ts
+├─ VisPlayground.tsx
+├─ VisualizerRenderer.tsx
+├─ VisualizerShell.tsx
+├─ VisualizerSubtitleOverlay.tsx
+├─ classic/
+│  └─ Visualizer.tsx
+├─ cadenza/
+│  └─ VisualizerCadenza.tsx
+├─ partita/
+│  └─ VisualizerPartita.tsx
+├─ fume/
+│  └─ VisualizerFume.tsx
+└─ overture/
+   └─ VisualizerOverture.tsx
+```
+
 ### 1. 共享壳层
 
 - `VisualizerShell.tsx`
@@ -166,11 +194,11 @@ export default VisualizerFoo;
 
 每个 visualizer 仍然保留自己的主歌词渲染引擎：
 
-- `Visualizer.tsx`
+- `classic/Visualizer.tsx`
   DOM + Framer Motion 的自由散点词布局
-- `VisualizerPartita.tsx`
+- `partita/VisualizerPartita.tsx`
   DOM + Framer Motion 的分列 / 分块布局
-- `VisualizerCadenza.tsx`
+- `cadenza/VisualizerCadenza.tsx`
   canvas + DOM overlay 的重型排版 / 动画引擎
 
 不要把这三种 renderer 强行揉成一个统一组件。共享的是壳层、runtime、字幕层、预热入口，不是具体渲染算法。
@@ -236,11 +264,11 @@ export default VisualizerFoo;
 
 ### 已有模式
 
-- `VisualizerPartita.tsx`
+- `partita/VisualizerPartita.tsx`
   使用布局缓存，并在进入时间窗口时预热下一句布局
-- `VisualizerCadenza.tsx`
+- `cadenza/VisualizerCadenza.tsx`
   使用更重的 prepared-state 缓存，并在计算当前句时顺手准备 upcoming line
-- `Visualizer.tsx`
+- `classic/Visualizer.tsx`
   当前没有专门的重型预热层，保持即时布局计算
 
 ### 设计原则
@@ -267,11 +295,11 @@ export default VisualizerFoo;
 import React from 'react';
 import { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Line, Theme, AudioBands } from '../../types';
-import { getLineRenderEndTime } from '../../utils/lyrics/renderHints';
-import { useVisualizerRuntime } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { Line, Theme, AudioBands } from '../../../types';
+import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { useVisualizerRuntime } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 interface VisualizerFooProps {
     currentTime: MotionValue<number>;

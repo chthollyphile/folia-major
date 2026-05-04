@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_PARTITA_TUNING, Line, Theme, Word as WordType, AudioBands, type PartitaTuning } from '../../types';
-import { getLineRenderEndTime, getLineRenderHints } from '../../utils/lyrics/renderHints';
-import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { DEFAULT_PARTITA_TUNING, Line, Theme, Word as WordType, AudioBands, type PartitaTuning } from '../../../types';
+import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
+import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 // Visualizer Partita
 

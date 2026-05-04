@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Line, Theme, Word as WordType, AudioBands } from '../../types';
-import { getLineRenderEndTime, getLineRenderHints } from '../../utils/lyrics/renderHints';
-import { useVisualizerRuntime } from './runtime';
-import VisualizerShell from './VisualizerShell';
-import VisualizerSubtitleOverlay from './VisualizerSubtitleOverlay';
+import { Line, Theme, Word as WordType, AudioBands } from '../../../types';
+import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
+import { useVisualizerRuntime } from '../runtime';
+import VisualizerShell from '../VisualizerShell';
+import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
 // Visualizer classic
 interface VisualizerProps {

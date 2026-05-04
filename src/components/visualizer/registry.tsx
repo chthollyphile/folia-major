@@ -10,11 +10,11 @@ import {
     type Theme,
     type VisualizerMode,
 } from '../../types';
-import Visualizer from './Visualizer';
-import VisualizerCadenza from './VisualizerCadenza';
-import VisualizerPartita from './VisualizerPartita';
-import VisualizerFume from './VisualizerFume';
-import VisualizerOverture from './VisualizerOverture';
+import Visualizer from './classic/Visualizer';
+import VisualizerCadenza from './cadenza/VisualizerCadenza';
+import VisualizerPartita from './partita/VisualizerPartita';
+import VisualizerFume from './fume/VisualizerFume';
+import VisualizerOverture from './overture/VisualizerOverture';
 
 export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
 
