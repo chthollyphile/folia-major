@@ -31,94 +31,117 @@ interface ViewportSize {
     height: number;
 }
 
-type GeometryPieceKind = 'platform' | 'bridge' | 'title' | 'translation' | 'hazard' | 'ground';
 type RhythmUnitKind = 'cjk' | 'word' | 'symbol';
+type ObstacleShape = 'rect' | 'triangle' | 'circle' | 'text';
+type WindowLineWeight = 'active' | 'upcoming';
 
-interface OvertureRhythmNode {
+interface WindowLine {
+    line: Line;
+    sourceIndex: number;
+    weight: WindowLineWeight;
+}
+
+interface FocusUnit {
     id: string;
-    blockIndex: number;
     text: string;
+    lineIndex: number;
+    sourceLineIndex: number;
+    weight: WindowLineWeight;
     startTime: number;
     endTime: number;
+    pathDistance: number;
+    segmentStartDistance: number;
+    segmentEndDistance: number;
     x: number;
     y: number;
     width: number;
     height: number;
-    entryTangent: number;
-    exitTangent: number;
+    rotation: number;
+    fontSize: number;
+    segmentIndex: number;
     kind: RhythmUnitKind;
 }
 
-interface OvertureGeometryPiece {
+interface PathPoint {
+    x: number;
+    y: number;
+}
+
+interface PathMetrics {
+    points: PathPoint[];
+    segmentLengths: number[];
+    cumulativeStarts: number[];
+    totalLength: number;
+}
+
+interface ObstaclePiece {
     id: string;
-    kind: GeometryPieceKind;
+    shape: ObstacleShape;
     x: number;
     y: number;
     width: number;
     height: number;
+    rotation: number;
     text?: string;
+    alpha: number;
+    lineIndex: number;
 }
 
-interface OvertureBlock {
-    id: string;
-    index: number;
-    line: Line;
-    startX: number;
-    endX: number;
-    groundY: number;
-    titleGeometry: OvertureGeometryPiece[];
-    currentLineChannel: OvertureGeometryPiece[];
-    translationGeometry: OvertureGeometryPiece[];
-    platforms: OvertureGeometryPiece[];
-    hazards: OvertureGeometryPiece[];
-    rhythmNodes: OvertureRhythmNode[];
+interface LineAnchor {
+    lineIndex: number;
+    sourceLineIndex: number;
+    startDistance: number;
+    endDistance: number;
+    centerX: number;
+    centerY: number;
+    targetX: number;
+    targetY: number;
 }
 
-interface OvertureWorld {
-    blocks: OvertureBlock[];
-    nodes: OvertureRhythmNode[];
+interface OvertureWindow {
+    focusUnits: FocusUnit[];
+    lineAnchors: LineAnchor[];
+    pathMetrics: PathMetrics;
+    obstacles: ObstaclePiece[];
     worldWidth: number;
     worldHeight: number;
 }
 
-interface ChannelNodeView {
-    node: OvertureRhythmNode;
-    frame: Graphics;
+interface FocusSnapshot {
+    unitIndex: number;
+    distance: number;
+    x: number;
+    y: number;
+    angle: number;
+    segmentIndex: number;
+    progress: number;
+}
+
+interface LyricsView {
+    unit: FocusUnit;
     text: Text;
 }
 
-interface GeometryLabelView {
-    shape: Graphics;
-    text?: Text;
+interface ObstacleTextView {
+    obstacle: ObstaclePiece;
+    text: Text;
 }
 
 interface SceneViews {
-    channelViews: ChannelNodeView[];
-    titleViews: GeometryLabelView[];
-    translationViews: GeometryLabelView[];
+    lyricsViews: LyricsView[];
+    obstacleTextViews: ObstacleTextView[];
 }
 
 interface CameraState {
     x: number;
     y: number;
     scale: number;
-    velocityX: number;
-    velocityY: number;
     velocityScale: number;
-}
-
-interface FocusSnapshot {
-    nodeIndex: number;
-    positionX: number;
-    positionY: number;
-    angle: number;
-    progress: number;
 }
 
 const DEFAULT_VIEWPORT: ViewportSize = { width: 0, height: 0 };
 const CJK_REGEX = /[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
 const LATIN_REGEX = /[A-Za-z0-9]/;
-const MAX_FORWARD_HINT_SEGMENTS = 5;
 
 const graphemeSegmenter = typeof Intl !== 'undefined'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
@@ -138,8 +161,6 @@ const splitGraphemes = (text: string) => {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
-const easeOutCubic = (value: number) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
-const easeInCubic = (value: number) => Math.pow(clamp(value, 0, 1), 3);
 const easeInOutCubic = (value: number) => {
     const normalized = clamp(value, 0, 1);
     return normalized < 0.5
@@ -157,6 +178,9 @@ const hashToUnit = (input: string) => {
 
     return ((hash >>> 0) % 10000) / 10000;
 };
+
+const normalizeUnitText = (text: string) => text.replace(/\s+/g, ' ').trim();
+const isLatinWord = (text: string) => LATIN_REGEX.test(text) && !CJK_REGEX.test(text);
 
 const colorToRgb = (color: string, fallback: { r: number, g: number, b: number }) => {
     if (color.startsWith('#')) {
@@ -225,99 +249,21 @@ const createMeasureContext = () => {
     return canvas.getContext('2d');
 };
 
-const drawRotatedRect = (
-    graphics: Graphics,
-    centerX: number,
-    centerY: number,
-    width: number,
-    height: number,
-    angle: number,
-    color: number,
-    alpha: number,
-    strokeWidth = 0
-) => {
-    const halfWidth = width * 0.5;
-    const halfHeight = height * 0.5;
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const points = [
-        { x: -halfWidth, y: -halfHeight },
-        { x: halfWidth, y: -halfHeight },
-        { x: halfWidth, y: halfHeight },
-        { x: -halfWidth, y: halfHeight },
-    ].map(point => ({
-        x: centerX + point.x * cos - point.y * sin,
-        y: centerY + point.x * sin + point.y * cos,
-    }));
-
-    graphics
-        .moveTo(points[0]!.x, points[0]!.y)
-        .lineTo(points[1]!.x, points[1]!.y)
-        .lineTo(points[2]!.x, points[2]!.y)
-        .lineTo(points[3]!.x, points[3]!.y)
-        .closePath();
-
-    if (strokeWidth > 0) {
-        graphics.stroke({ color, width: strokeWidth, alpha });
-        return;
-    }
-
-    graphics.fill({ color, alpha });
-};
-
-const drawTriangle = (
-    graphics: Graphics,
-    centerX: number,
-    centerY: number,
-    size: number,
-    angle: number,
-    color: number,
-    alpha: number,
-    strokeWidth = 0
-) => {
-    const points = [0, Math.PI * 0.66, -Math.PI * 0.66].map(offset => ({
-        x: centerX + Math.cos(angle + offset) * size,
-        y: centerY + Math.sin(angle + offset) * size,
-    }));
-
-    graphics
-        .moveTo(points[0]!.x, points[0]!.y)
-        .lineTo(points[1]!.x, points[1]!.y)
-        .lineTo(points[2]!.x, points[2]!.y)
-        .closePath();
-
-    if (strokeWidth > 0) {
-        graphics.stroke({ color, width: strokeWidth, alpha });
-        return;
-    }
-
-    graphics.fill({ color, alpha });
-};
-
-const isLatinWord = (text: string) => LATIN_REGEX.test(text) && !CJK_REGEX.test(text);
-
-const normalizeUnitText = (text: string) => text.replace(/\s+/g, ' ').trim();
-
 const buildFallbackWords = (line: Line): Word[] => {
     const tokens = normalizeUnitText(line.fullText).match(/[A-Za-z0-9'’-]+|[^\s]/g) ?? [];
     if (!tokens.length) {
         return [];
     }
 
-    return tokens.map((token, index) => {
-        const startRatio = index / tokens.length;
-        const endRatio = (index + 1) / tokens.length;
-
-        return {
-            text: token,
-            startTime: mix(line.startTime, line.endTime, startRatio),
-            endTime: mix(line.startTime, line.endTime, endRatio),
-        };
-    });
+    return tokens.map((token, index) => ({
+        text: token,
+        startTime: mix(line.startTime, line.endTime, index / tokens.length),
+        endTime: mix(line.startTime, line.endTime, (index + 1) / tokens.length),
+    }));
 };
 
-// Align rhythm units to lyric timing while keeping English words intact and CJK character-driven.
-const buildRhythmUnits = (line: Line) => {
+// Split each visible lyric line into the exact focus units used by the hidden guide path.
+const buildFocusUnitsFromLine = (line: Line) => {
     const words = line.words.length > 0 ? line.words : buildFallbackWords(line);
     const units: Array<{ text: string, startTime: number, endTime: number, kind: RhythmUnitKind }> = [];
 
@@ -343,12 +289,10 @@ const buildRhythmUnits = (line: Line) => {
         }
 
         graphemes.forEach((grapheme, index) => {
-            const startRatio = index / graphemes.length;
-            const endRatio = (index + 1) / graphemes.length;
             units.push({
                 text: grapheme,
-                startTime: mix(word.startTime, word.endTime, startRatio),
-                endTime: mix(word.startTime, word.endTime, endRatio),
+                startTime: mix(word.startTime, word.endTime, index / graphemes.length),
+                endTime: mix(word.startTime, word.endTime, (index + 1) / graphemes.length),
                 kind: CJK_REGEX.test(grapheme) ? 'cjk' : 'symbol',
             });
         });
@@ -357,273 +301,80 @@ const buildRhythmUnits = (line: Line) => {
     return units;
 };
 
-const getUnitFontSize = (text: string, viewport: ViewportSize, lyricsFontScale: number) => {
-    const textLength = splitGraphemes(text).length;
-    return clamp(
-        viewport.width * (textLength <= 2 ? 0.05 : textLength <= 5 ? 0.044 : 0.038) * lyricsFontScale,
-        24 * lyricsFontScale,
-        56 * lyricsFontScale
-    );
-};
+const computePathMetrics = (points: PathPoint[]): PathMetrics => {
+    const segmentLengths: number[] = [];
+    const cumulativeStarts: number[] = [];
+    let totalLength = 0;
 
-const measureTextBox = (
-    measureContext: CanvasRenderingContext2D,
-    text: string,
-    fontPx: number,
-    theme: Theme
-) => {
-    measureContext.font = `800 ${Math.round(fontPx)}px ${resolveThemeFontStack(theme)}`;
-    const width = Math.max(measureContext.measureText(text).width, fontPx * 0.72);
+    for (let index = 0; index < points.length - 1; index += 1) {
+        cumulativeStarts.push(totalLength);
+        const from = points[index]!;
+        const to = points[index + 1]!;
+        const length = Math.hypot(to.x - from.x, to.y - from.y);
+        segmentLengths.push(length);
+        totalLength += length;
+    }
+
     return {
-        width,
-        height: fontPx * 1.06,
+        points,
+        segmentLengths,
+        cumulativeStarts,
+        totalLength,
     };
 };
 
-const buildOvertureWorld = ({
-    lines,
-    viewport,
-    theme,
-    lyricsFontScale,
-    seed,
-}: {
-    lines: Line[];
-    viewport: ViewportSize;
-    theme: Theme;
-    lyricsFontScale: number;
-    seed: string | number | undefined;
-}): OvertureWorld => {
-    if (viewport.width <= 0 || viewport.height <= 0 || !lines.length) {
-        return {
-            blocks: [],
-            nodes: [],
-            worldWidth: viewport.width,
-            worldHeight: viewport.height,
-        };
-    }
-
-    const measureContext = createMeasureContext();
-    if (!measureContext) {
-        return {
-            blocks: [],
-            nodes: [],
-            worldWidth: viewport.width,
-            worldHeight: viewport.height,
-        };
-    }
-
-    const filtered = lines
-        .map((line, index) => ({ line, index }))
-        .filter(({ line }) => line.fullText.trim().length > 0);
-    const blocks: OvertureBlock[] = [];
-    const nodes: OvertureRhythmNode[] = [];
-    const worldHeight = Math.max(viewport.height * 1.55, 760);
-    let cursorX = Math.max(viewport.width * 0.26, 220);
-
-    filtered.forEach(({ line, index }) => {
-        const rhythmUnits = buildRhythmUnits(line);
-        if (!rhythmUnits.length) {
-            return;
-        }
-
-        const blockSeed = `${seed ?? 'overture'}:${index}:${line.fullText}`;
-        const avgDuration = Math.max((line.endTime - line.startTime) / rhythmUnits.length, 0.04);
-        const groundY = viewport.height * 0.76;
-        const baseY = viewport.height * 0.46;
-        const baseSpacing = clamp(viewport.width * 0.06, 64, 110);
-        const densityBoost = clamp((0.34 - avgDuration) * 180, 0, 42);
-        const minSpacing = baseSpacing + densityBoost;
-        const titleText = line.fullText.trim();
-        const translationText = normalizeUnitText(line.translation ?? '');
-        const titleGeometry: OvertureGeometryPiece[] = [];
-        const translationGeometry: OvertureGeometryPiece[] = [];
-        const currentLineChannel: OvertureGeometryPiece[] = [];
-        const platforms: OvertureGeometryPiece[] = [];
-        const hazards: OvertureGeometryPiece[] = [];
-        const blockNodes: OvertureRhythmNode[] = [];
-        let lastNodeX = cursorX;
-        let blockStartX = cursorX;
-
-        rhythmUnits.forEach((unit, unitIndex) => {
-            const fontPx = getUnitFontSize(unit.text, viewport, lyricsFontScale);
-            const textBox = measureTextBox(measureContext, unit.text, fontPx, theme);
-            const zigzagAmplitude = mix(34, 86, hashToUnit(`${blockSeed}:zigzag-a`));
-            const wave = Math.sin(unitIndex * 1.02 + hashToUnit(`${blockSeed}:wave`)) * mix(6, 18, hashToUnit(`${blockSeed}:wave-span`));
-            const zigzag = ((unitIndex % 2 === 0 ? -1 : 1) * zigzagAmplitude);
-            const stair = ((unitIndex % 5) - 2) * mix(6, 20, hashToUnit(`${blockSeed}:stair`));
-            const x = unitIndex === 0
-                ? cursorX
-                : lastNodeX + Math.max(minSpacing, textBox.width * (unit.kind === 'word' ? 1.05 : 0.86));
-            const y = baseY + zigzag + wave + stair;
-            const prevX = unitIndex === 0 ? x - minSpacing * 0.6 : blockNodes[unitIndex - 1]!.x;
-            const prevY = unitIndex === 0 ? y : blockNodes[unitIndex - 1]!.y;
-            const nextPreviewY = baseY
-                + (((unitIndex + 1) % 2 === 0 ? -1 : 1) * zigzagAmplitude)
-                + Math.sin((unitIndex + 1) * 1.02 + hashToUnit(`${blockSeed}:wave`)) * mix(6, 18, hashToUnit(`${blockSeed}:wave-span`))
-                + ((((unitIndex + 1) % 5) - 2) * mix(6, 20, hashToUnit(`${blockSeed}:stair`)));
-            const exitAngle = Math.atan2(nextPreviewY - y, minSpacing);
-            const node: OvertureRhythmNode = {
-                id: `overture-node-${index}-${unitIndex}`,
-                blockIndex: index,
-                text: unit.text,
-                startTime: unit.startTime,
-                endTime: Math.max(unit.endTime, unit.startTime + 0.04),
-                x,
-                y,
-                width: textBox.width,
-                height: textBox.height,
-                entryTangent: Math.atan2(y - prevY, Math.max(x - prevX, 1)),
-                exitTangent: exitAngle,
-                kind: unit.kind,
-            };
-
-            blockNodes.push(node);
-            nodes.push(node);
-            lastNodeX = x;
-
-            currentLineChannel.push({
-                id: `channel-${node.id}`,
-                kind: 'bridge',
-                x: x - textBox.width * 0.66,
-                y: y - textBox.height * 0.7,
-                width: textBox.width * 1.32,
-                height: textBox.height * 1.4,
-                text: unit.text,
-            });
-
-            platforms.push({
-                id: `platform-${node.id}`,
-                kind: 'platform',
-                x: x - textBox.width * 0.4,
-                y: y + textBox.height * 0.86,
-                width: textBox.width * 0.8,
-                height: 4,
-            });
-        });
-
-        const blockEndX = lastNodeX + Math.max(viewport.width * 0.18, 180);
-        const titleFont = clamp(viewport.width * 0.052 * lyricsFontScale, 34, 64);
-        const titleBox = measureTextBox(measureContext, titleText, titleFont, theme);
-        titleGeometry.push({
-            id: `title-${index}`,
-            kind: 'title',
-            x: blockStartX + mix(40, 180, hashToUnit(`${blockSeed}:title-x`)),
-            y: mix(40, viewport.height * 0.24, hashToUnit(`${blockSeed}:title-y`)),
-            width: titleBox.width,
-            height: titleBox.height,
-            text: titleText,
-        });
-
-        if (translationText) {
-            const translationFont = clamp(viewport.width * 0.024 * lyricsFontScale, 18, 28);
-            const translationBox = measureTextBox(measureContext, translationText, translationFont, theme);
-            translationGeometry.push({
-                id: `translation-${index}`,
-                kind: 'translation',
-                x: blockStartX + mix(120, 320, hashToUnit(`${blockSeed}:translation-x`)),
-                y: mix(viewport.height * 0.66, viewport.height * 0.88, hashToUnit(`${blockSeed}:translation-y`)),
-                width: translationBox.width,
-                height: translationBox.height,
-                text: translationText,
-            });
-        }
-
-        blocks.push({
-            id: `overture-block-${index}`,
-            index,
-            line,
-            startX: blockStartX,
-            endX: blockEndX,
-            groundY,
-            titleGeometry,
-            currentLineChannel,
-            translationGeometry,
-            platforms,
-            hazards,
-            rhythmNodes: blockNodes,
-        });
-
-        cursorX = blockEndX + Math.max(viewport.width * 0.08, 90);
-    });
-
+const getSegmentNormal = (from: PathPoint, to: PathPoint) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
     return {
-        blocks,
-        nodes,
-        worldWidth: Math.max(cursorX + viewport.width * 0.2, viewport.width * 1.25),
-        worldHeight,
+        x: -dy / length,
+        y: dx / length,
     };
 };
 
-const getFocusSnapshot = (nodes: OvertureRhythmNode[], currentTimeValue: number, staticMode: boolean): FocusSnapshot | null => {
-    if (!nodes.length) {
-        return null;
-    }
-
-    if (currentTimeValue <= nodes[0]!.startTime) {
+// Sample the hidden guide path at a distance so arrow motion follows corners instead of cutting through them.
+const samplePath = (metrics: PathMetrics, distance: number) => {
+    if (metrics.points.length < 2 || metrics.segmentLengths.length === 0) {
         return {
-            nodeIndex: 0,
-            positionX: nodes[0]!.x,
-            positionY: nodes[0]!.y,
-            angle: nodes[0]!.exitTangent,
-            progress: nodes[0]!.startTime,
+            x: metrics.points[0]?.x ?? 0,
+            y: metrics.points[0]?.y ?? 0,
+            angle: 0,
+            segmentIndex: 0,
+            progress: 0,
         };
     }
 
-    for (let index = 0; index < nodes.length; index += 1) {
-        const node = nodes[index]!;
-        const nextNode = nodes[index + 1] ?? null;
-        const isSameBlockAsNext = Boolean(nextNode && nextNode.blockIndex === node.blockIndex);
-
-        if (isSameBlockAsNext && nextNode && currentTimeValue < nextNode.startTime) {
-            const segmentProgress = clamp(
-                (currentTimeValue - node.startTime) / Math.max(nextNode.startTime - node.startTime, 0.0001),
+    const clampedDistance = clamp(distance, 0, metrics.totalLength);
+    for (let index = 0; index < metrics.segmentLengths.length; index += 1) {
+        const startDistance = metrics.cumulativeStarts[index]!;
+        const endDistance = startDistance + metrics.segmentLengths[index]!;
+        if (clampedDistance <= endDistance || index === metrics.segmentLengths.length - 1) {
+            const local = clamp(
+                (clampedDistance - startDistance) / Math.max(metrics.segmentLengths[index]!, 0.0001),
                 0,
                 1
             );
-            const eased = staticMode ? 0 : easeInOutCubic(segmentProgress);
+            const from = metrics.points[index]!;
+            const to = metrics.points[index + 1]!;
             return {
-                nodeIndex: index,
-                positionX: mix(node.x, nextNode.x, eased),
-                positionY: mix(node.y, nextNode.y, eased),
-                angle: Math.atan2(nextNode.y - node.y, nextNode.x - node.x),
-                progress: currentTimeValue,
-            };
-        }
-
-        if (currentTimeValue <= node.endTime || !nextNode) {
-            return {
-                nodeIndex: index,
-                positionX: node.x,
-                positionY: node.y,
-                angle: nextNode ? Math.atan2(nextNode.y - node.y, nextNode.x - node.x) : node.exitTangent,
-                progress: currentTimeValue,
-            };
-        }
-
-        if (nextNode && currentTimeValue < nextNode.startTime) {
-            const bridgeProgress = clamp(
-                (currentTimeValue - node.endTime) / Math.max(nextNode.startTime - node.endTime, 0.0001),
-                0,
-                1
-            );
-            const eased = staticMode ? 0 : easeInOutCubic(bridgeProgress);
-            return {
-                nodeIndex: index,
-                positionX: mix(node.x, nextNode.x, eased),
-                positionY: mix(node.y, nextNode.y, eased),
-                angle: Math.atan2(nextNode.y - node.y, nextNode.x - node.x),
-                progress: currentTimeValue,
+                x: mix(from.x, to.x, local),
+                y: mix(from.y, to.y, local),
+                angle: Math.atan2(to.y - from.y, to.x - from.x),
+                segmentIndex: index,
+                progress: local,
             };
         }
     }
 
-    const lastNode = nodes[nodes.length - 1]!;
+    const lastPoint = metrics.points[metrics.points.length - 1]!;
+    const previousPoint = metrics.points[metrics.points.length - 2]!;
     return {
-        nodeIndex: nodes.length - 1,
-        positionX: lastNode.x,
-        positionY: lastNode.y,
-        angle: lastNode.exitTangent,
-        progress: currentTimeValue,
+        x: lastPoint.x,
+        y: lastPoint.y,
+        angle: Math.atan2(lastPoint.y - previousPoint.y, lastPoint.x - previousPoint.x),
+        segmentIndex: metrics.segmentLengths.length - 1,
+        progress: 1,
     };
 };
 
@@ -635,35 +386,510 @@ const createLabelText = (text: string, fontPx: number, tint: number, alpha: numb
             fontSize: Math.round(fontPx),
             fontWeight: '800',
             fill: tint,
-            align: 'left',
+            align: 'center',
         },
     });
     label.alpha = alpha;
     return label;
 };
 
-const getVisiblePathNodes = (nodes: OvertureRhythmNode[], focusIndex: number) => {
-    if (!nodes.length) {
-        return [] as OvertureRhythmNode[];
+const chooseWindowLines = (lines: Line[]) =>
+    lines
+        .map((line, sourceIndex) => ({
+            line,
+            sourceIndex,
+            weight: 'upcoming' as const,
+        }))
+        .filter(entry => entry.line.fullText.trim().length > 0);
+
+const getFocusFontSize = (
+    text: string,
+    viewport: ViewportSize,
+    lyricsFontScale: number
+) => {
+    const graphemeCount = splitGraphemes(text).length;
+    const base = graphemeCount <= 1
+        ? viewport.width * 0.112
+        : graphemeCount <= 3
+            ? viewport.width * 0.098
+            : viewport.width * 0.084;
+    return clamp(base * lyricsFontScale, 40 * lyricsFontScale, 116 * lyricsFontScale);
+};
+
+const measureTextBox = (
+    measureContext: CanvasRenderingContext2D,
+    text: string,
+    fontPx: number,
+    theme: Theme
+) => {
+    measureContext.font = `800 ${Math.round(fontPx)}px ${resolveThemeFontStack(theme)}`;
+    const width = Math.max(measureContext.measureText(text).width, fontPx * 0.8);
+    return {
+        width,
+        height: fontPx * 1.06,
+    };
+};
+
+// Build a monotonic zigzag path so every focus unit owns a dedicated safe segment between corners.
+const buildHiddenPathPoints = (unitCount: number, viewport: ViewportSize, seed: string | number | undefined) => {
+    const worldHeight = Math.max(viewport.height * 1.18, 760);
+    const segmentSpan = clamp(viewport.width * 0.14, 130, 220);
+    const startX = viewport.width * 0.14;
+    const lanes = [
+        worldHeight * 0.16,
+        worldHeight * 0.32,
+        worldHeight * 0.52,
+        worldHeight * 0.74,
+    ];
+
+    const points: PathPoint[] = [];
+    const firstLaneIndex = Math.floor(hashToUnit(`${seed ?? 'overture'}:lane:0`) * 2);
+    points.push({
+        x: startX,
+        y: lanes[firstLaneIndex]!,
+    });
+
+    let previousLaneIndex = firstLaneIndex;
+    for (let index = 1; index <= unitCount; index += 1) {
+        const candidates = lanes
+            .map((laneY, laneIndex) => ({ laneY, laneIndex }))
+            .filter(({ laneIndex }) => Math.abs(laneIndex - previousLaneIndex) >= 1);
+        const choice = candidates[Math.floor(hashToUnit(`${seed ?? 'overture'}:lane:${index}`) * candidates.length)] ?? candidates[0]!;
+        const jitterX = mix(-segmentSpan * 0.14, segmentSpan * 0.14, hashToUnit(`${seed ?? 'overture'}:xj:${index}`));
+        points.push({
+            x: startX + segmentSpan * index + jitterX,
+            y: choice.laneY,
+        });
+        previousLaneIndex = choice.laneIndex;
     }
 
-    const start = Math.max(0, focusIndex - 6);
-    const end = Math.min(nodes.length, focusIndex + MAX_FORWARD_HINT_SEGMENTS + 3);
-    return nodes.slice(start, end);
+    return {
+        points,
+        worldWidth: startX + segmentSpan * (unitCount + 1),
+        worldHeight,
+    };
+};
+
+const buildObstacleTextPool = (windowLines: WindowLine[]) => {
+    const pool: Array<{ text: string, lineIndex: number }> = [];
+    windowLines.forEach((windowLine, index) => {
+        const translationText = normalizeUnitText(windowLine.line.translation ?? '');
+
+        if (translationText) {
+            pool.push({ text: translationText, lineIndex: index });
+        }
+    });
+
+    return pool;
+};
+
+// Place geometry and text obstacles beside corners and segment normals so the path appears to weave around them.
+const buildObstacles = (
+    metrics: PathMetrics,
+    focusUnits: FocusUnit[],
+    windowLines: WindowLine[],
+    viewport: ViewportSize,
+    seed: string | number | undefined
+) => {
+    const obstacles: ObstaclePiece[] = [];
+    const textPool = buildObstacleTextPool(windowLines);
+
+    for (let index = 1; index < metrics.points.length - 1; index += 1) {
+        const previousPoint = metrics.points[index - 1]!;
+        const point = metrics.points[index]!;
+        const nextPoint = metrics.points[index + 1]!;
+        const previousNormal = getSegmentNormal(previousPoint, point);
+        const nextNormal = getSegmentNormal(point, nextPoint);
+        const combinedNormal = {
+            x: previousNormal.x + nextNormal.x,
+            y: previousNormal.y + nextNormal.y,
+        };
+        const combinedLength = Math.hypot(combinedNormal.x, combinedNormal.y) || 1;
+        const cross = (point.x - previousPoint.x) * (nextPoint.y - point.y) - (point.y - previousPoint.y) * (nextPoint.x - point.x);
+        const outwardSign = cross >= 0 ? -1 : 1;
+        const outward = {
+            x: (combinedNormal.x / combinedLength) * outwardSign,
+            y: (combinedNormal.y / combinedLength) * outwardSign,
+        };
+        const shapeIndex = Math.floor(hashToUnit(`${seed ?? 'overture'}:corner-shape:${index}`) * 3);
+        obstacles.push({
+            id: `corner-obstacle-${index}`,
+            shape: shapeIndex === 0 ? 'rect' : shapeIndex === 1 ? 'triangle' : 'circle',
+            x: point.x + outward.x * mix(130, 210, hashToUnit(`${seed ?? 'overture'}:corner-dist:${index}`)),
+            y: point.y + outward.y * mix(130, 210, hashToUnit(`${seed ?? 'overture'}:corner-dist:${index}:y`)),
+            width: mix(viewport.width * 0.18, viewport.width * 0.34, hashToUnit(`${seed ?? 'overture'}:corner-w:${index}`)),
+            height: mix(viewport.height * 0.14, viewport.height * 0.28, hashToUnit(`${seed ?? 'overture'}:corner-h:${index}`)),
+            rotation: mix(-0.88, 0.88, hashToUnit(`${seed ?? 'overture'}:corner-r:${index}`)),
+            alpha: 0.24,
+            lineIndex: index % Math.max(windowLines.length, 1),
+        });
+    }
+
+    focusUnits.forEach((unit, index) => {
+        const segmentIndex = unit.segmentIndex;
+        const from = metrics.points[segmentIndex]!;
+        const to = metrics.points[segmentIndex + 1]!;
+        const normal = getSegmentNormal(from, to);
+        const side = index % 2 === 0 ? 1 : -1;
+        const textDistance = Math.max(unit.height * 1.55 + unit.width * 0.32, 110);
+
+        if (index < focusUnits.length - 1 && index % 2 === 0) {
+            obstacles.push({
+                id: `segment-obstacle-${index}`,
+                shape: index % 3 === 0 ? 'triangle' : 'rect',
+                x: unit.x - normal.x * (textDistance * 0.82) * side,
+                y: unit.y - normal.y * (textDistance * 0.82) * side,
+                width: mix(72, 150, hashToUnit(`${seed ?? 'overture'}:segment-w:${index}`)),
+                height: mix(64, 140, hashToUnit(`${seed ?? 'overture'}:segment-h:${index}`)),
+                rotation: mix(-0.7, 0.7, hashToUnit(`${seed ?? 'overture'}:segment-r:${index}`)),
+                alpha: 0.22,
+                lineIndex: unit.lineIndex,
+            });
+        }
+    });
+
+    textPool.forEach((entry, index) => {
+        const anchorUnit = focusUnits[
+            Math.min(
+                focusUnits.length - 1,
+                Math.max(0, Math.round(((index + 1) / (textPool.length + 1)) * (focusUnits.length - 1)))
+            )
+        ]!;
+        const segmentIndex = anchorUnit.segmentIndex;
+        const from = metrics.points[segmentIndex]!;
+        const to = metrics.points[segmentIndex + 1]!;
+        const normal = getSegmentNormal(from, to);
+        const side = index % 2 === 0 ? 1 : -1;
+        const textDistance = Math.max(anchorUnit.height * 2.2 + anchorUnit.width * 0.55, 180);
+
+        obstacles.push({
+            id: `text-obstacle-${index}`,
+            shape: 'text',
+            x: anchorUnit.x + normal.x * textDistance * side,
+            y: anchorUnit.y + normal.y * textDistance * side,
+            width: anchorUnit.width * mix(1.35, 1.9, hashToUnit(`${seed ?? 'overture'}:text-w:${index}`)),
+            height: anchorUnit.height * mix(0.9, 1.2, hashToUnit(`${seed ?? 'overture'}:text-h:${index}`)),
+            rotation: mix(-0.86, 0.86, hashToUnit(`${seed ?? 'overture'}:text-r:${index}`)),
+            text: entry.text,
+            alpha: 0.14,
+            lineIndex: entry.lineIndex,
+        });
+    });
+
+    return obstacles;
+};
+
+// Assemble the visible two-line window, hidden path anchors, and obstacle field from scratch on every window change.
+const buildOvertureWindow = ({
+    windowLines,
+    viewport,
+    theme,
+    lyricsFontScale,
+    seed,
+}: {
+    windowLines: WindowLine[];
+    viewport: ViewportSize;
+    theme: Theme;
+    lyricsFontScale: number;
+    seed: string | number | undefined;
+}): OvertureWindow => {
+    if (viewport.width <= 0 || viewport.height <= 0 || windowLines.length === 0) {
+        return {
+            focusUnits: [],
+            lineAnchors: [],
+            pathMetrics: computePathMetrics([{ x: 0, y: 0 }, { x: 0, y: 0 }]),
+            obstacles: [],
+            worldWidth: viewport.width,
+            worldHeight: viewport.height,
+        };
+    }
+
+    const measureContext = createMeasureContext();
+    if (!measureContext) {
+        return {
+            focusUnits: [],
+            lineAnchors: [],
+            pathMetrics: computePathMetrics([{ x: 0, y: 0 }, { x: 0, y: 0 }]),
+            obstacles: [],
+            worldWidth: viewport.width,
+            worldHeight: viewport.height,
+        };
+    }
+
+    const unitSpecs = windowLines.flatMap((windowLine, lineIndex) =>
+        buildFocusUnitsFromLine(windowLine.line).map(unit => ({
+            ...unit,
+            lineIndex,
+            sourceLineIndex: windowLine.sourceIndex,
+            weight: windowLine.weight,
+        }))
+    );
+
+    if (!unitSpecs.length) {
+        return {
+            focusUnits: [],
+            lineAnchors: [],
+            pathMetrics: computePathMetrics([{ x: 0, y: 0 }, { x: 0, y: 0 }]),
+            obstacles: [],
+            worldWidth: viewport.width,
+            worldHeight: viewport.height,
+        };
+    }
+
+    const hiddenPath = buildHiddenPathPoints(unitSpecs.length, viewport, seed);
+    const pathMetrics = computePathMetrics(hiddenPath.points);
+    const focusUnits: FocusUnit[] = unitSpecs.map((unit, index) => {
+        const segmentDistance = pathMetrics.cumulativeStarts[index]! + pathMetrics.segmentLengths[index]! * 0.5;
+        const pathSample = samplePath(pathMetrics, segmentDistance);
+        const fontSize = getFocusFontSize(unit.text, viewport, lyricsFontScale);
+        const textBox = measureTextBox(measureContext, unit.text, fontSize, theme);
+
+        return {
+            id: `overture-focus-unit-${unit.sourceLineIndex}-${index}`,
+            text: unit.text,
+            lineIndex: unit.lineIndex,
+            sourceLineIndex: unit.sourceLineIndex,
+            weight: unit.weight,
+            startTime: unit.startTime,
+            endTime: Math.max(unit.endTime, unit.startTime + 0.04),
+            pathDistance: segmentDistance,
+            segmentStartDistance: pathMetrics.cumulativeStarts[index]!,
+            segmentEndDistance: pathMetrics.cumulativeStarts[index]! + pathMetrics.segmentLengths[index]!,
+            x: pathSample.x,
+            y: pathSample.y,
+            width: textBox.width,
+            height: textBox.height,
+            rotation: mix(-0.38, 0.38, hashToUnit(`${seed ?? 'overture'}:rot:${index}`)),
+            fontSize,
+            segmentIndex: pathSample.segmentIndex,
+            kind: unit.kind,
+        };
+    });
+
+    const obstacles = buildObstacles(pathMetrics, focusUnits, windowLines, viewport, seed);
+    const lineAnchors = windowLines
+        .map((windowLine, lineIndex) => {
+            const units = focusUnits.filter(unit => unit.lineIndex === lineIndex);
+            if (!units.length) {
+                return null;
+            }
+
+            const minX = Math.min(...units.map(unit => unit.x));
+            const maxX = Math.max(...units.map(unit => unit.x));
+            const minY = Math.min(...units.map(unit => unit.y));
+            const maxY = Math.max(...units.map(unit => unit.y));
+            const startDistance = units[0]!.segmentStartDistance;
+            const endDistance = units[units.length - 1]!.segmentEndDistance;
+
+            return {
+                lineIndex,
+                sourceLineIndex: windowLine.sourceIndex,
+                startDistance,
+                endDistance,
+                centerX: (minX + maxX) * 0.5,
+                centerY: (minY + maxY) * 0.5,
+                targetX: mix(minX, maxX, 0.56),
+                targetY: mix(minY, maxY, 0.5),
+            } satisfies LineAnchor;
+        })
+        .filter((anchor): anchor is LineAnchor => Boolean(anchor));
+
+    return {
+        focusUnits,
+        lineAnchors,
+        pathMetrics,
+        obstacles,
+        worldWidth: hiddenPath.worldWidth,
+        worldHeight: hiddenPath.worldHeight,
+    };
+};
+
+const getVisibleSegmentRange = (segmentIndex: number, totalSegments: number) => ({
+    start: Math.max(0, segmentIndex - 4),
+    end: Math.min(totalSegments - 1, segmentIndex + 6),
+});
+
+const sampleLineAnchorY = (lineAnchors: LineAnchor[], focusDistance: number, fallbackY: number) => {
+    if (!lineAnchors.length) {
+        return fallbackY;
+    }
+
+    if (focusDistance <= lineAnchors[0]!.startDistance) {
+        return lineAnchors[0]!.targetY;
+    }
+
+    for (let index = 0; index < lineAnchors.length; index += 1) {
+        const currentAnchor = lineAnchors[index]!;
+        const nextAnchor = lineAnchors[index + 1] ?? null;
+
+        if (!nextAnchor) {
+            return currentAnchor.targetY;
+        }
+
+        if (focusDistance < nextAnchor.startDistance) {
+            const progress = clamp(
+                (focusDistance - currentAnchor.startDistance)
+                / Math.max(nextAnchor.startDistance - currentAnchor.startDistance, 0.0001),
+                0,
+                1
+            );
+            return mix(currentAnchor.targetY, nextAnchor.targetY, progress);
+        }
+    }
+
+    return lineAnchors[lineAnchors.length - 1]!.targetY;
+};
+
+// Drive the arrow by path distance so both intra-line and inter-line motion stay continuous.
+const getFocusSnapshot = (focusUnits: FocusUnit[], currentTimeValue: number, staticMode: boolean): FocusSnapshot | null => {
+    if (!focusUnits.length) {
+        return null;
+    }
+
+    if (currentTimeValue <= focusUnits[0]!.startTime) {
+        const firstUnit = focusUnits[0]!;
+        return {
+            unitIndex: 0,
+            distance: firstUnit.pathDistance,
+            x: firstUnit.x,
+            y: firstUnit.y,
+            angle: 0,
+            segmentIndex: firstUnit.segmentIndex,
+            progress: firstUnit.startTime,
+        };
+    }
+
+    for (let index = 0; index < focusUnits.length; index += 1) {
+        const unit = focusUnits[index]!;
+        const nextUnit = focusUnits[index + 1] ?? null;
+        if (nextUnit && currentTimeValue < nextUnit.startTime) {
+            const segmentProgress = clamp(
+                (currentTimeValue - unit.startTime) / Math.max(nextUnit.startTime - unit.startTime, 0.0001),
+                0,
+                1
+            );
+            return {
+                unitIndex: index,
+                distance: mix(
+                    unit.segmentStartDistance,
+                    nextUnit.segmentStartDistance,
+                    staticMode ? 0 : segmentProgress
+                ),
+                x: 0,
+                y: 0,
+                angle: 0,
+                segmentIndex: unit.segmentIndex,
+                progress: currentTimeValue,
+            };
+        }
+
+        if (!nextUnit && currentTimeValue <= unit.endTime) {
+            const lastSegmentProgress = clamp(
+                (currentTimeValue - unit.startTime) / Math.max(unit.endTime - unit.startTime, 0.0001),
+                0,
+                1
+            );
+            return {
+                unitIndex: index,
+                distance: mix(
+                    unit.segmentStartDistance,
+                    unit.segmentEndDistance,
+                    staticMode ? 0 : lastSegmentProgress
+                ),
+                x: 0,
+                y: 0,
+                angle: 0,
+                segmentIndex: unit.segmentIndex,
+                progress: currentTimeValue,
+            };
+        }
+    }
+
+    const lastUnit = focusUnits[focusUnits.length - 1]!;
+    return {
+        unitIndex: focusUnits.length - 1,
+        distance: lastUnit.segmentEndDistance,
+        x: 0,
+        y: 0,
+        angle: 0,
+        segmentIndex: lastUnit.segmentIndex,
+        progress: currentTimeValue,
+    };
+};
+
+const drawRotatedRectOutline = (
+    graphics: Graphics,
+    centerX: number,
+    centerY: number,
+    width: number,
+    height: number,
+    angle: number,
+    color: number,
+    alpha: number,
+    strokeWidth: number
+) => {
+    const halfWidth = width * 0.5;
+    const halfHeight = height * 0.5;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const points = [
+        { x: -halfWidth, y: -halfHeight },
+        { x: halfWidth, y: -halfHeight },
+        { x: halfWidth, y: halfHeight },
+        { x: -halfWidth, y: halfHeight },
+    ].map(point => ({
+        x: centerX + point.x * cos - point.y * sin,
+        y: centerY + point.x * sin + point.y * cos,
+    }));
+
+    graphics
+        .moveTo(points[0]!.x, points[0]!.y)
+        .lineTo(points[1]!.x, points[1]!.y)
+        .lineTo(points[2]!.x, points[2]!.y)
+        .lineTo(points[3]!.x, points[3]!.y)
+        .closePath()
+        .stroke({
+            color,
+            width: strokeWidth,
+            alpha,
+            join: 'miter',
+        });
+};
+
+const drawTriangleOutline = (
+    graphics: Graphics,
+    centerX: number,
+    centerY: number,
+    size: number,
+    angle: number,
+    color: number,
+    alpha: number,
+    strokeWidth: number
+) => {
+    const points = [0, Math.PI * (2 / 3), Math.PI * (4 / 3)].map(offset => ({
+        x: centerX + Math.cos(angle + offset) * size,
+        y: centerY + Math.sin(angle + offset) * size,
+    }));
+
+    graphics
+        .moveTo(points[0]!.x, points[0]!.y)
+        .lineTo(points[1]!.x, points[1]!.y)
+        .lineTo(points[2]!.x, points[2]!.y)
+        .closePath()
+        .stroke({
+            color,
+            width: strokeWidth,
+            alpha,
+            join: 'miter',
+        });
 };
 
 const destroySceneViews = (views: SceneViews) => {
-    views.channelViews.forEach(view => {
-        view.frame.destroy();
+    views.lyricsViews.forEach(view => {
         view.text.destroy();
     });
-    views.titleViews.forEach(view => {
-        view.shape.destroy();
-        view.text?.destroy();
-    });
-    views.translationViews.forEach(view => {
-        view.shape.destroy();
-        view.text?.destroy();
+    views.obstacleTextViews.forEach(view => {
+        view.text.destroy();
     });
 };
 
@@ -686,44 +912,40 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
     const { t } = useTranslation();
     const pixiHostRef = useRef<HTMLDivElement | null>(null);
     const appRef = useRef<Application | null>(null);
-    const cameraRootRef = useRef<Container | null>(null);
     const worldRef = useRef<Container | null>(null);
-    const backgroundGraphicsRef = useRef<Graphics | null>(null);
-    const geometryGraphicsRef = useRef<Graphics | null>(null);
-    const focusGraphicsRef = useRef<Graphics | null>(null);
-    const titleLayerRef = useRef<Container | null>(null);
-    const translationLayerRef = useRef<Container | null>(null);
-    const channelLayerRef = useRef<Container | null>(null);
-    const sceneViewsRef = useRef<SceneViews>({
-        channelViews: [],
-        titleViews: [],
-        translationViews: [],
-    });
-    const currentTimeRef = useRef(currentTime);
-    const audioPowerRef = useRef(audioPower);
-    const audioBandsRef = useRef(audioBands);
-    const showTextRef = useRef(showText);
-    const worldLayoutRef = useRef<OvertureWorld>({
-        blocks: [],
-        nodes: [],
+    const obstacleGraphicsRef = useRef<Graphics | null>(null);
+    const guideGraphicsRef = useRef<Graphics | null>(null);
+    const arrowGraphicsRef = useRef<Graphics | null>(null);
+    const obstacleTextLayerRef = useRef<Container | null>(null);
+    const mainLyricsLayerRef = useRef<Container | null>(null);
+    const worldWindowRef = useRef<OvertureWindow>({
+        focusUnits: [],
+        lineAnchors: [],
+        pathMetrics: computePathMetrics([{ x: 0, y: 0 }, { x: 0, y: 0 }]),
+        obstacles: [],
         worldWidth: 0,
         worldHeight: 0,
+    });
+    const sceneViewsRef = useRef<SceneViews>({
+        lyricsViews: [],
+        obstacleTextViews: [],
     });
     const cameraRef = useRef<CameraState>({
         x: 0,
         y: 0,
         scale: 1,
-        velocityX: 0,
-        velocityY: 0,
         velocityScale: 0,
     });
+    const currentTimeRef = useRef(currentTime);
+    const audioBandsRef = useRef(audioBands);
+    const themeRef = useRef(theme);
+    const showTextRef = useRef(showText);
+    const activeSourceIndexRef = useRef(-1);
+    const upcomingSourceIndexRef = useRef(-1);
+    const viewportRef = useRef(DEFAULT_VIEWPORT);
     const [viewport, setViewport] = useState<ViewportSize>(DEFAULT_VIEWPORT);
     const [pixiReady, setPixiReady] = useState(false);
-    const primaryColor = useMemo(() => colorToNumber(theme.primaryColor, 0xffffff), [theme.primaryColor]);
-    const accentColor = useMemo(() => colorToNumber(theme.accentColor, primaryColor), [primaryColor, theme.accentColor]);
-    const secondaryColor = useMemo(() => colorToNumber(theme.secondaryColor, primaryColor), [primaryColor, theme.secondaryColor]);
-    const waitingColor = useMemo(() => mixColor(theme.secondaryColor, theme.backgroundColor, 0.28), [theme.backgroundColor, theme.secondaryColor]);
-    const passedColor = useMemo(() => mixColor(theme.primaryColor, theme.accentColor, 0.26), [theme.accentColor, theme.primaryColor]);
+
     const {
         activeLine,
         recentCompletedLine,
@@ -741,33 +963,54 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
     }, [currentTime]);
 
     useEffect(() => {
-        audioPowerRef.current = audioPower;
-    }, [audioPower]);
-
-    useEffect(() => {
         audioBandsRef.current = audioBands;
     }, [audioBands]);
+
+    useEffect(() => {
+        themeRef.current = theme;
+    }, [theme]);
 
     useEffect(() => {
         showTextRef.current = showText;
     }, [showText]);
 
     useEffect(() => {
+        activeSourceIndexRef.current = activeLine
+            ? lines.indexOf(activeLine)
+            : recentCompletedLine
+                ? lines.indexOf(recentCompletedLine)
+                : -1;
+        upcomingSourceIndexRef.current = upcomingLine ? lines.indexOf(upcomingLine) : -1;
+    }, [activeLine, lines, recentCompletedLine, upcomingLine]);
+
+    useEffect(() => {
+        viewportRef.current = viewport;
+    }, [viewport]);
+
+    const windowLines = useMemo(() => chooseWindowLines(lines), [lines]);
+
+    const overtureWindow = useMemo(() => buildOvertureWindow({
+        windowLines,
+        viewport,
+        theme,
+        lyricsFontScale,
+        seed,
+    }), [lyricsFontScale, seed, theme, viewport, windowLines]);
+
+    useEffect(() => {
         const host = pixiHostRef.current;
-        if (!host || appRef.current) {
+        if (!host) {
             return;
         }
 
         let cancelled = false;
         const app = new Application();
-        const cameraRoot = new Container();
         const world = new Container();
-        const backgroundGraphics = new Graphics();
-        const geometryGraphics = new Graphics();
-        const focusGraphics = new Graphics();
-        const titleLayer = new Container();
-        const translationLayer = new Container();
-        const channelLayer = new Container();
+        const obstacleGraphics = new Graphics();
+        const guideGraphics = new Graphics();
+        const arrowGraphics = new Graphics();
+        const obstacleTextLayer = new Container();
+        const mainLyricsLayer = new Container();
 
         const initialize = async () => {
             await app.init({
@@ -789,31 +1032,26 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             host.replaceChildren(app.canvas);
 
             world.sortableChildren = true;
-            backgroundGraphics.zIndex = 2;
-            geometryGraphics.zIndex = 6;
-            titleLayer.zIndex = 10;
-            translationLayer.zIndex = 12;
-            channelLayer.zIndex = 16;
-            focusGraphics.zIndex = 22;
+            obstacleGraphics.zIndex = 2;
+            obstacleTextLayer.zIndex = 4;
+            mainLyricsLayer.zIndex = 10;
+            guideGraphics.zIndex = 16;
+            arrowGraphics.zIndex = 24;
 
-            world.addChild(backgroundGraphics);
-            world.addChild(geometryGraphics);
-            world.addChild(titleLayer);
-            world.addChild(translationLayer);
-            world.addChild(channelLayer);
-            world.addChild(focusGraphics);
-            cameraRoot.addChild(world);
-            app.stage.addChild(cameraRoot);
+            world.addChild(obstacleGraphics);
+            world.addChild(obstacleTextLayer);
+            world.addChild(mainLyricsLayer);
+            world.addChild(guideGraphics);
+            world.addChild(arrowGraphics);
+            app.stage.addChild(world);
 
             appRef.current = app;
-            cameraRootRef.current = cameraRoot;
             worldRef.current = world;
-            backgroundGraphicsRef.current = backgroundGraphics;
-            geometryGraphicsRef.current = geometryGraphics;
-            focusGraphicsRef.current = focusGraphics;
-            titleLayerRef.current = titleLayer;
-            translationLayerRef.current = translationLayer;
-            channelLayerRef.current = channelLayer;
+            obstacleGraphicsRef.current = obstacleGraphics;
+            guideGraphicsRef.current = guideGraphics;
+            arrowGraphicsRef.current = arrowGraphics;
+            obstacleTextLayerRef.current = obstacleTextLayer;
+            mainLyricsLayerRef.current = mainLyricsLayer;
 
             const resize = () => {
                 const bounds = host.getBoundingClientRect();
@@ -821,18 +1059,16 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             };
 
             resize();
-
             const observer = new ResizeObserver(resize);
             observer.observe(host);
 
             const tick = (ticker: { deltaMS: number }) => {
-                const layout = worldLayoutRef.current;
-                const cameraRootNode = cameraRootRef.current;
+                const windowLayout = worldWindowRef.current;
                 const worldNode = worldRef.current;
-                const focusNode = focusGraphicsRef.current;
-                const backgroundNode = backgroundGraphicsRef.current;
-
-                if (!cameraRootNode || !worldNode || !focusNode || !backgroundNode || !layout.nodes.length) {
+                const obstacleNode = obstacleGraphicsRef.current;
+                const guideNode = guideGraphicsRef.current;
+                const arrowNode = arrowGraphicsRef.current;
+                if (!worldNode || !obstacleNode || !guideNode || !arrowNode || !windowLayout.focusUnits.length) {
                     return;
                 }
 
@@ -840,210 +1076,197 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                 const bass = clamp(audioBandsRef.current.bass.get(), 0, 1.4);
                 const vocal = clamp(audioBandsRef.current.vocal.get(), 0, 1.4);
                 const treble = clamp(audioBandsRef.current.treble.get(), 0, 1.4);
-                const focus = getFocusSnapshot(layout.nodes, currentTimeValue, staticMode);
-                if (!focus) {
+                const focusBase = getFocusSnapshot(windowLayout.focusUnits, currentTimeValue, staticMode);
+                if (!focusBase) {
                     return;
                 }
 
+                const focusSample = samplePath(windowLayout.pathMetrics, focusBase.distance);
+                const focus: FocusSnapshot = {
+                    ...focusBase,
+                    x: focusSample.x,
+                    y: focusSample.y,
+                    angle: focusSample.angle,
+                    segmentIndex: focusSample.segmentIndex,
+                };
+
                 const dt = Math.min(ticker.deltaMS / 1000, 1 / 20);
-                const targetScale = staticMode ? 1 : clamp(1.04 + treble * 0.02, 1, 1.1);
-                const targetX = clamp(focus.positionX, viewport.width * 0.5, Math.max(layout.worldWidth - viewport.width * 0.5, viewport.width * 0.5));
-                const targetY = clamp(focus.positionY, viewport.height * 0.5, layout.worldHeight - viewport.height * 0.5);
+                const runtimeViewport = viewportRef.current;
+                const targetScale = staticMode ? 1 : clamp(1 + treble * 0.012, 1, 1.03);
+                const desiredArrowScreenX = runtimeViewport.width * 0.62;
+                const targetCameraX = focus.x - ((desiredArrowScreenX - runtimeViewport.width * 0.5) / Math.max(cameraRef.current.scale, 0.0001));
+                const targetCameraY = sampleLineAnchorY(windowLayout.lineAnchors, focus.distance, focus.y);
 
                 if (staticMode) {
-                    cameraRef.current.x = targetX;
-                    cameraRef.current.y = targetY;
+                    cameraRef.current.x = targetCameraX;
+                    cameraRef.current.y = targetCameraY;
                     cameraRef.current.scale = 1;
-                    cameraRef.current.velocityX = 0;
-                    cameraRef.current.velocityY = 0;
                     cameraRef.current.velocityScale = 0;
                 } else {
-                    const accelX = (targetX - cameraRef.current.x) * 34 - cameraRef.current.velocityX * 9.4;
-                    const accelY = (targetY - cameraRef.current.y) * 28 - cameraRef.current.velocityY * 8.2;
-                    const accelScale = (targetScale - cameraRef.current.scale) * 18 - cameraRef.current.velocityScale * 8;
-
-                    cameraRef.current.velocityX += accelX * dt;
-                    cameraRef.current.velocityY += accelY * dt;
+                    const accelScale = (targetScale - cameraRef.current.scale) * 18 - cameraRef.current.velocityScale * 9.8;
+                    const trackingBlendX = clamp(dt * 0.92, 0.012, 0.03);
+                    const trackingBlendY = clamp(dt * 0.42, 0.005, 0.012);
                     cameraRef.current.velocityScale += accelScale * dt;
-                    cameraRef.current.x += cameraRef.current.velocityX * dt;
-                    cameraRef.current.y += cameraRef.current.velocityY * dt;
-                    cameraRef.current.scale = clamp(cameraRef.current.scale + cameraRef.current.velocityScale * dt, 0.94, 1.12);
+                    cameraRef.current.x = mix(cameraRef.current.x, targetCameraX, trackingBlendX);
+                    cameraRef.current.y = mix(cameraRef.current.y, targetCameraY, trackingBlendY);
+                    cameraRef.current.scale = clamp(cameraRef.current.scale + cameraRef.current.velocityScale * dt, 0.98, 1.04);
                 }
 
-                cameraRootNode.position.set(viewport.width * 0.5, viewport.height * 0.5);
                 worldNode.scale.set(cameraRef.current.scale);
                 worldNode.position.set(
-                    -cameraRef.current.x * cameraRef.current.scale,
-                    -cameraRef.current.y * cameraRef.current.scale
+                    runtimeViewport.width * 0.5 - cameraRef.current.x * cameraRef.current.scale,
+                    runtimeViewport.height * 0.5 - cameraRef.current.y * cameraRef.current.scale
                 );
 
-                backgroundNode.clear();
-                const backgroundPulse = staticMode ? 0.08 : 0.08 + bass * 0.05;
-                layout.blocks.forEach((block, blockIndex) => {
-                    const blockSeed = `${seed ?? 'overture'}:bg:${blockIndex}`;
-                    const rectAngleA = mix(-0.48, 0.48, hashToUnit(`${blockSeed}:rect-a-angle`));
-                    const rectAngleB = mix(-0.62, 0.62, hashToUnit(`${blockSeed}:rect-b-angle`));
-                    drawRotatedRect(
-                        backgroundNode,
-                        block.startX + mix(160, 320, hashToUnit(`${blockSeed}:rect-a-x`)),
-                        mix(140, 260, hashToUnit(`${blockSeed}:rect-a-y`)),
-                        mix(180, 360, hashToUnit(`${blockSeed}:rect-a-w`)),
-                        mix(140, 260, hashToUnit(`${blockSeed}:rect-a-h`)),
-                        rectAngleA,
-                        secondaryColor,
-                        backgroundPulse * 0.36,
-                        8
-                    );
-                    drawRotatedRect(
-                        backgroundNode,
-                        block.endX - mix(100, 260, hashToUnit(`${blockSeed}:rect-b-x`)),
-                        mix(layout.worldHeight * 0.68, layout.worldHeight * 0.84, hashToUnit(`${blockSeed}:rect-b-y`)),
-                        mix(160, 300, hashToUnit(`${blockSeed}:rect-b-w`)),
-                        mix(120, 220, hashToUnit(`${blockSeed}:rect-b-h`)),
-                        rectAngleB,
-                        secondaryColor,
-                        backgroundPulse * 0.28,
-                        8
-                    );
+                const activeColor = colorToNumber(themeRef.current.accentColor, 0xffffff);
+                const primaryColor = colorToNumber(themeRef.current.primaryColor, 0xe0e0e0);
+                const secondaryColor = colorToNumber(themeRef.current.secondaryColor, 0x9ea4af);
+                const obstacleColor = mixColor(themeRef.current.secondaryColor, themeRef.current.backgroundColor, 0.18);
+                const trailGuideColor = mixColor(themeRef.current.primaryColor, themeRef.current.backgroundColor, 0.38);
+                const futureGuideColor = mixColor(themeRef.current.secondaryColor, themeRef.current.backgroundColor, 0.28);
 
-                    backgroundNode
-                        .circle(
-                            block.startX - mix(100, 180, hashToUnit(`${blockSeed}:circle-x`)),
-                            mix(layout.worldHeight * 0.28, layout.worldHeight * 0.6, hashToUnit(`${blockSeed}:circle-y`)),
-                            mix(90, 220, hashToUnit(`${blockSeed}:circle-r`))
-                        )
-                        .stroke({
-                            color: secondaryColor,
-                            width: 8,
-                            alpha: backgroundPulse * 0.28,
-                        });
-
-                    drawTriangle(
-                        backgroundNode,
-                        block.startX + mix(220, 420, hashToUnit(`${blockSeed}:tri-x`)),
-                        mix(layout.worldHeight * 0.32, layout.worldHeight * 0.58, hashToUnit(`${blockSeed}:tri-y`)),
-                        mix(48, 94, hashToUnit(`${blockSeed}:tri-s`)),
-                        mix(-0.8, 0.8, hashToUnit(`${blockSeed}:tri-a`)),
-                        secondaryColor,
-                        backgroundPulse * 0.42,
-                        10
-                    );
+                obstacleNode.clear();
+                windowLayout.obstacles.forEach(obstacle => {
+                    const pulsedAlpha = obstacle.alpha + (staticMode ? 0 : bass * 0.025);
+                    if (obstacle.shape === 'rect') {
+                        drawRotatedRectOutline(
+                            obstacleNode,
+                            obstacle.x,
+                            obstacle.y,
+                            obstacle.width,
+                            obstacle.height,
+                            obstacle.rotation,
+                            obstacleColor,
+                            pulsedAlpha,
+                            8
+                        );
+                    } else if (obstacle.shape === 'triangle') {
+                        drawTriangleOutline(
+                            obstacleNode,
+                            obstacle.x,
+                            obstacle.y,
+                            Math.max(obstacle.width, obstacle.height) * 0.4,
+                            obstacle.rotation,
+                            obstacleColor,
+                            pulsedAlpha,
+                            8
+                        );
+                    } else if (obstacle.shape === 'circle') {
+                        obstacleNode
+                            .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
+                            .stroke({
+                                color: obstacleColor,
+                                width: 8,
+                                alpha: pulsedAlpha,
+                            });
+                    }
                 });
 
-                sceneViewsRef.current.channelViews.forEach((view, index) => {
-                    const node = view.node;
-                    const nextNode = layout.nodes[index + 1] ?? null;
-                    const state = (() => {
-                        if (focus.nodeIndex > index) {
-                            return 'passed' as const;
-                        }
+                sceneViewsRef.current.obstacleTextViews.forEach(view => {
+                    view.text.alpha = view.obstacle.alpha + (staticMode ? 0 : vocal * 0.03);
+                    view.text.rotation = view.obstacle.rotation;
+                });
 
-                        if (focus.nodeIndex === index) {
-                            return 'active' as const;
-                        }
-
-                        return 'waiting' as const;
-                    })();
-                    const progressWithinNode = focus.nodeIndex === index
-                        ? clamp(
-                            (focus.progress - node.startTime) / Math.max(node.endTime - node.startTime, 0.0001),
-                            0,
-                            1
-                        )
-                        : state === 'passed'
-                            ? 1
-                            : 0;
-                    const activeGlow = staticMode ? (state === 'active' ? 1 : 0) : progressWithinNode;
-                    const fillColor = state === 'passed'
-                        ? mixColor(theme.primaryColor, theme.accentColor, 0.2)
-                        : state === 'active'
-                            ? mixColor(theme.secondaryColor, theme.accentColor, 0.2 + activeGlow * 0.8)
-                            : waitingColor;
-                    const frameColor = state === 'passed'
-                        ? passedColor
-                        : state === 'active'
-                            ? accentColor
-                            : secondaryColor;
-                    view.frame.clear();
-
-                    view.text.x = node.x + Math.cos(node.exitTangent + Math.PI * 0.5) * (state === 'active' ? -2 : 0);
-                    view.text.y = node.y + Math.sin(node.exitTangent + Math.PI * 0.5) * (state === 'active' ? -2 : 0);
-                    view.text.anchor.set(0.5);
+                sceneViewsRef.current.lyricsViews.forEach((view, index) => {
+                    const unit = view.unit;
+                    const state = focus.unitIndex > index
+                        ? 'passed'
+                        : focus.unitIndex === index
+                            ? 'active'
+                            : 'waiting';
+                    const lineWeakening = unit.sourceLineIndex === activeSourceIndexRef.current
+                        ? 1
+                        : unit.sourceLineIndex === upcomingSourceIndexRef.current
+                            ? 0.72
+                            : 0.46;
+                    const activePulse = staticMode ? 1 : (1 + vocal * 0.1);
                     view.text.tint = state === 'active'
-                        ? accentColor
+                        ? activeColor
                         : state === 'passed'
                             ? primaryColor
                             : secondaryColor;
                     view.text.alpha = showTextRef.current
-                        ? (state === 'waiting' ? 0.34 : state === 'passed' ? 0.66 : 1)
-                        : 0.18;
+                        ? (
+                            state === 'active'
+                                ? 1
+                                : state === 'passed'
+                                    ? 0.74 * lineWeakening
+                                    : 0.42 * lineWeakening
+                        )
+                        : 0;
                     view.text.scale.set(
                         state === 'active'
-                            ? 1.06 + activeGlow * 0.12 + vocal * 0.05
+                            ? activePulse
                             : state === 'passed'
-                                ? 0.92
-                                : 0.82
+                                ? 0.95
+                                : 0.88
                     );
-                    view.text.rotation = node.exitTangent * 0.18;
+                    view.text.rotation = unit.rotation + (state === 'active' ? 0.02 : 0);
                 });
 
-                sceneViewsRef.current.titleViews.forEach((view, index) => {
-                    view.shape.alpha = 0;
-                    if (view.text) {
-                        view.text.alpha = showTextRef.current ? (0.16 + (index % 2 === 0 ? 0.04 : 0)) : 0.05;
-                        view.text.rotation = mix(-0.72, 0.72, hashToUnit(`${seed ?? 'overture'}:title-rot:${index}`));
+                guideNode.clear();
+                const visibleSegments = getVisibleSegmentRange(focus.segmentIndex, windowLayout.pathMetrics.segmentLengths.length);
+                for (let index = visibleSegments.start; index <= visibleSegments.end; index += 1) {
+                    const from = windowLayout.pathMetrics.points[index]!;
+                    const to = windowLayout.pathMetrics.points[index + 1]!;
+                    const segmentStart = windowLayout.pathMetrics.cumulativeStarts[index]!;
+                    const segmentEnd = segmentStart + windowLayout.pathMetrics.segmentLengths[index]!;
+                    const isPassed = focus.distance >= segmentEnd;
+                    const isCurrent = focus.distance >= segmentStart && focus.distance <= segmentEnd;
+                    if (isCurrent) {
+                        guideNode
+                            .moveTo(from.x, from.y)
+                            .lineTo(focus.x, focus.y)
+                            .stroke({
+                                color: trailGuideColor,
+                                width: 5,
+                                alpha: 0.42,
+                                cap: 'round',
+                                join: 'round',
+                            });
+                        guideNode
+                            .moveTo(focus.x, focus.y)
+                            .lineTo(to.x, to.y)
+                            .stroke({
+                                color: futureGuideColor,
+                                width: 3,
+                                alpha: 0.16,
+                                cap: 'round',
+                                join: 'round',
+                            });
+                        continue;
                     }
-                });
 
-                sceneViewsRef.current.translationViews.forEach((view, index) => {
-                    view.shape.alpha = 0;
-                    if (view.text) {
-                        view.text.alpha = showTextRef.current ? 0.22 : 0.08;
-                        view.text.rotation = mix(-0.16, 0.16, hashToUnit(`${seed ?? 'overture'}:translation-rot:${index}`));
-                    }
-                });
-
-                focusNode.clear();
-                const currentNode = layout.nodes[focus.nodeIndex]!;
-                const pathNodes = getVisiblePathNodes(layout.nodes, focus.nodeIndex);
-                const activePathColor = colorToNumber(theme.accentColor, 0xd9742b);
-                const passedPathColor = colorToNumber(theme.primaryColor, 0x7d848f);
-                const futurePathColor = colorToNumber(theme.secondaryColor, 0xc0c4ca);
-
-                for (let index = 0; index < pathNodes.length - 1; index += 1) {
-                    const from = pathNodes[index]!;
-                    const to = pathNodes[index + 1]!;
-                    const absoluteIndex = Math.max(0, focus.nodeIndex - 6) + index;
-                    const isCurrentSegment = absoluteIndex === focus.nodeIndex;
-                    const isPastSegment = absoluteIndex < focus.nodeIndex;
-
-                    focusNode
+                    guideNode
                         .moveTo(from.x, from.y)
                         .lineTo(to.x, to.y)
                         .stroke({
-                            color: isCurrentSegment ? activePathColor : (isPastSegment ? passedPathColor : futurePathColor),
-                            width: isCurrentSegment ? 8 : (isPastSegment ? 5 : 4),
-                            alpha: isCurrentSegment ? 0.92 : (isPastSegment ? 0.28 : 0.16),
+                            color: isPassed ? trailGuideColor : futureGuideColor,
+                            width: isPassed ? 5 : 3,
+                            alpha: isPassed ? 0.42 : 0.14,
                             cap: 'round',
                             join: 'round',
                         });
                 }
 
-                const arrowLength = 28;
+                arrowNode.clear();
+                const arrowLength = 30;
                 const arrowWidth = 16;
-                const tipX = focus.positionX + Math.cos(focus.angle) * arrowLength;
-                const tipY = focus.positionY + Math.sin(focus.angle) * arrowLength;
-                const leftX = focus.positionX + Math.cos(focus.angle + Math.PI * 0.78) * arrowWidth;
-                const leftY = focus.positionY + Math.sin(focus.angle + Math.PI * 0.78) * arrowWidth;
-                const rightX = focus.positionX + Math.cos(focus.angle - Math.PI * 0.78) * arrowWidth;
-                const rightY = focus.positionY + Math.sin(focus.angle - Math.PI * 0.78) * arrowWidth;
-                focusNode
+                const centerX = focus.x;
+                const centerY = focus.y;
+                const tipX = centerX + Math.cos(focus.angle) * arrowLength;
+                const tipY = centerY + Math.sin(focus.angle) * arrowLength;
+                const leftX = centerX + Math.cos(focus.angle + Math.PI * 0.82) * arrowWidth;
+                const leftY = centerY + Math.sin(focus.angle + Math.PI * 0.82) * arrowWidth;
+                const rightX = centerX + Math.cos(focus.angle - Math.PI * 0.82) * arrowWidth;
+                const rightY = centerY + Math.sin(focus.angle - Math.PI * 0.82) * arrowWidth;
+                arrowNode
                     .moveTo(tipX, tipY)
                     .lineTo(leftX, leftY)
                     .lineTo(rightX, rightY)
                     .closePath()
                     .fill({
-                        color: 0x05070c,
+                        color: activeColor,
                         alpha: 0.98,
                     });
             };
@@ -1067,141 +1290,94 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             cleanup?.();
             destroySceneViews(sceneViewsRef.current);
             sceneViewsRef.current = {
-                channelViews: [],
-                titleViews: [],
-                translationViews: [],
+                lyricsViews: [],
+                obstacleTextViews: [],
             };
             appRef.current?.destroy({ removeView: true }, true);
             appRef.current = null;
-            cameraRootRef.current = null;
             worldRef.current = null;
-            backgroundGraphicsRef.current = null;
-            geometryGraphicsRef.current = null;
-            focusGraphicsRef.current = null;
-            titleLayerRef.current = null;
-            translationLayerRef.current = null;
-            channelLayerRef.current = null;
+            obstacleGraphicsRef.current = null;
+            guideGraphicsRef.current = null;
+            arrowGraphicsRef.current = null;
+            obstacleTextLayerRef.current = null;
+            mainLyricsLayerRef.current = null;
             setPixiReady(false);
         };
-    }, [accentColor, primaryColor, secondaryColor, staticMode, theme]);
-
-    const worldLayout = useMemo(() => buildOvertureWorld({
-        lines,
-        viewport,
-        theme,
-        lyricsFontScale,
-        seed,
-    }), [lines, lyricsFontScale, seed, theme, viewport]);
+    }, []);
 
     useEffect(() => {
-        worldLayoutRef.current = worldLayout;
+        worldWindowRef.current = overtureWindow;
 
-        const geometryGraphics = geometryGraphicsRef.current;
-        const titleLayer = titleLayerRef.current;
-        const translationLayer = translationLayerRef.current;
-        const channelLayer = channelLayerRef.current;
-
-        if (!geometryGraphics || !titleLayer || !translationLayer || !channelLayer) {
+        const obstacleTextLayer = obstacleTextLayerRef.current;
+        const mainLyricsLayer = mainLyricsLayerRef.current;
+        const obstacleGraphics = obstacleGraphicsRef.current;
+        const guideGraphics = guideGraphicsRef.current;
+        const arrowGraphics = arrowGraphicsRef.current;
+        if (!obstacleTextLayer || !mainLyricsLayer || !obstacleGraphics || !guideGraphics || !arrowGraphics) {
             return;
         }
 
         destroySceneViews(sceneViewsRef.current);
         sceneViewsRef.current = {
-            channelViews: [],
-            titleViews: [],
-            translationViews: [],
+            lyricsViews: [],
+            obstacleTextViews: [],
         };
 
-        titleLayer.removeChildren();
-        translationLayer.removeChildren();
-        channelLayer.removeChildren();
-        geometryGraphics.clear();
+        obstacleTextLayer.removeChildren();
+        mainLyricsLayer.removeChildren();
+        obstacleGraphics.clear();
+        guideGraphics.clear();
+        arrowGraphics.clear();
 
-        worldLayout.blocks.forEach(block => {
-            block.titleGeometry.forEach(piece => {
-                const shape = new Graphics();
-                titleLayer.addChild(shape);
-
-                const fontPx = clamp(piece.height * 0.96, 28, 68);
-                const label = createLabelText(piece.text ?? '', fontPx, secondaryColor, 0.12, theme);
-                label.x = piece.x;
-                label.y = piece.y;
-                titleLayer.addChild(label);
-
-                sceneViewsRef.current.titleViews.push({
-                    shape,
-                    text: label,
-                });
-            });
-
-            block.translationGeometry.forEach(piece => {
-                const shape = new Graphics();
-                translationLayer.addChild(shape);
-
-                const fontPx = clamp(piece.height * 0.92, 18, 30);
-                const label = createLabelText(piece.text ?? '', fontPx, secondaryColor, 0.56, theme);
-                label.x = piece.x;
-                label.y = piece.y;
-                translationLayer.addChild(label);
-
-                sceneViewsRef.current.translationViews.push({
-                    shape,
-                    text: label,
-                });
-            });
-
-            block.rhythmNodes.forEach(node => {
-                const frame = new Graphics();
-                channelLayer.addChild(frame);
-
-                const fontPx = clamp(node.height / 1.06, 18, 58);
-                const label = createLabelText(node.text, fontPx, secondaryColor, showText ? 0.88 : 0.18, theme);
+        const secondaryColor = colorToNumber(theme.secondaryColor, 0xffffff);
+        overtureWindow.obstacles
+            .filter(obstacle => obstacle.shape === 'text' && obstacle.text)
+            .forEach(obstacle => {
+                const fontPx = clamp(obstacle.height * 0.56, 20, 66);
+                const label = createLabelText(obstacle.text ?? '', fontPx, secondaryColor, obstacle.alpha, theme);
                 label.anchor.set(0.5);
-                label.x = node.x;
-                label.y = node.y;
-                channelLayer.addChild(label);
-
-                sceneViewsRef.current.channelViews.push({
-                    node,
-                    frame,
+                label.x = obstacle.x;
+                label.y = obstacle.y;
+                label.rotation = obstacle.rotation;
+                obstacleTextLayer.addChild(label);
+                sceneViewsRef.current.obstacleTextViews.push({
+                    obstacle,
                     text: label,
                 });
+            });
+
+        overtureWindow.focusUnits.forEach(unit => {
+            const label = createLabelText(unit.text, unit.fontSize, secondaryColor, showText ? 0.82 : 0, theme);
+            label.anchor.set(0.5);
+            label.x = unit.x;
+            label.y = unit.y;
+            label.rotation = unit.rotation;
+            mainLyricsLayer.addChild(label);
+            sceneViewsRef.current.lyricsViews.push({
+                unit,
+                text: label,
             });
         });
 
-        if (!worldLayout.nodes.length) {
+        const initialFocusBase = getFocusSnapshot(overtureWindow.focusUnits, currentTime.get(), staticMode);
+        if (!initialFocusBase) {
             cameraRef.current = {
                 x: 0,
                 y: 0,
                 scale: 1,
-                velocityX: 0,
-                velocityY: 0,
                 velocityScale: 0,
             };
             return;
         }
 
-        const initialFocus = getFocusSnapshot(worldLayout.nodes, currentTime.get(), staticMode);
+        const initialFocus = samplePath(overtureWindow.pathMetrics, initialFocusBase.distance);
         cameraRef.current = {
-            x: initialFocus?.positionX ?? worldLayout.nodes[0]!.x,
-            y: initialFocus?.positionY ?? worldLayout.nodes[0]!.y,
+            x: initialFocus.x,
+            y: initialFocus.y,
             scale: 1,
-            velocityX: 0,
-            velocityY: 0,
             velocityScale: 0,
         };
-    }, [
-        accentColor,
-        currentTime,
-        passedColor,
-        primaryColor,
-        secondaryColor,
-        showText,
-        staticMode,
-        theme,
-        waitingColor,
-        worldLayout,
-    ]);
+    }, [currentTime, overtureWindow, showText, staticMode, theme]);
 
     const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.9 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
