@@ -347,6 +347,18 @@ export const cleanupPrefetchCache = (currentQueue: SongResult[]): void => {
     console.log(`[Prefetch] Cleanup complete, cache size: ${prefetchCache.size}`);
 };
 
+export const invalidatePrefetchedLyrics = (): void => {
+    for (const [songKey, cached] of prefetchCache.entries()) {
+        prefetchCache.set(songKey, {
+            ...cached,
+            lyrics: null,
+            lyricRaw: null,
+        });
+    }
+
+    console.log(`[Prefetch] Invalidated lyrics for ${prefetchCache.size} prefetched songs`);
+};
+
 /**
  * Force re-prefetch (e.g., after queue shuffle)
  */

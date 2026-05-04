@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
@@ -46,6 +46,17 @@ const ENABLE_AUTO_UPDATE_SETTING_KEY = 'ENABLE_AUTO_UPDATE';
 const LAST_SEEN_UPDATE_VERSION_SETTING_KEY = 'LAST_SEEN_UPDATE_VERSION';
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
+const WINDOWS_APP_USER_MODEL_ID = 'top.izuna.foliamajor';
+const APP_ICON_PATH = path.join(__dirname, '../build/icon.png');
+const THUMBAR_ICON_DIR = path.join(__dirname, '../build/thumbar');
+const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
+  ? {
+      previous: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'previous.png')).resize({ width: 16, height: 16, quality: 'best' }),
+      play: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'play.png')).resize({ width: 16, height: 16, quality: 'best' }),
+      pause: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'pause.png')).resize({ width: 16, height: 16, quality: 'best' }),
+      next: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'next.png')).resize({ width: 16, height: 16, quality: 'best' }),
+    }
+  : null;
 
 function getStoredWindowState() {
   const storedBounds = store.get('WINDOW_BOUNDS');
@@ -109,6 +120,65 @@ function saveWindowState(win) {
   }
 
   store.set('WINDOW_BOUNDS', win.getBounds());
+}
+
+function isWindowsThumbarSupported() {
+  return process.platform === 'win32';
+}
+
+function sendThumbarAction(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send('thumbar-action', action);
+}
+
+function updateWindowThumbarButtons(state = {}) {
+  if (!isWindowsThumbarSupported() || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const {
+    hasActiveTrack = false,
+    canGoPrevious = false,
+    canGoNext = false,
+    isPlaying = false,
+  } = state;
+
+  if (!hasActiveTrack) {
+    try {
+      return mainWindow.setThumbarButtons([]);
+    } catch (error) {
+      console.warn('[Electron] Failed to clear Windows thumbar buttons', error);
+      return false;
+    }
+  }
+
+  try {
+    return mainWindow.setThumbarButtons([
+      {
+        tooltip: 'Previous Track',
+        icon: THUMBAR_BUTTON_ICONS.previous,
+        flags: canGoPrevious ? [] : ['disabled'],
+        click: () => sendThumbarAction('previous'),
+      },
+      {
+        tooltip: isPlaying ? 'Pause' : 'Play',
+        icon: isPlaying ? THUMBAR_BUTTON_ICONS.pause : THUMBAR_BUTTON_ICONS.play,
+        click: () => sendThumbarAction('play-pause'),
+      },
+      {
+        tooltip: 'Next Track',
+        icon: THUMBAR_BUTTON_ICONS.next,
+        flags: canGoNext ? [] : ['disabled'],
+        click: () => sendThumbarAction('next'),
+      },
+    ]);
+  } catch (error) {
+    console.warn('[Electron] Failed to set Windows thumbar buttons', error);
+    return false;
+  }
 }
 
 function getDefaultCacheDirectory() {
@@ -1209,6 +1279,7 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
+    icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -1230,6 +1301,7 @@ function createWindow() {
   }
 
   mainWindow = win;
+  updateWindowThumbarButtons();
   win.on('resize', () => {
     saveWindowState(win);
   });
@@ -1255,6 +1327,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
+  }
+
   setupFileSystemAccessPermissionHandlers();
   setupAutoUpdater();
   await startApi();
@@ -1459,6 +1535,19 @@ ipcMain.handle('window-is-maximized', () => {
   }
 
   return mainWindow.isMaximized();
+});
+
+ipcMain.handle('thumbar-update-buttons', (event, state) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to update taskbar controls.');
+  }
+
+  return updateWindowThumbarButtons({
+    hasActiveTrack: Boolean(state?.hasActiveTrack),
+    canGoPrevious: Boolean(state?.canGoPrevious),
+    canGoNext: Boolean(state?.canGoNext),
+    isPlaying: Boolean(state?.isPlaying),
+  });
 });
 
 ipcMain.handle('debug-get-rendered-fonts', async (event, selector) => {

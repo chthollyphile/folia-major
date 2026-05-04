@@ -101,6 +101,12 @@ const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value))
 const clampFumeCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55, value));
 const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, value));
 const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
+const clampFumeTextHoldRatio = (value: number) => Math.min(1, Math.max(0, value));
+const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined): FumeTuning['cameraTrackingMode'] => (
+    value === 'stepped' || value === 'smooth'
+        ? value
+        : DEFAULT_FUME_TUNING.cameraTrackingMode
+);
 
 const PresetGroup = <T,>({
     label,
@@ -236,6 +242,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: draftFumeTuning.hidePrintSymbols,
         disableGeometricBackground: draftFumeTuning.disableGeometricBackground,
+        textHoldRatio: clampFumeTextHoldRatio(draftFumeTuning.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio),
+        cameraTrackingMode: resolveFumeCameraTrackingMode(draftFumeTuning.cameraTrackingMode),
         cameraSpeed: clampFumeCameraSpeed(draftFumeTuning.cameraSpeed),
         glowIntensity: clampFumeGlowIntensity(draftFumeTuning.glowIntensity),
         heroScale: clampFumeHeroScale(draftFumeTuning.heroScale),
@@ -252,6 +260,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const visibilityOptions: PresetOption<boolean>[] = useMemo(() => ([
         { value: false, label: t('options.partitaGuideLinesOn') || '显示' },
         { value: true, label: t('options.partitaGuideLinesOff') || '隐藏' },
+    ]), [t]);
+    const fumeCameraTrackingOptions: PresetOption<FumeTuning['cameraTrackingMode']>[] = useMemo(() => ([
+        { value: 'stepped', label: t('options.fumeCameraTrackingStepped') || '定格' },
+        { value: 'smooth', label: t('options.fumeCameraTrackingSmooth') || '平滑' },
     ]), [t]);
     const filteredSystemFonts = useMemo(() => {
         const query = fontSearchQuery.trim().toLocaleLowerCase();
@@ -305,6 +317,14 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const activeTabBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const controlCardBg = isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)';
     const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
+    const rangeInputClass = [
+        'w-full h-1.5 rounded-full appearance-none cursor-pointer',
+        '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform',
+        '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:transition-transform',
+        isDaylight
+            ? 'bg-black/15 [&::-webkit-slider-thumb]:bg-zinc-700 [&::-moz-range-thumb]:bg-zinc-700'
+            : 'bg-white/10 [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:bg-white',
+    ].join(' ');
 
     const handleReset = () => {
         onCustomFontChange(null);
@@ -596,7 +616,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         step="0.05"
                                         value={normalizedFontScale}
                                         onChange={(event) => onFontScaleChange(parseFloat(event.target.value))}
-                                        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                        className={rangeInputClass}
                                     />
                                 </div>
                             </div>
@@ -637,7 +657,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="5"
                                             value={resolvedPartitaTuning.staggerMin}
                                             onChange={(event) => handlePartitaMinChange(parseFloat(event.target.value))}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
 
@@ -655,7 +675,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="5"
                                             value={resolvedPartitaTuning.staggerMax}
                                             onChange={(event) => handlePartitaMaxChange(parseFloat(event.target.value))}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
                                 </div>
@@ -693,6 +713,24 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
 
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.fumeTextHoldRatio') || '文字停留比例'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {Math.round(resolvedFumeTuning.textHoldRatio * 100)}%
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={resolvedFumeTuning.textHoldRatio}
+                                            onChange={(event) => handleFumeTuningChange({ textHoldRatio: parseFloat(event.target.value) })}
+                                            className={rangeInputClass}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
                                             <span>{t('options.fumeCameraSpeed') || '摄影机移动速度'}</span>
                                             <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                                                 {resolvedFumeTuning.cameraSpeed.toFixed(2)}x
@@ -705,9 +743,17 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="0.05"
                                             value={resolvedFumeTuning.cameraSpeed}
                                             onChange={(event) => handleFumeTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
+
+                                    <PresetGroup
+                                        label={t('options.fumeCameraTrackingMode') || '摄影机追焦方式'}
+                                        value={resolvedFumeTuning.cameraTrackingMode}
+                                        options={fumeCameraTrackingOptions}
+                                        onChange={(next) => handleFumeTuningChange({ cameraTrackingMode: next })}
+                                        isDaylight={isDaylight}
+                                    />
 
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
@@ -723,7 +769,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="0.05"
                                             value={resolvedFumeTuning.glowIntensity}
                                             onChange={(event) => handleFumeTuningChange({ glowIntensity: parseFloat(event.target.value) })}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
 
@@ -741,7 +787,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             step="0.02"
                                             value={resolvedFumeTuning.heroScale}
                                             onChange={(event) => handleFumeTuningChange({ heroScale: parseFloat(event.target.value) })}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
                                 </div>

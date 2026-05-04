@@ -9,7 +9,9 @@ import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel } from '../visualizer/registry';
 import ThemePark from './ThemePark';
+import LyricFilterSettingsModal from './LyricFilterSettingsModal';
 import meowImageUrl from '../../../build/miao.png';
+import type { LyricData } from '../../types';
 
 interface HelpModalProps {
     onClose: () => void;
@@ -43,10 +45,14 @@ interface HelpModalProps {
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
     lyricsCustomFontLabel: string | null;
+    lyricFilterPattern: string;
     showOpenPanelCloseButton: boolean;
     onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
     onLyricsFontScaleChange: (fontScale: number) => void;
     onLyricsCustomFontChange: (font: { family: string; label?: string | null; } | null) => void;
+    loadLyricFilterPreview: () => Promise<LyricData | null>;
+    currentSongTitle?: string | null;
+    onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
 }
 
@@ -82,10 +88,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
     lyricsFontScale,
     lyricsCustomFontFamily,
     lyricsCustomFontLabel,
+    lyricFilterPattern,
     showOpenPanelCloseButton,
     onLyricsFontStyleChange,
     onLyricsFontScaleChange,
     onLyricsCustomFontChange,
+    loadLyricFilterPreview,
+    currentSongTitle,
+    onSaveLyricFilterPattern,
     onToggleOpenPanelCloseButton,
 }) => {
     const { t } = useTranslation();
@@ -93,6 +103,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showLabSettings, setShowLabSettings] = useState(false);
+    const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
     const [authorClickCount, setAuthorClickCount] = useState(0);
     const [meowEasterEgg, setMeowEasterEgg] = useState<{ id: number; } | null>(null);
@@ -408,7 +419,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     };
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
-    const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-900/90'; // Use slightly higher opacity for modal than panel
+    const glassBg = isDaylight ? 'bg-white/82' : 'bg-zinc-900/95';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const textColor = isDaylight ? 'text-zinc-800' : 'text-zinc-100';
     const successTextColor = isDaylight ? 'text-green-600' : 'text-green-400';
@@ -416,6 +427,15 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const errorTextColor = isDaylight ? 'text-red-600' : 'text-red-400';
     const errorBgColor = isDaylight ? 'bg-red-500/10' : 'bg-red-500/10';
     const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
+    const toggleOffBackgroundClass = isDaylight ? 'bg-zinc-300/90' : 'bg-white/10';
+    const rangeInputClass = [
+        'w-full h-1.5 rounded-full appearance-none cursor-pointer',
+        '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform',
+        '[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:transition-transform',
+        isDaylight
+            ? 'bg-black/15 [&::-webkit-slider-thumb]:bg-zinc-700 [&::-moz-range-thumb]:bg-zinc-700'
+            : 'bg-white/10 [&::-webkit-slider-thumb]:bg-white [&::-moz-range-thumb]:bg-white',
+    ].join(' ');
     const shellTransition = { duration: 0.24, ease: 'easeOut' as const };
     const panelMotion = {
         initial: { opacity: 0, y: 20, scale: 0.98 },
@@ -708,7 +728,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             <button
                                                 onClick={() => hasCustomTheme && onToggleCustomThemePreferred(!isCustomThemePreferred)}
                                                 disabled={!hasCustomTheme}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!isCustomThemePreferred ? 'bg-white/10' : ''} disabled:opacity-40 disabled:cursor-not-allowed`}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!isCustomThemePreferred ? toggleOffBackgroundClass : ''} disabled:opacity-40 disabled:cursor-not-allowed`}
                                                 style={{ backgroundColor: isCustomThemePreferred ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                             >
                                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${isCustomThemePreferred ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -773,7 +793,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             step="0.05"
                                             value={backgroundOpacity}
                                             onChange={(e) => setBackgroundOpacity?.(parseFloat(e.target.value))}
-                                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:transition-transform"
+                                            className={rangeInputClass}
                                         />
                                     </div>
                                 </div>
@@ -846,7 +866,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         </div>
                                         <button
                                             onClick={() => onToggleMediaCache && onToggleMediaCache(!enableMediaCache)}
-                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableMediaCache ? 'bg-white/20' : ''}`}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableMediaCache ? toggleOffBackgroundClass : ''}`}
                                             style={{ backgroundColor: enableMediaCache ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                         >
                                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableMediaCache ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -919,7 +939,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         </span>
                                         <button
                                             onClick={() => handleToggleNavidromeEnabled(!navidromeEnabled)}
-                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!navidromeEnabled ? 'bg-white/10' : ''}`}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!navidromeEnabled ? toggleOffBackgroundClass : ''}`}
                                             style={{ backgroundColor: navidromeEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                         >
                                             <div
@@ -1053,7 +1073,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             </div>
                                             <button
                                                 onClick={handleToggleUpdateCheck}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.ENABLE_UPDATE_CHECK ? 'bg-white/10' : ''}`}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.ENABLE_UPDATE_CHECK ? toggleOffBackgroundClass : ''}`}
                                                 style={{ backgroundColor: electronSettings.ENABLE_UPDATE_CHECK ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                             >
                                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_UPDATE_CHECK ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -1072,7 +1092,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             <button
                                                 onClick={handleToggleAutoUpdate}
                                                 disabled={!canEnableAutoUpdate}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${!electronSettings.ENABLE_AUTO_UPDATE ? 'bg-white/10' : ''}`}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${!electronSettings.ENABLE_AUTO_UPDATE ? toggleOffBackgroundClass : ''}`}
                                                 style={{ backgroundColor: electronSettings.ENABLE_AUTO_UPDATE ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                             >
                                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_AUTO_UPDATE ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -1236,7 +1256,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 </div>
                                                 <button
                                                     onClick={() => setElectronSettings({ ...electronSettings, USE_SYSTEM_PROXY_FOR_AI: !electronSettings.USE_SYSTEM_PROXY_FOR_AI })}
-                                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'bg-white/10' : ''}`}
+                                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? toggleOffBackgroundClass : ''}`}
                                                     style={{ backgroundColor: electronSettings.USE_SYSTEM_PROXY_FOR_AI ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                                 >
                                                     <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -1427,7 +1447,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     </div>
                                     <button
                                         onClick={() => onToggleStaticMode && onToggleStaticMode(!staticMode)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!staticMode ? 'bg-white/10' : ''}`}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!staticMode ? toggleOffBackgroundClass : ''}`}
                                         style={{ backgroundColor: staticMode ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                     >
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${staticMode ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -1449,18 +1469,45 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     </div>
                                     <button
                                         onClick={() => onToggleOpenPanelCloseButton(!showOpenPanelCloseButton)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!showOpenPanelCloseButton ? 'bg-white/10' : ''}`}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!showOpenPanelCloseButton ? toggleOffBackgroundClass : ''}`}
                                         style={{ backgroundColor: showOpenPanelCloseButton ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                     >
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${showOpenPanelCloseButton ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLyricFilterSettings(true)}
+                                    className="w-full bg-white/5 p-4 rounded-xl border border-white/5 transition-colors hover:bg-white/8 text-left"
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                歌词过滤正则
+                                            </div>
+                                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                为歌词解析后的完整文本列表配置逐行过滤规则。
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                    </div>
+                                </button>
                             </div>
                         </div>
                     </motion.div>
                 </motion.div>
             )}
             </AnimatePresence>
+            <LyricFilterSettingsModal
+                isOpen={showLyricFilterSettings}
+                isDaylight={isDaylight}
+                currentSongTitle={currentSongTitle}
+                initialPattern={lyricFilterPattern}
+                loadPreviewLyrics={loadLyricFilterPreview}
+                onClose={() => setShowLyricFilterSettings(false)}
+                onSave={onSaveLyricFilterPattern}
+            />
         </motion.div>
     );
 };

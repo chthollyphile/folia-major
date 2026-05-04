@@ -29,5 +29,11 @@ contextBridge.exposeInMainWorld('electron', {
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     closeWindow: () => ipcRenderer.invoke('window-close'),
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
+    onTaskbarControl: (callback) => {
+        const listener = (_event, action) => callback(action);
+        ipcRenderer.on('thumbar-action', listener);
+        return () => ipcRenderer.removeListener('thumbar-action', listener);
+    },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, Pencil, X } from 'lucide-react';
+import { Play, ChevronLeft, Disc, Loader2, Pencil, X, ListPlus, Plus } from 'lucide-react';
 import { NeteasePlaylist, SongResult } from '../types';
 import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
@@ -12,6 +12,8 @@ interface PlaylistViewProps {
   onBack: () => void;
   onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
   onPlayAll: (songs: SongResult[]) => void;
+  onAddAllToQueue: (songs: SongResult[]) => void;
+  onAddSongToQueue: (song: SongResult) => void;
   onSelectAlbum: (albumId: number) => void;
   onSelectArtist: (artistId: number) => void;
   currentUserId?: number | null;
@@ -21,11 +23,12 @@ interface PlaylistViewProps {
   isDaylight: boolean;
 }
 
-const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onSelectAlbum, onSelectArtist, currentUserId, isLikedSongsPlaylist = false, onPlaylistMutated, theme, isDaylight }) => {
+const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySong, onPlayAll, onAddAllToQueue, onAddSongToQueue, onSelectAlbum, onSelectArtist, currentUserId, isLikedSongsPlaylist = false, onPlaylistMutated, theme, isDaylight }) => {
   // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
   const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
   const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
   const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
+  const secondaryButtonBg = isDaylight ? 'bg-black/[0.06] hover:bg-black/[0.1]' : 'bg-white/5 hover:bg-white/10';
 
   const { t } = useTranslation();
   const [tracks, setTracks] = useState<SongResult[]>([]);
@@ -327,10 +330,19 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 <Play size={18} fill="currentColor" />
                 {t('playlist.playAll')}
               </button>
+              <button
+                onClick={() => onAddAllToQueue(playableTracks)}
+                disabled={playableTracks.length === 0}
+                className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${secondaryButtonBg}`}
+                style={{ color: 'var(--text-primary)' }}
+              >
+                <ListPlus size={16} />
+                {t('navidrome.addToQueue') || '加入播放队列'}
+              </button>
               {canEditPlaylist && (
                 <button
                   onClick={() => setIsEditMode(prev => !prev)}
-                  className="w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10"
+                  className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 ${secondaryButtonBg}`}
                   style={{ color: 'var(--text-primary)' }}
                 >
                   <Pencil size={16} />
@@ -414,6 +426,20 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 <div className="w-12 md:w-16 text-right text-xs font-medium opacity-30 group-hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
                   {formatDuration(track.dt || track.duration)}
                 </div>
+
+                {!isEditMode && !isUnavailable && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddSongToQueue(track);
+                    }}
+                    className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                    title={t('navidrome.addToQueue') || '加入播放队列'}
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
 
                 {isEditMode && (
                   <button

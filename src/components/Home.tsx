@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -96,10 +96,14 @@ interface HomeProps {
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
     lyricsCustomFontLabel: string | null;
+    lyricFilterPattern: string;
+    currentSongTitle?: string | null;
     showOpenPanelCloseButton: boolean;
     onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
     onLyricsFontScaleChange: (fontScale: number) => void;
     onLyricsCustomFontChange: (font: { family: string; label?: string | null; } | null) => void;
+    loadLyricFilterPreview: () => Promise<LyricData | null>;
+    onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
     onSearchCommitted: (query: string, sourceTab: HomeViewTab, replace?: boolean) => void;
 }
@@ -168,10 +172,14 @@ const Home: React.FC<HomeProps> = ({
     lyricsFontScale,
     lyricsCustomFontFamily,
     lyricsCustomFontLabel,
+    lyricFilterPattern,
+    currentSongTitle,
     showOpenPanelCloseButton,
     onLyricsFontStyleChange,
     onLyricsFontScaleChange,
     onLyricsCustomFontChange,
+    loadLyricFilterPreview,
+    onSaveLyricFilterPattern,
     onToggleOpenPanelCloseButton,
     onSearchCommitted,
 }) => {
@@ -917,10 +925,14 @@ const Home: React.FC<HomeProps> = ({
                                 lyricsFontScale={lyricsFontScale}
                                 lyricsCustomFontFamily={lyricsCustomFontFamily}
                                 lyricsCustomFontLabel={lyricsCustomFontLabel}
+                                lyricFilterPattern={lyricFilterPattern}
+                                currentSongTitle={currentSongTitle}
                                 showOpenPanelCloseButton={showOpenPanelCloseButton}
                                 onLyricsFontStyleChange={onLyricsFontStyleChange}
                                 onLyricsFontScaleChange={onLyricsFontScaleChange}
                                 onLyricsCustomFontChange={onLyricsCustomFontChange}
+                                loadLyricFilterPreview={loadLyricFilterPreview}
+                                onSaveLyricFilterPattern={onSaveLyricFilterPattern}
                                 onToggleOpenPanelCloseButton={onToggleOpenPanelCloseButton}
                             />
                         )

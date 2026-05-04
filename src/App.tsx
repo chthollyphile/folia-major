@@ -3,13 +3,13 @@ import { Play, Pause, Repeat, Repeat1, Settings2, CheckCircle2, AlertCircle, Spa
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { LyricParserFactory } from './utils/lyrics/LyricParserFactory';
-import { saveSessionData, getSessionData, getFromCache, getFromCacheWithMigration, saveToCache, getLocalSongs, removeFromCache } from './services/db';
+import { saveSessionData, getSessionData, getFromCache, getFromCacheWithMigration, saveToCache, getLocalSongs, removeFromCache, clearCacheByCategory } from './services/db';
 import { getCachedAudioBlob, hasCachedAudio, saveAudioBlob } from './services/audioCache';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from './services/coverCache';
 import { ensureLocalSongEmbeddedCover, getAudioFromLocalSong } from './services/localMusicService';
 import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from './services/onlinePlayback';
 import { buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong } from './services/playbackAdapters';
-import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch } from './services/prefetchService';
+import { getPrefetchedData, prefetchNearbySongs, invalidateAndRefetch, invalidatePrefetchedLyrics } from './services/prefetchService';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import DevDebugOverlay from './components/DevDebugOverlay';
 import ProgressBar from './components/ProgressBar';
@@ -41,6 +41,7 @@ import { detectTimedLyricFormat } from './utils/lyrics/formatDetection';
 import { ensureLyricDataRenderHints, getLineRenderHints, migrateLyricDataRenderHints } from './utils/lyrics/renderHints';
 import { migrateMatchedLyricsCarrierRenderHints } from './utils/lyrics/storageMigration';
 import { processNeteaseLyrics } from './utils/lyrics/neteaseProcessing';
+import { applyLyricDisplayFilter } from './utils/lyrics/filtering';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const LOCAL_PREWARM_OFFSETS = [-1, 1, 2] as const;
@@ -52,6 +53,13 @@ const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
 const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
 const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
 const clampMediaVolume = (value: number) => Math.min(1, Math.max(0, value));
+const extractCloudLyricText = (response: any): string => {
+    if (typeof response?.lrc === 'string') return response.lrc;
+    if (typeof response?.data?.lrc === 'string') return response.data.lrc;
+    if (typeof response?.lyric === 'string') return response.lyric;
+    if (typeof response?.data?.lyric === 'string') return response.data.lyric;
+    return '';
+};
 
 type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
@@ -334,9 +342,6 @@ export default function App() {
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
     const [lyrics, setLyricsState] = useState<LyricData | null>(null);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
-    const setLyrics = useCallback((nextLyrics: LyricData | null) => {
-        setLyricsState(ensureLyricDataRenderHints(nextLyrics));
-    }, []);
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -428,6 +433,7 @@ export default function App() {
         lyricsFontScale,
         lyricsCustomFontFamily,
         lyricsCustomFontLabel,
+        lyricFilterPattern,
         showOpenPanelCloseButton,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -444,12 +450,17 @@ export default function App() {
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
+        handleSetLyricFilterPattern,
         handleToggleOpenPanelCloseButton,
         volume,
         isMuted,
         handleSetVolume,
         handleToggleMute,
     } = useAppPreferences(setStatusMsg);
+
+    const setLyrics = useCallback((nextLyrics: LyricData | null) => {
+        setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(nextLyrics, lyricFilterPattern)));
+    }, [lyricFilterPattern]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -1344,6 +1355,124 @@ export default function App() {
         return { lyrics, coverUrl, unifiedSong };
     };
 
+    const loadCurrentSongLyricPreview = useCallback(async (): Promise<LyricData | null> => {
+        if (!currentSong) {
+            return null;
+        }
+
+        if (isLocalPlaybackSong(currentSong) && currentSong.localData) {
+            const localData = currentSong.localData;
+            const source = localData.lyricsSource;
+
+            if (source === 'online' && localData.matchedLyrics) {
+                return localData.matchedLyrics;
+            }
+            if (source === 'embedded' && localData.embeddedLyricsContent) {
+                return await LyricParserFactory.parse({
+                    type: 'embedded',
+                    textContent: localData.embeddedLyricsContent,
+                    translationContent: localData.embeddedTranslationLyricsContent,
+                });
+            }
+            if (source === 'local' && localData.localLyricsContent) {
+                return await LyricParserFactory.parse({
+                    type: 'local',
+                    lrcContent: localData.localLyricsContent,
+                    tLrcContent: localData.localTranslationLyricsContent,
+                });
+            }
+            if (!source) {
+                if (localData.hasLocalLyrics && localData.localLyricsContent) {
+                    return await LyricParserFactory.parse({
+                        type: 'local',
+                        lrcContent: localData.localLyricsContent,
+                        tLrcContent: localData.localTranslationLyricsContent,
+                    });
+                }
+                if (localData.hasEmbeddedLyrics && localData.embeddedLyricsContent) {
+                    return await LyricParserFactory.parse({
+                        type: 'embedded',
+                        textContent: localData.embeddedLyricsContent,
+                        translationContent: localData.embeddedTranslationLyricsContent,
+                    });
+                }
+                if (localData.matchedLyrics) {
+                    return localData.matchedLyrics;
+                }
+            }
+
+            return lyrics;
+        }
+
+        if (isNavidromePlaybackSong(currentSong)) {
+            const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+            if (!navidromeSong) {
+                return lyrics;
+            }
+
+            if ((navidromeSong as any).lyricsSource === 'online' && (navidromeSong as any).matchedLyrics) {
+                return (navidromeSong as any).matchedLyrics as LyricData;
+            }
+
+            let resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
+            if (resolved) {
+                return resolved;
+            }
+
+            const config = getNavidromeConfig();
+            if (config) {
+                await hydrateNavidromeLyricPayload(config, navidromeSong);
+                resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
+                if (resolved) {
+                    return resolved;
+                }
+            }
+
+            return lyrics;
+        }
+
+        const onlineSong = currentSong;
+        const cachedLyrics = await getFromCacheWithMigration<LyricData>(
+            getOnlineSongCacheKey('lyric', onlineSong),
+            migrateLyricDataRenderHints
+        );
+        if (cachedLyrics) {
+            return cachedLyrics;
+        }
+
+        const prefetched = getPrefetchedData(onlineSong, audioQuality);
+        if (prefetched?.lyrics) {
+            return prefetched.lyrics;
+        }
+
+        if (isCloudSong(onlineSong) && user?.userId) {
+            const lyricRes = await neteaseApi.getCloudLyric(user.userId, onlineSong.id);
+            const mainLrc = extractCloudLyricText(lyricRes);
+            if (!mainLrc || isPureMusicLyricText(mainLrc)) {
+                return null;
+            }
+
+            return await LyricParserFactory.parse({
+                type: 'local',
+                lrcContent: mainLrc,
+            });
+        }
+
+        const lyricRes = await neteaseApi.getLyric(onlineSong.id);
+        return (await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes))).lyrics;
+    }, [audioQuality, currentSong, lyrics, user?.userId]);
+
+    const handleSaveLyricFilterPattern = useCallback(async (pattern: string) => {
+        handleSetLyricFilterPattern(pattern);
+        await clearCacheByCategory('lyrics');
+        invalidatePrefetchedLyrics();
+
+        const previewLyrics = await loadCurrentSongLyricPreview();
+        setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(previewLyrics, pattern)));
+        setCurrentLineIndex(-1);
+        setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
+    }, [handleSetLyricFilterPattern, loadCurrentSongLyricPreview]);
+
     const handleLocalQueueAdd = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
         const { unifiedSong } = await resolveLocalMetadataUI(preparedLocalSong, null);
@@ -1354,6 +1483,33 @@ export default function App() {
         saveToCache('last_queue', nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
     };
+
+    const addNeteaseSongToQueue = useCallback((song: SongResult) => {
+        if (isSongMarkedUnavailable(song)) {
+            return;
+        }
+
+        const exists = playQueue.some(queuedSong => queuedSong.id === song.id);
+        const nextQueue = exists ? playQueue : [...playQueue, song];
+
+        setPlayQueue(nextQueue);
+        saveToCache('last_queue', nextQueue);
+        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+    }, [playQueue, t]);
+
+    const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
+        if (songs.length === 0) {
+            return;
+        }
+
+        const existingIds = new Set(playQueue.map(song => song.id));
+        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
+        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
+
+        setPlayQueue(nextQueue);
+        saveToCache('last_queue', nextQueue);
+        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+    }, [playQueue, t]);
 
     const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
         if (songs.length === 0) {
@@ -2441,6 +2597,8 @@ export default function App() {
     const mediaSessionPauseRef = useRef(pausePlayback);
     const mediaSessionPrevRef = useRef(handlePrevTrack);
     const mediaSessionNextRef = useRef(handleNextTrack);
+    const taskbarHasTrackRef = useRef(Boolean(currentSong));
+    const taskbarPlayerStateRef = useRef(playerState);
 
     useEffect(() => {
         mediaSessionPlayRef.current = resumePlayback;
@@ -2457,6 +2615,66 @@ export default function App() {
     useEffect(() => {
         mediaSessionNextRef.current = handleNextTrack;
     }, [handleNextTrack]);
+
+    useEffect(() => {
+        taskbarHasTrackRef.current = Boolean(currentSong);
+    }, [currentSong]);
+
+    useEffect(() => {
+        taskbarPlayerStateRef.current = playerState;
+    }, [playerState]);
+
+    useEffect(() => {
+        if (!window.electron?.onTaskbarControl) {
+            return;
+        }
+
+        return window.electron.onTaskbarControl((action) => {
+            if (!audioRef.current || !taskbarHasTrackRef.current) {
+                return;
+            }
+
+            if (action === 'previous') {
+                mediaSessionPrevRef.current();
+                return;
+            }
+
+            if (action === 'next') {
+                void mediaSessionNextRef.current();
+                return;
+            }
+
+            if (taskbarPlayerStateRef.current === PlayerState.PLAYING) {
+                mediaSessionPauseRef.current();
+            } else {
+                void mediaSessionPlayRef.current();
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!window.electron?.updateTaskbarControls) {
+            return;
+        }
+
+        const hasActiveTrack = Boolean(currentSong);
+        const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
+        const canGoPrevious = currentIndex > 0 || (loopMode === 'all' && playQueue.length > 1);
+        const canGoNext = hasActiveTrack && (
+            isFmMode ||
+            currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
+            (loopMode === 'all' && playQueue.length > 1)
+        );
+
+        void window.electron.updateTaskbarControls({
+            hasActiveTrack,
+            canGoPrevious,
+            canGoNext,
+            isPlaying: hasActiveTrack && playerState === PlayerState.PLAYING,
+        }).catch((error) => {
+            console.warn('[Electron] Failed to update Windows taskbar controls', error);
+        });
+    }, [currentSong, isFmMode, loopMode, playQueue, playerState]);
 
     const handleFmTrash = async () => {
         if (currentSong && isFmMode) {
@@ -3372,10 +3590,14 @@ export default function App() {
                             lyricsFontScale={lyricsFontScale}
                             lyricsCustomFontFamily={lyricsCustomFontFamily}
                             lyricsCustomFontLabel={lyricsCustomFontLabel}
+                            lyricFilterPattern={lyricFilterPattern}
                             showOpenPanelCloseButton={showOpenPanelCloseButton}
                             onLyricsFontStyleChange={handleSetLyricsFontStyle}
                             onLyricsFontScaleChange={handleSetLyricsFontScale}
                             onLyricsCustomFontChange={handleSetLyricsCustomFont}
+                            loadLyricFilterPreview={loadCurrentSongLyricPreview}
+                            currentSongTitle={currentSong?.name || null}
+                            onSaveLyricFilterPattern={handleSaveLyricFilterPattern}
                             onToggleOpenPanelCloseButton={handleToggleOpenPanelCloseButton}
                             onMatchSong={async (song) => {
                                 await loadLocalSongs();
@@ -3485,6 +3707,8 @@ export default function App() {
                                 onPlayAll={(songs) => {
                                     playOnlineQueueFromStart(songs);
                                 }}
+                                onAddAllToQueue={addNeteaseSongsToQueue}
+                                onAddSongToQueue={addNeteaseSongToQueue}
                                 onSelectAlbum={handleAlbumSelect}
                                 onSelectArtist={handleArtistSelect}
                                 currentUserId={user?.userId}
@@ -3510,6 +3734,8 @@ export default function App() {
                                 onPlayAll={(songs) => {
                                     playOnlineQueueFromStart(songs);
                                 }}
+                                onAddAllToQueue={addNeteaseSongsToQueue}
+                                onAddSongToQueue={addNeteaseSongToQueue}
                                 onSelectArtist={handleArtistSelect}
                                 theme={theme}
                                 isDaylight={isDaylight}

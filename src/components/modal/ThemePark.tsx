@@ -469,6 +469,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             backgroundOpacity={backgroundOpacity}
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
+                            fumeTuning={fumeTuning}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

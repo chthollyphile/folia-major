@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2 } from 'lucide-react';
+import { Play, ChevronLeft, Disc, Loader2, ListPlus, Plus } from 'lucide-react';
 import { SongResult } from '../types';
 import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { useTranslation } from 'react-i18next';
@@ -11,18 +11,21 @@ interface AlbumViewProps {
     onBack: () => void;
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
     onPlayAll: (songs: SongResult[]) => void;
+    onAddAllToQueue: (songs: SongResult[]) => void;
+    onAddSongToQueue: (song: SongResult) => void;
     onSelectArtist: (artistId: number) => void;
     theme: any;
     isDaylight: boolean;
 }
 
-const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll, onSelectArtist, theme, isDaylight }) => {
+const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPlayAll, onAddAllToQueue, onAddSongToQueue, onSelectArtist, theme, isDaylight }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
     const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20'; // Desktop panel
     const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
     const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-800';
     const itemHoverBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
+    const secondaryButtonBg = isDaylight ? 'bg-black/[0.06] hover:bg-black/[0.1]' : 'bg-white/5 hover:bg-white/10';
 
     const { t } = useTranslation();
     const [tracks, setTracks] = useState<SongResult[]>([]);
@@ -151,7 +154,7 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                     )}
                                 </div>
 
-                                <div className="w-full pb-2">
+                                <div className="w-full pb-2 space-y-3">
                                     <button
                                         onClick={() => onPlayAll(playableTracks)}
                                         disabled={playableTracks.length === 0}
@@ -160,6 +163,15 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                     >
                                         <Play size={18} fill="currentColor" />
                                         {t('playlist.playAll')}
+                                    </button>
+                                    <button
+                                        onClick={() => onAddAllToQueue(playableTracks)}
+                                        disabled={playableTracks.length === 0}
+                                        className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${secondaryButtonBg}`}
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        <ListPlus size={16} />
+                                        {t('navidrome.addToQueue') || '加入播放队列'}
                                     </button>
                                 </div>
                             </div>
@@ -217,6 +229,20 @@ const AlbumView: React.FC<AlbumViewProps> = ({ albumId, onBack, onPlaySong, onPl
                                         <div className="w-12 md:w-16 text-right text-xs font-medium opacity-30 group-hover:opacity-80" style={{ color: 'var(--text-secondary)' }}>
                                             {formatDuration(track.dt || track.duration)}
                                         </div>
+
+                                        {!isUnavailable && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onAddSongToQueue(track);
+                                                }}
+                                                className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                title={t('navidrome.addToQueue') || '加入播放队列'}
+                                                style={{ color: 'var(--text-secondary)' }}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                     );
                                 })}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type StatusMessage, type Theme, type VisualizerMode } from '../types';
+import { getLyricFilterError } from '../utils/lyrics/filtering';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
@@ -77,15 +78,34 @@ const clampFumeHeroScale = (value: number, fallback: number) => {
     return Math.min(1.32, Math.max(0.82, value));
 };
 
+const clampFumeTextHoldRatio = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, value));
+};
+
+const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined) => (
+    value === 'stepped' || value === 'smooth'
+        ? value
+        : DEFAULT_FUME_TUNING.cameraTrackingMode
+);
+
 const readStoredFumeTuning = (): FumeTuning => {
     const saved = localStorage.getItem('fume_tuning');
     if (!saved) return DEFAULT_FUME_TUNING;
 
     try {
-        const parsed = JSON.parse(saved) as Partial<FumeTuning>;
+        const parsed = JSON.parse(saved) as Partial<FumeTuning> & { textHoldStyle?: 'standard' | 'dimmed'; };
+        const migratedTextHoldRatio = parsed.textHoldStyle === 'dimmed'
+            ? 0.5
+            : DEFAULT_FUME_TUNING.textHoldRatio;
         return {
             hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
             disableGeometricBackground: parsed.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+            textHoldRatio: clampFumeTextHoldRatio(parsed.textHoldRatio ?? migratedTextHoldRatio, DEFAULT_FUME_TUNING.textHoldRatio),
+            cameraTrackingMode: resolveFumeCameraTrackingMode(parsed.cameraTrackingMode),
             cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, DEFAULT_FUME_TUNING.cameraSpeed),
             glowIntensity: clampFumeGlowIntensity(parsed.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, DEFAULT_FUME_TUNING.glowIntensity),
             heroScale: clampFumeHeroScale(parsed.heroScale ?? DEFAULT_FUME_TUNING.heroScale, DEFAULT_FUME_TUNING.heroScale),
@@ -128,6 +148,8 @@ const readStoredCustomLyricsFont = (): StoredCustomLyricsFont | null => {
     }
 };
 
+const readStoredLyricFilterPattern = (): string => localStorage.getItem('lyrics_filter_pattern')?.trim() || '';
+
 export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [audioQuality, setAudioQuality] = useState<AudioQuality>(() => {
         const saved = localStorage.getItem('default_audio_quality');
@@ -163,6 +185,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [lyricsFontStyle, setLyricsFontStyle] = useState<Theme['fontStyle']>(readStoredLyricsFontStyle);
     const [lyricsFontScale, setLyricsFontScale] = useState<number>(readStoredLyricsFontScale);
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
+    const [lyricFilterPattern, setLyricFilterPattern] = useState<string>(readStoredLyricFilterPattern);
     const [showOpenPanelCloseButton, setShowOpenPanelCloseButton] = useState(() => getStoredBoolean('show_open_panel_close_button', true));
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('player_volume');
@@ -283,6 +306,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             const next = {
                 hidePrintSymbols: patch.hidePrintSymbols ?? prev.hidePrintSymbols,
                 disableGeometricBackground: patch.disableGeometricBackground ?? prev.disableGeometricBackground,
+                textHoldRatio: clampFumeTextHoldRatio(patch.textHoldRatio ?? prev.textHoldRatio, prev.textHoldRatio),
+                cameraTrackingMode: resolveFumeCameraTrackingMode(patch.cameraTrackingMode ?? prev.cameraTrackingMode),
                 cameraSpeed: clampFumeCameraSpeed(patch.cameraSpeed ?? prev.cameraSpeed, prev.cameraSpeed),
                 glowIntensity: clampFumeGlowIntensity(patch.glowIntensity ?? prev.glowIntensity, prev.glowIntensity),
                 heroScale: clampFumeHeroScale(patch.heroScale ?? prev.heroScale, prev.heroScale),
@@ -329,6 +354,17 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         localStorage.setItem('lyrics_custom_font', JSON.stringify(next));
     }, []);
 
+    const handleSetLyricFilterPattern = useCallback((pattern: string) => {
+        const next = pattern.trim();
+        setLyricFilterPattern(next);
+
+        if (next) {
+            localStorage.setItem('lyrics_filter_pattern', next);
+        } else {
+            localStorage.removeItem('lyrics_filter_pattern');
+        }
+    }, []);
+
     const handleToggleOpenPanelCloseButton = useCallback((enable: boolean) => {
         setShowOpenPanelCloseButton(enable);
         localStorage.setItem('show_open_panel_close_button', String(enable));
@@ -365,6 +401,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         lyricsFontScale,
         lyricsCustomFontFamily: lyricsCustomFont?.family ?? null,
         lyricsCustomFontLabel: lyricsCustomFont?.label ?? null,
+        lyricFilterPattern,
+        lyricFilterPatternError: getLyricFilterError(lyricFilterPattern),
         showOpenPanelCloseButton,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -381,6 +419,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
+        handleSetLyricFilterPattern,
         handleToggleOpenPanelCloseButton,
         volume,
         isMuted,

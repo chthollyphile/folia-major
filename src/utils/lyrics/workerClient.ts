@@ -1,5 +1,6 @@
 import { LyricData } from '../../types';
 import type { LyricParseFormat } from './parserCore';
+import type { LyricProcessingOptions } from './types';
 
 let lyricsWorker: Worker | null = null;
 let workerRequestId = 0;
@@ -32,12 +33,13 @@ export const initLyricsWorker = (): Worker => {
 export const parseLyricsAsync = (
     format: LyricParseFormat,
     content: string,
-    translation?: string
+    translation?: string,
+    options?: LyricProcessingOptions
 ): Promise<LyricData | null> => {
     return new Promise((resolve) => {
         const worker = initLyricsWorker();
         const requestId = `req_${++workerRequestId}`;
         workerCallbacks.set(requestId, resolve);
-        worker.postMessage({ type: 'parse', format, content, translation, requestId });
+        worker.postMessage({ type: 'parse', format, content, translation, options, requestId });
     });
 };

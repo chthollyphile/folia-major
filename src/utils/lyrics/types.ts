@@ -2,6 +2,11 @@ import { LyricData } from '../../types';
 
 export type UnifiedLyric = LyricData;
 
+export interface LyricProcessingOptions {
+    includeInterludes?: boolean;
+    filterPattern?: string | null;
+}
+
 export interface RawEmbeddedLyric {
     type: 'embedded';
     // Raw USLT tags parsed from music-metadata.

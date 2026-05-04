@@ -1,12 +1,12 @@
 import { LyricData } from '../../../types';
 import { LyricAdapter } from '../LyricAdapter';
-import { RawLocalFileLyric } from '../types';
+import { LyricProcessingOptions, RawLocalFileLyric } from '../types';
 import { parseLyricsAsync } from '../workerClient';
 import { splitCombinedTimeline } from '../timelineSplitter';
 import { detectTimedLyricFormat } from '../formatDetection';
 
 export class LocalFileLyricAdapter implements LyricAdapter<RawLocalFileLyric> {
-    async parse(source: RawLocalFileLyric): Promise<LyricData | null> {
+    async parse(source: RawLocalFileLyric, options: LyricProcessingOptions = {}): Promise<LyricData | null> {
         if (!source.lrcContent) return null;
         
         let mainLrc = source.lrcContent;
@@ -18,6 +18,6 @@ export class LocalFileLyricAdapter implements LyricAdapter<RawLocalFileLyric> {
             transLrc = trans;
         }
 
-        return await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, transLrc);
+        return await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, transLrc, options);
     }
 }

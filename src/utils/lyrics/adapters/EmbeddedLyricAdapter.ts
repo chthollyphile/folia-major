@@ -1,12 +1,12 @@
 import { LyricData } from '../../../types';
 import { LyricAdapter } from '../LyricAdapter';
-import { RawEmbeddedLyric } from '../types';
+import { LyricProcessingOptions, RawEmbeddedLyric } from '../types';
 import { parseLyricsAsync } from '../workerClient';
 import { detectTimedLyricFormat } from '../formatDetection';
 import { normalizeEmbeddedLrcText, normalizeEmbeddedUsltTags } from '../embeddedLrcNormalization';
 
 export class EmbeddedLyricAdapter implements LyricAdapter<RawEmbeddedLyric> {
-    async parse(source: RawEmbeddedLyric): Promise<LyricData | null> {
+    async parse(source: RawEmbeddedLyric, options: LyricProcessingOptions = {}): Promise<LyricData | null> {
         let mainLrc = '';
         let transLrc = '';
 
@@ -22,6 +22,6 @@ export class EmbeddedLyricAdapter implements LyricAdapter<RawEmbeddedLyric> {
 
         if (!mainLrc) return null;
 
-        return await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, transLrc);
+        return await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, transLrc, options);
     }
 }

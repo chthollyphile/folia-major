@@ -22,6 +22,15 @@ declare global {
     count: number;
   }
 
+  interface ElectronTaskbarControlState {
+    hasActiveTrack: boolean;
+    canGoPrevious: boolean;
+    canGoNext: boolean;
+    isPlaying: boolean;
+  }
+
+  type ElectronTaskbarControlAction = 'previous' | 'play-pause' | 'next';
+
   type ElectronUpdateStatusValue =
     | 'disabled'
     | 'idle'
@@ -79,6 +88,8 @@ declare global {
       toggleMaximizeWindow: () => Promise<boolean>;
       closeWindow: () => Promise<boolean>;
       isWindowMaximized: () => Promise<boolean>;
+      updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
+      onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
     };
   }
 }

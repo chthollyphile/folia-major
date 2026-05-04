@@ -1,8 +1,9 @@
 import { LyricData } from '../../types';
 import { applyDetectedChorusEffects } from './chorusEffects';
 import { detectTimedLyricFormat } from './formatDetection';
+import { resolveLyricProcessingOptions } from './filtering';
 import { hasNeteasePureMusicFlag, isPureMusicLyricText } from './pureMusic';
-import type { RawNeteaseLyric } from './types';
+import type { LyricProcessingOptions, RawNeteaseLyric } from './types';
 import { parseLyricsAsync } from './workerClient';
 
 export interface ExtractedNeteaseLyricPayload {
@@ -33,7 +34,8 @@ export const extractNeteaseLyricPayload = (source?: RawNeteaseLyric | null): Ext
 };
 
 export const processNeteaseLyrics = async (
-    source?: RawNeteaseLyric | null
+    source?: RawNeteaseLyric | null,
+    options: LyricProcessingOptions = {}
 ): Promise<ProcessedNeteaseLyricsResult> => {
     const payload = extractNeteaseLyricPayload(source);
     const primaryLyrics = payload.yrcLrc || payload.mainLrc;
@@ -46,7 +48,12 @@ export const processNeteaseLyrics = async (
     }
 
     const format = payload.yrcLrc ? 'yrc' : detectTimedLyricFormat(payload.mainLrc || primaryLyrics);
-    let lyrics = await parseLyricsAsync(format, primaryLyrics, payload.transLrc || '');
+    let lyrics = await parseLyricsAsync(
+        format,
+        primaryLyrics,
+        payload.transLrc || '',
+        resolveLyricProcessingOptions(options)
+    );
 
     if (lyrics && payload.mainLrc) {
         lyrics = applyDetectedChorusEffects(lyrics, payload.mainLrc);

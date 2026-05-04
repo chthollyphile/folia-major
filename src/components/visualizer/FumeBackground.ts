@@ -10,6 +10,13 @@ interface WorldSize {
     height: number;
 }
 
+interface FumeBackgroundBounds {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
 type FumeBackgroundShapeKind = 'ring' | 'square' | 'cross' | 'spark';
 type FumeBackgroundAudioBand = 'bass' | 'lowMid' | 'mid' | 'vocal' | 'treble';
 type FumeBackgroundShapeColor = 'secondary' | 'accent';
@@ -158,26 +165,114 @@ const traceShape = (
     context.restore();
 };
 
-const chooseCenterAnchor = ({
+const normalizeBounds = (
+    bounds: FumeBackgroundBounds,
+    worldWidth: number,
+    worldHeight: number,
+): FumeBackgroundBounds => ({
+    left: clamp(Math.min(bounds.left, bounds.right), 0, worldWidth),
+    top: clamp(Math.min(bounds.top, bounds.bottom), 0, worldHeight),
+    right: clamp(Math.max(bounds.left, bounds.right), 0, worldWidth),
+    bottom: clamp(Math.max(bounds.top, bounds.bottom), 0, worldHeight),
+});
+
+const choosePaperHaloAnchor = ({
+    paperBounds,
     worldWidth,
     worldHeight,
+    width,
+    height,
     seedKey,
 }: {
+    paperBounds: FumeBackgroundBounds;
     worldWidth: number;
     worldHeight: number;
+    width: number;
+    height: number;
     seedKey: string;
-}) => ({
-    x: mix(worldWidth * 0.16, worldWidth * 0.84, seeded(`${seedKey}:x`)),
-    y: mix(worldHeight * 0.16, worldHeight * 0.84, seeded(`${seedKey}:y`)),
-});
+}) => {
+    const insideChance = seeded(`${seedKey}:inside-chance`);
+    if (insideChance < 0.22) {
+        return {
+            x: clamp(
+                mix(
+                    paperBounds.left + width * 0.12,
+                    paperBounds.right - width * 0.12,
+                    seeded(`${seedKey}:inside-x`),
+                ),
+                0,
+                worldWidth,
+            ),
+            y: clamp(
+                mix(
+                    paperBounds.top + height * 0.12,
+                    paperBounds.bottom - height * 0.12,
+                    seeded(`${seedKey}:inside-y`),
+                ),
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    const side = Math.floor(seeded(`${seedKey}:side`) * 4) % 4;
+    const overflowX = width * mix(0.16, 0.24, seeded(`${seedKey}:overflow-x`));
+    const overflowY = height * mix(0.16, 0.24, seeded(`${seedKey}:overflow-y`));
+    const spanJitterX = width * mix(-0.18, 0.18, seeded(`${seedKey}:span-jitter-x`));
+    const spanJitterY = height * mix(-0.18, 0.18, seeded(`${seedKey}:span-jitter-y`));
+
+    if (side === 0) {
+        return {
+            x: clamp(paperBounds.left - overflowX, 0, worldWidth),
+            y: clamp(
+                mix(paperBounds.top - height * 0.12, paperBounds.bottom + height * 0.12, seeded(`${seedKey}:y`)) + spanJitterY,
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    if (side === 1) {
+        return {
+            x: clamp(paperBounds.right + overflowX, 0, worldWidth),
+            y: clamp(
+                mix(paperBounds.top - height * 0.12, paperBounds.bottom + height * 0.12, seeded(`${seedKey}:y`)) + spanJitterY,
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    if (side === 2) {
+        return {
+            x: clamp(
+                mix(paperBounds.left - width * 0.12, paperBounds.right + width * 0.12, seeded(`${seedKey}:x`)) + spanJitterX,
+                0,
+                worldWidth,
+            ),
+            y: clamp(paperBounds.top - overflowY, 0, worldHeight),
+        };
+    }
+
+    return {
+        x: clamp(
+            mix(paperBounds.left - width * 0.12, paperBounds.right + width * 0.12, seeded(`${seedKey}:x`)) + spanJitterX,
+            0,
+            worldWidth,
+        ),
+        y: clamp(paperBounds.bottom + overflowY, 0, worldHeight),
+    };
+};
 
 export const buildFumeBackgroundScene = ({
     viewport,
     world,
+    paperBounds,
     seed,
 }: {
     viewport: ViewportSize;
     world: WorldSize;
+    paperBounds?: FumeBackgroundBounds;
     seed?: string | number;
 }): FumeBackgroundScene => {
     if (viewport.width <= 0 || viewport.height <= 0 || world.width <= 0 || world.height <= 0) {
@@ -191,6 +286,17 @@ export const buildFumeBackgroundScene = ({
     const worldWidth = Math.max(world.width, viewport.width * 1.2);
     const worldHeight = Math.max(world.height, viewport.height * 1.2);
     const baseUnit = clamp(Math.min(viewport.width, viewport.height) * 0.72, 320, 760);
+    const defaultPaperBounds = {
+        left: worldWidth * 0.24,
+        top: worldHeight * 0.18,
+        right: worldWidth * 0.76,
+        bottom: worldHeight * 0.82,
+    };
+    const resolvedPaperBounds = normalizeBounds(
+        paperBounds ?? defaultPaperBounds,
+        worldWidth,
+        worldHeight,
+    );
     const shapeKinds: FumeBackgroundShapeKind[] = ['ring', 'square', 'cross', 'ring', 'square', 'cross'];
     const shapeCount = worldWidth > worldHeight ? 8 : 7;
     const sparkBands: FumeBackgroundAudioBand[] = ['treble', 'vocal', 'mid', 'treble', 'lowMid'];
@@ -211,9 +317,12 @@ export const buildFumeBackgroundScene = ({
         const kind = shapeKinds[index % shapeKinds.length]!;
         const width = baseUnit * mix(0.82, 1.36, seeded(`${localSeed}:size`));
         const height = width;
-        const anchor = chooseCenterAnchor({
+        const anchor = choosePaperHaloAnchor({
+            paperBounds: resolvedPaperBounds,
             worldWidth,
             worldHeight,
+            width,
+            height,
             seedKey: localSeed,
         });
 

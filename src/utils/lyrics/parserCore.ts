@@ -1,6 +1,7 @@
 import { LyricData, Line, Word } from '../../types';
 import type { TimedLyricFormat } from './formatDetection';
 import { annotateLyricLines } from './renderHints';
+import type { LyricProcessingOptions } from './types';
 
 export type LyricParseFormat = TimedLyricFormat | 'yrc';
 
@@ -44,6 +45,7 @@ const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2}):(\d{2})[.:](\d{2,3})>/g;
 const LRC_LINE_TIME_REGEX = /^\[(\d{2}):(\d{2})[.:](\d{2,3})\]/;
 const LEADING_LRC_TAGS_REGEX = /^((?:\[(?:\d{2}):(?:\d{2})[.:](?:\d{2,3})\])+)(.*)$/;
 const LRC_METADATA_REGEX = /^\[(ti|ar):([^\]]*)\]$/i;
+export const INTERLUDE_FULL_TEXT = '......';
 
 const buildTimedWords = (text: string, startTime: number, endTime: number): Word[] => {
     const duration = Math.max(endTime - startTime, 0.1);
@@ -106,7 +108,9 @@ const buildTimedWords = (text: string, startTime: number, endTime: number): Word
     return words;
 };
 
-const attachInterludes = (lines: Line[]): Line[] => {
+export const isInterludeLine = (line: Pick<Line, 'fullText'>): boolean => line.fullText === INTERLUDE_FULL_TEXT;
+
+export const attachInterludes = (lines: Line[]): Line[] => {
     const finalLines: Line[] = [];
 
     const createInterlude = (start: number, end: number): Line => {
@@ -125,7 +129,7 @@ const attachInterludes = (lines: Line[]): Line[] => {
         return {
             startTime: start,
             endTime: end,
-            fullText: '......',
+            fullText: INTERLUDE_FULL_TEXT,
             words
         };
     };
@@ -148,6 +152,17 @@ const attachInterludes = (lines: Line[]): Line[] => {
     }
 
     return finalLines;
+};
+
+export const finalizeParsedLyricLines = (
+    lines: Line[],
+    options: Pick<LyricProcessingOptions, 'includeInterludes'> = {}
+): Line[] => {
+    const withOptionalInterludes = options.includeInterludes === false
+        ? lines
+        : attachInterludes(lines);
+
+    return annotateLyricLines(withOptionalInterludes);
 };
 
 const sortByStartTimeIfNeeded = <T extends { startTime: number }>(items: T[], isSorted: boolean): T[] => {
@@ -380,7 +395,11 @@ const parseTimedTextEntries = (content: string): ParsedTimedEntriesResult => {
     };
 };
 
-export const parseLRC = (lrcString: string, translationString: string = ''): LyricData => {
+export const parseLRC = (
+    lrcString: string,
+    translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
     const lines: Line[] = [];
     const rawEntries: TimedTextEntry[] = [];
     let rawEntriesSorted = true;
@@ -427,10 +446,14 @@ export const parseLRC = (lrcString: string, translationString: string = ''): Lyr
         });
     }
 
-    return { lines: annotateLyricLines(attachInterludes(lines)) };
+    return { lines: finalizeParsedLyricLines(lines, options) };
 };
 
-export const parseYRC = (yrcString: string, translationString: string = ''): LyricData => {
+export const parseYRC = (
+    yrcString: string,
+    translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
     const rawLinesData: Array<{
         words: Word[];
         startTime: number;
@@ -497,7 +520,7 @@ export const parseYRC = (yrcString: string, translationString: string = ''): Lyr
         translation: translations[index]
     }));
 
-    return { lines: annotateLyricLines(attachInterludes(lines)) };
+    return { lines: finalizeParsedLyricLines(lines, options) };
 };
 
 const parseVttTimestamp = (value: string): number => {
@@ -578,7 +601,11 @@ const parseVTTEntries = (vttString: string): TimedTextEntry[] => {
     return entries.sort((left, right) => left.startTime - right.startTime);
 };
 
-export const parseVTT = (vttString: string, translationString: string = ''): LyricData => {
+export const parseVTT = (
+    vttString: string,
+    translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
     const entries = parseVTTEntries(vttString);
     const translationEntries = parseVTTEntries(translationString);
     const translations = findTranslationsForSortedStartTimes(
@@ -602,10 +629,14 @@ export const parseVTT = (vttString: string, translationString: string = ''): Lyr
         });
     }
 
-    return { lines: annotateLyricLines(attachInterludes(lines)) };
+    return { lines: finalizeParsedLyricLines(lines, options) };
 };
 
-export const parseEnhancedLRC = (lrcString: string, translationString: string = ''): LyricData => {
+export const parseEnhancedLRC = (
+    lrcString: string,
+    translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
     const metadata: LrcMetadata = {};
     const drafts: DraftLine[] = [];
     const translationEntries = parseTimedTextEntries(translationString).entries;
@@ -695,22 +726,27 @@ export const parseEnhancedLRC = (lrcString: string, translationString: string = 
     });
 
     return {
-        lines: annotateLyricLines(attachInterludes(lines)),
+        lines: finalizeParsedLyricLines(lines, options),
         title: metadata.title,
         artist: metadata.artist
     };
 };
 
-export const parseLyricsByFormat = (format: LyricParseFormat, content: string, translation: string = ''): LyricData => {
+export const parseLyricsByFormat = (
+    format: LyricParseFormat,
+    content: string,
+    translation: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
     switch (format) {
         case 'yrc':
-            return parseYRC(content, translation);
+            return parseYRC(content, translation, options);
         case 'enhanced-lrc':
-            return parseEnhancedLRC(content, translation);
+            return parseEnhancedLRC(content, translation, options);
         case 'vtt':
-            return parseVTT(content, translation);
+            return parseVTT(content, translation, options);
         case 'lrc':
         default:
-            return parseLRC(content, translation);
+            return parseLRC(content, translation, options);
     }
 };
