@@ -174,6 +174,9 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         if (saved === 'fume') {
             return 'fume';
         }
+        if (saved === 'overture') {
+            return 'overture';
+        }
         return 'classic';
     });
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
@@ -251,6 +254,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                     ? '已切换到云阶歌词'
                     : mode === 'fume'
                         ? '已切换到浮名歌词'
+                    : mode === 'overture'
+                        ? '已切换到序曲歌词'
                     : '已切换到流光歌词'
         });
     };

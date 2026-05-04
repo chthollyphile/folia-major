@@ -107,6 +107,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^0.554.0",
     "music-metadata": "^11.12.3",
+    "pixi.js": "^8.18.1",
     "react": "^19.2.4",
     "react-colorful": "^5.6.1",
     "react-dom": "^19.2.4",

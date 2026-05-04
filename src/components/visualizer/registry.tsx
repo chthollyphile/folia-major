@@ -14,6 +14,7 @@ import Visualizer from './Visualizer';
 import VisualizerCadenza from './VisualizerCadenza';
 import VisualizerPartita from './VisualizerPartita';
 import VisualizerFume from './VisualizerFume';
+import VisualizerOverture from './VisualizerOverture';
 
 export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
 
@@ -192,6 +193,40 @@ const renderFume = ({
     />
 );
 
+const renderOverture = ({
+    currentTime,
+    currentLineIndex,
+    lines,
+    theme,
+    audioPower,
+    audioBands,
+    showText,
+    coverUrl,
+    useCoverColorBg,
+    seed,
+    staticMode,
+    backgroundOpacity,
+    lyricsFontScale,
+    onBack,
+}: VisualizerSharedProps) => (
+    <VisualizerOverture
+        currentTime={currentTime}
+        currentLineIndex={currentLineIndex}
+        lines={lines}
+        theme={theme}
+        audioPower={audioPower}
+        audioBands={audioBands}
+        showText={showText}
+        coverUrl={coverUrl}
+        useCoverColorBg={useCoverColorBg}
+        seed={seed}
+        staticMode={staticMode}
+        backgroundOpacity={backgroundOpacity}
+        lyricsFontScale={lyricsFontScale}
+        onBack={onBack}
+    />
+);
+
 const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntry> = {
     classic: {
         mode: 'classic',
@@ -228,6 +263,15 @@ const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntr
         previewStartOffset: 18.4,
         tuningKind: 'fume',
         render: renderFume,
+    },
+    overture: {
+        mode: 'overture',
+        labelKey: 'ui.visualizerOverture',
+        labelFallback: '序曲',
+        previewSeed: 'overture',
+        previewStartOffset: 0,
+        tuningKind: 'none',
+        render: renderOverture,
     },
 };
 

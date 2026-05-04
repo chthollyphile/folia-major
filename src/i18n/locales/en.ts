@@ -71,6 +71,7 @@ export default {
     "visualizerCadenze": "Mindscape",
     "visualizerPartita": "Partita",
     "visualizerFume": "Fume",
+    "visualizerOverture": "Overture",
     "cadenzeTuning": "Mindscape Tuning",
     "resetVisualizerTuning": "Reset Visualizer Tuning",
     "livePreview": "Live preview",

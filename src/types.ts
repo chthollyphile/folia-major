@@ -44,7 +44,7 @@ export interface DualTheme {
 
 export type ThemeMode = 'default' | 'ai' | 'custom';
 
-export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
+export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume' | 'overture';
 
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
