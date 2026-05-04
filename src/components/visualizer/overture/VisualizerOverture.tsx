@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Application, Container, Graphics, Text } from 'pixi.js';
+import { GlowFilter } from 'pixi-filters';
 import { AudioBands, Line, Theme, Word } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
@@ -85,6 +86,8 @@ interface ObstaclePiece {
     text?: string;
     alpha: number;
     lineIndex: number;
+    color: number;
+    filled: boolean;
 }
 
 interface LineAnchor {
@@ -130,6 +133,15 @@ interface ObstacleTextView {
 interface SceneViews {
     lyricsViews: LyricsView[];
     obstacleTextViews: ObstacleTextView[];
+}
+
+interface HitBurst {
+    id: string;
+    unitId: string;
+    x: number;
+    y: number;
+    createdAt: number;
+    color: number;
 }
 
 interface CameraState {
@@ -181,6 +193,7 @@ const hashToUnit = (input: string) => {
 
 const normalizeUnitText = (text: string) => text.replace(/\s+/g, ' ').trim();
 const isLatinWord = (text: string) => LATIN_REGEX.test(text) && !CJK_REGEX.test(text);
+const isPunctuationGrapheme = (text: string) => /^[\p{P}\p{S}。、，！？；：·…「」『』（）〈〉《》【】—～·]+$/u.test(text);
 
 const colorToRgb = (color: string, fallback: { r: number, g: number, b: number }) => {
     if (color.startsWith('#')) {
@@ -244,6 +257,42 @@ const colorToNumber = (color: string, fallback: number) => {
     return fallback;
 };
 
+type GlowLikeFilter = GlowFilter & {
+    color: number;
+    outerStrength: number;
+    innerStrength: number;
+    alpha: number;
+};
+
+const createGlowFilter = (options: ConstructorParameters<typeof GlowFilter>[0]) =>
+    new GlowFilter(options) as unknown as GlowLikeFilter;
+
+const attachGlowFilter = (target: Graphics | Text, filter: GlowLikeFilter) => {
+    (target as unknown as { filters: unknown[] | null }).filters = [filter as unknown];
+};
+
+const getFirstGlowFilter = (target: Graphics | Text) => {
+    const filters = (target as unknown as { filters?: unknown[] | null }).filters;
+    if (!Array.isArray(filters) || filters.length === 0) {
+        return null;
+    }
+
+    return filters[0] as unknown as GlowLikeFilter;
+};
+
+const pickObstacleColor = (theme: Theme, seedKey: string) => {
+    const palette = [
+        theme.accentColor,
+        theme.primaryColor,
+        theme.secondaryColor,
+        theme.accentColor,
+    ];
+    const paletteIndex = Math.floor(hashToUnit(`${seedKey}:palette`) * palette.length);
+    const source = palette[paletteIndex] ?? theme.accentColor;
+    const amount = mix(0.18, 0.78, hashToUnit(`${seedKey}:mix`));
+    return mixColor(source, theme.backgroundColor, amount);
+};
+
 const createMeasureContext = () => {
     const canvas = document.createElement('canvas');
     return canvas.getContext('2d');
@@ -288,11 +337,28 @@ const buildFocusUnitsFromLine = (line: Line) => {
             return;
         }
 
+        const weights = graphemes.map(grapheme => {
+            if (CJK_REGEX.test(grapheme)) {
+                return 1;
+            }
+
+            if (isPunctuationGrapheme(grapheme)) {
+                return 0.72;
+            }
+
+            return 0.9;
+        });
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        let accumulatedWeight = 0;
+
         graphemes.forEach((grapheme, index) => {
+            const startRatio = accumulatedWeight / Math.max(totalWeight, 0.0001);
+            accumulatedWeight += weights[index]!;
+            const endRatio = accumulatedWeight / Math.max(totalWeight, 0.0001);
             units.push({
                 text: grapheme,
-                startTime: mix(word.startTime, word.endTime, index / graphemes.length),
-                endTime: mix(word.startTime, word.endTime, (index + 1) / graphemes.length),
+                startTime: mix(word.startTime, word.endTime, startRatio),
+                endTime: mix(word.startTime, word.endTime, endRatio),
                 kind: CJK_REGEX.test(grapheme) ? 'cjk' : 'symbol',
             });
         });
@@ -489,6 +555,7 @@ const buildObstacles = (
     focusUnits: FocusUnit[],
     windowLines: WindowLine[],
     viewport: ViewportSize,
+    theme: Theme,
     seed: string | number | undefined
 ) => {
     const obstacles: ObstaclePiece[] = [];
@@ -512,6 +579,7 @@ const buildObstacles = (
             y: (combinedNormal.y / combinedLength) * outwardSign,
         };
         const shapeIndex = Math.floor(hashToUnit(`${seed ?? 'overture'}:corner-shape:${index}`) * 3);
+        const colorSeed = `${seed ?? 'overture'}:corner-color:${index}`;
         obstacles.push({
             id: `corner-obstacle-${index}`,
             shape: shapeIndex === 0 ? 'rect' : shapeIndex === 1 ? 'triangle' : 'circle',
@@ -522,6 +590,8 @@ const buildObstacles = (
             rotation: mix(-0.88, 0.88, hashToUnit(`${seed ?? 'overture'}:corner-r:${index}`)),
             alpha: 0.24,
             lineIndex: index % Math.max(windowLines.length, 1),
+            color: pickObstacleColor(theme, colorSeed),
+            filled: hashToUnit(`${colorSeed}:fill`) > 0.56,
         });
     }
 
@@ -534,6 +604,7 @@ const buildObstacles = (
         const textDistance = Math.max(unit.height * 1.55 + unit.width * 0.32, 110);
 
         if (index < focusUnits.length - 1 && index % 2 === 0) {
+            const colorSeed = `${seed ?? 'overture'}:segment-color:${index}`;
             obstacles.push({
                 id: `segment-obstacle-${index}`,
                 shape: index % 3 === 0 ? 'triangle' : 'rect',
@@ -544,6 +615,8 @@ const buildObstacles = (
                 rotation: mix(-0.7, 0.7, hashToUnit(`${seed ?? 'overture'}:segment-r:${index}`)),
                 alpha: 0.22,
                 lineIndex: unit.lineIndex,
+                color: pickObstacleColor(theme, colorSeed),
+                filled: hashToUnit(`${colorSeed}:fill`) > 0.48,
             });
         }
     });
@@ -561,6 +634,7 @@ const buildObstacles = (
         const normal = getSegmentNormal(from, to);
         const side = index % 2 === 0 ? 1 : -1;
         const textDistance = Math.max(anchorUnit.height * 2.2 + anchorUnit.width * 0.55, 180);
+        const colorSeed = `${seed ?? 'overture'}:text-color:${index}`;
 
         obstacles.push({
             id: `text-obstacle-${index}`,
@@ -573,6 +647,8 @@ const buildObstacles = (
             text: entry.text,
             alpha: 0.14,
             lineIndex: entry.lineIndex,
+            color: pickObstacleColor(theme, colorSeed),
+            filled: hashToUnit(`${colorSeed}:fill`) > 0.62,
         });
     });
 
@@ -666,7 +742,7 @@ const buildOvertureWindow = ({
         };
     });
 
-    const obstacles = buildObstacles(pathMetrics, focusUnits, windowLines, viewport, seed);
+    const obstacles = buildObstacles(pathMetrics, focusUnits, windowLines, viewport, theme, seed);
     const lineAnchors = windowLines
         .map((windowLine, lineIndex) => {
             const units = focusUnits.filter(unit => unit.lineIndex === lineIndex);
@@ -704,11 +780,6 @@ const buildOvertureWindow = ({
     };
 };
 
-const getVisibleSegmentRange = (segmentIndex: number, totalSegments: number) => ({
-    start: Math.max(0, segmentIndex - 4),
-    end: Math.min(totalSegments - 1, segmentIndex + 6),
-});
-
 const sampleLineAnchorY = (lineAnchors: LineAnchor[], focusDistance: number, fallbackY: number) => {
     if (!lineAnchors.length) {
         return fallbackY;
@@ -738,6 +809,26 @@ const sampleLineAnchorY = (lineAnchors: LineAnchor[], focusDistance: number, fal
     }
 
     return lineAnchors[lineAnchors.length - 1]!.targetY;
+};
+
+const intersectsViewportBounds = (
+    centerX: number,
+    centerY: number,
+    width: number,
+    height: number,
+    viewportLeft: number,
+    viewportRight: number,
+    viewportTop: number,
+    viewportBottom: number
+) => {
+    const halfWidth = width * 0.5;
+    const halfHeight = height * 0.5;
+    return !(
+        centerX + halfWidth < viewportLeft
+        || centerX - halfWidth > viewportRight
+        || centerY + halfHeight < viewportTop
+        || centerY - halfHeight > viewportBottom
+    );
 };
 
 // Drive the arrow by path distance so both intra-line and inter-line motion stay continuous.
@@ -856,6 +947,42 @@ const drawRotatedRectOutline = (
         });
 };
 
+const drawRotatedRectFill = (
+    graphics: Graphics,
+    centerX: number,
+    centerY: number,
+    width: number,
+    height: number,
+    angle: number,
+    color: number,
+    alpha: number
+) => {
+    const halfWidth = width * 0.5;
+    const halfHeight = height * 0.5;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const points = [
+        { x: -halfWidth, y: -halfHeight },
+        { x: halfWidth, y: -halfHeight },
+        { x: halfWidth, y: halfHeight },
+        { x: -halfWidth, y: halfHeight },
+    ].map(point => ({
+        x: centerX + point.x * cos - point.y * sin,
+        y: centerY + point.x * sin + point.y * cos,
+    }));
+
+    graphics
+        .moveTo(points[0]!.x, points[0]!.y)
+        .lineTo(points[1]!.x, points[1]!.y)
+        .lineTo(points[2]!.x, points[2]!.y)
+        .lineTo(points[3]!.x, points[3]!.y)
+        .closePath()
+        .fill({
+            color,
+            alpha,
+        });
+};
+
 const drawTriangleOutline = (
     graphics: Graphics,
     centerX: number,
@@ -881,6 +1008,31 @@ const drawTriangleOutline = (
             width: strokeWidth,
             alpha,
             join: 'miter',
+        });
+};
+
+const drawTriangleFill = (
+    graphics: Graphics,
+    centerX: number,
+    centerY: number,
+    size: number,
+    angle: number,
+    color: number,
+    alpha: number
+) => {
+    const points = [0, Math.PI * (2 / 3), Math.PI * (4 / 3)].map(offset => ({
+        x: centerX + Math.cos(angle + offset) * size,
+        y: centerY + Math.sin(angle + offset) * size,
+    }));
+
+    graphics
+        .moveTo(points[0]!.x, points[0]!.y)
+        .lineTo(points[1]!.x, points[1]!.y)
+        .lineTo(points[2]!.x, points[2]!.y)
+        .closePath()
+        .fill({
+            color,
+            alpha,
         });
 };
 
@@ -916,6 +1068,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
     const obstacleGraphicsRef = useRef<Graphics | null>(null);
     const guideGraphicsRef = useRef<Graphics | null>(null);
     const arrowGraphicsRef = useRef<Graphics | null>(null);
+    const effectGraphicsRef = useRef<Graphics | null>(null);
     const obstacleTextLayerRef = useRef<Container | null>(null);
     const mainLyricsLayerRef = useRef<Container | null>(null);
     const worldWindowRef = useRef<OvertureWindow>({
@@ -942,6 +1095,11 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
     const showTextRef = useRef(showText);
     const activeSourceIndexRef = useRef(-1);
     const upcomingSourceIndexRef = useRef(-1);
+    const lastHitUnitIdRef = useRef<string | null>(null);
+    const hitBurstsRef = useRef<HitBurst[]>([]);
+    const guideGlowFilterRef = useRef<GlowLikeFilter | null>(null);
+    const arrowGlowFilterRef = useRef<GlowLikeFilter | null>(null);
+    const effectGlowFilterRef = useRef<GlowLikeFilter | null>(null);
     const viewportRef = useRef(DEFAULT_VIEWPORT);
     const [viewport, setViewport] = useState<ViewportSize>(DEFAULT_VIEWPORT);
     const [pixiReady, setPixiReady] = useState(false);
@@ -1009,8 +1167,36 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         const obstacleGraphics = new Graphics();
         const guideGraphics = new Graphics();
         const arrowGraphics = new Graphics();
+        const effectGraphics = new Graphics();
         const obstacleTextLayer = new Container();
         const mainLyricsLayer = new Container();
+        const guideGlowFilter = createGlowFilter({
+            distance: 24,
+            outerStrength: 2.2,
+            innerStrength: 0,
+            color: 0xffffff,
+            quality: 0.24,
+            alpha: 0.48,
+            knockout: false,
+        });
+        const arrowGlowFilter = createGlowFilter({
+            distance: 30,
+            outerStrength: 2.8,
+            innerStrength: 0.32,
+            color: 0xffffff,
+            quality: 0.26,
+            alpha: 0.72,
+            knockout: false,
+        });
+        const effectGlowFilter = createGlowFilter({
+            distance: 34,
+            outerStrength: 2.6,
+            innerStrength: 0,
+            color: 0xffffff,
+            quality: 0.24,
+            alpha: 0.62,
+            knockout: false,
+        });
 
         const initialize = async () => {
             await app.init({
@@ -1036,12 +1222,17 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             obstacleTextLayer.zIndex = 4;
             mainLyricsLayer.zIndex = 10;
             guideGraphics.zIndex = 16;
+            effectGraphics.zIndex = 20;
             arrowGraphics.zIndex = 24;
+            attachGlowFilter(guideGraphics, guideGlowFilter);
+            attachGlowFilter(effectGraphics, effectGlowFilter);
+            attachGlowFilter(arrowGraphics, arrowGlowFilter);
 
             world.addChild(obstacleGraphics);
             world.addChild(obstacleTextLayer);
             world.addChild(mainLyricsLayer);
             world.addChild(guideGraphics);
+            world.addChild(effectGraphics);
             world.addChild(arrowGraphics);
             app.stage.addChild(world);
 
@@ -1050,8 +1241,12 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             obstacleGraphicsRef.current = obstacleGraphics;
             guideGraphicsRef.current = guideGraphics;
             arrowGraphicsRef.current = arrowGraphics;
+            effectGraphicsRef.current = effectGraphics;
             obstacleTextLayerRef.current = obstacleTextLayer;
             mainLyricsLayerRef.current = mainLyricsLayer;
+            guideGlowFilterRef.current = guideGlowFilter;
+            arrowGlowFilterRef.current = arrowGlowFilter;
+            effectGlowFilterRef.current = effectGlowFilter;
 
             const resize = () => {
                 const bounds = host.getBoundingClientRect();
@@ -1068,7 +1263,8 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                 const obstacleNode = obstacleGraphicsRef.current;
                 const guideNode = guideGraphicsRef.current;
                 const arrowNode = arrowGraphicsRef.current;
-                if (!worldNode || !obstacleNode || !guideNode || !arrowNode || !windowLayout.focusUnits.length) {
+                const effectNode = effectGraphicsRef.current;
+                if (!worldNode || !obstacleNode || !guideNode || !arrowNode || !effectNode || !windowLayout.focusUnits.length) {
                     return;
                 }
 
@@ -1104,8 +1300,10 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                     cameraRef.current.velocityScale = 0;
                 } else {
                     const accelScale = (targetScale - cameraRef.current.scale) * 18 - cameraRef.current.velocityScale * 9.8;
-                    const trackingBlendX = clamp(dt * 0.92, 0.012, 0.03);
-                    const trackingBlendY = clamp(dt * 0.42, 0.005, 0.012);
+                    const cameraErrorX = Math.abs(targetCameraX - cameraRef.current.x);
+                    const cameraErrorY = Math.abs(targetCameraY - cameraRef.current.y);
+                    const trackingBlendX = clamp(dt * (1.2 + cameraErrorX * 0.02), 0.018, 0.085);
+                    const trackingBlendY = clamp(dt * (0.48 + cameraErrorY * 0.008), 0.006, 0.02);
                     cameraRef.current.velocityScale += accelScale * dt;
                     cameraRef.current.x = mix(cameraRef.current.x, targetCameraX, trackingBlendX);
                     cameraRef.current.y = mix(cameraRef.current.y, targetCameraY, trackingBlendY);
@@ -1121,14 +1319,63 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                 const activeColor = colorToNumber(themeRef.current.accentColor, 0xffffff);
                 const primaryColor = colorToNumber(themeRef.current.primaryColor, 0xe0e0e0);
                 const secondaryColor = colorToNumber(themeRef.current.secondaryColor, 0x9ea4af);
-                const obstacleColor = mixColor(themeRef.current.secondaryColor, themeRef.current.backgroundColor, 0.18);
                 const trailGuideColor = mixColor(themeRef.current.primaryColor, themeRef.current.backgroundColor, 0.38);
                 const futureGuideColor = mixColor(themeRef.current.secondaryColor, themeRef.current.backgroundColor, 0.28);
+                const guideGlowFilter = guideGlowFilterRef.current;
+                const arrowGlowFilter = arrowGlowFilterRef.current;
+                const effectGlowFilter = effectGlowFilterRef.current;
+                if (guideGlowFilter) {
+                    guideGlowFilter.color = activeColor;
+                    guideGlowFilter.outerStrength = 1.6 + vocal * 1.6;
+                    guideGlowFilter.alpha = 0.46 + vocal * 0.18;
+                }
+                if (arrowGlowFilter) {
+                    arrowGlowFilter.color = activeColor;
+                    arrowGlowFilter.outerStrength = 2 + vocal * 1.8;
+                    arrowGlowFilter.innerStrength = 0.22 + vocal * 0.12;
+                    arrowGlowFilter.alpha = 0.62 + vocal * 0.18;
+                }
+                if (effectGlowFilter) {
+                    effectGlowFilter.color = activeColor;
+                    effectGlowFilter.outerStrength = 1.8 + vocal * 1.8;
+                    effectGlowFilter.alpha = 0.54 + vocal * 0.2;
+                }
+                const viewportInset = 120 / Math.max(cameraRef.current.scale, 0.0001);
+                const viewportWorldLeft = cameraRef.current.x - (runtimeViewport.width * 0.5) / Math.max(cameraRef.current.scale, 0.0001) - viewportInset;
+                const viewportWorldRight = cameraRef.current.x + (runtimeViewport.width * 0.5) / Math.max(cameraRef.current.scale, 0.0001) + viewportInset;
+                const viewportWorldTop = cameraRef.current.y - (runtimeViewport.height * 0.5) / Math.max(cameraRef.current.scale, 0.0001) - viewportInset;
+                const viewportWorldBottom = cameraRef.current.y + (runtimeViewport.height * 0.5) / Math.max(cameraRef.current.scale, 0.0001) + viewportInset;
 
                 obstacleNode.clear();
                 windowLayout.obstacles.forEach(obstacle => {
+                    const visibleInViewport = intersectsViewportBounds(
+                        obstacle.x,
+                        obstacle.y,
+                        obstacle.width,
+                        obstacle.height,
+                        viewportWorldLeft,
+                        viewportWorldRight,
+                        viewportWorldTop,
+                        viewportWorldBottom
+                    );
+                    if (!visibleInViewport) {
+                        return;
+                    }
+
                     const pulsedAlpha = obstacle.alpha + (staticMode ? 0 : bass * 0.025);
                     if (obstacle.shape === 'rect') {
+                        if (obstacle.filled) {
+                            drawRotatedRectFill(
+                                obstacleNode,
+                                obstacle.x,
+                                obstacle.y,
+                                obstacle.width,
+                                obstacle.height,
+                                obstacle.rotation,
+                                obstacle.color,
+                                pulsedAlpha * 0.2,
+                            );
+                        }
                         drawRotatedRectOutline(
                             obstacleNode,
                             obstacle.x,
@@ -1136,26 +1383,45 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                             obstacle.width,
                             obstacle.height,
                             obstacle.rotation,
-                            obstacleColor,
+                            obstacle.color,
                             pulsedAlpha,
                             8
                         );
                     } else if (obstacle.shape === 'triangle') {
+                        if (obstacle.filled) {
+                            drawTriangleFill(
+                                obstacleNode,
+                                obstacle.x,
+                                obstacle.y,
+                                Math.max(obstacle.width, obstacle.height) * 0.4,
+                                obstacle.rotation,
+                                obstacle.color,
+                                pulsedAlpha * 0.18
+                            );
+                        }
                         drawTriangleOutline(
                             obstacleNode,
                             obstacle.x,
                             obstacle.y,
                             Math.max(obstacle.width, obstacle.height) * 0.4,
                             obstacle.rotation,
-                            obstacleColor,
+                            obstacle.color,
                             pulsedAlpha,
                             8
                         );
                     } else if (obstacle.shape === 'circle') {
+                        if (obstacle.filled) {
+                            obstacleNode
+                                .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
+                                .fill({
+                                    color: obstacle.color,
+                                    alpha: pulsedAlpha * 0.16,
+                                });
+                        }
                         obstacleNode
                             .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
                             .stroke({
-                                color: obstacleColor,
+                                color: obstacle.color,
                                 width: 8,
                                 alpha: pulsedAlpha,
                             });
@@ -1163,12 +1429,47 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                 });
 
                 sceneViewsRef.current.obstacleTextViews.forEach(view => {
-                    view.text.alpha = view.obstacle.alpha + (staticMode ? 0 : vocal * 0.03);
+                    view.text.visible = intersectsViewportBounds(
+                        view.obstacle.x,
+                        view.obstacle.y,
+                        view.obstacle.width,
+                        view.obstacle.height,
+                        viewportWorldLeft,
+                        viewportWorldRight,
+                        viewportWorldTop,
+                        viewportWorldBottom
+                    );
+                    if (!view.text.visible) {
+                        return;
+                    }
+                    view.text.tint = view.obstacle.color;
+                    view.text.alpha = view.obstacle.alpha + (staticMode ? 0.04 : vocal * 0.05);
+                    view.text.scale.set(1 + (staticMode ? 0.02 : bass * 0.02));
                     view.text.rotation = view.obstacle.rotation;
+                    const glowFilter = getFirstGlowFilter(view.text);
+                    if (glowFilter) {
+                        glowFilter.color = view.obstacle.color;
+                        glowFilter.outerStrength = 1.4 + vocal * 1.1;
+                        glowFilter.alpha = 0.34 + vocal * 0.14;
+                    }
                 });
 
                 sceneViewsRef.current.lyricsViews.forEach((view, index) => {
                     const unit = view.unit;
+                    view.text.visible = intersectsViewportBounds(
+                        unit.x,
+                        unit.y,
+                        unit.width,
+                        unit.height,
+                        viewportWorldLeft,
+                        viewportWorldRight,
+                        viewportWorldTop,
+                        viewportWorldBottom
+                    );
+                    if (!view.text.visible) {
+                        return;
+                    }
+
                     const state = focus.unitIndex > index
                         ? 'passed'
                         : focus.unitIndex === index
@@ -1179,21 +1480,14 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                         : unit.sourceLineIndex === upcomingSourceIndexRef.current
                             ? 0.72
                             : 0.46;
-                    const activePulse = staticMode ? 1 : (1 + vocal * 0.1);
+                    const activePulse = staticMode ? 1.06 : (1.12 + vocal * 0.14);
+                    const activeWobble = staticMode ? 0.02 : Math.sin(currentTimeValue * 18 + index * 0.6) * 0.08;
                     view.text.tint = state === 'active'
                         ? activeColor
                         : state === 'passed'
                             ? primaryColor
                             : secondaryColor;
-                    view.text.alpha = showTextRef.current
-                        ? (
-                            state === 'active'
-                                ? 1
-                                : state === 'passed'
-                                    ? 0.74 * lineWeakening
-                                    : 0.42 * lineWeakening
-                        )
-                        : 0;
+                    view.text.alpha = showTextRef.current ? 1 : 0;
                     view.text.scale.set(
                         state === 'active'
                             ? activePulse
@@ -1201,18 +1495,54 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                                 ? 0.95
                                 : 0.88
                     );
-                    view.text.rotation = unit.rotation + (state === 'active' ? 0.02 : 0);
+                    view.text.rotation = unit.rotation + (state === 'active' ? activeWobble : 0);
+                    const glowFilter = getFirstGlowFilter(view.text);
+                    if (glowFilter) {
+                        glowFilter.color = state === 'active' ? activeColor : (state === 'passed' ? primaryColor : secondaryColor);
+                        glowFilter.outerStrength = state === 'active' ? (1.15 + vocal * 0.7) : 0.45;
+                        glowFilter.innerStrength = 0;
+                        glowFilter.alpha = state === 'active' ? 0.28 : (state === 'passed' ? 0.14 : 0.08);
+                    }
                 });
 
                 guideNode.clear();
-                const visibleSegments = getVisibleSegmentRange(focus.segmentIndex, windowLayout.pathMetrics.segmentLengths.length);
-                for (let index = visibleSegments.start; index <= visibleSegments.end; index += 1) {
+                for (let index = 0; index < windowLayout.pathMetrics.segmentLengths.length; index += 1) {
                     const from = windowLayout.pathMetrics.points[index]!;
                     const to = windowLayout.pathMetrics.points[index + 1]!;
+                    const segmentMinX = Math.min(from.x, to.x);
+                    const segmentMaxX = Math.max(from.x, to.x);
+                    const segmentMinY = Math.min(from.y, to.y);
+                    const segmentMaxY = Math.max(from.y, to.y);
+                    const intersectsViewport = !(
+                        segmentMaxX < viewportWorldLeft
+                        || segmentMinX > viewportWorldRight
+                        || segmentMaxY < viewportWorldTop
+                        || segmentMinY > viewportWorldBottom
+                    );
+
+                    if (!intersectsViewport) {
+                        continue;
+                    }
+
                     const segmentStart = windowLayout.pathMetrics.cumulativeStarts[index]!;
                     const segmentEnd = segmentStart + windowLayout.pathMetrics.segmentLengths[index]!;
                     const isPassed = focus.distance >= segmentEnd;
                     const isCurrent = focus.distance >= segmentStart && focus.distance <= segmentEnd;
+                    if (isPassed || isCurrent) {
+                        const trailToX = isCurrent ? focus.x : to.x;
+                        const trailToY = isCurrent ? focus.y : to.y;
+                        guideNode
+                            .moveTo(from.x, from.y)
+                            .lineTo(trailToX, trailToY)
+                            .stroke({
+                                color: activeColor,
+                                width: isCurrent ? 7 : 5,
+                                alpha: isCurrent ? 0.58 : 0.36,
+                                cap: 'round',
+                                join: 'round',
+                            });
+                    }
+
                     if (isCurrent) {
                         guideNode
                             .moveTo(from.x, from.y)
@@ -1248,6 +1578,48 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                             join: 'round',
                         });
                 }
+
+                const activeUnit = windowLayout.focusUnits[focus.unitIndex] ?? null;
+                if (activeUnit && lastHitUnitIdRef.current !== activeUnit.id) {
+                    lastHitUnitIdRef.current = activeUnit.id;
+                    hitBurstsRef.current.push({
+                        id: `burst-${activeUnit.id}-${currentTimeValue.toFixed(3)}`,
+                        unitId: activeUnit.id,
+                        x: activeUnit.x,
+                        y: activeUnit.y,
+                        createdAt: currentTimeValue,
+                        color: activeColor,
+                    });
+                }
+                hitBurstsRef.current = hitBurstsRef.current.filter(burst => currentTimeValue - burst.createdAt < 0.42);
+                effectNode.clear();
+                hitBurstsRef.current.forEach((burst, burstIndex) => {
+                    const age = currentTimeValue - burst.createdAt;
+                    const progress = clamp(age / 0.42, 0, 1);
+                    const particleCount = 8;
+                    const radius = mix(12, 94, progress);
+                    const particleRadius = mix(10, 2, progress);
+                    for (let index = 0; index < particleCount; index += 1) {
+                        const angle = (Math.PI * 2 * index) / particleCount + burstIndex * 0.12;
+                        effectNode
+                            .circle(
+                                burst.x + Math.cos(angle) * radius,
+                                burst.y + Math.sin(angle) * radius,
+                                particleRadius
+                            )
+                            .fill({
+                                color: burst.color,
+                                alpha: (1 - progress) * 0.32,
+                            });
+                    }
+                    effectNode
+                        .circle(burst.x, burst.y, mix(18, 88, progress))
+                        .stroke({
+                            color: burst.color,
+                            width: mix(10, 1, progress),
+                            alpha: (1 - progress) * 0.18,
+                        });
+                });
 
                 arrowNode.clear();
                 const arrowLength = 30;
@@ -1299,6 +1671,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             obstacleGraphicsRef.current = null;
             guideGraphicsRef.current = null;
             arrowGraphicsRef.current = null;
+            effectGraphicsRef.current = null;
             obstacleTextLayerRef.current = null;
             mainLyricsLayerRef.current = null;
             setPixiReady(false);
@@ -1313,7 +1686,8 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         const obstacleGraphics = obstacleGraphicsRef.current;
         const guideGraphics = guideGraphicsRef.current;
         const arrowGraphics = arrowGraphicsRef.current;
-        if (!obstacleTextLayer || !mainLyricsLayer || !obstacleGraphics || !guideGraphics || !arrowGraphics) {
+        const effectGraphics = effectGraphicsRef.current;
+        if (!obstacleTextLayer || !mainLyricsLayer || !obstacleGraphics || !guideGraphics || !arrowGraphics || !effectGraphics) {
             return;
         }
 
@@ -1328,6 +1702,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         obstacleGraphics.clear();
         guideGraphics.clear();
         arrowGraphics.clear();
+        effectGraphics.clear();
 
         const secondaryColor = colorToNumber(theme.secondaryColor, 0xffffff);
         overtureWindow.obstacles
@@ -1335,6 +1710,15 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             .forEach(obstacle => {
                 const fontPx = clamp(obstacle.height * 0.56, 20, 66);
                 const label = createLabelText(obstacle.text ?? '', fontPx, secondaryColor, obstacle.alpha, theme);
+                attachGlowFilter(label, createGlowFilter({
+                    distance: 22,
+                    outerStrength: 1.6,
+                    innerStrength: 0,
+                    color: obstacle.color,
+                    quality: 0.22,
+                    alpha: 0.36,
+                    knockout: false,
+                }));
                 label.anchor.set(0.5);
                 label.x = obstacle.x;
                 label.y = obstacle.y;
@@ -1348,6 +1732,15 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
 
         overtureWindow.focusUnits.forEach(unit => {
             const label = createLabelText(unit.text, unit.fontSize, secondaryColor, showText ? 0.82 : 0, theme);
+            attachGlowFilter(label, createGlowFilter({
+                distance: 34,
+                outerStrength: 0.72,
+                innerStrength: 0,
+                color: secondaryColor,
+                quality: 0.3,
+                alpha: 0.1,
+                knockout: false,
+            }));
             label.anchor.set(0.5);
             label.x = unit.x;
             label.y = unit.y;
