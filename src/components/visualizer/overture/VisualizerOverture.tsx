@@ -130,7 +130,13 @@ interface ObstacleTextView {
     text: Text;
 }
 
+interface ObstacleShapeView {
+    obstacle: ObstaclePiece;
+    graphics: Graphics;
+}
+
 interface SceneViews {
+    obstacleShapeViews: ObstacleShapeView[];
     lyricsViews: LyricsView[];
     obstacleTextViews: ObstacleTextView[];
 }
@@ -399,6 +405,158 @@ const getSegmentNormal = (from: PathPoint, to: PathPoint) => {
     };
 };
 
+const getRotatedBoundsHalfSize = (width: number, height: number, rotation: number) => {
+    const halfWidth = width * 0.5;
+    const halfHeight = height * 0.5;
+    const cos = Math.abs(Math.cos(rotation));
+    const sin = Math.abs(Math.sin(rotation));
+
+    return {
+        x: halfWidth * cos + halfHeight * sin,
+        y: halfWidth * sin + halfHeight * cos,
+    };
+};
+
+const getObstacleClearanceRadius = (
+    width: number,
+    height: number,
+    shape: ObstacleShape
+) => {
+    if (shape === 'circle') {
+        return Math.max(width, height) * 0.34;
+    }
+
+    if (shape === 'triangle') {
+        return Math.max(width, height) * 0.42;
+    }
+
+    return Math.hypot(width * 0.5, height * 0.5);
+};
+
+const pointToSegmentDistance = (point: PathPoint, from: PathPoint, to: PathPoint) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (lengthSquared <= 0.0001) {
+        return Math.hypot(point.x - from.x, point.y - from.y);
+    }
+
+    const t = clamp(
+        ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared,
+        0,
+        1
+    );
+    const projectedX = from.x + dx * t;
+    const projectedY = from.y + dy * t;
+    return Math.hypot(point.x - projectedX, point.y - projectedY);
+};
+
+const overlapsAxisAlignedBox = (
+    centerX: number,
+    centerY: number,
+    halfWidth: number,
+    halfHeight: number,
+    otherCenterX: number,
+    otherCenterY: number,
+    otherHalfWidth: number,
+    otherHalfHeight: number,
+    padding: number
+) => (
+    Math.abs(centerX - otherCenterX) < halfWidth + otherHalfWidth + padding
+    && Math.abs(centerY - otherCenterY) < halfHeight + otherHalfHeight + padding
+);
+
+// Keep generated obstacles away from both the full guide path and every visible lyric safety box.
+const canPlaceObstacle = (
+    candidate: ObstaclePiece,
+    metrics: PathMetrics,
+    focusUnits: FocusUnit[],
+    placedObstacles: ObstaclePiece[]
+) => {
+    const halfSize = getRotatedBoundsHalfSize(candidate.width, candidate.height, candidate.rotation);
+    const clearanceRadius = getObstacleClearanceRadius(candidate.width, candidate.height, candidate.shape);
+    const guidePadding = Math.max(56, Math.min(candidate.width, candidate.height) * 0.22);
+
+    for (let index = 0; index < metrics.points.length - 1; index += 1) {
+        const from = metrics.points[index]!;
+        const to = metrics.points[index + 1]!;
+        if (pointToSegmentDistance(candidate, from, to) < clearanceRadius + guidePadding) {
+            return false;
+        }
+    }
+
+    for (const unit of focusUnits) {
+        if (overlapsAxisAlignedBox(
+            candidate.x,
+            candidate.y,
+            halfSize.x,
+            halfSize.y,
+            unit.x,
+            unit.y,
+            unit.width * 0.5,
+            unit.height * 0.5,
+            36
+        )) {
+            return false;
+        }
+    }
+
+    for (const placedObstacle of placedObstacles) {
+        const placedHalfSize = getRotatedBoundsHalfSize(
+            placedObstacle.width,
+            placedObstacle.height,
+            placedObstacle.rotation
+        );
+        if (overlapsAxisAlignedBox(
+            candidate.x,
+            candidate.y,
+            halfSize.x,
+            halfSize.y,
+            placedObstacle.x,
+            placedObstacle.y,
+            placedHalfSize.x,
+            placedHalfSize.y,
+            24
+        )) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+const placeObstacleWithClearance = (
+    baseObstacle: Omit<ObstaclePiece, 'x' | 'y'>,
+    anchorX: number,
+    anchorY: number,
+    normal: { x: number, y: number },
+    baseDistance: number,
+    metrics: PathMetrics,
+    focusUnits: FocusUnit[],
+    placedObstacles: ObstaclePiece[],
+    distanceSteps: number[],
+    sideOptions: number[]
+) => {
+    for (const side of sideOptions) {
+        for (const distanceScale of distanceSteps) {
+            const distance = baseDistance * distanceScale;
+            const candidate: ObstaclePiece = {
+                ...baseObstacle,
+                x: anchorX + normal.x * distance * side,
+                y: anchorY + normal.y * distance * side,
+            };
+
+            if (canPlaceObstacle(candidate, metrics, focusUnits, placedObstacles)) {
+                placedObstacles.push(candidate);
+                return candidate;
+            }
+        }
+    }
+
+    return null;
+};
+
 // Sample the hidden guide path at a distance so arrow motion follows corners instead of cutting through them.
 const samplePath = (metrics: PathMetrics, distance: number) => {
     if (metrics.points.length < 2 || metrics.segmentLengths.length === 0) {
@@ -560,6 +718,7 @@ const buildObstacles = (
 ) => {
     const obstacles: ObstaclePiece[] = [];
     const textPool = buildObstacleTextPool(windowLines);
+    const distanceSteps = [1, 1.35, 1.7, 2.1];
 
     for (let index = 1; index < metrics.points.length - 1; index += 1) {
         const previousPoint = metrics.points[index - 1]!;
@@ -580,11 +739,9 @@ const buildObstacles = (
         };
         const shapeIndex = Math.floor(hashToUnit(`${seed ?? 'overture'}:corner-shape:${index}`) * 3);
         const colorSeed = `${seed ?? 'overture'}:corner-color:${index}`;
-        obstacles.push({
+        placeObstacleWithClearance({
             id: `corner-obstacle-${index}`,
             shape: shapeIndex === 0 ? 'rect' : shapeIndex === 1 ? 'triangle' : 'circle',
-            x: point.x + outward.x * mix(130, 210, hashToUnit(`${seed ?? 'overture'}:corner-dist:${index}`)),
-            y: point.y + outward.y * mix(130, 210, hashToUnit(`${seed ?? 'overture'}:corner-dist:${index}:y`)),
             width: mix(viewport.width * 0.18, viewport.width * 0.34, hashToUnit(`${seed ?? 'overture'}:corner-w:${index}`)),
             height: mix(viewport.height * 0.14, viewport.height * 0.28, hashToUnit(`${seed ?? 'overture'}:corner-h:${index}`)),
             rotation: mix(-0.88, 0.88, hashToUnit(`${seed ?? 'overture'}:corner-r:${index}`)),
@@ -592,7 +749,16 @@ const buildObstacles = (
             lineIndex: index % Math.max(windowLines.length, 1),
             color: pickObstacleColor(theme, colorSeed),
             filled: hashToUnit(`${colorSeed}:fill`) > 0.56,
-        });
+        },
+        point.x,
+        point.y,
+        outward,
+        mix(150, 240, hashToUnit(`${seed ?? 'overture'}:corner-dist:${index}`)),
+        metrics,
+        focusUnits,
+        obstacles,
+        distanceSteps,
+        [1]);
     }
 
     focusUnits.forEach((unit, index) => {
@@ -605,11 +771,9 @@ const buildObstacles = (
 
         if (index < focusUnits.length - 1 && index % 2 === 0) {
             const colorSeed = `${seed ?? 'overture'}:segment-color:${index}`;
-            obstacles.push({
+            placeObstacleWithClearance({
                 id: `segment-obstacle-${index}`,
                 shape: index % 3 === 0 ? 'triangle' : 'rect',
-                x: unit.x - normal.x * (textDistance * 0.82) * side,
-                y: unit.y - normal.y * (textDistance * 0.82) * side,
                 width: mix(72, 150, hashToUnit(`${seed ?? 'overture'}:segment-w:${index}`)),
                 height: mix(64, 140, hashToUnit(`${seed ?? 'overture'}:segment-h:${index}`)),
                 rotation: mix(-0.7, 0.7, hashToUnit(`${seed ?? 'overture'}:segment-r:${index}`)),
@@ -617,7 +781,16 @@ const buildObstacles = (
                 lineIndex: unit.lineIndex,
                 color: pickObstacleColor(theme, colorSeed),
                 filled: hashToUnit(`${colorSeed}:fill`) > 0.48,
-            });
+            },
+            unit.x,
+            unit.y,
+            normal,
+            textDistance * 0.82,
+            metrics,
+            focusUnits,
+            obstacles,
+            distanceSteps,
+            [side, -side]);
         }
     });
 
@@ -636,11 +809,9 @@ const buildObstacles = (
         const textDistance = Math.max(anchorUnit.height * 2.2 + anchorUnit.width * 0.55, 180);
         const colorSeed = `${seed ?? 'overture'}:text-color:${index}`;
 
-        obstacles.push({
+        placeObstacleWithClearance({
             id: `text-obstacle-${index}`,
             shape: 'text',
-            x: anchorUnit.x + normal.x * textDistance * side,
-            y: anchorUnit.y + normal.y * textDistance * side,
             width: anchorUnit.width * mix(1.35, 1.9, hashToUnit(`${seed ?? 'overture'}:text-w:${index}`)),
             height: anchorUnit.height * mix(0.9, 1.2, hashToUnit(`${seed ?? 'overture'}:text-h:${index}`)),
             rotation: mix(-0.86, 0.86, hashToUnit(`${seed ?? 'overture'}:text-r:${index}`)),
@@ -649,7 +820,16 @@ const buildObstacles = (
             lineIndex: entry.lineIndex,
             color: pickObstacleColor(theme, colorSeed),
             filled: hashToUnit(`${colorSeed}:fill`) > 0.62,
-        });
+        },
+        anchorUnit.x,
+        anchorUnit.y,
+        normal,
+        textDistance,
+        metrics,
+        focusUnits,
+        obstacles,
+        distanceSteps,
+        [side, -side]);
     });
 
     return obstacles;
@@ -1037,6 +1217,9 @@ const drawTriangleFill = (
 };
 
 const destroySceneViews = (views: SceneViews) => {
+    views.obstacleShapeViews.forEach(view => {
+        view.graphics.destroy();
+    });
     views.lyricsViews.forEach(view => {
         view.text.destroy();
     });
@@ -1065,7 +1248,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
     const pixiHostRef = useRef<HTMLDivElement | null>(null);
     const appRef = useRef<Application | null>(null);
     const worldRef = useRef<Container | null>(null);
-    const obstacleGraphicsRef = useRef<Graphics | null>(null);
+    const obstacleLayerRef = useRef<Container | null>(null);
     const guideGraphicsRef = useRef<Graphics | null>(null);
     const arrowGraphicsRef = useRef<Graphics | null>(null);
     const effectGraphicsRef = useRef<Graphics | null>(null);
@@ -1080,6 +1263,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         worldHeight: 0,
     });
     const sceneViewsRef = useRef<SceneViews>({
+        obstacleShapeViews: [],
         lyricsViews: [],
         obstacleTextViews: [],
     });
@@ -1164,7 +1348,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         let cancelled = false;
         const app = new Application();
         const world = new Container();
-        const obstacleGraphics = new Graphics();
+        const obstacleLayer = new Container();
         const guideGraphics = new Graphics();
         const arrowGraphics = new Graphics();
         const effectGraphics = new Graphics();
@@ -1218,7 +1402,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             host.replaceChildren(app.canvas);
 
             world.sortableChildren = true;
-            obstacleGraphics.zIndex = 2;
+            obstacleLayer.zIndex = 2;
             obstacleTextLayer.zIndex = 4;
             mainLyricsLayer.zIndex = 10;
             guideGraphics.zIndex = 16;
@@ -1228,7 +1412,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             attachGlowFilter(effectGraphics, effectGlowFilter);
             attachGlowFilter(arrowGraphics, arrowGlowFilter);
 
-            world.addChild(obstacleGraphics);
+            world.addChild(obstacleLayer);
             world.addChild(obstacleTextLayer);
             world.addChild(mainLyricsLayer);
             world.addChild(guideGraphics);
@@ -1238,7 +1422,7 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
 
             appRef.current = app;
             worldRef.current = world;
-            obstacleGraphicsRef.current = obstacleGraphics;
+            obstacleLayerRef.current = obstacleLayer;
             guideGraphicsRef.current = guideGraphics;
             arrowGraphicsRef.current = arrowGraphics;
             effectGraphicsRef.current = effectGraphics;
@@ -1260,11 +1444,10 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             const tick = (ticker: { deltaMS: number }) => {
                 const windowLayout = worldWindowRef.current;
                 const worldNode = worldRef.current;
-                const obstacleNode = obstacleGraphicsRef.current;
                 const guideNode = guideGraphicsRef.current;
                 const arrowNode = arrowGraphicsRef.current;
                 const effectNode = effectGraphicsRef.current;
-                if (!worldNode || !obstacleNode || !guideNode || !arrowNode || !effectNode || !windowLayout.focusUnits.length) {
+                if (!worldNode || !guideNode || !arrowNode || !effectNode || !windowLayout.focusUnits.length) {
                     return;
                 }
 
@@ -1346,8 +1529,8 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                 const viewportWorldTop = cameraRef.current.y - (runtimeViewport.height * 0.5) / Math.max(cameraRef.current.scale, 0.0001) - viewportInset;
                 const viewportWorldBottom = cameraRef.current.y + (runtimeViewport.height * 0.5) / Math.max(cameraRef.current.scale, 0.0001) + viewportInset;
 
-                obstacleNode.clear();
-                windowLayout.obstacles.forEach(obstacle => {
+                sceneViewsRef.current.obstacleShapeViews.forEach(view => {
+                    const obstacle = view.obstacle;
                     const visibleInViewport = intersectsViewportBounds(
                         obstacle.x,
                         obstacle.y,
@@ -1358,74 +1541,12 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
                         viewportWorldTop,
                         viewportWorldBottom
                     );
+                    view.graphics.visible = visibleInViewport;
                     if (!visibleInViewport) {
                         return;
                     }
 
-                    const pulsedAlpha = obstacle.alpha + (staticMode ? 0 : bass * 0.025);
-                    if (obstacle.shape === 'rect') {
-                        if (obstacle.filled) {
-                            drawRotatedRectFill(
-                                obstacleNode,
-                                obstacle.x,
-                                obstacle.y,
-                                obstacle.width,
-                                obstacle.height,
-                                obstacle.rotation,
-                                obstacle.color,
-                                pulsedAlpha * 0.2,
-                            );
-                        }
-                        drawRotatedRectOutline(
-                            obstacleNode,
-                            obstacle.x,
-                            obstacle.y,
-                            obstacle.width,
-                            obstacle.height,
-                            obstacle.rotation,
-                            obstacle.color,
-                            pulsedAlpha,
-                            8
-                        );
-                    } else if (obstacle.shape === 'triangle') {
-                        if (obstacle.filled) {
-                            drawTriangleFill(
-                                obstacleNode,
-                                obstacle.x,
-                                obstacle.y,
-                                Math.max(obstacle.width, obstacle.height) * 0.4,
-                                obstacle.rotation,
-                                obstacle.color,
-                                pulsedAlpha * 0.18
-                            );
-                        }
-                        drawTriangleOutline(
-                            obstacleNode,
-                            obstacle.x,
-                            obstacle.y,
-                            Math.max(obstacle.width, obstacle.height) * 0.4,
-                            obstacle.rotation,
-                            obstacle.color,
-                            pulsedAlpha,
-                            8
-                        );
-                    } else if (obstacle.shape === 'circle') {
-                        if (obstacle.filled) {
-                            obstacleNode
-                                .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
-                                .fill({
-                                    color: obstacle.color,
-                                    alpha: pulsedAlpha * 0.16,
-                                });
-                        }
-                        obstacleNode
-                            .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
-                            .stroke({
-                                color: obstacle.color,
-                                width: 8,
-                                alpha: pulsedAlpha,
-                            });
-                    }
+                    view.graphics.alpha = obstacle.alpha + (staticMode ? 0 : bass * 0.025);
                 });
 
                 sceneViewsRef.current.obstacleTextViews.forEach(view => {
@@ -1662,13 +1783,14 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
             cleanup?.();
             destroySceneViews(sceneViewsRef.current);
             sceneViewsRef.current = {
+                obstacleShapeViews: [],
                 lyricsViews: [],
                 obstacleTextViews: [],
             };
             appRef.current?.destroy({ removeView: true }, true);
             appRef.current = null;
             worldRef.current = null;
-            obstacleGraphicsRef.current = null;
+            obstacleLayerRef.current = null;
             guideGraphicsRef.current = null;
             arrowGraphicsRef.current = null;
             effectGraphicsRef.current = null;
@@ -1682,29 +1804,107 @@ const VisualizerOverture: React.FC<VisualizerProps & { staticMode?: boolean; }> 
         worldWindowRef.current = overtureWindow;
 
         const obstacleTextLayer = obstacleTextLayerRef.current;
+        const obstacleLayer = obstacleLayerRef.current;
         const mainLyricsLayer = mainLyricsLayerRef.current;
-        const obstacleGraphics = obstacleGraphicsRef.current;
         const guideGraphics = guideGraphicsRef.current;
         const arrowGraphics = arrowGraphicsRef.current;
         const effectGraphics = effectGraphicsRef.current;
-        if (!obstacleTextLayer || !mainLyricsLayer || !obstacleGraphics || !guideGraphics || !arrowGraphics || !effectGraphics) {
+        if (!obstacleTextLayer || !obstacleLayer || !mainLyricsLayer || !guideGraphics || !arrowGraphics || !effectGraphics) {
             return;
         }
 
         destroySceneViews(sceneViewsRef.current);
         sceneViewsRef.current = {
+            obstacleShapeViews: [],
             lyricsViews: [],
             obstacleTextViews: [],
         };
 
+        obstacleLayer.removeChildren();
         obstacleTextLayer.removeChildren();
         mainLyricsLayer.removeChildren();
-        obstacleGraphics.clear();
         guideGraphics.clear();
         arrowGraphics.clear();
         effectGraphics.clear();
 
         const secondaryColor = colorToNumber(theme.secondaryColor, 0xffffff);
+        overtureWindow.obstacles
+            .filter(obstacle => obstacle.shape !== 'text')
+            .forEach(obstacle => {
+                const graphic = new Graphics();
+                graphic.alpha = obstacle.alpha;
+
+                if (obstacle.shape === 'rect') {
+                    if (obstacle.filled) {
+                        drawRotatedRectFill(
+                            graphic,
+                            obstacle.x,
+                            obstacle.y,
+                            obstacle.width,
+                            obstacle.height,
+                            obstacle.rotation,
+                            obstacle.color,
+                            0.2
+                        );
+                    }
+                    drawRotatedRectOutline(
+                        graphic,
+                        obstacle.x,
+                        obstacle.y,
+                        obstacle.width,
+                        obstacle.height,
+                        obstacle.rotation,
+                        obstacle.color,
+                        1,
+                        8
+                    );
+                } else if (obstacle.shape === 'triangle') {
+                    if (obstacle.filled) {
+                        drawTriangleFill(
+                            graphic,
+                            obstacle.x,
+                            obstacle.y,
+                            Math.max(obstacle.width, obstacle.height) * 0.4,
+                            obstacle.rotation,
+                            obstacle.color,
+                            0.18
+                        );
+                    }
+                    drawTriangleOutline(
+                        graphic,
+                        obstacle.x,
+                        obstacle.y,
+                        Math.max(obstacle.width, obstacle.height) * 0.4,
+                        obstacle.rotation,
+                        obstacle.color,
+                        1,
+                        8
+                    );
+                } else if (obstacle.shape === 'circle') {
+                    if (obstacle.filled) {
+                        graphic
+                            .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
+                            .fill({
+                                color: obstacle.color,
+                                alpha: 0.16,
+                            });
+                    }
+                    graphic
+                        .circle(obstacle.x, obstacle.y, Math.max(obstacle.width, obstacle.height) * 0.32)
+                        .stroke({
+                            color: obstacle.color,
+                            width: 8,
+                            alpha: 1,
+                        });
+                }
+
+                obstacleLayer.addChild(graphic);
+                sceneViewsRef.current.obstacleShapeViews.push({
+                    obstacle,
+                    graphics: graphic,
+                });
+            });
+
         overtureWindow.obstacles
             .filter(obstacle => obstacle.shape === 'text' && obstacle.text)
             .forEach(obstacle => {
