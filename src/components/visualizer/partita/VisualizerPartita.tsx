@@ -7,7 +7,15 @@ import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow }
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
-// Visualizer Partita
+// This one is still word-driven, but unlike Classic it needs to pre-build a column/chunk structure first.
+// The flow is basically: ask runtime for the active line, optionally preheat the upcoming line,
+// split the active line into chunks, place those chunks into columns, then let the words animate inside that structure.
+// The important bit is that the layout should feel stable while the words are moving through it.
+//
+// For a single lyric line, the state handling is:
+// waiting -> layout is already there, but the words stay in a light "not entered yet" state.
+// active -> this is where the stagger, highlight, and line energy actually happen.
+// passed -> words fall back into a softer exit state, and the chunk keeps a little bit of structure for the afterimage.
 
 interface VisualizerPartitaProps {
     currentTime: MotionValue<number>;
@@ -216,6 +224,8 @@ const getTargetColumnCount = (totalGraphemes: number, wordCount: number) => {
 };
 
 const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, tuning: PartitaTuning): PartitaSequentialLayout => {
+    // Partita wants the line to feel "composed", not scattered.
+    // So instead of throwing each word around independently, first decide how many chunks/rows the line should have.
     const intensity = theme.animationIntensity;
     const isChaotic = intensity === 'chaotic';
     const isCalm = intensity === 'calm';
@@ -241,6 +251,8 @@ const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, 
     let wordIndex = 0;
 
     for (let c = 0; c < actualRowCount; c++) {
+        // Chunk lengths are intentionally uneven.
+        // Perfectly even splitting looked too mechanical and killed the handwritten score vibe.
         const isLastChunk = c === actualRowCount - 1;
         const avg = remainingWords / remainingChunks;
 
@@ -271,6 +283,8 @@ const buildSequentialColumns = (line: Line, theme: Theme, windowHeight: number, 
 
         const isStaggeredLeft = rowIndex % 2 === 0;
 
+        // Stagger is the core "Partita" move.
+        // The chunk positions should feel offset and sequenced, but still readable as a single line.
         const staggerMagnitude = isCalm
             ? 0
             : tuning.staggerMin + random() * Math.max(tuning.staggerMax - tuning.staggerMin, 0);
@@ -344,6 +358,7 @@ const getOrBuildPartitaLayout = (
     const cacheKey = buildPartitaLayoutCacheKey(line, theme, windowHeight, tuning);
     const cached = cache.get(cacheKey);
     if (cached) {
+        // Layout cache matters here because rebuilding columns on every frame would be pointless and expensive.
         return cached;
     }
 
@@ -360,7 +375,8 @@ const getOrBuildPartitaLayout = (
     return layout;
 };
 
-// Word component — exact clone of Classic's Word with full independent animation per word
+// Word component is still basically Classic under the hood.
+// The big difference is that here the word lives inside a chunked column layout instead of a free-form line.
 const PartitaWord: React.FC<{
     word: WordType;
     config: WordLayoutConfig;
@@ -462,7 +478,8 @@ const PartitaWord: React.FC<{
     );
 };
 
-// Chunk — pure layout container, no animation. Only tracks status for guide line colors.
+// Chunk is the structural wrapper.
+// It does not own lyric timing directly; it mostly exists so guide lines and grouped word offsets have a place to live.
 const PartitaChunk: React.FC<{
     chunkWords: WordType[];
     config: WordLayoutConfig;

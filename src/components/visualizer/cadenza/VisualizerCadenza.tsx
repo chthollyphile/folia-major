@@ -9,7 +9,15 @@ import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
-// Visualizer cadenza
+// This is the heavy layout mode.
+// The line does not just show up and animate; we first prebuild the active/upcoming lines,
+// run them through pretext, split them into fragments/placements, then mirror those placements into DOM + canvas layers.
+// So when something looks weird here, the bug is usually either in the prepare step or in the placement-to-render sync step.
+//
+// For a single lyric line, the state flow is:
+// waiting -> placements are ready, but keep them dim / offset so the line still feels "not entered".
+// active -> this is the main event, drive beam, glow, emphasis, and body color here.
+// passed -> line already sang, keep some drift and residue so it fades out gracefully instead of snapping away.
 interface VisualizerProps {
     currentTime: MotionValue<number>;
     currentLineIndex: number;
@@ -520,6 +528,8 @@ const getClassicPassedDrift = (time: number, word: WordType) => {
 };
 
 const resolveLineRenderTiming = (line: Line): ResolvedLineRenderTiming => {
+    // Cadenza needs more than just line endTime.
+    // It needs to know when the line should stop feeling "active" and how long the pass-hold should last.
     const renderHints = line.renderHints ?? null;
     const wordRevealMode = renderHints?.wordRevealMode ?? 'normal';
     const lastWord = line.words[line.words.length - 1];
@@ -576,6 +586,8 @@ const buildPreparedState = (
 
     const fontPx = clamp(chooseFontPx(viewport.width, line) * tuning.fontScale, 24, 132);
     const font = buildCanvasFont(theme, fontPx);
+    // This is the expensive part of the mode.
+    // Once a line reaches here, we fully measure it, wrap it, split it, and convert it into placement-ready fragments.
     const prepared = prepareWithSegments(line.fullText, font);
     const text = prepared.segments.join('');
     const { segmentMetas, graphemes } = buildSegmentMetas(prepared);
@@ -635,6 +647,8 @@ const getActiveColor = (wordText: string, theme: Theme) => {
 };
 
 const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
+    // pretext works in segments, but most animation logic wants global grapheme offsets.
+    // This bridge lets us move back and forth between those two coordinate systems.
     const segmentMetas: SegmentMeta[] = [];
     const graphemes: string[] = [];
     let graphemeCursor = 0;
@@ -654,6 +668,8 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
 };
 
 const findWordRanges = (line: Line, graphemes: string[], theme: Theme) => {
+    // We have to remap lyric words back onto the grapheme stream after pretext segmentation.
+    // If this goes wrong, glow/highlight gets assigned to the wrong text slice.
     const ranges: WordRange[] = [];
     let cursor = 0;
 
@@ -773,6 +789,8 @@ const buildLineFragments = (
     layout: ReturnType<typeof layoutWithLines>,
     ranges: WordRange[],
 ) => {
+    // Wrapped layout lines can cut straight through a lyric word.
+    // So first build fragments per wrapped line, then later decide which fragments are still "the same word".
     const lineViews = layout.lines.map(line => {
         const lineStart = cursorToGlobalOffset(line.start, segmentMetas);
         const lineEnd = cursorToGlobalOffset(line.end, segmentMetas);
@@ -894,6 +912,8 @@ const buildWordPlacements = (
     seed: number,
     isInterlude: boolean,
 ) => {
+    // This is where fragments stop being text slices and start becoming actual animated visual objects.
+    // From this point on, everything is placement geometry and per-state motion data.
     const totalHeight = Math.max(lineData.length, 1) * lineHeight;
     const baseMargin = animationIntensity === 'calm' ? 4 : 6;
     const baseScale = animationIntensity === 'chaotic'

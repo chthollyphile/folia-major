@@ -2,6 +2,9 @@ import { MotionValue } from 'framer-motion';
 import { useMemo } from 'react';
 import { Line } from '../../types';
 
+// Shared runtime helpers for all visualizers.
+// This file is intentionally tiny: it only answers "what line should I care about right now?"
+// and "should I preheat the next line yet?" so each renderer can stay opinionated about its own layout.
 export interface VisualizerPreheatWindow {
     minLead: number;
     maxLead: number;
@@ -27,6 +30,8 @@ interface UseVisualizerRuntimeOptions {
     getLineEndTime?: (line: Line) => number;
 }
 
+// This only matters when there is no active line.
+// It is mainly here so subtitle overlays can keep showing the last translation during small gaps.
 export const getRecentCompletedLine = ({
     lines,
     currentLineIndex,
@@ -46,6 +51,8 @@ export const getRecentCompletedLine = ({
     return null;
 };
 
+// If a line is active, upcoming is just the next line in the array.
+// If nothing is active yet, upcoming means "the first line whose startTime is still ahead of us".
 export const getUpcomingLine = (
     lines: Line[],
     currentLineIndex: number,
@@ -65,6 +72,7 @@ export const getUpcomingLine = (
     return null;
 };
 
+// Most modes only need 1-2 lines of lookahead for subtitles or preheat, so keep this cheap and explicit.
 export const getUpcomingLines = (
     lines: Line[],
     currentLineIndex: number,
@@ -77,6 +85,8 @@ export const getUpcomingLines = (
     return lines.slice(currentLineIndex + 1, currentLineIndex + 1 + count);
 };
 
+// Preheat windows are deliberately defined in lead time, not absolute timestamps.
+// That makes them easier to tune per visualizer without coupling to line duration.
 export const shouldPreheatLine = (
     line: Line | null | undefined,
     currentTime: number,
@@ -90,6 +100,10 @@ export const shouldPreheatLine = (
     return leadTime >= window.minLead && leadTime <= window.maxLead;
 };
 
+// Common prepare flow:
+// 1. prepare the active line if there is one,
+// 2. always try to warm the upcoming line as a side effect,
+// 3. return only the active prepared state to the caller.
 export const prepareActiveAndUpcoming = <TPreparedState>({
     activeLine,
     upcomingLine,
@@ -105,6 +119,8 @@ export const prepareActiveAndUpcoming = <TPreparedState>({
     return currentState;
 };
 
+// This hook is intentionally just a small runtime bundle.
+// Heavy layout/canvas work should not live here, otherwise every mode would pay for the same abstraction.
 export const useVisualizerRuntime = ({
     currentTime,
     currentLineIndex,

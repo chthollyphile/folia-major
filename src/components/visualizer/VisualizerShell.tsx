@@ -7,6 +7,9 @@ import { resolveThemeFontStack } from '../../utils/fontStacks';
 import FluidBackground from './FluidBackground';
 import GeometricBackground from './GeometricBackground';
 
+// Shared outer shell for all visualizers.
+// This is where we keep background layering, font injection, and the hover-only back button
+// so each renderer can stay focused on lyric timing/layout instead of rebuilding the same frame.
 interface VisualizerShellProps {
     theme: Theme;
     audioPower: MotionValue<number>;
@@ -38,6 +41,9 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+
+    // Keep the tailwind font utility roughly aligned with the theme category,
+    // but still let the real resolved font stack win through inline style.
     const fontClassName = theme.fontStyle === 'mono'
         ? 'font-mono'
         : theme.fontStyle === 'serif'
@@ -53,6 +59,8 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 fontFamily: resolveThemeFontStack(theme),
             }}
             onMouseMove={(event) => {
+                // Back button is intentionally hidden most of the time.
+                // Only reveal it near the top-left hot area so it does not pollute the visual field.
                 const nearBackArea = event.clientX <= 120 && event.clientY <= 120;
                 if (nearBackArea !== showBackButton) {
                     setShowBackButton(nearBackArea);
@@ -87,6 +95,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
             )}
 
             <AnimatePresence>
+                {/* Cover-color background is optional because some modes already have a strong built-in background identity. */}
                 {useCoverColorBg && (
                     <motion.div
                         key="fluid-bg"
@@ -106,6 +115,8 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
             />
 
+            {/* staticMode here means "kill the heavier ambient motion layer",
+                not "freeze the entire lyric renderer". */}
             {!staticMode && (
                 <div className="absolute inset-0 z-0">
                     <GeometricBackground

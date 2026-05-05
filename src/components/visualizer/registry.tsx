@@ -15,6 +15,9 @@ import VisualizerCadenza from './cadenza/VisualizerCadenza';
 import VisualizerPartita from './partita/VisualizerPartita';
 import VisualizerFume from './fume/VisualizerFume';
 
+// Central mode registry.
+// The rest of the app should ask this file "how do I render/label/configure mode X?"
+// instead of hardcoding mode branches in multiple places.
 export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
 
 export interface VisualizerSharedProps {
@@ -47,6 +50,8 @@ export interface VisualizerRegistryEntry {
     render: (props: VisualizerSharedProps) => React.ReactElement;
 }
 
+// These wrappers are intentionally thin.
+// If a mode needs prop adaptation, do it here so callers can keep passing one shared prop shape.
 const renderClassic = ({
     currentTime,
     currentLineIndex,
@@ -111,6 +116,7 @@ const renderCadenza = ({
         seed={seed}
         staticMode={staticMode}
         backgroundOpacity={backgroundOpacity}
+        // Cadenza has its own fontScale inside tuning, so multiply the global lyric scale in here once.
         cadenzaTuning={{
             ...cadenzaTuning,
             fontScale: cadenzaTuning.fontScale * lyricsFontScale,
@@ -231,6 +237,7 @@ const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntr
     },
 };
 
+// Array form is mostly for UI, map form is mostly for rendering and lookup.
 export const VISUALIZER_REGISTRY = Object.values(VISUALIZER_REGISTRY_BY_MODE);
 
 export const getVisualizerRegistryEntry = (mode: VisualizerMode) => VISUALIZER_REGISTRY_BY_MODE[mode];

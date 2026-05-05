@@ -7,7 +7,15 @@ import { useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
-// Visualizer classic
+// This mode is the most straightforward lyric pipeline in the folder.
+// First we ask runtime which line is active right now, then read renderHints from that line,
+// then build a loose per-word layout so every word can animate on its own without depending on parent rerenders.
+// Nothing too fancy here, it is basically the "baseline" visualizer that the other modes keep borrowing timing ideas from.
+//
+// For a single lyric line, words mostly go through 3 states:
+// waiting -> word is not live yet, keep it in a lighter pre-entry pose.
+// active -> word is currently singing, drive the main glow/body/ripple here.
+// passed -> word already played, keep a bit of afterglow and drift so the line does not die too abruptly.
 interface VisualizerProps {
     currentTime: MotionValue<number>;
     currentLineIndex: number;
@@ -57,6 +65,8 @@ const resolveClassicLineRenderProfile = (line: Line | null | undefined): Classic
         return null;
     }
 
+    // Render hints come from the lyric pipeline, not from the visualizer itself.
+    // This function is just repackaging them into something easier to consume frame-by-frame.
     const renderHints = getLineRenderHints(line);
     const wordRevealMode = renderHints?.wordRevealMode ?? 'normal';
 
@@ -273,18 +283,19 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(2 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
 
-    // Generate a stable random layout configuration for the current line
+    // Generate a stable random layout configuration for the current line.
+    // Use the line start time as seed so the same lyric does not reshuffle every rerender.
     const { wordConfigs, lineConfig } = useMemo(() => {
         if (!activeLine) return { wordConfigs: [], lineConfig: { justifyContent: 'center', alignItems: 'center', perspective: 1000 } };
 
         const seed = activeLine.startTime;
         const intensity = theme.animationIntensity;
 
-        // Config generators based on intensity
+        // Intensity mostly controls how wild the random spread is allowed to become.
         const isChaotic = intensity === 'chaotic';
         const isCalm = intensity === 'calm';
 
-        // Container Layout
+        // Container layout decides how the whole line sits in the visual field before word offsets kick in.
         const justifyOptions = isCalm
             ? ['justify-center']
             : ['justify-start', 'justify-center', 'justify-end', 'justify-around', 'justify-between'];
@@ -300,11 +311,12 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             perspective: isChaotic ? 500 + (seed % 500) : 1000,
         };
 
-        // Word Layouts
+        // Word layouts stay deterministic for a given line.
+        // That is important because time should change the animation state, not the base geometry.
         const wordConfigs: WordLayoutConfig[] = activeLine.words.map((w, i) => {
             const wordSeed = seed + i;
 
-            // Pseudo-random generator function based on seed
+            // Tiny deterministic RNG so every word gets its own reproducible offsets.
             const random = (offset: number) => {
                 const x = Math.sin(wordSeed + offset) * 10000;
                 return x - Math.floor(x);
@@ -341,8 +353,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         return { wordConfigs, lineConfig };
     }, [activeLine, theme.animationIntensity]);
 
-    // Animation Variants
-    // Container: Layout (x, y, rotate, scale) + Opacity
+    // Container motion is the "body" of each word.
+    // waiting/active/passed all reuse the same layout config but interpret it differently.
     const layoutVariants: Variants = {
         waiting: ({ config }: any) => ({
             opacity: 0,
@@ -381,7 +393,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         })
     };
 
-    // Body: Color + Filter
+    // Body layer is where color transition and blur cleanup happen.
+    // Glow is separated so we can overdrive highlight without making the actual glyph unreadable.
     const bodyVariants: Variants = {
         waiting: ({ baseColor }: any) => ({
             color: baseColor,
@@ -412,7 +425,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         })
     };
 
-    // Glow: Text Shadow only (Transparent text)
+    // Glow layer is transparent text + text-shadow only.
+    // This is why active highlights can look large without changing the readable body thickness.
     const glowVariants: Variants = {
         waiting: {
             color: "transparent",
@@ -490,6 +504,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     };
 
     const lyricContainerFloat = useMemo(() => {
+        // Small whole-line breathing motion so the screen never feels fully static between word events.
         const configByIntensity = {
             calm: { distance: 10, duration: 8.5 },
             normal: { distance: 14, duration: 7 },
@@ -544,7 +559,8 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                                 let activeColor = theme.accentColor;
 
-                                // Determine Emotional Color
+                                // Word color overrides are matched here at render time.
+                                // If the lyric parser attached semantic colors, let them win over the theme accent.
                                 if (theme.wordColors && theme.wordColors.length > 0) {
                                     const wordText = word.text;
                                     const cleanCurrent = wordText.trim();

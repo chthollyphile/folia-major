@@ -10,6 +10,15 @@ import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
+// This mode is basically "turn the whole lyric into an article, then move a camera through it".
+// So the pipeline is much bigger than the others: prebuild the article layout, split it into blocks/render lines/graphemes,
+// resolve which block the camera should care about right now, then draw background + paper + typed text + passed text together every frame.
+// If this mode breaks, it is usually not one tiny animation bug, it is some step in that whole pipeline drifting out of sync.
+//
+// For a single lyric line, the state handling is:
+// waiting -> line already exists in the article, but the camera may not be on it yet and glyphs can stay unprinted.
+// active -> line becomes the main reading target, camera focuses in, and glyphs print with stronger glow/presence.
+// passed -> line becomes already-read text, keep some paper trace and fade it out with textHoldRatio instead of removing it instantly.
 interface VisualizerProps {
     currentTime: MotionValue<number>;
     currentLineIndex: number;
@@ -745,6 +754,8 @@ const buildPreparedSingleLine = (
         layout: ReturnType<typeof layoutWithLines>;
     } | null = null;
 
+    // Fume really wants most blocks to stay single-line when possible.
+    // So do a tiny binary search for a font size that still fits before falling back.
     for (let iteration = 0; iteration < 8; iteration += 1) {
         const candidateFontPx = ((low + high) / 2)
             * lyricsFontScale
@@ -788,6 +799,8 @@ const buildLayoutCacheKey = (
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
 ) => {
+    // Layout cache key intentionally ignores short-lived playback state.
+    // Only geometry-affecting inputs should invalidate the whole article layout.
     let linesHash = 2166136261;
     for (const line of lines) {
         const lineKey = `${line.startTime}:${line.endTime}:${line.fullText}:${line.words.length}:${line.isChorus ? 1 : 0}`;
@@ -815,6 +828,8 @@ const resolvePrintedGraphemeCount = (
     graphemeCount: number,
     currentTimeValue: number,
 ) => {
+    // Hero blocks print more like a stamped headline.
+    // Body blocks print word-by-word so they feel more like reading through an article.
     if (graphemeCount === 0) {
         return 0;
     }
@@ -952,6 +967,8 @@ function buildArticleLayoutAttempt(
     const verticalMargin = Math.max(viewport.height * 0.82, 220);
     const columnWidth = (paperWidth - gap * (columns - 1)) / columns;
     const fontFamily = resolveThemeFontStack(layoutTheme);
+    // Empty lines do not help the article layout.
+    // Also shuffle placement order deterministically so the paper feels composed rather than strictly chronological.
     const filteredLines = lines
         .map((line, index) => ({ line, index }))
         .filter(entry => entry.line.fullText.trim().length > 0)
@@ -970,6 +987,8 @@ function buildArticleLayoutAttempt(
     filteredLines.forEach(({ line, index }, blockIndex) => {
         timing && (timing.lines += 1);
         const variant = chooseBlockVariant(line, blockIndex, filteredLines.length, forcedHeroIndex);
+        // Hero blocks are allowed to claim more visual territory.
+        // Body blocks should stay narrow so the article still reads like columns.
         const heroSpanColumns = variant === 'hero'
             ? Math.min(columns, columns <= 1 ? 1 : 2)
             : 1;
@@ -1011,6 +1030,7 @@ function buildArticleLayoutAttempt(
         const placementStart = timing ? nowMs() : 0;
 
         if (variant === 'hero') {
+            // Hero placement tries to find the calmest large slot across multiple columns.
             if (heroSpanColumns === 1) {
                 y = Math.max(...columnHeights);
                 x = horizontalMargin;
@@ -1047,6 +1067,7 @@ function buildArticleLayoutAttempt(
                 }
             }
         } else {
+            // Body placement is simpler: drop into the currently shortest column.
             let targetColumn = 0;
             let minHeight = columnHeights[0] ?? 0;
             const candidateColumns = [0];
@@ -1074,6 +1095,8 @@ function buildArticleLayoutAttempt(
         }
 
         if (shouldBuildRenderDetails) {
+            // Measure-only passes stop before this point.
+            // Render passes continue and build every structure needed for glyph printing and per-line focus.
             const renderDetailsStart = timing ? nowMs() : 0;
             const prepared = preparedSingleLine.prepared;
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
@@ -1183,6 +1206,8 @@ const buildArticleLayout = (
     const measureColumnTimings = new Map<number, FumeLayoutAttemptTiming>();
     let measureAttemptCount = 0;
 
+    // Try a few column counts and density scales, then keep the article that lands closest to the target height.
+    // This is why the mode feels "composed" instead of hardcoding one layout recipe for every song.
     for (let columns = maxColumns; columns >= 1; columns -= 1) {
         let low = 0.82;
         let high = 1.42;
