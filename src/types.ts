@@ -44,7 +44,7 @@ export interface DualTheme {
 
 export type ThemeMode = 'default' | 'ai' | 'custom';
 
-export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
+export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume' | 'lyra';
 
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
@@ -86,6 +86,8 @@ export interface FumeTuning {
   heroScale: number;
 }
 
+export const FUME_GLOW_INTENSITY_RENDER_SCALE = 1.8;
+
 export const DEFAULT_FUME_TUNING: FumeTuning = {
   hidePrintSymbols: false,
   disableGeometricBackground: true,
@@ -94,6 +96,14 @@ export const DEFAULT_FUME_TUNING: FumeTuning = {
   cameraSpeed: 1,
   glowIntensity: 1,
   heroScale: 1,
+};
+
+export type LyraTuning = FumeTuning;
+
+export const LYRA_GLOW_INTENSITY_RENDER_SCALE = 1.8;
+
+export const DEFAULT_LYRA_TUNING: LyraTuning = {
+  ...DEFAULT_FUME_TUNING,
 };
 
 export enum PlayerState {

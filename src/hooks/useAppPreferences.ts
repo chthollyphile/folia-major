@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type StatusMessage, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LYRA_TUNING, DEFAULT_PARTITA_TUNING, LYRA_GLOW_INTENSITY_RENDER_SCALE, type CadenzaTuning, type FumeTuning, type LyraTuning, type PartitaTuning, type StatusMessage, type Theme, type VisualizerMode } from '../types';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 type StoredCustomLyricsFont = { family: string; label?: string | null; };
+const FUME_TUNING_STORAGE_VERSION = 2;
+const VISUALIZER_MODE_STORAGE_VERSION = 2;
 
 const getStoredBoolean = (key: string, fallback: boolean) => {
     const saved = localStorage.getItem(key);
@@ -70,6 +72,14 @@ const clampFumeGlowIntensity = (value: number, fallback: number) => {
     return Math.min(1.8, Math.max(0, value));
 };
 
+const clampLyraGlowIntensity = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, value));
+};
+
 const clampFumeHeroScale = (value: number, fallback: number) => {
     if (!Number.isFinite(value)) {
         return fallback;
@@ -97,23 +107,70 @@ const readStoredFumeTuning = (): FumeTuning => {
     if (!saved) return DEFAULT_FUME_TUNING;
 
     try {
-        const parsed = JSON.parse(saved) as Partial<FumeTuning> & { textHoldStyle?: 'standard' | 'dimmed'; };
+        const parsed = JSON.parse(saved) as Partial<FumeTuning> & {
+            textHoldStyle?: 'standard' | 'dimmed';
+            glowIntensityScaleVersion?: number;
+        };
         const migratedTextHoldRatio = parsed.textHoldStyle === 'dimmed'
             ? 0.5
             : DEFAULT_FUME_TUNING.textHoldRatio;
+        const rawGlowIntensity = parsed.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity;
+        const normalizedGlowIntensity = parsed.glowIntensityScaleVersion === FUME_TUNING_STORAGE_VERSION
+            ? rawGlowIntensity
+            : rawGlowIntensity / FUME_GLOW_INTENSITY_RENDER_SCALE;
         return {
             hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
             disableGeometricBackground: parsed.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
             textHoldRatio: clampFumeTextHoldRatio(parsed.textHoldRatio ?? migratedTextHoldRatio, DEFAULT_FUME_TUNING.textHoldRatio),
             cameraTrackingMode: resolveFumeCameraTrackingMode(parsed.cameraTrackingMode),
             cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, DEFAULT_FUME_TUNING.cameraSpeed),
-            glowIntensity: clampFumeGlowIntensity(parsed.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, DEFAULT_FUME_TUNING.glowIntensity),
+            glowIntensity: clampFumeGlowIntensity(normalizedGlowIntensity, DEFAULT_FUME_TUNING.glowIntensity),
             heroScale: clampFumeHeroScale(parsed.heroScale ?? DEFAULT_FUME_TUNING.heroScale, DEFAULT_FUME_TUNING.heroScale),
         };
     } catch {
         return DEFAULT_FUME_TUNING;
     }
 };
+
+const readStoredLyraTuning = (): LyraTuning => {
+    const saved = localStorage.getItem('lyra_tuning') ?? localStorage.getItem('fume_tuning');
+    if (!saved) return DEFAULT_LYRA_TUNING;
+
+    try {
+        const parsed = JSON.parse(saved) as Partial<LyraTuning> & {
+            textHoldStyle?: 'standard' | 'dimmed';
+            glowIntensityScaleVersion?: number;
+        };
+        const migratedTextHoldRatio = parsed.textHoldStyle === 'dimmed'
+            ? 0.5
+            : DEFAULT_LYRA_TUNING.textHoldRatio;
+        const rawGlowIntensity = parsed.glowIntensity ?? DEFAULT_LYRA_TUNING.glowIntensity;
+        const normalizedGlowIntensity = parsed.glowIntensityScaleVersion === FUME_TUNING_STORAGE_VERSION
+            ? rawGlowIntensity
+            : rawGlowIntensity / LYRA_GLOW_INTENSITY_RENDER_SCALE;
+        return {
+            hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_LYRA_TUNING.hidePrintSymbols,
+            disableGeometricBackground: parsed.disableGeometricBackground ?? DEFAULT_LYRA_TUNING.disableGeometricBackground,
+            textHoldRatio: clampFumeTextHoldRatio(parsed.textHoldRatio ?? migratedTextHoldRatio, DEFAULT_LYRA_TUNING.textHoldRatio),
+            cameraTrackingMode: resolveFumeCameraTrackingMode(parsed.cameraTrackingMode),
+            cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_LYRA_TUNING.cameraSpeed, DEFAULT_LYRA_TUNING.cameraSpeed),
+            glowIntensity: clampLyraGlowIntensity(normalizedGlowIntensity, DEFAULT_LYRA_TUNING.glowIntensity),
+            heroScale: clampFumeHeroScale(parsed.heroScale ?? DEFAULT_LYRA_TUNING.heroScale, DEFAULT_LYRA_TUNING.heroScale),
+        };
+    } catch {
+        return DEFAULT_LYRA_TUNING;
+    }
+};
+
+const serializeFumeTuning = (tuning: FumeTuning) => JSON.stringify({
+    ...tuning,
+    glowIntensityScaleVersion: FUME_TUNING_STORAGE_VERSION,
+});
+
+const serializeLyraTuning = (tuning: LyraTuning) => JSON.stringify({
+    ...tuning,
+    glowIntensityScaleVersion: FUME_TUNING_STORAGE_VERSION,
+});
 
 const readStoredLyricsFontStyle = (): Theme['fontStyle'] => {
     const saved = localStorage.getItem('lyrics_font_style');
@@ -165,20 +222,25 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [isDaylight, setIsDaylight] = useState(() => getStoredBoolean('default_theme_daylight', false));
     const [visualizerMode, setVisualizerMode] = useState<VisualizerMode>(() => {
         const saved = localStorage.getItem('visualizer_mode');
+        const version = localStorage.getItem('visualizer_mode_version');
         if (saved === 'cadenza' || saved === 'cadenze') {
             return 'cadenza';
         }
         if (saved === 'partita') {
             return 'partita';
         }
+        if (saved === 'lyra') {
+            return 'lyra';
+        }
         if (saved === 'fume') {
-            return 'fume';
+            return version === String(VISUALIZER_MODE_STORAGE_VERSION) ? 'fume' : 'lyra';
         }
         return 'classic';
     });
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
     const [partitaTuning, setPartitaTuning] = useState<PartitaTuning>(readStoredPartitaTuning);
     const [fumeTuning, setFumeTuning] = useState<FumeTuning>(readStoredFumeTuning);
+    const [lyraTuning, setLyraTuning] = useState<LyraTuning>(readStoredLyraTuning);
     const [lyricsFontStyle, setLyricsFontStyle] = useState<Theme['fontStyle']>(readStoredLyricsFontStyle);
     const [lyricsFontScale, setLyricsFontScale] = useState<number>(readStoredLyricsFontScale);
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
@@ -243,12 +305,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const handleSetVisualizerMode = (mode: VisualizerMode) => {
         setVisualizerMode(mode);
         localStorage.setItem('visualizer_mode', mode);
+        localStorage.setItem('visualizer_mode_version', String(VISUALIZER_MODE_STORAGE_VERSION));
         setStatusMsg({
             type: 'info',
             text: mode === 'cadenza'
                 ? '已切换到心象歌词'
                 : mode === 'partita'
                     ? '已切换到云阶歌词'
+                    : mode === 'lyra'
+                        ? '已切换到 Lyra 歌词'
                     : mode === 'fume'
                         ? '已切换到浮名歌词'
                     : '已切换到流光歌词'
@@ -308,17 +373,43 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                 heroScale: clampFumeHeroScale(patch.heroScale ?? prev.heroScale, prev.heroScale),
             };
 
-            localStorage.setItem('fume_tuning', JSON.stringify(next));
+            localStorage.setItem('fume_tuning', serializeFumeTuning(next));
             return next;
         });
     }, []);
 
     const handleResetFumeTuning = () => {
         setFumeTuning(DEFAULT_FUME_TUNING);
-        localStorage.setItem('fume_tuning', JSON.stringify(DEFAULT_FUME_TUNING));
+        localStorage.setItem('fume_tuning', serializeFumeTuning(DEFAULT_FUME_TUNING));
         setStatusMsg({
             type: 'info',
             text: '浮名参数已重置'
+        });
+    };
+
+    const handleSetLyraTuning = useCallback((patch: Partial<LyraTuning>) => {
+        setLyraTuning(prev => {
+            const next = {
+                hidePrintSymbols: patch.hidePrintSymbols ?? prev.hidePrintSymbols,
+                disableGeometricBackground: patch.disableGeometricBackground ?? prev.disableGeometricBackground,
+                textHoldRatio: clampFumeTextHoldRatio(patch.textHoldRatio ?? prev.textHoldRatio, prev.textHoldRatio),
+                cameraTrackingMode: resolveFumeCameraTrackingMode(patch.cameraTrackingMode ?? prev.cameraTrackingMode),
+                cameraSpeed: clampFumeCameraSpeed(patch.cameraSpeed ?? prev.cameraSpeed, prev.cameraSpeed),
+                glowIntensity: clampLyraGlowIntensity(patch.glowIntensity ?? prev.glowIntensity, prev.glowIntensity),
+                heroScale: clampFumeHeroScale(patch.heroScale ?? prev.heroScale, prev.heroScale),
+            };
+
+            localStorage.setItem('lyra_tuning', serializeLyraTuning(next));
+            return next;
+        });
+    }, []);
+
+    const handleResetLyraTuning = () => {
+        setLyraTuning(DEFAULT_LYRA_TUNING);
+        localStorage.setItem('lyra_tuning', serializeLyraTuning(DEFAULT_LYRA_TUNING));
+        setStatusMsg({
+            type: 'info',
+            text: 'Lyra 参数已重置'
         });
     };
 
@@ -392,6 +483,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        lyraTuning,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily: lyricsCustomFont?.family ?? null,
@@ -411,6 +503,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleResetPartitaTuning,
         handleSetFumeTuning,
         handleResetFumeTuning,
+        handleSetLyraTuning,
+        handleResetLyraTuning,
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,

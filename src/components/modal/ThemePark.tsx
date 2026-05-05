@@ -7,11 +7,13 @@ import VisualizerRenderer from '../visualizer/VisualizerRenderer';
 import {
     DEFAULT_CADENZA_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_LYRA_TUNING,
     DEFAULT_PARTITA_TUNING,
     AudioBands,
     CadenzaTuning,
     DualTheme,
     FumeTuning,
+    LyraTuning,
     PartitaTuning,
     Theme,
     VisualizerMode,
@@ -33,6 +35,7 @@ interface ThemeParkProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    lyraTuning?: LyraTuning;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily?: string | null;
@@ -79,6 +82,7 @@ const ThemePreviewLayer: React.FC<{
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    lyraTuning: LyraTuning;
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -97,6 +101,7 @@ const ThemePreviewLayer: React.FC<{
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    lyraTuning,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -137,6 +142,7 @@ const ThemePreviewLayer: React.FC<{
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
+                    lyraTuning={lyraTuning}
                     seed={getVisualizerScopedSeed(visualizerMode, `theme-park-${mode}`)}
                 />
             </div>
@@ -193,6 +199,7 @@ const DiagonalThemePreview: React.FC<{
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    lyraTuning: LyraTuning;
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -210,6 +217,7 @@ const DiagonalThemePreview: React.FC<{
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    lyraTuning,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -250,6 +258,7 @@ const DiagonalThemePreview: React.FC<{
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
                 fumeTuning={fumeTuning}
+                lyraTuning={lyraTuning}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -269,6 +278,7 @@ const DiagonalThemePreview: React.FC<{
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
                 fumeTuning={fumeTuning}
+                lyraTuning={lyraTuning}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -291,6 +301,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
+    lyraTuning = DEFAULT_LYRA_TUNING,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -470,6 +481,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
                             fumeTuning={fumeTuning}
+                            lyraTuning={lyraTuning}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

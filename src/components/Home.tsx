@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyraTuning, type LyricData, type PartitaTuning, type VisualizerMode } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -87,11 +87,14 @@ interface HomeProps {
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    lyraTuning: LyraTuning;
     onVisualizerModeChange: (mode: VisualizerMode) => void;
     onPartitaTuningChange: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning: () => void;
     onFumeTuningChange: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning: () => void;
+    onLyraTuningChange: (patch: Partial<LyraTuning>) => void;
+    onResetLyraTuning: () => void;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
@@ -163,11 +166,14 @@ const Home: React.FC<HomeProps> = ({
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    lyraTuning,
     onVisualizerModeChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onLyraTuningChange,
+    onResetLyraTuning,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -916,11 +922,14 @@ const Home: React.FC<HomeProps> = ({
                                 cadenzaTuning={cadenzaTuning}
                                 partitaTuning={partitaTuning}
                                 fumeTuning={fumeTuning}
+                                lyraTuning={lyraTuning}
                                 onVisualizerModeChange={onVisualizerModeChange}
                                 onPartitaTuningChange={onPartitaTuningChange}
                                 onResetPartitaTuning={onResetPartitaTuning}
                                 onFumeTuningChange={onFumeTuningChange}
                                 onResetFumeTuning={onResetFumeTuning}
+                                onLyraTuningChange={onLyraTuningChange}
+                                onResetLyraTuning={onResetLyraTuning}
                                 lyricsFontStyle={lyricsFontStyle}
                                 lyricsFontScale={lyricsFontScale}
                                 lyricsCustomFontFamily={lyricsCustomFontFamily}

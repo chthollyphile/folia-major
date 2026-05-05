@@ -8,6 +8,7 @@
 - `cadenza/VisualizerCadenza.tsx`: 心象模式
 - `partita/VisualizerPartita.tsx`: 云阶模式
 - `fume/VisualizerFume.tsx`: 浮名模式
+- `lyra/VisualizerLyra.tsx`: Lyra 模式
 - `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
@@ -62,6 +63,7 @@ export default VisualizerFoo;
 - `cadenzaTuning?: CadenzaTuning`
 - `partitaTuning?: PartitaTuning`
 - `fumeTuning?: FumeTuning`
+- `lyraTuning?: LyraTuning`
 
 不要把必须由外部传入的运行时配置写死在组件常量里，除非它确实不需要进入设置面板。
 
@@ -147,6 +149,9 @@ visualizer/
 │  └─ VisualizerPartita.tsx
 ├─ fume/
 │  └─ VisualizerFume.tsx
+├─ lyra/
+│  ├─ LyraBackground.ts
+│  └─ VisualizerLyra.tsx
 └─ ...
 ```
 

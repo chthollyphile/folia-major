@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional, RefreshCw, Download, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../../types';
+import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyraTuning, type PartitaTuning, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -36,11 +36,14 @@ interface HelpModalProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    lyraTuning?: LyraTuning;
     onVisualizerModeChange?: (mode: VisualizerMode) => void;
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning?: () => void;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning?: () => void;
+    onLyraTuningChange?: (patch: Partial<LyraTuning>) => void;
+    onResetLyraTuning?: () => void;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
@@ -79,11 +82,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    lyraTuning,
     onVisualizerModeChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onLyraTuningChange,
+    onResetLyraTuning,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -1343,6 +1349,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        lyraTuning={lyraTuning}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
                         customFontFamily={lyricsCustomFontFamily}
@@ -1354,6 +1361,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         onResetPartitaTuning={onResetPartitaTuning}
                         onFumeTuningChange={onFumeTuningChange}
                         onResetFumeTuning={onResetFumeTuning}
+                        onLyraTuningChange={onLyraTuningChange}
+                        onResetLyraTuning={onResetLyraTuning}
                         onClose={() => setShowVisPlayground(false)}
                     />
                 )}
@@ -1369,6 +1378,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        lyraTuning={lyraTuning}
                         lyricsFontStyle={lyricsFontStyle}
                         lyricsFontScale={lyricsFontScale}
                         lyricsCustomFontFamily={lyricsCustomFontFamily}

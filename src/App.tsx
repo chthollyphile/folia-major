@@ -429,6 +429,7 @@ export default function App() {
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        lyraTuning,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -447,6 +448,8 @@ export default function App() {
         handleResetPartitaTuning,
         handleSetFumeTuning,
         handleResetFumeTuning,
+        handleSetLyraTuning,
+        handleResetLyraTuning,
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,
@@ -3520,6 +3523,7 @@ export default function App() {
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
+                    lyraTuning={lyraTuning}
                     onBack={navigateToHome}
                 />
             </div>
@@ -3581,11 +3585,14 @@ export default function App() {
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
                             fumeTuning={fumeTuning}
+                            lyraTuning={lyraTuning}
                             onVisualizerModeChange={handleSetVisualizerMode}
                             onPartitaTuningChange={handleSetPartitaTuning}
                             onResetPartitaTuning={handleResetPartitaTuning}
                             onFumeTuningChange={handleSetFumeTuning}
                             onResetFumeTuning={handleResetFumeTuning}
+                            onLyraTuningChange={handleSetLyraTuning}
+                            onResetLyraTuning={handleResetLyraTuning}
                             lyricsFontStyle={lyricsFontStyle}
                             lyricsFontScale={lyricsFontScale}
                             lyricsCustomFontFamily={lyricsCustomFontFamily}

@@ -7,10 +7,12 @@ import VisualizerRenderer from './VisualizerRenderer';
 import {
     DEFAULT_CADENZA_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_LYRA_TUNING,
     DEFAULT_PARTITA_TUNING,
     type AudioBands,
     type CadenzaTuning,
     type FumeTuning,
+    type LyraTuning,
     type PartitaTuning,
     type Theme,
     type VisualizerMode,
@@ -33,6 +35,7 @@ interface VisPlaygroundProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    lyraTuning?: LyraTuning;
     fontStyle: Theme['fontStyle'];
     fontScale: number;
     customFontFamily: string | null;
@@ -44,6 +47,8 @@ interface VisPlaygroundProps {
     onResetPartitaTuning?: () => void;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning?: () => void;
+    onLyraTuningChange?: (patch: Partial<LyraTuning>) => void;
+    onResetLyraTuning?: () => void;
     onClose: () => void;
 }
 
@@ -100,6 +105,7 @@ const clampFontScale = (value: number) => Math.min(1.4, Math.max(0.85, value));
 const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value));
 const clampFumeCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55, value));
 const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, value));
+const clampLyraGlowIntensity = (value: number) => Math.min(1, Math.max(0, value));
 const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
 const clampFumeTextHoldRatio = (value: number) => Math.min(1, Math.max(0, value));
 const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined): FumeTuning['cameraTrackingMode'] => (
@@ -177,6 +183,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
+    lyraTuning = DEFAULT_LYRA_TUNING,
     fontStyle,
     fontScale,
     customFontFamily,
@@ -188,6 +195,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onLyraTuningChange,
+    onResetLyraTuning,
     onClose,
 }) => {
     const { t } = useTranslation();
@@ -206,6 +215,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [fontPickerError, setFontPickerError] = useState<string | null>(null);
     const [fontListHeight, setFontListHeight] = useState(420);
     const [draftFumeTuning, setDraftFumeTuning] = useState<FumeTuning>(fumeTuning);
+    const [draftLyraTuning, setDraftLyraTuning] = useState<LyraTuning>(lyraTuning);
     const fontListRef = React.useRef<HTMLDivElement>(null);
     const fontVirtualListRef = useListRef(null);
 
@@ -248,6 +258,15 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         glowIntensity: clampFumeGlowIntensity(draftFumeTuning.glowIntensity),
         heroScale: clampFumeHeroScale(draftFumeTuning.heroScale),
     }), [draftFumeTuning]);
+    const resolvedLyraTuning = useMemo<LyraTuning>(() => ({
+        hidePrintSymbols: draftLyraTuning.hidePrintSymbols,
+        disableGeometricBackground: draftLyraTuning.disableGeometricBackground,
+        textHoldRatio: clampFumeTextHoldRatio(draftLyraTuning.textHoldRatio ?? DEFAULT_LYRA_TUNING.textHoldRatio),
+        cameraTrackingMode: resolveFumeCameraTrackingMode(draftLyraTuning.cameraTrackingMode),
+        cameraSpeed: clampFumeCameraSpeed(draftLyraTuning.cameraSpeed),
+        glowIntensity: clampLyraGlowIntensity(draftLyraTuning.glowIntensity),
+        heroScale: clampFumeHeroScale(draftLyraTuning.heroScale),
+    }), [draftLyraTuning]);
     const currentFontLabel = customFontLabel || customFontFamily || (t('options.customFont') || '自定义字体');
     const fontStyleOptions: PresetOption<Theme['fontStyle'] | 'custom'>[] = useMemo(() => ([
         ...builtinFontOptions,
@@ -277,6 +296,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => {
         setDraftFumeTuning(fumeTuning);
     }, [fumeTuning]);
+
+    useEffect(() => {
+        setDraftLyraTuning(lyraTuning);
+    }, [lyraTuning]);
 
     useEffect(() => {
         let frameId = 0;
@@ -336,6 +359,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         if (visualizerEntry.tuningKind === 'fume') {
             setDraftFumeTuning(DEFAULT_FUME_TUNING);
             onResetFumeTuning?.();
+        }
+        if (visualizerEntry.tuningKind === 'lyra') {
+            setDraftLyraTuning(DEFAULT_LYRA_TUNING);
+            onResetLyraTuning?.();
         }
     };
 
@@ -488,6 +515,25 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         onFumeTuningChange?.(patch);
     };
 
+    const handleLyraTuningChange = (patch: Partial<LyraTuning>) => {
+        setDraftLyraTuning(previous => ({ ...previous, ...patch }));
+        onLyraTuningChange?.(patch);
+    };
+
+    const activeArticleTuning = visualizerEntry.tuningKind === 'lyra'
+        ? resolvedLyraTuning
+        : resolvedFumeTuning;
+    const handleActiveArticleTuningChange = visualizerEntry.tuningKind === 'lyra'
+        ? handleLyraTuningChange
+        : handleFumeTuningChange;
+    const articleSettingsTitle = visualizerEntry.tuningKind === 'lyra'
+        ? (t('options.lyraSettings') || 'Lyra 参数')
+        : (t('options.fumeSettings') || '浮名参数');
+    const articleSettingsDescription = visualizerEntry.tuningKind === 'lyra'
+        ? (t('options.lyraSettingsDesc') || '控制打印方块、镜头节奏、追焦方式、辉光和大标题比例。')
+        : (t('options.fumeSettingsDesc') || '控制打印方块、镜头节奏、追焦方式、辉光和大标题比例。');
+    const activeGlowSliderMax = visualizerEntry.tuningKind === 'lyra' ? 1 : 1.8;
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -559,6 +605,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 cadenzaTuning={cadenzaTuning}
                                 partitaTuning={resolvedPartitaTuning}
                                 fumeTuning={resolvedFumeTuning}
+                                lyraTuning={resolvedLyraTuning}
                                 seed={getVisualizerScopedSeed(visualizerMode, 'vis-playground')}
                             />
                         </div>
@@ -681,14 +728,14 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 </div>
                             )}
 
-                            {visualizerEntry.tuningKind === 'fume' && (
+                            {(visualizerEntry.tuningKind === 'fume' || visualizerEntry.tuningKind === 'lyra') && (
                                 <div
                                     className="rounded-[24px] border border-white/10 p-4 space-y-4"
                                     style={{ backgroundColor: controlCardBg }}
                                 >
                                     <div className="space-y-1">
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {t('options.fumeSettings') || '浮名参数'}
+                                            {articleSettingsTitle}
                                         </div>
                                         <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                                             {t('options.fumeSettingsDesc') || '控制打印方块、镜头节奏、辉光和大标题比例。'}
@@ -697,17 +744,17 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
 
                                     <PresetGroup
                                         label={t('options.fumeHidePrintSymbols') || '隐藏打印方块'}
-                                        value={resolvedFumeTuning.hidePrintSymbols}
+                                        value={activeArticleTuning.hidePrintSymbols}
                                         options={visibilityOptions}
-                                        onChange={(next) => handleFumeTuningChange({ hidePrintSymbols: next })}
+                                        onChange={(next) => handleActiveArticleTuningChange({ hidePrintSymbols: next })}
                                         isDaylight={isDaylight}
                                     />
 
                                     <PresetGroup
                                         label={t('options.fumeGeometricBackground') || '通用几何图形'}
-                                        value={resolvedFumeTuning.disableGeometricBackground}
+                                        value={activeArticleTuning.disableGeometricBackground}
                                         options={visibilityOptions}
-                                        onChange={(next) => handleFumeTuningChange({ disableGeometricBackground: next })}
+                                        onChange={(next) => handleActiveArticleTuningChange({ disableGeometricBackground: next })}
                                         isDaylight={isDaylight}
                                     />
 
@@ -715,7 +762,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
                                             <span>{t('options.fumeTextHoldRatio') || '文字停留比例'}</span>
                                             <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                                                {Math.round(resolvedFumeTuning.textHoldRatio * 100)}%
+                                                {Math.round(activeArticleTuning.textHoldRatio * 100)}%
                                             </span>
                                         </div>
                                         <input
@@ -723,8 +770,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             min="0"
                                             max="1"
                                             step="0.05"
-                                            value={resolvedFumeTuning.textHoldRatio}
-                                            onChange={(event) => handleFumeTuningChange({ textHoldRatio: parseFloat(event.target.value) })}
+                                            value={activeArticleTuning.textHoldRatio}
+                                            onChange={(event) => handleActiveArticleTuningChange({ textHoldRatio: parseFloat(event.target.value) })}
                                             className={rangeInputClass}
                                         />
                                     </div>
@@ -733,7 +780,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
                                             <span>{t('options.fumeCameraSpeed') || '摄影机移动速度'}</span>
                                             <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                                                {resolvedFumeTuning.cameraSpeed.toFixed(2)}x
+                                                {activeArticleTuning.cameraSpeed.toFixed(2)}x
                                             </span>
                                         </div>
                                         <input
@@ -741,17 +788,17 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             min="0.55"
                                             max="1.85"
                                             step="0.05"
-                                            value={resolvedFumeTuning.cameraSpeed}
-                                            onChange={(event) => handleFumeTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
+                                            value={activeArticleTuning.cameraSpeed}
+                                            onChange={(event) => handleActiveArticleTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
                                             className={rangeInputClass}
                                         />
                                     </div>
 
                                     <PresetGroup
                                         label={t('options.fumeCameraTrackingMode') || '摄影机追焦方式'}
-                                        value={resolvedFumeTuning.cameraTrackingMode}
+                                        value={activeArticleTuning.cameraTrackingMode}
                                         options={fumeCameraTrackingOptions}
-                                        onChange={(next) => handleFumeTuningChange({ cameraTrackingMode: next })}
+                                        onChange={(next) => handleActiveArticleTuningChange({ cameraTrackingMode: next })}
                                         isDaylight={isDaylight}
                                     />
 
@@ -759,16 +806,16 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
                                             <span>{t('options.fumeGlowIntensity') || '当前句辉光强度'}</span>
                                             <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                                                {resolvedFumeTuning.glowIntensity.toFixed(2)}x
+                                                {activeArticleTuning.glowIntensity.toFixed(2)}x
                                             </span>
                                         </div>
                                         <input
                                             type="range"
                                             min="0"
-                                            max="1.8"
+                                            max={activeGlowSliderMax}
                                             step="0.05"
-                                            value={resolvedFumeTuning.glowIntensity}
-                                            onChange={(event) => handleFumeTuningChange({ glowIntensity: parseFloat(event.target.value) })}
+                                            value={activeArticleTuning.glowIntensity}
+                                            onChange={(event) => handleActiveArticleTuningChange({ glowIntensity: parseFloat(event.target.value) })}
                                             className={rangeInputClass}
                                         />
                                     </div>
@@ -777,7 +824,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
                                             <span>{t('options.fumeHeroScale') || '大标题比例'}</span>
                                             <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                                                {resolvedFumeTuning.heroScale.toFixed(2)}x
+                                                {activeArticleTuning.heroScale.toFixed(2)}x
                                             </span>
                                         </div>
                                         <input
@@ -785,8 +832,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             min="0.82"
                                             max="1.32"
                                             step="0.02"
-                                            value={resolvedFumeTuning.heroScale}
-                                            onChange={(event) => handleFumeTuningChange({ heroScale: parseFloat(event.target.value) })}
+                                            value={activeArticleTuning.heroScale}
+                                            onChange={(event) => handleActiveArticleTuningChange({ heroScale: parseFloat(event.target.value) })}
                                             className={rangeInputClass}
                                         />
                                     </div>
@@ -869,3 +916,4 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
 };
 
 export default VisPlayground;
+

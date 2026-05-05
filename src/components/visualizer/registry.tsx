@@ -5,6 +5,7 @@ import {
     type AudioBands,
     type CadenzaTuning,
     type FumeTuning,
+    type LyraTuning,
     type Line,
     type PartitaTuning,
     type Theme,
@@ -14,11 +15,12 @@ import Visualizer from './classic/Visualizer';
 import VisualizerCadenza from './cadenza/VisualizerCadenza';
 import VisualizerPartita from './partita/VisualizerPartita';
 import VisualizerFume from './fume/VisualizerFume';
+import VisualizerLyra from './lyra/VisualizerLyra';
 
 // Central mode registry.
 // The rest of the app should ask this file "how do I render/label/configure mode X?"
 // instead of hardcoding mode branches in multiple places.
-export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
+export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume' | 'lyra';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -38,6 +40,7 @@ export interface VisualizerSharedProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    lyraTuning?: LyraTuning;
 }
 
 export interface VisualizerRegistryEntry {
@@ -198,6 +201,42 @@ const renderFume = ({
     />
 );
 
+const renderLyra = ({
+    currentTime,
+    currentLineIndex,
+    lines,
+    theme,
+    audioPower,
+    audioBands,
+    showText,
+    coverUrl,
+    useCoverColorBg,
+    seed,
+    staticMode,
+    backgroundOpacity,
+    lyricsFontScale,
+    onBack,
+    lyraTuning,
+}: VisualizerSharedProps) => (
+    <VisualizerLyra
+        currentTime={currentTime}
+        currentLineIndex={currentLineIndex}
+        lines={lines}
+        theme={theme}
+        audioPower={audioPower}
+        audioBands={audioBands}
+        showText={showText}
+        coverUrl={coverUrl}
+        useCoverColorBg={useCoverColorBg}
+        seed={seed}
+        staticMode={staticMode}
+        backgroundOpacity={backgroundOpacity}
+        lyricsFontScale={lyricsFontScale}
+        lyraTuning={lyraTuning}
+        onBack={onBack}
+    />
+);
+
 const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntry> = {
     classic: {
         mode: 'classic',
@@ -234,6 +273,15 @@ const VISUALIZER_REGISTRY_BY_MODE: Record<VisualizerMode, VisualizerRegistryEntr
         previewStartOffset: 18.4,
         tuningKind: 'fume',
         render: renderFume,
+    },
+    lyra: {
+        mode: 'lyra',
+        labelKey: 'ui.visualizerLyra',
+        labelFallback: 'Lyra',
+        previewSeed: 'lyra',
+        previewStartOffset: 18.4,
+        tuningKind: 'lyra',
+        render: renderLyra,
     },
 };
 

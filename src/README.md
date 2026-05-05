@@ -68,7 +68,7 @@ src/
 - `components/visualizer/*`
   歌词可视化层。
   根目录保留共享壳层、背景层、runtime、registry 和预览入口；
-  `classic/Visualizer.tsx` / `cadenza/VisualizerCadenza.tsx` / `partita/VisualizerPartita.tsx` / `fume/VisualizerFume.tsx` 分别负责各模式实现。
+  `classic/Visualizer.tsx` / `cadenza/VisualizerCadenza.tsx` / `partita/VisualizerPartita.tsx` / `fume/VisualizerFume.tsx` / `lyra/VisualizerLyra.tsx` 分别负责各模式实现。
 
 ### Hooks
 

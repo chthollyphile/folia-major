@@ -2,14 +2,23 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor } from '@chenglou/pretext';
 import { Hourglass } from 'lucide-react';
-import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../../types';
+import { AudioBands, DEFAULT_LYRA_TUNING, LYRA_GLOW_INTENSITY_RENDER_SCALE, LyraTuning, Line, Theme, Word as WordType } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
-import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from '../FumeBackground';
+import { buildLyraBackgroundScene, drawLyraBackground, type LyraBackgroundAudioLevels } from './LyraBackground';
 import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
+// This mode is basically "turn the whole lyric into an article, then move a camera through it".
+// So the pipeline is much bigger than the others: prebuild the article layout, split it into blocks/render lines/graphemes,
+// resolve which block the camera should care about right now, then draw background + paper + typed text + passed text together every frame.
+// If this mode breaks, it is usually not one tiny animation bug, it is some step in that whole pipeline drifting out of sync.
+//
+// For a single lyric line, the state handling is:
+// waiting -> line already exists in the article, but the camera may not be on it yet and glyphs can stay unprinted.
+// active -> line becomes the main reading target, camera focuses in, and glyphs print with stronger glow/presence.
+// passed -> line becomes already-read text, keep some paper trace and fade it out with textHoldRatio instead of removing it instantly.
 interface VisualizerProps {
     currentTime: MotionValue<number>;
     currentLineIndex: number;
@@ -23,7 +32,7 @@ interface VisualizerProps {
     seed?: string | number;
     backgroundOpacity?: number;
     lyricsFontScale?: number;
-    fumeTuning?: FumeTuning;
+    lyraTuning?: LyraTuning;
     onBack?: () => void;
 }
 
@@ -207,6 +216,7 @@ let lastFumePassedFadeDurationCache: {
 } | null = null;
 
 const isCJK = (text: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(text);
+const isBracketLikeGrapheme = (text: string) => /[()（）\[\]［］{}｛｝<>〈〉《》「」『』【】〔〕〖〗〘〙〚〛]/.test(text);
 
 const colorWithAlpha = (color: string, alpha: number) => {
     const normalizedAlpha = clamp(alpha, 0, 1);
@@ -256,16 +266,16 @@ const resolvePassedTextStyle = (
 ) => (
     textHoldStyle === 'dimmed'
         ? {
-            opacity: variant === 'hero' ? 0.11 : 0.075,
+            opacity: variant === 'hero' ? 0.12 : 0.082,
             glowMultiplier: 0,
             shadowAlphaBase: 0,
             shadowAlphaTrail: 0,
         }
         : {
-            opacity: variant === 'hero' ? 0.74 : 0.58,
-            glowMultiplier: 1,
-            shadowAlphaBase: 0.1,
-            shadowAlphaTrail: 0.16,
+            opacity: variant === 'hero' ? 0.68 : 0.54,
+            glowMultiplier: variant === 'hero' ? 0.72 : 0.88,
+            shadowAlphaBase: variant === 'hero' ? 0.08 : 0.1,
+            shadowAlphaTrail: variant === 'hero' ? 0.11 : 0.14,
         }
 );
 
@@ -365,6 +375,63 @@ const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
     }
 
     return `rgba(${Math.round(mix(fromChannels.r, toChannels.r, normalizedAmount))}, ${Math.round(mix(fromChannels.g, toChannels.g, normalizedAmount))}, ${Math.round(mix(fromChannels.b, toChannels.b, normalizedAmount))}, ${clamp(alpha, 0, 1)})`;
+};
+
+const extractAlphaFromColor = (color: string) => {
+    if (color.startsWith('#')) {
+        return 1;
+    }
+
+    const rgbaMatch = color.match(/^rgba\(([^)]+)\)$/);
+    if (rgbaMatch) {
+        const channels = rgbaMatch[1].split(',').map(part => part.trim());
+        const alpha = Number.parseFloat(channels[3] ?? '1');
+        return Number.isFinite(alpha) ? clamp(alpha, 0, 1) : 1;
+    }
+
+    const rgbMatch = color.match(/^rgb\(([^)]+)\)$/);
+    if (rgbMatch) {
+        return 1;
+    }
+
+    return 1;
+};
+
+const resolveBlockGradientBaseColor = (
+    block: FumeBlock,
+    theme: Theme,
+    diagonalRatio: number,
+    alpha = 1,
+) => {
+    const ratio = clamp(diagonalRatio, 0, 1);
+
+    if (block.variant === 'hero') {
+        const warmEdge = mixColors(theme.secondaryColor, '#ffe6c7', 0.68);
+        const midGlow = mixColors(theme.primaryColor, '#fff2fb', 0.3);
+        const coolEdge = mixColors(theme.accentColor, '#d6c7ff', 0.62);
+        const warmToMid = mixColors(warmEdge, midGlow, clamp(ratio * 1.28, 0, 1));
+        return mixColors(warmToMid, coolEdge, clamp((ratio - 0.18) / 0.82, 0, 1), alpha);
+    }
+
+    const warmEdge = mixColors(theme.secondaryColor, theme.primaryColor, 0.22);
+    const midTone = mixColors(theme.primaryColor, '#fbf1ff', 0.14);
+    const coolEdge = mixColors(theme.accentColor, theme.primaryColor, 0.42);
+    const warmToMid = mixColors(warmEdge, midTone, clamp(ratio * 1.18, 0, 1));
+    return mixColors(warmToMid, coolEdge, clamp((ratio - 0.24) / 0.76, 0, 1), alpha);
+};
+
+const resolveGlyphDiagonalRatio = (
+    block: FumeBlock,
+    renderLine: RenderLineSlice,
+    graphemeIndex: number,
+) => {
+    const glyphOffset = renderLine.glyphOffsets[graphemeIndex] ?? 0;
+    const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
+    const glyphCenterX = renderLine.left + glyphOffset + glyphAdvance * 0.5;
+    const glyphCenterY = renderLine.top + block.lineHeight * 0.5;
+    const xRatio = clamp(glyphCenterX / Math.max(block.width, 1), 0, 1);
+    const yRatio = clamp(glyphCenterY / Math.max(block.height, 1), 0, 1);
+    return clamp(xRatio * 0.58 + yRatio * 0.42, 0, 1);
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
@@ -596,6 +663,24 @@ const resolveGlyphAdvance = (
     return Math.max(nextOffset - currentOffset, 0);
 };
 
+const resolveGlyphDrawX = (
+    context: CanvasRenderingContext2D,
+    renderLine: RenderLineSlice,
+    graphemeIndex: number,
+    baseX: number,
+) => {
+    const grapheme = renderLine.graphemes[graphemeIndex] ?? '';
+    const glyphX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
+
+    if (!isBracketLikeGrapheme(grapheme)) {
+        return glyphX;
+    }
+
+    const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
+    const measuredWidth = context.measureText(grapheme).width;
+    return glyphX + Math.max((glyphAdvance - measuredWidth) * 0.5, 0);
+};
+
 const buildWordRangeIndexByOffset = (
     graphemeCount: number,
     wordRanges: WordRange[],
@@ -745,6 +830,8 @@ const buildPreparedSingleLine = (
         layout: ReturnType<typeof layoutWithLines>;
     } | null = null;
 
+    // Fume really wants most blocks to stay single-line when possible.
+    // So do a tiny binary search for a font size that still fits before falling back.
     for (let iteration = 0; iteration < 8; iteration += 1) {
         const candidateFontPx = ((low + high) / 2)
             * lyricsFontScale
@@ -786,8 +873,10 @@ const buildLayoutCacheKey = (
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
-    fumeTuning: FumeTuning,
+    lyraTuning: LyraTuning,
 ) => {
+    // Layout cache key intentionally ignores short-lived playback state.
+    // Only geometry-affecting inputs should invalidate the whole article layout.
     let linesHash = 2166136261;
     for (const line of lines) {
         const lineKey = `${line.startTime}:${line.endTime}:${line.fullText}:${line.words.length}:${line.isChorus ? 1 : 0}`;
@@ -802,7 +891,7 @@ const buildLayoutCacheKey = (
         layoutTheme.fontFamily ?? '',
         layoutTheme.name,
         lyricsFontScale.toFixed(4),
-        fumeTuning.heroScale.toFixed(4),
+        lyraTuning.heroScale.toFixed(4),
         lines.length,
         linesHash >>> 0,
     ].join('|');
@@ -815,6 +904,8 @@ const resolvePrintedGraphemeCount = (
     graphemeCount: number,
     currentTimeValue: number,
 ) => {
+    // Hero blocks print more like a stamped headline.
+    // Body blocks print word-by-word so they feel more like reading through an article.
     if (graphemeCount === 0) {
         return 0;
     }
@@ -914,7 +1005,7 @@ function buildArticleLayoutAttempt(
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
-    fumeTuning: FumeTuning,
+    lyraTuning: LyraTuning,
     options: FumeLayoutAttemptOptions & { mode: 'measure' },
 ): FumeArticleLayoutMetrics | null;
 function buildArticleLayoutAttempt(
@@ -922,7 +1013,7 @@ function buildArticleLayoutAttempt(
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
-    fumeTuning: FumeTuning,
+    lyraTuning: LyraTuning,
     options: FumeLayoutAttemptOptions & { mode?: 'render' },
 ): FumeArticleLayout | null;
 function buildArticleLayoutAttempt(
@@ -930,7 +1021,7 @@ function buildArticleLayoutAttempt(
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
-    fumeTuning: FumeTuning,
+    lyraTuning: LyraTuning,
     options: FumeLayoutAttemptOptions,
 ): FumeArticleLayout | FumeArticleLayoutMetrics | null {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
@@ -952,6 +1043,8 @@ function buildArticleLayoutAttempt(
     const verticalMargin = Math.max(viewport.height * 0.82, 220);
     const columnWidth = (paperWidth - gap * (columns - 1)) / columns;
     const fontFamily = resolveThemeFontStack(layoutTheme);
+    // Empty lines do not help the article layout.
+    // Also shuffle placement order deterministically so the paper feels composed rather than strictly chronological.
     const filteredLines = lines
         .map((line, index) => ({ line, index }))
         .filter(entry => entry.line.fullText.trim().length > 0)
@@ -970,6 +1063,8 @@ function buildArticleLayoutAttempt(
     filteredLines.forEach(({ line, index }, blockIndex) => {
         timing && (timing.lines += 1);
         const variant = chooseBlockVariant(line, blockIndex, filteredLines.length, forcedHeroIndex);
+        // Hero blocks are allowed to claim more visual territory.
+        // Body blocks should stay narrow so the article still reads like columns.
         const heroSpanColumns = variant === 'hero'
             ? Math.min(columns, columns <= 1 ? 1 : 2)
             : 1;
@@ -994,7 +1089,7 @@ function buildArticleLayoutAttempt(
             variant,
             lyricsFontScale,
             densityScale,
-            fumeTuning.heroScale,
+            lyraTuning.heroScale,
         );
         if (timing) {
             timing.prepareLayoutMs += nowMs() - prepareLayoutStart;
@@ -1011,6 +1106,7 @@ function buildArticleLayoutAttempt(
         const placementStart = timing ? nowMs() : 0;
 
         if (variant === 'hero') {
+            // Hero placement tries to find the calmest large slot across multiple columns.
             if (heroSpanColumns === 1) {
                 y = Math.max(...columnHeights);
                 x = horizontalMargin;
@@ -1047,6 +1143,7 @@ function buildArticleLayoutAttempt(
                 }
             }
         } else {
+            // Body placement is simpler: drop into the currently shortest column.
             let targetColumn = 0;
             let minHeight = columnHeights[0] ?? 0;
             const candidateColumns = [0];
@@ -1074,6 +1171,8 @@ function buildArticleLayoutAttempt(
         }
 
         if (shouldBuildRenderDetails) {
+            // Measure-only passes stop before this point.
+            // Render passes continue and build every structure needed for glyph printing and per-line focus.
             const renderDetailsStart = timing ? nowMs() : 0;
             const prepared = preparedSingleLine.prepared;
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
@@ -1105,7 +1204,7 @@ function buildArticleLayoutAttempt(
             });
 
             blocks.push({
-                id: `fume-${line.startTime}-${index}`,
+                id: `lyra-${line.startTime}-${index}`,
                 sourceLineIndex: index,
                 line,
                 variant,
@@ -1162,7 +1261,7 @@ const buildArticleLayout = (
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily'>,
     lyricsFontScale: number,
-    fumeTuning: FumeTuning,
+    lyraTuning: LyraTuning,
 ): FumeArticleLayout | null => {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
         return null;
@@ -1183,6 +1282,8 @@ const buildArticleLayout = (
     const measureColumnTimings = new Map<number, FumeLayoutAttemptTiming>();
     let measureAttemptCount = 0;
 
+    // Try a few column counts and density scales, then keep the article that lands closest to the target height.
+    // This is why the mode feels "composed" instead of hardcoding one layout recipe for every song.
     for (let columns = maxColumns; columns >= 1; columns -= 1) {
         let low = 0.82;
         let high = 1.42;
@@ -1203,7 +1304,7 @@ const buildArticleLayout = (
                 mode: 'measure',
                 timing: columnTiming,
             };
-            const layout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, attemptOptions);
+            const layout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, lyraTuning, attemptOptions);
 
             if (!layout) {
                 continue;
@@ -1243,13 +1344,13 @@ const buildArticleLayout = (
 
     const renderStart = nowMs();
     const article = bestOptions
-        ? buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, bestOptions)
+        ? buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, lyraTuning, bestOptions)
         : null;
     const renderMs = nowMs() - renderStart;
     const totalMs = nowMs() - totalStart;
 
     if (import.meta.env.DEV) {
-        console.info('[VisualizerFume] layout timing', {
+        console.info('[VisualizerLyra] layout timing', {
             totalMs: roundMs(totalMs),
             measureMs: roundMs(measureTiming.prepareLayoutMs + measureTiming.placementMs),
             renderMs: roundMs(renderMs),
@@ -1413,7 +1514,7 @@ const resolveBlockEntryFocusPoint = (
 
 const buildCanvasFont = (block: FumeBlock, theme: Theme) => {
     const fontFamily = resolveThemeFontStack(theme);
-    const fontWeight = block.variant === 'hero' ? 780 : 640;
+    const fontWeight = block.variant === 'hero' ? 700 : 580;
     return `${fontWeight} ${block.fontPx}px ${fontFamily}`;
 };
 
@@ -1440,20 +1541,30 @@ const createStaticBlockSnapshot = (
     }
 
     const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
+    const fillAlpha = extractAlphaFromColor(fillStyle);
     context.setTransform(rasterScale, 0, 0, rasterScale, 0, 0);
     context.font = buildCanvasFont(block, theme);
     context.textAlign = 'left';
     context.textBaseline = 'middle';
-    context.fillStyle = fillStyle;
-    context.shadowBlur = shadowBlur;
-    context.shadowColor = shadowColor;
-
     for (const renderLine of block.renderLines) {
-        context.fillText(
-            renderLine.text,
-            renderLine.left + padding,
-            renderLine.top + baselineOffset + padding,
-        );
+        const baseX = renderLine.left + padding;
+        const baseY = renderLine.top + baselineOffset + padding;
+
+        for (let graphemeIndex = 0; graphemeIndex < renderLine.graphemes.length; graphemeIndex += 1) {
+            const grapheme = renderLine.graphemes[graphemeIndex]!;
+            const glyphX = resolveGlyphDrawX(context, renderLine, graphemeIndex, baseX);
+            const gradientColor = resolveBlockGradientBaseColor(
+                block,
+                theme,
+                resolveGlyphDiagonalRatio(block, renderLine, graphemeIndex),
+                fillAlpha,
+            );
+
+            context.fillStyle = gradientColor;
+            context.shadowBlur = shadowBlur;
+            context.shadowColor = shadowColor;
+            context.fillText(grapheme, glyphX, baseY);
+        }
     }
 
     context.shadowBlur = 0;
@@ -1645,7 +1756,7 @@ const resolveFocusBlock = (
     return chronologicalFirstBlock;
 };
 
-const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
+const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     currentTime,
     currentLineIndex,
     lines,
@@ -1659,7 +1770,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
-    fumeTuning,
+    lyraTuning,
     onBack,
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1735,17 +1846,17 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             nextLines: getUpcomingLines(lines, currentLineIndex, 2),
         };
     }, [currentLineIndex, lines]);
-    const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
-        hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
-        disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
-        textHoldRatio: clamp(fumeTuning?.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio, 0, 1),
-        cameraTrackingMode: fumeTuning?.cameraTrackingMode === 'stepped' || fumeTuning?.cameraTrackingMode === 'smooth'
-            ? fumeTuning.cameraTrackingMode
-            : DEFAULT_FUME_TUNING.cameraTrackingMode,
-        cameraSpeed: clamp(fumeTuning?.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, 0.55, 1.85),
-        glowIntensity: clamp(fumeTuning?.glowIntensity ?? DEFAULT_FUME_TUNING.glowIntensity, 0, 1.8),
-        heroScale: clamp(fumeTuning?.heroScale ?? DEFAULT_FUME_TUNING.heroScale, 0.82, 1.32),
-    }), [fumeTuning]);
+    const resolvedLyraTuning = useMemo<LyraTuning>(() => ({
+        hidePrintSymbols: lyraTuning?.hidePrintSymbols ?? DEFAULT_LYRA_TUNING.hidePrintSymbols,
+        disableGeometricBackground: lyraTuning?.disableGeometricBackground ?? DEFAULT_LYRA_TUNING.disableGeometricBackground,
+        textHoldRatio: clamp(lyraTuning?.textHoldRatio ?? DEFAULT_LYRA_TUNING.textHoldRatio, 0, 1),
+        cameraTrackingMode: lyraTuning?.cameraTrackingMode === 'stepped' || lyraTuning?.cameraTrackingMode === 'smooth'
+            ? lyraTuning.cameraTrackingMode
+            : DEFAULT_LYRA_TUNING.cameraTrackingMode,
+        cameraSpeed: clamp(lyraTuning?.cameraSpeed ?? DEFAULT_LYRA_TUNING.cameraSpeed, 0.55, 1.85),
+        glowIntensity: clamp(lyraTuning?.glowIntensity ?? DEFAULT_LYRA_TUNING.glowIntensity, 0, 1),
+        heroScale: clamp(lyraTuning?.heroScale ?? DEFAULT_LYRA_TUNING.heroScale, 0.82, 1.32),
+    }), [lyraTuning]);
     const layoutTheme = useMemo(
         () => ({
             name: theme.name,
@@ -1754,10 +1865,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         }),
         [theme.fontFamily, theme.fontStyle, theme.name],
     );
-    const layoutFumeTuning = useMemo<FumeTuning>(() => ({
-        ...DEFAULT_FUME_TUNING,
-        heroScale: resolvedFumeTuning.heroScale,
-    }), [resolvedFumeTuning.heroScale]);
+    const layoutLyraTuning = useMemo<LyraTuning>(() => ({
+        ...DEFAULT_LYRA_TUNING,
+        heroScale: resolvedLyraTuning.heroScale,
+    }), [resolvedLyraTuning.heroScale]);
 
     useEffect(() => {
         const requestVersion = layoutBuildVersionRef.current + 1;
@@ -1782,10 +1893,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     return;
                 }
 
-                const layoutCacheKey = buildLayoutCacheKey(lines, viewport, layoutTheme, lyricsFontScale, layoutFumeTuning);
+                const layoutCacheKey = buildLayoutCacheKey(lines, viewport, layoutTheme, lyricsFontScale, layoutLyraTuning);
                 const nextArticle = lastFumeLayoutCache?.key === layoutCacheKey
                     ? lastFumeLayoutCache.article
-                    : buildArticleLayout(lines, viewport, layoutTheme, lyricsFontScale, layoutFumeTuning);
+                    : buildArticleLayout(lines, viewport, layoutTheme, lyricsFontScale, layoutLyraTuning);
                 if (layoutBuildVersionRef.current !== requestVersion) {
                     return;
                 }
@@ -1804,7 +1915,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             window.cancelAnimationFrame(rafId);
             window.clearTimeout(timeoutId);
         };
-    }, [layoutFumeTuning, layoutTheme, lines, lyricsFontScale, viewport]);
+    }, [layoutLyraTuning, layoutTheme, lines, lyricsFontScale, viewport]);
     const lastRenderableLine = useMemo(() => {
         for (let index = lines.length - 1; index >= 0; index -= 1) {
             const line = lines[index];
@@ -1824,14 +1935,14 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         return lineStartTime + Math.max(lineRenderEndTime - lineStartTime, 0) * 0.5;
     }, [lastRenderableLine]);
     const backgroundScene = useMemo(
-        () => buildFumeBackgroundScene({
+        () => buildLyraBackgroundScene({
             viewport,
             world: {
                 width: article?.width ?? Math.max(viewport.width * 1.8, viewport.width),
                 height: article?.height ?? Math.max(viewport.height * 1.8, viewport.height),
             },
             paperBounds: article?.paperBounds,
-            seed: `${seed ?? 'fume'}:${theme.name}`,
+            seed: `${seed ?? 'lyra'}:${theme.name}`,
         }),
         [article?.height, article?.paperBounds, article?.width, seed, theme.name, viewport],
     );
@@ -1839,10 +1950,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         () => (article ? resolveArticleOverviewCamera(article, viewport) : null),
         [article, viewport],
     );
-    const cameraSpeed = resolvedFumeTuning.cameraSpeed;
-    const glowIntensity = resolvedFumeTuning.glowIntensity;
-    const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
-    const textHoldRatio = resolvedFumeTuning.textHoldRatio;
+    const cameraSpeed = resolvedLyraTuning.cameraSpeed;
+    const glowIntensity = resolvedLyraTuning.glowIntensity * LYRA_GLOW_INTENSITY_RENDER_SCALE;
+    const showPrintStamp = !resolvedLyraTuning.hidePrintSymbols;
+    const textHoldRatio = resolvedLyraTuning.textHoldRatio;
     const passedFadeDuration = useMemo(
         () => resolveFumePassedFadeDuration(lines, textHoldRatio),
         [lines, textHoldRatio],
@@ -1929,7 +2040,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             const time = currentTime.get();
             const viewportCenterX = viewport.width * 0.5;
             const viewportCenterY = viewport.height * 0.5;
-            const fumeBackgroundAudioLevels: FumeBackgroundAudioLevels = {
+            const fumeBackgroundAudioLevels: LyraBackgroundAudioLevels = {
                 power: audioPower.get(),
                 bass: audioBands.bass.get(),
                 lowMid: audioBands.lowMid.get(),
@@ -1943,7 +2054,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     context.save();
                     context.translate(viewportCenterX, viewportCenterY);
                     context.translate(-backgroundScene.width * 0.5, -backgroundScene.height * 0.5);
-                    drawFumeBackground({
+                    drawLyraBackground({
                         context,
                         scene: backgroundScene,
                         theme,
@@ -1992,7 +2103,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     didRetargetThisFrame = true;
                 }
             } else if (focusBlock) {
-                const focusPoint = resolvedFumeTuning.cameraTrackingMode === 'stepped'
+                const focusPoint = resolvedLyraTuning.cameraTrackingMode === 'stepped'
                     ? resolveSteppedBlockFocusPoint(
                         focusBlock,
                         resolvePrintedGraphemeCount(
@@ -2218,7 +2329,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 context.translate(viewportCenterX, viewportCenterY);
                 context.scale(backgroundScale, backgroundScale);
                 context.translate(-backgroundCameraX, -backgroundCameraY);
-                drawFumeBackground({
+                drawLyraBackground({
                     context,
                     scene: backgroundScene,
                     theme,
@@ -2263,8 +2374,8 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     continue;
                 }
 
-                const waitingOpacity = block.variant === 'hero' ? 0.06 : 0.035;
-                const activeOpacity = block.variant === 'hero' ? 0.985 : 0.92;
+                const waitingOpacity = block.variant === 'hero' ? 0.08 : 0.05;
+                const activeOpacity = block.variant === 'hero' ? 0.96 : 0.9;
                 const effectiveTextHoldStyle = textHoldRatio >= 1 ? 'standard' : 'dimmed';
                 const passedStyle = resolvePassedTextStyle(block.variant, effectiveTextHoldStyle);
                 const passedOpacity = passedStyle.opacity;
@@ -2398,19 +2509,21 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     const lineProgress = clamp((time - block.line.startTime) / lineDuration, 0, 1);
                     const lineGlowEnvelope = Math.sin(lineProgress * Math.PI);
                     const lineGlowAlpha = (
-                        (block.variant === 'hero' ? 0.16 : 0.12)
-                        + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2)
+                        (block.variant === 'hero' ? 0.14 : 0.1)
+                        + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.18)
                     ) * glowIntensity;
                     const lineGlowBlur = (
-                        (block.variant === 'hero' ? 12 : 8)
-                        + lineGlowEnvelope * (block.fontPx * (block.variant === 'hero' ? 0.7 : 0.52))
+                        (block.variant === 'hero' ? 14 : 9)
+                        + lineGlowEnvelope * (block.fontPx * (block.variant === 'hero' ? 0.66 : 0.44))
                     ) * glowIntensity;
-                    const lineGlowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha);
+                    const lineGlowColor = block.variant === 'hero'
+                        ? mixColors(theme.accentColor, '#fff6ff', 0.48, lineGlowAlpha)
+                        : mixColors(theme.accentColor, '#fff3ff', 0.24, lineGlowAlpha);
 
                     context.save();
                     context.fillStyle = lineGlowColor;
                     context.shadowBlur = lineGlowBlur;
-                    context.shadowColor = colorWithAlpha(theme.accentColor, lineGlowAlpha * 1.35);
+                    context.shadowColor = colorWithAlpha(mixColors(theme.accentColor, '#fff5ff', 0.3), lineGlowAlpha * 1.65);
 
                     for (const renderLine of block.renderLines) {
                         const glowBaseX = block.x + renderLine.left;
@@ -2422,7 +2535,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 continue;
                             }
 
-                            const glyphX = glowBaseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
+                            const glyphX = resolveGlyphDrawX(context, renderLine, graphemeIndex, glowBaseX);
                             context.fillText(grapheme, glyphX, glowBaseY);
                         }
                     }
@@ -2451,9 +2564,15 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             : isFrontier
                                 ? 0.82
                                 : waitingOpacity;
+                        const baseTextColor = resolveBlockGradientBaseColor(
+                            block,
+                            theme,
+                            resolveGlyphDiagonalRatio(block, renderLine, graphemeIndex),
+                            alpha,
+                        );
                         let shadowBlur = 0;
                         let shadowColor = 'transparent';
-                        let fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                        let fillStyle = baseTextColor;
                         let activationBlockAlpha = 0;
                         let activationBlockY = baseY;
                         let activationBlockWidth = 0;
@@ -2475,19 +2594,30 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                             if (time < range.word.startTime) {
                                 alpha = waitingOpacity;
-                                fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                                fillStyle = resolveBlockGradientBaseColor(
+                                    block,
+                                    theme,
+                                    resolveGlyphDiagonalRatio(block, renderLine, graphemeIndex),
+                                    alpha,
+                                );
                             } else if (time <= glyphTrailStart) {
                                 alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
-                                fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
-                                shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
-                                shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
+                                fillStyle = mixColors(baseTextColor, activeColor, 0.1 + easedGlyphProgress * 0.28, alpha);
+                                shadowBlur = (5 + block.fontPx * 0.24) * easedGlyphProgress * activeGlowBoost;
+                                shadowColor = colorWithAlpha(mixColors(activeColor, '#fff4ff', 0.22), 0.42 + easedGlyphProgress * 0.34);
                             } else {
                                 alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
-                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
-                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
+                                const passedBaseColor = resolveBlockGradientBaseColor(
+                                    block,
+                                    theme,
+                                    resolveGlyphDiagonalRatio(block, renderLine, graphemeIndex),
+                                    alpha,
+                                );
+                                fillStyle = mixColors(activeColor, passedBaseColor, 0.58 + colorTrailProgress * 0.42, alpha);
+                                shadowBlur = (1.5 + block.fontPx * 0.08) * (1 - colorTrailProgress * 0.42) * passedGlowBase * transitionPassedStyle.glowMultiplier;
                                 shadowColor = colorWithAlpha(
-                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
-                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
+                                    mixColors(activeColor, passedBaseColor, 0.62 + colorTrailProgress * 0.38),
+                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail * 0.9,
                                 );
                             }
 
@@ -2535,16 +2665,17 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                         glyphAdvance * 0.88,
                                         isCJK(grapheme) ? block.fontPx * 0.56 : block.fontPx * 0.38,
                                     );
-                                    const blockCenterX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0) + glyphAdvance * 0.5;
-                                    const dropDistance = block.lineHeight * (block.variant === 'hero' ? 0.24 : 0.2);
-                                    activationBlockAlpha = blockPulse * (block.variant === 'hero' ? 0.82 : 0.72);
-                                    activationBlockWidth = glyphVisualWidth + block.fontPx * (block.variant === 'hero' ? 0.18 : 0.12);
-                                    activationBlockHeight = block.fontPx * (block.variant === 'hero' ? 0.72 : 0.62);
+                                    const glyphDrawX = resolveGlyphDrawX(context, renderLine, graphemeIndex, baseX);
+                                    const blockCenterX = glyphDrawX + glyphAdvance * 0.5;
+                                    const dropDistance = block.lineHeight * (block.variant === 'hero' ? 0.18 : 0.16);
+                                    activationBlockAlpha = blockPulse * (block.variant === 'hero' ? 0.48 : 0.42);
+                                    activationBlockWidth = glyphVisualWidth + block.fontPx * (block.variant === 'hero' ? 0.08 : 0.06);
+                                    activationBlockHeight = block.fontPx * (block.variant === 'hero' ? 0.42 : 0.38);
                                     activationBlockY = baseY
                                         - block.fontPx * 0.38
                                         - mix(dropDistance, 0, dropProgress);
-                                    activationBlockColor = activeColor;
-                                    activationBlockBlur = (8 + block.fontPx * 0.24) * blockPulse * activeGlowBoost;
+                                    activationBlockColor = mixColors(activeColor, '#fff2fb', 0.22);
+                                    activationBlockBlur = (4 + block.fontPx * 0.14) * blockPulse * activeGlowBoost;
 
                                     if (activationBlockWidth > 0) {
                                         const blockLeft = blockCenterX - activationBlockWidth * 0.5;
@@ -2568,7 +2699,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             continue;
                         }
 
-                        const glyphX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
+                        const glyphX = resolveGlyphDrawX(context, renderLine, graphemeIndex, baseX);
 
                         context.fillStyle = fillStyle;
                         context.shadowBlur = shadowBlur;
@@ -2619,7 +2750,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             useCoverColorBg={useCoverColorBg}
             seed={seed}
             staticMode={staticMode}
-            disableGeometricBackground={resolvedFumeTuning.disableGeometricBackground}
+            disableGeometricBackground={resolvedLyraTuning.disableGeometricBackground}
             backgroundOpacity={backgroundOpacity}
             onBack={onBack}
         >
@@ -2701,4 +2832,5 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     );
 };
 
-export default VisualizerFume;
+export default VisualizerLyra;
+
