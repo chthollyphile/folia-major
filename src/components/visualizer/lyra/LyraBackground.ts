@@ -100,9 +100,17 @@ interface LyraBackgroundParallax {
     strength?: number;
 }
 
+interface LyraBackgroundViewBounds {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 const TAU = Math.PI * 2;
+const LYRA_ORBIT_DIRECTION = 1;
 
 const hashString = (input: string) => {
     let hash = 2166136261;
@@ -194,6 +202,28 @@ const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
     }
 
     return `rgba(${Math.round(mix(fromChannels.r, toChannels.r, normalizedAmount))}, ${Math.round(mix(fromChannels.g, toChannels.g, normalizedAmount))}, ${Math.round(mix(fromChannels.b, toChannels.b, normalizedAmount))}, ${clamp(alpha, 0, 1)})`;
+};
+
+const normalizeAngle = (angle: number) => {
+    let normalized = angle % TAU;
+    if (normalized < 0) {
+        normalized += TAU;
+    }
+    return normalized;
+};
+
+const resolveRingPhaseForTargetAngle = (
+    targetAngle: number,
+    ringGapStart?: number,
+    ringGapSize?: number,
+) => {
+    const gapSize = clamp(ringGapSize ?? 0, 0, Math.PI * 0.28);
+    const startAngle = normalizeAngle((ringGapStart ?? 0) + gapSize);
+    const availableSpan = Math.max(TAU - gapSize, 0.001);
+    const normalizedTarget = normalizeAngle(targetAngle);
+    const relativeAngle = normalizeAngle(normalizedTarget - startAngle);
+    const clampedAngle = Math.min(relativeAngle, availableSpan);
+    return clampedAngle / availableSpan;
 };
 
 const normalizeBounds = (
@@ -326,6 +356,28 @@ const rotatePoint = (point: LyraBackgroundPoint, angle: number) => ({
     y: point.x * Math.sin(angle) + point.y * Math.cos(angle),
 });
 
+const isCircleOutsideView = (
+    x: number,
+    y: number,
+    radius: number,
+    viewBounds?: LyraBackgroundViewBounds,
+) => {
+    if (!viewBounds) {
+        return false;
+    }
+
+    return (
+        x + radius < viewBounds.left
+        || x - radius > viewBounds.right
+        || y + radius < viewBounds.top
+        || y - radius > viewBounds.bottom
+    );
+};
+
+const getShapeCullRadius = (shape: LyraBackgroundShape) => Math.max(shape.width, shape.height) * 0.5 + 28;
+const getSparkCullRadius = (spark: Pick<LyraBackgroundSpark, 'width' | 'height'>) => Math.max(spark.width, spark.height) * 2.6 + 24;
+const getDotCullRadius = (dot: LyraBackgroundAmbientDot) => dot.radius + 8;
+
 const resolveShapeWorldPoint = (
     shape: LyraBackgroundShape,
     progress: number,
@@ -381,32 +433,20 @@ const drawShapeStrokeLayers = ({
     opacity: number;
     highlightBoost: number;
 }) => {
-    const baseGradient = createLineGradient(context, shape, theme, opacity);
-    const baseWidth = Math.max(shape.strokeWidth * 0.22, 0.12);
-    const midWidth = Math.max(shape.strokeWidth * 0.58, 0.38);
-    const topWidth = Math.max(shape.strokeWidth * 1.04, 0.82);
+    const baseWidth = Math.max(shape.strokeWidth * 0.28, 0.14);
+    const topWidth = Math.max(shape.strokeWidth * 0.92, 0.78);
 
     buildShapePath(context, shape);
-    context.strokeStyle = createLineGradient(context, shape, theme, opacity * 0.42);
+    context.strokeStyle = createLineGradient(context, shape, theme, opacity * 0.56);
     context.lineWidth = baseWidth;
     context.shadowBlur = 0;
     context.stroke();
 
     buildShapePath(context, shape);
-    context.strokeStyle = createLineGradient(context, shape, theme, opacity * 0.82);
-    context.lineWidth = midWidth;
-    context.shadowBlur = 4 + shape.strokeWidth * 1.4 + highlightBoost * 10;
-    context.shadowColor = colorWithAlpha(mixColors(theme.secondaryColor, theme.accentColor, 0.58), opacity * (0.18 + highlightBoost * 0.22));
-    context.stroke();
-
-    buildShapePath(context, shape);
-    context.strokeStyle = baseGradient;
+    context.strokeStyle = createLineGradient(context, shape, theme, opacity);
     context.lineWidth = topWidth + highlightBoost * shape.strokeWidth * 0.22;
-    context.shadowBlur = 8 + shape.strokeWidth * 2.8 + highlightBoost * 18;
-    context.shadowColor = colorWithAlpha(
-        mixColors(theme.secondaryColor, theme.accentColor, 0.7),
-        opacity * (0.16 + highlightBoost * 0.32),
-    );
+    context.shadowBlur = 0;
+    context.shadowColor = 'transparent';
     context.stroke();
 };
 
@@ -444,11 +484,11 @@ const drawFreeSpark = ({
     alpha: number;
     glowBoost: number;
 }) => {
-    const outerRadius = Math.max(spark.width * (1.2 + glowBoost * 0.4), 1.6);
+    const outerRadius = Math.max(spark.width * (0.82 + glowBoost * 0.22), 1.2);
     const halo = context.createRadialGradient(0, 0, 0, 0, 0, outerRadius);
     halo.addColorStop(0, createSparkColor(theme, spark.colorMix, 0.9, alpha * (0.8 + glowBoost * 0.2)));
-    halo.addColorStop(0.26, createSparkColor(theme, spark.colorMix, spark.highlightMix, alpha * (0.46 + glowBoost * 0.16)));
-    halo.addColorStop(0.68, createSparkColor(theme, spark.colorMix, 0.12, alpha * 0.14));
+    halo.addColorStop(0.24, createSparkColor(theme, spark.colorMix, spark.highlightMix, alpha * (0.38 + glowBoost * 0.1)));
+    halo.addColorStop(0.56, createSparkColor(theme, spark.colorMix, 0.12, alpha * 0.08));
     halo.addColorStop(1, colorWithAlpha(theme.accentColor, 0));
     context.fillStyle = halo;
     context.beginPath();
@@ -458,7 +498,7 @@ const drawFreeSpark = ({
     context.rotate(spark.rotation);
     context.strokeStyle = createSparkColor(theme, spark.colorMix, 0.96, alpha);
     context.lineWidth = spark.strokeWidth;
-    context.shadowBlur = 8 + outerRadius * (1.2 + glowBoost);
+    context.shadowBlur = 4 + outerRadius * (0.72 + glowBoost * 0.56);
     context.shadowColor = createSparkColor(theme, spark.colorMix, 0.82, alpha * 0.8);
     buildEightPointSparkPath(context, spark.width, spark.height);
     context.stroke();
@@ -549,8 +589,10 @@ export const buildLyraBackgroundScene = ({
         bottom: worldHeight * 0.82,
     };
     const resolvedPaperBounds = normalizeBounds(paperBounds ?? defaultPaperBounds, worldWidth, worldHeight);
+    const paperCenterX = (resolvedPaperBounds.left + resolvedPaperBounds.right) * 0.5;
+    const paperCenterY = (resolvedPaperBounds.top + resolvedPaperBounds.bottom) * 0.5;
 
-    const shapeCount = worldWidth > worldHeight ? 9 : 8;
+    const shapeCount = worldWidth > worldHeight ? 6 : 5;
     const shapes = Array.from({ length: shapeCount }).map((_, index) => {
         const localSeed = `${seed ?? 'lyra'}:${worldWidth}:${worldHeight}:shape:${index}`;
         const kind: LyraBackgroundShapeKind = 'ring';
@@ -564,6 +606,7 @@ export const buildLyraBackgroundScene = ({
             height,
             seedKey: localSeed,
         });
+        const rotationSpeedMagnitude = mix(0.018, 0.032, seeded(`${localSeed}:rotation-speed`));
 
         return {
             id: `lyra-shape-${index}`,
@@ -573,14 +616,12 @@ export const buildLyraBackgroundScene = ({
             width,
             height,
             rotation: mix(-Math.PI * 0.34, Math.PI * 0.34, seeded(`${localSeed}:rotation`)),
-            rotationSpeed: mix(-0.016, 0.016, seeded(`${localSeed}:rotation-speed`)),
+            rotationSpeed: LYRA_ORBIT_DIRECTION * rotationSpeedMagnitude,
             strokeWidth: mix(0.9, 2.1, seeded(`${localSeed}:stroke-width`)),
             opacity: mix(0.22, 0.46, seeded(`${localSeed}:opacity`)),
             color: (seeded(`${localSeed}:color`) > 0.46 ? 'accent' : 'secondary') as LyraBackgroundShapeColor,
             depth: seeded(`${localSeed}:depth`),
-            dash: seeded(`${localSeed}:dash`) > 0.88
-                ? [mix(1.6, 3.2, seeded(`${localSeed}:dash-a`)), mix(8, 14, seeded(`${localSeed}:dash-b`))]
-                : undefined,
+            dash: undefined,
             ringGapStart: seeded(`${localSeed}:gap`) > 0.82
                 ? mix(-Math.PI, Math.PI, seeded(`${localSeed}:gap-start`))
                 : undefined,
@@ -593,7 +634,7 @@ export const buildLyraBackgroundScene = ({
     });
 
     const sparkBands: LyraBackgroundAudioBand[] = ['treble', 'vocal', 'mid', 'treble', 'lowMid'];
-    const sparkCount = worldWidth > worldHeight ? 22 : 16;
+    const sparkCount = worldWidth > worldHeight ? 10 : 7;
     const sparkAreaLeft = clamp(resolvedPaperBounds.left - baseUnit * 0.28, worldWidth * 0.04, worldWidth * 0.92);
     const sparkAreaRight = clamp(resolvedPaperBounds.right + baseUnit * 0.28, worldWidth * 0.08, worldWidth * 0.96);
     const sparkAreaTop = clamp(resolvedPaperBounds.top - baseUnit * 0.24, worldHeight * 0.04, worldHeight * 0.9);
@@ -644,8 +685,8 @@ export const buildLyraBackgroundScene = ({
 
     const attachedSparks = shapes.flatMap((shape, shapeIndex) => {
         const localSeed = `${seed ?? 'lyra'}:${worldWidth}:${worldHeight}:attached:${shapeIndex}`;
-        const countSeed = seeded(`${localSeed}:count`);
-        const count = countSeed > 0.82 ? 3 : countSeed > 0.52 ? 2 : countSeed > 0.24 ? 1 : 0;
+        const count = seeded(`${localSeed}:count`) > 0.36 ? 1 : 0;
+        const angleToPaper = Math.atan2(paperCenterY - shape.y, paperCenterX - shape.x);
 
         return Array.from({ length: count }).map((_, index) => ({
             id: `lyra-attached-${shapeIndex}-${index}`,
@@ -660,7 +701,7 @@ export const buildLyraBackgroundScene = ({
             depth: shape.depth + 0.02,
             colorMix: mix(0.14, 0.86, seeded(`${localSeed}:${index}:color-mix`)),
             highlightMix: mix(0.34, 1, seeded(`${localSeed}:${index}:highlight-mix`)),
-            offsetPhase: seeded(`${localSeed}:${index}:offset-phase`),
+            offsetPhase: resolveRingPhaseForTargetAngle(angleToPaper, shape.ringGapStart, shape.ringGapSize),
             pulsePhase: seeded(`${localSeed}:${index}:pulse-phase`) * TAU,
             pulseSpeed: mix(0.45, 1.1, seeded(`${localSeed}:${index}:pulse-speed`)),
             audioBand: 'treble',
@@ -684,6 +725,7 @@ export const drawLyraBackground = ({
     time = 0,
     audioLevels,
     parallax,
+    viewBounds,
 }: {
     context: CanvasRenderingContext2D;
     scene: LyraBackgroundScene;
@@ -691,6 +733,7 @@ export const drawLyraBackground = ({
     time?: number;
     audioLevels?: LyraBackgroundAudioLevels;
     parallax?: LyraBackgroundParallax;
+    viewBounds?: LyraBackgroundViewBounds;
 }) => {
     const shapeById = new Map(scene.shapes.map(shape => [shape.id, shape]));
 
@@ -703,9 +746,15 @@ export const drawLyraBackground = ({
         const parallaxOffsetY = parallax
             ? (parallax.cameraY - parallax.originY) * (1 - layerResponse) * parallaxStrength
             : 0;
+        const resolvedX = dot.x + parallaxOffsetX;
+        const resolvedY = dot.y + parallaxOffsetY;
+
+        if (isCircleOutsideView(resolvedX, resolvedY, getDotCullRadius(dot), viewBounds)) {
+            continue;
+        }
 
         context.save();
-        context.translate(dot.x + parallaxOffsetX, dot.y + parallaxOffsetY);
+        context.translate(resolvedX, resolvedY);
         drawAmbientDot({
             context,
             dot,
@@ -730,6 +779,10 @@ export const drawLyraBackground = ({
             y: shape.y + parallaxOffsetY,
             rotation: shape.rotation + time * shape.rotationSpeed,
         };
+
+        if (isCircleOutsideView(resolvedShape.x, resolvedShape.y, getShapeCullRadius(shape), viewBounds)) {
+            continue;
+        }
 
         context.save();
         context.translate(resolvedShape.x, resolvedShape.y);
@@ -769,6 +822,10 @@ export const drawLyraBackground = ({
             rotation: spark.rotation + time * spark.rotationSpeed,
         };
 
+        if (isCircleOutsideView(resolvedSpark.x, resolvedSpark.y, getSparkCullRadius(resolvedSpark), viewBounds)) {
+            continue;
+        }
+
         context.save();
         context.translate(resolvedSpark.x, resolvedSpark.y);
         drawFreeSpark({
@@ -805,17 +862,22 @@ export const drawLyraBackground = ({
         const audioAlphaBoost = bandValue === undefined
             ? 1
             : mix(0.9, 1.28, clamp((bandValue - 10) / 190, 0, 1));
+        const resolvedAttachedSpark = {
+            ...attachedSpark,
+            width: attachedSpark.width * pulse,
+            height: attachedSpark.height * pulse,
+            rotation: attachedSpark.rotation + time * attachedSpark.rotationSpeed,
+        };
+
+        if (isCircleOutsideView(worldPoint.x, worldPoint.y, getSparkCullRadius(resolvedAttachedSpark), viewBounds)) {
+            continue;
+        }
 
         context.save();
         context.translate(worldPoint.x, worldPoint.y);
         drawAttachedSpark({
             context,
-            spark: {
-                ...attachedSpark,
-                width: attachedSpark.width * pulse,
-                height: attachedSpark.height * pulse,
-                rotation: attachedSpark.rotation + time * attachedSpark.rotationSpeed,
-            },
+            spark: resolvedAttachedSpark,
             theme,
             alpha: clamp(attachedSpark.opacity * audioAlphaBoost * 0.88, 0.12, 1),
             glowBoost: 0.42 + powerLevel * 0.28,

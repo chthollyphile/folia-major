@@ -181,6 +181,7 @@ const splitGraphemes = (text: string) => {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const TAU = Math.PI * 2;
 const easeOutCubic = (value: number) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
 const easeInCubic = (value: number) => Math.pow(clamp(value, 0, 1), 3);
 const easeInOutCubic = (value: number) => {
@@ -259,6 +260,25 @@ const FUME_BACKGROUND_SCALE_FACTOR = 0.94;
 const FUME_BACKGROUND_VERTICAL_OFFSET_RATIO = 0.22;
 const FUME_CAMERA_TELEPORT_TRIGGER_SCREENS = 2.75;
 const FUME_CAMERA_TELEPORT_START_SCREENS = 1;
+
+const buildBackgroundViewBounds = (
+    cameraX: number,
+    cameraY: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    scale: number,
+    overscan = 96,
+) => {
+    const halfWidth = viewportWidth * 0.5 / Math.max(scale, 0.001);
+    const halfHeight = viewportHeight * 0.5 / Math.max(scale, 0.001);
+
+    return {
+        left: cameraX - halfWidth - overscan,
+        right: cameraX + halfWidth + overscan,
+        top: cameraY - halfHeight - overscan,
+        bottom: cameraY + halfHeight + overscan,
+    };
+};
 
 const resolvePassedTextStyle = (
     variant: 'body' | 'hero',
@@ -679,6 +699,69 @@ const resolveGlyphDrawX = (
     const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
     const measuredWidth = context.measureText(grapheme).width;
     return glyphX + Math.max((glyphAdvance - measuredWidth) * 0.5, 0);
+};
+
+const resolveGlyphFlyInMotion = ({
+    seedKey,
+    fontPx,
+    lineHeight,
+    progress,
+    variant,
+}: {
+    seedKey: string;
+    fontPx: number;
+    lineHeight: number;
+    progress: number;
+    variant: 'body' | 'hero';
+}) => {
+    const moveProgress = easeOutCubic(progress);
+    const settleProgress = easeOutCubic(progress);
+    const direction = seeded(`${seedKey}:direction`) > 0.5 ? 1 : -1;
+    const startDistance = mix(
+        variant === 'hero' ? lineHeight * 1.15 : lineHeight * 0.92,
+        variant === 'hero' ? lineHeight * 1.85 : lineHeight * 1.42,
+        seeded(`${seedKey}:distance`),
+    );
+    const startX = mix(-fontPx * 0.18, fontPx * 0.18, seeded(`${seedKey}:drift-x`));
+    const startY = direction * startDistance;
+    const startRotation = mix(-0.7, 0.7, seeded(`${seedKey}:rotation`));
+
+    return {
+        offsetX: mix(startX, 0, moveProgress),
+        offsetY: mix(startY, 0, moveProgress),
+        scale: mix(0.42, 1, settleProgress),
+        rotation: mix(startRotation, 0, settleProgress),
+        blur: mix(variant === 'hero' ? 16 : 12, 0, settleProgress),
+    };
+};
+
+const resolveGlyphEntryProgress = (
+    line: Line,
+    word: WordType,
+    glyphIndexInRange: number,
+    glyphCount: number,
+    currentTimeValue: number,
+) => {
+    const hints = getLineRenderHints(line);
+    const wordRevealMode = hints?.wordRevealMode ?? 'normal';
+    const wordDuration = Math.max(word.endTime - word.startTime, 0.08);
+    const safeGlyphCount = Math.max(glyphCount, 1);
+    const glyphWindowDuration = Math.max(wordDuration / safeGlyphCount, 0.04);
+    const glyphTargetTime = word.startTime + ((glyphIndexInRange + 0.18) / safeGlyphCount) * wordDuration;
+    const entryDuration = wordRevealMode === 'instant'
+        ? clamp(glyphWindowDuration * 1.4, 0.12, 0.22)
+        : wordRevealMode === 'fast'
+            ? clamp(glyphWindowDuration * 1.8, 0.18, 0.32)
+            : clamp(glyphWindowDuration * 2.35, 0.24, 0.46);
+    const entryStart = glyphTargetTime - entryDuration;
+    const entryProgress = clamp((currentTimeValue - entryStart) / entryDuration, 0, 1);
+
+    return {
+        entryStart,
+        entryEnd: glyphTargetTime,
+        progress: entryProgress,
+        easedProgress: easeOutCubic(entryProgress),
+    };
 };
 
 const buildWordRangeIndexByOffset = (
@@ -2051,6 +2134,13 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
             if (!article) {
                 if (!staticMode) {
+                    const backgroundViewBounds = buildBackgroundViewBounds(
+                        backgroundScene.width * 0.5,
+                        backgroundScene.height * 0.5,
+                        viewport.width,
+                        viewport.height,
+                        1,
+                    );
                     context.save();
                     context.translate(viewportCenterX, viewportCenterY);
                     context.translate(-backgroundScene.width * 0.5, -backgroundScene.height * 0.5);
@@ -2060,6 +2150,7 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         theme,
                         time: time + now * 0.00018,
                         audioLevels: fumeBackgroundAudioLevels,
+                        viewBounds: backgroundViewBounds,
                     });
                     context.restore();
                 }
@@ -2324,6 +2415,13 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     CAMERA_SCALE_MIN,
                     CAMERA_SCALE_MAX,
                 );
+                const backgroundViewBounds = buildBackgroundViewBounds(
+                    backgroundCameraX,
+                    backgroundCameraY,
+                    viewport.width,
+                    viewport.height,
+                    backgroundScale,
+                );
 
                 context.save();
                 context.translate(viewportCenterX, viewportCenterY);
@@ -2342,6 +2440,7 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         originY: backgroundCenterY,
                         strength: 0.72,
                     },
+                    viewBounds: backgroundViewBounds,
                 });
                 context.restore();
             }
@@ -2535,8 +2634,57 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 continue;
                             }
 
+                            const globalOffset = renderLine.start + graphemeIndex;
+                            const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
+                            const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                             const glyphX = resolveGlyphDrawX(context, renderLine, graphemeIndex, glowBaseX);
-                            context.fillText(grapheme, glyphX, glowBaseY);
+                            const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
+
+                            if (!range) {
+                                continue;
+                            }
+
+                            const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+                            const wordProgress = clamp((time - range.word.startTime) / wordDuration, 0, 1);
+                            const glyphCount = Math.max(range.end - range.start, 1);
+                            const glyphIndexInRange = globalOffset - range.start;
+                            const entryTiming = resolveGlyphEntryProgress(
+                                block.line,
+                                range.word,
+                                glyphIndexInRange,
+                                glyphCount,
+                                time,
+                            );
+                            if (entryTiming.progress <= 0.001) {
+                                continue;
+                            }
+                            const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
+                            const easedGlyphProgress = easeOutCubic(glyphProgress);
+
+                            const previousAlpha = context.globalAlpha;
+                            context.globalAlpha = previousAlpha * Math.max(entryTiming.easedProgress, easedGlyphProgress);
+
+                            if (time <= entryTiming.entryEnd) {
+                                const flyInMotion = resolveGlyphFlyInMotion({
+                                    seedKey: `${block.id}:${renderLine.id}:${range.wordIndex}:${range.word.text}`,
+                                    fontPx: block.fontPx,
+                                    lineHeight: block.lineHeight,
+                                    progress: entryTiming.easedProgress,
+                                    variant: block.variant,
+                                });
+                                const glyphCenterX = glyphX + glyphAdvance * 0.5;
+                                context.save();
+                                context.translate(glyphCenterX + flyInMotion.offsetX, glowBaseY + flyInMotion.offsetY);
+                                context.rotate(flyInMotion.rotation);
+                                context.filter = `blur(${flyInMotion.blur.toFixed(2)}px)`;
+                                context.scale(flyInMotion.scale, flyInMotion.scale);
+                                context.fillText(grapheme, glyphX - glyphCenterX, 0);
+                                context.restore();
+                            } else {
+                                context.fillText(grapheme, glyphX, glowBaseY);
+                            }
+
+                            context.globalAlpha = previousAlpha;
                         }
                     }
 
@@ -2579,6 +2727,11 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         let activationBlockHeight = 0;
                         let activationBlockColor = theme.accentColor;
                         let activationBlockBlur = 0;
+                        let glyphOffsetX = 0;
+                        let glyphOffsetY = 0;
+                        let glyphScale = 1;
+                        let glyphRotation = 0;
+                        let glyphBlur = 0;
 
                         if (range) {
                             const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
@@ -2587,12 +2740,19 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const glyphIndexInRange = globalOffset - range.start;
                             const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
+                            const entryTiming = resolveGlyphEntryProgress(
+                                block.line,
+                                range.word,
+                                glyphIndexInRange,
+                                glyphCount,
+                                time,
+                            );
                             const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
                             const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
-                            if (time < range.word.startTime) {
+                            if (entryTiming.progress <= 0.001) {
                                 alpha = waitingOpacity;
                                 fillStyle = resolveBlockGradientBaseColor(
                                     block,
@@ -2600,11 +2760,30 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                     resolveGlyphDiagonalRatio(block, renderLine, graphemeIndex),
                                     alpha,
                                 );
+                            } else if (time <= entryTiming.entryEnd) {
+                                alpha = mix(0, activeOpacity, entryTiming.easedProgress);
+                                fillStyle = mixColors(baseTextColor, activeColor, 0.1 + entryTiming.easedProgress * 0.28, alpha);
+                                shadowBlur = (5 + block.fontPx * 0.24) * entryTiming.easedProgress * activeGlowBoost;
+                                shadowColor = colorWithAlpha(mixColors(activeColor, '#fff4ff', 0.22), 0.42 + entryTiming.easedProgress * 0.34);
+                                if (grapheme.trim().length > 0) {
+                                    const flyInMotion = resolveGlyphFlyInMotion({
+                                        seedKey: `${block.id}:${renderLine.id}:${range.wordIndex}:${range.word.text}`,
+                                        fontPx: block.fontPx,
+                                        lineHeight: block.lineHeight,
+                                        progress: entryTiming.easedProgress,
+                                        variant: block.variant,
+                                    });
+                                    glyphOffsetX = flyInMotion.offsetX;
+                                    glyphOffsetY = flyInMotion.offsetY;
+                                    glyphScale = flyInMotion.scale;
+                                    glyphRotation = flyInMotion.rotation;
+                                    glyphBlur = flyInMotion.blur;
+                                }
                             } else if (time <= glyphTrailStart) {
-                                alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
-                                fillStyle = mixColors(baseTextColor, activeColor, 0.1 + easedGlyphProgress * 0.28, alpha);
-                                shadowBlur = (5 + block.fontPx * 0.24) * easedGlyphProgress * activeGlowBoost;
-                                shadowColor = colorWithAlpha(mixColors(activeColor, '#fff4ff', 0.22), 0.42 + easedGlyphProgress * 0.34);
+                                alpha = activeOpacity;
+                                fillStyle = mixColors(baseTextColor, activeColor, 0.34, alpha);
+                                shadowBlur = (5 + block.fontPx * 0.24) * activeGlowBoost;
+                                shadowColor = colorWithAlpha(mixColors(activeColor, '#fff4ff', 0.22), 0.76);
                             } else {
                                 alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
                                 const passedBaseColor = resolveBlockGradientBaseColor(
@@ -2629,8 +2808,9 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                     block.variant === 'hero' ? 0.2 : 0.16,
                                 );
                                 const activationReleaseDuration = activationLeadDuration * 0.42;
-                                const activationWindowStart = glyphTrailStart - activationLeadDuration;
-                                const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
+                                const activationAnchorTime = entryTiming.entryEnd;
+                                const activationWindowStart = activationAnchorTime - activationLeadDuration;
+                                const activationWindowEnd = activationAnchorTime + activationReleaseDuration;
                                 const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
                                 const stampProgress = clamp(
                                     (time - activationWindowStart) / Math.max(activationWindowEnd - activationWindowStart, 0.001),
@@ -2639,11 +2819,11 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 );
 
                                 if (stampProgress > 0 && stampProgress < 1) {
-                                    const isDropping = time <= glyphTrailStart;
+                                    const isDropping = time <= activationAnchorTime;
                                     const dropProgress = isDropping
                                         ? easeOutCubic(
                                             clamp(
-                                                (time - activationWindowStart) / Math.max(glyphTrailStart - activationWindowStart, 0.001),
+                                                (time - activationWindowStart) / Math.max(activationAnchorTime - activationWindowStart, 0.001),
                                                 0,
                                                 1,
                                             ),
@@ -2653,7 +2833,7 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                         ? 0
                                         : easeInOutCubic(
                                             clamp(
-                                                (time - glyphTrailStart) / Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                                (time - activationAnchorTime) / Math.max(activationWindowEnd - activationAnchorTime, 0.001),
                                                 0,
                                                 1,
                                             ),
@@ -2700,11 +2880,23 @@ const VisualizerLyra: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         }
 
                         const glyphX = resolveGlyphDrawX(context, renderLine, graphemeIndex, baseX);
+                        const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
 
                         context.fillStyle = fillStyle;
                         context.shadowBlur = shadowBlur;
                         context.shadowColor = shadowColor;
-                        context.fillText(grapheme, glyphX, baseY);
+                        if (glyphScale !== 1 || glyphOffsetX !== 0 || glyphOffsetY !== 0 || glyphRotation !== 0 || glyphBlur > 0.01) {
+                            const glyphCenterX = glyphX + glyphAdvance * 0.5;
+                            context.save();
+                            context.translate(glyphCenterX + glyphOffsetX, baseY + glyphOffsetY);
+                            context.rotate(glyphRotation);
+                            context.filter = `blur(${glyphBlur.toFixed(2)}px)`;
+                            context.scale(glyphScale, glyphScale);
+                            context.fillText(grapheme, glyphX - glyphCenterX, 0);
+                            context.restore();
+                        } else {
+                            context.fillText(grapheme, glyphX, baseY);
+                        }
                         context.shadowBlur = 0;
                         context.shadowColor = 'transparent';
                     }
