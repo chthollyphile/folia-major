@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, Radio, Cloud, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode } from '../types';
+import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerMode } from '../types';
 import CoverTab from './panelTab/CoverTab';
 import ControlsTab from './panelTab/ControlsTab';
 import QueueTab from './panelTab/QueueTab';
@@ -44,6 +44,8 @@ interface UnifiedPanelProps {
     onResetTheme: () => void;
     defaultTheme: Theme;
     daylightTheme: Theme;
+    visualizerMode: VisualizerMode;
+    onVisualizerModeChange: (mode: VisualizerMode) => void;
     // Queue Tab Props
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
@@ -123,6 +125,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onResetTheme,
     defaultTheme,
     daylightTheme,
+    visualizerMode,
+    onVisualizerModeChange,
     playQueue,
     onPlaySong,
     queueScrollRef,
@@ -528,6 +532,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onResetTheme={onResetTheme}
                                             defaultTheme={defaultTheme}
                                             daylightTheme={daylightTheme}
+                                            visualizerMode={visualizerMode}
+                                            onVisualizerModeChange={onVisualizerModeChange}
                                             useCoverColorBg={useCoverColorBg}
                                             onToggleCoverColorBg={onToggleCoverColorBg}
                                             isDaylight={isDaylight}

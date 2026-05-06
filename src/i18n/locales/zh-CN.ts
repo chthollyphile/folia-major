@@ -63,6 +63,7 @@ export default {
     "findByFilename": "按文件名查找 →",
     "searching": "搜索中...",
     "animationIntensity": "动画强度",
+    "animationMode": "动画模式",
     "visualizer": "视觉器",
     "visualizerWorkbench": "视觉实验台",
     "visualizerTemporary": "临时工作台",

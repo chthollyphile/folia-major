@@ -63,6 +63,7 @@ export default {
     "findByFilename": "Find by filename →",
     "searching": "Searching...",
     "animationIntensity": "Intensity",
+    "animationMode": "Animation Mode",
     "visualizer": "Visualizer",
     "visualizerWorkbench": "Visualizer Lab",
     "visualizerTemporary": "Temporary Workbench",

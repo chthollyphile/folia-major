@@ -150,6 +150,11 @@ const readStoredCustomLyricsFont = (): StoredCustomLyricsFont | null => {
 
 const readStoredLyricFilterPattern = (): string => localStorage.getItem('lyrics_filter_pattern')?.trim() || '';
 
+const readStoredLoopMode = (): 'off' | 'all' | 'one' => {
+    const saved = localStorage.getItem('player_loop_mode');
+    return saved === 'all' || saved === 'one' ? saved : 'off';
+};
+
 export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [audioQuality, setAudioQuality] = useState<AudioQuality>(() => {
         const saved = localStorage.getItem('default_audio_quality');
@@ -189,6 +194,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         return saved !== null ? parseFloat(saved) : 1.0;
     });
     const [isMuted, setIsMuted] = useState(() => getStoredBoolean('player_is_muted', false));
+    const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>(readStoredLoopMode);
 
     useEffect(() => {
         localStorage.setItem('default_audio_quality', audioQuality);
@@ -380,6 +386,18 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         localStorage.setItem('player_is_muted', String(next));
     };
 
+    const handleToggleLoopMode = useCallback(() => {
+        setLoopMode(prev => {
+            const next = prev === 'off'
+                ? 'all'
+                : prev === 'all'
+                    ? 'one'
+                    : 'off';
+            localStorage.setItem('player_loop_mode', next);
+            return next;
+        });
+    }, []);
+
     return {
         audioQuality,
         setAudioQuality,
@@ -399,6 +417,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         lyricFilterPattern,
         lyricFilterPatternError: getLyricFilterError(lyricFilterPattern),
         showOpenPanelCloseButton,
+        loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleMediaCache,
@@ -420,5 +439,6 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         isMuted,
         handleSetVolume,
         handleToggleMute,
+        handleToggleLoopMode,
     };
 }

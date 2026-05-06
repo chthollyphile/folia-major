@@ -358,7 +358,6 @@ export default function App() {
     const currentTime = useMotionValue(0);
     const [duration, setDuration] = useState(0);
     const [currentLineIndex, setCurrentLineIndex] = useState(-1);
-    const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('off');
     const [isFmMode, setIsFmMode] = useState(false);
 
     // Progress Bar State
@@ -435,6 +434,7 @@ export default function App() {
         lyricsCustomFontLabel,
         lyricFilterPattern,
         showOpenPanelCloseButton,
+        loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleMediaCache,
@@ -456,6 +456,7 @@ export default function App() {
         isMuted,
         handleSetVolume,
         handleToggleMute,
+        handleToggleLoopMode,
     } = useAppPreferences(setStatusMsg);
 
     const setLyrics = useCallback((nextLyrics: LyricData | null) => {
@@ -3102,11 +3103,7 @@ export default function App() {
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
-        setLoopMode(prev => {
-            if (prev === 'off') return 'all';
-            if (prev === 'all') return 'one';
-            return 'off';
-        });
+        handleToggleLoopMode();
     };
 
     const handleLike = async () => {
@@ -3866,6 +3863,8 @@ export default function App() {
                         onResetTheme={handleResetTheme}
                         defaultTheme={DEFAULT_THEME}
                         daylightTheme={DAYLIGHT_THEME}
+                        visualizerMode={visualizerMode}
+                        onVisualizerModeChange={handleSetVisualizerMode}
                         playQueue={playQueue}
                         onPlaySong={playSong}
                         queueScrollRef={queueScrollRef}
