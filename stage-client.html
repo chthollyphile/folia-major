@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Folia Stage Client</title>
+    <script type="module" src="/test/manual/stage-client/main.ts"></script>
+</head>
+<body>
+    <main class="stage-client-shell">
+        <section class="stage-client-card">
+            <div class="hero">
+                <div>
+                    <p class="eyebrow">Folia Stage Demo</p>
+                    <h1>Stage Client</h1>
+                    <p class="intro">
+                        Push one Stage session into a locally running Folia desktop app without hand-writing HTTP requests.
+                    </p>
+                </div>
+                <div class="hero-actions">
+                    <button id="load-example" type="button">Load Example</button>
+                    <button id="clear-session" type="button" class="secondary">Clear Session</button>
+                </div>
+            </div>
+
+            <form id="stage-client-form" class="stage-form">
+                <section class="form-panel">
+                    <h2>Connection</h2>
+                    <label>
+                        <span>Stage address</span>
+                        <input id="base-url" name="base-url" type="url" value="http://127.0.0.1:32107" />
+                    </label>
+                    <label>
+                        <span>Bearer token</span>
+                        <input id="token" name="token" type="password" placeholder="Paste the token from Folia settings" />
+                    </label>
+                </section>
+
+                <section class="form-panel">
+                    <h2>Metadata</h2>
+                    <div class="grid two">
+                        <label>
+                            <span>Title</span>
+                            <input id="title" name="title" type="text" placeholder="Song title" />
+                        </label>
+                        <label>
+                            <span>Artist</span>
+                            <input id="artist" name="artist" type="text" placeholder="Artist" />
+                        </label>
+                    </div>
+                    <div class="grid two">
+                        <label>
+                            <span>Album</span>
+                            <input id="album" name="album" type="text" placeholder="Album" />
+                        </label>
+                        <label>
+                            <span>Cover URL</span>
+                            <input id="cover-url" name="cover-url" type="url" placeholder="https://example.com/cover.jpg" />
+                        </label>
+                    </div>
+                    <label>
+                        <span>Cover file</span>
+                        <input id="cover-file" name="cover-file" type="file" accept="image/*" />
+                    </label>
+                </section>
+
+                <section class="form-panel">
+                    <h2>Audio</h2>
+                    <div class="grid two">
+                        <label>
+                            <span>Audio URL</span>
+                            <input id="audio-url" name="audio-url" type="url" placeholder="https://example.com/song.mp3" />
+                        </label>
+                        <label>
+                            <span>Audio file</span>
+                            <input id="audio-file" name="audio-file" type="file" accept="audio/*" />
+                        </label>
+                    </div>
+                    <p class="hint">Choose either a URL or a file. If you click Load Example, a bundled demo WAV will be attached automatically.</p>
+                </section>
+
+                <section class="form-panel">
+                    <h2>Lyrics</h2>
+                    <div class="grid two">
+                        <label>
+                            <span>Lyrics format</span>
+                            <select id="lyrics-format" name="lyrics-format">
+                                <option value="lrc">lrc</option>
+                                <option value="enhanced-lrc">enhanced-lrc</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Lyrics file</span>
+                            <input id="lyrics-file" name="lyrics-file" type="file" accept=".lrc,text/plain" />
+                        </label>
+                    </div>
+                    <label>
+                        <span>Lyrics text</span>
+                        <textarea id="lyrics-text" name="lyrics-text" rows="12" placeholder="[00:00.00]Paste lrc or enhanced lrc here"></textarea>
+                    </label>
+                    <p class="hint">Choose either lyrics text or a lyrics file. The example loader fills this box with a bundled sample.</p>
+                </section>
+
+                <div class="submit-row">
+                    <div id="example-status" class="example-status">No example assets loaded.</div>
+                    <button id="push-session" type="submit">Push Session</button>
+                </div>
+            </form>
+
+            <section class="response-panel">
+                <div class="response-header">
+                    <h2>Response</h2>
+                    <span id="transport-badge" class="transport-badge">idle</span>
+                </div>
+                <div id="status-line" class="status-line">No request sent yet.</div>
+                <pre id="response-output" class="response-output"></pre>
+            </section>
+        </section>
+    </main>
+</body>
+</html>

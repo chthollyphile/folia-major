@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode, type StageStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -106,6 +106,13 @@ interface HomeProps {
     onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
     onSearchCommitted: (query: string, sourceTab: HomeViewTab, replace?: boolean) => void;
+    stageEnabled?: boolean;
+    stageIsActive?: boolean;
+    onOpenStagePlayer?: () => void;
+    stageStatus?: StageStatus | null;
+    onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
+    onRegenerateStageToken?: () => Promise<void> | void;
+    onClearStageSession?: () => Promise<void> | void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -182,6 +189,13 @@ const Home: React.FC<HomeProps> = ({
     onSaveLyricFilterPattern,
     onToggleOpenPanelCloseButton,
     onSearchCommitted,
+    stageEnabled = false,
+    stageIsActive = false,
+    onOpenStagePlayer,
+    stageStatus = null,
+    onToggleStageMode,
+    onRegenerateStageToken,
+    onClearStageSession,
 }) => {
     const { t } = useTranslation();
     const {
@@ -607,6 +621,21 @@ const Home: React.FC<HomeProps> = ({
                                                 </button>
                                             );
                                         })}
+                                        {stageEnabled && (
+                                            <button
+                                                onClick={() => onOpenStagePlayer?.()}
+                                                className={`relative inline-flex items-center justify-center px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${stageIsActive ? activeTabBg : navPillInactiveText}`}
+                                            >
+                                                {stageIsActive && (
+                                                    <motion.span
+                                                        layoutId="home-active-tab-pill"
+                                                        className="absolute inset-0 rounded-full bg-white shadow-sm"
+                                                        transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.9 }}
+                                                    />
+                                                )}
+                                                <span className="relative z-10">{t('home.stage') || '舞台'}</span>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -934,6 +963,10 @@ const Home: React.FC<HomeProps> = ({
                                 loadLyricFilterPreview={loadLyricFilterPreview}
                                 onSaveLyricFilterPattern={onSaveLyricFilterPattern}
                                 onToggleOpenPanelCloseButton={onToggleOpenPanelCloseButton}
+                                stageStatus={stageStatus}
+                                onToggleStageMode={onToggleStageMode}
+                                onRegenerateStageToken={onRegenerateStageToken}
+                                onClearStageSession={onClearStageSession}
                             />
                         )
                     }

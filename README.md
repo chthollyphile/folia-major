@@ -166,6 +166,7 @@ vercel dev
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
+| `npm run stage:client` | 打开本地 Stage 联调客户端 |
 
 ## 本地音乐与匹配说明
 
@@ -176,6 +177,26 @@ vercel dev
 3. 在线匹配结果
 
 如果自动匹配不准确，可以在播放界面的右侧面板进入“本地”选项卡，手动搜索并指定更合适的歌词、封面或元数据来源。你也可以选择只使用本地信息，关闭在线匹配结果。
+
+## Stage 联调客户端
+
+如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的最小联调页面向 Folia 推送 Stage 会话。
+
+1. 在 Folia 设置中开启 Stage Mode，并复制 Bearer token
+2. 运行：
+
+```bash
+npm run stage:client
+```
+
+3. 页面打开后填写：
+
+- Stage 地址，默认 `http://127.0.0.1:32107`
+- Bearer token
+- 音频 URL 或音频文件
+- LRC / Enhanced LRC 歌词文本或歌词文件
+
+页面还提供 `Load Example`，会自动加载仓库内置的示例歌词和一段短音频，方便快速验证推送链路。
 
 ## 技术栈
 

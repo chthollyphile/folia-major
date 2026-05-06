@@ -35,5 +35,19 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('thumbar-action', listener);
         return () => ipcRenderer.removeListener('thumbar-action', listener);
     },
+    getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
+    setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
+    regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),
+    clearStageSession: () => ipcRenderer.invoke('stage-clear-session'),
+    onStageSessionUpdated: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('stage-session-updated', listener);
+        return () => ipcRenderer.removeListener('stage-session-updated', listener);
+    },
+    onStageSessionCleared: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('stage-session-cleared', listener);
+        return () => ipcRenderer.removeListener('stage-session-cleared', listener);
+    },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
 });

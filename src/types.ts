@@ -48,6 +48,32 @@ export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
 
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
+export type PlaybackContext = 'main' | 'stage';
+
+export interface StageSession {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  coverUrl?: string | null;
+  coverArtUrl?: string | null;
+  audioUrl?: string | null;
+  audioSrc: string;
+  audioMimeType?: string;
+  coverMimeType?: string;
+  lyricsText: string;
+  lyricsFormat: 'lrc' | 'enhanced-lrc';
+  updatedAt: number;
+}
+
+export interface StageStatus {
+  enabled: boolean;
+  port: number;
+  token: string | null;
+  hasSession: boolean;
+  session: StageSession | null;
+}
+
 export interface CadenzaTuning {
   fontScale: number;
   widthRatio: number;

@@ -1,0 +1,244 @@
+/* Visual styling for the manual Folia Stage client page. */
+
+:root {
+    color-scheme: dark;
+    --stage-bg: radial-gradient(circle at top, rgba(88, 28, 135, 0.25), transparent 28%),
+        linear-gradient(160deg, #09090b 0%, #18181b 45%, #09090b 100%);
+    --stage-card: rgba(24, 24, 27, 0.88);
+    --stage-panel: rgba(39, 39, 42, 0.72);
+    --stage-border: rgba(255, 255, 255, 0.08);
+    --stage-text: #f5f5f5;
+    --stage-muted: rgba(245, 245, 245, 0.66);
+    --stage-accent: #f97316;
+    --stage-accent-soft: rgba(249, 115, 22, 0.18);
+    --stage-success: #22c55e;
+    --stage-danger: #ef4444;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--stage-bg);
+    color: var(--stage-text);
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+.stage-client-shell {
+    min-height: 100vh;
+    padding: 32px 20px 48px;
+}
+
+.stage-client-card {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    background: var(--stage-card);
+    border: 1px solid var(--stage-border);
+    border-radius: 28px;
+    backdrop-filter: blur(24px);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid var(--stage-border);
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: var(--stage-accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.hero h1,
+.response-header h2,
+.form-panel h2 {
+    margin: 0;
+}
+
+.intro {
+    margin: 10px 0 0;
+    max-width: 680px;
+    line-height: 1.6;
+    color: var(--stage-muted);
+}
+
+.hero-actions,
+.submit-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+button {
+    border: 0;
+    border-radius: 999px;
+    padding: 12px 18px;
+    cursor: pointer;
+    color: #111827;
+    background: linear-gradient(135deg, #fb923c, #f97316);
+    font-weight: 700;
+    transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+    box-shadow: 0 10px 28px rgba(249, 115, 22, 0.24);
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button:disabled {
+    opacity: 0.65;
+    cursor: progress;
+}
+
+button.secondary {
+    color: var(--stage-text);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+}
+
+.stage-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    padding: 24px 28px;
+}
+
+.form-panel,
+.response-panel {
+    background: var(--stage-panel);
+    border: 1px solid var(--stage-border);
+    border-radius: 22px;
+    padding: 18px;
+}
+
+.form-panel:last-of-type,
+.submit-row,
+.response-panel {
+    grid-column: 1 / -1;
+}
+
+.form-panel h2 {
+    margin-bottom: 14px;
+    font-size: 18px;
+}
+
+.grid {
+    display: grid;
+    gap: 14px;
+}
+
+.grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+    display: grid;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--stage-muted);
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--stage-text);
+    padding: 12px 14px;
+}
+
+input[type="file"] {
+    padding: 10px 12px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 220px;
+}
+
+.hint,
+.example-status,
+.status-line {
+    margin: 10px 0 0;
+    color: var(--stage-muted);
+    line-height: 1.5;
+    font-size: 13px;
+}
+
+.example-status {
+    margin: 0;
+}
+
+.submit-row {
+    justify-content: space-between;
+    padding-top: 4px;
+}
+
+.response-panel {
+    margin: 0 28px 28px;
+}
+
+.response-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.transport-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--stage-accent-soft);
+    color: #fdba74;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.response-output {
+    margin: 14px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 16px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.24);
+    min-height: 140px;
+    overflow: auto;
+}
+
+@media (max-width: 900px) {
+    .stage-form {
+        grid-template-columns: 1fr;
+    }
+
+    .grid.two,
+    .hero,
+    .submit-row {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .response-panel {
+        margin: 0 20px 20px;
+    }
+}

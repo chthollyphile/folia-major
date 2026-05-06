@@ -25,6 +25,7 @@ const CoverTab: React.FC<CoverTabProps> = ({
     const { t } = useTranslation();
     const isLocalSong = Boolean(currentSong && (((currentSong as any).isLocal === true) || (currentSong as any).localData));
     const isNavidromeSong = Boolean(currentSong && (currentSong as any).isNavidrome === true);
+    const isStageSong = Boolean(currentSong && (currentSong as any).isStage === true);
     const displayArtists = currentSong?.ar?.length ? currentSong.ar : (currentSong?.artists || []);
     const displayAlbumName = currentSong?.al?.name || currentSong?.album?.name || '';
 
@@ -44,8 +45,11 @@ const CoverTab: React.FC<CoverTabProps> = ({
                             <React.Fragment key={a.id}>
                                 {i > 0 && ", "}
                                 <span
-                                    className="cursor-pointer hover:underline hover:opacity-100 transition-opacity"
+                                    className={isStageSong ? '' : 'cursor-pointer hover:underline hover:opacity-100 transition-opacity'}
                                     onClick={() => {
+                                        if (isStageSong) {
+                                            return;
+                                        }
                                         if (isLocalSong) {
                                             onOpenCurrentLocalArtist();
                                             return;
@@ -63,8 +67,11 @@ const CoverTab: React.FC<CoverTabProps> = ({
                         ))}
                     </div>
                     <div
-                        className="opacity-60 cursor-pointer hover:opacity-100 hover:underline transition-all"
+                        className={isStageSong ? 'opacity-60' : 'opacity-60 cursor-pointer hover:opacity-100 hover:underline transition-all'}
                         onClick={() => {
+                            if (isStageSong) {
+                                return;
+                            }
                             if (isLocalSong) {
                                 onOpenCurrentLocalAlbum();
                                 return;
