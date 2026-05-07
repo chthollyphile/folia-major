@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { StageControlRequest, StageRealtimeState } from '@/types';
+import { PlayerState, type StageControlRequest, type StageRealtimeState } from '@/types';
 import {
     applyStageControlRequestWithClock,
     createStageControllerClock,
@@ -24,7 +24,7 @@ describe('stageControllerClock', () => {
             },
         ],
         currentTrackId: 'track-1',
-        playerState: 'PLAYING',
+        playerState: PlayerState.PLAYING,
         currentTimeMs: 30000,
         durationMs: 120000,
         loopMode: 'off',
@@ -45,6 +45,7 @@ describe('stageControllerClock', () => {
             requestId: 'pause-1',
             originPlayerId: 'folia-player-1',
             requestedAt: 1700,
+            baseRevision: 10,
             type: 'pause',
             payload: {
                 timeMs: 33970,

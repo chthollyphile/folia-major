@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
+const Busboy = require('busboy');
+const { finished } = require('stream/promises');
 const { WebSocketServer } = require('ws');
 
 // Stage API server and metadata extraction for Electron desktop mode.
@@ -9,6 +11,14 @@ const { WebSocketServer } = require('ws');
 const fsp = fs.promises;
 const STAGE_REALTIME_PROTOCOL_VERSION = 1;
 const STAGE_CONTROL_COLLAPSE_WINDOW_MS = 220;
+const STAGE_JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const STAGE_MULTIPART_FIELD_LIMIT_BYTES = 2 * 1024 * 1024;
+const STAGE_MULTIPART_FILE_LIMIT_BYTES = 1024 * 1024 * 1024;
+const STAGE_MULTIPART_FILE_COUNT_LIMIT = 3;
+const STAGE_MULTIPART_PART_COUNT_LIMIT = 10;
+const STAGE_MULTIPART_FIELD_COUNT_LIMIT = 10;
+const STAGE_CONTROLLER_HEARTBEAT_INTERVAL_MS = 10_000;
+const STAGE_CONTROLLER_HEARTBEAT_TIMEOUT_MS = 30_000;
 const STAGE_PLAYER_STATE_VALUES = new Set(['IDLE', 'PLAYING', 'PAUSED']);
 const STAGE_LOOP_MODE_VALUES = new Set(['off', 'all', 'one']);
 const STAGE_CONTROL_REQUEST_VALUES = new Set(['play', 'pause', 'seek', 'next', 'prev', 'set_loop_mode']);
@@ -39,14 +49,21 @@ function createStageApi({
   let stageServer = null;
   let stageWebSocketServer = null;
   let stageSession = null;
+  let stageActiveSessionId = null;
+  let stageActiveSessionFiles = {
+    audioPath: null,
+    coverPath: null,
+  };
   let stageRealtimeState = null;
   let stageControllerSocket = null;
   let stageControllerId = null;
+  let stageControllerLastPongAt = null;
+  let stageControllerHeartbeatTimer = null;
   let stageRealtimePlayerId = null;
   let stageRealtimeConnected = false;
   let stageConnectionError = null;
-  let pendingDirectionalControl = null;
-  let pendingDirectionalTimer = null;
+  let recentDirectionalControl = null;
+  let recentDirectionalTimer = null;
   let queuedControlRequests = [];
   let isProcessingControlQueue = false;
   let musicMetadataModulePromise = null;
@@ -87,18 +104,20 @@ function createStageApi({
     return nextToken;
   };
 
-  const getStageStorageDirectory = () => path.join(app.getPath('userData'), 'stage', 'current');
+  const getStageRootDirectory = () => path.join(app.getPath('userData'), 'stage');
+  const getStageSessionsDirectory = () => path.join(getStageRootDirectory(), 'sessions');
+  const getStageSessionDirectory = (sessionId) => path.join(getStageSessionsDirectory(), sessionId);
 
-  const getStageMediaPath = (kind) => {
-    const baseDirectory = getStageStorageDirectory();
-    switch (kind) {
-      case 'audio':
-        return path.join(baseDirectory, 'audio.bin');
-      case 'cover':
-        return path.join(baseDirectory, 'cover.bin');
-      default:
-        throw new Error(`Unknown stage media kind: ${kind}`);
+  const getCurrentStageMediaPath = (kind) => {
+    if (kind === 'audio') {
+      return stageActiveSessionFiles.audioPath;
     }
+
+    if (kind === 'cover') {
+      return stageActiveSessionFiles.coverPath;
+    }
+
+    throw new Error(`Unknown stage media kind: ${kind}`);
   };
 
   const buildStageMediaUrl = (kind, version) => {
@@ -137,7 +156,10 @@ function createStageApi({
       currentTrackId: overrides.currentTrackId ?? nextTrack.trackId,
       playerState: normalizeStagePlayerState(overrides.playerState ?? previousState?.playerState ?? 'PLAYING'),
       currentTimeMs: clampStageNumber(overrides.currentTimeMs, 0),
-      durationMs: clampStageNumber(overrides.durationMs, 0),
+      durationMs: clampStageNumber(
+        overrides.durationMs ?? previousState?.durationMs ?? session?.durationMs,
+        0,
+      ),
       loopMode: normalizeStageLoopMode(overrides.loopMode ?? previousState?.loopMode ?? 'off'),
       canGoNext: Boolean(overrides.canGoNext ?? false),
       canGoPrev: Boolean(overrides.canGoPrev ?? false),
@@ -150,7 +172,7 @@ function createStageApi({
     playerId: stageRealtimePlayerId,
     hasController: Boolean(stageControllerSocket),
     controllerId: stageControllerId,
-    pendingRequestCount: queuedControlRequests.length + (pendingDirectionalControl ? 1 : 0),
+    pendingRequestCount: queuedControlRequests.length,
     lastError: stageConnectionError,
   });
 
@@ -192,25 +214,75 @@ function createStageApi({
     mainWindow.webContents.send('stage-connection-state', buildStageConnectionState());
   };
 
-  const ensureStageStorageDirectory = async () => {
-    await fsp.mkdir(getStageStorageDirectory(), { recursive: true });
+  const ensureStageSessionsDirectory = async () => {
+    await fsp.mkdir(getStageSessionsDirectory(), { recursive: true });
   };
 
-  const clearStageStorageDirectory = async () => {
+  const createStageWorkingDirectory = async (sessionId) => {
+    const workingDirectory = getStageSessionDirectory(sessionId);
+    await fsp.mkdir(workingDirectory, { recursive: true });
+    return workingDirectory;
+  };
+
+  const removeStageSessionDirectory = async (directoryPath) => {
+    if (!directoryPath) {
+      return;
+    }
+
     try {
-      await fsp.rm(getStageStorageDirectory(), { recursive: true, force: true });
+      await fsp.rm(directoryPath, { recursive: true, force: true });
     } catch (error) {
-      logStage('warn', 'Failed to clear stage storage directory.', error);
+      logStage('warn', 'Failed to remove Stage session directory.', {
+        directoryPath,
+        error,
+      });
     }
   };
 
-  const clearPendingDirectionalControl = () => {
-    if (pendingDirectionalTimer) {
-      clearTimeout(pendingDirectionalTimer);
-      pendingDirectionalTimer = null;
+  const cleanupInactiveStageSessions = async () => {
+    try {
+      const sessionRoot = getStageSessionsDirectory();
+      const directoryEntries = await fsp.readdir(sessionRoot, { withFileTypes: true });
+      await Promise.all(directoryEntries
+        .filter((entry) => entry.isDirectory() && entry.name !== stageActiveSessionId)
+        .map((entry) => removeStageSessionDirectory(path.join(sessionRoot, entry.name))));
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return;
+      }
+
+      logStage('warn', 'Failed to cleanup inactive Stage session directories.', error);
     }
-    pendingDirectionalControl = null;
   };
+
+  const clearRecentDirectionalControl = () => {
+    if (recentDirectionalTimer) {
+      clearTimeout(recentDirectionalTimer);
+      recentDirectionalTimer = null;
+    }
+    recentDirectionalControl = null;
+  };
+
+  const armDirectionalCollapseWindow = (type) => {
+    clearRecentDirectionalControl();
+    recentDirectionalControl = {
+      type,
+      expiresAt: Date.now() + stageControllerPolicy.collapseWindowMs,
+    };
+    recentDirectionalTimer = setTimeout(() => {
+      recentDirectionalTimer = null;
+      recentDirectionalControl = null;
+      broadcastStageConnectionState();
+    }, stageControllerPolicy.collapseWindowMs);
+  };
+
+  const shouldCollapseDirectionalControl = (type) => (
+    Boolean(
+      recentDirectionalControl
+      && recentDirectionalControl.type === type
+      && recentDirectionalControl.expiresAt > Date.now()
+    )
+  );
 
   const syncLocalStageRealtimeStateFromSession = (session) => {
     if (stageControllerSocket && stageRealtimeState) {
@@ -223,13 +295,22 @@ function createStageApi({
   };
 
   const clearStageSessionData = async () => {
+    const previousSessionId = stageActiveSessionId;
     stageSession = null;
-    clearPendingDirectionalControl();
+    stageActiveSessionId = null;
+    stageActiveSessionFiles = {
+      audioPath: null,
+      coverPath: null,
+    };
+    clearRecentDirectionalControl();
     queuedControlRequests = [];
     stageRealtimeState = null;
     broadcastStageRealtimeState();
-    await clearStageStorageDirectory();
     logStage('info', 'Cleared Stage session data.');
+    void cleanupInactiveStageSessions();
+    if (previousSessionId) {
+      void removeStageSessionDirectory(getStageSessionDirectory(previousSessionId));
+    }
     return buildStageStatus();
   };
 
@@ -407,77 +488,242 @@ function createStageApi({
     return authorized;
   };
 
-  const readRequestBody = (req) =>
+  const readRequestBodyWithLimit = (req, maxBytes) =>
     new Promise((resolve, reject) => {
       const chunks = [];
-      req.on('data', (chunk) => chunks.push(chunk));
-      req.on('end', () => resolve(Buffer.concat(chunks)));
+      let totalBytes = 0;
+      let exceededLimit = false;
+
+      req.on('data', (chunk) => {
+        if (exceededLimit) {
+          return;
+        }
+
+        totalBytes += chunk.length;
+        if (totalBytes > maxBytes) {
+          exceededLimit = true;
+          reject(new StageApiError('Stage request body exceeds the supported size limit.', {
+            statusCode: 413,
+            code: 'PAYLOAD_TOO_LARGE',
+            details: {
+              maxBytes,
+            },
+          }));
+          req.resume();
+          return;
+        }
+
+        chunks.push(chunk);
+      });
+      req.on('end', () => {
+        if (!exceededLimit) {
+          resolve(Buffer.concat(chunks));
+        }
+      });
       req.on('error', reject);
     });
 
-  const parseMultipartParts = (buffer, contentType) => {
-    const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || '');
-    if (!boundaryMatch) {
-      throw new Error('Missing multipart boundary.');
-    }
+  const buildStageUploadedFile = (fieldName, incomingFileName, mimeType, filePath, size) => ({
+    fieldName,
+    fileName: path.basename(incomingFileName || `${fieldName}.bin`),
+    contentType: mimeType || 'application/octet-stream',
+    filePath,
+    size,
+  });
 
-    const boundary = `--${boundaryMatch[1] || boundaryMatch[2]}`;
-    const latin1 = buffer.toString('latin1');
-    const segments = latin1.split(boundary).slice(1, -1);
-    const fields = {};
-    const files = {};
+  // Stream multipart uploads directly to disk so large stage audio files do not
+  // block the Electron main process with full-buffer parsing.
+  const parseStageMultipartPayload = (req, workingDirectory) =>
+    new Promise((resolve, reject) => {
+      const files = {};
+      const fields = {};
+      const pendingFileWrites = [];
+      let isSettled = false;
 
-    for (const segment of segments) {
-      const normalized = segment.replace(/^\r\n/, '').replace(/\r\n$/, '');
-      if (!normalized) {
-        continue;
+      const fail = (error) => {
+        if (isSettled) {
+          return;
+        }
+
+        isSettled = true;
+        reject(error);
+      };
+
+      let busboy;
+      try {
+        busboy = Busboy({
+          headers: req.headers,
+          limits: {
+            fileSize: STAGE_MULTIPART_FILE_LIMIT_BYTES,
+            files: STAGE_MULTIPART_FILE_COUNT_LIMIT,
+            fields: STAGE_MULTIPART_FIELD_COUNT_LIMIT,
+            fieldSize: STAGE_MULTIPART_FIELD_LIMIT_BYTES,
+            parts: STAGE_MULTIPART_PART_COUNT_LIMIT,
+          },
+        });
+      } catch (error) {
+        fail(new StageApiError('Failed to initialize multipart parser.', {
+          statusCode: 400,
+          code: 'MULTIPART_PARSE_FAILED',
+          details: {
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        }));
+        return;
       }
 
-      const separatorIndex = normalized.indexOf('\r\n\r\n');
-      if (separatorIndex === -1) {
-        continue;
-      }
+      busboy.on('field', (fieldName, value) => {
+        fields[fieldName] = value;
+      });
 
-      const rawHeaders = normalized.slice(0, separatorIndex).split('\r\n');
-      let bodyText = normalized.slice(separatorIndex + 4);
-      if (bodyText.endsWith('\r\n')) {
-        bodyText = bodyText.slice(0, -2);
-      }
+      busboy.on('file', (fieldName, fileStream, info) => {
+        if (!info?.filename) {
+          fileStream.resume();
+          return;
+        }
 
-      const headers = {};
-      for (const headerLine of rawHeaders) {
-        const colonIndex = headerLine.indexOf(':');
-        if (colonIndex === -1) continue;
-        const headerName = headerLine.slice(0, colonIndex).trim().toLowerCase();
-        headers[headerName] = headerLine.slice(colonIndex + 1).trim();
-      }
+        const safeExtension = path.extname(path.basename(info.filename)) || '.bin';
+        const targetFilePath = path.join(workingDirectory, `${fieldName}${safeExtension}`);
+        const writeStream = fs.createWriteStream(targetFilePath);
+        let fileSize = 0;
 
-      const disposition = headers['content-disposition'] || '';
-      const nameMatch = /name="([^"]+)"/i.exec(disposition);
-      if (!nameMatch) {
-        continue;
-      }
+        fileStream.on('data', (chunk) => {
+          fileSize += chunk.length;
+        });
 
-      const fieldName = nameMatch[1];
-      const fileNameMatch = /filename="([^"]*)"/i.exec(disposition);
+        fileStream.on('limit', () => {
+          writeStream.destroy();
+          fail(new StageApiError('Uploaded Stage file exceeds the supported size limit.', {
+            statusCode: 413,
+            code: 'PAYLOAD_TOO_LARGE',
+            details: {
+              fieldName,
+              fileName: info.filename,
+              maxBytes: STAGE_MULTIPART_FILE_LIMIT_BYTES,
+            },
+          }));
+        });
 
-      if (fileNameMatch) {
-        files[fieldName] = {
-          fileName: path.basename(fileNameMatch[1]),
-          contentType: headers['content-type'] || 'application/octet-stream',
-          buffer: Buffer.from(bodyText, 'latin1'),
-        };
-      } else {
-        fields[fieldName] = bodyText;
-      }
-    }
+        fileStream.on('error', (error) => {
+          writeStream.destroy(error);
+          fail(new StageApiError('Failed to read uploaded Stage file.', {
+            statusCode: 400,
+            code: 'MULTIPART_PARSE_FAILED',
+            details: {
+              fieldName,
+              fileName: info.filename,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }));
+        });
 
-    return { fields, files };
-  };
+        writeStream.on('error', (error) => {
+          fail(new StageApiError('Failed to persist uploaded Stage file.', {
+            statusCode: 500,
+            code: 'SESSION_COMMIT_FAILED',
+            details: {
+              fieldName,
+              fileName: info.filename,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }));
+        });
 
-  const parseStagePayloadFromJson = (buffer) => {
+        fileStream.pipe(writeStream);
+        const writePromise = finished(writeStream).then(() => {
+          files[fieldName] = buildStageUploadedFile(
+            fieldName,
+            info.filename,
+            info.mimeType,
+            targetFilePath,
+            fileSize,
+          );
+        });
+        pendingFileWrites.push(writePromise);
+      });
+
+      busboy.on('filesLimit', () => {
+        fail(new StageApiError('Too many uploaded Stage files were provided.', {
+          statusCode: 400,
+          code: 'INVALID_MULTIPART_FIELDS',
+          details: {
+            maxFiles: STAGE_MULTIPART_FILE_COUNT_LIMIT,
+          },
+        }));
+      });
+
+      busboy.on('fieldsLimit', () => {
+        fail(new StageApiError('Too many multipart Stage fields were provided.', {
+          statusCode: 400,
+          code: 'INVALID_MULTIPART_FIELDS',
+          details: {
+            maxFields: STAGE_MULTIPART_FIELD_COUNT_LIMIT,
+          },
+        }));
+      });
+
+      busboy.on('partsLimit', () => {
+        fail(new StageApiError('Too many multipart Stage parts were provided.', {
+          statusCode: 400,
+          code: 'INVALID_MULTIPART_FIELDS',
+          details: {
+            maxParts: STAGE_MULTIPART_PART_COUNT_LIMIT,
+          },
+        }));
+      });
+
+      busboy.on('error', (error) => {
+        fail(new StageApiError('Failed to parse multipart Stage request.', {
+          statusCode: 400,
+          code: 'MULTIPART_PARSE_FAILED',
+          details: {
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        }));
+      });
+
+      busboy.on('close', async () => {
+        if (isSettled) {
+          return;
+        }
+
+        try {
+          await Promise.all(pendingFileWrites);
+          isSettled = true;
+          resolve({
+            fields,
+            files,
+            sessionId: path.basename(workingDirectory),
+            workingDirectory,
+          });
+        } catch (error) {
+          fail(new StageApiError('Failed to finalize multipart Stage upload.', {
+            statusCode: 500,
+            code: 'SESSION_COMMIT_FAILED',
+            details: {
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }));
+        }
+      });
+
+      req.pipe(busboy);
+    });
+
+  const parseStagePayloadFromJson = (buffer, workingDirectory) => {
     const raw = buffer.toString('utf-8') || '{}';
-    const payload = JSON.parse(raw);
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (error) {
+      throw new StageApiError('Failed to parse Stage JSON payload.', {
+        statusCode: 400,
+        code: 'INVALID_STAGE_JSON',
+        details: {
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
     return {
       fields: {
         title: typeof payload.title === 'string' ? payload.title : '',
@@ -489,6 +735,8 @@ function createStageApi({
         lyricsFormat: typeof payload.lyricsFormat === 'string' ? payload.lyricsFormat : '',
       },
       files: {},
+      sessionId: path.basename(workingDirectory),
+      workingDirectory,
     };
   };
 
@@ -613,11 +861,11 @@ function createStageApi({
   // Parse uploaded audio in Node so Stage can reuse embedded lyrics and cover art
   // without forcing external tools to send duplicate metadata.
   const extractStageEmbeddedAudioMetadata = async (audioFile) => {
-    const { parseBuffer } = await loadMusicMetadata();
-    const parsed = await parseBuffer(audioFile.buffer, {
+    const { parseFile } = await loadMusicMetadata();
+    const parsed = await parseFile(audioFile.filePath, {
       mimeType: audioFile.contentType || undefined,
       path: audioFile.fileName || 'stage-audio',
-      size: audioFile.buffer.length,
+      size: audioFile.size,
     });
 
     const collectLyricCandidates = (tags) => {
@@ -683,6 +931,10 @@ function createStageApi({
   const createStageSessionFromPayload = async (parsedPayload) => {
     const fields = parsedPayload.fields || {};
     const files = parsedPayload.files || {};
+    const sessionId = typeof parsedPayload.sessionId === 'string' && parsedPayload.sessionId.trim()
+      ? parsedPayload.sessionId.trim()
+      : `stage-${Date.now()}-${crypto.randomUUID()}`;
+    const workingDirectory = parsedPayload.workingDirectory;
     const requestedTitle = normalizeStageText(fields.title);
     const requestedArtist = normalizeStageText(fields.artist);
     const requestedAlbum = normalizeStageText(fields.album);
@@ -696,7 +948,7 @@ function createStageApi({
 
     if (requestedLyricsFormat && !isStageLyricsFormat(requestedLyricsFormat)) {
       throw createStageValidationError(
-        'Invalid lyricsFormat. Only "lrc" and "enhanced-lrc" are supported.',
+        'Invalid lyricsFormat. Only "lrc", "enhanced-lrc", "vtt", and "yrc" are supported.',
         'INVALID_LYRICS_FORMAT',
         { lyricsFormat: requestedLyricsFormat },
       );
@@ -753,22 +1005,21 @@ function createStageApi({
       }
     }
 
-    await clearStageStorageDirectory();
-    await ensureStageStorageDirectory();
-
     const sessionVersion = Date.now();
     let resolvedAudioSrc = requestedAudioUrl || '';
     let resolvedCoverUrl = requestedCoverUrl || null;
     let resolvedCoverMimeType = coverFile?.contentType || undefined;
     let resolvedLyricsText = requestedLyricsText;
+    let resolvedAudioPath = null;
+    let resolvedCoverPath = coverFile?.filePath || null;
 
     if (audioFile) {
-      await fsp.writeFile(getStageMediaPath('audio'), audioFile.buffer);
       resolvedAudioSrc = buildStageMediaUrl('audio', sessionVersion);
+      resolvedAudioPath = audioFile.filePath;
     }
 
     if (lyricsFile) {
-      resolvedLyricsText = lyricsFile.buffer.toString('utf-8').trim();
+      resolvedLyricsText = (await fsp.readFile(lyricsFile.filePath, 'utf-8')).trim();
     } else if (!resolvedLyricsText && embeddedMetadata?.lyrics) {
       resolvedLyricsText = normalizeStageText(embeddedMetadata.lyrics);
       logStage('info', 'Using embedded lyrics from uploaded audio metadata.');
@@ -779,17 +1030,18 @@ function createStageApi({
     const detectedLyricsFormat = hasResolvedLyrics ? (requestedLyricsFormat || detectStageLyricsFormat(normalizedResolvedLyricsText)) : null;
 
     if (coverFile) {
-      await fsp.writeFile(getStageMediaPath('cover'), coverFile.buffer);
       resolvedCoverUrl = buildStageMediaUrl('cover', sessionVersion);
     } else if (!resolvedCoverUrl && embeddedMetadata?.coverBuffer) {
-      await fsp.writeFile(getStageMediaPath('cover'), embeddedMetadata.coverBuffer);
+      const embeddedCoverPath = path.join(workingDirectory, `embedded-cover${path.extname(embeddedMetadata.coverMimeType || '') || '.bin'}`);
+      await fsp.writeFile(embeddedCoverPath, embeddedMetadata.coverBuffer);
+      resolvedCoverPath = embeddedCoverPath;
       resolvedCoverUrl = buildStageMediaUrl('cover', sessionVersion);
       resolvedCoverMimeType = embeddedMetadata.coverMimeType || undefined;
       logStage('info', 'Using embedded cover art from uploaded audio metadata.');
     }
 
     const nextSession = {
-      id: `stage-${Date.now()}`,
+      id: sessionId,
       title: requestedTitle || normalizeStageText(embeddedMetadata?.title) || 'Stage Session',
       artist: requestedArtist || normalizeStageText(embeddedMetadata?.artist) || 'Stage',
       album: requestedAlbum || normalizeStageText(embeddedMetadata?.album) || '',
@@ -816,7 +1068,15 @@ function createStageApi({
       metadataFilled: Boolean(embeddedMetadata),
     });
 
-    return nextSession;
+    return {
+      session: nextSession,
+      activeSessionId: sessionId,
+      activeSessionFiles: {
+        audioPath: resolvedAudioPath,
+        coverPath: resolvedCoverPath,
+      },
+      workingDirectory,
+    };
   };
 
   const normalizeStageRealtimeState = (input) => {
@@ -836,21 +1096,40 @@ function createStageApi({
     const fallbackSessionTrack = stageSession ? buildStageTrackFromSession(stageSession) : null;
     const normalizedTracks = tracks.length > 0 ? tracks : (fallbackSessionTrack ? [fallbackSessionTrack] : []);
     const fallbackCurrentTrackId = normalizedTracks[0]?.trackId || null;
+    const requestedCurrentTrackId = typeof source.currentTrackId === 'string' ? source.currentTrackId : null;
+    const currentTrackId = normalizedTracks.some((track) => track.trackId === requestedCurrentTrackId)
+      ? requestedCurrentTrackId
+      : fallbackCurrentTrackId;
+    const currentTrack = normalizedTracks.find((track) => track.trackId === currentTrackId) || null;
 
     return {
       revision: Math.max(1, Math.floor(clampStageNumber(source.revision, (stageRealtimeState?.revision || 0) + 1))),
       sessionId: typeof source.sessionId === 'string' ? source.sessionId : stageSession?.id || null,
       tracks: normalizedTracks,
-      currentTrackId: typeof source.currentTrackId === 'string' ? source.currentTrackId : fallbackCurrentTrackId,
+      currentTrackId,
       playerState: normalizeStagePlayerState(source.playerState),
       currentTimeMs: Math.max(0, Math.floor(clampStageNumber(source.currentTimeMs, 0))),
-      durationMs: Math.max(0, Math.floor(clampStageNumber(source.durationMs, 0))),
+      durationMs: Math.max(0, Math.floor(clampStageNumber(source.durationMs, currentTrack?.durationMs ?? 0))),
       loopMode: normalizeStageLoopMode(source.loopMode),
       canGoNext: Boolean(source.canGoNext),
       canGoPrev: Boolean(source.canGoPrev),
       updatedAt: Math.max(1, Math.floor(clampStageNumber(source.updatedAt, Date.now()))),
     };
   };
+
+  const getCurrentStageRevision = () => Math.max(0, Math.floor(clampStageNumber(stageRealtimeState?.revision, 0)));
+
+  const createStaleControlRequestError = (request, expectedRevision) => (
+    new StageApiError('Stage control request is based on a stale revision.', {
+      statusCode: 409,
+      code: 'STALE_CONTROL_REQUEST',
+      details: {
+        requestId: request?.requestId || null,
+        expectedRevision,
+        receivedBaseRevision: Number.isFinite(request?.baseRevision) ? request.baseRevision : null,
+      },
+    })
+  );
 
   const buildStageControlRequest = (request = {}) => {
     const requestedType = typeof request.type === 'string' ? request.type : '';
@@ -871,6 +1150,7 @@ function createStageApi({
         ? request.originPlayerId.trim()
         : stageRealtimePlayerId || 'stage-player',
       requestedAt: Math.max(1, Math.floor(clampStageNumber(request.requestedAt, Date.now()))),
+      baseRevision: Math.max(0, Math.floor(clampStageNumber(request.baseRevision, 0))),
       type: requestedType,
       payload: {
         timeMs: Number.isFinite(payload.timeMs) ? payload.timeMs : undefined,
@@ -889,6 +1169,11 @@ function createStageApi({
       return false;
     }
 
+    const expectedRevision = Math.max(0, Math.floor(baseState.revision || 0));
+    if (request.baseRevision !== expectedRevision) {
+      throw createStaleControlRequestError(request, expectedRevision);
+    }
+
     let nextState = {
       ...baseState,
       revision: baseState.revision + 1,
@@ -901,6 +1186,7 @@ function createStageApi({
         break;
       case 'pause':
         nextState.playerState = 'PAUSED';
+        nextState.currentTimeMs = Math.max(0, Math.floor(clampStageNumber(request.payload?.timeMs, nextState.currentTimeMs)));
         break;
       case 'seek':
         nextState.currentTimeMs = Math.max(0, Math.floor(clampStageNumber(request.payload?.timeMs, nextState.currentTimeMs)));
@@ -949,37 +1235,93 @@ function createStageApi({
   };
 
   const enqueueStageControlRequest = async (request) => {
-    if (pendingDirectionalControl && pendingDirectionalControl.type !== request.type) {
-      const previousDirectionalRequest = pendingDirectionalControl;
-      clearPendingDirectionalControl();
-      queuedControlRequests.push(previousDirectionalRequest);
-    }
-
     if (request.type === 'next' || request.type === 'prev') {
-      if (pendingDirectionalControl && pendingDirectionalControl.type === request.type) {
+      if (shouldCollapseDirectionalControl(request.type)) {
+        logStage('info', 'Collapsed duplicate Stage directional control request.', {
+          type: request.type,
+          requestId: request.requestId,
+          baseRevision: request.baseRevision,
+        });
         broadcastStageConnectionState();
         return true;
       }
 
-      if (!pendingDirectionalControl) {
-        pendingDirectionalControl = request;
-        pendingDirectionalTimer = setTimeout(() => {
-          pendingDirectionalTimer = null;
-          if (pendingDirectionalControl) {
-            queuedControlRequests.push(pendingDirectionalControl);
-            pendingDirectionalControl = null;
-            void flushQueuedStageControlRequests();
-          }
-        }, stageControllerPolicy.collapseWindowMs);
-        broadcastStageConnectionState();
-        return true;
-      }
+      armDirectionalCollapseWindow(request.type);
     }
 
     queuedControlRequests.push(request);
     broadcastStageConnectionState();
     await flushQueuedStageControlRequests();
     return true;
+  };
+
+  const resetStageControllerConnection = (reason) => {
+    if (stageControllerSocket) {
+      try {
+        stageControllerSocket.removeAllListeners('pong');
+      } catch (_error) {
+        // Ignore listener cleanup failures.
+      }
+    }
+
+    stageControllerSocket = null;
+    stageControllerId = null;
+    stageControllerLastPongAt = null;
+    if (reason) {
+      stageConnectionError = reason;
+    }
+    broadcastStageConnectionState();
+  };
+
+  // Keep the singleton controller slot healthy so abnormal disconnects do not
+  // leave behind a ghost connection that blocks the next controller.
+  const ensureStageControllerHeartbeat = () => {
+    if (stageControllerHeartbeatTimer) {
+      return;
+    }
+
+    stageControllerHeartbeatTimer = setInterval(() => {
+      if (!stageControllerSocket) {
+        return;
+      }
+
+      if (stageControllerSocket.readyState !== 1) {
+        resetStageControllerConnection('Stage controller disconnected.');
+        return;
+      }
+
+      const lastPongAgeMs = stageControllerLastPongAt ? Date.now() - stageControllerLastPongAt : Infinity;
+      if (lastPongAgeMs > STAGE_CONTROLLER_HEARTBEAT_TIMEOUT_MS) {
+        logStage('warn', 'Stage controller heartbeat timed out.', {
+          controllerId: stageControllerId,
+          lastPongAgeMs,
+        });
+        sendStageRealtimeMessage(stageControllerSocket, 'error', {
+          code: 'STAGE_CONTROLLER_TIMEOUT',
+          message: 'Stage controller heartbeat timed out.',
+          lastPongAgeMs,
+        });
+        try {
+          stageControllerSocket.terminate();
+        } catch (_error) {
+          // Ignore termination errors during forced cleanup.
+        }
+        resetStageControllerConnection('Stage controller heartbeat timed out.');
+        return;
+      }
+
+      try {
+        stageControllerSocket.ping();
+      } catch (error) {
+        logStage('warn', 'Failed to send Stage controller heartbeat ping.', error);
+        try {
+          stageControllerSocket.terminate();
+        } catch (_terminateError) {
+          // Ignore termination errors during forced cleanup.
+        }
+        resetStageControllerConnection('Stage controller heartbeat failed.');
+      }
+    }, STAGE_CONTROLLER_HEARTBEAT_INTERVAL_MS);
   };
 
   const connectRealtimePlayer = (sender) => {
@@ -1002,6 +1344,17 @@ function createStageApi({
       ...rawRequest,
       originPlayerId: stageRealtimePlayerId || rawRequest?.originPlayerId,
     });
+
+    const expectedRevision = getCurrentStageRevision();
+    if (request.baseRevision !== expectedRevision) {
+      logStage('warn', 'Rejected stale Stage control request from player.', {
+        requestId: request.requestId,
+        type: request.type,
+        expectedRevision,
+        receivedBaseRevision: request.baseRevision,
+      });
+      throw createStaleControlRequestError(request, expectedRevision);
+    }
 
     if (request.type === 'set_loop_mode' && !stageControllerPolicy.allowPlayerLoopModeChange) {
       throw new StageApiError('Stage loop mode cannot be changed from a player instance.', {
@@ -1038,6 +1391,7 @@ function createStageApi({
       stageControllerId = typeof message.payload?.controllerId === 'string' && message.payload.controllerId.trim()
         ? message.payload.controllerId.trim()
         : `stage-controller-${Date.now()}`;
+      stageControllerLastPongAt = Date.now();
       stageConnectionError = null;
       sendStageRealtimeMessage(socket, 'hello_ack', {
         protocolVersion: STAGE_REALTIME_PROTOCOL_VERSION,
@@ -1099,6 +1453,14 @@ function createStageApi({
       tokenSource: getStageBearerTokenFromRequest(req, requestUrl) ? 'provided' : 'missing',
     });
 
+    socket.on('pong', () => {
+      if (socket === stageControllerSocket) {
+        stageControllerLastPongAt = Date.now();
+        stageConnectionError = null;
+        broadcastStageConnectionState();
+      }
+    });
+
     socket.on('message', (rawMessage) => {
       try {
         const message = parseStageRealtimeMessage(rawMessage);
@@ -1114,18 +1476,14 @@ function createStageApi({
 
     socket.on('close', () => {
       if (stageControllerSocket === socket) {
-        stageControllerSocket = null;
-        stageControllerId = null;
-        stageConnectionError = 'Stage controller disconnected.';
-        broadcastStageConnectionState();
+        resetStageControllerConnection('Stage controller disconnected.');
       }
     });
 
     socket.on('error', (error) => {
       logStage('warn', 'Stage realtime socket error.', error);
       if (stageControllerSocket === socket) {
-        stageConnectionError = error instanceof Error ? error.message : String(error);
-        broadcastStageConnectionState();
+        resetStageControllerConnection(error instanceof Error ? error.message : String(error));
       }
     });
   };
@@ -1148,6 +1506,9 @@ function createStageApi({
       sendStageJson(res, 200, {
         enabled: isStageEnabled(),
         port: getConfiguredStagePort(),
+        controllerConnected: Boolean(stageControllerSocket),
+        connectedPlayers: stageRealtimeConnected ? 1 : 0,
+        lastControllerPongAt: stageControllerLastPongAt,
       });
       return;
     }
@@ -1165,7 +1526,13 @@ function createStageApi({
         return;
       }
 
-      await sendStageFile(req, res, getStageMediaPath('audio'), stageSession.audioMimeType || 'application/octet-stream');
+      const audioPath = getCurrentStageMediaPath('audio');
+      if (!audioPath) {
+        sendStageJson(res, 404, { error: 'No uploaded stage audio is available.' });
+        return;
+      }
+
+      await sendStageFile(req, res, audioPath, stageSession.audioMimeType || 'application/octet-stream');
       return;
     }
 
@@ -1176,7 +1543,13 @@ function createStageApi({
         return;
       }
 
-      const buffer = await fsp.readFile(getStageMediaPath('cover'));
+      const coverPath = getCurrentStageMediaPath('cover');
+      if (!coverPath) {
+        sendStageJson(res, 404, { error: 'No uploaded stage cover is available.' });
+        return;
+      }
+
+      const buffer = await fsp.readFile(coverPath);
       sendStageBinary(res, 200, buffer, stageSession.coverMimeType || 'application/octet-stream');
       return;
     }
@@ -1197,17 +1570,37 @@ function createStageApi({
     }
 
     if (pathname === '/stage/session' && req.method === 'POST') {
-      const requestBody = await readRequestBody(req);
       const contentType = req.headers['content-type'] || '';
-      const parsedPayload = contentType.includes('multipart/form-data')
-        ? parseMultipartParts(requestBody, contentType)
-        : parseStagePayloadFromJson(requestBody);
+      const nextWorkingSessionId = `stage-${Date.now()}-${crypto.randomUUID()}`;
+      await ensureStageSessionsDirectory();
+      const workingDirectory = await createStageWorkingDirectory(nextWorkingSessionId);
 
-      const nextSession = await createStageSessionFromPayload(parsedPayload);
-      stageSession = nextSession;
-      syncLocalStageRealtimeStateFromSession(nextSession);
+      let parsedPayload;
+      try {
+        if (contentType.includes('multipart/form-data')) {
+          parsedPayload = await parseStageMultipartPayload(req, workingDirectory);
+        } else {
+          const requestBody = await readRequestBodyWithLimit(req, STAGE_JSON_BODY_LIMIT_BYTES);
+          parsedPayload = parseStagePayloadFromJson(requestBody, workingDirectory);
+        }
+
+        const nextSessionResult = await createStageSessionFromPayload(parsedPayload);
+        const previousSessionId = stageActiveSessionId;
+        stageSession = nextSessionResult.session;
+        stageActiveSessionId = nextSessionResult.activeSessionId;
+        stageActiveSessionFiles = nextSessionResult.activeSessionFiles;
+        syncLocalStageRealtimeStateFromSession(nextSessionResult.session);
+        if (previousSessionId && previousSessionId !== stageActiveSessionId) {
+          void removeStageSessionDirectory(getStageSessionDirectory(previousSessionId));
+        }
+        void cleanupInactiveStageSessions();
+      } catch (error) {
+        await removeStageSessionDirectory(workingDirectory);
+        throw error;
+      }
+
       sendStageRealtimeMessage(stageControllerSocket, 'stage_session', {
-        session: nextSession,
+        session: stageSession,
       });
       broadcastStageRealtimeState();
       broadcastStageConnectionState();
@@ -1225,7 +1618,7 @@ function createStageApi({
       return;
     }
 
-    clearPendingDirectionalControl();
+    clearRecentDirectionalControl();
     queuedControlRequests = [];
 
     if (stageControllerSocket) {
@@ -1234,13 +1627,17 @@ function createStageApi({
       } catch (_error) {
         // Ignore close errors during shutdown.
       }
-      stageControllerSocket = null;
-      stageControllerId = null;
+      resetStageControllerConnection('Stage controller disconnected.');
     }
 
     if (stageWebSocketServer) {
       stageWebSocketServer.close();
       stageWebSocketServer = null;
+    }
+
+    if (stageControllerHeartbeatTimer) {
+      clearInterval(stageControllerHeartbeatTimer);
+      stageControllerHeartbeatTimer = null;
     }
 
     await new Promise((resolve, reject) => {
@@ -1269,9 +1666,10 @@ function createStageApi({
     }
 
     getStageToken({ generateIfMissing: true });
-    await ensureStageStorageDirectory();
+    await ensureStageSessionsDirectory();
 
     stageWebSocketServer = new WebSocketServer({ noServer: true });
+    ensureStageControllerHeartbeat();
 
     stageServer = http.createServer((req, res) => {
       handleStageHttpRequest(req, res).catch((error) => {

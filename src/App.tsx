@@ -676,6 +676,7 @@ export default function App() {
                 requestId: `stage-request-${crypto.randomUUID()}`,
                 originPlayerId,
                 requestedAt: Date.now(),
+                baseRevision: Math.max(0, stageRealtimeState?.revision ?? 0),
                 type,
                 payload,
             });
@@ -684,7 +685,7 @@ export default function App() {
             setStatusMsg({ type: 'error', text: 'Stage 控制请求发送失败' });
             return false;
         }
-    }, [stageConnectionState.playerId, t]);
+    }, [stageConnectionState.playerId, stageRealtimeState?.revision, t]);
 
     const getCurrentStageTimeMs = useCallback(() => {
         const audioTimeSeconds = audioRef.current?.currentTime;

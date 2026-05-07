@@ -102,6 +102,7 @@
     "axios": "^1.13.1",
     "blueimp-md5": "^2.19.0",
     "buffer": "^6.0.3",
+    "busboy": "^1.6.0",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",

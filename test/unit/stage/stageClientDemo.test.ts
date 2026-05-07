@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    buildStageControlRequestPayload,
     buildStageControllerHelloMessage,
     buildStageRealtimeStateMessage,
     buildStageSessionRequest,
@@ -118,6 +119,30 @@ describe('stageClientDemo helpers', () => {
             payload: {
                 role: 'controller',
                 controllerId: 'controller-a',
+            },
+        });
+    });
+
+    it('normalizes controller control requests with a base revision', () => {
+        const request = buildStageControlRequestPayload({
+            requestId: 'req-1',
+            originPlayerId: 'player-1',
+            requestedAt: 123,
+            baseRevision: 9,
+            type: 'pause',
+            payload: {
+                timeMs: 456,
+            },
+        });
+
+        expect(request).toEqual({
+            requestId: 'req-1',
+            originPlayerId: 'player-1',
+            requestedAt: 123,
+            baseRevision: 9,
+            type: 'pause',
+            payload: {
+                timeMs: 456,
             },
         });
     });

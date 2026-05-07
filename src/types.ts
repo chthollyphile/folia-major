@@ -96,6 +96,7 @@ export interface StageControlRequest {
   requestId: string;
   originPlayerId: string;
   requestedAt: number;
+  baseRevision: number;
   type: StageControlRequestType;
   payload?: {
     timeMs?: number;

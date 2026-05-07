@@ -1,4 +1,11 @@
-import type { PlayerState, StageLoopMode, StageRealtimeState, StageTrack } from '../types';
+import {
+    PlayerState,
+    type StageControlRequest,
+    type StageControlRequestType,
+    type StageLoopMode,
+    type StageRealtimeState,
+    type StageTrack,
+} from '../types';
 
 // Shared helpers keep the manual Stage controller page and its tests aligned with the latest HTTP and WS protocol.
 
@@ -11,6 +18,7 @@ export type StageRealtimeMessageType =
     | 'stage_session'
     | 'stage_session_cleared'
     | 'control_request'
+    | 'stale_request'
     | 'error';
 
 export interface StageSessionRequestInput {
@@ -56,6 +64,15 @@ export interface StageRealtimeStateDraft {
     canGoNext?: boolean;
     canGoPrev?: boolean;
     updatedAt?: number;
+}
+
+export interface StageControlRequestDraft {
+    requestId?: string;
+    originPlayerId?: string;
+    requestedAt?: number;
+    baseRevision?: number;
+    type: StageControlRequestType;
+    payload?: StageControlRequest['payload'];
 }
 
 const normalizeText = (value?: string) => value?.trim() ?? '';
@@ -256,7 +273,7 @@ export const buildStageRealtimeStatePayload = (draft: StageRealtimeStateDraft): 
         typeof draft.currentTrackId === 'string' && draft.currentTrackId.trim()
             ? draft.currentTrackId.trim()
             : fallbackCurrentTrackId;
-    const rawPlayerState = typeof draft.playerState === 'string' ? draft.playerState : 'IDLE';
+    const rawPlayerState = typeof draft.playerState === 'string' ? draft.playerState : PlayerState.IDLE;
     const rawLoopMode = typeof draft.loopMode === 'string' ? draft.loopMode : 'off';
 
     return {
@@ -264,7 +281,7 @@ export const buildStageRealtimeStatePayload = (draft: StageRealtimeStateDraft): 
         sessionId: nextSessionId,
         tracks,
         currentTrackId,
-        playerState: isSupportedStagePlayerState(rawPlayerState) ? rawPlayerState : 'IDLE',
+        playerState: isSupportedStagePlayerState(rawPlayerState) ? rawPlayerState : PlayerState.IDLE,
         currentTimeMs: Math.max(0, Math.floor(Number(draft.currentTimeMs) || 0)),
         durationMs: Math.max(0, Math.floor(Number(draft.durationMs) || 0)),
         loopMode: isSupportedStageLoopMode(rawLoopMode) ? rawLoopMode : 'off',
@@ -279,4 +296,13 @@ export const buildStageRealtimeStateMessage = (
 ): StageRealtimeEnvelope<StageRealtimeState> => ({
     type: 'stage_state',
     payload: buildStageRealtimeStatePayload(draft),
+});
+
+export const buildStageControlRequestPayload = (draft: StageControlRequestDraft): StageControlRequest => ({
+    requestId: normalizeText(draft.requestId) || `stage-request-${Date.now()}`,
+    originPlayerId: normalizeText(draft.originPlayerId) || 'stage-client-demo',
+    requestedAt: Math.max(1, Math.floor(Number(draft.requestedAt) || Date.now())),
+    baseRevision: Math.max(0, Math.floor(Number(draft.baseRevision) || 0)),
+    type: draft.type,
+    payload: draft.payload,
 });

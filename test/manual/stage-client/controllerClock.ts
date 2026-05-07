@@ -1,4 +1,4 @@
-import type { PlayerState, StageControlRequest, StageLoopMode, StageRealtimeState } from '../../../src/types';
+import { PlayerState, type StageControlRequest, type StageLoopMode, type StageRealtimeState } from '../../../src/types';
 
 // Controller clock helpers keep one authoritative wall-clock timeline so stage-client can resolve play/pause/seek accurately.
 
@@ -23,7 +23,7 @@ const clampTimeMs = (timeMs: number, durationMs: number) => {
 export const createStageControllerClock = (): StageControllerClock => ({
     sessionId: null,
     currentTrackId: null,
-    playerState: 'IDLE',
+    playerState: PlayerState.IDLE,
     baseCurrentTimeMs: 0,
     baseWallClockMs: Date.now(),
     durationMs: 0,
@@ -134,10 +134,10 @@ export const applyStageControlRequestWithClock = (
 
     switch (request.type) {
         case 'play':
-            nextState.playerState = 'PLAYING';
+            nextState.playerState = PlayerState.PLAYING;
             break;
         case 'pause':
-            nextState.playerState = 'PAUSED';
+            nextState.playerState = PlayerState.PAUSED;
             break;
         case 'seek':
             nextState.currentTimeMs = clampTimeMs(request.payload?.timeMs || 0, nextState.durationMs);

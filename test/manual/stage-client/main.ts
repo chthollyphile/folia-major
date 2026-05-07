@@ -2,6 +2,7 @@ import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from '
 import type { PlayerState, StageControlRequest, StageLoopMode, StageRealtimeState, StageTrack } from '../../../src/types';
 import '../../../src/index.css';
 import {
+    buildStageControlRequestPayload,
     buildStageClearRequest,
     buildStageControllerHelloMessage,
     buildStageRealtimeStateMessage,
@@ -465,6 +466,21 @@ const buildRealtimeStateDraft = (revisionOverride?: number): StageRealtimeState 
         updatedAt: Date.now(),
     }).payload;
 };
+
+const buildManualControlRequest = (
+    type: StageControlRequest['type'],
+    payload?: StageControlRequest['payload'],
+): StageControlRequest => buildStageControlRequestPayload({
+    requestId: crypto.randomUUID(),
+    originPlayerId: 'stage-client-demo',
+    requestedAt: Date.now(),
+    baseRevision: Math.max(0, lastKnownRevision),
+    type,
+    payload,
+});
+
+const buildCurrentRealtimeStateSnapshot = (): StageRealtimeState =>
+    buildRealtimeStateDraft(Math.max(lastKnownRevision, 1));
 
 const syncRealtimeInputsFromState = (state: StageRealtimeState | null) => {
     if (!state) {
@@ -970,7 +986,7 @@ const syncTrackInputsFromSessionForm = () => {
 
 const performRealtimeControl = (request: StageControlRequest, reason: string) => {
     try {
-        const state = buildRealtimeStateDraft();
+        const state = buildCurrentRealtimeStateSnapshot();
         const { nextState, nextClock } = applyStageControlRequestWithClock(state, request, controllerClock);
         controllerClock = nextClock;
         sendRealtimeState(nextState, reason);
@@ -1071,16 +1087,7 @@ const handleInstanceSocketMessage = (instance: ManagedInstance, rawData: unknown
 
     if (parsed.type === 'control_request' && autoApplyControlRequestsInput.checked) {
         try {
-            const currentState = buildRealtimeStateDraft();
-            const { nextState, nextClock } = applyStageControlRequestWithClock(
-                currentState,
-                parsed.payload as StageControlRequest,
-                controllerClock,
-            );
-            controllerClock = nextClock;
-            const targets = mirrorToSelectedInput.checked ? getBroadcastTargets() : [instance];
-            syncRealtimeInputsFromState(nextState);
-            broadcastEnvelopeToInstances(targets, buildStageRealtimeStateMessage(nextState), 'auto-applied control_request');
+            applyInboundControlRequest(instance, parsed.payload as StageControlRequest);
         } catch (error) {
             setWsState('Failed to auto-apply control_request.', describeAxiosError(error));
         }
@@ -1262,64 +1269,78 @@ broadcastStateButton.addEventListener('click', () => {
 });
 
 controlPlayButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'play',
-    }, 'play');
+    performRealtimeControl(buildManualControlRequest('play'), 'play');
 });
 
 controlPauseButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'pause',
-    }, 'pause');
+    performRealtimeControl(buildManualControlRequest('pause'), 'pause');
 });
 
 controlSeekButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'seek',
-        payload: {
-            timeMs: Math.max(0, Math.floor(Number(seekTargetMsInput.value) || 0)),
-        },
-    }, 'seek');
+    performRealtimeControl(buildManualControlRequest('seek', {
+        timeMs: Math.max(0, Math.floor(Number(seekTargetMsInput.value) || 0)),
+    }), 'seek');
 });
 
 controlNextButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'next',
-    }, 'next');
+    performRealtimeControl(buildManualControlRequest('next'), 'next');
 });
 
 controlPrevButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'prev',
-    }, 'prev');
+    performRealtimeControl(buildManualControlRequest('prev'), 'prev');
 });
 
 controlCycleLoopButton.addEventListener('click', () => {
-    performRealtimeControl({
-        requestId: crypto.randomUUID(),
-        originPlayerId: 'stage-client-demo',
-        requestedAt: Date.now(),
-        type: 'set_loop_mode',
-        payload: {
-            loopMode: cycleLoopMode(buildRealtimeStateDraft().loopMode),
-        },
-    }, 'cycle loop');
+    performRealtimeControl(buildManualControlRequest('set_loop_mode', {
+        loopMode: cycleLoopMode(buildCurrentRealtimeStateSnapshot().loopMode),
+    }), 'cycle loop');
 });
+
+const appendStaleRequestLog = (instance: ManagedInstance, request: StageControlRequest, currentRevision: number) => {
+    addEventLogEntry({
+        instanceId: instance.id,
+        label: getInstanceLabel(instance),
+        direction: 'system',
+        title: 'stale_request',
+        body: prettyJson({
+            requestId: request.requestId,
+            type: request.type,
+            receivedBaseRevision: request.baseRevision,
+            expectedRevision: currentRevision,
+        }),
+    });
+};
+
+const isStaleControlRequest = (request: StageControlRequest, currentRevision: number) => (
+    request.baseRevision !== currentRevision
+);
+
+const applyInboundControlRequest = (instance: ManagedInstance, request: StageControlRequest) => {
+    const currentState = buildCurrentRealtimeStateSnapshot();
+    if (isStaleControlRequest(request, currentState.revision)) {
+        appendStaleRequestLog(instance, request, currentState.revision);
+        setWsState(
+            'Rejected stale control_request.',
+            prettyJson({
+                code: 'STALE_CONTROL_REQUEST',
+                requestId: request.requestId,
+                expectedRevision: currentState.revision,
+                receivedBaseRevision: request.baseRevision,
+            }),
+        );
+        return;
+    }
+
+    const { nextState, nextClock } = applyStageControlRequestWithClock(
+        currentState,
+        request,
+        controllerClock,
+    );
+    controllerClock = nextClock;
+    const targets = mirrorToSelectedInput.checked ? getBroadcastTargets() : [instance];
+    syncRealtimeInputsFromState(nextState);
+    broadcastEnvelopeToInstances(targets, buildStageRealtimeStateMessage(nextState), 'auto-applied control_request');
+};
 
 connectInputEvents([
     baseUrlInput,
