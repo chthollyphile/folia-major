@@ -1573,6 +1573,30 @@ ipcMain.handle('stage-clear-session', async () => {
   return stageApi.clearStageSession();
 });
 
+ipcMain.handle('stage-connect-realtime', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to connect Stage realtime bridge.');
+  }
+
+  return stageApi.connectRealtimePlayer(event.sender);
+});
+
+ipcMain.handle('stage-disconnect-realtime', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to disconnect Stage realtime bridge.');
+  }
+
+  return stageApi.disconnectRealtimePlayer(event.sender);
+});
+
+ipcMain.handle('stage-send-control-request', (event, request) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to send Stage control request.');
+  }
+
+  return stageApi.sendControlRequestFromPlayer(event.sender, request);
+});
+
 ipcMain.handle('thumbar-update-buttons', (event, state) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to update taskbar controls.');

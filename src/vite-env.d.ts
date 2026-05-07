@@ -78,12 +78,66 @@ declare global {
     updatedAt: number;
   }
 
+  type StageLoopMode = 'off' | 'all' | 'one';
+  type StageControlRequestType = 'play' | 'pause' | 'seek' | 'next' | 'prev' | 'set_loop_mode';
+
+  interface StageTrack {
+    trackId: string;
+    title: string;
+    artist?: string;
+    album?: string;
+    coverUrl?: string | null;
+    durationMs?: number | null;
+  }
+
+  interface StageRealtimeState {
+    revision: number;
+    sessionId: string | null;
+    tracks: StageTrack[];
+    currentTrackId: string | null;
+    playerState: import('./types').PlayerState;
+    currentTimeMs: number;
+    durationMs: number;
+    loopMode: StageLoopMode;
+    canGoNext: boolean;
+    canGoPrev: boolean;
+    updatedAt: number;
+  }
+
+  interface StageControlRequest {
+    requestId: string;
+    originPlayerId: string;
+    requestedAt: number;
+    type: StageControlRequestType;
+    payload?: {
+      timeMs?: number;
+      loopMode?: StageLoopMode;
+    };
+  }
+
+  interface StageControllerPolicy {
+    collapseWindowMs: number;
+    allowPlayerLoopModeChange: boolean;
+  }
+
+  interface StageConnectionState {
+    connected: boolean;
+    playerId: string | null;
+    hasController: boolean;
+    controllerId: string | null;
+    pendingRequestCount: number;
+    lastError?: string | null;
+  }
+
   interface StageStatus {
     enabled: boolean;
     port: number;
     token: string | null;
     hasSession: boolean;
     session: StageSession | null;
+    realtimeState: StageRealtimeState | null;
+    connection: StageConnectionState;
+    policy: StageControllerPolicy;
   }
 
   interface Window {
@@ -118,8 +172,13 @@ declare global {
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;
       clearStageSession: () => Promise<StageStatus>;
+      connectStageRealtime: () => Promise<StageConnectionState>;
+      disconnectStageRealtime: () => Promise<StageConnectionState>;
+      sendStageControlRequest: (request: StageControlRequest) => Promise<boolean>;
       onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
       onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
+      onStageRealtimeState: (callback: (state: StageRealtimeState | null) => void) => () => void;
+      onStageConnectionState: (callback: (state: StageConnectionState) => void) => () => void;
     };
   }
 }

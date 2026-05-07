@@ -1,6 +1,17 @@
-export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+import type { PlayerState, StageLoopMode, StageRealtimeState, StageTrack } from '../types';
 
-// Shared helpers for the manual Stage client demo and its unit tests.
+// Shared helpers keep the manual Stage controller page and its tests aligned with the latest HTTP and WS protocol.
+
+export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+export type StageRealtimeMessageType =
+    | 'hello'
+    | 'hello_ack'
+    | 'server_hello'
+    | 'stage_state'
+    | 'stage_session'
+    | 'stage_session_cleared'
+    | 'control_request'
+    | 'error';
 
 export interface StageSessionRequestInput {
     baseUrl: string;
@@ -23,9 +34,33 @@ export interface StageRequestBuildResult {
     transport: 'json' | 'multipart';
 }
 
+export interface StageRealtimeEnvelope<TPayload = unknown> {
+    type: StageRealtimeMessageType;
+    payload: TPayload;
+}
+
+export interface StageControllerHelloPayload {
+    role: 'controller';
+    controllerId: string;
+}
+
+export interface StageRealtimeStateDraft {
+    revision?: number;
+    sessionId?: string | null;
+    tracks?: StageTrack[];
+    currentTrackId?: string | null;
+    playerState?: PlayerState | string;
+    currentTimeMs?: number;
+    durationMs?: number;
+    loopMode?: StageLoopMode | string;
+    canGoNext?: boolean;
+    canGoPrev?: boolean;
+    updatedAt?: number;
+}
+
 const normalizeText = (value?: string) => value?.trim() ?? '';
 
-const normalizeBaseUrl = (baseUrl: string) => {
+export const normalizeStageBaseUrl = (baseUrl: string) => {
     const normalized = normalizeText(baseUrl);
     return normalized.replace(/\/+$/, '');
 };
@@ -33,8 +68,14 @@ const normalizeBaseUrl = (baseUrl: string) => {
 export const isSupportedStageLyricsFormat = (format: string): format is StageLyricsFormat =>
     format === 'lrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'yrc';
 
+export const isSupportedStagePlayerState = (value: string): value is PlayerState =>
+    value === 'IDLE' || value === 'PLAYING' || value === 'PAUSED';
+
+export const isSupportedStageLoopMode = (value: string): value is StageLoopMode =>
+    value === 'off' || value === 'all' || value === 'one';
+
 export const validateStageSessionRequestInput = (input: StageSessionRequestInput): string | null => {
-    if (!normalizeBaseUrl(input.baseUrl)) {
+    if (!normalizeStageBaseUrl(input.baseUrl)) {
         return 'Stage address is required.';
     }
 
@@ -74,7 +115,7 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
         throw new Error(validationError);
     }
 
-    const endpoint = `${normalizeBaseUrl(input.baseUrl)}/stage/session`;
+    const endpoint = `${normalizeStageBaseUrl(input.baseUrl)}/stage/session`;
     const token = normalizeText(input.token);
     const title = normalizeText(input.title);
     const artist = normalizeText(input.artist);
@@ -133,7 +174,7 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
 };
 
 export const buildStageClearRequest = (baseUrl: string, token: string): StageRequestBuildResult => {
-    const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+    const normalizedBaseUrl = normalizeStageBaseUrl(baseUrl);
     const normalizedToken = normalizeText(token);
 
     if (!normalizedBaseUrl) {
@@ -155,3 +196,87 @@ export const buildStageClearRequest = (baseUrl: string, token: string): StageReq
         },
     };
 };
+
+export const buildStageWebSocketUrl = (baseUrl: string, token: string) => {
+    const normalizedBaseUrl = normalizeStageBaseUrl(baseUrl);
+    const normalizedToken = normalizeText(token);
+
+    if (!normalizedBaseUrl) {
+        throw new Error('Stage address is required.');
+    }
+
+    if (!normalizedToken) {
+        throw new Error('Bearer token is required.');
+    }
+
+    let parsedUrl: URL;
+    try {
+        parsedUrl = new URL(normalizedBaseUrl);
+    } catch (error) {
+        throw new Error(`Invalid Stage address: ${normalizedBaseUrl}`);
+    }
+
+    parsedUrl.protocol = parsedUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    parsedUrl.pathname = '/stage/ws';
+    parsedUrl.searchParams.set('token', normalizedToken);
+    return parsedUrl.toString();
+};
+
+export const normalizeStageControllerId = (controllerId?: string) =>
+    normalizeText(controllerId) || `stage-controller-${Date.now()}`;
+
+export const buildStageControllerHelloMessage = (controllerId?: string): StageRealtimeEnvelope<StageControllerHelloPayload> => ({
+    type: 'hello',
+    payload: {
+        role: 'controller',
+        controllerId: normalizeStageControllerId(controllerId),
+    },
+});
+
+const normalizeStageTrack = (track: Partial<StageTrack> | null | undefined, index: number, sessionId: string | null) => ({
+    trackId:
+        typeof track?.trackId === 'string' && track.trackId.trim()
+            ? track.trackId.trim()
+            : `${sessionId || 'stage-session'}-track-${index}`,
+    title:
+        typeof track?.title === 'string' && track.title.trim()
+            ? track.title.trim()
+            : `Stage Track ${index + 1}`,
+    artist: typeof track?.artist === 'string' ? track.artist : '',
+    album: typeof track?.album === 'string' ? track.album : '',
+    coverUrl: typeof track?.coverUrl === 'string' && track.coverUrl.trim() ? track.coverUrl.trim() : null,
+    durationMs: Number.isFinite(track?.durationMs) ? Math.max(0, Math.floor(track.durationMs as number)) : null,
+});
+
+export const buildStageRealtimeStatePayload = (draft: StageRealtimeStateDraft): StageRealtimeState => {
+    const nextSessionId = typeof draft.sessionId === 'string' && draft.sessionId.trim() ? draft.sessionId.trim() : null;
+    const tracks = (draft.tracks || []).map((track, index) => normalizeStageTrack(track, index, nextSessionId));
+    const fallbackCurrentTrackId = tracks[0]?.trackId ?? null;
+    const currentTrackId =
+        typeof draft.currentTrackId === 'string' && draft.currentTrackId.trim()
+            ? draft.currentTrackId.trim()
+            : fallbackCurrentTrackId;
+    const rawPlayerState = typeof draft.playerState === 'string' ? draft.playerState : 'IDLE';
+    const rawLoopMode = typeof draft.loopMode === 'string' ? draft.loopMode : 'off';
+
+    return {
+        revision: Math.max(1, Math.floor(Number(draft.revision) || 1)),
+        sessionId: nextSessionId,
+        tracks,
+        currentTrackId,
+        playerState: isSupportedStagePlayerState(rawPlayerState) ? rawPlayerState : 'IDLE',
+        currentTimeMs: Math.max(0, Math.floor(Number(draft.currentTimeMs) || 0)),
+        durationMs: Math.max(0, Math.floor(Number(draft.durationMs) || 0)),
+        loopMode: isSupportedStageLoopMode(rawLoopMode) ? rawLoopMode : 'off',
+        canGoNext: Boolean(draft.canGoNext),
+        canGoPrev: Boolean(draft.canGoPrev),
+        updatedAt: Math.max(1, Math.floor(Number(draft.updatedAt) || Date.now())),
+    };
+};
+
+export const buildStageRealtimeStateMessage = (
+    draft: StageRealtimeStateDraft,
+): StageRealtimeEnvelope<StageRealtimeState> => ({
+    type: 'stage_state',
+    payload: buildStageRealtimeStatePayload(draft),
+});

@@ -180,7 +180,7 @@ vercel dev
 
 ## Stage 联调客户端
 
-如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的最小联调页面向 Folia 推送 Stage 会话。
+如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的 Stage controller 调试台向 Folia 推送会话，并测试新版实时控制协议。
 
 1. 在 Folia 设置中开启 Stage Mode，并复制 Bearer token
 2. 运行：
@@ -193,14 +193,22 @@ npm run stage:client
 
 - Stage 地址，默认 `http://127.0.0.1:32107`
 - Bearer token
+- controller ID
 - 音频 URL 或音频文件
-- LRC / Enhanced LRC 歌词文本或歌词文件
+- 歌词文本或歌词文件
 
 如果上传的是音频文件，Folia 还会尝试直接读取文件内嵌歌词、封面和歌曲 metadata。歌词现在是可选的；如果提供了歌词，Stage 会复用 Folia 自己的解析链来尝试解析，失败时会降级成无歌词播放。
 联调页面里的 `Lyrics format` 也可以保持 `auto-detect`，或者显式指定 `lrc`、`enhanced-lrc`、`vtt`、`yrc`。
-页面会分别展示 `GET /stage/health`、`POST /stage/session`、`DELETE /stage/session` 的组装请求和 Folia 后端返回结果，便于直接调试接口。
+页面会分别展示 `GET /stage/health`、`POST /stage/session`、`DELETE /stage/session` 以及 `WS /stage/ws` 的组装请求和返回结果。
 
-页面还提供 `Load Example`，会自动加载仓库内置的示例歌词和一段短音频，方便快速验证推送链路。
+新版调试台还支持：
+
+- 连接多个 Electron Folia 实例
+- 自动发送 controller `hello`
+- 查看 `server_hello`、`hello_ack`、`control_request`、`stage_session` 等实时消息
+- 在浏览器里直接广播 `stage_state`
+- 手动测试 `play / pause / seek / next / prev / loop`
+- 将单个实例收到的控制请求同步广播到多个选中实例，验证集群一致性
 
 ## 技术栈
 

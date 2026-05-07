@@ -2,10 +2,20 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
+const { WebSocketServer } = require('ws');
 
 // Stage API server and metadata extraction for Electron desktop mode.
 
 const fsp = fs.promises;
+const STAGE_REALTIME_PROTOCOL_VERSION = 1;
+const STAGE_CONTROL_COLLAPSE_WINDOW_MS = 220;
+const STAGE_PLAYER_STATE_VALUES = new Set(['IDLE', 'PLAYING', 'PAUSED']);
+const STAGE_LOOP_MODE_VALUES = new Set(['off', 'all', 'one']);
+const STAGE_CONTROL_REQUEST_VALUES = new Set(['play', 'pause', 'seek', 'next', 'prev', 'set_loop_mode']);
+
+const normalizeStageLoopMode = (value) => (STAGE_LOOP_MODE_VALUES.has(value) ? value : 'off');
+const normalizeStagePlayerState = (value) => (STAGE_PLAYER_STATE_VALUES.has(value) ? value : 'IDLE');
+const clampStageNumber = (value, fallback = 0) => (Number.isFinite(value) ? value : fallback);
 
 class StageApiError extends Error {
   constructor(message, details = {}) {
@@ -27,8 +37,23 @@ function createStageApi({
   defaultStageApiPort,
 }) {
   let stageServer = null;
+  let stageWebSocketServer = null;
   let stageSession = null;
+  let stageRealtimeState = null;
+  let stageControllerSocket = null;
+  let stageControllerId = null;
+  let stageRealtimePlayerId = null;
+  let stageRealtimeConnected = false;
+  let stageConnectionError = null;
+  let pendingDirectionalControl = null;
+  let pendingDirectionalTimer = null;
+  let queuedControlRequests = [];
+  let isProcessingControlQueue = false;
   let musicMetadataModulePromise = null;
+  const stageControllerPolicy = {
+    collapseWindowMs: STAGE_CONTROL_COLLAPSE_WINDOW_MS,
+    allowPlayerLoopModeChange: true,
+  };
 
   const logStage = (level, message, details) => {
     const method = typeof console[level] === 'function' ? console[level] : console.log;
@@ -85,12 +110,59 @@ function createStageApi({
     return `${baseUrl}?v=${encodeURIComponent(String(version))}`;
   };
 
+  const buildStageTrackFromSession = (session) => ({
+    trackId: session?.id || `stage-track-${Date.now()}`,
+    title: session?.title || 'Stage Session',
+    artist: session?.artist || 'Stage',
+    album: session?.album || '',
+    coverUrl: session?.coverArtUrl || session?.coverUrl || null,
+    durationMs:
+      stageRealtimeState?.sessionId === session?.id
+        ? stageRealtimeState?.durationMs || session?.durationMs || null
+        : session?.durationMs || null,
+  });
+
+  const buildLocalStageRealtimeStateFromSession = (session, overrides = {}) => {
+    if (!session) {
+      return null;
+    }
+
+    const previousState = stageRealtimeState;
+    const nextRevision = clampStageNumber(previousState?.revision, 0) + 1;
+    const nextTrack = buildStageTrackFromSession(session);
+    return {
+      revision: overrides.revision ?? nextRevision,
+      sessionId: session.id,
+      tracks: overrides.tracks ?? [nextTrack],
+      currentTrackId: overrides.currentTrackId ?? nextTrack.trackId,
+      playerState: normalizeStagePlayerState(overrides.playerState ?? previousState?.playerState ?? 'PLAYING'),
+      currentTimeMs: clampStageNumber(overrides.currentTimeMs, 0),
+      durationMs: clampStageNumber(overrides.durationMs, 0),
+      loopMode: normalizeStageLoopMode(overrides.loopMode ?? previousState?.loopMode ?? 'off'),
+      canGoNext: Boolean(overrides.canGoNext ?? false),
+      canGoPrev: Boolean(overrides.canGoPrev ?? false),
+      updatedAt: overrides.updatedAt ?? Date.now(),
+    };
+  };
+
+  const buildStageConnectionState = () => ({
+    connected: stageRealtimeConnected,
+    playerId: stageRealtimePlayerId,
+    hasController: Boolean(stageControllerSocket),
+    controllerId: stageControllerId,
+    pendingRequestCount: queuedControlRequests.length + (pendingDirectionalControl ? 1 : 0),
+    lastError: stageConnectionError,
+  });
+
   const buildStageStatus = () => ({
     enabled: isStageEnabled(),
     port: getConfiguredStagePort(),
     token: getStageToken(),
     hasSession: Boolean(stageSession),
     session: stageSession,
+    realtimeState: stageRealtimeState,
+    connection: buildStageConnectionState(),
+    policy: stageControllerPolicy,
   });
 
   const broadcastStageEvent = (channel) => {
@@ -100,6 +172,24 @@ function createStageApi({
     }
 
     mainWindow.webContents.send(channel, buildStageStatus());
+  };
+
+  const broadcastStageRealtimeState = () => {
+    const mainWindow = getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    mainWindow.webContents.send('stage-realtime-state', stageRealtimeState);
+  };
+
+  const broadcastStageConnectionState = () => {
+    const mainWindow = getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    mainWindow.webContents.send('stage-connection-state', buildStageConnectionState());
   };
 
   const ensureStageStorageDirectory = async () => {
@@ -114,8 +204,30 @@ function createStageApi({
     }
   };
 
+  const clearPendingDirectionalControl = () => {
+    if (pendingDirectionalTimer) {
+      clearTimeout(pendingDirectionalTimer);
+      pendingDirectionalTimer = null;
+    }
+    pendingDirectionalControl = null;
+  };
+
+  const syncLocalStageRealtimeStateFromSession = (session) => {
+    if (stageControllerSocket && stageRealtimeState) {
+      return;
+    }
+
+    stageRealtimeState = buildLocalStageRealtimeStateFromSession(session);
+    broadcastStageRealtimeState();
+    broadcastStageConnectionState();
+  };
+
   const clearStageSessionData = async () => {
     stageSession = null;
+    clearPendingDirectionalControl();
+    queuedControlRequests = [];
+    stageRealtimeState = null;
+    broadcastStageRealtimeState();
     await clearStageStorageDirectory();
     logStage('info', 'Cleared Stage session data.');
     return buildStageStatus();
@@ -247,12 +359,46 @@ function createStageApi({
     }
   };
 
+  const getStageBearerTokenFromRequest = (req, requestUrl = null) => {
+    const authorizationHeader = req.headers.authorization || '';
+    const headerMatch = /^Bearer\s+(.+)$/i.exec(authorizationHeader);
+    if (headerMatch?.[1]) {
+      return headerMatch[1];
+    }
+
+    if (requestUrl?.searchParams?.get('token')) {
+      return requestUrl.searchParams.get('token');
+    }
+
+    return null;
+  };
+
+  const parseStageRealtimeMessage = (raw) => {
+    const jsonText = typeof raw === 'string' ? raw : raw.toString('utf8');
+    const parsed = JSON.parse(jsonText);
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.type !== 'string') {
+      throw new Error('Stage realtime message must be a JSON object with a type field.');
+    }
+    return parsed;
+  };
+
+  const sendStageRealtimeMessage = (socket, type, payload = {}) => {
+    if (!socket || socket.readyState !== 1) {
+      return false;
+    }
+
+    socket.send(JSON.stringify({
+      type,
+      payload,
+    }));
+    return true;
+  };
+
   const getRequester = (req) => req.socket?.remoteAddress || 'unknown';
 
   const matchesStageBearerToken = (req) => {
-    const header = req.headers.authorization || '';
     const token = getStageToken();
-    const authorized = Boolean(token && header === `Bearer ${token}`);
+    const authorized = Boolean(token && getStageBearerTokenFromRequest(req) === token);
     if (!authorized) {
       logStage('warn', `Rejected unauthorized request for ${req.method || 'UNKNOWN'} ${req.url || '/'}.`, {
         requester: getRequester(req),
@@ -526,6 +672,7 @@ function createStageApi({
       title: parsed.common.title,
       artist: parsed.common.artist,
       album: parsed.common.album,
+      durationMs: Number.isFinite(parsed.format.duration) ? Math.max(0, Math.floor(parsed.format.duration * 1000)) : null,
       lyrics: bestOriginal?.text,
       translationLyrics: bestTranslation?.text,
       coverBuffer: picture?.data ? Buffer.from(picture.data) : null,
@@ -646,6 +793,7 @@ function createStageApi({
       title: requestedTitle || normalizeStageText(embeddedMetadata?.title) || 'Stage Session',
       artist: requestedArtist || normalizeStageText(embeddedMetadata?.artist) || 'Stage',
       album: requestedAlbum || normalizeStageText(embeddedMetadata?.album) || '',
+      durationMs: Number.isFinite(embeddedMetadata?.durationMs) ? embeddedMetadata.durationMs : null,
       coverUrl: resolvedCoverUrl,
       coverArtUrl: resolvedCoverUrl,
       audioUrl: requestedAudioUrl || null,
@@ -661,6 +809,7 @@ function createStageApi({
       title: nextSession.title,
       artist: nextSession.artist,
       album: nextSession.album,
+      durationMs: nextSession.durationMs,
       lyricsFormat: nextSession.lyricsFormat,
       hasLyrics: Boolean(nextSession.lyricsText),
       lyricsMayRequireFallback: Boolean(nextSession.lyricsText && !nextSession.lyricsFormat),
@@ -668,6 +817,317 @@ function createStageApi({
     });
 
     return nextSession;
+  };
+
+  const normalizeStageRealtimeState = (input) => {
+    const source = input && typeof input === 'object' ? input : {};
+    const sourceTracks = Array.isArray(source.tracks) ? source.tracks : [];
+    const tracks = sourceTracks.map((track, index) => ({
+      trackId: typeof track?.trackId === 'string' && track.trackId.trim()
+        ? track.trackId.trim()
+        : `${source.sessionId || 'stage'}-track-${index}`,
+      title: typeof track?.title === 'string' && track.title.trim() ? track.title.trim() : 'Stage Session',
+      artist: typeof track?.artist === 'string' ? track.artist : '',
+      album: typeof track?.album === 'string' ? track.album : '',
+      coverUrl: typeof track?.coverUrl === 'string' ? track.coverUrl : null,
+      durationMs: Number.isFinite(track?.durationMs) ? track.durationMs : null,
+    }));
+
+    const fallbackSessionTrack = stageSession ? buildStageTrackFromSession(stageSession) : null;
+    const normalizedTracks = tracks.length > 0 ? tracks : (fallbackSessionTrack ? [fallbackSessionTrack] : []);
+    const fallbackCurrentTrackId = normalizedTracks[0]?.trackId || null;
+
+    return {
+      revision: Math.max(1, Math.floor(clampStageNumber(source.revision, (stageRealtimeState?.revision || 0) + 1))),
+      sessionId: typeof source.sessionId === 'string' ? source.sessionId : stageSession?.id || null,
+      tracks: normalizedTracks,
+      currentTrackId: typeof source.currentTrackId === 'string' ? source.currentTrackId : fallbackCurrentTrackId,
+      playerState: normalizeStagePlayerState(source.playerState),
+      currentTimeMs: Math.max(0, Math.floor(clampStageNumber(source.currentTimeMs, 0))),
+      durationMs: Math.max(0, Math.floor(clampStageNumber(source.durationMs, 0))),
+      loopMode: normalizeStageLoopMode(source.loopMode),
+      canGoNext: Boolean(source.canGoNext),
+      canGoPrev: Boolean(source.canGoPrev),
+      updatedAt: Math.max(1, Math.floor(clampStageNumber(source.updatedAt, Date.now()))),
+    };
+  };
+
+  const buildStageControlRequest = (request = {}) => {
+    const requestedType = typeof request.type === 'string' ? request.type : '';
+    if (!STAGE_CONTROL_REQUEST_VALUES.has(requestedType)) {
+      throw new StageApiError('Unsupported Stage control request type.', {
+        statusCode: 400,
+        code: 'INVALID_STAGE_CONTROL_TYPE',
+        details: { type: requestedType || null },
+      });
+    }
+
+    const payload = request.payload && typeof request.payload === 'object' ? request.payload : {};
+    return {
+      requestId: typeof request.requestId === 'string' && request.requestId.trim()
+        ? request.requestId.trim()
+        : `stage-request-${Date.now()}`,
+      originPlayerId: typeof request.originPlayerId === 'string' && request.originPlayerId.trim()
+        ? request.originPlayerId.trim()
+        : stageRealtimePlayerId || 'stage-player',
+      requestedAt: Math.max(1, Math.floor(clampStageNumber(request.requestedAt, Date.now()))),
+      type: requestedType,
+      payload: {
+        timeMs: Number.isFinite(payload.timeMs) ? payload.timeMs : undefined,
+        loopMode: payload.loopMode,
+      },
+    };
+  };
+
+  const applyLocalStageControlRequest = (request) => {
+    if (!stageSession) {
+      return false;
+    }
+
+    const baseState = stageRealtimeState || buildLocalStageRealtimeStateFromSession(stageSession);
+    if (!baseState) {
+      return false;
+    }
+
+    let nextState = {
+      ...baseState,
+      revision: baseState.revision + 1,
+      updatedAt: Date.now(),
+    };
+
+    switch (request.type) {
+      case 'play':
+        nextState.playerState = 'PLAYING';
+        break;
+      case 'pause':
+        nextState.playerState = 'PAUSED';
+        break;
+      case 'seek':
+        nextState.currentTimeMs = Math.max(0, Math.floor(clampStageNumber(request.payload?.timeMs, nextState.currentTimeMs)));
+        break;
+      case 'set_loop_mode':
+        nextState.loopMode = normalizeStageLoopMode(request.payload?.loopMode);
+        break;
+      case 'next':
+      case 'prev':
+        nextState.currentTimeMs = 0;
+        break;
+      default:
+        break;
+    }
+
+    stageRealtimeState = nextState;
+    broadcastStageRealtimeState();
+    broadcastStageConnectionState();
+    broadcastStageEvent('stage-session-updated');
+    return true;
+  };
+
+  const flushQueuedStageControlRequests = async () => {
+    if (isProcessingControlQueue) {
+      return;
+    }
+
+    isProcessingControlQueue = true;
+    try {
+      while (queuedControlRequests.length > 0) {
+        const nextRequest = queuedControlRequests.shift();
+        if (!nextRequest) {
+          continue;
+        }
+
+        if (stageControllerSocket) {
+          sendStageRealtimeMessage(stageControllerSocket, 'control_request', nextRequest);
+        } else {
+          applyLocalStageControlRequest(nextRequest);
+        }
+      }
+    } finally {
+      isProcessingControlQueue = false;
+      broadcastStageConnectionState();
+    }
+  };
+
+  const enqueueStageControlRequest = async (request) => {
+    if (pendingDirectionalControl && pendingDirectionalControl.type !== request.type) {
+      const previousDirectionalRequest = pendingDirectionalControl;
+      clearPendingDirectionalControl();
+      queuedControlRequests.push(previousDirectionalRequest);
+    }
+
+    if (request.type === 'next' || request.type === 'prev') {
+      if (pendingDirectionalControl && pendingDirectionalControl.type === request.type) {
+        broadcastStageConnectionState();
+        return true;
+      }
+
+      if (!pendingDirectionalControl) {
+        pendingDirectionalControl = request;
+        pendingDirectionalTimer = setTimeout(() => {
+          pendingDirectionalTimer = null;
+          if (pendingDirectionalControl) {
+            queuedControlRequests.push(pendingDirectionalControl);
+            pendingDirectionalControl = null;
+            void flushQueuedStageControlRequests();
+          }
+        }, stageControllerPolicy.collapseWindowMs);
+        broadcastStageConnectionState();
+        return true;
+      }
+    }
+
+    queuedControlRequests.push(request);
+    broadcastStageConnectionState();
+    await flushQueuedStageControlRequests();
+    return true;
+  };
+
+  const connectRealtimePlayer = (sender) => {
+    stageRealtimeConnected = true;
+    stageRealtimePlayerId = stageRealtimePlayerId || `folia-player-${crypto.randomUUID()}`;
+    stageConnectionError = null;
+    sender.send('stage-realtime-state', stageRealtimeState);
+    sender.send('stage-connection-state', buildStageConnectionState());
+    return buildStageConnectionState();
+  };
+
+  const disconnectRealtimePlayer = () => {
+    stageRealtimeConnected = false;
+    broadcastStageConnectionState();
+    return buildStageConnectionState();
+  };
+
+  const sendControlRequestFromPlayer = async (_sender, rawRequest) => {
+    const request = buildStageControlRequest({
+      ...rawRequest,
+      originPlayerId: stageRealtimePlayerId || rawRequest?.originPlayerId,
+    });
+
+    if (request.type === 'set_loop_mode' && !stageControllerPolicy.allowPlayerLoopModeChange) {
+      throw new StageApiError('Stage loop mode cannot be changed from a player instance.', {
+        statusCode: 403,
+        code: 'STAGE_LOOP_MODE_CHANGE_FORBIDDEN',
+      });
+    }
+
+    return enqueueStageControlRequest(request);
+  };
+
+  const handleStageRealtimeControllerMessage = (socket, message) => {
+    if (message.type === 'hello') {
+      const role = message.payload?.role;
+      if (role !== 'controller') {
+        sendStageRealtimeMessage(socket, 'error', {
+          code: 'INVALID_STAGE_REALTIME_ROLE',
+          message: 'Only controller connections are accepted.',
+        });
+        socket.close();
+        return;
+      }
+
+      if (stageControllerSocket && stageControllerSocket !== socket) {
+        sendStageRealtimeMessage(socket, 'error', {
+          code: 'STAGE_CONTROLLER_ALREADY_CONNECTED',
+          message: 'A Stage controller is already connected.',
+        });
+        socket.close();
+        return;
+      }
+
+      stageControllerSocket = socket;
+      stageControllerId = typeof message.payload?.controllerId === 'string' && message.payload.controllerId.trim()
+        ? message.payload.controllerId.trim()
+        : `stage-controller-${Date.now()}`;
+      stageConnectionError = null;
+      sendStageRealtimeMessage(socket, 'hello_ack', {
+        protocolVersion: STAGE_REALTIME_PROTOCOL_VERSION,
+        role: 'player-host',
+        session: stageSession,
+        realtimeState: stageRealtimeState,
+        policy: stageControllerPolicy,
+        playerId: stageRealtimePlayerId,
+      });
+      broadcastStageConnectionState();
+      broadcastStageEvent('stage-session-updated');
+      return;
+    }
+
+    if (socket !== stageControllerSocket) {
+      sendStageRealtimeMessage(socket, 'error', {
+        code: 'STAGE_REALTIME_NOT_READY',
+        message: 'Controller hello is required before sending Stage realtime messages.',
+      });
+      return;
+    }
+
+    if (message.type === 'stage_state') {
+      const nextRealtimeState = normalizeStageRealtimeState(message.payload || {});
+      if (stageRealtimeState && nextRealtimeState.revision <= stageRealtimeState.revision) {
+        logStage('warn', 'Ignored stale Stage realtime state revision.', {
+          incomingRevision: nextRealtimeState.revision,
+          currentRevision: stageRealtimeState.revision,
+        });
+        return;
+      }
+
+      stageRealtimeState = nextRealtimeState;
+      broadcastStageRealtimeState();
+      broadcastStageConnectionState();
+      return;
+    }
+
+    if (message.type === 'error') {
+      stageConnectionError = typeof message.payload?.message === 'string'
+        ? message.payload.message
+        : 'Stage controller reported an unknown error.';
+      broadcastStageConnectionState();
+      return;
+    }
+
+    logStage('warn', `Received unsupported Stage realtime message type ${message.type}.`);
+  };
+
+  const handleStageRealtimeConnection = (socket, req, requestUrl) => {
+    stageConnectionError = null;
+    sendStageRealtimeMessage(socket, 'server_hello', {
+      protocolVersion: STAGE_REALTIME_PROTOCOL_VERSION,
+      session: stageSession,
+      realtimeState: stageRealtimeState,
+      policy: stageControllerPolicy,
+      playerId: stageRealtimePlayerId,
+      requester: getRequester(req),
+      tokenSource: getStageBearerTokenFromRequest(req, requestUrl) ? 'provided' : 'missing',
+    });
+
+    socket.on('message', (rawMessage) => {
+      try {
+        const message = parseStageRealtimeMessage(rawMessage);
+        handleStageRealtimeControllerMessage(socket, message);
+      } catch (error) {
+        logStage('warn', 'Failed to parse Stage realtime message.', error);
+        sendStageRealtimeMessage(socket, 'error', {
+          code: 'INVALID_STAGE_REALTIME_MESSAGE',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    socket.on('close', () => {
+      if (stageControllerSocket === socket) {
+        stageControllerSocket = null;
+        stageControllerId = null;
+        stageConnectionError = 'Stage controller disconnected.';
+        broadcastStageConnectionState();
+      }
+    });
+
+    socket.on('error', (error) => {
+      logStage('warn', 'Stage realtime socket error.', error);
+      if (stageControllerSocket === socket) {
+        stageConnectionError = error instanceof Error ? error.message : String(error);
+        broadcastStageConnectionState();
+      }
+    });
   };
 
   const handleStageHttpRequest = async (req, res) => {
@@ -728,6 +1188,9 @@ function createStageApi({
 
     if (pathname === '/stage/session' && req.method === 'DELETE') {
       await clearStageSessionData();
+      sendStageRealtimeMessage(stageControllerSocket, 'stage_session_cleared', {});
+      broadcastStageRealtimeState();
+      broadcastStageConnectionState();
       broadcastStageEvent('stage-session-cleared');
       sendStageJson(res, 200, buildStageStatus());
       return;
@@ -742,6 +1205,12 @@ function createStageApi({
 
       const nextSession = await createStageSessionFromPayload(parsedPayload);
       stageSession = nextSession;
+      syncLocalStageRealtimeStateFromSession(nextSession);
+      sendStageRealtimeMessage(stageControllerSocket, 'stage_session', {
+        session: nextSession,
+      });
+      broadcastStageRealtimeState();
+      broadcastStageConnectionState();
       broadcastStageEvent('stage-session-updated');
       sendStageJson(res, 200, buildStageStatus());
       return;
@@ -756,6 +1225,24 @@ function createStageApi({
       return;
     }
 
+    clearPendingDirectionalControl();
+    queuedControlRequests = [];
+
+    if (stageControllerSocket) {
+      try {
+        stageControllerSocket.close();
+      } catch (_error) {
+        // Ignore close errors during shutdown.
+      }
+      stageControllerSocket = null;
+      stageControllerId = null;
+    }
+
+    if (stageWebSocketServer) {
+      stageWebSocketServer.close();
+      stageWebSocketServer = null;
+    }
+
     await new Promise((resolve, reject) => {
       stageServer.close((error) => {
         if (error) {
@@ -767,6 +1254,8 @@ function createStageApi({
     });
 
     stageServer = null;
+    stageConnectionError = null;
+    broadcastStageConnectionState();
     logStage('info', 'Stopped Stage API server.');
   };
 
@@ -782,6 +1271,8 @@ function createStageApi({
     getStageToken({ generateIfMissing: true });
     await ensureStageStorageDirectory();
 
+    stageWebSocketServer = new WebSocketServer({ noServer: true });
+
     stageServer = http.createServer((req, res) => {
       handleStageHttpRequest(req, res).catch((error) => {
         logStage('error', 'Request handling failed.', error);
@@ -796,6 +1287,32 @@ function createStageApi({
         sendStageJson(res, 500, {
           error: error instanceof Error ? error.message : String(error),
         });
+      });
+    });
+
+    stageServer.on('upgrade', (req, socket, head) => {
+      const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      if (requestUrl.pathname !== '/stage/ws') {
+        socket.destroy();
+        return;
+      }
+
+      if (!isStageEnabled()) {
+        socket.destroy();
+        return;
+      }
+
+      const token = getStageToken();
+      if (!token || getStageBearerTokenFromRequest(req, requestUrl) !== token) {
+        logStage('warn', 'Rejected unauthorized Stage realtime upgrade request.', {
+          requester: getRequester(req),
+        });
+        socket.destroy();
+        return;
+      }
+
+      stageWebSocketServer.handleUpgrade(req, socket, head, (ws) => {
+        handleStageRealtimeConnection(ws, req, requestUrl);
       });
     });
 
@@ -846,8 +1363,11 @@ function createStageApi({
     buildStageStatus,
     clearStageSession,
     clearStageSessionData,
+    connectRealtimePlayer,
+    disconnectRealtimePlayer,
     logStage,
     regenerateStageToken,
+    sendControlRequestFromPlayer,
     setStageEnabled,
     startStageServerIfNeeded,
     stopStageServer,

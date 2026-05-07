@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Folia Stage Client</title>
+    <title>Folia Stage Controller</title>
     <script type="module" src="/test/manual/stage-client/main.ts"></script>
 </head>
 <body>
@@ -12,22 +12,23 @@
             <div class="hero">
                 <div>
                     <p class="eyebrow">Folia Stage API</p>
-                    <h1>Stage Client</h1>
+                    <h1>Stage Controller Console</h1>
                     <p class="intro">
-                        调试本地运行中的 Folia Stage API。页面会实时展示每个接口的用途、组装后的请求，以及 Folia 后端返回结果。
+                        这个页面同时调试 Stage 的 HTTP 和 WS 协议。你可以推送会话、连接多个 Electron 实例、接收
+                        <code>control_request</code>，并把同一份权威状态广播给多个 Folia。
                     </p>
                 </div>
             </div>
 
             <section class="docs-panel">
-                <h2>Endpoints</h2>
-                <div class="docs-grid">
+                <h2>Protocol Surface</h2>
+                <div class="docs-grid docs-grid-wide">
                     <article class="doc-card">
                         <div class="doc-head">
                             <code>GET /stage/health</code>
-                            <button id="test-health" type="button" class="secondary">Test Health</button>
+                            <button id="test-health" type="button" class="secondary">Test Selected</button>
                         </div>
-                        <p class="hint">无需鉴权。用于确认 Folia Stage 服务是否已启动，以及当前监听端口。</p>
+                        <p class="hint">无需鉴权。用于确认实例是否可访问，并查看当前 Stage 状态与 controller policy。</p>
                         <pre id="health-request-preview" class="request-preview"></pre>
                         <div id="health-status" class="status-line">No request sent yet.</div>
                         <pre id="health-response" class="response-output compact"></pre>
@@ -36,27 +37,66 @@
                     <article class="doc-card">
                         <div class="doc-head">
                             <code>DELETE /stage/session</code>
-                            <button id="clear-session" type="button" class="secondary">Clear Session</button>
+                            <button id="clear-session" type="button" class="secondary">Clear Selected</button>
                         </div>
-                        <p class="hint">需要 `Authorization: Bearer &lt;token&gt;`。清空当前 Stage 会话。</p>
+                        <p class="hint">需要 Bearer token。清空当前 Stage session，同时触发 <code>stage_session_cleared</code>。</p>
                         <pre id="clear-request-preview" class="request-preview"></pre>
                         <div id="clear-status" class="status-line">No request sent yet.</div>
                         <pre id="clear-response" class="response-output compact"></pre>
+                    </article>
+
+                    <article class="doc-card">
+                        <div class="doc-head">
+                            <code>WS /stage/ws</code>
+                            <button id="connect-selected" type="button" class="secondary">Connect Selected</button>
+                        </div>
+                        <p class="hint">
+                            浏览器 WS 通过 <code>?token=...</code> 鉴权。连接成功后会自动发送
+                            <code>hello</code>，并持续接收 <code>server_hello</code>、<code>hello_ack</code>、
+                            <code>control_request</code> 和 session 事件。
+                        </p>
+                        <pre id="ws-connect-preview" class="request-preview"></pre>
+                        <div id="ws-status" class="status-line">No instance connected yet.</div>
+                        <pre id="ws-response" class="response-output compact"></pre>
                     </article>
                 </div>
             </section>
 
             <form id="stage-client-form" class="stage-form">
                 <section class="form-panel">
-                    <h2>Connection</h2>
-                    <label>
-                        <span>Stage address</span>
-                        <input id="base-url" name="base-url" type="url" value="http://127.0.0.1:32107" />
-                    </label>
-                    <label>
-                        <span>Bearer token</span>
-                        <input id="token" name="token" type="password" placeholder="Paste the token from Folia settings" />
-                    </label>
+                    <h2>Connection Draft</h2>
+                    <div class="grid two">
+                        <label>
+                            <span>Stage address</span>
+                            <input id="base-url" name="base-url" type="url" value="http://127.0.0.1:32107" />
+                        </label>
+                        <label>
+                            <span>Bearer token</span>
+                            <input id="token" name="token" type="password" placeholder="Paste the token from Folia settings" />
+                        </label>
+                    </div>
+                    <div class="grid two">
+                        <label>
+                            <span>Controller ID</span>
+                            <input id="controller-id" name="controller-id" type="text" value="stage-controller-demo" />
+                        </label>
+                        <label>
+                            <span>Selected instances</span>
+                            <input id="selected-instance-summary" type="text" value="0 selected" readonly />
+                        </label>
+                    </div>
+                    <div class="button-row">
+                        <button id="upsert-instance" type="button">Add / Update Instance</button>
+                        <button id="disconnect-selected" type="button" class="secondary">Disconnect Selected</button>
+                    </div>
+                </section>
+
+                <section class="form-panel form-panel-wide">
+                    <div class="section-header">
+                        <h2>Instances</h2>
+                        <p class="hint">把多个 Electron Folia 实例加入列表后，可以统一推送 session 和广播 realtime state。</p>
+                    </div>
+                    <div id="instance-list" class="instance-list"></div>
                 </section>
 
                 <section class="form-panel">
@@ -124,18 +164,134 @@
                         <span>Lyrics text</span>
                         <textarea id="lyrics-text" name="lyrics-text" rows="12" placeholder="[00:00.00]Paste lrc or enhanced lrc here"></textarea>
                     </label>
-                    <p class="hint">Lyrics are optional. If present, Folia will try to parse them with its built-in parser chain, including formats like lrc, enhanced-lrc, vtt, and yrc. If parsing fails, playback will continue without lyrics.</p>
+                    <p class="hint">Lyrics are optional. Stage 会复用 Folia 自己的歌词解析链，支持 lrc、enhanced-lrc、vtt、yrc 等格式。</p>
                 </section>
 
                 <section class="response-panel request-panel">
                     <div class="response-header">
                         <h2>POST /stage/session</h2>
-                        <button id="push-session" type="submit">Push Session</button>
+                        <button id="push-session" type="submit">Push To Selected</button>
                     </div>
-                    <p class="hint">支持 `application/json` 和 `multipart/form-data`。页面会根据你是否选择文件自动决定传输方式。</p>
+                    <p class="hint">支持 JSON 和 multipart。没有已选实例时，会使用上方 Connection Draft 作为临时目标。</p>
                     <pre id="session-request-preview" class="request-preview"></pre>
                     <div id="session-status" class="status-line">No request sent yet.</div>
                     <pre id="session-response" class="response-output"></pre>
+                </section>
+
+                <section class="form-panel form-panel-wide">
+                    <div class="section-header">
+                        <h2>Realtime Controller State</h2>
+                        <p class="hint">编辑这里的权威状态草稿，然后通过 WS 广播到已连接实例。</p>
+                    </div>
+                    <div class="grid three">
+                        <label>
+                            <span>Session ID</span>
+                            <input id="realtime-session-id" type="text" placeholder="stage-session-1" />
+                        </label>
+                        <label>
+                            <span>Current track ID</span>
+                            <input id="realtime-current-track-id" type="text" placeholder="track-1" />
+                        </label>
+                        <label>
+                            <span>Player state</span>
+                            <select id="realtime-player-state">
+                                <option value="IDLE">IDLE</option>
+                                <option value="PLAYING">PLAYING</option>
+                                <option value="PAUSED">PAUSED</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="grid three">
+                        <label>
+                            <span>Current time (ms)</span>
+                            <input id="realtime-current-time-ms" type="number" min="0" step="1" value="0" />
+                        </label>
+                        <label>
+                            <span>Duration (ms)</span>
+                            <input id="realtime-duration-ms" type="number" min="0" step="1" value="0" />
+                        </label>
+                        <label>
+                            <span>Loop mode</span>
+                            <select id="realtime-loop-mode">
+                                <option value="off">off</option>
+                                <option value="all">all</option>
+                                <option value="one">one</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="grid three">
+                        <label>
+                            <span>Track title</span>
+                            <input id="realtime-track-title" type="text" placeholder="Stage Track" />
+                        </label>
+                        <label>
+                            <span>Track artist</span>
+                            <input id="realtime-track-artist" type="text" placeholder="Artist" />
+                        </label>
+                        <label>
+                            <span>Track album</span>
+                            <input id="realtime-track-album" type="text" placeholder="Album" />
+                        </label>
+                    </div>
+                    <div class="grid two">
+                        <label>
+                            <span>Track cover URL</span>
+                            <input id="realtime-track-cover-url" type="url" placeholder="https://example.com/cover.jpg" />
+                        </label>
+                        <label>
+                            <span>Explicit seek target (ms)</span>
+                            <input id="seek-target-ms" type="number" min="0" step="1" value="0" />
+                        </label>
+                    </div>
+                    <div class="grid two">
+                        <label class="checkbox-label">
+                            <input id="realtime-can-go-next" type="checkbox" />
+                            <span>canGoNext</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input id="realtime-can-go-prev" type="checkbox" />
+                            <span>canGoPrev</span>
+                        </label>
+                    </div>
+                    <label>
+                        <span>Tracks JSON (advanced)</span>
+                        <textarea id="realtime-tracks-json" rows="10" placeholder='[{"trackId":"track-1","title":"Stage Track","artist":"Artist"}]'></textarea>
+                    </label>
+                    <div class="grid two">
+                        <label class="checkbox-label">
+                            <input id="auto-apply-control-requests" type="checkbox" checked />
+                            <span>Auto-apply incoming control_request</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input id="mirror-to-selected" type="checkbox" checked />
+                            <span>Broadcast state to all selected instances</span>
+                        </label>
+                    </div>
+                    <div id="clock-status" class="status-line">Controller clock idle.</div>
+                    <div class="button-row button-row-wrap">
+                        <button id="sync-track-from-session" type="button" class="secondary">Use Session Metadata</button>
+                        <button id="broadcast-state" type="button">Broadcast State</button>
+                        <button id="control-play" type="button" class="secondary">Play</button>
+                        <button id="control-pause" type="button" class="secondary">Pause</button>
+                        <button id="control-seek" type="button" class="secondary">Seek</button>
+                        <button id="control-next" type="button" class="secondary">Next</button>
+                        <button id="control-prev" type="button" class="secondary">Prev</button>
+                        <button id="control-cycle-loop" type="button" class="secondary">Cycle Loop</button>
+                    </div>
+                </section>
+
+                <section class="response-panel">
+                    <div class="response-header">
+                        <h2>WS Request Preview</h2>
+                    </div>
+                    <pre id="ws-state-preview" class="request-preview"></pre>
+                </section>
+
+                <section class="response-panel">
+                    <div class="response-header">
+                        <h2>Merged Event Log</h2>
+                    </div>
+                    <pre id="ws-event-log" class="response-output"></pre>
                 </section>
             </form>
         </section>

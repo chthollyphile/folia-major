@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electron', {
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),
     clearStageSession: () => ipcRenderer.invoke('stage-clear-session'),
+    connectStageRealtime: () => ipcRenderer.invoke('stage-connect-realtime'),
+    disconnectStageRealtime: () => ipcRenderer.invoke('stage-disconnect-realtime'),
+    sendStageControlRequest: (request) => ipcRenderer.invoke('stage-send-control-request', request),
     onStageSessionUpdated: (callback) => {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('stage-session-updated', listener);
@@ -48,6 +51,16 @@ contextBridge.exposeInMainWorld('electron', {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('stage-session-cleared', listener);
         return () => ipcRenderer.removeListener('stage-session-cleared', listener);
+    },
+    onStageRealtimeState: (callback) => {
+        const listener = (_event, state) => callback(state);
+        ipcRenderer.on('stage-realtime-state', listener);
+        return () => ipcRenderer.removeListener('stage-realtime-state', listener);
+    },
+    onStageConnectionState: (callback) => {
+        const listener = (_event, state) => callback(state);
+        ipcRenderer.on('stage-connection-state', listener);
+        return () => ipcRenderer.removeListener('stage-connection-state', listener);
     },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    buildStageControllerHelloMessage,
+    buildStageRealtimeStateMessage,
     buildStageSessionRequest,
+    buildStageWebSocketUrl,
     shouldUseStageMultipart,
     validateStageSessionRequestInput,
 } from '@/utils/stageClientDemo';
@@ -99,5 +102,67 @@ describe('stageClientDemo helpers', () => {
 
         const formData = result.init.body as FormData;
         expect(formData.get('lyricsFormat')).toBeNull();
+    });
+
+    it('builds a ws url with query token authentication for browser clients', () => {
+        const wsUrl = buildStageWebSocketUrl('http://127.0.0.1:32107/', 'demo-token');
+
+        expect(wsUrl).toBe('ws://127.0.0.1:32107/stage/ws?token=demo-token');
+    });
+
+    it('builds the controller hello envelope expected by the realtime api', () => {
+        const hello = buildStageControllerHelloMessage('controller-a');
+
+        expect(hello).toEqual({
+            type: 'hello',
+            payload: {
+                role: 'controller',
+                controllerId: 'controller-a',
+            },
+        });
+    });
+
+    it('normalizes stage_state messages before the manual console broadcasts them', () => {
+        const envelope = buildStageRealtimeStateMessage({
+            revision: 4,
+            sessionId: 'session-a',
+            tracks: [
+                {
+                    trackId: 'track-a',
+                    title: 'Track A',
+                    durationMs: 1234,
+                },
+            ],
+            currentTrackId: 'track-a',
+            playerState: 'PLAYING',
+            currentTimeMs: 320,
+            durationMs: 1234,
+            loopMode: 'all',
+            canGoNext: true,
+            canGoPrev: false,
+        });
+
+        expect(envelope.type).toBe('stage_state');
+        expect(envelope.payload).toMatchObject({
+            revision: 4,
+            sessionId: 'session-a',
+            currentTrackId: 'track-a',
+            playerState: 'PLAYING',
+            currentTimeMs: 320,
+            durationMs: 1234,
+            loopMode: 'all',
+            canGoNext: true,
+            canGoPrev: false,
+        });
+        expect(envelope.payload.tracks).toEqual([
+            {
+                trackId: 'track-a',
+                title: 'Track A',
+                artist: '',
+                album: '',
+                coverUrl: null,
+                durationMs: 1234,
+            },
+        ]);
     });
 });

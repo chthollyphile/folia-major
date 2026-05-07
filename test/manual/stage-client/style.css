@@ -1,17 +1,18 @@
-/* Visual styling for the manual Folia Stage client page. */
+/* Visual styling for the manual Folia Stage controller console. */
 
 :root {
     color-scheme: dark;
-    --stage-bg: radial-gradient(circle at top, rgba(88, 28, 135, 0.25), transparent 28%),
-        linear-gradient(160deg, #09090b 0%, #18181b 45%, #09090b 100%);
-    --stage-card: rgba(24, 24, 27, 0.88);
-    --stage-panel: rgba(39, 39, 42, 0.72);
+    --stage-bg: radial-gradient(circle at top, rgba(14, 165, 233, 0.2), transparent 28%),
+        linear-gradient(160deg, #09090b 0%, #111827 45%, #09090b 100%);
+    --stage-card: rgba(17, 24, 39, 0.88);
+    --stage-panel: rgba(30, 41, 59, 0.72);
     --stage-border: rgba(255, 255, 255, 0.08);
-    --stage-text: #f5f5f5;
-    --stage-muted: rgba(245, 245, 245, 0.66);
-    --stage-accent: #f97316;
-    --stage-accent-soft: rgba(249, 115, 22, 0.18);
+    --stage-text: #f8fafc;
+    --stage-muted: rgba(226, 232, 240, 0.72);
+    --stage-accent: #38bdf8;
+    --stage-accent-soft: rgba(56, 189, 248, 0.16);
     --stage-success: #22c55e;
+    --stage-warning: #f59e0b;
     --stage-danger: #ef4444;
 }
 
@@ -31,13 +32,17 @@ select {
     font: inherit;
 }
 
+code {
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+}
+
 .stage-client-shell {
     min-height: 100vh;
-    padding: 32px 20px 48px;
+    padding: 28px 18px 40px;
 }
 
 .stage-client-card {
-    width: min(1120px, 100%);
+    width: min(1360px, 100%);
     margin: 0 auto;
     background: var(--stage-card);
     border: 1px solid var(--stage-border);
@@ -65,13 +70,14 @@ select {
 
 .hero h1,
 .response-header h2,
-.form-panel h2 {
+.form-panel h2,
+.docs-panel h2 {
     margin: 0;
 }
 
 .intro {
     margin: 10px 0 0;
-    max-width: 680px;
+    max-width: 760px;
     line-height: 1.6;
     color: var(--stage-muted);
 }
@@ -81,11 +87,11 @@ button {
     border-radius: 999px;
     padding: 12px 18px;
     cursor: pointer;
-    color: #111827;
-    background: linear-gradient(135deg, #fb923c, #f97316);
+    color: #082f49;
+    background: linear-gradient(135deg, #7dd3fc, #38bdf8);
     font-weight: 700;
     transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
-    box-shadow: 0 10px 28px rgba(249, 115, 22, 0.24);
+    box-shadow: 0 10px 28px rgba(56, 189, 248, 0.24);
 }
 
 button:hover {
@@ -97,31 +103,35 @@ button:disabled {
     cursor: progress;
 }
 
-button.secondary {
+button.secondary,
+.mini-button.secondary {
     color: var(--stage-text);
     background: rgba(255, 255, 255, 0.06);
     box-shadow: none;
 }
 
-.stage-form {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    padding: 24px 28px;
+.mini-button {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.mini-button.danger {
+    color: #fee2e2;
+    background: rgba(239, 68, 68, 0.18);
+    box-shadow: none;
 }
 
 .docs-panel {
     padding: 24px 28px 0;
 }
 
-.docs-panel h2 {
-    margin: 0 0 14px;
-}
-
 .docs-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
+}
+
+.docs-grid-wide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .doc-card,
@@ -134,7 +144,8 @@ button.secondary {
 }
 
 .doc-head,
-.response-header {
+.response-header,
+.section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -144,11 +155,19 @@ button.secondary {
 .doc-head code {
     font-size: 15px;
     font-weight: 700;
-    color: #fdba74;
+    color: #bae6fd;
 }
 
-.form-panel:last-of-type,
-.response-panel {
+.stage-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    padding: 24px 28px;
+}
+
+.form-panel-wide,
+.response-panel,
+.request-panel {
     grid-column: 1 / -1;
 }
 
@@ -166,11 +185,26 @@ button.secondary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 label {
     display: grid;
     gap: 8px;
     font-size: 14px;
     color: var(--stage-muted);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+}
+
+.checkbox-label input {
+    width: auto;
 }
 
 input,
@@ -180,44 +214,57 @@ select {
     box-sizing: border-box;
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.22);
     color: var(--stage-text);
     padding: 12px 14px;
 }
 
-input[type="file"] {
+input[readonly] {
+    opacity: 0.78;
+}
+
+input[type='file'] {
     padding: 10px 12px;
 }
 
 textarea {
     resize: vertical;
-    min-height: 220px;
+    min-height: 180px;
 }
 
 .hint,
-.status-line {
+.status-line,
+.instance-meta,
+.instance-last {
     margin: 10px 0 0;
     color: var(--stage-muted);
     line-height: 1.5;
     font-size: 13px;
 }
 
-.response-panel {
-    margin: 0;
+.button-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
 }
 
-.request-panel {
-    grid-column: 1 / -1;
+.button-row-wrap {
+    flex-wrap: wrap;
+}
+
+.compact-row {
+    margin-top: 12px;
 }
 
 .response-output,
-.request-preview {
+.request-preview,
+.instance-response {
     margin: 14px 0 0;
     white-space: pre-wrap;
     word-break: break-word;
     border-radius: 16px;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.24);
+    background: rgba(0, 0, 0, 0.26);
     min-height: 140px;
     overflow: auto;
 }
@@ -226,19 +273,108 @@ textarea {
     min-height: 120px;
 }
 
-@media (max-width: 900px) {
-    .docs-grid,
-    .stage-form {
+.instance-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.instance-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 16px;
+    background: rgba(2, 6, 23, 0.34);
+}
+
+.instance-card-selected {
+    border-color: rgba(56, 189, 248, 0.48);
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+.instance-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.instance-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--stage-text);
+    font-weight: 600;
+}
+
+.instance-toggle input {
+    width: auto;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 96px;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.status-connected {
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+}
+
+.status-connecting {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+}
+
+.status-disconnected {
+    background: rgba(148, 163, 184, 0.16);
+    color: #cbd5e1;
+}
+
+.status-error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fecaca;
+}
+
+.instance-empty {
+    grid-column: 1 / -1;
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    padding: 22px;
+    text-align: center;
+    color: var(--stage-muted);
+}
+
+.instance-response {
+    min-height: 110px;
+}
+
+@media (max-width: 1080px) {
+    .docs-grid-wide,
+    .instance-list,
+    .stage-form,
+    .grid.three {
         grid-template-columns: 1fr;
     }
+}
 
+@media (max-width: 900px) {
     .grid.two {
         grid-template-columns: 1fr;
     }
 
     .hero,
     .doc-head,
-    .response-header {
+    .response-header,
+    .section-header,
+    .button-row {
         flex-direction: column;
         align-items: stretch;
     }

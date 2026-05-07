@@ -49,12 +49,15 @@ export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
 export type PlaybackContext = 'main' | 'stage';
+export type StageLoopMode = 'off' | 'all' | 'one';
+export type StageControlRequestType = 'play' | 'pause' | 'seek' | 'next' | 'prev' | 'set_loop_mode';
 
 export interface StageSession {
   id: string;
   title: string;
   artist: string;
   album?: string;
+  durationMs?: number | null;
   coverUrl?: string | null;
   coverArtUrl?: string | null;
   audioUrl?: string | null;
@@ -66,12 +69,63 @@ export interface StageSession {
   updatedAt: number;
 }
 
+export interface StageTrack {
+  trackId: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  coverUrl?: string | null;
+  durationMs?: number | null;
+}
+
+export interface StageRealtimeState {
+  revision: number;
+  sessionId: string | null;
+  tracks: StageTrack[];
+  currentTrackId: string | null;
+  playerState: PlayerState;
+  currentTimeMs: number;
+  durationMs: number;
+  loopMode: StageLoopMode;
+  canGoNext: boolean;
+  canGoPrev: boolean;
+  updatedAt: number;
+}
+
+export interface StageControlRequest {
+  requestId: string;
+  originPlayerId: string;
+  requestedAt: number;
+  type: StageControlRequestType;
+  payload?: {
+    timeMs?: number;
+    loopMode?: StageLoopMode;
+  };
+}
+
+export interface StageControllerPolicy {
+  collapseWindowMs: number;
+  allowPlayerLoopModeChange: boolean;
+}
+
+export interface StageConnectionState {
+  connected: boolean;
+  playerId: string | null;
+  hasController: boolean;
+  controllerId: string | null;
+  pendingRequestCount: number;
+  lastError?: string | null;
+}
+
 export interface StageStatus {
   enabled: boolean;
   port: number;
   token: string | null;
   hasSession: boolean;
   session: StageSession | null;
+  realtimeState: StageRealtimeState | null;
+  connection: StageConnectionState;
+  policy: StageControllerPolicy;
 }
 
 export interface CadenzaTuning {
