@@ -196,6 +196,10 @@ npm run stage:client
 - 音频 URL 或音频文件
 - LRC / Enhanced LRC 歌词文本或歌词文件
 
+如果上传的是音频文件，Folia 还会尝试直接读取文件内嵌歌词、封面和歌曲 metadata。歌词现在是可选的；如果提供了歌词，Stage 会复用 Folia 自己的解析链来尝试解析，失败时会降级成无歌词播放。
+联调页面里的 `Lyrics format` 也可以保持 `auto-detect`，或者显式指定 `lrc`、`enhanced-lrc`、`vtt`、`yrc`。
+页面会分别展示 `GET /stage/health`、`POST /stage/session`、`DELETE /stage/session` 的组装请求和 Folia 后端返回结果，便于直接调试接口。
+
 页面还提供 `Load Example`，会自动加载仓库内置的示例歌词和一段短音频，方便快速验证推送链路。
 
 ## 技术栈

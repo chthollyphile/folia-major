@@ -99,6 +99,7 @@
     "@chenglou/pretext": "^0.0.4",
     "@google/genai": "^1.46.0",
     "@neteasecloudmusicapienhanced/api": "^4.30.3",
+    "axios": "^1.13.1",
     "blueimp-md5": "^2.19.0",
     "buffer": "^6.0.3",
     "electron-store": "^11.0.2",

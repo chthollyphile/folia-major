@@ -11,17 +11,40 @@
         <section class="stage-client-card">
             <div class="hero">
                 <div>
-                    <p class="eyebrow">Folia Stage Demo</p>
+                    <p class="eyebrow">Folia Stage API</p>
                     <h1>Stage Client</h1>
                     <p class="intro">
-                        Push one Stage session into a locally running Folia desktop app without hand-writing HTTP requests.
+                        调试本地运行中的 Folia Stage API。页面会实时展示每个接口的用途、组装后的请求，以及 Folia 后端返回结果。
                     </p>
                 </div>
-                <div class="hero-actions">
-                    <button id="load-example" type="button">Load Example</button>
-                    <button id="clear-session" type="button" class="secondary">Clear Session</button>
-                </div>
             </div>
+
+            <section class="docs-panel">
+                <h2>Endpoints</h2>
+                <div class="docs-grid">
+                    <article class="doc-card">
+                        <div class="doc-head">
+                            <code>GET /stage/health</code>
+                            <button id="test-health" type="button" class="secondary">Test Health</button>
+                        </div>
+                        <p class="hint">无需鉴权。用于确认 Folia Stage 服务是否已启动，以及当前监听端口。</p>
+                        <pre id="health-request-preview" class="request-preview"></pre>
+                        <div id="health-status" class="status-line">No request sent yet.</div>
+                        <pre id="health-response" class="response-output compact"></pre>
+                    </article>
+
+                    <article class="doc-card">
+                        <div class="doc-head">
+                            <code>DELETE /stage/session</code>
+                            <button id="clear-session" type="button" class="secondary">Clear Session</button>
+                        </div>
+                        <p class="hint">需要 `Authorization: Bearer &lt;token&gt;`。清空当前 Stage 会话。</p>
+                        <pre id="clear-request-preview" class="request-preview"></pre>
+                        <div id="clear-status" class="status-line">No request sent yet.</div>
+                        <pre id="clear-response" class="response-output compact"></pre>
+                    </article>
+                </div>
+            </section>
 
             <form id="stage-client-form" class="stage-form">
                 <section class="form-panel">
@@ -76,7 +99,7 @@
                             <input id="audio-file" name="audio-file" type="file" accept="audio/*" />
                         </label>
                     </div>
-                    <p class="hint">Choose either a URL or a file. If you click Load Example, a bundled demo WAV will be attached automatically.</p>
+                    <p class="hint">Choose either a URL or a file. 上传音频文件时，Folia 会尝试读取内嵌歌词、封面和歌曲 metadata。</p>
                 </section>
 
                 <section class="form-panel">
@@ -85,8 +108,11 @@
                         <label>
                             <span>Lyrics format</span>
                             <select id="lyrics-format" name="lyrics-format">
+                                <option value="">auto-detect</option>
                                 <option value="lrc">lrc</option>
                                 <option value="enhanced-lrc">enhanced-lrc</option>
+                                <option value="vtt">vtt</option>
+                                <option value="yrc">yrc</option>
                             </select>
                         </label>
                         <label>
@@ -98,23 +124,20 @@
                         <span>Lyrics text</span>
                         <textarea id="lyrics-text" name="lyrics-text" rows="12" placeholder="[00:00.00]Paste lrc or enhanced lrc here"></textarea>
                     </label>
-                    <p class="hint">Choose either lyrics text or a lyrics file. The example loader fills this box with a bundled sample.</p>
+                    <p class="hint">Lyrics are optional. If present, Folia will try to parse them with its built-in parser chain, including formats like lrc, enhanced-lrc, vtt, and yrc. If parsing fails, playback will continue without lyrics.</p>
                 </section>
 
-                <div class="submit-row">
-                    <div id="example-status" class="example-status">No example assets loaded.</div>
-                    <button id="push-session" type="submit">Push Session</button>
-                </div>
+                <section class="response-panel request-panel">
+                    <div class="response-header">
+                        <h2>POST /stage/session</h2>
+                        <button id="push-session" type="submit">Push Session</button>
+                    </div>
+                    <p class="hint">支持 `application/json` 和 `multipart/form-data`。页面会根据你是否选择文件自动决定传输方式。</p>
+                    <pre id="session-request-preview" class="request-preview"></pre>
+                    <div id="session-status" class="status-line">No request sent yet.</div>
+                    <pre id="session-response" class="response-output"></pre>
+                </section>
             </form>
-
-            <section class="response-panel">
-                <div class="response-header">
-                    <h2>Response</h2>
-                    <span id="transport-badge" class="transport-badge">idle</span>
-                </div>
-                <div id="status-line" class="status-line">No request sent yet.</div>
-                <pre id="response-output" class="response-output"></pre>
-            </section>
         </section>
     </main>
 </body>

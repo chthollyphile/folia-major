@@ -403,6 +403,7 @@ export default function App() {
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(null);
+    const previousAudioSrcRef = useRef<string | null>(null);
     const animationFrameRef = useRef<number>(0);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -565,17 +566,20 @@ export default function App() {
 
         const stageSong = buildStagePlaybackSong(session);
         shouldAutoPlay.current = options.autoplay ?? true;
-        pendingResumeTimeRef.current = 0;
+        pendingResumeTimeRef.current = null;
         currentSongRef.current = stageSong.id;
         setIsLyricsLoading(false);
         let parsedLyrics: LyricData | null = null;
-        try {
-            parsedLyrics = await LyricParserFactory.parse({
-                type: 'local',
-                lrcContent: session.lyricsText,
-            });
-        } catch (error) {
-            console.warn('[Stage] Failed to parse stage lyrics', error);
+        if (session.lyricsText?.trim()) {
+            try {
+                parsedLyrics = await LyricParserFactory.parse({
+                    type: 'local',
+                    lrcContent: session.lyricsText,
+                    formatHint: session.lyricsFormat || undefined,
+                });
+            } catch (error) {
+                console.warn('[Stage] Failed to parse stage lyrics', error);
+            }
         }
         setCurrentSong(stageSong);
         setLyrics(parsedLyrics);
@@ -590,6 +594,42 @@ export default function App() {
     }, [buildStagePlaybackSong, clearPlaybackSurface, currentTime, setLyrics]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
+
+    const persistLastPlaybackCache = useCallback(async (song: SongResult | null, queue: SongResult[]) => {
+        if (!song || isStagePlaybackSong(song)) {
+            return;
+        }
+
+        const sanitizedQueue = queue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
+        await Promise.all([
+            saveToCache('last_song', song),
+            saveToCache('last_queue', sanitizedQueue),
+        ]);
+    }, []);
+
+    const clearPersistedStagePlaybackCache = useCallback(async () => {
+        const cachedLastSong = await getFromCache<SongResult>('last_song');
+        const cachedLastQueue = await getFromCache<SongResult[]>('last_queue');
+
+        const tasks: Promise<void>[] = [];
+
+        if (isStagePlaybackSong(cachedLastSong)) {
+            tasks.push(removeFromCache('last_song'));
+        }
+
+        if (cachedLastQueue?.some(queuedSong => isStagePlaybackSong(queuedSong))) {
+            const sanitizedQueue = cachedLastQueue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
+            tasks.push(
+                sanitizedQueue.length > 0
+                    ? saveToCache('last_queue', sanitizedQueue)
+                    : removeFromCache('last_queue')
+            );
+        }
+
+        if (tasks.length > 0) {
+            await Promise.all(tasks);
+        }
+    }, []);
 
     const syncOutputGain = useCallback((targetVolume: number, smoothing = 0.015) => {
         const clampedVolume = clampMediaVolume(targetVolume);
@@ -930,6 +970,23 @@ export default function App() {
         applyPlaybackSnapshot(mainPlaybackSnapshotRef.current);
     }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
 
+    // Restore the main snapshot before starting any normal playback so Stage state
+    // stays isolated and the next playback flow reads the correct queue/context.
+    const interruptStagePlaybackForMainTransition = useCallback(() => {
+        if (activePlaybackContext !== 'stage') {
+            return null;
+        }
+
+        const currentStageSnapshot = buildPlaybackSnapshot();
+        const restoredMainSnapshot = mainPlaybackSnapshotRef.current;
+
+        stagePlaybackSnapshotRef.current = currentStageSnapshot;
+        setActivePlaybackContext('main');
+        applyPlaybackSnapshot(restoredMainSnapshot);
+
+        return restoredMainSnapshot;
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
+
     const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
         setPendingNavidromeSelection(selection);
         setHomeViewTab('navidrome');
@@ -1068,6 +1125,11 @@ export default function App() {
             const lastSong = await getFromCache<SongResult>('last_song');
             const lastQueue = await getFromCache<SongResult[]>('last_queue');
 
+            if (isStagePlaybackSong(lastSong) || lastQueue?.some(song => isStagePlaybackSong(song))) {
+                await clearPersistedStagePlaybackCache();
+                return;
+            }
+
             if (lastSong) {
                 console.log("[Session] Restoring last song:", lastSong.name);
                 setCurrentSong(lastSong);
@@ -1121,7 +1183,7 @@ export default function App() {
 
                             const restoredSong = { ...(lastSong as any), navidromeData: navidromeSongToRestore } as SongResult;
                             setCurrentSong(restoredSong);
-                            saveToCache('last_song', restoredSong);
+                            void persistLastPlaybackCache(restoredSong, lastQueue || [restoredSong]);
                         } else {
                             console.warn('[restoreSession] Navidrome song could not be restored');
                         }
@@ -1711,7 +1773,7 @@ export default function App() {
         const nextQueue = exists ? playQueue : [...playQueue, unifiedSong];
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
     };
 
@@ -1724,9 +1786,9 @@ export default function App() {
         const nextQueue = exists ? playQueue : [...playQueue, song];
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
 
     const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
         if (songs.length === 0) {
@@ -1738,9 +1800,9 @@ export default function App() {
         const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
 
     const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
         if (songs.length === 0) {
@@ -1753,9 +1815,9 @@ export default function App() {
         const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
 
     const prewarmLocalSongMetadata = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
@@ -1802,10 +1864,7 @@ export default function App() {
     };
 
     const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
-        if (activePlaybackContext === 'stage') {
-            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
-            setActivePlaybackContext('main');
-        }
+        interruptStagePlaybackForMainTransition();
 
         // Get audio blob from fileHandle first
         const blobUrl = await getAudioFromLocalSong(localSong);
@@ -1846,12 +1905,11 @@ export default function App() {
         if (queue.length > 0) {
             const finalQueue = buildLocalQueue(queue, initialMeta.unifiedSong);
             setPlayQueue(finalQueue);
-            saveToCache('last_queue', finalQueue);
+            void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
         } else {
             setPlayQueue([initialMeta.unifiedSong]);
-            saveToCache('last_queue', [initialMeta.unifiedSong]);
+            void persistLastPlaybackCache(initialMeta.unifiedSong, [initialMeta.unifiedSong]);
         }
-        saveToCache('last_song', initialMeta.unifiedSong);
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'success', text: '本地音乐已加载' });
@@ -1883,10 +1941,7 @@ export default function App() {
         queue: NavidromeSong[] = [],
         options: PlaybackNavigationOptions = {}
     ) => {
-        if (activePlaybackContext === 'stage') {
-            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
-            setActivePlaybackContext('main');
-        }
+        interruptStagePlaybackForMainTransition();
 
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         const config = getNavidromeConfig();
@@ -2022,13 +2077,11 @@ export default function App() {
             if (queue.length > 0) {
                 const finalQueue = buildNavidromeQueue(queue, unifiedSong);
                 setPlayQueue(finalQueue);
-                saveToCache('last_queue', finalQueue);
+                void persistLastPlaybackCache(unifiedSong, finalQueue);
             } else {
                 setPlayQueue([unifiedSong]);
-                saveToCache('last_queue', [unifiedSong]);
+                void persistLastPlaybackCache(unifiedSong, [unifiedSong]);
             }
-
-            saveToCache('last_song', unifiedSong);
 
             if (shouldNavigateToPlayer) {
                 navigateToPlayer();
@@ -2274,10 +2327,7 @@ export default function App() {
         isFmCall: boolean = false,
         options: PlaybackNavigationOptions = {}
     ) => {
-        if (activePlaybackContext === 'stage') {
-            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
-            setActivePlaybackContext('main');
-        }
+        const restoredMainSnapshot = interruptStagePlaybackForMainTransition();
 
         console.log("[App] playSong initiated:", song.name, song.id, "isFm:", isFmCall);
         clearPendingUnavailableSkip();
@@ -2296,7 +2346,8 @@ export default function App() {
         const isNavidrome = isNavidromePlaybackSong(song);
         let prefetched: ReturnType<typeof getPrefetchedData> = null;
         let preloadedOnlineAudioResult: Awaited<ReturnType<typeof loadOnlineSongAudioSource>> | null = null;
-        const queueContext = queue.length > 0 ? queue : playQueue.length === 0 ? [song] : playQueue;
+        const mainQueueContext = restoredMainSnapshot?.playQueue ?? playQueue;
+        const queueContext = queue.length > 0 ? queue : mainQueueContext.length === 0 ? [song] : mainQueueContext;
         let newQueue = getPlayableOnlineQueue(queueContext);
         const skipCount = options.unavailableSkipCount ?? 0;
         playbackAutoSkipCountRef.current = skipCount;
@@ -2393,8 +2444,7 @@ export default function App() {
         }
 
         // Save for next reload
-        saveToCache('last_song', song);
-        saveToCache('last_queue', newQueue);
+        void persistLastPlaybackCache(song, newQueue);
 
         if (shouldNavigateToPlayer) {
             navigateToPlayer();
@@ -3138,6 +3188,24 @@ export default function App() {
         }
     }, [currentSong, playerState]);
 
+
+    useEffect(() => {
+        const audioElement = audioRef.current;
+        if (!audioElement) {
+            previousAudioSrcRef.current = audioSrc;
+            return;
+        }
+
+        if (audioSrc && previousAudioSrcRef.current && previousAudioSrcRef.current !== audioSrc) {
+            // Force the media element to detach from the previous stream before
+            // autoplay kicks in, otherwise Stage session swaps can stay pinned
+            // to the old buffered song.
+            audioElement.pause();
+            audioElement.load();
+        }
+
+        previousAudioSrcRef.current = audioSrc;
+    }, [audioSrc]);
 
     useEffect(() => {
         if (audioSrc && audioRef.current) {
@@ -3948,6 +4016,10 @@ export default function App() {
                                     setStageSession(nextStatus.session);
                                     if (!enabled && activePlaybackContext === 'stage') {
                                         leaveStagePlayback();
+                                    }
+                                    if (!enabled) {
+                                        stagePlaybackSnapshotRef.current = null;
+                                        await clearPersistedStagePlaybackCache();
                                     }
                                 }
                             }}

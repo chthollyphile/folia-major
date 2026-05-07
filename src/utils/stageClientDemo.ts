@@ -1,4 +1,4 @@
-export type StageLyricsFormat = 'lrc' | 'enhanced-lrc';
+export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
 
 // Shared helpers for the manual Stage client demo and its unit tests.
 
@@ -11,7 +11,7 @@ export interface StageSessionRequestInput {
     coverUrl?: string;
     audioUrl?: string;
     lyricsText?: string;
-    lyricsFormat: StageLyricsFormat;
+    lyricsFormat?: StageLyricsFormat | '';
     audioFile?: File | null;
     lyricsFile?: File | null;
     coverFile?: File | null;
@@ -31,7 +31,7 @@ const normalizeBaseUrl = (baseUrl: string) => {
 };
 
 export const isSupportedStageLyricsFormat = (format: string): format is StageLyricsFormat =>
-    format === 'lrc' || format === 'enhanced-lrc';
+    format === 'lrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'yrc';
 
 export const validateStageSessionRequestInput = (input: StageSessionRequestInput): string | null => {
     if (!normalizeBaseUrl(input.baseUrl)) {
@@ -42,8 +42,9 @@ export const validateStageSessionRequestInput = (input: StageSessionRequestInput
         return 'Bearer token is required.';
     }
 
-    if (!isSupportedStageLyricsFormat(input.lyricsFormat)) {
-        return 'Lyrics format must be lrc or enhanced-lrc.';
+    const normalizedLyricsFormat = normalizeText(input.lyricsFormat);
+    if (normalizedLyricsFormat && !isSupportedStageLyricsFormat(normalizedLyricsFormat)) {
+        return 'Lyrics format must be lrc, enhanced-lrc, vtt, or yrc.';
     }
 
     const hasAudioUrl = Boolean(normalizeText(input.audioUrl));
@@ -57,9 +58,6 @@ export const validateStageSessionRequestInput = (input: StageSessionRequestInput
 
     const hasLyricsText = Boolean(normalizeText(input.lyricsText));
     const hasLyricsFile = Boolean(input.lyricsFile);
-    if (!hasLyricsText && !hasLyricsFile) {
-        return 'Provide either lyrics text or a lyrics file.';
-    }
     if (hasLyricsText && hasLyricsFile) {
         return 'Choose either lyrics text or a lyrics file, not both.';
     }
@@ -84,10 +82,11 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
     const coverUrl = normalizeText(input.coverUrl);
     const audioUrl = normalizeText(input.audioUrl);
     const lyricsText = normalizeText(input.lyricsText);
+    const normalizedLyricsFormat = normalizeText(input.lyricsFormat);
 
     if (shouldUseStageMultipart(input)) {
         const formData = new FormData();
-        formData.set('lyricsFormat', input.lyricsFormat);
+        if (normalizedLyricsFormat) formData.set('lyricsFormat', normalizedLyricsFormat);
         if (title) formData.set('title', title);
         if (artist) formData.set('artist', artist);
         if (album) formData.set('album', album);
@@ -127,7 +126,7 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
                 ...(coverUrl ? { coverUrl } : {}),
                 ...(audioUrl ? { audioUrl } : {}),
                 ...(lyricsText ? { lyricsText } : {}),
-                lyricsFormat: input.lyricsFormat,
+                ...(normalizedLyricsFormat ? { lyricsFormat: normalizedLyricsFormat } : {}),
             }),
         },
     };

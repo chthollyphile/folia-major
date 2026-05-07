@@ -43,7 +43,6 @@ describe('stageClientDemo helpers', () => {
             title: 'Example',
             lyricsFormat: 'enhanced-lrc',
             audioFile,
-            lyricsText: '[00:00.00]<00:00.00>Hello',
         });
 
         expect(shouldUseStageMultipart({
@@ -51,7 +50,6 @@ describe('stageClientDemo helpers', () => {
             token: 'demo-token',
             lyricsFormat: 'enhanced-lrc',
             audioFile,
-            lyricsText: '[00:00.00]<00:00.00>Hello',
         })).toBe(true);
         expect(result.transport).toBe('multipart');
         expect(result.init.headers).toEqual({
@@ -61,7 +59,7 @@ describe('stageClientDemo helpers', () => {
         const formData = result.init.body as FormData;
         expect(formData.get('title')).toBe('Example');
         expect(formData.get('lyricsFormat')).toBe('enhanced-lrc');
-        expect(formData.get('lyricsText')).toBe('[00:00.00]<00:00.00>Hello');
+        expect(formData.get('lyricsText')).toBeNull();
         const uploadedAudio = formData.get('audioFile');
         expect(uploadedAudio).toBeInstanceOf(File);
         expect((uploadedAudio as File).name).toBe('demo.wav');
@@ -78,5 +76,28 @@ describe('stageClientDemo helpers', () => {
         });
 
         expect(error).toBe('Choose either an audio URL or an audio file, not both.');
+    });
+
+    it('allows audio urls without lyrics for lyric-less playback', () => {
+        const error = validateStageSessionRequestInput({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            audioUrl: 'https://example.com/demo.mp3',
+            lyricsFormat: 'lrc',
+        });
+
+        expect(error).toBeNull();
+    });
+
+    it('omits lyricsFormat when the demo keeps auto-detect selected', () => {
+        const result = buildStageSessionRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            audioFile: new File(['audio'], 'demo.wav', { type: 'audio/wav' }),
+            lyricsFormat: '',
+        });
+
+        const formData = result.init.body as FormData;
+        expect(formData.get('lyricsFormat')).toBeNull();
     });
 });

@@ -624,15 +624,9 @@ const Home: React.FC<HomeProps> = ({
                                         {stageEnabled && (
                                             <button
                                                 onClick={() => onOpenStagePlayer?.()}
-                                                className={`relative inline-flex items-center justify-center px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${stageIsActive ? activeTabBg : navPillInactiveText}`}
+                                                data-stage-active={stageIsActive ? 'true' : 'false'}
+                                                className={`relative inline-flex items-center justify-center px-3 md:px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
                                             >
-                                                {stageIsActive && (
-                                                    <motion.span
-                                                        layoutId="home-active-tab-pill"
-                                                        className="absolute inset-0 rounded-full bg-white shadow-sm"
-                                                        transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.9 }}
-                                                    />
-                                                )}
                                                 <span className="relative z-10">{t('home.stage') || '舞台'}</span>
                                             </button>
                                         )}

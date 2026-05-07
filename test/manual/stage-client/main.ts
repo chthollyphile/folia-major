@@ -1,3 +1,4 @@
+import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import '../../../src/index.css';
 import {
     buildStageClearRequest,
@@ -6,16 +7,25 @@ import {
     type StageSessionRequestInput,
 } from '../../../src/utils/stageClientDemo';
 import './style.css';
-import standardLyricsFixture from './fixtures/stage-demo.lrc?raw';
-import enhancedLyricsFixture from './fixtures/stage-demo-enhanced.lrc?raw';
-import demoAudioFixtureUrl from './fixtures/stage-demo-tone.wav?url';
 
-// Manual Stage client page logic for local Folia Stage API testing.
+// Manual Stage API console that documents endpoints, previews assembled requests, and executes them with axios.
 
-type ExampleAssets = {
-    audioFile: File | null;
-    standardLyricsText: string;
-    enhancedLyricsText: string;
+type ResponseView = {
+    statusEl: HTMLDivElement;
+    bodyEl: HTMLElement;
+};
+
+type EndpointDoc = {
+    method: 'GET' | 'POST' | 'DELETE';
+    path: string;
+    auth: 'required' | 'optional' | 'none';
+    purpose: string;
+    payloadMode?: 'json' | 'multipart' | 'none';
+};
+
+type PreviewDescriptor = {
+    label: string;
+    requestText: string;
 };
 
 const getInput = <T extends HTMLElement>(id: string) => {
@@ -39,171 +49,318 @@ const audioFileInput = getInput<HTMLInputElement>('audio-file');
 const lyricsFormatSelect = getInput<HTMLSelectElement>('lyrics-format');
 const lyricsFileInput = getInput<HTMLInputElement>('lyrics-file');
 const lyricsTextInput = getInput<HTMLTextAreaElement>('lyrics-text');
-const loadExampleButton = getInput<HTMLButtonElement>('load-example');
+const testHealthButton = getInput<HTMLButtonElement>('test-health');
 const clearSessionButton = getInput<HTMLButtonElement>('clear-session');
-const statusLine = getInput<HTMLDivElement>('status-line');
-const responseOutput = getInput<HTMLElement>('response-output');
-const transportBadge = getInput<HTMLSpanElement>('transport-badge');
-const exampleStatus = getInput<HTMLDivElement>('example-status');
+const sessionRequestPreview = getInput<HTMLElement>('session-request-preview');
+const healthRequestPreview = getInput<HTMLElement>('health-request-preview');
+const clearRequestPreview = getInput<HTMLElement>('clear-request-preview');
 
-let exampleAssets: ExampleAssets = {
-    audioFile: null,
-    standardLyricsText: '',
-    enhancedLyricsText: '',
+const responseViews: Record<'health' | 'clear' | 'session', ResponseView> = {
+    health: {
+        statusEl: getInput<HTMLDivElement>('health-status'),
+        bodyEl: getInput<HTMLElement>('health-response'),
+    },
+    clear: {
+        statusEl: getInput<HTMLDivElement>('clear-status'),
+        bodyEl: getInput<HTMLElement>('clear-response'),
+    },
+    session: {
+        statusEl: getInput<HTMLDivElement>('session-status'),
+        bodyEl: getInput<HTMLElement>('session-response'),
+    },
 };
 
-const setResponseState = (statusText: string, details: string, badge: string) => {
-    statusLine.textContent = statusText;
-    responseOutput.textContent = details;
-    transportBadge.textContent = badge;
-};
-
-const updateExampleStatus = () => {
-    const parts: string[] = [];
-    if (exampleAssets.audioFile) {
-        parts.push(`audio=${exampleAssets.audioFile.name}`);
-    }
-    if (exampleAssets.standardLyricsText) {
-        parts.push('standard-lrc ready');
-    }
-    if (exampleAssets.enhancedLyricsText) {
-        parts.push('enhanced-lrc ready');
-    }
-    exampleStatus.textContent = parts.length > 0
-        ? `Example loaded: ${parts.join(', ')}`
-        : 'No example assets loaded.';
-};
-
-const fetchFixtureFile = async (fixturePath: string, fileName: string, mimeType: string) => {
-    const response = await fetch(fixturePath);
-    if (!response.ok) {
-        throw new Error(`Failed to load fixture: ${fixturePath} (${response.status})`);
-    }
-    const blob = await response.blob();
-    return new File([blob], fileName, { type: mimeType });
-};
-
-const applyExampleLyrics = (format: StageLyricsFormat) => {
-    lyricsTextInput.value = format === 'enhanced-lrc'
-        ? exampleAssets.enhancedLyricsText
-        : exampleAssets.standardLyricsText;
-    lyricsFileInput.value = '';
+const endpointDocs: Record<'health' | 'clear' | 'session', EndpointDoc> = {
+    health: {
+        method: 'GET',
+        path: '/stage/health',
+        auth: 'none',
+        purpose: '检查 Stage 服务是否可访问，并返回 enabled / port。',
+        payloadMode: 'none',
+    },
+    clear: {
+        method: 'DELETE',
+        path: '/stage/session',
+        auth: 'required',
+        purpose: '清空当前 Stage 会话。',
+        payloadMode: 'none',
+    },
+    session: {
+        method: 'POST',
+        path: '/stage/session',
+        auth: 'required',
+        purpose: '推送或替换当前 Stage 会话。',
+        payloadMode: 'json',
+    },
 };
 
 const getSelectedFile = (input: HTMLInputElement) => input.files?.[0] ?? null;
 
-const buildRequestInput = (): StageSessionRequestInput => {
-    const selectedAudioFile = getSelectedFile(audioFileInput);
-    const selectedLyricsFile = getSelectedFile(lyricsFileInput);
+const normalizeText = (value: string) => value.trim();
 
-    const useExampleAudioFile = !audioUrlInput.value.trim() && !selectedAudioFile
-        ? exampleAssets.audioFile
-        : null;
+const normalizeBaseUrl = (value: string) => normalizeText(value).replace(/\/+$/, '');
+
+const buildRequestInput = (): StageSessionRequestInput => ({
+    baseUrl: baseUrlInput.value,
+    token: tokenInput.value,
+    title: titleInput.value,
+    artist: artistInput.value,
+    album: albumInput.value,
+    coverUrl: coverUrlInput.value,
+    audioUrl: audioUrlInput.value,
+    lyricsText: lyricsTextInput.value,
+    lyricsFormat: lyricsFormatSelect.value as StageLyricsFormat | '',
+    audioFile: getSelectedFile(audioFileInput),
+    lyricsFile: getSelectedFile(lyricsFileInput),
+    coverFile: getSelectedFile(coverFileInput),
+});
+
+const describeFile = (file: File | null | undefined) => {
+    if (!file) {
+        return null;
+    }
+
+    return `${file.name} (${file.type || 'application/octet-stream'}, ${file.size} bytes)`;
+};
+
+const prettyJson = (value: unknown) => JSON.stringify(value, null, 2);
+
+const buildHealthPreview = (): PreviewDescriptor => {
+    const baseUrl = normalizeBaseUrl(baseUrlInput.value) || 'http://127.0.0.1:32107';
+    const url = `${baseUrl}/stage/health`;
 
     return {
-        baseUrl: baseUrlInput.value,
-        token: tokenInput.value,
-        title: titleInput.value,
-        artist: artistInput.value,
-        album: albumInput.value,
-        coverUrl: coverUrlInput.value,
-        audioUrl: audioUrlInput.value,
-        lyricsText: lyricsTextInput.value,
-        lyricsFormat: lyricsFormatSelect.value as StageLyricsFormat,
-        audioFile: selectedAudioFile ?? useExampleAudioFile,
-        lyricsFile: selectedLyricsFile,
-        coverFile: getSelectedFile(coverFileInput),
+        label: 'health',
+        requestText: [
+            '# Endpoint',
+            `${endpointDocs.health.method} ${endpointDocs.health.path}`,
+            '',
+            '# Purpose',
+            endpointDocs.health.purpose,
+            '',
+            '# Assembled request',
+            `curl ${JSON.stringify(url)}`,
+        ].join('\n'),
     };
 };
 
-const describeResponseBody = async (response: Response) => {
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-        return JSON.stringify(await response.json(), null, 2);
+// Build a readable preview so manual debugging does not require opening DevTools
+// to understand exactly which headers and payload Folia is receiving.
+const buildSessionPreview = (): PreviewDescriptor => {
+    const input = buildRequestInput();
+    const request = buildStageSessionRequest(input);
+    const headers = request.init.headers as Record<string, string> | undefined;
+    const lines = [
+        '# Endpoint',
+        `${endpointDocs.session.method} ${endpointDocs.session.path}`,
+        '',
+        '# Purpose',
+        endpointDocs.session.purpose,
+        '',
+        '# Transport',
+        request.transport,
+        '',
+        '# Headers',
+        prettyJson(headers || {}),
+    ];
+
+    if (request.transport === 'json') {
+        lines.push('', '# JSON body', String(request.init.body));
+    } else {
+        const formData = request.init.body as FormData;
+        const fields = Object.fromEntries(
+            Array.from(formData.entries()).map(([key, value]) => [
+                key,
+                value instanceof File
+                    ? {
+                        fileName: value.name,
+                        type: value.type || 'application/octet-stream',
+                        size: value.size,
+                    }
+                    : value,
+            ]),
+        );
+        lines.push('', '# Multipart fields', prettyJson(fields));
     }
-    return await response.text();
+
+    return {
+        label: request.transport,
+        requestText: lines.join('\n'),
+    };
 };
 
-const executeRequest = async (endpoint: string, init: RequestInit, badge: string) => {
-    setResponseState(`Sending ${init.method || 'POST'} request to ${endpoint}`, '', badge);
-    const response = await fetch(endpoint, init);
-    const bodyText = await describeResponseBody(response);
-    setResponseState(
-        `${response.status} ${response.statusText}`,
+const buildClearPreview = (): PreviewDescriptor => {
+    const request = buildStageClearRequest(baseUrlInput.value, tokenInput.value);
+    const headers = request.init.headers as Record<string, string> | undefined;
+
+    return {
+        label: 'delete',
+        requestText: [
+            '# Endpoint',
+            `${endpointDocs.clear.method} ${endpointDocs.clear.path}`,
+            '',
+            '# Purpose',
+            endpointDocs.clear.purpose,
+            '',
+            '# Headers',
+            prettyJson(headers || {}),
+        ].join('\n'),
+    };
+};
+
+const setResponseState = (target: keyof typeof responseViews, statusText: string, details: string) => {
+    responseViews[target].statusEl.textContent = statusText;
+    responseViews[target].bodyEl.textContent = details;
+};
+
+const describeAxiosResponse = (response: AxiosResponse) => {
+    const contentType = String(response.headers['content-type'] || '');
+    const bodyText =
+        typeof response.data === 'string'
+            ? response.data
+            : contentType.includes('application/json')
+                ? prettyJson(response.data)
+                : prettyJson(response.data);
+
+    return [
+        `status: ${response.status} ${response.statusText}`,
+        '',
+        '# headers',
+        prettyJson(response.headers),
+        '',
+        '# body',
         bodyText || '(empty response body)',
-        badge,
-    );
+    ].join('\n');
 };
 
-loadExampleButton.addEventListener('click', async () => {
-    loadExampleButton.disabled = true;
-    setResponseState('Loading example assets...', '', 'example');
+const describeAxiosError = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError;
+        if (axiosError.response) {
+            return describeAxiosResponse(axiosError.response);
+        }
+
+        return [
+            `axios error: ${axiosError.message}`,
+            '',
+            '# request',
+            prettyJson({
+                code: axiosError.code || null,
+                method: axiosError.config?.method || null,
+                url: axiosError.config?.url || null,
+            }),
+        ].join('\n');
+    }
+
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return String(error);
+};
+
+const createAxiosConfig = (request: ReturnType<typeof buildStageSessionRequest> | ReturnType<typeof buildStageClearRequest> | {
+    endpoint: string;
+    init: RequestInit;
+}) => {
+    const headers = { ...(request.init.headers as Record<string, string> | undefined) };
+    const config: AxiosRequestConfig = {
+        url: request.endpoint,
+        method: (request.init.method || 'GET') as AxiosRequestConfig['method'],
+        headers,
+        data: request.init.body,
+        validateStatus: () => true,
+    };
+
+    if (request.init.body instanceof FormData) {
+        delete headers['Content-Type'];
+    }
+
+    return config;
+};
+
+const updatePreviews = () => {
+    const healthPreview = buildHealthPreview();
+    healthRequestPreview.textContent = healthPreview.requestText;
 
     try {
-        const [audioFile, standardLyricsText, enhancedLyricsText] = await Promise.all([
-            fetchFixtureFile(demoAudioFixtureUrl, 'stage-demo-tone.wav', 'audio/wav'),
-            Promise.resolve(standardLyricsFixture),
-            Promise.resolve(enhancedLyricsFixture),
-        ]);
-
-        exampleAssets = {
-            audioFile,
-            standardLyricsText,
-            enhancedLyricsText,
-        };
-
-        titleInput.value = 'Stage Demo Tone';
-        artistInput.value = 'Folia Manual Client';
-        albumInput.value = 'Stage Fixtures';
-        audioUrlInput.value = '';
-        applyExampleLyrics(lyricsFormatSelect.value as StageLyricsFormat);
-        updateExampleStatus();
-        setResponseState(
-            'Example assets loaded.',
-            'Bundled demo audio is now attached automatically unless you choose your own audio URL or file.',
-            'example',
-        );
+        const clearPreview = buildClearPreview();
+        clearRequestPreview.textContent = clearPreview.requestText;
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setResponseState('Failed to load example assets.', message, 'error');
-    } finally {
-        loadExampleButton.disabled = false;
+        clearRequestPreview.textContent = `# Validation error\n${describeAxiosError(error)}`;
     }
+
+    try {
+        const sessionPreview = buildSessionPreview();
+        sessionRequestPreview.textContent = sessionPreview.requestText;
+    } catch (error) {
+        sessionRequestPreview.textContent = `# Validation error\n${describeAxiosError(error)}`;
+    }
+};
+
+const executeRequest = async (
+    target: keyof typeof responseViews,
+    requestFactory: () => ReturnType<typeof buildStageClearRequest> | ReturnType<typeof buildStageSessionRequest> | {
+        endpoint: string;
+        init: RequestInit;
+    },
+) => {
+    try {
+        const request = requestFactory();
+        setResponseState(target, `Sending ${request.init.method || 'GET'} ${request.endpoint}`, '');
+        const response = await axios.request(createAxiosConfig(request));
+        setResponseState(target, `${response.status} ${response.statusText}`, describeAxiosResponse(response));
+    } catch (error) {
+        setResponseState(target, 'Request failed.', describeAxiosError(error));
+    }
+};
+
+const connectInputEvents = (elements: HTMLElement[]) => {
+    for (const element of elements) {
+        element.addEventListener('input', updatePreviews);
+        element.addEventListener('change', updatePreviews);
+    }
+};
+
+testHealthButton.addEventListener('click', async () => {
+    const baseUrl = normalizeBaseUrl(baseUrlInput.value);
+    await executeRequest('health', () => ({
+        endpoint: `${baseUrl || 'http://127.0.0.1:32107'}/stage/health`,
+        init: {
+            method: 'GET',
+        },
+    }));
 });
 
-lyricsFormatSelect.addEventListener('change', () => {
-    if (exampleAssets.standardLyricsText || exampleAssets.enhancedLyricsText) {
-        applyExampleLyrics(lyricsFormatSelect.value as StageLyricsFormat);
-        updateExampleStatus();
-    }
+clearSessionButton.addEventListener('click', async () => {
+    await executeRequest('clear', () => buildStageClearRequest(baseUrlInput.value, tokenInput.value));
 });
 
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const input = buildRequestInput();
-
-    try {
-        const request = buildStageSessionRequest(input);
-        await executeRequest(request.endpoint, request.init, request.transport);
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setResponseState('Request blocked before sending.', message, 'validation');
-    }
+    await executeRequest('session', () => buildStageSessionRequest(buildRequestInput()));
 });
 
-clearSessionButton.addEventListener('click', async () => {
-    try {
-        const request = buildStageClearRequest(baseUrlInput.value, tokenInput.value);
-        await executeRequest(request.endpoint, request.init, 'delete');
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setResponseState('Clear request blocked before sending.', message, 'validation');
-    }
-});
+connectInputEvents([
+    baseUrlInput,
+    tokenInput,
+    titleInput,
+    artistInput,
+    albumInput,
+    coverUrlInput,
+    coverFileInput,
+    audioUrlInput,
+    audioFileInput,
+    lyricsFormatSelect,
+    lyricsFileInput,
+    lyricsTextInput,
+]);
 
-updateExampleStatus();
-setResponseState(
-    'Ready.',
-    'Fill the token, choose audio and lyrics, then push a Stage session into Folia.',
-    'idle',
-);
+const initializeEmptyState = () => {
+    setResponseState('health', 'No request sent yet.', 'Click Test Health to inspect the backend response.');
+    setResponseState('clear', 'No request sent yet.', 'Click Clear Session to inspect the backend response.');
+    setResponseState('session', 'No request sent yet.', 'Click Push Session to inspect the backend response.');
+};
+
+initializeEmptyState();
+updatePreviews();

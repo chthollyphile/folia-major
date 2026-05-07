@@ -18,6 +18,6 @@ export class LocalFileLyricAdapter implements LyricAdapter<RawLocalFileLyric> {
             transLrc = trans;
         }
 
-        return await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, transLrc, options);
+        return await parseLyricsAsync(source.formatHint || detectTimedLyricFormat(mainLrc), mainLrc, transLrc, options);
     }
 }

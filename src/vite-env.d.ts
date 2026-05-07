@@ -73,8 +73,8 @@ declare global {
     audioSrc: string;
     audioMimeType?: string;
     coverMimeType?: string;
-    lyricsText: string;
-    lyricsFormat: 'lrc' | 'enhanced-lrc';
+    lyricsText?: string | null;
+    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
     updatedAt: number;
   }
 

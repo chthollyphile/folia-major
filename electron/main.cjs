@@ -1,9 +1,9 @@
 const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage } = require('electron');
 const path = require('path');
-const http = require('http');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
+const { createStageApi } = require('./stageApi.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
   process.platform === 'linux' &&
@@ -62,6 +62,16 @@ const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
       next: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'next.png')).resize({ width: 16, height: 16, quality: 'best' }),
     }
   : null;
+
+const stageApi = createStageApi({
+  app,
+  store,
+  getMainWindow: () => mainWindow,
+  stageModeEnabledSettingKey: STAGE_MODE_ENABLED_SETTING_KEY,
+  stageApiTokenSettingKey: STAGE_API_TOKEN_SETTING_KEY,
+  stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
+  defaultStageApiPort: DEFAULT_STAGE_API_PORT,
+});
 
 function getStoredWindowState() {
   const storedBounds = store.get('WINDOW_BOUNDS');
@@ -1248,391 +1258,6 @@ const { serveNcmApi } = require('@neteasecloudmusicapienhanced/api/server');
 
 const net = require('net');
 let assignedPort = 30000; // default fallback
-let stageServer = null;
-let stageSession = null;
-
-function getConfiguredStagePort() {
-  const storedPort = Number(store.get(STAGE_API_PORT_SETTING_KEY));
-  return Number.isInteger(storedPort) && storedPort > 0 ? storedPort : DEFAULT_STAGE_API_PORT;
-}
-
-function isStageEnabled() {
-  return Boolean(store.get(STAGE_MODE_ENABLED_SETTING_KEY));
-}
-
-function getStageToken({ generateIfMissing = false } = {}) {
-  const existing = store.get(STAGE_API_TOKEN_SETTING_KEY);
-  if (typeof existing === 'string' && existing.trim().length > 0) {
-    return existing;
-  }
-
-  if (!generateIfMissing) {
-    return null;
-  }
-
-  const nextToken = crypto.randomBytes(32).toString('base64url');
-  store.set(STAGE_API_TOKEN_SETTING_KEY, nextToken);
-  return nextToken;
-}
-
-function getStageStorageDirectory() {
-  return path.join(app.getPath('userData'), 'stage', 'current');
-}
-
-function getStageMediaPath(kind) {
-  const baseDirectory = getStageStorageDirectory();
-  switch (kind) {
-    case 'audio':
-      return path.join(baseDirectory, 'audio.bin');
-    case 'cover':
-      return path.join(baseDirectory, 'cover.bin');
-    default:
-      throw new Error(`Unknown stage media kind: ${kind}`);
-  }
-}
-
-function buildStageMediaUrl(kind) {
-  return `http://127.0.0.1:${getConfiguredStagePort()}/stage/media/current/${kind}`;
-}
-
-function buildStageStatus() {
-  return {
-    enabled: isStageEnabled(),
-    port: getConfiguredStagePort(),
-    token: getStageToken(),
-    hasSession: Boolean(stageSession),
-    session: stageSession,
-  };
-}
-
-function broadcastStageEvent(channel) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.webContents.send(channel, buildStageStatus());
-}
-
-async function ensureStageStorageDirectory() {
-  await fsp.mkdir(getStageStorageDirectory(), { recursive: true });
-}
-
-async function clearStageStorageDirectory() {
-  try {
-    await fsp.rm(getStageStorageDirectory(), { recursive: true, force: true });
-  } catch (error) {
-    console.warn('[Stage] Failed to clear stage storage directory', error);
-  }
-}
-
-async function clearStageSessionData() {
-  stageSession = null;
-  await clearStageStorageDirectory();
-  return buildStageStatus();
-}
-
-function sendStageJson(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  });
-  res.end(body);
-}
-
-function sendStageBinary(res, statusCode, buffer, mimeType) {
-  res.writeHead(statusCode, {
-    'Content-Type': mimeType || 'application/octet-stream',
-    'Content-Length': buffer.length,
-    'Access-Control-Allow-Origin': '*',
-  });
-  res.end(buffer);
-}
-
-function matchesStageBearerToken(req) {
-  const header = req.headers.authorization || '';
-  const token = getStageToken();
-  return Boolean(token && header === `Bearer ${token}`);
-}
-
-function readRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
-
-function parseMultipartParts(buffer, contentType) {
-  const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || '');
-  if (!boundaryMatch) {
-    throw new Error('Missing multipart boundary.');
-  }
-
-  const boundary = `--${boundaryMatch[1] || boundaryMatch[2]}`;
-  const latin1 = buffer.toString('latin1');
-  const segments = latin1.split(boundary).slice(1, -1);
-  const fields = {};
-  const files = {};
-
-  for (const segment of segments) {
-    const normalized = segment.replace(/^\r\n/, '').replace(/\r\n$/, '');
-    if (!normalized) {
-      continue;
-    }
-
-    const separatorIndex = normalized.indexOf('\r\n\r\n');
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const rawHeaders = normalized.slice(0, separatorIndex).split('\r\n');
-    let bodyText = normalized.slice(separatorIndex + 4);
-    if (bodyText.endsWith('\r\n')) {
-      bodyText = bodyText.slice(0, -2);
-    }
-
-    const headers = {};
-    for (const headerLine of rawHeaders) {
-      const colonIndex = headerLine.indexOf(':');
-      if (colonIndex === -1) continue;
-      const headerName = headerLine.slice(0, colonIndex).trim().toLowerCase();
-      headers[headerName] = headerLine.slice(colonIndex + 1).trim();
-    }
-
-    const disposition = headers['content-disposition'] || '';
-    const nameMatch = /name="([^"]+)"/i.exec(disposition);
-    if (!nameMatch) {
-      continue;
-    }
-
-    const fieldName = nameMatch[1];
-    const fileNameMatch = /filename="([^"]*)"/i.exec(disposition);
-
-    if (fileNameMatch) {
-      files[fieldName] = {
-        fileName: path.basename(fileNameMatch[1]),
-        contentType: headers['content-type'] || 'application/octet-stream',
-        buffer: Buffer.from(bodyText, 'latin1'),
-      };
-    } else {
-      fields[fieldName] = bodyText;
-    }
-  }
-
-  return { fields, files };
-}
-
-function parseStagePayloadFromJson(buffer) {
-  const raw = buffer.toString('utf-8') || '{}';
-  const payload = JSON.parse(raw);
-  return {
-    fields: {
-      title: typeof payload.title === 'string' ? payload.title : '',
-      artist: typeof payload.artist === 'string' ? payload.artist : '',
-      album: typeof payload.album === 'string' ? payload.album : '',
-      coverUrl: typeof payload.coverUrl === 'string' ? payload.coverUrl : '',
-      audioUrl: typeof payload.audioUrl === 'string' ? payload.audioUrl : '',
-      lyricsText: typeof payload.lyricsText === 'string' ? payload.lyricsText : '',
-      lyricsFormat: typeof payload.lyricsFormat === 'string' ? payload.lyricsFormat : '',
-    },
-    files: {},
-  };
-}
-
-function normalizeStageText(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-async function createStageSessionFromPayload(parsedPayload) {
-  const fields = parsedPayload.fields || {};
-  const files = parsedPayload.files || {};
-  const title = normalizeStageText(fields.title);
-  const artist = normalizeStageText(fields.artist);
-  const album = normalizeStageText(fields.album);
-  const coverUrl = normalizeStageText(fields.coverUrl);
-  const audioUrl = normalizeStageText(fields.audioUrl);
-  const lyricsText = normalizeStageText(fields.lyricsText);
-  const lyricsFormat = normalizeStageText(fields.lyricsFormat);
-  const audioFile = files.audioFile || null;
-  const lyricsFile = files.lyricsFile || null;
-  const coverFile = files.coverFile || null;
-
-  if (lyricsFormat !== 'lrc' && lyricsFormat !== 'enhanced-lrc') {
-    throw new Error('lyricsFormat must be lrc or enhanced-lrc.');
-  }
-
-  if ((!audioUrl && !audioFile) || (audioUrl && audioFile)) {
-    throw new Error('Provide either audioUrl or audioFile.');
-  }
-
-  if ((!lyricsText && !lyricsFile) || (lyricsText && lyricsFile)) {
-    throw new Error('Provide either lyricsText or lyricsFile.');
-  }
-
-  await clearStageStorageDirectory();
-  await ensureStageStorageDirectory();
-
-  let resolvedAudioSrc = audioUrl || '';
-  let resolvedCoverUrl = coverUrl || null;
-  let resolvedLyricsText = lyricsText;
-
-  if (audioFile) {
-    await fsp.writeFile(getStageMediaPath('audio'), audioFile.buffer);
-    resolvedAudioSrc = buildStageMediaUrl('audio');
-  }
-
-  if (coverFile) {
-    await fsp.writeFile(getStageMediaPath('cover'), coverFile.buffer);
-    resolvedCoverUrl = buildStageMediaUrl('cover');
-  }
-
-  if (lyricsFile) {
-    resolvedLyricsText = lyricsFile.buffer.toString('utf-8').trim();
-  }
-
-  return {
-    id: `stage-${Date.now()}`,
-    title: title || 'Stage Session',
-    artist: artist || 'Stage',
-    album: album || '',
-    coverUrl: resolvedCoverUrl,
-    coverArtUrl: resolvedCoverUrl,
-    audioUrl: audioUrl || null,
-    audioSrc: resolvedAudioSrc,
-    audioMimeType: audioFile?.contentType || undefined,
-    coverMimeType: coverFile?.contentType || undefined,
-    lyricsText: resolvedLyricsText,
-    lyricsFormat,
-    updatedAt: Date.now(),
-  };
-}
-
-async function handleStageHttpRequest(req, res) {
-  const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
-  const pathname = requestUrl.pathname;
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    });
-    res.end();
-    return;
-  }
-
-  if (pathname === '/stage/health' && req.method === 'GET') {
-    sendStageJson(res, 200, {
-      enabled: isStageEnabled(),
-      port: getConfiguredStagePort(),
-    });
-    return;
-  }
-
-  if (!isStageEnabled()) {
-    sendStageJson(res, 503, { error: 'Stage mode is disabled.' });
-    return;
-  }
-
-  if (pathname === '/stage/media/current/audio' && req.method === 'GET') {
-    if (!stageSession?.audioSrc || !stageSession.audioSrc.endsWith('/stage/media/current/audio')) {
-      sendStageJson(res, 404, { error: 'No uploaded stage audio is available.' });
-      return;
-    }
-
-    const buffer = await fsp.readFile(getStageMediaPath('audio'));
-    sendStageBinary(res, 200, buffer, stageSession.audioMimeType || 'application/octet-stream');
-    return;
-  }
-
-  if (pathname === '/stage/media/current/cover' && req.method === 'GET') {
-    if (!stageSession?.coverArtUrl || !stageSession.coverArtUrl.endsWith('/stage/media/current/cover')) {
-      sendStageJson(res, 404, { error: 'No uploaded stage cover is available.' });
-      return;
-    }
-
-    const buffer = await fsp.readFile(getStageMediaPath('cover'));
-    sendStageBinary(res, 200, buffer, stageSession.coverMimeType || 'application/octet-stream');
-    return;
-  }
-
-  if (!matchesStageBearerToken(req)) {
-    sendStageJson(res, 401, { error: 'Unauthorized.' });
-    return;
-  }
-
-  if (pathname === '/stage/session' && req.method === 'DELETE') {
-    await clearStageSessionData();
-    broadcastStageEvent('stage-session-cleared');
-    sendStageJson(res, 200, buildStageStatus());
-    return;
-  }
-
-  if (pathname === '/stage/session' && req.method === 'POST') {
-    const requestBody = await readRequestBody(req);
-    const contentType = req.headers['content-type'] || '';
-    const parsedPayload = contentType.includes('multipart/form-data')
-      ? parseMultipartParts(requestBody, contentType)
-      : parseStagePayloadFromJson(requestBody);
-
-    const nextSession = await createStageSessionFromPayload(parsedPayload);
-    stageSession = nextSession;
-    broadcastStageEvent('stage-session-updated');
-    sendStageJson(res, 200, buildStageStatus());
-    return;
-  }
-
-  sendStageJson(res, 404, { error: 'Not found.' });
-}
-
-async function stopStageServer() {
-  if (!stageServer) {
-    return;
-  }
-
-  await new Promise((resolve, reject) => {
-    stageServer.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
-
-  stageServer = null;
-}
-
-async function startStageServerIfNeeded() {
-  if (!isStageEnabled() || stageServer) {
-    return;
-  }
-
-  getStageToken({ generateIfMissing: true });
-  await ensureStageStorageDirectory();
-
-  stageServer = http.createServer((req, res) => {
-    handleStageHttpRequest(req, res).catch((error) => {
-      console.error('[Stage] Request handling failed', error);
-      sendStageJson(res, 500, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  });
-
-  await new Promise((resolve, reject) => {
-    stageServer.once('error', reject);
-    stageServer.listen(getConfiguredStagePort(), '127.0.0.1', () => {
-      stageServer.off('error', reject);
-      resolve();
-    });
-  });
-}
 
 async function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -1725,7 +1350,7 @@ app.whenReady().then(async () => {
   setupAutoUpdater();
   await startApi();
   try {
-    await startStageServerIfNeeded();
+    await stageApi.startStageServerIfNeeded();
   } catch (error) {
     console.error('[Stage] Failed to start stage server during app startup', error);
   }
@@ -1933,42 +1558,19 @@ ipcMain.handle('window-is-maximized', () => {
 });
 
 ipcMain.handle('stage-get-status', () => {
-  return buildStageStatus();
+  return stageApi.buildStageStatus();
 });
 
 ipcMain.handle('stage-set-enabled', async (_event, enabled) => {
-  const nextEnabled = Boolean(enabled);
-  store.set(STAGE_MODE_ENABLED_SETTING_KEY, nextEnabled);
-
-  if (nextEnabled) {
-    getStageToken({ generateIfMissing: true });
-    await startStageServerIfNeeded();
-  } else {
-    await stopStageServer();
-  }
-
-  const status = buildStageStatus();
-  broadcastStageEvent('stage-session-updated');
-  return status;
+  return stageApi.setStageEnabled(enabled);
 });
 
 ipcMain.handle('stage-regenerate-token', async () => {
-  const nextToken = crypto.randomBytes(32).toString('base64url');
-  store.set(STAGE_API_TOKEN_SETTING_KEY, nextToken);
-
-  if (isStageEnabled()) {
-    await startStageServerIfNeeded();
-  }
-
-  const status = buildStageStatus();
-  broadcastStageEvent('stage-session-updated');
-  return status;
+  return stageApi.regenerateStageToken();
 });
 
 ipcMain.handle('stage-clear-session', async () => {
-  const status = await clearStageSessionData();
-  broadcastStageEvent('stage-session-cleared');
-  return status;
+  return stageApi.clearStageSession();
 });
 
 ipcMain.handle('thumbar-update-buttons', (event, state) => {
