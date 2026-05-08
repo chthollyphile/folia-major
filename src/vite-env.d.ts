@@ -67,6 +67,7 @@ declare global {
     title: string;
     artist: string;
     album?: string;
+    durationMs?: number | null;
     coverUrl?: string | null;
     coverArtUrl?: string | null;
     audioUrl?: string | null;
@@ -114,6 +115,14 @@ declare global {
       timeMs?: number;
       loopMode?: StageLoopMode;
     };
+  }
+
+  interface StagePlaybackReport {
+    sessionId: string;
+    playerState?: import('./types').PlayerState;
+    currentTimeMs?: number;
+    durationMs?: number;
+    errorMessage?: string | null;
   }
 
   interface StageControllerPolicy {
@@ -176,6 +185,7 @@ declare global {
       connectStageRealtime: () => Promise<StageConnectionState>;
       disconnectStageRealtime: () => Promise<StageConnectionState>;
       sendStageControlRequest: (request: StageControlRequest) => Promise<boolean>;
+      reportStagePlaybackState: (report: StagePlaybackReport) => Promise<StageStatus>;
       onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
       onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
       onStageRealtimeState: (callback: (state: StageRealtimeState | null) => void) => () => void;

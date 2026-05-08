@@ -9,6 +9,8 @@ export interface StageControllerClock {
     baseCurrentTimeMs: number;
     baseWallClockMs: number;
     durationMs: number;
+    loopMode: StageLoopMode;
+    trackCount: number;
     revision: number;
 }
 
@@ -27,6 +29,8 @@ export const createStageControllerClock = (): StageControllerClock => ({
     baseCurrentTimeMs: 0,
     baseWallClockMs: Date.now(),
     durationMs: 0,
+    loopMode: 'off',
+    trackCount: 0,
     revision: 0,
 });
 
@@ -42,8 +46,13 @@ export const syncControllerClockFromState = (
     baseCurrentTimeMs: clampTimeMs(state.currentTimeMs, state.durationMs),
     baseWallClockMs: now,
     durationMs: Math.max(0, Math.floor(state.durationMs || 0)),
+    loopMode: state.loopMode,
+    trackCount: state.tracks.length,
     revision: Math.max(clock.revision, state.revision),
 });
+
+const shouldWrapClockTime = (clock: StageControllerClock) =>
+    clock.durationMs > 0 && (clock.loopMode === 'one' || (clock.loopMode === 'all' && clock.trackCount <= 1));
 
 export const getControllerClockTimeMs = (
     clock: StageControllerClock,
@@ -54,7 +63,14 @@ export const getControllerClockTimeMs = (
     }
 
     const elapsedMs = Math.max(0, now - clock.baseWallClockMs);
-    return clampTimeMs(clock.baseCurrentTimeMs + elapsedMs, clock.durationMs);
+    const rawTimeMs = clock.baseCurrentTimeMs + elapsedMs;
+    if (shouldWrapClockTime(clock)) {
+        return rawTimeMs >= clock.durationMs
+            ? rawTimeMs % clock.durationMs
+            : rawTimeMs;
+    }
+
+    return clampTimeMs(rawTimeMs, clock.durationMs);
 };
 
 export const formatControllerClockStatus = (clock: StageControllerClock, now = Date.now()) =>

@@ -1597,6 +1597,14 @@ ipcMain.handle('stage-send-control-request', (event, request) => {
   return stageApi.sendControlRequestFromPlayer(event.sender, request);
 });
 
+ipcMain.handle('stage-report-playback-state', (event, report) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to report Stage playback state.');
+  }
+
+  return stageApi.reportRealtimePlayerState(event.sender, report);
+});
+
 ipcMain.handle('thumbar-update-buttons', (event, state) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to update taskbar controls.');

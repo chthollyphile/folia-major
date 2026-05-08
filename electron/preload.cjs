@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('electron', {
     connectStageRealtime: () => ipcRenderer.invoke('stage-connect-realtime'),
     disconnectStageRealtime: () => ipcRenderer.invoke('stage-disconnect-realtime'),
     sendStageControlRequest: (request) => ipcRenderer.invoke('stage-send-control-request', request),
+    reportStagePlaybackState: (report) => ipcRenderer.invoke('stage-report-playback-state', report),
     onStageSessionUpdated: (callback) => {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('stage-session-updated', listener);

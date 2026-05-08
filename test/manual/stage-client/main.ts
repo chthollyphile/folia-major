@@ -20,7 +20,7 @@ import {
     getControllerClockTimeMs,
     syncControllerClockFromState,
 } from './controllerClock';
-import type { EventLogEntry, ManagedInstance, ResponseTarget } from './types';
+import type { EventLogEntry, ManagedInstance, PlaylistTrackDraft, ResponseTarget } from './types';
 import './style.css';
 
 // Manual Stage controller console for testing the latest HTTP + WS protocol against one or many Electron Folia instances.
@@ -47,6 +47,19 @@ const upsertInstanceButton = getInput<HTMLButtonElement>('upsert-instance');
 const connectSelectedButton = getInput<HTMLButtonElement>('connect-selected');
 const disconnectSelectedButton = getInput<HTMLButtonElement>('disconnect-selected');
 const instanceList = getInput<HTMLDivElement>('instance-list');
+const playlistAudioFilesInput = getInput<HTMLInputElement>('playlist-audio-files');
+const playlistAddDraftButton = getInput<HTMLButtonElement>('playlist-add-draft');
+const playlistClearButton = getInput<HTMLButtonElement>('playlist-clear');
+const playlistList = getInput<HTMLDivElement>('playlist-list');
+const playerProgressInput = getInput<HTMLInputElement>('player-progress');
+const playerProgressLabelCurrent = getInput<HTMLSpanElement>('player-progress-label-current');
+const playerProgressLabelDuration = getInput<HTMLSpanElement>('player-progress-label-duration');
+const currentTrackTitle = getInput<HTMLHeadingElement>('current-track-title');
+const currentTrackMeta = getInput<HTMLParagraphElement>('current-track-meta');
+const currentTrackOrigin = getInput<HTMLParagraphElement>('current-track-origin');
+const currentTrackStatus = getInput<HTMLDivElement>('current-track-status');
+const playerSyncFromFoliaButton = getInput<HTMLButtonElement>('player-sync-from-folia');
+const playerPushActiveButton = getInput<HTMLButtonElement>('player-push-active');
 
 const titleInput = getInput<HTMLInputElement>('title');
 const artistInput = getInput<HTMLInputElement>('artist');
@@ -116,12 +129,22 @@ let lastKnownRealtimeState: StageRealtimeState | null = null;
 let lastKnownRevision = 0;
 let currentDraftInstanceId: string | null = null;
 let controllerClock = createStageControllerClock();
+let playlistTracks: PlaylistTrackDraft[] = [];
+let activePlaylistTrackId: string | null = null;
+let lastFoliaSourceLabel = '';
+let isPlayerProgressDragging = false;
 
 const getSelectedFile = (input: HTMLInputElement) => input.files?.[0] ?? null;
 const normalizeText = (value: string) => value.trim();
 const normalizeBaseUrl = (value: string) => normalizeText(value).replace(/\/+$/, '');
 const prettyJson = (value: unknown) => JSON.stringify(value, null, 2);
 const nowStamp = () => new Date().toLocaleTimeString();
+const formatDurationLabel = (timeMs: number) => {
+    const totalSeconds = Math.max(0, Math.floor((timeMs || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
 
 const escapeHtml = (value: string) =>
     value
@@ -260,6 +283,7 @@ const renderControllerClockStatus = () => {
 const refreshRealtimeTimeFromClock = () => {
     if (!lastKnownRealtimeState || controllerClock.playerState !== 'PLAYING') {
         renderControllerClockStatus();
+        renderCurrentTrackPanel();
         return;
     }
 
@@ -269,6 +293,7 @@ const refreshRealtimeTimeFromClock = () => {
         realtimeCurrentTimeMsInput.value = String(nextTimeMs);
     }
     renderControllerClockStatus();
+    renderCurrentTrackPanel();
     updatePreviews();
 };
 
@@ -313,6 +338,52 @@ const buildSingleTrackFromInputs = (): StageTrack => ({
         : null,
 });
 
+const createPlaylistTrackFromDraft = (): PlaylistTrackDraft => ({
+    id: crypto.randomUUID(),
+    title: normalizeText(titleInput.value) || normalizeText(realtimeTrackTitleInput.value) || 'Stage Track',
+    artist: normalizeText(artistInput.value) || normalizeText(realtimeTrackArtistInput.value),
+    album: normalizeText(albumInput.value) || normalizeText(realtimeTrackAlbumInput.value),
+    coverUrl: normalizeText(coverUrlInput.value) || normalizeText(realtimeTrackCoverUrlInput.value) || null,
+    audioUrl: normalizeText(audioUrlInput.value) || null,
+    audioFile: getSelectedFile(audioFileInput),
+    lyricsText: normalizeText(lyricsTextInput.value) || null,
+    lyricsFormat: (normalizeText(lyricsFormatSelect.value) || null) as PlaylistTrackDraft['lyricsFormat'],
+    durationMs: Number.isFinite(Number(realtimeDurationMsInput.value))
+        ? Math.max(0, Math.floor(Number(realtimeDurationMsInput.value)))
+        : null,
+    foliaSessionId: null,
+    foliaDurationMs: null,
+});
+
+const createPlaylistTracksFromAudioFiles = (files: File[]) => files.map<PlaylistTrackDraft>((file) => ({
+    id: crypto.randomUUID(),
+    title: file.name.replace(/\.[^.]+$/, ''),
+    artist: '',
+    album: '',
+    coverUrl: null,
+    audioUrl: null,
+    audioFile: file,
+    lyricsText: null,
+    lyricsFormat: null,
+    durationMs: null,
+    foliaSessionId: null,
+    foliaDurationMs: null,
+}));
+
+const resolveActivePlaylistTrack = () =>
+    playlistTracks.find((track) => track.id === activePlaylistTrackId)
+    || playlistTracks[0]
+    || null;
+
+const buildRealtimeTracksFromPlaylist = (): StageTrack[] => playlistTracks.map((track) => ({
+    trackId: track.id,
+    title: track.title || 'Stage Track',
+    artist: track.artist,
+    album: track.album,
+    coverUrl: track.coverUrl,
+    durationMs: track.foliaDurationMs ?? track.durationMs,
+}));
+
 const syncTrackFieldsFromTrack = (track: StageTrack | null | undefined) => {
     realtimeTrackTitleInput.value = track?.title || '';
     realtimeTrackArtistInput.value = track?.artist || '';
@@ -321,6 +392,65 @@ const syncTrackFieldsFromTrack = (track: StageTrack | null | undefined) => {
     if (track?.durationMs != null && !Number.isNaN(track.durationMs)) {
         realtimeDurationMsInput.value = String(track.durationMs);
     }
+};
+
+const buildPlaylistCard = (track: PlaylistTrackDraft, index: number, isActive: boolean) => `
+    <article class="playlist-card ${isActive ? 'playlist-card-active' : ''}">
+        <div class="playlist-card-head">
+            <div>
+                <p class="playlist-track-title">${escapeHtml(track.title || `Track ${index + 1}`)}</p>
+                <p class="playlist-track-meta">${escapeHtml([
+                    track.artist || 'Unknown artist',
+                    track.album || 'Unknown album',
+                    track.audioFile?.name || track.audioUrl || 'No source',
+                ].join(' · '))}</p>
+            </div>
+            <span class="status-pill ${isActive ? 'status-connected' : 'status-disconnected'}">${isActive ? 'active' : `#${index + 1}`}</span>
+        </div>
+        <div class="button-row button-row-wrap compact-row">
+            <button type="button" class="mini-button secondary" data-action="activate-playlist-track" data-track-id="${escapeHtml(track.id)}">Activate</button>
+            <button type="button" class="mini-button secondary" data-action="push-playlist-track" data-track-id="${escapeHtml(track.id)}">Push</button>
+            <button type="button" class="mini-button danger" data-action="remove-playlist-track" data-track-id="${escapeHtml(track.id)}">Remove</button>
+        </div>
+    </article>
+`;
+
+const renderPlaylist = () => {
+    if (playlistTracks.length === 0) {
+        playlistList.innerHTML = '<div class="playlist-empty">No playlist tracks yet. Import multiple audio files or add the current draft.</div>';
+        return;
+    }
+
+    playlistList.innerHTML = playlistTracks
+        .map((track, index) => buildPlaylistCard(track, index, track.id === activePlaylistTrackId))
+        .join('');
+};
+
+const renderCurrentTrackPanel = () => {
+    const activeTrack = resolveActivePlaylistTrack();
+    const realtimeState = lastKnownRealtimeState;
+    const currentTrack = realtimeState?.tracks.find((track) => track.trackId === realtimeState.currentTrackId) || null;
+    const title = currentTrack?.title || activeTrack?.title || 'No track selected';
+    const meta = [currentTrack?.artist || activeTrack?.artist || '', currentTrack?.album || activeTrack?.album || '']
+        .filter(Boolean)
+        .join(' · ');
+    const currentTimeMs = realtimeState?.currentTimeMs ?? 0;
+    const durationMs = realtimeState?.durationMs ?? currentTrack?.durationMs ?? activeTrack?.foliaDurationMs ?? activeTrack?.durationMs ?? 0;
+
+    currentTrackTitle.textContent = title;
+    currentTrackMeta.textContent = meta || '等待播放列表或 Folia session metadata';
+    currentTrackOrigin.textContent = realtimeState
+        ? `Current trackId: ${realtimeState.currentTrackId || '(none)'} · Revision ${realtimeState.revision}${lastFoliaSourceLabel ? ` · ${lastFoliaSourceLabel}` : ''}`
+        : '尚未收到来自 Folia 的 stage_state';
+    currentTrackStatus.textContent = realtimeState
+        ? `${realtimeState.playerState} · loop ${realtimeState.loopMode} · ${currentTimeMs}ms / ${durationMs}ms`
+        : 'Player idle.';
+    playerProgressInput.max = String(Math.max(durationMs, 0));
+    if (!isPlayerProgressDragging) {
+        playerProgressInput.value = String(Math.min(currentTimeMs, Math.max(durationMs, 0)));
+        playerProgressLabelCurrent.textContent = formatDurationLabel(currentTimeMs);
+    }
+    playerProgressLabelDuration.textContent = formatDurationLabel(durationMs);
 };
 
 const syncSessionFieldsFromPayload = (session: {
@@ -362,29 +492,53 @@ const syncSessionFieldsFromPayload = (session: {
 
     if (typeof session.id === 'string' && session.id.trim()) {
         realtimeSessionIdInput.value = session.id;
-        realtimeCurrentTrackIdInput.value = session.id;
     }
 
     if (Number.isFinite(session.durationMs) && Number(session.durationMs) > 0) {
         realtimeDurationMsInput.value = String(Math.floor(Number(session.durationMs)));
     }
 
+    const activeTrack = resolveActivePlaylistTrack();
+    if (activeTrack) {
+        activeTrack.foliaSessionId = typeof session.id === 'string' ? session.id : activeTrack.foliaSessionId;
+        activeTrack.foliaDurationMs = Number.isFinite(session.durationMs) ? Math.floor(Number(session.durationMs)) : activeTrack.foliaDurationMs;
+        if (typeof session.title === 'string' && session.title.trim()) {
+            activeTrack.title = session.title;
+        }
+        if (typeof session.artist === 'string') {
+            activeTrack.artist = session.artist;
+        }
+        if (typeof session.album === 'string') {
+            activeTrack.album = session.album;
+        }
+        if (nextCoverUrl) {
+            activeTrack.coverUrl = nextCoverUrl;
+        }
+    }
+
     const nextTrackId =
-        typeof session.id === 'string' && session.id.trim()
-            ? session.id
+        activeTrack?.id
+            ? activeTrack.id
             : normalizeText(realtimeCurrentTrackIdInput.value) || 'stage-track-1';
-    realtimeTracksJsonInput.value = prettyJson([
-        {
-            trackId: nextTrackId,
-            title: normalizeText(realtimeTrackTitleInput.value) || 'Stage Track',
-            artist: normalizeText(realtimeTrackArtistInput.value),
-            album: normalizeText(realtimeTrackAlbumInput.value),
-            coverUrl: normalizeText(realtimeTrackCoverUrlInput.value) || null,
-            durationMs: Number.isFinite(Number(realtimeDurationMsInput.value))
-                ? Math.max(0, Math.floor(Number(realtimeDurationMsInput.value)))
-                : null,
-        },
-    ]);
+    realtimeCurrentTrackIdInput.value = nextTrackId;
+    realtimeTracksJsonInput.value = prettyJson(
+        playlistTracks.length > 0
+            ? buildRealtimeTracksFromPlaylist()
+            : [
+                {
+                    trackId: nextTrackId,
+                    title: normalizeText(realtimeTrackTitleInput.value) || 'Stage Track',
+                    artist: normalizeText(realtimeTrackArtistInput.value),
+                    album: normalizeText(realtimeTrackAlbumInput.value),
+                    coverUrl: normalizeText(realtimeTrackCoverUrlInput.value) || null,
+                    durationMs: Number.isFinite(Number(realtimeDurationMsInput.value))
+                        ? Math.max(0, Math.floor(Number(realtimeDurationMsInput.value)))
+                        : null,
+                },
+            ],
+    );
+    renderPlaylist();
+    renderCurrentTrackPanel();
 };
 
 const parseTracksJson = (): StageTrack[] => {
@@ -430,9 +584,12 @@ const parseTracksJson = (): StageTrack[] => {
 };
 
 const buildRealtimeStateDraft = (revisionOverride?: number): StageRealtimeState => {
-    const tracks = parseTracksJson();
-    const sessionId = normalizeText(realtimeSessionIdInput.value) || tracks[0]?.trackId || 'stage-session-1';
+    const playlistBasedTracks = playlistTracks.length > 0 ? buildRealtimeTracksFromPlaylist() : [];
+    const tracks = playlistBasedTracks.length > 0 ? playlistBasedTracks : parseTracksJson();
+    const activeTrack = resolveActivePlaylistTrack();
+    const sessionId = activeTrack?.id || normalizeText(realtimeSessionIdInput.value) || tracks[0]?.trackId || 'stage-session-1';
     const requestedTrackId =
+        activeTrack?.id ||
         normalizeText(realtimeCurrentTrackIdInput.value) ||
         tracks[0]?.trackId ||
         `${sessionId}-track-1`;
@@ -507,6 +664,7 @@ const syncRealtimeInputsFromState = (state: StageRealtimeState | null) => {
     syncTrackFieldsFromTrack(currentTrack);
     seekTargetMsInput.value = String(state.currentTimeMs);
     renderControllerClockStatus();
+    renderCurrentTrackPanel();
 };
 
 const buildHealthPreview = () => {
@@ -538,7 +696,12 @@ const buildClearPreview = () => {
 };
 
 const buildSessionPreview = () => {
-    const request = buildStageSessionRequest(buildRequestInput());
+    const activeTrack = resolveActivePlaylistTrack();
+    const request = buildStageSessionRequest(
+        activeTrack
+            ? buildRequestInputFromPlaylistTrack(activeTrack)
+            : buildRequestInput(),
+    );
     const headers = request.init.headers as Record<string, string> | undefined;
     const lines = [
         '# Endpoint',
@@ -701,6 +864,9 @@ const createManagedInstance = (baseUrl: string, token: string, controllerId: str
     lastResponse: '',
     lastServerHello: null,
     lastHelloAck: null,
+    lastHealth: null,
+    lastSession: null,
+    lastRealtimeState: null,
 });
 
 const findInstanceByBaseUrl = (baseUrl: string) =>
@@ -802,6 +968,12 @@ const executeRequestForInstances = async (
             const responseText = describeAxiosResponse(response);
             const label = `## ${instance.baseUrl}\n${responseText}`;
             results.push(label);
+            if (target === 'health') {
+                instance.lastHealth = response.data;
+            }
+            if (target === 'session') {
+                instance.lastSession = (response.data as { session?: unknown })?.session ?? response.data;
+            }
             updateInstanceResponse(instance, `${response.status} ${response.statusText}`, responseText);
             addEventLogEntry({
                 instanceId: instance.id,
@@ -826,6 +998,141 @@ const executeRequestForInstances = async (
 
     setResponseState(target, `Finished ${targetInstances.length} request(s).`, results.join('\n\n'));
 };
+
+const buildRequestInputFromPlaylistTrack = (track: PlaylistTrackDraft, instance?: ManagedInstance): StageSessionRequestInput => ({
+    baseUrl: instance?.baseUrl || getDraftInstance().baseUrl,
+    token: instance?.token || getDraftInstance().token,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    coverUrl: track.coverUrl || undefined,
+    audioUrl: track.audioUrl || undefined,
+    lyricsText: track.lyricsText || undefined,
+    lyricsFormat: track.lyricsFormat || '',
+    audioFile: track.audioFile,
+    coverFile: null,
+    lyricsFile: null,
+});
+
+const activatePlaylistTrack = (trackId: string) => {
+    activePlaylistTrackId = trackId;
+    const activeTrack = resolveActivePlaylistTrack();
+    if (!activeTrack) {
+        renderPlaylist();
+        renderCurrentTrackPanel();
+        return;
+    }
+
+    titleInput.value = activeTrack.title;
+    artistInput.value = activeTrack.artist;
+    albumInput.value = activeTrack.album;
+    coverUrlInput.value = activeTrack.coverUrl || '';
+    audioUrlInput.value = activeTrack.audioUrl || '';
+    lyricsTextInput.value = activeTrack.lyricsText || '';
+    lyricsFormatSelect.value = activeTrack.lyricsFormat || '';
+    realtimeTrackTitleInput.value = activeTrack.title;
+    realtimeTrackArtistInput.value = activeTrack.artist;
+    realtimeTrackAlbumInput.value = activeTrack.album;
+    realtimeTrackCoverUrlInput.value = activeTrack.coverUrl || '';
+    realtimeCurrentTrackIdInput.value = activeTrack.id;
+    realtimeSessionIdInput.value = activeTrack.id;
+    if (activeTrack.foliaDurationMs || activeTrack.durationMs) {
+        realtimeDurationMsInput.value = String(activeTrack.foliaDurationMs || activeTrack.durationMs || 0);
+    }
+    realtimeTracksJsonInput.value = prettyJson(buildRealtimeTracksFromPlaylist());
+    renderPlaylist();
+    renderCurrentTrackPanel();
+    updatePreviews();
+};
+
+const pushPlaylistTrackToInstances = async (
+    track: PlaylistTrackDraft,
+    targetInstances: ManagedInstance[],
+    {
+        shouldBroadcastState = false,
+        playerState = realtimePlayerStateSelect.value as PlayerState,
+        currentTimeMs = 0,
+    }: {
+        shouldBroadcastState?: boolean;
+        playerState?: PlayerState;
+        currentTimeMs?: number;
+    } = {},
+) => {
+    if (targetInstances.length === 0) {
+        setWsState('No target instance selected.', 'Add or select at least one instance before pushing a playlist track.');
+        return;
+    }
+
+    activePlaylistTrackId = track.id;
+    const responseTexts: string[] = [];
+    for (const instance of targetInstances) {
+        try {
+            const request = buildStageSessionRequest(buildRequestInputFromPlaylistTrack(track, instance));
+            const response = await axios.request(createAxiosConfig(request));
+            const responseText = describeAxiosResponse(response);
+            responseTexts.push(`## ${instance.baseUrl}\n${responseText}`);
+            updateInstanceResponse(instance, `${response.status} ${response.statusText}`, responseText);
+            addEventLogEntry({
+                instanceId: instance.id,
+                label: getInstanceLabel(instance),
+                direction: 'http',
+                title: `${request.init.method || 'POST'} ${request.endpoint}`,
+                body: responseText,
+            });
+
+            const responsePayload = response.data as {
+                session?: { id?: string; durationMs?: number | null; title?: string; artist?: string; album?: string; coverUrl?: string | null; coverArtUrl?: string | null; };
+                realtimeState?: StageRealtimeState | null;
+            };
+            const responseSession = responsePayload?.session;
+            if (responseSession) {
+                track.foliaSessionId = typeof responseSession.id === 'string' ? responseSession.id : track.foliaSessionId;
+                track.foliaDurationMs = Number.isFinite(responseSession.durationMs) ? Math.floor(Number(responseSession.durationMs)) : track.foliaDurationMs;
+                if (typeof responseSession.title === 'string' && responseSession.title.trim()) track.title = responseSession.title;
+                if (typeof responseSession.artist === 'string') track.artist = responseSession.artist;
+                if (typeof responseSession.album === 'string') track.album = responseSession.album;
+                if (typeof responseSession.coverArtUrl === 'string' && responseSession.coverArtUrl.trim()) {
+                    track.coverUrl = responseSession.coverArtUrl;
+                } else if (typeof responseSession.coverUrl === 'string' && responseSession.coverUrl.trim()) {
+                    track.coverUrl = responseSession.coverUrl;
+                }
+            }
+            if (responsePayload?.realtimeState) {
+                instance.lastRealtimeState = responsePayload.realtimeState;
+                lastFoliaSourceLabel = `from ${instance.baseUrl}`;
+                syncRealtimeInputsFromState(responsePayload.realtimeState);
+            }
+        } catch (error) {
+            const responseText = describeAxiosError(error);
+            responseTexts.push(`## ${instance.baseUrl}\n${responseText}`);
+            updateInstanceResponse(instance, 'Request failed.', responseText);
+        }
+    }
+
+    setResponseState('session', `Finished ${targetInstances.length} request(s).`, responseTexts.join('\n\n'));
+    activatePlaylistTrack(track.id);
+
+    if (shouldBroadcastState) {
+        const nextState = buildStageRealtimeStateMessage({
+            ...buildCurrentRealtimeStateSnapshot(),
+            revision: Math.max(lastKnownRevision + 1, 1),
+            sessionId: track.id,
+            currentTrackId: track.id,
+            tracks: buildRealtimeTracksFromPlaylist(),
+            playerState,
+            currentTimeMs,
+            durationMs: track.foliaDurationMs || track.durationMs || 0,
+            loopMode: realtimeLoopModeSelect.value as StageLoopMode,
+            canGoNext: playlistTracks.length > 1,
+            canGoPrev: playlistTracks.length > 1,
+            updatedAt: Date.now(),
+        }).payload;
+        sendRealtimeState(nextState, 'playlist track push');
+    }
+};
+
+const resolvePlaylistTrackByStateTrackId = (trackId: string | null) =>
+    playlistTracks.find((track) => track.id === trackId || track.foliaSessionId === trackId) || null;
 
 const connectInstanceSocket = (instance: ManagedInstance) => {
     if (instance.socket && (instance.socket.readyState === WebSocket.OPEN || instance.socket.readyState === WebSocket.CONNECTING)) {
@@ -984,11 +1291,21 @@ const syncTrackInputsFromSessionForm = () => {
     updatePreviews();
 };
 
-const performRealtimeControl = (request: StageControlRequest, reason: string) => {
+const performRealtimeControl = async (request: StageControlRequest, reason: string) => {
     try {
         const state = buildCurrentRealtimeStateSnapshot();
         const { nextState, nextClock } = applyStageControlRequestWithClock(state, request, controllerClock);
         controllerClock = nextClock;
+        const switchedTrack = nextState.currentTrackId !== state.currentTrackId
+            ? resolvePlaylistTrackByStateTrackId(nextState.currentTrackId)
+            : null;
+        if (switchedTrack) {
+            await pushPlaylistTrackToInstances(switchedTrack, getSelectedInstances(true), {
+                shouldBroadcastState: false,
+                playerState: nextState.playerState,
+                currentTimeMs: nextState.currentTimeMs,
+            });
+        }
         sendRealtimeState(nextState, reason);
     } catch (error) {
         setWsState(`Failed to ${reason}.`, describeAxiosError(error));
@@ -1023,6 +1340,7 @@ const handleInstanceSocketMessage = (instance: ManagedInstance, rawData: unknown
 
     if (parsed.type === 'server_hello') {
         instance.lastServerHello = parsed.payload;
+        lastFoliaSourceLabel = `from ${instance.baseUrl}`;
         const payload = parsed.payload as {
             session?: {
                 id?: string;
@@ -1045,6 +1363,7 @@ const handleInstanceSocketMessage = (instance: ManagedInstance, rawData: unknown
 
     if (parsed.type === 'hello_ack') {
         instance.lastHelloAck = parsed.payload;
+        lastFoliaSourceLabel = `from ${instance.baseUrl}`;
         const payload = parsed.payload as {
             session?: {
                 id?: string;
@@ -1067,6 +1386,8 @@ const handleInstanceSocketMessage = (instance: ManagedInstance, rawData: unknown
 
     if (parsed.type === 'stage_state') {
         const payload = parsed.payload as StageRealtimeState;
+        instance.lastRealtimeState = payload;
+        lastFoliaSourceLabel = `from ${instance.baseUrl}`;
         syncRealtimeInputsFromState(payload);
     }
 
@@ -1081,13 +1402,20 @@ const handleInstanceSocketMessage = (instance: ManagedInstance, rawData: unknown
                 coverArtUrl?: string | null;
                 durationMs?: number | null;
             } | null;
+            realtimeState?: StageRealtimeState | null;
         };
+        instance.lastSession = payload.session ?? null;
+        lastFoliaSourceLabel = `from ${instance.baseUrl}`;
         syncSessionFieldsFromPayload(payload.session);
+        if (payload.realtimeState) {
+            instance.lastRealtimeState = payload.realtimeState;
+            syncRealtimeInputsFromState(payload.realtimeState);
+        }
     }
 
     if (parsed.type === 'control_request' && autoApplyControlRequestsInput.checked) {
         try {
-            applyInboundControlRequest(instance, parsed.payload as StageControlRequest);
+            void applyInboundControlRequest(instance, parsed.payload as StageControlRequest);
         } catch (error) {
             setWsState('Failed to auto-apply control_request.', describeAxiosError(error));
         }
@@ -1112,6 +1440,8 @@ const initializeEmptyState = () => {
     setWsState('No instance connected yet.', 'Connect at least one instance to start exchanging Stage realtime messages.');
     renderControllerClockStatus();
     renderMergedEventLog();
+    renderPlaylist();
+    renderCurrentTrackPanel();
 };
 
 instanceList.addEventListener('click', async (event) => {
@@ -1187,8 +1517,89 @@ instanceList.addEventListener('change', (event) => {
     updatePreviews();
 });
 
+playlistList.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+
+    const actionElement = target.closest<HTMLElement>('[data-action]');
+    if (!actionElement) {
+        return;
+    }
+
+    const action = actionElement.dataset.action;
+    const trackId = actionElement.dataset.trackId;
+    if (!trackId) {
+        return;
+    }
+
+    const track = playlistTracks.find((candidate) => candidate.id === trackId);
+    if (!track) {
+        return;
+    }
+
+    switch (action) {
+        case 'activate-playlist-track':
+            activatePlaylistTrack(track.id);
+            break;
+        case 'push-playlist-track':
+            await pushPlaylistTrackToInstances(track, getSelectedInstances(true), {
+                playerState: realtimePlayerStateSelect.value as PlayerState,
+                currentTimeMs: 0,
+            });
+            break;
+        case 'remove-playlist-track':
+            playlistTracks = playlistTracks.filter((candidate) => candidate.id !== track.id);
+            if (activePlaylistTrackId === track.id) {
+                activePlaylistTrackId = playlistTracks[0]?.id || null;
+            }
+            renderPlaylist();
+            renderCurrentTrackPanel();
+            updatePreviews();
+            break;
+        default:
+            break;
+    }
+});
+
 upsertInstanceButton.addEventListener('click', () => {
     upsertDraftInstance();
+});
+
+playlistAddDraftButton.addEventListener('click', () => {
+    const draftTrack = createPlaylistTrackFromDraft();
+    if (!draftTrack.audioFile && !draftTrack.audioUrl) {
+        setWsState('Draft track is incomplete.', 'Provide either an audio file or an audio URL before adding a track to the playlist.');
+        return;
+    }
+
+    playlistTracks = [...playlistTracks, draftTrack];
+    if (!activePlaylistTrackId) {
+        activePlaylistTrackId = draftTrack.id;
+    }
+    activatePlaylistTrack(activePlaylistTrackId || draftTrack.id);
+});
+
+playlistClearButton.addEventListener('click', () => {
+    playlistTracks = [];
+    activePlaylistTrackId = null;
+    renderPlaylist();
+    renderCurrentTrackPanel();
+    updatePreviews();
+});
+
+playlistAudioFilesInput.addEventListener('change', () => {
+    const files = Array.from(playlistAudioFilesInput.files || []);
+    if (files.length === 0) {
+        return;
+    }
+
+    const nextTracks = createPlaylistTracksFromAudioFiles(files);
+    playlistTracks = [...playlistTracks, ...nextTracks];
+    activePlaylistTrackId = activePlaylistTrackId || nextTracks[0]?.id || null;
+    activatePlaylistTrack(activePlaylistTrackId || nextTracks[0]?.id || '');
+    playlistAudioFilesInput.value = '';
 });
 
 connectSelectedButton.addEventListener('click', () => {
@@ -1205,6 +1616,86 @@ disconnectSelectedButton.addEventListener('click', () => {
         disconnectInstanceSocket(instance);
     }
     refreshWsSummary();
+});
+
+playerSyncFromFoliaButton.addEventListener('click', () => {
+    const realtimeState = lastKnownRealtimeState;
+    if (!realtimeState) {
+        setWsState('No Folia state to sync.', 'Connect to at least one instance and wait for server_hello or stage_state.');
+        return;
+    }
+
+    const matchingTrack = playlistTracks.find((track) => track.id === realtimeState.currentTrackId || track.foliaSessionId === realtimeState.sessionId);
+    if (matchingTrack) {
+        activatePlaylistTrack(matchingTrack.id);
+        return;
+    }
+
+    const fallbackTrack = realtimeState.tracks.find((track) => track.trackId === realtimeState.currentTrackId) || realtimeState.tracks[0];
+    if (fallbackTrack) {
+        const importedTrack: PlaylistTrackDraft = {
+            id: fallbackTrack.trackId,
+            title: fallbackTrack.title,
+            artist: fallbackTrack.artist || '',
+            album: fallbackTrack.album || '',
+            coverUrl: fallbackTrack.coverUrl || null,
+            audioUrl: normalizeText(audioUrlInput.value) || null,
+            audioFile: null,
+            lyricsText: null,
+            lyricsFormat: null,
+            durationMs: fallbackTrack.durationMs ?? realtimeState.durationMs,
+            foliaSessionId: realtimeState.sessionId,
+            foliaDurationMs: fallbackTrack.durationMs ?? realtimeState.durationMs,
+        };
+        playlistTracks = [...playlistTracks, importedTrack];
+        activePlaylistTrackId = importedTrack.id;
+        activatePlaylistTrack(importedTrack.id);
+        return;
+    }
+
+    renderCurrentTrackPanel();
+    updatePreviews();
+});
+
+playerPushActiveButton.addEventListener('click', async () => {
+    const activeTrack = resolveActivePlaylistTrack();
+    if (!activeTrack) {
+        setWsState('No active playlist track.', 'Import audio files or add the current draft to the playlist first.');
+        return;
+    }
+
+    await pushPlaylistTrackToInstances(activeTrack, getSelectedInstances(true), {
+        playerState: realtimePlayerStateSelect.value as PlayerState,
+        currentTimeMs: 0,
+    });
+});
+
+playerProgressInput.addEventListener('input', () => {
+    isPlayerProgressDragging = true;
+    const nextTimeMs = Math.max(0, Math.floor(Number(playerProgressInput.value) || 0));
+    realtimeCurrentTimeMsInput.value = String(nextTimeMs);
+    seekTargetMsInput.value = String(nextTimeMs);
+    playerProgressLabelCurrent.textContent = formatDurationLabel(nextTimeMs);
+});
+
+playerProgressInput.addEventListener('change', () => {
+    isPlayerProgressDragging = false;
+    const nextTimeMs = Math.max(0, Math.floor(Number(playerProgressInput.value) || 0));
+    performRealtimeControl(buildManualControlRequest('seek', {
+        timeMs: nextTimeMs,
+    }), 'seek from progress bar');
+});
+
+playerProgressInput.addEventListener('pointerdown', () => {
+    isPlayerProgressDragging = true;
+});
+
+playerProgressInput.addEventListener('pointerup', () => {
+    isPlayerProgressDragging = false;
+});
+
+playerProgressInput.addEventListener('blur', () => {
+    isPlayerProgressDragging = false;
 });
 
 testHealthButton.addEventListener('click', async () => {
@@ -1239,6 +1730,15 @@ clearSessionButton.addEventListener('click', async () => {
 
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const activeTrack = resolveActivePlaylistTrack();
+    if (activeTrack) {
+        await pushPlaylistTrackToInstances(activeTrack, getSelectedInstances(true), {
+            playerState: realtimePlayerStateSelect.value as PlayerState,
+            currentTimeMs: 0,
+        });
+        return;
+    }
+
     const targets = getSelectedInstances();
     if (targets.length === 0) {
         const draft = getDraftInstance();
@@ -1315,7 +1815,7 @@ const isStaleControlRequest = (request: StageControlRequest, currentRevision: nu
     request.baseRevision !== currentRevision
 );
 
-const applyInboundControlRequest = (instance: ManagedInstance, request: StageControlRequest) => {
+const applyInboundControlRequest = async (instance: ManagedInstance, request: StageControlRequest) => {
     const currentState = buildCurrentRealtimeStateSnapshot();
     if (isStaleControlRequest(request, currentState.revision)) {
         appendStaleRequestLog(instance, request, currentState.revision);
@@ -1337,6 +1837,16 @@ const applyInboundControlRequest = (instance: ManagedInstance, request: StageCon
         controllerClock,
     );
     controllerClock = nextClock;
+    const switchedTrack = nextState.currentTrackId !== currentState.currentTrackId
+        ? resolvePlaylistTrackByStateTrackId(nextState.currentTrackId)
+        : null;
+    if (switchedTrack) {
+        await pushPlaylistTrackToInstances(switchedTrack, mirrorToSelectedInput.checked ? getBroadcastTargets() : [instance], {
+            shouldBroadcastState: false,
+            playerState: nextState.playerState,
+            currentTimeMs: nextState.currentTimeMs,
+        });
+    }
     const targets = mirrorToSelectedInput.checked ? getBroadcastTargets() : [instance];
     syncRealtimeInputsFromState(nextState);
     broadcastEnvelopeToInstances(targets, buildStageRealtimeStateMessage(nextState), 'auto-applied control_request');

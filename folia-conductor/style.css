@@ -1,0 +1,420 @@
+:root {
+    color-scheme: dark;
+    --surface: rgba(15, 18, 27, 0.92);
+    --surface-soft: rgba(255, 255, 255, 0.06);
+    --surface-strong: rgba(255, 255, 255, 0.14);
+    --line: rgba(255, 255, 255, 0.1);
+    --text: rgba(255, 255, 255, 0.94);
+    --muted: rgba(255, 255, 255, 0.64);
+    --accent: #f7f7f5;
+    --accent-soft: rgba(247, 247, 245, 0.18);
+    --live: #77f1b4;
+    --warning: #ffd36a;
+    --error: #ff8c8c;
+    --bg-start: #0d1118;
+    --bg-end: #1a1420;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.09), transparent 28%),
+        linear-gradient(140deg, var(--bg-start), var(--bg-end));
+    color: var(--text);
+}
+
+button,
+input {
+    font: inherit;
+}
+
+button {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #111318;
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button.secondary {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--text);
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+}
+
+label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+input[type="url"],
+input[type="password"],
+input[type="text"],
+input[readonly],
+input[type="file"] {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    padding: 0.82rem 0.95rem;
+}
+
+code {
+    font-family: "IBM Plex Mono", "Consolas", monospace;
+}
+
+.conductor-shell {
+    width: min(1180px, calc(100vw - 2rem));
+    margin: 0 auto;
+    padding: 1.25rem 0 2rem;
+}
+
+.conductor-card {
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: var(--surface);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
+    padding: 1.3rem;
+    backdrop-filter: blur(16px);
+}
+
+.conductor-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.conductor-hero h1,
+.section-head h2,
+.player-copy h2 {
+    margin: 0;
+    font-family: "Avenir Next", "SF Pro Display", "Segoe UI", sans-serif;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+}
+
+.conductor-intro,
+.playlist-hint,
+.track-source,
+.track-meta,
+.inline-status,
+.instance-meta,
+.progress-time,
+.metric-pill,
+.summary-badge {
+    color: var(--muted);
+}
+
+.conductor-eyebrow {
+    margin: 0 0 0.3rem;
+    color: rgba(255, 255, 255, 0.52);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+}
+
+.status-pill,
+.metric-pill,
+.summary-badge {
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+    padding: 0.38rem 0.78rem;
+    font-size: 0.84rem;
+}
+
+.summary-badge-live {
+    color: var(--live);
+}
+
+.conductor-grid {
+    display: grid;
+    grid-template-columns: 1.02fr 1.18fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.conductor-grid-main {
+    grid-template-columns: 1.12fr 0.88fr;
+}
+
+.field-grid {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.field-grid-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0.85rem;
+}
+
+.button-row {
+    display: flex;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+}
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-badges,
+.player-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.instance-list,
+.playlist-list,
+.event-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.instance-card,
+.playlist-item,
+.event-item {
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.95rem;
+}
+
+.instance-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.85rem;
+    align-items: center;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.03);
+}
+
+.status-dot.connected {
+    background: var(--live);
+}
+
+.status-dot.connecting {
+    background: var(--warning);
+}
+
+.status-dot.error {
+    background: var(--error);
+}
+
+.instance-title-row,
+.playlist-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.32rem;
+}
+
+.instance-title-row strong,
+.playlist-title-row strong {
+    font-size: 1rem;
+}
+
+.instance-meta {
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.instance-select {
+    accent-color: var(--accent);
+}
+
+.player-cover-wrap {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.player-cover {
+    width: 92px;
+    height: 92px;
+    border-radius: 24px;
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+        rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    background-size: cover;
+    background-position: center;
+    color: rgba(255, 255, 255, 0.45);
+    overflow: hidden;
+}
+
+.player-progress-shell {
+    margin: 1.2rem 0 1rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.player-progress-track {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.player-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    border-radius: inherit;
+    background: var(--accent);
+    pointer-events: none;
+}
+
+.player-progress-input {
+    position: absolute;
+    inset: -7px 0;
+    width: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.button-row-player {
+    justify-content: center;
+}
+
+.upload-field {
+    margin-bottom: 0.85rem;
+}
+
+.playlist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+}
+
+.playlist-item.active {
+    border-color: var(--accent-soft);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.playlist-item-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+.playlist-item-meta {
+    font-size: 0.84rem;
+    color: var(--muted);
+}
+
+.playlist-item-actions {
+    display: flex;
+    gap: 0.55rem;
+    flex-shrink: 0;
+}
+
+.inline-status,
+.response-body {
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.8rem 0.9rem;
+}
+
+.response-body {
+    margin: 0.8rem 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 260px;
+    overflow: auto;
+    font-size: 0.82rem;
+    font-family: "IBM Plex Mono", "Consolas", monospace;
+}
+
+.event-item {
+    font-size: 0.82rem;
+}
+
+.event-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+}
+
+.event-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text);
+}
+
+.empty-state {
+    padding: 1rem;
+    border-radius: 18px;
+    border: 1px dashed var(--line);
+    color: var(--muted);
+}
+
+@media (max-width: 900px) {
+    .conductor-shell {
+        width: min(100vw - 1rem, 100%);
+    }
+
+    .conductor-grid,
+    .conductor-grid-main,
+    .field-grid-two {
+        grid-template-columns: 1fr;
+    }
+
+    .conductor-hero,
+    .player-cover-wrap,
+    .instance-card,
+    .playlist-item {
+        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .player-progress-shell {
+        grid-template-columns: 1fr;
+    }
+}

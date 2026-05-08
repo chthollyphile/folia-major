@@ -17,6 +17,7 @@ const STAGE_MULTIPART_FILE_LIMIT_BYTES = 1024 * 1024 * 1024;
 const STAGE_MULTIPART_FILE_COUNT_LIMIT = 3;
 const STAGE_MULTIPART_PART_COUNT_LIMIT = 10;
 const STAGE_MULTIPART_FIELD_COUNT_LIMIT = 10;
+const STAGE_SESSION_RETENTION_LIMIT = 12;
 const STAGE_CONTROLLER_HEARTBEAT_INTERVAL_MS = 10_000;
 const STAGE_CONTROLLER_HEARTBEAT_TIMEOUT_MS = 30_000;
 const STAGE_PLAYER_STATE_VALUES = new Set(['IDLE', 'PLAYING', 'PAUSED']);
@@ -54,6 +55,7 @@ function createStageApi({
     audioPath: null,
     coverPath: null,
   };
+  const stageSessionAssetIndex = new Map();
   let stageRealtimeState = null;
   let stageControllerSocket = null;
   let stageControllerId = null;
@@ -129,6 +131,16 @@ function createStageApi({
     return `${baseUrl}?v=${encodeURIComponent(String(version))}`;
   };
 
+  const buildStageSessionMediaUrl = (sessionId, kind, version) => {
+    const encodedSessionId = encodeURIComponent(String(sessionId));
+    const baseUrl = `http://127.0.0.1:${getConfiguredStagePort()}/stage/media/session/${encodedSessionId}/${kind}`;
+    if (!version) {
+      return baseUrl;
+    }
+
+    return `${baseUrl}?v=${encodeURIComponent(String(version))}`;
+  };
+
   const buildStageTrackFromSession = (session) => ({
     trackId: session?.id || `stage-track-${Date.now()}`,
     title: session?.title || 'Stage Session',
@@ -175,6 +187,30 @@ function createStageApi({
     pendingRequestCount: queuedControlRequests.length,
     lastError: stageConnectionError,
   });
+
+  const rememberStageSessionAssets = (sessionId, sessionFiles) => {
+    if (!sessionId) {
+      return;
+    }
+
+    if (stageSessionAssetIndex.has(sessionId)) {
+      stageSessionAssetIndex.delete(sessionId);
+    }
+
+    stageSessionAssetIndex.set(sessionId, {
+      audioPath: sessionFiles?.audioPath || null,
+      coverPath: sessionFiles?.coverPath || null,
+      workingDirectory: getStageSessionDirectory(sessionId),
+    });
+  };
+
+  const getStageSessionAssets = (sessionId) => {
+    if (!sessionId) {
+      return null;
+    }
+
+    return stageSessionAssetIndex.get(sessionId) || null;
+  };
 
   const buildStageStatus = () => ({
     enabled: isStageEnabled(),
@@ -242,9 +278,24 @@ function createStageApi({
   const cleanupInactiveStageSessions = async () => {
     try {
       const sessionRoot = getStageSessionsDirectory();
+      const retainedSessionIds = Array.from(stageSessionAssetIndex.keys()).slice(-STAGE_SESSION_RETENTION_LIMIT);
+      const keepSessionIds = new Set(retainedSessionIds);
+      if (stageActiveSessionId) {
+        keepSessionIds.add(stageActiveSessionId);
+      }
+
+      for (const [sessionId, sessionAssets] of Array.from(stageSessionAssetIndex.entries())) {
+        if (keepSessionIds.has(sessionId)) {
+          continue;
+        }
+
+        stageSessionAssetIndex.delete(sessionId);
+        await removeStageSessionDirectory(sessionAssets?.workingDirectory || getStageSessionDirectory(sessionId));
+      }
+
       const directoryEntries = await fsp.readdir(sessionRoot, { withFileTypes: true });
       await Promise.all(directoryEntries
-        .filter((entry) => entry.isDirectory() && entry.name !== stageActiveSessionId)
+        .filter((entry) => entry.isDirectory() && !keepSessionIds.has(entry.name))
         .map((entry) => removeStageSessionDirectory(path.join(sessionRoot, entry.name))));
     } catch (error) {
       if (error?.code === 'ENOENT') {
@@ -285,17 +336,12 @@ function createStageApi({
   );
 
   const syncLocalStageRealtimeStateFromSession = (session) => {
-    if (stageControllerSocket && stageRealtimeState) {
-      return;
-    }
-
     stageRealtimeState = buildLocalStageRealtimeStateFromSession(session);
     broadcastStageRealtimeState();
     broadcastStageConnectionState();
   };
 
   const clearStageSessionData = async () => {
-    const previousSessionId = stageActiveSessionId;
     stageSession = null;
     stageActiveSessionId = null;
     stageActiveSessionFiles = {
@@ -308,9 +354,6 @@ function createStageApi({
     broadcastStageRealtimeState();
     logStage('info', 'Cleared Stage session data.');
     void cleanupInactiveStageSessions();
-    if (previousSessionId) {
-      void removeStageSessionDirectory(getStageSessionDirectory(previousSessionId));
-    }
     return buildStageStatus();
   };
 
@@ -473,6 +516,14 @@ function createStageApi({
       payload,
     }));
     return true;
+  };
+
+  const sendStageRealtimeStateToController = () => {
+    if (!stageRealtimeState) {
+      return false;
+    }
+
+    return sendStageRealtimeMessage(stageControllerSocket, 'stage_state', stageRealtimeState);
   };
 
   const getRequester = (req) => req.socket?.remoteAddress || 'unknown';
@@ -1030,12 +1081,12 @@ function createStageApi({
     const detectedLyricsFormat = hasResolvedLyrics ? (requestedLyricsFormat || detectStageLyricsFormat(normalizedResolvedLyricsText)) : null;
 
     if (coverFile) {
-      resolvedCoverUrl = buildStageMediaUrl('cover', sessionVersion);
+      resolvedCoverUrl = buildStageSessionMediaUrl(sessionId, 'cover', sessionVersion);
     } else if (!resolvedCoverUrl && embeddedMetadata?.coverBuffer) {
       const embeddedCoverPath = path.join(workingDirectory, `embedded-cover${path.extname(embeddedMetadata.coverMimeType || '') || '.bin'}`);
       await fsp.writeFile(embeddedCoverPath, embeddedMetadata.coverBuffer);
       resolvedCoverPath = embeddedCoverPath;
-      resolvedCoverUrl = buildStageMediaUrl('cover', sessionVersion);
+      resolvedCoverUrl = buildStageSessionMediaUrl(sessionId, 'cover', sessionVersion);
       resolvedCoverMimeType = embeddedMetadata.coverMimeType || undefined;
       logStage('info', 'Using embedded cover art from uploaded audio metadata.');
     }
@@ -1270,6 +1321,15 @@ function createStageApi({
     if (reason) {
       stageConnectionError = reason;
     }
+    if (stageRealtimeState?.playerState === 'PLAYING') {
+      stageRealtimeState = {
+        ...stageRealtimeState,
+        revision: stageRealtimeState.revision + 1,
+        playerState: 'PAUSED',
+        updatedAt: Date.now(),
+      };
+      broadcastStageRealtimeState();
+    }
     broadcastStageConnectionState();
   };
 
@@ -1364,6 +1424,80 @@ function createStageApi({
     }
 
     return enqueueStageControlRequest(request);
+  };
+
+  // Merge a renderer-confirmed Stage playback snapshot so the controller can
+  // start its local clock from Folia's real media state instead of guessing.
+  const reportRealtimePlayerState = async (_sender, report = {}) => {
+    if (!stageSession || !stageRealtimeState) {
+      return buildStageStatus();
+    }
+
+    const reportedSessionId = typeof report.sessionId === 'string' ? report.sessionId.trim() : '';
+    if (!reportedSessionId || reportedSessionId !== stageSession.id) {
+      return buildStageStatus();
+    }
+
+    const nextPlayerState = report.playerState
+      ? normalizeStagePlayerState(report.playerState)
+      : stageRealtimeState.playerState;
+    const nextDurationMs = Number.isFinite(report.durationMs)
+      ? Math.max(0, Math.floor(report.durationMs))
+      : stageRealtimeState.durationMs;
+    const nextCurrentTimeMs = Number.isFinite(report.currentTimeMs)
+      ? Math.max(0, Math.floor(report.currentTimeMs))
+      : stageRealtimeState.currentTimeMs;
+    const nextErrorMessage = typeof report.errorMessage === 'string' && report.errorMessage.trim()
+      ? report.errorMessage.trim()
+      : null;
+
+    const hasMeaningfulChange = (
+      nextPlayerState !== stageRealtimeState.playerState
+      || nextDurationMs !== stageRealtimeState.durationMs
+      || nextCurrentTimeMs !== stageRealtimeState.currentTimeMs
+      || Boolean(nextErrorMessage)
+    );
+
+    if (!hasMeaningfulChange) {
+      return buildStageStatus();
+    }
+
+    stageRealtimeState = {
+      ...stageRealtimeState,
+      playerState: nextPlayerState,
+      durationMs: nextDurationMs,
+      currentTimeMs: nextCurrentTimeMs,
+      updatedAt: Date.now(),
+    };
+
+    let didRefineSessionDuration = false;
+    if (Number.isFinite(report.durationMs) && Math.floor(report.durationMs) > 0) {
+      didRefineSessionDuration = Math.max(0, Math.floor(report.durationMs)) !== (stageSession.durationMs || 0);
+      stageSession = {
+        ...stageSession,
+        durationMs: Math.max(0, Math.floor(report.durationMs)),
+      };
+    }
+
+    stageConnectionError = nextErrorMessage;
+    if (didRefineSessionDuration) {
+      sendStageRealtimeMessage(stageControllerSocket, 'stage_session', {
+        session: stageSession,
+        realtimeState: stageRealtimeState,
+      });
+    }
+    sendStageRealtimeStateToController();
+    if (nextErrorMessage) {
+      sendStageRealtimeMessage(stageControllerSocket, 'error', {
+        code: 'STAGE_RENDERER_PLAYBACK_ERROR',
+        message: nextErrorMessage,
+        sessionId: stageSession.id,
+      });
+    }
+    broadcastStageRealtimeState();
+    broadcastStageConnectionState();
+    broadcastStageEvent('stage-session-updated');
+    return buildStageStatus();
   };
 
   const handleStageRealtimeControllerMessage = (socket, message) => {
@@ -1536,15 +1670,32 @@ function createStageApi({
       return;
     }
 
-    if (pathname === '/stage/media/current/cover' && req.method === 'GET') {
-      if (!isCurrentStageMediaUrl(stageSession?.coverArtUrl, 'cover')) {
-        logStage('warn', 'Requested Stage cover, but no uploaded cover is available.');
-        sendStageJson(res, 404, { error: 'No uploaded stage cover is available.' });
+    const sessionCoverMatch = /^\/stage\/media\/session\/([^/]+)\/cover$/i.exec(pathname);
+    if (sessionCoverMatch && req.method === 'GET') {
+      const requestedSessionId = decodeURIComponent(sessionCoverMatch[1] || '');
+      const sessionAssets = getStageSessionAssets(requestedSessionId);
+      const coverPath = sessionAssets?.coverPath || null;
+
+      if (!coverPath) {
+        logStage('warn', 'Requested Stage session cover, but no cover is available for that session.', {
+          sessionId: requestedSessionId,
+        });
+        sendStageJson(res, 404, { error: 'No uploaded stage cover is available for that session.' });
         return;
       }
 
+      const mimeType = requestedSessionId === stageSession?.id
+        ? stageSession.coverMimeType
+        : 'application/octet-stream';
+      const buffer = await fsp.readFile(coverPath);
+      sendStageBinary(res, 200, buffer, mimeType || 'application/octet-stream');
+      return;
+    }
+
+    if (pathname === '/stage/media/current/cover' && req.method === 'GET') {
       const coverPath = getCurrentStageMediaPath('cover');
       if (!coverPath) {
+        logStage('warn', 'Requested Stage cover, but no uploaded cover is available.');
         sendStageJson(res, 404, { error: 'No uploaded stage cover is available.' });
         return;
       }
@@ -1585,14 +1736,11 @@ function createStageApi({
         }
 
         const nextSessionResult = await createStageSessionFromPayload(parsedPayload);
-        const previousSessionId = stageActiveSessionId;
         stageSession = nextSessionResult.session;
         stageActiveSessionId = nextSessionResult.activeSessionId;
         stageActiveSessionFiles = nextSessionResult.activeSessionFiles;
+        rememberStageSessionAssets(nextSessionResult.activeSessionId, nextSessionResult.activeSessionFiles);
         syncLocalStageRealtimeStateFromSession(nextSessionResult.session);
-        if (previousSessionId && previousSessionId !== stageActiveSessionId) {
-          void removeStageSessionDirectory(getStageSessionDirectory(previousSessionId));
-        }
         void cleanupInactiveStageSessions();
       } catch (error) {
         await removeStageSessionDirectory(workingDirectory);
@@ -1601,7 +1749,9 @@ function createStageApi({
 
       sendStageRealtimeMessage(stageControllerSocket, 'stage_session', {
         session: stageSession,
+        realtimeState: stageRealtimeState,
       });
+      sendStageRealtimeStateToController();
       broadcastStageRealtimeState();
       broadcastStageConnectionState();
       broadcastStageEvent('stage-session-updated');
@@ -1765,6 +1915,7 @@ function createStageApi({
     disconnectRealtimePlayer,
     logStage,
     regenerateStageToken,
+    reportRealtimePlayerState,
     sendControlRequestFromPlayer,
     setStageEnabled,
     startStageServerIfNeeded,

@@ -94,9 +94,60 @@
                 <section class="form-panel form-panel-wide">
                     <div class="section-header">
                         <h2>Instances</h2>
-                        <p class="hint">把多个 Electron Folia 实例加入列表后，可以统一推送 session 和广播 realtime state。</p>
+                        <p class="hint">把多个 Electron Folia 实例加入列表后，可以统一推送 session、广播 realtime state，并从 Folia 回读当前播放曲目信息。</p>
                     </div>
                     <div id="instance-list" class="instance-list"></div>
+                </section>
+
+                <section class="form-panel form-panel-wide player-demo-panel">
+                    <div class="section-header">
+                        <h2>Controller Player Demo</h2>
+                        <p class="hint">这里是新版 stage-client 的主界面。它会把 HTTP session 推送、WS 状态广播和播放列表控制收口成一个播放器控制台。</p>
+                    </div>
+                    <div class="player-demo-grid">
+                        <article class="player-now-playing">
+                            <p class="eyebrow">Folia Feedback</p>
+                            <h3 id="current-track-title">No track selected</h3>
+                            <p id="current-track-meta" class="player-meta">等待 Stage session 或播放列表输入</p>
+                            <p id="current-track-origin" class="hint">尚未收到来自 Folia 的当前曲目信息</p>
+                            <div id="current-track-status" class="status-line">Player idle.</div>
+                            <div class="progress-block">
+                                <input id="player-progress" type="range" min="0" max="0" step="100" value="0" />
+                                <div class="progress-labels">
+                                    <span id="player-progress-label-current">00:00</span>
+                                    <span id="player-progress-label-duration">00:00</span>
+                                </div>
+                            </div>
+                            <div class="button-row button-row-wrap">
+                                <button id="player-sync-from-folia" type="button" class="secondary">Sync From Folia</button>
+                                <button id="player-push-active" type="button">Push Active Track</button>
+                                <button id="control-prev" type="button" class="secondary">Prev</button>
+                                <button id="control-play" type="button" class="secondary">Play</button>
+                                <button id="control-pause" type="button" class="secondary">Pause</button>
+                                <button id="control-next" type="button" class="secondary">Next</button>
+                                <button id="control-cycle-loop" type="button" class="secondary">Cycle Loop</button>
+                            </div>
+                        </article>
+
+                        <article class="player-playlist-panel">
+                            <div class="section-header">
+                                <div>
+                                    <p class="eyebrow">Playlist</p>
+                                    <h3>Controller Queue</h3>
+                                </div>
+                                <div class="button-row compact-row">
+                                    <button id="playlist-add-draft" type="button" class="secondary">Add Draft Track</button>
+                                    <button id="playlist-clear" type="button" class="secondary">Clear Playlist</button>
+                                </div>
+                            </div>
+                            <label>
+                                <span>Import audio files</span>
+                                <input id="playlist-audio-files" type="file" accept="audio/*" multiple />
+                            </label>
+                            <p class="hint">可以一次导入多首音频建立播放列表。每首歌会生成一个 controller track，并在切歌时自动重新推送对应 session。</p>
+                            <div id="playlist-list" class="playlist-list"></div>
+                        </article>
+                    </div>
                 </section>
 
                 <section class="form-panel">
@@ -181,7 +232,7 @@
                 <section class="form-panel form-panel-wide">
                     <div class="section-header">
                         <h2>Realtime Controller State</h2>
-                        <p class="hint">编辑这里的权威状态草稿，然后通过 WS 广播到已连接实例。</p>
+                        <p class="hint">这里保留协议级调试能力。播放器 demo 会优先用播放列表来生成 tracks，这一块适合检查 revision、raw state 和自动控制流。</p>
                     </div>
                     <div class="grid three">
                         <label>
@@ -271,12 +322,7 @@
                     <div class="button-row button-row-wrap">
                         <button id="sync-track-from-session" type="button" class="secondary">Use Session Metadata</button>
                         <button id="broadcast-state" type="button">Broadcast State</button>
-                        <button id="control-play" type="button" class="secondary">Play</button>
-                        <button id="control-pause" type="button" class="secondary">Pause</button>
                         <button id="control-seek" type="button" class="secondary">Seek</button>
-                        <button id="control-next" type="button" class="secondary">Next</button>
-                        <button id="control-prev" type="button" class="secondary">Prev</button>
-                        <button id="control-cycle-loop" type="button" class="secondary">Cycle Loop</button>
                     </div>
                 </section>
 

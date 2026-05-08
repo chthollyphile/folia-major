@@ -4,6 +4,21 @@ export type ResponseTarget = 'health' | 'clear' | 'session';
 export type Direction = 'in' | 'out' | 'http' | 'system';
 export type SocketStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+export type PlaylistTrackDraft = {
+    id: string;
+    title: string;
+    artist: string;
+    album: string;
+    coverUrl: string | null;
+    audioUrl: string | null;
+    audioFile: File | null;
+    lyricsText: string | null;
+    lyricsFormat: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
+    durationMs: number | null;
+    foliaSessionId: string | null;
+    foliaDurationMs: number | null;
+};
+
 export type ManagedInstance = {
     id: string;
     baseUrl: string;
@@ -18,6 +33,9 @@ export type ManagedInstance = {
     lastResponse: string;
     lastServerHello: unknown;
     lastHelloAck: unknown;
+    lastHealth: unknown;
+    lastSession: unknown;
+    lastRealtimeState: unknown;
 };
 
 export type EventLogEntry = {

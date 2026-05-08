@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Folia Conductor</title>
+    <script type="module" src="/folia-conductor/main.ts"></script>
+</head>
+<body>
+    <main class="conductor-shell">
+        <section class="conductor-card conductor-hero">
+            <div>
+                <p class="conductor-eyebrow">Folia Stage API</p>
+                <h1>Folia Conductor</h1>
+                <p class="conductor-intro">
+                    一个简洁的 Stage controller demo。这里维护歌曲列表、向多个 Folia 终端推送当前单曲，
+                    并接收它们发回的播放控制请求。
+                </p>
+            </div>
+            <div id="status-pill" class="status-pill">0 clients connected</div>
+        </section>
+
+        <section class="conductor-grid">
+            <article class="conductor-card">
+                <div class="section-head">
+                    <div>
+                        <p class="conductor-eyebrow">Target</p>
+                        <h2>Client Draft</h2>
+                    </div>
+                </div>
+                <div class="field-grid field-grid-two">
+                    <label>
+                        <span>Stage address</span>
+                        <input id="base-url" type="url" value="http://127.0.0.1:32107" />
+                    </label>
+                    <label>
+                        <span>Bearer token</span>
+                        <input id="token" type="password" placeholder="Paste token from Folia Stage settings" />
+                    </label>
+                </div>
+                <div class="field-grid field-grid-two">
+                    <label>
+                        <span>Controller ID</span>
+                        <input id="controller-id" type="text" value="folia-conductor-demo" />
+                    </label>
+                    <label>
+                        <span>Selection</span>
+                        <input id="selection-summary" type="text" readonly value="0 selected" />
+                    </label>
+                </div>
+                <div class="button-row">
+                    <button id="upsert-instance" type="button">Add / Update</button>
+                    <button id="connect-selected" type="button" class="secondary">Connect</button>
+                    <button id="disconnect-selected" type="button" class="secondary">Disconnect</button>
+                </div>
+                <div id="controller-status" class="inline-status">No clients added yet.</div>
+            </article>
+
+            <article class="conductor-card">
+                <div class="section-head">
+                    <div>
+                        <p class="conductor-eyebrow">Cluster</p>
+                        <h2>Client Status</h2>
+                    </div>
+                    <div class="summary-badges">
+                        <span id="clients-total" class="summary-badge">0 total</span>
+                        <span id="clients-connected" class="summary-badge summary-badge-live">0 connected</span>
+                        <span id="clients-connecting" class="summary-badge">0 connecting</span>
+                    </div>
+                </div>
+                <div id="instance-list" class="instance-list"></div>
+            </article>
+        </section>
+
+        <section class="conductor-grid conductor-grid-main">
+            <article class="conductor-card player-card">
+                <div class="player-cover-wrap">
+                    <div id="player-cover" class="player-cover">No Cover</div>
+                    <div class="player-copy">
+                        <p class="conductor-eyebrow">Now Playing</p>
+                        <h2 id="current-track-title">No track selected</h2>
+                        <p id="current-track-meta" class="track-meta">上传音频文件生成歌曲列表</p>
+                        <p id="current-track-source" class="track-source">等待 Folia 返回当前歌曲信息</p>
+                    </div>
+                </div>
+
+                <div class="player-progress-shell">
+                    <span id="progress-current" class="progress-time">00:00</span>
+                    <div class="player-progress-track">
+                        <div id="player-progress-fill" class="player-progress-fill"></div>
+                        <input id="player-progress" class="player-progress-input" type="range" min="0" max="0" step="100" value="0" />
+                    </div>
+                    <span id="progress-duration" class="progress-time">00:00</span>
+                </div>
+
+                <div class="button-row button-row-player">
+                    <button id="prev-track" type="button" class="secondary">Prev</button>
+                    <button id="play-track" type="button">Play</button>
+                    <button id="pause-track" type="button" class="secondary">Pause</button>
+                    <button id="next-track" type="button" class="secondary">Next</button>
+                </div>
+
+                <div class="button-row button-row-player">
+                    <button id="push-active-track" type="button" class="secondary">Push Current Track</button>
+                    <button id="sync-folia-state" type="button" class="secondary">Sync From Folia</button>
+                </div>
+
+                <div class="player-metrics">
+                    <span id="playback-state-pill" class="metric-pill">IDLE</span>
+                    <span id="clock-pill" class="metric-pill">Clock 0 ms</span>
+                    <span id="revision-pill" class="metric-pill">Revision 0</span>
+                </div>
+            </article>
+
+            <article class="conductor-card playlist-card">
+                <div class="section-head">
+                    <div>
+                        <p class="conductor-eyebrow">Playlist</p>
+                        <h2>Upload Audio Files</h2>
+                    </div>
+                    <button id="clear-playlist" type="button" class="secondary">Clear</button>
+                </div>
+                <label class="upload-field">
+                    <span>Import tracks</span>
+                    <input id="playlist-files" type="file" accept="audio/*" multiple />
+                </label>
+                <p class="playlist-hint">
+                    播放列表由 controller 维护。点击歌曲会把它设为当前曲目，并向选中的 Folia 终端推送新的
+                    <code>/stage/session</code>。
+                </p>
+                <div id="playlist-list" class="playlist-list"></div>
+            </article>
+        </section>
+
+        <section class="conductor-grid">
+            <article class="conductor-card">
+                <div class="section-head">
+                    <div>
+                        <p class="conductor-eyebrow">Live Feedback</p>
+                        <h2>Folia Response</h2>
+                    </div>
+                </div>
+                <div id="feedback-status" class="inline-status">No Folia response yet.</div>
+                <pre id="feedback-body" class="response-body"></pre>
+            </article>
+
+            <article class="conductor-card">
+                <div class="section-head">
+                    <div>
+                        <p class="conductor-eyebrow">Events</p>
+                        <h2>Recent Messages</h2>
+                    </div>
+                </div>
+                <div id="event-list" class="event-list"></div>
+            </article>
+        </section>
+    </main>
+</body>
+</html>

@@ -166,7 +166,8 @@ vercel dev
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
-| `npm run stage:client` | 打开本地 Stage 联调客户端 |
+| `npm run stage:client` | 打开完整 Stage 协议联调客户端 |
+| `npm run stage:conductor` | 打开最小化 Stage controller demo |
 
 ## 本地音乐与匹配说明
 
@@ -187,6 +188,12 @@ vercel dev
 
 ```bash
 npm run stage:client
+```
+
+如果你只想要一个简洁的 controller 播放器界面，也可以运行：
+
+```bash
+npm run stage:conductor
 ```
 
 3. 页面打开后填写：

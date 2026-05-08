@@ -58,4 +58,16 @@ describe('stageControllerClock', () => {
         expect(nextState.currentTimeMs).toBe(33970);
         expect(getControllerClockTimeMs(nextClock, 2300)).toBe(33970);
     });
+
+    it('wraps controller time back to zero for single-track looping playback', () => {
+        const loopingState: StageRealtimeState = {
+            ...baseState,
+            loopMode: 'one',
+            currentTimeMs: 119500,
+        };
+
+        const clock = syncControllerClockFromState(createStageControllerClock(), loopingState, 1000);
+
+        expect(getControllerClockTimeMs(clock, 1700)).toBe(200);
+    });
 });

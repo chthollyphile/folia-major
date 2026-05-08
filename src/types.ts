@@ -104,6 +104,14 @@ export interface StageControlRequest {
   };
 }
 
+export interface StagePlaybackReport {
+  sessionId: string;
+  playerState?: PlayerState;
+  currentTimeMs?: number;
+  durationMs?: number;
+  errorMessage?: string | null;
+}
+
 export interface StageControllerPolicy {
   collapseWindowMs: number;
   allowPlayerLoopModeChange: boolean;

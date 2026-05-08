@@ -561,6 +561,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 isDaylight={isDaylight}
                                                 primaryColor={theme.primaryColor}
                                             />
+                                        ) : isStage ? (
+                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px]">
+                                                <div className="flex items-center justify-center h-full px-4 text-center text-xs opacity-50">
+                                                    Stage 播放列表由 controller 管理，Folia 仅负责当前单曲播放与控制请求回传。
+                                                </div>
+                                            </motion.div>
                                         ) : (
                                             <QueueTab
                                                 playQueue={playQueue}
