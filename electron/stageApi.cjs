@@ -1485,6 +1485,7 @@ function createStageApi({
         session: stageSession,
         realtimeState: stageRealtimeState,
       });
+      broadcastStageEvent('stage-session-updated');
     }
     sendStageRealtimeStateToController();
     if (nextErrorMessage) {
@@ -1496,7 +1497,6 @@ function createStageApi({
     }
     broadcastStageRealtimeState();
     broadcastStageConnectionState();
-    broadcastStageEvent('stage-session-updated');
     return buildStageStatus();
   };
 

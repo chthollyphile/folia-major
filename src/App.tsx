@@ -4014,12 +4014,6 @@ export default function App() {
                 onPlay={(e) => {
                     currentTime.set(e.currentTarget.currentTime);
                     setPlayerState(PlayerState.PLAYING);
-                    if (activePlaybackContext === 'stage') {
-                        void reportStagePlaybackState({
-                            playerState: PlayerState.PLAYING,
-                            currentTimeMs: Math.max(0, Math.floor(e.currentTarget.currentTime * 1000)),
-                        });
-                    }
                 }}
                 onPlaying={(e) => {
                     currentTime.set(e.currentTarget.currentTime);
