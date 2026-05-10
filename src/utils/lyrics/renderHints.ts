@@ -117,6 +117,10 @@ const buildLineRenderEndTime = (
     lineTransitionMode: LineTransitionMode,
     wordRevealMode: WordRevealMode
 ): number => {
+    // renderEndTime is the latest point a visualizer may keep this line on screen for
+    // active/pass/exit polish after reveal has finished. It is not a guaranteed standalone
+    // timeline: a later line may start earlier and force the current renderer to cut that
+    // extra window short.
     if (lineTransitionMode === 'none') {
         return Math.max(line.endTime, line.startTime + MICRO_LINE_RENDER_FLOOR);
     }

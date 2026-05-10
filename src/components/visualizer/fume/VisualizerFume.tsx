@@ -189,6 +189,19 @@ const easeInOutCubic = (value: number) => {
         ? 4 * normalized * normalized * normalized
         : 1 - Math.pow(-2 * normalized + 2, 3) / 2;
 };
+const resolveDelayedGlowEnvelope = (
+    progress: number,
+    peakProgress = 0.8,
+) => {
+    const normalized = clamp(progress, 0, 1);
+    const clampedPeak = clamp(peakProgress, 0.05, 0.95);
+
+    if (normalized <= clampedPeak) {
+        return easeOutCubic(normalized / clampedPeak);
+    }
+
+    return 1 - easeInCubic((normalized - clampedPeak) / (1 - clampedPeak));
+};
 
 const nowMs = () => (
     typeof performance !== 'undefined'
@@ -258,7 +271,6 @@ const FUME_BACKGROUND_SCALE_FACTOR = 0.94;
 const FUME_BACKGROUND_VERTICAL_OFFSET_RATIO = 0.22;
 const FUME_CAMERA_TELEPORT_TRIGGER_SCREENS = 2.75;
 const FUME_CAMERA_TELEPORT_START_SCREENS = 1;
-
 const resolvePassedTextStyle = (
     variant: 'body' | 'hero',
     textHoldStyle: 'standard' | 'dimmed',
@@ -429,81 +441,109 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
-const isLatinTokenGrapheme = (value: string) => /^[A-Za-z0-9_]$/.test(value);
-
-const expandRangeToLatinToken = (
-    graphemes: string[],
-    start: number,
-    end: number,
-) => {
-    let expandedStart = clamp(start, 0, graphemes.length);
-    let expandedEnd = clamp(end, expandedStart, graphemes.length);
-
-    while (expandedStart > 0 && isLatinTokenGrapheme(graphemes[expandedStart - 1] ?? '')) {
-        expandedStart -= 1;
-    }
-
-    while (expandedEnd < graphemes.length && isLatinTokenGrapheme(graphemes[expandedEnd] ?? '')) {
-        expandedEnd += 1;
-    }
-
-    return {
-        start: expandedStart,
-        end: expandedEnd,
-    };
-};
-
-const findWordRanges = (line: Line, graphemes: string[]) => {
+export const buildWordRangesFromWords = (line: Line, graphemes: string[]) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
     }
 
-    const validWords = line.words.filter(word => word.endTime > word.startTime);
-    if (validWords.length === 0) {
+    const rangedWords = line.words.filter(word => splitGraphemes(word.text).length > 0);
+    if (rangedWords.length === 0) {
         return [] as WordRange[];
     }
-
-    const totalDuration = validWords.reduce((sum, word) => sum + (word.endTime - word.startTime), 0);
-    if (totalDuration <= 0) {
-        return [] as WordRange[];
-    }
-
     const ranges: WordRange[] = [];
     let cursor = 0;
-    let accumulatedDuration = 0;
 
-    for (let wordIndex = 0; wordIndex < validWords.length; wordIndex += 1) {
-        const word = validWords[wordIndex]!;
-        const start = cursor;
-        accumulatedDuration += (word.endTime - word.startTime);
-
-        const isLastWord = wordIndex === validWords.length - 1;
-        const idealEnd = isLastWord
-            ? graphemes.length
-            : Math.round((accumulatedDuration / totalDuration) * graphemes.length);
-        const remainingWords = validWords.length - wordIndex - 1;
-        const maxEnd = graphemes.length - remainingWords;
-        const end = clamp(Math.max(start + 1, idealEnd), start + 1, Math.max(start + 1, maxEnd));
-        const expandedRange = isCJK(word.text)
-            ? { start, end }
-            : expandRangeToLatinToken(graphemes, start, end);
+    for (let wordIndex = 0; wordIndex < rangedWords.length; wordIndex += 1) {
+        const word = rangedWords[wordIndex]!;
+        const wordGraphemes = splitGraphemes(word.text);
+        const start = clamp(cursor, 0, graphemes.length);
+        const end = clamp(start + wordGraphemes.length, start, graphemes.length);
 
         ranges.push({
             wordIndex,
             word,
             start,
             end,
-            colorStart: expandedRange.start,
-            colorEnd: expandedRange.end,
+            colorStart: start,
+            colorEnd: end,
         });
         cursor = end;
     }
 
-    if (ranges.length > 0) {
-        ranges[ranges.length - 1]!.end = graphemes.length;
+    return ranges;
+};
+
+const resolveWordRevealProgress = (
+    range: WordRange,
+    currentTimeValue: number,
+) => {
+    if (range.word.endTime <= range.word.startTime) {
+        return currentTimeValue >= range.word.endTime ? 1 : 0;
     }
 
-    return ranges;
+    const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+    return clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
+};
+
+const resolvePrintedGlyphsInRange = (
+    range: WordRange,
+    currentTimeValue: number,
+) => {
+    const length = Math.max(range.end - range.start, 0);
+    if (length === 0) {
+        return 0;
+    }
+
+    if (currentTimeValue < range.word.startTime) {
+        return 0;
+    }
+
+    const progress = resolveWordRevealProgress(range, currentTimeValue);
+    if (progress >= 1) {
+        return length;
+    }
+
+    return clamp(
+        Math.floor(progress * length + 0.2),
+        progress > 0 ? 1 : 0,
+        length,
+    );
+};
+
+const hasRevealCompletedByLineEnd = (
+    line: Line,
+    currentTimeValue: number,
+) => currentTimeValue >= line.endTime;
+
+export const resolveLinePassCutoffTime = (
+    line: Line,
+    nextLineStartTime: number | null | undefined,
+) => {
+    const renderEndTime = getLineRenderEndTime(line);
+    if (typeof nextLineStartTime !== 'number' || !Number.isFinite(nextLineStartTime)) {
+        return renderEndTime;
+    }
+
+    return Math.min(renderEndTime, nextLineStartTime);
+};
+
+export const resolveVisualProgressWithCutoff = (
+    startedAt: number,
+    duration: number,
+    currentTimeValue: number,
+    cutoffTime: number,
+) => {
+    const nominalEndTime = startedAt + Math.max(duration, 0.001);
+    const effectiveEndTime = Math.max(
+        startedAt + 0.001,
+        Math.min(nominalEndTime, cutoffTime),
+    );
+
+    return clamp(
+        (currentTimeValue - startedAt) / Math.max(effectiveEndTime - startedAt, 0.001),
+        0,
+        1,
+    );
 };
 
 const cursorToGlobalOffset = (cursor: LayoutCursor, segmentMetas: SegmentMeta[]) => {
@@ -821,15 +861,12 @@ const buildLayoutCacheKey = (
     ].join('|');
 };
 
-const resolvePrintedGraphemeCount = (
+export const resolvePrintedGraphemeCount = (
     line: Line,
-    variant: 'body' | 'hero',
     wordRanges: WordRange[],
     graphemeCount: number,
     currentTimeValue: number,
 ) => {
-    // Hero blocks print more like a stamped headline.
-    // Body blocks print word-by-word so they feel more like reading through an article.
     if (graphemeCount === 0) {
         return 0;
     }
@@ -838,15 +875,12 @@ const resolvePrintedGraphemeCount = (
         return 0;
     }
 
-    if (variant === 'hero') {
-        const lineDuration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.18);
-        const stampDuration = clamp(lineDuration * 0.94, 0.24, lineDuration);
-        const progress = clamp((currentTimeValue - line.startTime) / stampDuration, 0, 1);
-        return clamp(Math.floor(progress * graphemeCount + (progress > 0 ? 1 : 0)), 0, graphemeCount);
+    if (hasRevealCompletedByLineEnd(line, currentTimeValue)) {
+        return graphemeCount;
     }
 
     if (wordRanges.length === 0) {
-        const duration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.12);
+        const duration = Math.max(line.endTime - line.startTime, 0.12);
         const progress = clamp((currentTimeValue - line.startTime) / duration, 0, 1);
         return clamp(Math.floor(progress * graphemeCount + (progress > 0 ? 1 : 0)), 0, graphemeCount);
     }
@@ -854,29 +888,19 @@ const resolvePrintedGraphemeCount = (
     let printed = 0;
     for (let index = 0; index < wordRanges.length; index += 1) {
         const range = wordRanges[index]!;
-        const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+        const partial = resolvePrintedGlyphsInRange(range, currentTimeValue);
+        printed = range.start + partial;
 
-        if (currentTimeValue >= range.word.endTime) {
-            printed = range.end;
-            continue;
+        if (partial < range.end - range.start) {
+            return clamp(printed, 0, graphemeCount);
         }
-
-        if (currentTimeValue >= range.word.startTime) {
-            const progress = clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
-            const length = Math.max(range.end - range.start, 1);
-            const partial = clamp(Math.floor(progress * length + 0.2), progress > 0 ? 1 : 0, length);
-            return clamp(range.start + partial, 0, graphemeCount);
-        }
-
-        return clamp(printed, 0, graphemeCount);
     }
 
     return clamp(printed, 0, graphemeCount);
 };
 
-const resolvePrintedGraphemeProgress = (
+export const resolvePrintedGraphemeProgress = (
     line: Line,
-    variant: 'body' | 'hero',
     wordRanges: WordRange[],
     graphemeCount: number,
     currentTimeValue: number,
@@ -889,15 +913,12 @@ const resolvePrintedGraphemeProgress = (
         return 0;
     }
 
-    if (variant === 'hero') {
-        const lineDuration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.18);
-        const stampDuration = clamp(lineDuration * 0.94, 0.24, lineDuration);
-        const progress = clamp((currentTimeValue - line.startTime) / stampDuration, 0, 1);
-        return clamp(progress * graphemeCount, 0, graphemeCount);
+    if (hasRevealCompletedByLineEnd(line, currentTimeValue)) {
+        return graphemeCount;
     }
 
     if (wordRanges.length === 0) {
-        const duration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.12);
+        const duration = Math.max(line.endTime - line.startTime, 0.12);
         const progress = clamp((currentTimeValue - line.startTime) / duration, 0, 1);
         return clamp(progress * graphemeCount, 0, graphemeCount);
     }
@@ -905,20 +926,17 @@ const resolvePrintedGraphemeProgress = (
     let printed = 0;
     for (let index = 0; index < wordRanges.length; index += 1) {
         const range = wordRanges[index]!;
-        const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
-
-        if (currentTimeValue >= range.word.endTime) {
-            printed = range.end;
-            continue;
+        if (currentTimeValue < range.word.startTime) {
+            return clamp(printed, 0, graphemeCount);
         }
 
-        if (currentTimeValue >= range.word.startTime) {
-            const progress = clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
-            const length = Math.max(range.end - range.start, 1);
-            return clamp(range.start + progress * length, 0, graphemeCount);
-        }
+        const progress = resolveWordRevealProgress(range, currentTimeValue);
+        const length = Math.max(range.end - range.start, 0);
+        printed = range.start + progress * length;
 
-        return clamp(printed, 0, graphemeCount);
+        if (progress < 1) {
+            return clamp(printed, 0, graphemeCount);
+        }
     }
 
     return clamp(printed, 0, graphemeCount);
@@ -1100,7 +1118,7 @@ function buildArticleLayoutAttempt(
             const renderDetailsStart = timing ? nowMs() : 0;
             const prepared = preparedSingleLine.prepared;
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
-            const wordRanges = findWordRanges(line, graphemes);
+            const wordRanges = buildWordRangesFromWords(line, graphemes);
             const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
             const colorRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges, 'color');
             const renderLines = layout.lines.map((layoutLine, lineIndex) => {
@@ -1639,7 +1657,6 @@ const resolveFocusBlock = (
     const latestPrintedBlock = article.blocks.reduce<FumeBlock | null>((latest, block) => {
         const printedCount = resolvePrintedGraphemeCount(
             block.line,
-            block.variant,
             block.wordRanges,
             block.graphemes.length,
             currentTimeValue,
@@ -2022,7 +2039,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         focusBlock,
                         resolvePrintedGraphemeCount(
                             focusBlock.line,
-                            focusBlock.variant,
                             focusBlock.wordRanges,
                             focusBlock.graphemes.length,
                             time,
@@ -2032,7 +2048,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         focusBlock,
                         resolvePrintedGraphemeProgress(
                             focusBlock.line,
-                            focusBlock.variant,
                             focusBlock.wordRanges,
                             focusBlock.graphemes.length,
                             time,
@@ -2296,6 +2311,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const transitionPassedStyle = resolvePassedTextStyle(block.variant, 'standard');
                 const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
                 const lineEndTime = getLineRenderEndTime(block.line);
+                const nextLineStartTime = lines[block.sourceLineIndex + 1]?.startTime ?? null;
+                const linePassCutoffTime = resolveLinePassCutoffTime(block.line, nextLineStartTime);
+                const revealCompleteTime = block.line.endTime;
+                const hasRevealCompleted = time >= revealCompleteTime;
+                const hasPassCutoffReached = time >= linePassCutoffTime;
                 const lineDuration = Math.max(lineEndTime - block.line.startTime, 0.18);
                 const colorTrailDuration = clamp(
                     lineDuration * (block.variant === 'hero' ? 0.42 : 0.52),
@@ -2406,7 +2426,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                 const printedCount = resolvePrintedGraphemeCount(
                     block.line,
-                    block.variant,
                     block.wordRanges,
                     block.graphemes.length,
                     time,
@@ -2418,10 +2437,15 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 context.textAlign = 'left';
                 context.textBaseline = 'middle';
 
-                const isLineActive = time >= block.line.startTime && time <= lineEndTime;
+                const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
                 if (isLineActive) {
-                    const lineProgress = clamp((time - block.line.startTime) / lineDuration, 0, 1);
-                    const lineGlowEnvelope = Math.sin(lineProgress * Math.PI);
+                    const lineProgress = resolveVisualProgressWithCutoff(
+                        block.line.startTime,
+                        lineDuration,
+                        time,
+                        linePassCutoffTime,
+                    );
+                    const lineGlowEnvelope = resolveDelayedGlowEnvelope(lineProgress, 0.8);
                     const lineGlowAlpha = (
                         (block.variant === 'hero' ? 0.16 : 0.12)
                         + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2)
@@ -2466,10 +2490,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                         const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
                         const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
-                        const isPrinted = globalOffset < printedCount;
+                        const isPrinted = hasRevealCompleted || globalOffset < printedCount;
                         const isFrontier = printedCount > 0
                             && globalOffset === printedCount
-                            && printedCount < totalGraphemeCount;
+                            && printedCount < totalGraphemeCount
+                            && !hasRevealCompleted
+                            && !hasPassCutoffReached;
 
                         let alpha = isPrinted
                             ? activeOpacity
@@ -2495,13 +2521,26 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
                             const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
-                            const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
+                            const colorTrailPhase = resolveVisualProgressWithCutoff(
+                                glyphTrailStart,
+                                colorTrailDuration,
+                                time,
+                                linePassCutoffTime,
+                            );
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
-                            if (time < range.word.startTime) {
+                            if (hasPassCutoffReached) {
+                                alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
+                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
+                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
+                                shadowColor = colorWithAlpha(
+                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
+                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
+                                );
+                            } else if (time < range.word.startTime) {
                                 alpha = waitingOpacity;
                                 fillStyle = colorWithAlpha(theme.primaryColor, alpha);
-                            } else if (time <= glyphTrailStart) {
+                            } else if (glyphProgress < 1) {
                                 alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
                                 fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
                                 shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
@@ -2527,32 +2566,34 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 const activationWindowStart = glyphTrailStart - activationLeadDuration;
                                 const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
                                 const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
-                                const stampProgress = clamp(
-                                    (time - activationWindowStart) / Math.max(activationWindowEnd - activationWindowStart, 0.001),
-                                    0,
-                                    1,
+                                const stampProgress = resolveVisualProgressWithCutoff(
+                                    activationWindowStart,
+                                    activationWindowEnd - activationWindowStart,
+                                    time,
+                                    linePassCutoffTime,
                                 );
 
                                 if (stampProgress > 0 && stampProgress < 1) {
-                                    const isDropping = time <= glyphTrailStart;
+                                    const glyphTrailPhase = resolveVisualProgressWithCutoff(
+                                        glyphTrailStart,
+                                        Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                        time,
+                                        linePassCutoffTime,
+                                    );
+                                    const isDropping = glyphTrailPhase <= 0;
                                     const dropProgress = isDropping
                                         ? easeOutCubic(
-                                            clamp(
-                                                (time - activationWindowStart) / Math.max(glyphTrailStart - activationWindowStart, 0.001),
-                                                0,
-                                                1,
+                                            resolveVisualProgressWithCutoff(
+                                                activationWindowStart,
+                                                Math.max(glyphTrailStart - activationWindowStart, 0.001),
+                                                time,
+                                                linePassCutoffTime,
                                             ),
                                         )
                                         : 1;
                                     const fadeProgress = isDropping
                                         ? 0
-                                        : easeInOutCubic(
-                                            clamp(
-                                                (time - glyphTrailStart) / Math.max(activationWindowEnd - glyphTrailStart, 0.001),
-                                                0,
-                                                1,
-                                            ),
-                                        );
+                                        : easeInOutCubic(glyphTrailPhase);
                                     const blockPulse = isDropping
                                         ? mix(0.18, 1, Math.pow(dropProgress, 0.78))
                                         : Math.pow(1 - fadeProgress, 1.2);
