@@ -2543,8 +2543,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             } else if (glyphProgress < 1) {
                                 alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
                                 fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
-                                shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
-                                shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
                             } else {
                                 alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
                                 fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
