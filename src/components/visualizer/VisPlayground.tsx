@@ -100,6 +100,7 @@ const clampFontScale = (value: number) => Math.min(1.4, Math.max(0.85, value));
 const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value));
 const clampFumeCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55, value));
 const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, value));
+const clampFumeBackgroundObjectOpacity = (value: number) => Math.min(1, Math.max(0, value));
 const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
 const clampFumeTextHoldRatio = (value: number) => Math.min(1, Math.max(0, value));
 const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined): FumeTuning['cameraTrackingMode'] => (
@@ -242,6 +243,9 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: draftFumeTuning.hidePrintSymbols,
         disableGeometricBackground: draftFumeTuning.disableGeometricBackground,
+        backgroundObjectOpacity: clampFumeBackgroundObjectOpacity(
+            draftFumeTuning.backgroundObjectOpacity ?? DEFAULT_FUME_TUNING.backgroundObjectOpacity,
+        ),
         textHoldRatio: clampFumeTextHoldRatio(draftFumeTuning.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio),
         cameraTrackingMode: resolveFumeCameraTrackingMode(draftFumeTuning.cameraTrackingMode),
         cameraSpeed: clampFumeCameraSpeed(draftFumeTuning.cameraSpeed),
@@ -710,6 +714,24 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                         onChange={(next) => handleFumeTuningChange({ disableGeometricBackground: next })}
                                         isDaylight={isDaylight}
                                     />
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.fumeBackgroundObjectOpacity') || '世界背景物体透明度'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {Math.round(resolvedFumeTuning.backgroundObjectOpacity * 100)}%
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={resolvedFumeTuning.backgroundObjectOpacity}
+                                            onChange={(event) => handleFumeTuningChange({ backgroundObjectOpacity: parseFloat(event.target.value) })}
+                                            className={rangeInputClass}
+                                        />
+                                    </div>
 
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>

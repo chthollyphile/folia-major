@@ -1787,6 +1787,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
         disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+        backgroundObjectOpacity: clamp(
+            fumeTuning?.backgroundObjectOpacity ?? DEFAULT_FUME_TUNING.backgroundObjectOpacity,
+            0,
+            1,
+        ),
         textHoldRatio: clamp(fumeTuning?.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio, 0, 1),
         cameraTrackingMode: fumeTuning?.cameraTrackingMode === 'stepped' || fumeTuning?.cameraTrackingMode === 'smooth'
             ? fumeTuning.cameraTrackingMode
@@ -1890,6 +1895,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     );
     const cameraSpeed = resolvedFumeTuning.cameraSpeed;
     const glowIntensity = resolvedFumeTuning.glowIntensity;
+    const backgroundObjectOpacity = resolvedFumeTuning.backgroundObjectOpacity;
     const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
     const textHoldRatio = resolvedFumeTuning.textHoldRatio;
     const passedFadeDuration = useMemo(
@@ -1998,6 +2004,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         theme,
                         time: time + now * 0.00018,
                         audioLevels: fumeBackgroundAudioLevels,
+                        objectOpacityMultiplier: backgroundObjectOpacity * 2,
                     });
                     context.restore();
                 }
@@ -2271,6 +2278,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     theme,
                     time,
                     audioLevels: fumeBackgroundAudioLevels,
+                    objectOpacityMultiplier: backgroundObjectOpacity * 2,
                     parallax: {
                         cameraX: backgroundCameraX,
                         cameraY: backgroundCameraY,
@@ -2670,6 +2678,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         audioBands,
         audioPower,
         backgroundScene,
+        backgroundObjectOpacity,
         cameraSpeed,
         currentTime,
         glowIntensity,
