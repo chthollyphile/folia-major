@@ -29,6 +29,10 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 
 ## 展示
 
+
+https://github.com/user-attachments/assets/fd27f4f0-64b9-4c57-8c3b-10df767f934b
+
+
 https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
 
 ## 核心能力
