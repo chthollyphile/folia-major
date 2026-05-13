@@ -16,6 +16,8 @@ Lyrics Reimagined // 辞曲新境
 [桌面版下载](https://github.com/chthollyphile/folia-major/releases)
 ·
 [Vercel 部署](https://vercel.com/new/clone?repository-url=https://github.com/chthollyphile/folia-major)
+·
+[文档](https://folia-site.vercel.app/)
 
 </div>
 
