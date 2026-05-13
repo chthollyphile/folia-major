@@ -6,7 +6,7 @@
 
 # Folia
 
-Lyrics Reimagined
+Lyrics Reimagined // 辞曲新境
 
 [![GitHub release](https://img.shields.io/github/v/release/chthollyphile/folia-major?label=release)](https://github.com/chthollyphile/folia-major/releases)
 [![License](https://img.shields.io/github/license/chthollyphile/folia-major)](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)
@@ -21,19 +21,50 @@ Lyrics Reimagined
 
 ## 项目简介
 
-Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云，navidrome和本地音乐库，通过智能歌词匹配和AI生成的动态背景，为用户提供独特的听歌体验。
+Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云，navidrome和本地音乐库，通过智能歌词匹配，AI生成配色主题，以及多种全屏歌词动画为用户提供独特的听歌体验。
 
-如果你希望直接获得开箱即用的体验，而不是手动配置 Node 环境或部署服务，推荐直接使用基于Electron的 windows/ macOS/ Linux 桌面端版本。
+如果你希望直接开箱即用，马上体验，推荐直接使用基于Electron的 windows/ macOS/ Linux 桌面端版本。
 
-对于移动设备，可以选择一键部署到 Vercel 的 Web 版本，或自行部署到其他支持 Node.js 的平台。
+如果希望能够在移动设备上使用，或在浏览器上体验云端多平台，可以选择一键部署到 Vercel 的 Web 版本，或自行部署到其他支持 Node.js 的平台。
 
 ## 展示
 
+### 演示视频
 
 https://github.com/user-attachments/assets/fd27f4f0-64b9-4c57-8c3b-10df767f934b
 
-
 https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
+
+### 主题预览
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./img/preview-fume.png" alt="Fume 主题预览" />
+    </td>
+    <td width="50%">
+      <img src="./img/preview-lumi.png" alt="Lumi 主题预览" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>浮名</strong></td>
+    <td align="center"><strong>流光</strong></td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="./img/preview-cad.png" alt="Cad 主题预览" />
+    </td>
+    <td width="50%">
+      <img src="./img/preview-pat.png" alt="Pat 主题预览" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>心象</strong></td>
+    <td align="center"><strong>云阶</strong></td>
+  </tr>
+</table>
+
+不同的歌词动画具有不同的排版氛围和可调参数，让全屏歌词拥有如同文字PV般的丰富视觉效果，同时又能兼顾响应式布局，自动适配不同窗口尺寸。
 
 ## 核心能力
 
@@ -42,7 +73,7 @@ https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
 | 在线搜索与播放 | 搜索歌曲、歌手或专辑后即可播放，并自动加载相关封面与歌词。 |
 | 本地音乐支持 | 可导入本地音频文件，在本地安全保存索引信息，不上传文件内容。 |
 | 智能歌词匹配 | 本地歌曲可自动匹配在线歌词与封面，也支持手动修正匹配结果。 |
-| LRC 文件识别 | 自动加载同目录同名 `.lrc` 歌词文件，翻译歌词文件命名为 `歌曲名.t.lrc`。 |
+| LRC 文件识别 | 自动加载同目录同名 `.lrc` 歌词文件，或歌词文件内嵌lrc歌词。适配 LDDC 生成的增强型逐字歌词格式 |
 | AI 主题生成 | 基于歌曲情绪与歌词内容生成沉浸式背景与视觉参数。 |
 | 多端体验 | 提供 Web 部署方式，同时支持桌面端打包分发。 |
 
