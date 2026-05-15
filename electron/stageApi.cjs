@@ -6,7 +6,8 @@ const Busboy = require('busboy');
 const { finished } = require('stream/promises');
 
 // Stage API server for desktop-local integrations. External tools can push
-// one display line, push one media session, or ask Folia to search/play songs.
+// one parser-compatible lyrics session, push one media session, or ask Folia
+// to search/play songs.
 
 const fsp = fs.promises;
 const STAGE_JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
@@ -144,7 +145,7 @@ function createStageApi({
   searchStageSongs,
 }) {
   let stageServer = null;
-  let stageDisplayLine = null;
+  let stageLyricsSession = null;
   let stageMediaSession = null;
   let stageActiveEntryKind = null;
   let stageActiveSessionId = null;
@@ -226,7 +227,7 @@ function createStageApi({
     port: getConfiguredStagePort(),
     token: getStageToken(),
     activeEntryKind: stageActiveEntryKind,
-    displayLine: stageDisplayLine,
+    lyricsSession: stageLyricsSession,
     mediaSession: stageMediaSession,
   });
 
@@ -318,7 +319,7 @@ function createStageApi({
 
   const clearStageStateData = async () => {
     clearPendingExternalPlayRequests('Stage state was cleared.');
-    stageDisplayLine = null;
+    stageLyricsSession = null;
     stageMediaSession = null;
     stageActiveEntryKind = null;
     stageActiveSessionId = null;
@@ -825,50 +826,167 @@ function createStageApi({
     };
   };
 
-  const normalizeStageDisplayLinePayload = (payload = {}) => {
-    const rawWords = Array.isArray(payload.words) ? payload.words : [];
-    const normalizedWords = rawWords
-      .map((word) => {
-        const text = normalizeStageText(word?.text);
-        if (!text) {
-          return null;
-        }
+  const normalizeStageNeteaseLyricBranch = (value) => {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
 
-        const normalizedWord = { text };
-        if (Number.isFinite(word?.startTime)) {
-          normalizedWord.startTime = Number(word.startTime);
-        }
-        if (Number.isFinite(word?.endTime)) {
-          normalizedWord.endTime = Number(word.endTime);
-        }
-        return normalizedWord;
-      })
-      .filter(Boolean);
+    const lyric = normalizeStageText(value.lyric);
+    const pureMusic = typeof value.pureMusic === 'boolean' ? value.pureMusic : undefined;
+    if (!lyric && pureMusic === undefined) {
+      return null;
+    }
 
-    const derivedFullText = normalizedWords.map((word) => word.text).join('');
-    const fullText = normalizeStageText(payload.fullText) || derivedFullText;
-    if (!fullText) {
+    return {
+      ...(lyric ? { lyric } : {}),
+      ...(pureMusic !== undefined ? { pureMusic } : {}),
+    };
+  };
+
+  const normalizeStageLyricsSessionPayload = (payload = {}) => {
+    const rawLyricSource = payload?.lyricSource;
+    if (!rawLyricSource || typeof rawLyricSource !== 'object') {
       throw createStageValidationError(
-        'Stage line payload requires fullText or at least one word.',
-        'INVALID_STAGE_LINE',
+        'Stage lyrics payload requires a parser-compatible lyricSource object.',
+        'INVALID_STAGE_LYRICS',
       );
     }
 
-    const displayLine = {
-      fullText,
+    const sourceType = normalizeStageText(rawLyricSource.type);
+    if (!sourceType) {
+      throw createStageValidationError(
+        'Stage lyricSource.type is required.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+
+    let lyricSource = null;
+
+    if (sourceType === 'local') {
+      const lrcContent = typeof rawLyricSource.lrcContent === 'string' ? rawLyricSource.lrcContent : '';
+      const tLrcContent = typeof rawLyricSource.tLrcContent === 'string' ? rawLyricSource.tLrcContent : '';
+      const formatHint = normalizeStageText(rawLyricSource.formatHint);
+      if (!lrcContent.trim()) {
+        throw createStageValidationError(
+          'Stage local lyricSource requires lrcContent.',
+          'INVALID_STAGE_LYRICS',
+        );
+      }
+
+      lyricSource = {
+        type: 'local',
+        lrcContent,
+        ...(tLrcContent.trim() ? { tLrcContent } : {}),
+        ...(formatHint && isStageLyricsFormat(formatHint) ? { formatHint } : {}),
+      };
+    } else if (sourceType === 'embedded') {
+      const textContent = typeof rawLyricSource.textContent === 'string' ? rawLyricSource.textContent : '';
+      const translationContent = typeof rawLyricSource.translationContent === 'string' ? rawLyricSource.translationContent : '';
+      const usltTags = Array.isArray(rawLyricSource.usltTags)
+        ? rawLyricSource.usltTags
+          .map((tag) => {
+            const text = typeof tag?.text === 'string' ? tag.text : '';
+            if (!text.trim()) {
+              return null;
+            }
+
+            return {
+              text,
+              ...(normalizeStageText(tag?.language) ? { language: normalizeStageText(tag.language) } : {}),
+              ...(normalizeStageText(tag?.descriptor) ? { descriptor: normalizeStageText(tag.descriptor) } : {}),
+            };
+          })
+          .filter(Boolean)
+        : [];
+
+      if (!textContent.trim() && !translationContent.trim() && usltTags.length === 0) {
+        throw createStageValidationError(
+          'Stage embedded lyricSource requires textContent, translationContent, or usltTags.',
+          'INVALID_STAGE_LYRICS',
+        );
+      }
+
+      lyricSource = {
+        type: 'embedded',
+        ...(textContent.trim() ? { textContent } : {}),
+        ...(translationContent.trim() ? { translationContent } : {}),
+        ...(usltTags.length > 0 ? { usltTags } : {}),
+      };
+    } else if (sourceType === 'navidrome') {
+      const plainLyrics = typeof rawLyricSource.plainLyrics === 'string' ? rawLyricSource.plainLyrics : '';
+      const structuredLyrics = Array.isArray(rawLyricSource.structuredLyrics)
+        ? rawLyricSource.structuredLyrics
+          .map((line) => {
+            const value = typeof line?.value === 'string' ? line.value : '';
+            const start = Number.isFinite(line?.start) ? Number(line.start) : undefined;
+            if (!value.trim() && start === undefined) {
+              return null;
+            }
+
+            return {
+              ...(start !== undefined ? { start } : {}),
+              ...(value.trim() ? { value } : {}),
+            };
+          })
+          .filter(Boolean)
+        : [];
+
+      if (!plainLyrics.trim() && structuredLyrics.length === 0) {
+        throw createStageValidationError(
+          'Stage navidrome lyricSource requires plainLyrics or structuredLyrics.',
+          'INVALID_STAGE_LYRICS',
+        );
+      }
+
+      lyricSource = {
+        type: 'navidrome',
+        ...(plainLyrics.trim() ? { plainLyrics } : {}),
+        ...(structuredLyrics.length > 0 ? { structuredLyrics } : {}),
+      };
+    } else if (sourceType === 'netease') {
+      const lrc = normalizeStageNeteaseLyricBranch(rawLyricSource.lrc);
+      const yrc = normalizeStageNeteaseLyricBranch(rawLyricSource.yrc);
+      const ytlrc = normalizeStageNeteaseLyricBranch(rawLyricSource.ytlrc);
+      const tlyric = normalizeStageNeteaseLyricBranch(rawLyricSource.tlyric);
+      const lrcYrc = normalizeStageNeteaseLyricBranch(rawLyricSource?.lrc?.yrc);
+      const lrcYtlrc = normalizeStageNeteaseLyricBranch(rawLyricSource?.lrc?.ytlrc);
+      const pureMusic = typeof rawLyricSource.pureMusic === 'boolean' ? rawLyricSource.pureMusic : undefined;
+
+      if (!lrc && !yrc && !ytlrc && !tlyric && !lrcYrc && !lrcYtlrc && pureMusic === undefined) {
+        throw createStageValidationError(
+          'Stage netease lyricSource requires at least one lyric branch.',
+          'INVALID_STAGE_LYRICS',
+        );
+      }
+
+      lyricSource = {
+        type: 'netease',
+        ...(lrc || lrcYrc || lrcYtlrc ? {
+          lrc: {
+            ...(lrc || {}),
+            ...(lrcYrc ? { yrc: lrcYrc } : {}),
+            ...(lrcYtlrc ? { ytlrc: lrcYtlrc } : {}),
+          },
+        } : {}),
+        ...(yrc ? { yrc } : {}),
+        ...(ytlrc ? { ytlrc } : {}),
+        ...(tlyric ? { tlyric } : {}),
+        ...(pureMusic !== undefined ? { pureMusic } : {}),
+      };
+    } else {
+      throw createStageValidationError(
+        'Stage lyricSource.type must be embedded, local, navidrome, or netease.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+
+    return {
+      ...(normalizeStageText(payload.title) ? { title: normalizeStageText(payload.title) } : {}),
+      ...(normalizeStageText(payload.artist) ? { artist: normalizeStageText(payload.artist) } : {}),
+      ...(normalizeStageText(payload.album) ? { album: normalizeStageText(payload.album) } : {}),
+      lyricSource,
       updatedAt: Date.now(),
     };
-
-    const translation = normalizeStageText(payload.translation);
-    if (translation) {
-      displayLine.translation = translation;
-    }
-
-    if (normalizedWords.length > 0) {
-      displayLine.words = normalizedWords;
-    }
-
-    return displayLine;
   };
 
   const normalizeStageSearchResult = (song = {}) => {
@@ -1073,24 +1191,24 @@ function createStageApi({
       return;
     }
 
-    if (pathname === '/stage/line' && req.method === 'POST') {
+    if (pathname === '/stage/lyrics' && req.method === 'POST') {
       const requestBody = await readRequestBodyWithLimit(req, STAGE_JSON_BODY_LIMIT_BYTES);
       let payload;
       try {
         payload = JSON.parse(requestBody.toString('utf-8') || '{}');
       } catch (error) {
-        throw new StageApiError('Failed to parse Stage line JSON payload.', {
+        throw new StageApiError('Failed to parse Stage lyrics JSON payload.', {
           statusCode: 400,
-          code: 'INVALID_STAGE_LINE_JSON',
+          code: 'INVALID_STAGE_LYRICS_JSON',
           details: {
             reason: error instanceof Error ? error.message : String(error),
           },
         });
       }
 
-      stageDisplayLine = normalizeStageDisplayLinePayload(payload);
+      stageLyricsSession = normalizeStageLyricsSessionPayload(payload);
       stageMediaSession = null;
-      stageActiveEntryKind = 'line';
+      stageActiveEntryKind = 'lyrics';
       stageActiveSessionId = null;
       stageActiveSessionFiles = {
         audioPath: null,
@@ -1117,7 +1235,7 @@ function createStageApi({
         }
 
         const nextSessionResult = await createStageMediaSessionFromPayload(parsedPayload);
-        stageDisplayLine = null;
+        stageLyricsSession = null;
         stageMediaSession = nextSessionResult.mediaSession;
         stageActiveEntryKind = 'media';
         stageActiveSessionId = nextSessionResult.activeSessionId;

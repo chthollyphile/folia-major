@@ -217,7 +217,7 @@ vercel dev
 
 ## Stage 联调客户端
 
-如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的本地 Stage API 调试台向 Folia 推送一句歌词、推送媒体会话，或者从外部程序触发搜索与点歌。
+如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的本地 Stage API 调试台向 Folia 推送完整歌词对象、推送媒体会话，或者从外部程序触发搜索与点歌。
 
 1. 在 Folia 设置中开启 Stage Mode，并复制 Bearer token
 2. 运行：
@@ -236,7 +236,7 @@ npm run stage:client
 
 - `GET /stage/health`
 - `GET /stage/status`
-- `POST /stage/line`
+- `POST /stage/lyrics`
 - `POST /stage/session`
 - `POST /stage/search`
 - `POST /stage/play`

@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
     buildStageClearRequest,
     buildStageHealthRequest,
-    buildStageLineRequest,
+    buildStageLyricsRequest,
     buildStagePlayRequest,
     buildStageSearchRequest,
     buildStageSessionRequest,
     buildStageStatusRequest,
     shouldUseStageMultipart,
-    validateStageLineRequestInput,
+    validateStageLyricsRequestInput,
     validateStagePlayRequestInput,
     validateStageSearchRequestInput,
     validateStageSessionRequestInput,
@@ -34,36 +34,51 @@ describe('stageClientDemo helpers', () => {
         });
     });
 
-    it('builds a line request with translation and words', () => {
-        const result = buildStageLineRequest({
+    it('builds a lyrics request with a parser-compatible lyric source', () => {
+        const result = buildStageLyricsRequest({
             baseUrl: 'http://127.0.0.1:32107',
             token: 'demo-token',
-            fullText: 'Hello world',
-            translation: '你好，世界',
-            words: [
-                { text: 'Hello', startTime: 0, endTime: 0.5 },
-                { text: 'world', startTime: 0.5, endTime: 1.1 },
-            ],
+            title: 'Stage Lyrics',
+            artist: 'Folia',
+            lyricSourceJson: JSON.stringify({
+                type: 'local',
+                lrcContent: '[00:00.00]Hello world',
+                tLrcContent: '[00:00.00]你好，世界',
+                formatHint: 'lrc',
+            }),
         });
 
-        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/line');
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/lyrics');
         expect(JSON.parse(String(result.init.body))).toEqual({
-            fullText: 'Hello world',
-            translation: '你好，世界',
-            words: [
-                { text: 'Hello', startTime: 0, endTime: 0.5 },
-                { text: 'world', startTime: 0.5, endTime: 1.1 },
-            ],
+            title: 'Stage Lyrics',
+            artist: 'Folia',
+            lyricSource: {
+                type: 'local',
+                lrcContent: '[00:00.00]Hello world',
+                tLrcContent: '[00:00.00]你好，世界',
+                formatHint: 'lrc',
+            },
         });
     });
 
-    it('rejects empty line payloads before sending', () => {
-        const error = validateStageLineRequestInput({
+    it('rejects empty lyrics payloads before sending', () => {
+        const error = validateStageLyricsRequestInput({
             baseUrl: 'http://127.0.0.1:32107',
             token: 'demo-token',
+            lyricSourceJson: '   ',
         });
 
-        expect(error).toBe('Provide fullText or at least one word.');
+        expect(error).toBe('Lyric source JSON is required.');
+    });
+
+    it('rejects invalid lyric source json before sending', () => {
+        const error = validateStageLyricsRequestInput({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            lyricSourceJson: '{bad json',
+        });
+
+        expect(error).toBe('Lyric source JSON must be valid JSON.');
     });
 
     it('builds a JSON session request when no files are provided', () => {

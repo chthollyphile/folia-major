@@ -1,9 +1,9 @@
-import type { StageDisplayWord } from '../types';
-
 // Shared helpers keep the manual Stage API console and its tests aligned
 // with the latest local-only HTTP contract.
 
 export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+
+export type StageLyricsSourceType = 'embedded' | 'local' | 'navidrome' | 'netease';
 
 export interface StageSessionRequestInput {
     baseUrl: string;
@@ -20,12 +20,13 @@ export interface StageSessionRequestInput {
     coverFile?: File | null;
 }
 
-export interface StageLineRequestInput {
+export interface StageLyricsRequestInput {
     baseUrl: string;
     token: string;
-    fullText?: string;
-    translation?: string;
-    words?: StageDisplayWord[];
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyricSourceJson: string;
 }
 
 export interface StageSearchRequestInput {
@@ -103,16 +104,27 @@ export const validateStageSessionRequestInput = (input: StageSessionRequestInput
     return null;
 };
 
-export const validateStageLineRequestInput = (input: StageLineRequestInput): string | null => {
+export const validateStageLyricsRequestInput = (input: StageLyricsRequestInput): string | null => {
     const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
     if (baseAuthError) {
         return baseAuthError;
     }
 
-    const fullText = normalizeText(input.fullText);
-    const hasWords = Array.isArray(input.words) && input.words.some((word) => normalizeText(word?.text));
-    if (!fullText && !hasWords) {
-        return 'Provide fullText or at least one word.';
+    const rawSource = normalizeText(input.lyricSourceJson);
+    if (!rawSource) {
+        return 'Lyric source JSON is required.';
+    }
+
+    try {
+        const parsed = JSON.parse(rawSource) as { type?: string; };
+        if (!parsed || typeof parsed !== 'object') {
+            return 'Lyric source JSON must describe an object.';
+        }
+        if (!parsed.type || !['embedded', 'local', 'navidrome', 'netease'].includes(parsed.type)) {
+            return 'Lyric source type must be embedded, local, navidrome, or netease.';
+        }
+    } catch {
+        return 'Lyric source JSON must be valid JSON.';
     }
 
     return null;
@@ -178,14 +190,16 @@ export const buildStageStatusRequest = (baseUrl: string, token: string): StageRe
     };
 };
 
-export const buildStageLineRequest = (input: StageLineRequestInput): StageRequestBuildResult => {
-    const validationError = validateStageLineRequestInput(input);
+export const buildStageLyricsRequest = (input: StageLyricsRequestInput): StageRequestBuildResult => {
+    const validationError = validateStageLyricsRequestInput(input);
     if (validationError) {
         throw new Error(validationError);
     }
 
+    const lyricSource = JSON.parse(normalizeText(input.lyricSourceJson));
+
     return {
-        endpoint: `${normalizeStageBaseUrl(input.baseUrl)}/stage/line`,
+        endpoint: `${normalizeStageBaseUrl(input.baseUrl)}/stage/lyrics`,
         transport: 'json',
         init: {
             method: 'POST',
@@ -193,9 +207,10 @@ export const buildStageLineRequest = (input: StageLineRequestInput): StageReques
                 'Content-Type': 'application/json',
             }),
             body: JSON.stringify({
-                ...(normalizeText(input.fullText) ? { fullText: normalizeText(input.fullText) } : {}),
-                ...(normalizeText(input.translation) ? { translation: normalizeText(input.translation) } : {}),
-                ...(Array.isArray(input.words) && input.words.length > 0 ? { words: input.words } : {}),
+                ...(normalizeText(input.title) ? { title: normalizeText(input.title) } : {}),
+                ...(normalizeText(input.artist) ? { artist: normalizeText(input.artist) } : {}),
+                ...(normalizeText(input.album) ? { album: normalizeText(input.album) } : {}),
+                lyricSource,
             }),
         },
     };

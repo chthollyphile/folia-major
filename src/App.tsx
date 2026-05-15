@@ -25,7 +25,7 @@ import WindowControls from './components/WindowControls';
 import LyricMatchModal from './components/modal/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
 import UnavailableReplacementDialog from './components/modal/UnavailableReplacementDialog';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage, PlaybackContext, StageDisplayLine, StageMediaSession, StageStatus, StageLoopMode } from './types';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage, PlaybackContext, StageLyricsSession, StageMediaSession, StageStatus, StageLoopMode } from './types';
 import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
 import { getOnlineSongCacheKey, getSongAlternativeVersionId, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
@@ -94,6 +94,13 @@ type PlaybackSnapshot = {
     currentLineIndex: number;
 };
 
+type StageLyricsClockState = {
+    startTimeSec: number;
+    endTimeSec: number;
+    baseTimeSec: number;
+    startedAtMs: number | null;
+};
+
 const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
         const line = lines[index];
@@ -105,6 +112,24 @@ const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
         }
     }
     return -1;
+};
+
+const getStageLyricsTimelineBounds = (lyricData: LyricData | null) => {
+    if (!lyricData?.lines.length) {
+        return { startTimeSec: 0, endTimeSec: 0 };
+    }
+
+    const firstLine = lyricData.lines[0];
+    const startTimeSec = Number.isFinite(firstLine?.startTime) ? Math.max(0, firstLine.startTime) : 0;
+    const endTimeSec = lyricData.lines.reduce((maxEndTime, line) => {
+        const lineEndTime = line.renderHints?.renderEndTime ?? line.endTime;
+        return Number.isFinite(lineEndTime) ? Math.max(maxEndTime, lineEndTime) : maxEndTime;
+    }, startTimeSec);
+
+    return {
+        startTimeSec,
+        endTimeSec: Math.max(startTimeSec, endTimeSec),
+    };
 };
 
 // Default Theme
@@ -232,9 +257,9 @@ const getNextLoopMode = (currentLoopMode: StageLoopMode): StageLoopMode => {
     return 'off';
 };
 
-const buildStageEntryKey = (entryKind: StageStatus['activeEntryKind'], line: StageDisplayLine | null, session: StageMediaSession | null) => {
-    if (entryKind === 'line' && line) {
-        return `line::${line.updatedAt}::${line.fullText}`;
+const buildStageEntryKey = (entryKind: StageStatus['activeEntryKind'], lyricsSession: StageLyricsSession | null, session: StageMediaSession | null) => {
+    if (entryKind === 'lyrics' && lyricsSession) {
+        return `lyrics::${lyricsSession.updatedAt}::${lyricsSession.lyricSource.type}::${lyricsSession.title || ''}`;
     }
 
     if (entryKind === 'media' && session) {
@@ -394,7 +419,7 @@ export default function App() {
     const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext>('main');
     const [stageStatus, setStageStatus] = useState<StageStatus | null>(null);
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
-    const stageDisplayLine = stageStatus?.displayLine ?? null;
+    const stageLyricsSession = stageStatus?.lyricsSession ?? null;
     const stageMediaSession = stageStatus?.mediaSession ?? null;
 
     // Queue
@@ -456,6 +481,12 @@ export default function App() {
     const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
+    const stageLyricsClockRef = useRef<StageLyricsClockState>({
+        startTimeSec: 0,
+        endTimeSec: 0,
+        baseTimeSec: 0,
+        startedAtMs: null,
+    });
 
     // Local Music State
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
@@ -586,51 +617,61 @@ export default function App() {
         stageData: session,
     } as SongResult), []);
 
-    const buildStageLineLyricData = useCallback((line: StageDisplayLine): LyricData => {
-        const normalizedWords = Array.isArray(line.words) && line.words.length > 0
-            ? line.words.map((word, index, words) => {
-                const fallbackStartTime = index === 0 ? 0 : (Number.isFinite(words[index - 1]?.endTime) ? Number(words[index - 1]?.endTime) : index * 0.6);
-                const startTime = Number.isFinite(word.startTime) ? Number(word.startTime) : fallbackStartTime;
-                const defaultEndTime = startTime + 0.6;
-                const nextWordStartTime = Number.isFinite(words[index + 1]?.startTime) ? Number(words[index + 1]?.startTime) : null;
-                const endTime = Number.isFinite(word.endTime)
-                    ? Number(word.endTime)
-                    : (nextWordStartTime !== null ? nextWordStartTime : defaultEndTime);
-                return {
-                    text: word.text,
-                    startTime,
-                    endTime: Math.max(startTime, endTime),
-                };
-            })
-            : [{
-                text: line.fullText,
-                startTime: 0,
-                endTime: 3600,
-            }];
-
-        const startTime = normalizedWords[0]?.startTime ?? 0;
-        const endTime = normalizedWords[normalizedWords.length - 1]?.endTime ?? Math.max(startTime, 3600);
-
-        return {
-            lines: [{
-                words: normalizedWords,
-                startTime,
-                endTime,
-                fullText: line.fullText,
-                translation: line.translation,
-            }],
-            title: 'Stage',
-            artist: 'Stage',
+    const resetStageLyricsClock = useCallback(() => {
+        stageLyricsClockRef.current = {
+            startTimeSec: 0,
+            endTimeSec: 0,
+            baseTimeSec: 0,
+            startedAtMs: null,
         };
     }, []);
+
+    const syncStageLyricsClock = useCallback((timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec = 0) => {
+        const safeStartTime = Math.max(0, startTimeSec);
+        const safeEndTime = Math.max(safeStartTime, endTimeSec);
+        const safeTime = Math.min(Math.max(timeSec, safeStartTime), safeEndTime);
+
+        stageLyricsClockRef.current = {
+            startTimeSec: safeStartTime,
+            endTimeSec: safeEndTime,
+            baseTimeSec: safeTime,
+            startedAtMs: nextPlayerState === PlayerState.PLAYING ? performance.now() : null,
+        };
+    }, []);
+
+    const getSyntheticStageLyricsTime = useCallback((nowMs = performance.now()) => {
+        const clock = stageLyricsClockRef.current;
+        if (clock.startedAtMs === null) {
+            return Math.min(Math.max(clock.baseTimeSec, clock.startTimeSec), clock.endTimeSec);
+        }
+
+        const elapsedSeconds = Math.max(0, (nowMs - clock.startedAtMs) / 1000);
+        return Math.min(Math.max(clock.baseTimeSec + elapsedSeconds, clock.startTimeSec), clock.endTimeSec);
+    }, []);
+
+    const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
+        id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
+        name: session.title || lyricData.title || 'Stage Lyrics',
+        artists: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
+        album: { id: 0, name: session.album || 'Stage', picUrl: undefined },
+        duration: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
+        al: { id: 0, name: session.album || 'Stage', picUrl: undefined },
+        ar: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
+        dt: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
+        sourceType: 'cloud',
+        isStage: true,
+        stageData: session,
+    } as SongResult), []);
 
     const loadStageSessionIntoPlayback = useCallback(async (session: StageMediaSession | null, options: { autoplay?: boolean; } = {}) => {
         if (!session) {
             currentSongRef.current = null;
+            resetStageLyricsClock();
             clearPlaybackSurface();
             return;
         }
 
+        resetStageLyricsClock();
         const stageSong = buildStagePlaybackSong(session);
         shouldAutoPlay.current = options.autoplay ?? true;
         pendingResumeTimeRef.current = null;
@@ -658,21 +699,56 @@ export default function App() {
         setCurrentLineIndex(-1);
         currentTime.set(0);
         setDuration(Math.max(0, (session.durationMs || 0) / 1000));
-    }, [buildStagePlaybackSong, clearPlaybackSurface, currentTime, setLyrics]);
+    }, [buildStagePlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics]);
 
-    const loadStageDisplayLineIntoPlayback = useCallback((line: StageDisplayLine | null) => {
-        if (!line) {
+    const loadStageLyricsIntoPlayback = useCallback(async (
+        session: StageLyricsSession | null,
+        options: { autoplay?: boolean; resumeTime?: number; playerState?: PlayerState; } = {},
+    ) => {
+        if (!session) {
             currentSongRef.current = null;
+            resetStageLyricsClock();
             clearPlaybackSurface();
             return;
         }
 
-        const nextLyrics = buildStageLineLyricData(line);
+        let parsedLyrics: LyricData | null = null;
+        try {
+            parsedLyrics = await LyricParserFactory.parse(session.lyricSource as any);
+        } catch (error) {
+            console.warn('[Stage] Failed to parse stage lyrics session', error);
+        }
+
+        if (!hasRenderableLyrics(parsedLyrics)) {
+            resetStageLyricsClock();
+            clearPlaybackSurface();
+            setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            return;
+        }
+
+        const { startTimeSec, endTimeSec } = getStageLyricsTimelineBounds(parsedLyrics);
+        const nextPlayerState = options.playerState ?? ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
+        const initialTime = options.resumeTime ?? startTimeSec;
+        const nextLineIndex = findLatestActiveLineIndex(parsedLyrics.lines, initialTime);
+        const stageSong = buildStageLyricsPlaybackSong(session, parsedLyrics);
+
         clearPlaybackSurface();
-        currentSongRef.current = null;
-        setLyrics(nextLyrics);
-        setCurrentLineIndex(0);
-    }, [buildStageLineLyricData, clearPlaybackSurface, setLyrics]);
+        shouldAutoPlay.current = false;
+        pendingResumeTimeRef.current = null;
+        currentSongRef.current = stageSong.id;
+        setCurrentSong(stageSong);
+        setCachedCoverUrl(null);
+        setAudioSrc(null);
+        setPlayQueue([]);
+        setIsFmMode(false);
+        setIsLyricsLoading(false);
+        setLyrics(parsedLyrics);
+        currentTime.set(initialTime);
+        setCurrentLineIndex(nextLineIndex);
+        setDuration(endTimeSec);
+        setPlayerState(nextPlayerState);
+        syncStageLyricsClock(initialTime, endTimeSec, nextPlayerState, startTimeSec);
+    }, [buildStageLyricsPlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics, syncStageLyricsClock, t]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -844,6 +920,14 @@ export default function App() {
     }, [audioQuality, audioSrc, currentSong]);
 
     const resumePlayback = useCallback(async () => {
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
         if (!audioRef.current) {
             return;
         }
@@ -895,9 +979,17 @@ export default function App() {
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }
-    }, [audioSrc, getTargetPlaybackVolume, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, t, syncOutputGain]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PAUSED, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
+
         if (!audioRef.current) {
             return;
         }
@@ -905,7 +997,7 @@ export default function App() {
         audioRef.current.pause();
         syncOutputGain(getTargetPlaybackVolume(), 0);
         setPlayerState(PlayerState.PAUSED);
-    }, [getTargetPlaybackVolume, syncOutputGain]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
 
     const getCoverUrl = useCallback(() => {
         if (cachedCoverUrl) return cachedCoverUrl;
@@ -1029,12 +1121,20 @@ export default function App() {
 
         const savedStageSnapshot = stagePlaybackSnapshotRef.current;
         const savedStageEntryKey = lastLoadedStageEntryKeyRef.current;
-        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageDisplayLine, stageMediaSession);
+        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
         setActivePlaybackContext('stage');
         if (savedStageSnapshot && savedStageEntryKey && savedStageEntryKey === nextStageEntryKey) {
             applyPlaybackSnapshot(savedStageSnapshot);
-        } else if (stageActiveEntryKind === 'line') {
-            loadStageDisplayLineIntoPlayback(stageDisplayLine);
+            if (stageActiveEntryKind === 'lyrics') {
+                syncStageLyricsClock(
+                    savedStageSnapshot.currentTime,
+                    savedStageSnapshot.duration,
+                    savedStageSnapshot.playerState,
+                    stageLyricsClockRef.current.startTimeSec,
+                );
+            }
+        } else if (stageActiveEntryKind === 'lyrics') {
+            void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
         } else if (stageActiveEntryKind === 'media') {
             await loadStageSessionIntoPlayback(stageMediaSession, { autoplay: Boolean(stageMediaSession) });
         } else {
@@ -1044,7 +1144,7 @@ export default function App() {
         if (!nextStageEntryKey) {
             setStatusMsg({ type: 'info', text: t('status.stageWaiting') || '等待外部 Stage 输入' });
         }
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, loadStageDisplayLineIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, stageActiveEntryKind, stageDisplayLine, stageMediaSession, t]);
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, stageActiveEntryKind, stageLyricsSession, stageMediaSession, syncStageLyricsClock, t]);
 
     const leaveStagePlayback = useCallback(() => {
         if (activePlaybackContext !== 'stage') {
@@ -1176,7 +1276,7 @@ export default function App() {
     }, [activePlaybackContext, buildPlaybackSnapshot]);
 
     useEffect(() => {
-        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageDisplayLine, stageMediaSession);
+        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
 
         if (!nextStageEntryKey) {
             lastLoadedStageEntryKeyRef.current = null;
@@ -1193,8 +1293,8 @@ export default function App() {
                 return;
             }
             lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
-            if (stageActiveEntryKind === 'line') {
-                loadStageDisplayLineIntoPlayback(stageDisplayLine);
+            if (stageActiveEntryKind === 'lyrics') {
+                void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
             } else {
                 void loadStageSessionIntoPlayback(stageMediaSession, { autoplay: true });
             }
@@ -1203,7 +1303,7 @@ export default function App() {
 
         lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
         stagePlaybackSnapshotRef.current = null;
-    }, [activePlaybackContext, loadStageDisplayLineIntoPlayback, loadStageSessionIntoPlayback, stageActiveEntryKind, stageDisplayLine, stageMediaSession]);
+    }, [activePlaybackContext, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, stageActiveEntryKind, stageLyricsSession, stageMediaSession]);
 
     const restoreSession = async () => {
         try {
@@ -3433,10 +3533,35 @@ export default function App() {
                     setCurrentLineIndex(foundIndex);
                 }
             }
+        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
+            const nextTime = getSyntheticStageLyricsTime();
+            const clock = stageLyricsClockRef.current;
+            const hasReachedEnd = playerState === PlayerState.PLAYING && nextTime >= clock.endTimeSec;
+
+            currentTime.set(nextTime);
+
+            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
+            if (foundIndex !== currentLineIndexRef.current) {
+                setCurrentLineIndex(foundIndex);
+            }
+
+            if (hasReachedEnd) {
+                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                    syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
+                    currentTime.set(clock.startTimeSec);
+                    const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
+                    if (restartedLineIndex !== currentLineIndexRef.current) {
+                        setCurrentLineIndex(restartedLineIndex);
+                    }
+                } else {
+                    syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
+                    setPlayerState(PlayerState.PAUSED);
+                }
+            }
         }
 
         animationFrameRef.current = requestAnimationFrame(updateLoop);
-    }, [lyrics, audioPower]);
+    }, [activePlaybackContext, audioPower, effectiveLoopMode, getSyntheticStageLyricsTime, lyrics, playerState, stageActiveEntryKind, stageLyricsSession, syncStageLyricsClock]);
 
     useEffect(() => {
         animationFrameRef.current = requestAnimationFrame(updateLoop);
@@ -3447,6 +3572,15 @@ export default function App() {
 
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
+
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            if (playerState === PlayerState.PLAYING) {
+                pausePlayback();
+            } else {
+                void resumePlayback();
+            }
+            return;
+        }
 
         if (audioRef.current) {
             if (!audioRef.current.paused && !audioRef.current.ended) {
@@ -3482,7 +3616,7 @@ export default function App() {
             switch (e.code) {
                 case 'Space':
                     // Space key works in both home and player views if there's a current song
-                    if (currentSong && audioSrc) {
+                    if (currentSong && (audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
                         e.preventDefault();
                         togglePlay(e);
                     }
@@ -3499,7 +3633,11 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (audioRef.current) {
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                        const nextTime = Math.max(stageLyricsClockRef.current.startTimeSec, currentTime.get() - 5);
+                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                        currentTime.set(nextTime);
+                    } else if (audioRef.current) {
                         const nextTime = Math.max(0, audioRef.current.currentTime - 5);
                         audioRef.current.currentTime = nextTime;
                     }
@@ -3516,7 +3654,11 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (audioRef.current) {
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                        const nextTime = Math.min(duration, currentTime.get() + 5);
+                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                        currentTime.set(nextTime);
+                    } else if (audioRef.current) {
                         const nextTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
                         audioRef.current.currentTime = nextTime;
                     }
@@ -3532,7 +3674,7 @@ export default function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [audioSrc, currentSong, currentView, handleNextTrack, handlePrevTrack, isDev, isPanelOpen, playerState]);
+    }, [activePlaybackContext, audioSrc, currentSong, currentTime, currentView, duration, handleNextTrack, handlePrevTrack, isDev, isPanelOpen, pausePlayback, playerState, resumePlayback, stageActiveEntryKind, syncStageLyricsClock]);
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
@@ -3786,6 +3928,9 @@ export default function App() {
         nextLine: toDebugLineSnapshot(debugNextLine),
     };
     const isPlayerView = currentView === 'player';
+    const canToggleCurrentPlayback = Boolean(
+        audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
+    );
 
     useEffect(() => {
         if (!isElectronWindow) {
@@ -4301,9 +4446,16 @@ export default function App() {
                         loopMode={effectiveLoopMode}
                         currentView={currentView}
                         audioSrc={audioSrc}
+                        canTogglePlay={canToggleCurrentPlayback}
                         lyrics={lyrics}
                         onSeek={(time) => {
-                            if (audioRef.current) {
+                            if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                                syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                                currentTime.set(time);
+                                if (playerState !== PlayerState.PLAYING) {
+                                    setPlayerState(PlayerState.PAUSED);
+                                }
+                            } else if (audioRef.current) {
                                 audioRef.current.currentTime = time;
                                 if (audioRef.current.paused) {
                                     audioRef.current.play();

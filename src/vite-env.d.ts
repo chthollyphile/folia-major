@@ -62,18 +62,67 @@ declare global {
     } | null;
   }
 
-  type StageActiveEntryKind = 'line' | 'media';
+  type StageActiveEntryKind = 'lyrics' | 'media';
 
-  interface StageDisplayWord {
+  interface StageEmbeddedUsltTag {
+    language?: string;
+    descriptor?: string;
     text: string;
-    startTime?: number;
-    endTime?: number;
   }
 
-  interface StageDisplayLine {
-    fullText: string;
-    translation?: string;
-    words?: StageDisplayWord[];
+  interface StageEmbeddedLyricSource {
+    type: 'embedded';
+    usltTags?: StageEmbeddedUsltTag[];
+    textContent?: string;
+    translationContent?: string;
+  }
+
+  interface StageLocalLyricSource {
+    type: 'local';
+    lrcContent: string;
+    tLrcContent?: string;
+    formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+  }
+
+  interface StageNeteaseLyricBranch {
+    lyric?: string;
+    pureMusic?: boolean;
+  }
+
+  interface StageNeteaseLyricSource {
+    type: 'netease';
+    lrc?: StageNeteaseLyricBranch & {
+      yrc?: StageNeteaseLyricBranch;
+      ytlrc?: StageNeteaseLyricBranch;
+    };
+    yrc?: StageNeteaseLyricBranch;
+    ytlrc?: StageNeteaseLyricBranch;
+    tlyric?: StageNeteaseLyricBranch;
+    pureMusic?: boolean;
+  }
+
+  interface StageNavidromeStructuredLyricLine {
+    start?: number;
+    value?: string;
+  }
+
+  interface StageNavidromeLyricSource {
+    type: 'navidrome';
+    structuredLyrics?: StageNavidromeStructuredLyricLine[];
+    plainLyrics?: string;
+  }
+
+  type StageLyricSource =
+    | StageEmbeddedLyricSource
+    | StageLocalLyricSource
+    | StageNeteaseLyricSource
+    | StageNavidromeLyricSource;
+
+  interface StageLyricsSession {
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyricSource: StageLyricSource;
     updatedAt: number;
   }
 
@@ -121,7 +170,7 @@ declare global {
     port: number;
     token: string | null;
     activeEntryKind: StageActiveEntryKind | null;
-    displayLine: StageDisplayLine | null;
+    lyricsSession: StageLyricsSession | null;
     mediaSession: StageMediaSession | null;
   }
 

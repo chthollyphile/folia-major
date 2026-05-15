@@ -3,14 +3,14 @@ import './style.css';
 import {
     buildStageClearRequest,
     buildStageHealthRequest,
-    buildStageLineRequest,
+    buildStageLyricsRequest,
     buildStagePlayRequest,
     buildStageSearchRequest,
     buildStageSessionRequest,
     buildStageStatusRequest,
     type StageRequestBuildResult,
 } from '../../../src/utils/stageClientDemo';
-import type { StageDisplayWord, StageSearchResult } from '../../../src/types';
+import type { StageSearchResult } from '../../../src/types';
 
 // Manual Stage API console for the local-only desktop protocol.
 
@@ -37,12 +37,13 @@ const clearPreview = getElement<HTMLElement>('clear-preview');
 const clearStatus = getElement<HTMLElement>('clear-status');
 const clearResponse = getElement<HTMLElement>('clear-response');
 
-const lineFullTextInput = getElement<HTMLInputElement>('line-full-text');
-const lineTranslationInput = getElement<HTMLInputElement>('line-translation');
-const lineWordsJsonInput = getElement<HTMLTextAreaElement>('line-words-json');
-const linePreview = getElement<HTMLElement>('line-preview');
-const lineStatus = getElement<HTMLElement>('line-status');
-const lineResponse = getElement<HTMLElement>('line-response');
+const lyricsTitleInput = getElement<HTMLInputElement>('lyrics-title');
+const lyricsArtistInput = getElement<HTMLInputElement>('lyrics-artist');
+const lyricsAlbumInput = getElement<HTMLInputElement>('lyrics-album');
+const lyricsSourceJsonInput = getElement<HTMLTextAreaElement>('lyrics-source-json');
+const lyricsPreview = getElement<HTMLElement>('lyrics-preview');
+const lyricsStatus = getElement<HTMLElement>('lyrics-status');
+const lyricsResponse = getElement<HTMLElement>('lyrics-response');
 
 const titleInput = getElement<HTMLInputElement>('title');
 const artistInput = getElement<HTMLInputElement>('artist');
@@ -129,20 +130,6 @@ const updateRequestResult = async (
     }
 };
 
-const parseWordsJson = (): StageDisplayWord[] | undefined => {
-    const raw = normalizeText(lineWordsJsonInput.value);
-    if (!raw) {
-        return undefined;
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-        throw new Error('Words JSON must be an array.');
-    }
-
-    return parsed as StageDisplayWord[];
-};
-
 const renderSearchResults = (songs: StageSearchResult[]) => {
     if (songs.length === 0) {
         searchResults.innerHTML = '<div class="empty-state">No songs found.</div>';
@@ -181,16 +168,17 @@ const runClearRequest = async () => {
     await updateRequestResult(clearStatus, clearResponse, request);
 };
 
-const runLineRequest = async () => {
-    const request = buildStageLineRequest({
+const runLyricsRequest = async () => {
+    const request = buildStageLyricsRequest({
         baseUrl: baseUrlInput.value,
         token: tokenInput.value,
-        fullText: lineFullTextInput.value,
-        translation: lineTranslationInput.value,
-        words: parseWordsJson(),
+        title: lyricsTitleInput.value,
+        artist: lyricsArtistInput.value,
+        album: lyricsAlbumInput.value,
+        lyricSourceJson: lyricsSourceJsonInput.value,
     });
-    renderRequestPreview(linePreview, request);
-    await updateRequestResult(lineStatus, lineResponse, request);
+    renderRequestPreview(lyricsPreview, request);
+    await updateRequestResult(lyricsStatus, lyricsResponse, request);
 };
 
 const runSessionRequest = async () => {
@@ -257,10 +245,10 @@ getElement<HTMLButtonElement>('run-clear').addEventListener('click', () => {
     void runClearRequest();
 });
 
-getElement<HTMLButtonElement>('push-line').addEventListener('click', () => {
-    void runLineRequest().catch((error) => {
-        lineStatus.textContent = 'Request build failed.';
-        lineResponse.textContent = error instanceof Error ? error.message : String(error);
+getElement<HTMLButtonElement>('push-lyrics').addEventListener('click', () => {
+    void runLyricsRequest().catch((error) => {
+        lyricsStatus.textContent = 'Request build failed.';
+        lyricsResponse.textContent = error instanceof Error ? error.message : String(error);
     });
 });
 
@@ -296,6 +284,6 @@ searchResults.addEventListener('click', (event) => {
 healthPreview.textContent = 'Click Run to preview the health request.';
 statusPreview.textContent = 'Click Run to preview the status request.';
 clearPreview.textContent = 'Click Run to preview the clear request.';
-linePreview.textContent = 'Fill the line fields, then click Push Line.';
+lyricsPreview.textContent = 'Fill the lyrics fields, then click Push Lyrics.';
 sessionPreview.textContent = 'Fill the session fields, then click Push Session.';
 searchPreview.textContent = 'Search results can be played directly back into Folia.';

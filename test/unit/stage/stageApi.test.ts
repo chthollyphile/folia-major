@@ -108,29 +108,40 @@ afterEach(async () => {
 });
 
 describe('stageApi http contract', () => {
-    it('accepts a single display line and exposes it through status', async () => {
+    it('accepts a parser-compatible lyrics payload and exposes it through status', async () => {
         const context = await withStageApi();
         activeCleanups.push(context.cleanup);
 
-        const postResponse = await fetch(`${context.baseUrl}/stage/line`, {
+        const postResponse = await fetch(`${context.baseUrl}/stage/lyrics`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${context.token}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                fullText: 'Hello world',
-                translation: '你好，世界',
-                words: [{ text: 'Hello' }, { text: 'world' }],
+                title: 'Stage Lyrics',
+                artist: 'Folia',
+                lyricSource: {
+                    type: 'local',
+                    lrcContent: '[00:00.00]Hello world',
+                    tLrcContent: '[00:00.00]你好，世界',
+                    formatHint: 'lrc',
+                },
             }),
         });
 
         expect(postResponse.status).toBe(200);
         const postPayload = await postResponse.json();
-        expect(postPayload.activeEntryKind).toBe('line');
-        expect(postPayload.displayLine).toMatchObject({
-            fullText: 'Hello world',
-            translation: '你好，世界',
+        expect(postPayload.activeEntryKind).toBe('lyrics');
+        expect(postPayload.lyricsSession).toMatchObject({
+            title: 'Stage Lyrics',
+            artist: 'Folia',
+            lyricSource: {
+                type: 'local',
+                lrcContent: '[00:00.00]Hello world',
+                tLrcContent: '[00:00.00]你好，世界',
+                formatHint: 'lrc',
+            },
         });
 
         const statusResponse = await fetch(`${context.baseUrl}/stage/status`, {
@@ -139,7 +150,7 @@ describe('stageApi http contract', () => {
             },
         });
         const statusPayload = await statusResponse.json();
-        expect(statusPayload.displayLine?.fullText).toBe('Hello world');
+        expect(statusPayload.lyricsSession?.lyricSource?.type).toBe('local');
         expect(statusPayload.mediaSession).toBeNull();
     });
 
@@ -178,7 +189,7 @@ describe('stageApi http contract', () => {
         });
         const clearPayload = await clearResponse.json();
         expect(clearPayload.activeEntryKind).toBeNull();
-        expect(clearPayload.displayLine).toBeNull();
+        expect(clearPayload.lyricsSession).toBeNull();
         expect(clearPayload.mediaSession).toBeNull();
     });
 

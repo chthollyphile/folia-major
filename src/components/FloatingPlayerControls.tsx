@@ -24,6 +24,7 @@ interface FloatingPlayerControlsProps {
     loopMode: 'off' | 'all' | 'one';
     currentView: 'home' | 'player';
     audioSrc: string | null;
+    canTogglePlay?: boolean;
     lyrics: LyricData | null;
     onSeek: (time: number) => void;
     onTogglePlay: () => void;
@@ -46,6 +47,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     loopMode,
     currentView,
     audioSrc,
+    canTogglePlay = false,
     lyrics,
     onSeek,
     onTogglePlay,
@@ -74,7 +76,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     const expandTimeoutRef = useRef<number | null>(null);
     const collapseTimeoutRef = useRef<number | null>(null);
 
-    const canAutoExpand = Boolean(audioSrc) && duration > 0;
+    const canAutoExpand = canTogglePlay && duration > 0;
     const showExpanded = isHovered || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
 
     useEffect(() => {
@@ -165,7 +167,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     currentTime={currentTime}
                                     duration={duration}
                                     loopMode={loopMode}
-                                    audioSrc={audioSrc}
+                                    canTogglePlay={canTogglePlay}
                                     onSeek={onSeek}
                                     onTogglePlay={onTogglePlay}
                                     onToggleLoop={onToggleLoop}
@@ -216,7 +218,7 @@ interface ExpandedViewProps {
     currentTime: MotionValue<number>;
     duration: number;
     loopMode: 'off' | 'all' | 'one';
-    audioSrc: string | null;
+    canTogglePlay: boolean;
     onSeek: (time: number) => void;
     onTogglePlay: () => void;
     onToggleLoop: () => void;
@@ -235,7 +237,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     currentTime,
     duration,
     loopMode,
-    audioSrc,
+    canTogglePlay,
     onSeek,
     onTogglePlay,
     onToggleLoop,
@@ -256,7 +258,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         e.stopPropagation();
                         onTogglePlay();
                     }}
-                    disabled={!audioSrc}
+                    disabled={!canTogglePlay}
                     className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
                     style={{ backgroundColor: primaryColor, color: 'var(--bg-color)' }}
                 >
@@ -335,7 +337,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             e.stopPropagation();
                             onTogglePlay();
                         }}
-                        disabled={!audioSrc}
+                        disabled={!canTogglePlay}
                         className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
                         style={{ backgroundColor: primaryColor, color: 'var(--bg-color)' }}
                     >

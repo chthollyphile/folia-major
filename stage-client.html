@@ -14,7 +14,7 @@
                     <p class="eyebrow">Folia Stage API</p>
                     <h1>Local Stage Console</h1>
                     <p class="intro">
-                        这个页面用于联调新版本地 Stage API。你可以检查状态、推送一句歌词、推送媒体会话、搜索网易云结果，再从外部触发 Folia 点歌。
+                        这个页面用于联调新版本地 Stage API。你可以检查状态、推送完整歌词对象、推送媒体会话、搜索网易云结果，再从外部触发 Folia 点歌。
                     </p>
                 </div>
             </div>
@@ -52,7 +52,7 @@
                             <code>GET /stage/status</code>
                             <button id="run-status" type="button" class="secondary">Run</button>
                         </div>
-                        <p class="hint">需要 Bearer token。返回当前 active entry、line 和 media session。</p>
+                        <p class="hint">需要 Bearer token。返回当前 active entry、lyrics session 和 media session。</p>
                         <pre id="status-preview" class="request-preview"></pre>
                         <div id="status-status" class="status-line">No request sent yet.</div>
                         <pre id="status-response" class="response-output compact"></pre>
@@ -63,7 +63,7 @@
                             <code>DELETE /stage/state</code>
                             <button id="run-clear" type="button" class="secondary">Run</button>
                         </div>
-                        <p class="hint">需要 Bearer token。清空当前 Stage 输入，不区分 line 或 media。</p>
+                        <p class="hint">需要 Bearer token。清空当前 Stage 输入，不区分 lyrics 或 media。</p>
                         <pre id="clear-preview" class="request-preview"></pre>
                         <div id="clear-status" class="status-line">No request sent yet.</div>
                         <pre id="clear-response" class="response-output compact"></pre>
@@ -73,26 +73,30 @@
 
             <section class="form-panel form-panel-wide">
                 <div class="response-header">
-                    <h2>POST /stage/line</h2>
-                    <button id="push-line" type="button">Push Line</button>
+                    <h2>POST /stage/lyrics</h2>
+                    <button id="push-lyrics" type="button">Push Lyrics</button>
                 </div>
                 <div class="grid two">
                     <label>
-                        <span>Full text</span>
-                        <input id="line-full-text" type="text" placeholder="一整句歌词" />
+                        <span>Title</span>
+                        <input id="lyrics-title" type="text" placeholder="Stage Lyrics" />
                     </label>
                     <label>
-                        <span>Translation</span>
-                        <input id="line-translation" type="text" placeholder="可选翻译" />
+                        <span>Artist</span>
+                        <input id="lyrics-artist" type="text" placeholder="Folia" />
                     </label>
                 </div>
                 <label>
-                    <span>Words JSON (optional)</span>
-                    <textarea id="line-words-json" rows="6" placeholder='[{"text":"Hello","startTime":0,"endTime":0.5}]'></textarea>
+                    <span>Album (optional)</span>
+                    <input id="lyrics-album" type="text" placeholder="Optional album name" />
                 </label>
-                <pre id="line-preview" class="request-preview"></pre>
-                <div id="line-status" class="status-line">No request sent yet.</div>
-                <pre id="line-response" class="response-output"></pre>
+                <label>
+                    <span>Lyric source JSON</span>
+                    <textarea id="lyrics-source-json" rows="10" placeholder='{"type":"local","lrcContent":"[00:00.00]Hello world","tLrcContent":"[00:00.00]你好，世界","formatHint":"lrc"}'></textarea>
+                </label>
+                <pre id="lyrics-preview" class="request-preview"></pre>
+                <div id="lyrics-status" class="status-line">No request sent yet.</div>
+                <pre id="lyrics-response" class="response-output"></pre>
             </section>
 
             <section class="form-panel form-panel-wide">
