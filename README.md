@@ -116,6 +116,10 @@ Gemini 通常更适合当前项目场景，因为 JSON 输出相对稳定。
 
 ## 部署与开发
 
+> [!TIP]
+> Folia提供了从外部与播放器进行交互的 Stage API，从而可以实现外部程序与播放器的深度集成。可以通过 `npm run stage:client` 启动本地联调台，查看和测试这些接口的功能。
+> 具体可参考[Stage API 文档](test\manual\stage-client\README.md)
+
 ### 一键部署到 Vercel
 
 如果你希望快速上线 Web 版本，可以直接通过下方入口创建 Vercel 项目：

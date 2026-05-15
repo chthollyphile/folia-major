@@ -40,22 +40,39 @@ npm run stage:client
 `Lyrics format` 可以保持 `auto-detect`，或者显式指定 `lrc`、`enhanced-lrc`、`vtt`、`yrc`。
 `POST /stage/play` 默认会立即播放指定歌曲；如果传入 `appendToQueue: true`，则会把歌曲追加到 Folia 主播放器队列，而不会打断当前播放。
 
-## 说明
+## 接口说明
 
-页面能力：
+- `GET /stage/health`
+  用于返回 Stage 服务自身是否可用，适合做最轻量的连通性探测，不依赖播放器当前状态。
 
-- 检查 `GET /stage/health`
-- 检查 `GET /stage/status`
-- 触发 `DELETE /stage/state`
-- 通过 `POST /stage/lyrics` 推送一份 parser-compatible 完整歌词对象
-- 通过 `POST /stage/session` 推送 URL 或上传文件形式的媒体会话
-- 通过 `POST /stage/search` 搜索网易云歌曲
-- 通过 `POST /stage/play` 从外部请求 Folia 主播放器点歌
+- `GET /stage/status`
+  用于返回当前 Stage 会话状态，通常包括最近一次写入的歌词、媒体、搜索上下文或运行态摘要。
 
-说明：
+- `POST /stage/lyrics`
+  用于写入一份 parser-compatible 的歌词载荷，让 Folia 按自身歌词解析链接管并更新当前 Stage 歌词状态。
+
+  注意这个接口的功能相当于直接播放一个无音频的歌词文件，而不是在当前媒体上下文中附加歌词；如果需要后者，请使用 `POST /stage/session` 上传一个包含内嵌歌词的媒体会话。
+
+- `POST /stage/session`
+  用于写入媒体会话数据，可以是 JSON 形式的媒体描述，也可以是 multipart 形式的实际文件上传。
+
+- `POST /stage/search`
+  用于把外部搜索请求转交给 Folia 当前接入的搜索通道，返回可供后续播放接口消费的候选结果。
+
+- `POST /stage/play`
+  用于请求 Folia 主播放器播放一首歌，支持直接播放，也支持通过 `appendToQueue: true` 仅追加到主队列。
+
+- `DELETE /stage/state`
+  用于清空当前 Stage 持有的会话状态，通常会移除已注入的歌词、媒体上下文和相关临时数据。
+
+补充约束：
 
 - 除 `GET /stage/health` 之外，其余接口都需要 Bearer token
-- `POST /stage/session` 仍支持 JSON 和 multipart 两种传输方式
+- `POST /stage/session` 支持 JSON 和 multipart 两种传输方式
 - 上传音频文件时，Folia 会尝试读取内嵌歌词、封面和歌曲 metadata
-- `POST /stage/play` 只负责触发 Folia 主播放器播放，不会写入当前 Stage 输入
-- 搜索结果既可以直接播放，也可以通过 `appendToQueue: true` 追加到主播放队列
+- `POST /stage/play` 只触发 Folia 主播放器，不负责回写当前 Stage 输入状态
+
+# Stage API 示例
+
+## Bili Live Song Demo
+您可以在 `test/manual/bili-livesong/main.py` 中找到一个使用 `POST /stage/search` 和 `POST /stage/play` 的示例程序，展示了如何监听 B 站直播间的弹幕，并将符合条件的点歌请求发送到本地播放器接口。
