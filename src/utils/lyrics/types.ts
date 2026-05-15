@@ -1,4 +1,5 @@
 import { LyricData } from '../../types';
+import type { LyricParseFormat } from './parserCore';
 
 export type UnifiedLyric = LyricData;
 
@@ -20,6 +21,7 @@ export interface RawLocalFileLyric {
     type: 'local';
     lrcContent: string;
     tLrcContent?: string;
+    formatHint?: LyricParseFormat;
 }
 
 export interface RawNeteaseLyric {

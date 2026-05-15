@@ -1,0 +1,457 @@
+/* Documentation-first styling for the manual Folia Stage API console. */
+
+:root {
+    color-scheme: dark;
+    --stage-bg: radial-gradient(circle at top left, rgba(14, 165, 233, 0.22), transparent 30%),
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 26%),
+        linear-gradient(180deg, #020617 0%, #0f172a 52%, #020617 100%);
+    --stage-panel: rgba(15, 23, 42, 0.84);
+    --stage-panel-strong: rgba(2, 6, 23, 0.9);
+    --stage-border: rgba(148, 163, 184, 0.18);
+    --stage-text: #e2e8f0;
+    --stage-muted: rgba(226, 232, 240, 0.72);
+    --stage-accent: #7dd3fc;
+    --stage-accent-strong: #38bdf8;
+    --stage-accent-soft: rgba(56, 189, 248, 0.12);
+    --stage-get: #38bdf8;
+    --stage-post: #4ade80;
+    --stage-delete: #fb7185;
+    --stage-code: rgba(15, 23, 42, 0.78);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--stage-bg);
+    color: var(--stage-text);
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+code,
+pre {
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+}
+
+.stage-client-shell {
+    min-height: 100vh;
+    padding: 24px;
+}
+
+.stage-docs-layout {
+    width: min(1520px, 100%);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.docs-sidebar,
+.hero,
+.doc-card {
+    border: 1px solid var(--stage-border);
+    background: var(--stage-panel);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(24px);
+}
+
+.docs-sidebar {
+    position: sticky;
+    top: 24px;
+    border-radius: 28px;
+    padding: 24px 20px;
+}
+
+.docs-content {
+    display: grid;
+    gap: 20px;
+}
+
+.hero {
+    border-radius: 28px;
+    padding: 28px;
+}
+
+.doc-section {
+    display: grid;
+    gap: 14px;
+}
+
+.doc-card {
+    border-radius: 24px;
+    padding: 20px;
+}
+
+.sidebar-copy,
+.intro,
+.hint,
+.status-line {
+    color: var(--stage-muted);
+    line-height: 1.65;
+}
+
+.eyebrow,
+.section-kicker,
+.meta-label {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.eyebrow,
+.section-kicker {
+    color: var(--stage-accent);
+    margin: 0 0 10px;
+}
+
+.meta-label {
+    color: rgba(148, 163, 184, 0.9);
+}
+
+.docs-sidebar h1,
+.hero h2,
+.doc-section h3,
+.doc-card h4 {
+    margin: 0;
+}
+
+.hero h2 {
+    font-size: 34px;
+    line-height: 1.15;
+}
+
+.sidebar-nav {
+    display: grid;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.sidebar-nav a {
+    color: var(--stage-text);
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.02);
+    transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.sidebar-nav a:hover {
+    background: var(--stage-accent-soft);
+    border-color: rgba(125, 211, 252, 0.2);
+    transform: translateX(1px);
+}
+
+.section-header,
+.endpoint-layout,
+.meta-grid,
+.button-row,
+.doc-head {
+    display: flex;
+    gap: 14px;
+}
+
+.section-header {
+    justify-content: space-between;
+    align-items: center;
+}
+
+.section-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 26px;
+}
+
+.endpoint-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.92fr) minmax(360px, 1.08fr);
+    gap: 18px;
+}
+
+.overview-grid,
+.quickstart-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.overview-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quickstart-grid {
+    margin-top: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.endpoint-chip-card,
+.mini-doc-card {
+    border: 1px solid var(--stage-border);
+    border-radius: 18px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.endpoint-chip-card code {
+    display: block;
+    margin-top: 12px;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.method-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 74px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.method-get {
+    color: #082f49;
+    background: rgba(56, 189, 248, 0.92);
+}
+
+.method-post {
+    color: #052e16;
+    background: rgba(74, 222, 128, 0.92);
+}
+
+.method-delete {
+    color: #4c0519;
+    background: rgba(251, 113, 133, 0.92);
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 16px 0 20px;
+}
+
+.meta-grid > div {
+    display: grid;
+    gap: 6px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.field-list {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 18px;
+}
+
+.field-list div {
+    display: grid;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.field-list dt {
+    font-weight: 700;
+}
+
+.field-list dd {
+    margin: 0;
+    color: var(--stage-muted);
+    line-height: 1.55;
+}
+
+button {
+    border: 0;
+    border-radius: 999px;
+    padding: 12px 18px;
+    cursor: pointer;
+    color: #082f49;
+    background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+    font-weight: 700;
+    transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+    box-shadow: 0 10px 28px rgba(56, 189, 248, 0.24);
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button:disabled {
+    opacity: 0.68;
+    cursor: progress;
+}
+
+button.secondary {
+    color: var(--stage-text);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+}
+
+.grid {
+    display: grid;
+    gap: 14px;
+}
+
+.grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+    display: grid;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--stage-muted);
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.74);
+    color: var(--stage-text);
+    padding: 12px 14px;
+}
+
+input[type='file'] {
+    padding: 10px 12px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 170px;
+}
+
+.callout-inline {
+    margin: 0;
+    padding: 14px 16px;
+    border: 1px dashed rgba(125, 211, 252, 0.24);
+    border-radius: 16px;
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.code-example,
+.request-preview,
+.response-output {
+    margin: 12px 0 0;
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--stage-code);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: auto;
+}
+
+.code-example {
+    min-height: 96px;
+}
+
+.request-preview,
+.response-output {
+    min-height: 136px;
+}
+
+.compact {
+    min-height: 120px;
+}
+
+.playlist-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.stage-result-card {
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 18px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.doc-head {
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.button-row {
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.empty-state {
+    border: 1px dashed rgba(148, 163, 184, 0.18);
+    border-radius: 18px;
+    padding: 18px;
+    text-align: center;
+    color: var(--stage-muted);
+}
+
+@media (max-width: 1240px) {
+    .stage-docs-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .docs-sidebar {
+        position: static;
+    }
+
+    .overview-grid,
+    .quickstart-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 980px) {
+    .endpoint-layout,
+    .overview-grid,
+    .quickstart-grid,
+    .grid.two,
+    .meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+@media (max-width: 640px) {
+    .stage-client-shell {
+        padding: 14px;
+    }
+
+    .docs-sidebar,
+    .hero,
+    .doc-card {
+        border-radius: 22px;
+    }
+
+    .hero h2 {
+        font-size: 28px;
+    }
+}

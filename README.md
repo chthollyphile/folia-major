@@ -116,6 +116,10 @@ Gemini 通常更适合当前项目场景，因为 JSON 输出相对稳定。
 
 ## 部署与开发
 
+> [!TIP]
+> Folia提供了从外部与播放器进行交互的 Stage API，从而可以实现外部程序与播放器的深度集成。可以通过 `npm run stage:client` 启动本地联调台，查看和测试这些接口的功能。
+> 具体可参考[Stage API 文档](test\manual\stage-client\README.md)
+
 ### 一键部署到 Vercel
 
 如果你希望快速上线 Web 版本，可以直接通过下方入口创建 Vercel 项目：
@@ -203,6 +207,7 @@ vercel dev
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
+| `npm run stage:client` | 打开本地 Stage API 联调台 |
 
 ## 本地音乐与匹配说明
 
@@ -213,6 +218,7 @@ vercel dev
 3. 在线匹配结果
 
 如果自动匹配不准确，可以在播放界面的右侧面板进入“本地”选项卡，手动搜索并指定更合适的歌词、封面或元数据来源。你也可以选择只使用本地信息，关闭在线匹配结果。
+
 
 ## 技术栈
 

@@ -96,6 +96,7 @@ interface UnifiedPanelProps {
     onOpenCurrentNavidromeArtist: () => void;
     showOpenPanelCloseButton: boolean;
     hideToggleButton?: boolean;
+    isStageContext?: boolean;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -173,6 +174,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     onOpenCurrentNavidromeArtist,
     showOpenPanelCloseButton,
     hideToggleButton = false,
+    isStageContext = false,
 }) => {
     const { t } = useTranslation();
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
@@ -182,9 +184,10 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = React.useState(false);
     const [navidromePlaylists, setNavidromePlaylists] = React.useState<Array<{ id: string; name: string; description?: string; }>>([]);
 
+    const isStage = isStageContext || Boolean(currentSong && (currentSong as any).isStage === true);
     const isNavidrome = currentSong && (currentSong as any).isNavidrome === true;
     const isLocal = currentSong && !isNavidrome && (((currentSong as any).isLocal === true) || Boolean((currentSong as any).localData));
-    const isNetease = Boolean(currentSong && !isLocal && !isNavidrome);
+    const isNetease = Boolean(currentSong && !isLocal && !isNavidrome && !isStage);
     const canCreateLocalPlaylist = isLocal;
     const canCreateNavidromePlaylist = isNavidrome;
     const canAddCurrentSongToPlaylist =
@@ -558,6 +561,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 isDaylight={isDaylight}
                                                 primaryColor={theme.primaryColor}
                                             />
+                                        ) : isStage ? (
+                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px]">
+                                                <div className="flex items-center justify-center h-full px-4 text-center text-xs opacity-50">
+                                                    Stage 现在是本地单项输入模式。外部可以推送一份完整歌词对象或一段媒体，播放与展示仍由 Folia 自己控制。
+                                                </div>
+                                            </motion.div>
                                         ) : (
                                             <QueueTab
                                                 playQueue={playQueue}

@@ -25,7 +25,7 @@ import WindowControls from './components/WindowControls';
 import LyricMatchModal from './components/modal/LyricMatchModal';
 import NaviLyricMatchModal, { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
 import UnavailableReplacementDialog from './components/modal/UnavailableReplacementDialog';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage } from './types';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage, PlaybackContext, StageLyricsSession, StageMediaSession, StageStatus, StageLoopMode } from './types';
 import { NavidromeSong, NavidromeConfig, StructuredLyric, NavidromeViewSelection } from './types/navidrome';
 import { getOnlineSongCacheKey, getSongAlternativeVersionId, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
@@ -81,6 +81,26 @@ type UnavailableReplacementRequest = {
 
 type SkipPromptMessageKey = 'status.songUnavailablePrompt' | 'status.playbackErrorPrompt';
 
+type PlaybackSnapshot = {
+    currentSong: SongResult | null;
+    lyrics: LyricData | null;
+    cachedCoverUrl: string | null;
+    audioSrc: string | null;
+    playQueue: SongResult[];
+    isFmMode: boolean;
+    playerState: PlayerState;
+    currentTime: number;
+    duration: number;
+    currentLineIndex: number;
+};
+
+type StageLyricsClockState = {
+    startTimeSec: number;
+    endTimeSec: number;
+    baseTimeSec: number;
+    startedAtMs: number | null;
+};
+
 const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
         const line = lines[index];
@@ -92,6 +112,24 @@ const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
         }
     }
     return -1;
+};
+
+const getStageLyricsTimelineBounds = (lyricData: LyricData | null) => {
+    if (!lyricData?.lines.length) {
+        return { startTimeSec: 0, endTimeSec: 0 };
+    }
+
+    const firstLine = lyricData.lines[0];
+    const startTimeSec = Number.isFinite(firstLine?.startTime) ? Math.max(0, firstLine.startTime) : 0;
+    const endTimeSec = lyricData.lines.reduce((maxEndTime, line) => {
+        const lineEndTime = line.renderHints?.renderEndTime ?? line.endTime;
+        return Number.isFinite(lineEndTime) ? Math.max(maxEndTime, lineEndTime) : maxEndTime;
+    }, startTimeSec);
+
+    return {
+        startTimeSec,
+        endTimeSec: Math.max(startTimeSec, endTimeSec),
+    };
 };
 
 // Default Theme
@@ -203,7 +241,39 @@ const isLocalPlaybackSong = (
     );
 };
 
+const isStagePlaybackSong = (song: SongResult | null | undefined): boolean => {
+    return Boolean(song && (song as any).isStage === true);
+};
+
+const getNextLoopMode = (currentLoopMode: StageLoopMode): StageLoopMode => {
+    if (currentLoopMode === 'off') {
+        return 'all';
+    }
+
+    if (currentLoopMode === 'all') {
+        return 'one';
+    }
+
+    return 'off';
+};
+
+const buildStageEntryKey = (entryKind: StageStatus['activeEntryKind'], lyricsSession: StageLyricsSession | null, session: StageMediaSession | null) => {
+    if (entryKind === 'lyrics' && lyricsSession) {
+        return `lyrics::${lyricsSession.updatedAt}::${lyricsSession.lyricSource.type}::${lyricsSession.title || ''}`;
+    }
+
+    if (entryKind === 'media' && session) {
+        return `media::${session.id}::${session.audioSrc}::${session.updatedAt}`;
+    }
+
+    return null;
+};
+
 const resolveDebugSongSource = (song: SongResult | null): 'none' | 'local' | 'navidrome' | 'online' => {
+    if (isStagePlaybackSong(song)) {
+        return 'online';
+    }
+
     if (isLocalPlaybackSong(song)) {
         return 'local';
     }
@@ -219,6 +289,10 @@ const resolveDebugLyricsSource = (
     song: SongResult | null,
     lyrics: LyricData | null
 ): 'none' | 'local' | 'embedded' | 'online' | 'navi' => {
+    if (isStagePlaybackSong(song)) {
+        return lyrics ? 'local' : 'none';
+    }
+
     if (isLocalPlaybackSong(song)) {
         const localData = song.localData;
         if (localData.lyricsSource) {
@@ -342,6 +416,11 @@ export default function App() {
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
     const [lyrics, setLyricsState] = useState<LyricData | null>(null);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
+    const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext>('main');
+    const [stageStatus, setStageStatus] = useState<StageStatus | null>(null);
+    const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
+    const stageLyricsSession = stageStatus?.lyricsSession ?? null;
+    const stageMediaSession = stageStatus?.mediaSession ?? null;
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -375,6 +454,7 @@ export default function App() {
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(null);
+    const previousAudioSrcRef = useRef<string | null>(null);
     const animationFrameRef = useRef<number>(0);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -398,6 +478,17 @@ export default function App() {
     const currentOnlineAudioUrlFetchedAtRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
+    const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
+    const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
+    const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
+    const lastKnownMainSongRef = useRef<SongResult | null>(null);
+    const lastKnownMainQueueRef = useRef<SongResult[]>([]);
+    const stageLyricsClockRef = useRef<StageLyricsClockState>({
+        startTimeSec: 0,
+        endTimeSec: 0,
+        baseTimeSec: 0,
+        startedAtMs: null,
+    });
 
     // Local Music State
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
@@ -463,7 +554,241 @@ export default function App() {
         setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(nextLyrics, lyricFilterPattern)));
     }, [lyricFilterPattern]);
 
+    const effectiveLoopMode: StageLoopMode = loopMode;
+
+    const buildPlaybackSnapshot = useCallback((): PlaybackSnapshot => ({
+        currentSong,
+        lyrics,
+        cachedCoverUrl,
+        audioSrc,
+        playQueue,
+        isFmMode,
+        playerState,
+        currentTime: audioRef.current?.currentTime ?? currentTime.get(),
+        duration,
+        currentLineIndex,
+    }), [audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
+
+    const applyPlaybackSnapshot = useCallback((snapshot: PlaybackSnapshot | null) => {
+        pendingResumeTimeRef.current = snapshot ? Math.max(0, snapshot.currentTime) : null;
+        shouldAutoPlay.current = snapshot?.playerState === PlayerState.PLAYING;
+        lastAudioRecoverySourceRef.current = null;
+        currentOnlineAudioUrlFetchedAtRef.current = null;
+        setCurrentSong(snapshot?.currentSong ?? null);
+        setLyrics(snapshot?.lyrics ?? null);
+        setCachedCoverUrl(snapshot?.cachedCoverUrl ?? null);
+        setAudioSrc(snapshot?.audioSrc ?? null);
+        setPlayQueue(snapshot?.playQueue ?? []);
+        setIsFmMode(snapshot?.isFmMode ?? false);
+        setIsLyricsLoading(false);
+        setPlayerState(snapshot?.playerState ?? PlayerState.IDLE);
+        setCurrentLineIndex(snapshot?.currentLineIndex ?? -1);
+        currentTime.set(snapshot?.currentTime ?? 0);
+        setDuration(snapshot?.duration ?? 0);
+    }, [currentTime, setLyrics]);
+
+    const clearPlaybackSurface = useCallback(() => {
+        pendingResumeTimeRef.current = null;
+        shouldAutoPlay.current = false;
+        lastAudioRecoverySourceRef.current = null;
+        currentOnlineAudioUrlFetchedAtRef.current = null;
+        setCurrentSong(null);
+        setLyrics(null);
+        setCachedCoverUrl(null);
+        setAudioSrc(null);
+        setPlayQueue([]);
+        setIsFmMode(false);
+        setIsLyricsLoading(false);
+        setPlayerState(PlayerState.IDLE);
+        setCurrentLineIndex(-1);
+        currentTime.set(0);
+        setDuration(0);
+    }, [currentTime, setLyrics]);
+
+    const buildStagePlaybackSong = useCallback((session: StageMediaSession): SongResult => ({
+        id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
+        name: session.title || 'Stage Session',
+        artists: [{ id: 0, name: session.artist || 'Stage' }],
+        album: { id: 0, name: session.album || 'Stage', picUrl: session.coverArtUrl || session.coverUrl || undefined },
+        duration: Math.max(0, Math.floor((session.durationMs || 0))),
+        al: { id: 0, name: session.album || 'Stage', picUrl: session.coverArtUrl || session.coverUrl || undefined },
+        ar: [{ id: 0, name: session.artist || 'Stage' }],
+        dt: Math.max(0, Math.floor((session.durationMs || 0))),
+        sourceType: 'cloud',
+        isStage: true,
+        stageData: session,
+    } as SongResult), []);
+
+    const resetStageLyricsClock = useCallback(() => {
+        stageLyricsClockRef.current = {
+            startTimeSec: 0,
+            endTimeSec: 0,
+            baseTimeSec: 0,
+            startedAtMs: null,
+        };
+    }, []);
+
+    const syncStageLyricsClock = useCallback((timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec = 0) => {
+        const safeStartTime = Math.max(0, startTimeSec);
+        const safeEndTime = Math.max(safeStartTime, endTimeSec);
+        const safeTime = Math.min(Math.max(timeSec, safeStartTime), safeEndTime);
+
+        stageLyricsClockRef.current = {
+            startTimeSec: safeStartTime,
+            endTimeSec: safeEndTime,
+            baseTimeSec: safeTime,
+            startedAtMs: nextPlayerState === PlayerState.PLAYING ? performance.now() : null,
+        };
+    }, []);
+
+    const getSyntheticStageLyricsTime = useCallback((nowMs = performance.now()) => {
+        const clock = stageLyricsClockRef.current;
+        if (clock.startedAtMs === null) {
+            return Math.min(Math.max(clock.baseTimeSec, clock.startTimeSec), clock.endTimeSec);
+        }
+
+        const elapsedSeconds = Math.max(0, (nowMs - clock.startedAtMs) / 1000);
+        return Math.min(Math.max(clock.baseTimeSec + elapsedSeconds, clock.startTimeSec), clock.endTimeSec);
+    }, []);
+
+    const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
+        id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
+        name: session.title || lyricData.title || 'Stage Lyrics',
+        artists: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
+        album: { id: 0, name: session.album || 'Stage', picUrl: undefined },
+        duration: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
+        al: { id: 0, name: session.album || 'Stage', picUrl: undefined },
+        ar: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
+        dt: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
+        sourceType: 'cloud',
+        isStage: true,
+        stageData: session,
+    } as SongResult), []);
+
+    const loadStageSessionIntoPlayback = useCallback(async (session: StageMediaSession | null, options: { autoplay?: boolean; } = {}) => {
+        if (!session) {
+            currentSongRef.current = null;
+            resetStageLyricsClock();
+            clearPlaybackSurface();
+            return;
+        }
+
+        resetStageLyricsClock();
+        const stageSong = buildStagePlaybackSong(session);
+        shouldAutoPlay.current = options.autoplay ?? true;
+        pendingResumeTimeRef.current = null;
+        currentSongRef.current = stageSong.id;
+        setIsLyricsLoading(false);
+        let parsedLyrics: LyricData | null = null;
+        if (session.lyricsText?.trim()) {
+            try {
+                parsedLyrics = await LyricParserFactory.parse({
+                    type: 'local',
+                    lrcContent: session.lyricsText,
+                    formatHint: session.lyricsFormat || undefined,
+                });
+            } catch (error) {
+                console.warn('[Stage] Failed to parse stage lyrics', error);
+            }
+        }
+        setCurrentSong(stageSong);
+        setLyrics(parsedLyrics);
+        setCachedCoverUrl(session.coverArtUrl || session.coverUrl || null);
+        setAudioSrc(session.audioSrc);
+        setPlayQueue([]);
+        setIsFmMode(false);
+        setPlayerState(PlayerState.IDLE);
+        setCurrentLineIndex(-1);
+        currentTime.set(0);
+        setDuration(Math.max(0, (session.durationMs || 0) / 1000));
+    }, [buildStagePlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics]);
+
+    const loadStageLyricsIntoPlayback = useCallback(async (
+        session: StageLyricsSession | null,
+        options: { autoplay?: boolean; resumeTime?: number; playerState?: PlayerState; } = {},
+    ) => {
+        if (!session) {
+            currentSongRef.current = null;
+            resetStageLyricsClock();
+            clearPlaybackSurface();
+            return;
+        }
+
+        let parsedLyrics: LyricData | null = null;
+        try {
+            parsedLyrics = await LyricParserFactory.parse(session.lyricSource as any);
+        } catch (error) {
+            console.warn('[Stage] Failed to parse stage lyrics session', error);
+        }
+
+        if (!hasRenderableLyrics(parsedLyrics)) {
+            resetStageLyricsClock();
+            clearPlaybackSurface();
+            setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            return;
+        }
+
+        const { startTimeSec, endTimeSec } = getStageLyricsTimelineBounds(parsedLyrics);
+        const nextPlayerState = options.playerState ?? ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
+        const initialTime = options.resumeTime ?? startTimeSec;
+        const nextLineIndex = findLatestActiveLineIndex(parsedLyrics.lines, initialTime);
+        const stageSong = buildStageLyricsPlaybackSong(session, parsedLyrics);
+
+        clearPlaybackSurface();
+        shouldAutoPlay.current = false;
+        pendingResumeTimeRef.current = null;
+        currentSongRef.current = stageSong.id;
+        setCurrentSong(stageSong);
+        setCachedCoverUrl(null);
+        setAudioSrc(null);
+        setPlayQueue([]);
+        setIsFmMode(false);
+        setIsLyricsLoading(false);
+        setLyrics(parsedLyrics);
+        currentTime.set(initialTime);
+        setCurrentLineIndex(nextLineIndex);
+        setDuration(endTimeSec);
+        setPlayerState(nextPlayerState);
+        syncStageLyricsClock(initialTime, endTimeSec, nextPlayerState, startTimeSec);
+    }, [buildStageLyricsPlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics, syncStageLyricsClock, t]);
+
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
+
+    const persistLastPlaybackCache = useCallback(async (song: SongResult | null, queue: SongResult[]) => {
+        if (!song || isStagePlaybackSong(song)) {
+            return;
+        }
+
+        const sanitizedQueue = queue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
+        await Promise.all([
+            saveToCache('last_song', song),
+            saveToCache('last_queue', sanitizedQueue),
+        ]);
+    }, []);
+
+    const clearPersistedStagePlaybackCache = useCallback(async () => {
+        const cachedLastSong = await getFromCache<SongResult>('last_song');
+        const cachedLastQueue = await getFromCache<SongResult[]>('last_queue');
+
+        const tasks: Promise<void>[] = [];
+
+        if (isStagePlaybackSong(cachedLastSong)) {
+            tasks.push(removeFromCache('last_song'));
+        }
+
+        if (cachedLastQueue?.some(queuedSong => isStagePlaybackSong(queuedSong))) {
+            const sanitizedQueue = cachedLastQueue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
+            tasks.push(
+                sanitizedQueue.length > 0
+                    ? saveToCache('last_queue', sanitizedQueue)
+                    : removeFromCache('last_queue')
+            );
+        }
+
+        if (tasks.length > 0) {
+            await Promise.all(tasks);
+        }
+    }, []);
 
     const syncOutputGain = useCallback((targetVolume: number, smoothing = 0.015) => {
         const clampedVolume = clampMediaVolume(targetVolume);
@@ -512,7 +837,7 @@ export default function App() {
     }, [syncOutputGain]);
 
     const shouldRefreshCurrentOnlineAudioSource = useCallback(() => {
-        if (!currentSong || isLocalPlaybackSong(currentSong) || isNavidromePlaybackSong(currentSong)) {
+        if (!currentSong || isLocalPlaybackSong(currentSong) || isNavidromePlaybackSong(currentSong) || isStagePlaybackSong(currentSong)) {
             return false;
         }
 
@@ -540,7 +865,7 @@ export default function App() {
         const song = currentSong;
         const audioElement = audioRef.current;
 
-        if (!song || !audioElement || isLocalPlaybackSong(song) || isNavidromePlaybackSong(song)) {
+        if (!song || !audioElement || isLocalPlaybackSong(song) || isNavidromePlaybackSong(song) || isStagePlaybackSong(song)) {
             return false;
         }
 
@@ -597,6 +922,14 @@ export default function App() {
     }, [audioQuality, audioSrc, currentSong]);
 
     const resumePlayback = useCallback(async () => {
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
         if (!audioRef.current) {
             return;
         }
@@ -648,9 +981,17 @@ export default function App() {
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }
-    }, [audioSrc, getTargetPlaybackVolume, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, t, syncOutputGain]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PAUSED, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
+
         if (!audioRef.current) {
             return;
         }
@@ -658,7 +999,7 @@ export default function App() {
         audioRef.current.pause();
         syncOutputGain(getTargetPlaybackVolume(), 0);
         setPlayerState(PlayerState.PAUSED);
-    }, [getTargetPlaybackVolume, syncOutputGain]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
 
     const getCoverUrl = useCallback(() => {
         if (cachedCoverUrl) return cachedCoverUrl;
@@ -773,6 +1114,67 @@ export default function App() {
         void loadLocalPlaylists();
     }, []);
 
+    const openStagePlayer = useCallback(async () => {
+        if (activePlaybackContext === 'main') {
+            mainPlaybackSnapshotRef.current = buildPlaybackSnapshot();
+        } else {
+            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
+        }
+
+        const savedStageSnapshot = stagePlaybackSnapshotRef.current;
+        const savedStageEntryKey = lastLoadedStageEntryKeyRef.current;
+        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
+        setActivePlaybackContext('stage');
+        if (savedStageSnapshot && savedStageEntryKey && savedStageEntryKey === nextStageEntryKey) {
+            applyPlaybackSnapshot(savedStageSnapshot);
+            if (stageActiveEntryKind === 'lyrics') {
+                syncStageLyricsClock(
+                    savedStageSnapshot.currentTime,
+                    savedStageSnapshot.duration,
+                    savedStageSnapshot.playerState,
+                    stageLyricsClockRef.current.startTimeSec,
+                );
+            }
+        } else if (stageActiveEntryKind === 'lyrics') {
+            void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
+        } else if (stageActiveEntryKind === 'media') {
+            await loadStageSessionIntoPlayback(stageMediaSession, { autoplay: Boolean(stageMediaSession) });
+        } else {
+            await loadStageSessionIntoPlayback(null);
+        }
+        navigateToPlayer();
+        if (!nextStageEntryKey) {
+            setStatusMsg({ type: 'info', text: t('status.stageWaiting') || '等待外部 Stage 输入' });
+        }
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, stageActiveEntryKind, stageLyricsSession, stageMediaSession, syncStageLyricsClock, t]);
+
+    const leaveStagePlayback = useCallback(() => {
+        if (activePlaybackContext !== 'stage') {
+            return;
+        }
+
+        stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
+        setActivePlaybackContext('main');
+        applyPlaybackSnapshot(mainPlaybackSnapshotRef.current);
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
+
+    // Restore the main snapshot before starting any normal playback so Stage state
+    // stays isolated and the next playback flow reads the correct queue/context.
+    const interruptStagePlaybackForMainTransition = useCallback(() => {
+        if (activePlaybackContext !== 'stage') {
+            return null;
+        }
+
+        const currentStageSnapshot = buildPlaybackSnapshot();
+        const restoredMainSnapshot = mainPlaybackSnapshotRef.current;
+
+        stagePlaybackSnapshotRef.current = currentStageSnapshot;
+        setActivePlaybackContext('main');
+        applyPlaybackSnapshot(restoredMainSnapshot);
+
+        return restoredMainSnapshot;
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
+
     const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
         setPendingNavidromeSelection(selection);
         setHomeViewTab('navidrome');
@@ -833,10 +1235,89 @@ export default function App() {
         }
     }, [isPanelOpen, panelTab]);
 
+    useEffect(() => {
+        if (!window.electron?.getStageStatus) {
+            return;
+        }
+
+        let disposed = false;
+
+        const syncStageStatus = (nextStatus: StageStatus) => {
+            if (disposed) {
+                return;
+            }
+
+            setStageStatus(nextStatus);
+        };
+
+        window.electron.getStageStatus().then(syncStageStatus).catch((error) => {
+            console.warn('[Stage] Failed to load stage status', error);
+        });
+
+        const unsubscribeUpdated = window.electron.onStageSessionUpdated?.((nextStatus) => {
+            syncStageStatus(nextStatus);
+        });
+
+        const unsubscribeCleared = window.electron.onStageSessionCleared?.((nextStatus) => {
+            syncStageStatus(nextStatus);
+        });
+
+        return () => {
+            disposed = true;
+            unsubscribeUpdated?.();
+            unsubscribeCleared?.();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (activePlaybackContext === 'main') {
+            mainPlaybackSnapshotRef.current = buildPlaybackSnapshot();
+            lastKnownMainSongRef.current = currentSong;
+            lastKnownMainQueueRef.current = playQueue;
+        } else {
+            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
+        }
+    }, [activePlaybackContext, buildPlaybackSnapshot, currentSong, playQueue]);
+
+    useEffect(() => {
+        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
+
+        if (!nextStageEntryKey) {
+            lastLoadedStageEntryKeyRef.current = null;
+            if (activePlaybackContext === 'stage') {
+                void loadStageSessionIntoPlayback(null);
+            } else {
+                stagePlaybackSnapshotRef.current = null;
+            }
+            return;
+        }
+
+        if (activePlaybackContext === 'stage') {
+            if (lastLoadedStageEntryKeyRef.current === nextStageEntryKey) {
+                return;
+            }
+            lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
+            if (stageActiveEntryKind === 'lyrics') {
+                void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
+            } else {
+                void loadStageSessionIntoPlayback(stageMediaSession, { autoplay: true });
+            }
+            return;
+        }
+
+        lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
+        stagePlaybackSnapshotRef.current = null;
+    }, [activePlaybackContext, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, stageActiveEntryKind, stageLyricsSession, stageMediaSession]);
+
     const restoreSession = async () => {
         try {
             const lastSong = await getFromCache<SongResult>('last_song');
             const lastQueue = await getFromCache<SongResult[]>('last_queue');
+
+            if (isStagePlaybackSong(lastSong) || lastQueue?.some(song => isStagePlaybackSong(song))) {
+                await clearPersistedStagePlaybackCache();
+                return;
+            }
 
             if (lastSong) {
                 console.log("[Session] Restoring last song:", lastSong.name);
@@ -891,7 +1372,7 @@ export default function App() {
 
                             const restoredSong = { ...(lastSong as any), navidromeData: navidromeSongToRestore } as SongResult;
                             setCurrentSong(restoredSong);
-                            saveToCache('last_song', restoredSong);
+                            void persistLastPlaybackCache(restoredSong, lastQueue || [restoredSong]);
                         } else {
                             console.warn('[restoreSession] Navidrome song could not be restored');
                         }
@@ -1474,6 +1955,47 @@ export default function App() {
         setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
     }, [handleSetLyricFilterPattern, loadCurrentSongLyricPreview]);
 
+    const appendNeteaseSongsToMainQueue = useCallback((songs: SongResult[]) => {
+        if (songs.length === 0) {
+            return false;
+        }
+
+        const mainSnapshot = activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current : null;
+        const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
+        const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
+        const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
+        const existingIds = new Set(baseQueue.map(song => song.id));
+        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
+        const nextQueue = appendedSongs.length > 0 ? [...baseQueue, ...appendedSongs] : baseQueue;
+
+        if (activePlaybackContext === 'stage') {
+            mainPlaybackSnapshotRef.current = mainSnapshot
+                ? { ...mainSnapshot, playQueue: nextQueue }
+                : {
+                    currentSong: queueAnchorSong,
+                    lyrics: null,
+                    cachedCoverUrl: null,
+                    audioSrc: null,
+                    playQueue: nextQueue,
+                    isFmMode: false,
+                    playerState: PlayerState.IDLE,
+                    currentTime: 0,
+                    duration: 0,
+                    currentLineIndex: -1,
+                };
+        } else {
+            setPlayQueue(nextQueue);
+        }
+
+        if (appendedSongs.length > 0) {
+            void persistLastPlaybackCache(queueAnchorSong, nextQueue);
+            setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+            return true;
+        }
+
+        return false;
+    }, [activePlaybackContext, currentSong, persistLastPlaybackCache, playQueue, t]);
+
     const handleLocalQueueAdd = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
         const { unifiedSong } = await resolveLocalMetadataUI(preparedLocalSong, null);
@@ -1481,7 +2003,7 @@ export default function App() {
         const nextQueue = exists ? playQueue : [...playQueue, unifiedSong];
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
     };
 
@@ -1490,27 +2012,12 @@ export default function App() {
             return;
         }
 
-        const exists = playQueue.some(queuedSong => queuedSong.id === song.id);
-        const nextQueue = exists ? playQueue : [...playQueue, song];
-
-        setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+        appendNeteaseSongsToMainQueue([song]);
+    }, [appendNeteaseSongsToMainQueue]);
 
     const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
-        if (songs.length === 0) {
-            return;
-        }
-
-        const existingIds = new Set(playQueue.map(song => song.id));
-        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
-
-        setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+        appendNeteaseSongsToMainQueue(songs);
+    }, [appendNeteaseSongsToMainQueue]);
 
     const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
         if (songs.length === 0) {
@@ -1523,9 +2030,9 @@ export default function App() {
         const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
 
         setPlayQueue(nextQueue);
-        saveToCache('last_queue', nextQueue);
+        void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [playQueue, t]);
+    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
 
     const prewarmLocalSongMetadata = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
@@ -1572,6 +2079,8 @@ export default function App() {
     };
 
     const onPlayLocalSong = async (localSong: LocalSong, queue: LocalSong[] = []) => {
+        interruptStagePlaybackForMainTransition();
+
         // Get audio blob from fileHandle first
         const blobUrl = await getAudioFromLocalSong(localSong);
         if (!blobUrl) {
@@ -1611,12 +2120,11 @@ export default function App() {
         if (queue.length > 0) {
             const finalQueue = buildLocalQueue(queue, initialMeta.unifiedSong);
             setPlayQueue(finalQueue);
-            saveToCache('last_queue', finalQueue);
+            void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
         } else {
             setPlayQueue([initialMeta.unifiedSong]);
-            saveToCache('last_queue', [initialMeta.unifiedSong]);
+            void persistLastPlaybackCache(initialMeta.unifiedSong, [initialMeta.unifiedSong]);
         }
-        saveToCache('last_song', initialMeta.unifiedSong);
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'success', text: '本地音乐已加载' });
@@ -1648,6 +2156,8 @@ export default function App() {
         queue: NavidromeSong[] = [],
         options: PlaybackNavigationOptions = {}
     ) => {
+        interruptStagePlaybackForMainTransition();
+
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         const config = getNavidromeConfig();
         if (!config) {
@@ -1782,13 +2292,11 @@ export default function App() {
             if (queue.length > 0) {
                 const finalQueue = buildNavidromeQueue(queue, unifiedSong);
                 setPlayQueue(finalQueue);
-                saveToCache('last_queue', finalQueue);
+                void persistLastPlaybackCache(unifiedSong, finalQueue);
             } else {
                 setPlayQueue([unifiedSong]);
-                saveToCache('last_queue', [unifiedSong]);
+                void persistLastPlaybackCache(unifiedSong, [unifiedSong]);
             }
-
-            saveToCache('last_song', unifiedSong);
 
             if (shouldNavigateToPlayer) {
                 navigateToPlayer();
@@ -2034,6 +2542,8 @@ export default function App() {
         isFmCall: boolean = false,
         options: PlaybackNavigationOptions = {}
     ) => {
+        const restoredMainSnapshot = interruptStagePlaybackForMainTransition();
+
         console.log("[App] playSong initiated:", song.name, song.id, "isFm:", isFmCall);
         clearPendingUnavailableSkip();
         setStatusMsg(prev => prev?.persistent ? null : prev);
@@ -2051,7 +2561,8 @@ export default function App() {
         const isNavidrome = isNavidromePlaybackSong(song);
         let prefetched: ReturnType<typeof getPrefetchedData> = null;
         let preloadedOnlineAudioResult: Awaited<ReturnType<typeof loadOnlineSongAudioSource>> | null = null;
-        const queueContext = queue.length > 0 ? queue : playQueue.length === 0 ? [song] : playQueue;
+        const mainQueueContext = restoredMainSnapshot?.playQueue ?? playQueue;
+        const queueContext = queue.length > 0 ? queue : mainQueueContext.length === 0 ? [song] : mainQueueContext;
         let newQueue = getPlayableOnlineQueue(queueContext);
         const skipCount = options.unavailableSkipCount ?? 0;
         playbackAutoSkipCountRef.current = skipCount;
@@ -2148,8 +2659,7 @@ export default function App() {
         }
 
         // Save for next reload
-        saveToCache('last_song', song);
-        saveToCache('last_queue', newQueue);
+        void persistLastPlaybackCache(song, newQueue);
 
         if (shouldNavigateToPlayer) {
             navigateToPlayer();
@@ -2333,6 +2843,41 @@ export default function App() {
             prefetchNearbySongs(song.id, newQueue, audioQuality, user?.userId);
         }
     };
+
+    useEffect(() => {
+        if (!window.electron?.onStageExternalPlayRequest) {
+            return;
+        }
+
+        return window.electron.onStageExternalPlayRequest((request) => {
+            void (async () => {
+                try {
+                    const detail = await neteaseApi.getSongDetail(request.songId);
+                    const song = (detail?.songs || [])[0] as SongResult | undefined;
+                    if (!song) {
+                        throw new Error(`Song ${request.songId} was not found.`);
+                    }
+
+                    if (request.appendToQueue) {
+                        appendNeteaseSongsToMainQueue([song]);
+                    } else {
+                        await playSong(song, [song], false, { shouldNavigateToPlayer: true });
+                    }
+                    await window.electron?.completeStageExternalPlayRequest?.({
+                        requestId: request.requestId,
+                        ok: true,
+                    });
+                } catch (error) {
+                    console.warn('[Stage] Failed to handle external play request', error);
+                    await window.electron?.completeStageExternalPlayRequest?.({
+                        requestId: request.requestId,
+                        ok: false,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                }
+            })();
+        });
+    }, [appendNeteaseSongsToMainQueue, playSong]);
 
     const cacheSongAssets = async () => {
         if (!currentSong || !audioSrc || audioSrc.startsWith('blob:')) return;
@@ -2659,12 +3204,13 @@ export default function App() {
         }
 
         const hasActiveTrack = Boolean(currentSong);
+        const isStageContext = activePlaybackContext === 'stage';
         const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
-        const canGoPrevious = currentIndex > 0 || (loopMode === 'all' && playQueue.length > 1);
+        const canGoPrevious = currentIndex > 0 || (effectiveLoopMode === 'all' && playQueue.length > 1);
         const canGoNext = hasActiveTrack && (
             isFmMode ||
             currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
-            (loopMode === 'all' && playQueue.length > 1)
+            (effectiveLoopMode === 'all' && playQueue.length > 1)
         );
 
         void window.electron.updateTaskbarControls({
@@ -2675,7 +3221,7 @@ export default function App() {
         }).catch((error) => {
             console.warn('[Electron] Failed to update Windows taskbar controls', error);
         });
-    }, [currentSong, isFmMode, loopMode, playQueue, playerState]);
+    }, [activePlaybackContext, currentSong, effectiveLoopMode, isFmMode, playQueue, playerState]);
 
     const handleFmTrash = async () => {
         if (currentSong && isFmMode) {
@@ -2895,6 +3441,24 @@ export default function App() {
 
 
     useEffect(() => {
+        const audioElement = audioRef.current;
+        if (!audioElement) {
+            previousAudioSrcRef.current = audioSrc;
+            return;
+        }
+
+        if (audioSrc && previousAudioSrcRef.current && previousAudioSrcRef.current !== audioSrc) {
+            // Force the media element to detach from the previous stream before
+            // autoplay kicks in, otherwise Stage session swaps can stay pinned
+            // to the old buffered song.
+            audioElement.pause();
+            audioElement.load();
+        }
+
+        previousAudioSrcRef.current = audioSrc;
+    }, [audioSrc]);
+
+    useEffect(() => {
         if (audioSrc && audioRef.current) {
             // Only play if shouldAutoPlay is true AND lyrics are not loading
             if (shouldAutoPlay.current && !isLyricsLoading) {
@@ -2923,7 +3487,7 @@ export default function App() {
                 setPlayerState(PlayerState.PAUSED);
             }
         }
-    }, [audioSrc, getTargetPlaybackVolume, isLyricsLoading, syncOutputGain]);
+    }, [audioSrc, getTargetPlaybackVolume, isLyricsLoading, syncOutputGain, t]);
 
     // Ref to track currentLineIndex inside animation loop (avoid callback recreation)
     const currentLineIndexRef = useRef(currentLineIndex);
@@ -3003,10 +3567,35 @@ export default function App() {
                     setCurrentLineIndex(foundIndex);
                 }
             }
+        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
+            const nextTime = getSyntheticStageLyricsTime();
+            const clock = stageLyricsClockRef.current;
+            const hasReachedEnd = playerState === PlayerState.PLAYING && nextTime >= clock.endTimeSec;
+
+            currentTime.set(nextTime);
+
+            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
+            if (foundIndex !== currentLineIndexRef.current) {
+                setCurrentLineIndex(foundIndex);
+            }
+
+            if (hasReachedEnd) {
+                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                    syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
+                    currentTime.set(clock.startTimeSec);
+                    const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
+                    if (restartedLineIndex !== currentLineIndexRef.current) {
+                        setCurrentLineIndex(restartedLineIndex);
+                    }
+                } else {
+                    syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
+                    setPlayerState(PlayerState.PAUSED);
+                }
+            }
         }
 
         animationFrameRef.current = requestAnimationFrame(updateLoop);
-    }, [lyrics, audioPower]);
+    }, [activePlaybackContext, audioPower, effectiveLoopMode, getSyntheticStageLyricsTime, lyrics, playerState, stageActiveEntryKind, stageLyricsSession, syncStageLyricsClock]);
 
     useEffect(() => {
         animationFrameRef.current = requestAnimationFrame(updateLoop);
@@ -3017,6 +3606,16 @@ export default function App() {
 
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
+
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            if (playerState === PlayerState.PLAYING) {
+                pausePlayback();
+            } else {
+                void resumePlayback();
+            }
+            return;
+        }
+
         if (audioRef.current) {
             if (!audioRef.current.paused && !audioRef.current.ended) {
                 pausePlayback();
@@ -3051,7 +3650,7 @@ export default function App() {
             switch (e.code) {
                 case 'Space':
                     // Space key works in both home and player views if there's a current song
-                    if (currentSong && audioSrc) {
+                    if (currentSong && (audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
                         e.preventDefault();
                         togglePlay(e);
                     }
@@ -3068,8 +3667,13 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (audioRef.current) {
-                        audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                        const nextTime = Math.max(stageLyricsClockRef.current.startTimeSec, currentTime.get() - 5);
+                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                        currentTime.set(nextTime);
+                    } else if (audioRef.current) {
+                        const nextTime = Math.max(0, audioRef.current.currentTime - 5);
+                        audioRef.current.currentTime = nextTime;
                     }
                     break;
                 case 'ArrowRight':
@@ -3084,8 +3688,13 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (audioRef.current) {
-                        audioRef.current.currentTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                        const nextTime = Math.min(duration, currentTime.get() + 5);
+                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                        currentTime.set(nextTime);
+                    } else if (audioRef.current) {
+                        const nextTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
+                        audioRef.current.currentTime = nextTime;
                     }
                     break;
                 case 'KeyH':
@@ -3099,15 +3708,21 @@ export default function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [audioSrc, currentSong, currentView, handleNextTrack, handlePrevTrack, isDev, isPanelOpen, playerState]);
+    }, [activePlaybackContext, audioSrc, currentSong, currentTime, currentView, duration, handleNextTrack, handlePrevTrack, isDev, isPanelOpen, pausePlayback, playerState, resumePlayback, stageActiveEntryKind, syncStageLyricsClock]);
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
+
         handleToggleLoopMode();
     };
 
     const handleLike = async () => {
         if (!currentSong) return;
+
+        if (isStagePlaybackSong(currentSong)) {
+            setStatusMsg({ type: 'info', text: t('status.stageActionUnavailable') || 'Stage 模式下不支持收藏操作' });
+            return;
+        }
 
         if (isLocalPlaybackSong(currentSong) && currentSong.localData) {
             const nextLiked = !isLocalSongLiked(currentSong);
@@ -3347,6 +3962,9 @@ export default function App() {
         nextLine: toDebugLineSnapshot(debugNextLine),
     };
     const isPlayerView = currentView === 'player';
+    const canToggleCurrentPlayback = Boolean(
+        audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
+    );
 
     useEffect(() => {
         if (!isElectronWindow) {
@@ -3405,7 +4023,7 @@ export default function App() {
                 ref={audioRef}
                 src={audioSrc || undefined}
                 crossOrigin="anonymous"
-                loop={loopMode === 'one'}
+                loop={effectiveLoopMode === 'one'}
                 onPlay={(e) => {
                     currentTime.set(e.currentTarget.currentTime);
                     setPlayerState(PlayerState.PLAYING);
@@ -3433,13 +4051,13 @@ export default function App() {
                 }}
                 onEnded={() => {
                     // Cache if playing fully
-                    if (audioSrc && !audioSrc.startsWith('blob:') && currentSong) {
+                    if (audioSrc && !audioSrc.startsWith('blob:') && currentSong && !isStagePlaybackSong(currentSong)) {
                         cacheSongAssets();
                     }
 
                     // If single loop is active, native loop handles it.
                     // If not, we handle queue logic.
-                    if (loopMode !== 'one') {
+                    if (effectiveLoopMode !== 'one') {
                         void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
                     }
                 }}
@@ -3471,6 +4089,7 @@ export default function App() {
                         currentSong &&
                         !isLocalPlaybackSong(currentSong) &&
                         !isNavidromePlaybackSong(currentSong) &&
+                        !isStagePlaybackSong(currentSong) &&
                         failedSrc &&
                         !failedSrc.startsWith('blob:')
                     );
@@ -3521,6 +4140,22 @@ export default function App() {
                     onBack={navigateToHome}
                 />
             </div>
+
+            {currentView === 'player' && activePlaybackContext === 'stage' && !stageActiveEntryKind && (
+                <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center px-6">
+                    <div className={`max-w-lg rounded-3xl border px-6 py-5 text-center backdrop-blur-md ${isDaylight ? 'border-black/10 bg-white/50 text-zinc-800' : 'border-white/10 bg-black/30 text-white'}`}>
+                        <div className="text-xs uppercase tracking-[0.22em] opacity-50">
+                            Stage
+                        </div>
+                        <div className="mt-3 text-2xl font-semibold">
+                            {t('options.stageSessionEmpty') || '等待外部输入'}
+                        </div>
+                        <div className="mt-2 text-sm opacity-70">
+                            {t('options.enableStageModeDesc') || '本地 Stage API 已开启'}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* --- HOME VIEW (Overlay) --- */}
             <AnimatePresence>
@@ -3669,6 +4304,40 @@ export default function App() {
                             onSearchCommitted={(query, sourceTab, replace = false) => {
                                 navigateToSearch({ query, sourceTab, replace });
                             }}
+                            stageEnabled={stageStatus?.enabled ?? false}
+                            stageIsActive={activePlaybackContext === 'stage'}
+                            onOpenStagePlayer={() => {
+                                void openStagePlayer();
+                            }}
+                            stageStatus={stageStatus}
+                            onToggleStageMode={async (enabled) => {
+                                const nextStatus = await window.electron?.setStageEnabled(enabled);
+                                if (nextStatus) {
+                                    setStageStatus(nextStatus);
+                                    if (!enabled && activePlaybackContext === 'stage') {
+                                        leaveStagePlayback();
+                                    }
+                                    if (!enabled) {
+                                        stagePlaybackSnapshotRef.current = null;
+                                        await clearPersistedStagePlaybackCache();
+                                    }
+                                }
+                            }}
+                            onRegenerateStageToken={async () => {
+                                const nextStatus = await window.electron?.regenerateStageToken();
+                                if (nextStatus) {
+                                    setStageStatus(nextStatus);
+                                }
+                            }}
+                            onClearStageState={async () => {
+                                const nextStatus = await window.electron?.clearStageState();
+                                if (nextStatus) {
+                                    setStageStatus(nextStatus);
+                                    if (activePlaybackContext === 'stage') {
+                                        await loadStageSessionIntoPlayback(null);
+                                    }
+                                }
+                            }}
                         />
                     </motion.div>
                 )}
@@ -3808,12 +4477,19 @@ export default function App() {
                         playerState={playerState}
                         currentTime={currentTime}
                         duration={duration}
-                        loopMode={loopMode}
+                        loopMode={effectiveLoopMode}
                         currentView={currentView}
                         audioSrc={audioSrc}
+                        canTogglePlay={canToggleCurrentPlayback}
                         lyrics={lyrics}
                         onSeek={(time) => {
-                            if (audioRef.current) {
+                            if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                                syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                                currentTime.set(time);
+                                if (playerState !== PlayerState.PLAYING) {
+                                    setPlayerState(PlayerState.PAUSED);
+                                }
+                            } else if (audioRef.current) {
                                 audioRef.current.currentTime = time;
                                 if (audioRef.current.paused) {
                                     audioRef.current.play();
@@ -3848,7 +4524,7 @@ export default function App() {
                         currentSong={currentSong}
                         onAlbumSelect={handleAlbumSelect}
                         onSelectArtist={handleArtistSelect}
-                        loopMode={loopMode}
+                        loopMode={effectiveLoopMode}
                         onToggleLoop={toggleLoop}
                         onLike={handleLike}
                         isLiked={currentSong ? (isLocalPlaybackSong(currentSong) ? isLocalSongLiked(currentSong) : likedSongIds.has(currentSong.id)) : false}
@@ -3912,6 +4588,7 @@ export default function App() {
                         onOpenCurrentNavidromeArtist={openCurrentNavidromeArtist}
                         showOpenPanelCloseButton={showOpenPanelCloseButton}
                         hideToggleButton={isPlayerChromeHidden}
+                        isStageContext={activePlaybackContext === 'stage'}
                     />
                 )
             }

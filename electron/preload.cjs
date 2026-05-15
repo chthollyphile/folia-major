@@ -35,5 +35,25 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('thumbar-action', listener);
         return () => ipcRenderer.removeListener('thumbar-action', listener);
     },
+    getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
+    setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
+    regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),
+    clearStageState: () => ipcRenderer.invoke('stage-clear-state'),
+    completeStageExternalPlayRequest: (result) => ipcRenderer.invoke('stage-complete-external-play', result),
+    onStageSessionUpdated: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('stage-session-updated', listener);
+        return () => ipcRenderer.removeListener('stage-session-updated', listener);
+    },
+    onStageSessionCleared: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('stage-session-cleared', listener);
+        return () => ipcRenderer.removeListener('stage-session-cleared', listener);
+    },
+    onStageExternalPlayRequest: (callback) => {
+        const listener = (_event, request) => callback(request);
+        ipcRenderer.on('stage-external-play-request', listener);
+        return () => ipcRenderer.removeListener('stage-external-play-request', listener);
+    },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
 });

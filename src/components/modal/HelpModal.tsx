@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional, RefreshCw, Download, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../../types';
+import { DualTheme, StageStatus, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -54,6 +54,10 @@ interface HelpModalProps {
     currentSongTitle?: string | null;
     onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
+    stageStatus?: StageStatus | null;
+    onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
+    onRegenerateStageToken?: () => Promise<void> | void;
+    onClearStageState?: () => Promise<void> | void;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -97,6 +101,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
     currentSongTitle,
     onSaveLyricFilterPattern,
     onToggleOpenPanelCloseButton,
+    stageStatus = null,
+    onToggleStageMode,
+    onRegenerateStageToken,
+    onClearStageState,
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
@@ -105,6 +113,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [showLabSettings, setShowLabSettings] = useState(false);
     const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
+    const [stageAddressCopied, setStageAddressCopied] = useState(false);
     const [authorClickCount, setAuthorClickCount] = useState(0);
     const [meowEasterEgg, setMeowEasterEgg] = useState<{ id: number; } | null>(null);
 
@@ -135,6 +144,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [cacheDirectory, setCacheDirectory] = useState<string>('');
     const [cacheDirectoryIsDefault, setCacheDirectoryIsDefault] = useState(true);
     const [cacheDirectoryStatus, setCacheDirectoryStatus] = useState<'idle' | 'choosing'>('idle');
+    const [stageActionStatus, setStageActionStatus] = useState<'idle' | 'regenerating'>('idle');
     const configuredAiProvider = isElectron ? electronSettings.AI_PROVIDER : import.meta.env.VITE_AI_PROVIDER;
     const aiServiceLabel = configuredAiProvider === 'openai' ? 'OpenAI Compatible' : 'Google Gemini';
 
@@ -416,6 +426,23 @@ const HelpModal: React.FC<HelpModalProps> = ({
         } finally {
             setCacheDirectoryStatus('idle');
         }
+    };
+
+    const handleCopyStageAddress = async (address: string) => {
+        try {
+            await copyText(address);
+            setStageAddressCopied(true);
+            window.setTimeout(() => setStageAddressCopied(false), 1800);
+        } catch (error) {
+            console.error('Failed to copy stage address:', error);
+            setStageAddressCopied(false);
+        }
+    };
+
+    const maskStageToken = (token: string | null | undefined) => {
+        if (!token) return t('options.stageTokenMissing') || 'Not generated';
+        if (token.length <= 12) return token;
+        return `${token.slice(0, 6)}...${token.slice(-6)}`;
     };
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
@@ -1277,6 +1304,102 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 </button>
                                             </div>
                                         </div>
+                                    </div>
+                                </section>
+                            )}
+
+                            {isElectron && stageStatus && (
+                                <section>
+                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                        <Server size={14} /> {t('options.stageMode') || 'Stage Mode'}
+                                    </h3>
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('options.enableStageMode') || 'Enable Stage Mode'}
+                                                </div>
+                                                <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {stageStatus.enabled
+                                                        ? (t('options.enableStageModeDescEnabled') || 'Stage API 已开启，可供外部程序推送音频和歌词。')
+                                                        : (t('options.enableStageModeDescDisabled') || '启用后会开放本地 Stage API，供外部程序推送音频和歌词。')}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => void onToggleStageMode?.(!stageStatus.enabled)}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!stageStatus.enabled ? toggleOffBackgroundClass : ''}`}
+                                                style={{ backgroundColor: stageStatus.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${stageStatus.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+                                        {stageStatus.enabled && (
+                                            <div className="space-y-3">
+                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                    <div>
+                                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.stageAddress') || 'Stage Address'}
+                                                        </div>
+                                                        <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
+                                                            {`http://127.0.0.1:${stageStatus.port}`}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleCopyStageAddress(`http://127.0.0.1:${stageStatus.port}`)}
+                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2"
+                                                            style={{ color: stageAddressCopied ? '#86efac' : 'var(--text-primary)' }}
+                                                        >
+                                                            {stageAddressCopied ? <Check size={14} /> : null}
+                                                            {stageAddressCopied
+                                                                ? (t('options.stageAddressCopied') || 'Copied')
+                                                                : (t('options.copyStageAddress') || 'Copy Address')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                    <div>
+                                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.stageToken') || 'Bearer Token'}
+                                                        </div>
+                                                        <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
+                                                            {maskStageToken(stageStatus.token)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void copyText(stageStatus.token || '')}
+                                                            disabled={!stageStatus.token}
+                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        >
+                                                            {t('options.copyStageToken') || 'Copy Token'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                setStageActionStatus('regenerating');
+                                                                try {
+                                                                    await onRegenerateStageToken?.();
+                                                                } finally {
+                                                                    setStageActionStatus('idle');
+                                                                }
+                                                            }}
+                                                            disabled={stageActionStatus !== 'idle'}
+                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        >
+                                                            {stageActionStatus === 'regenerating'
+                                                                ? (t('options.stageTokenRegenerating') || 'Regenerating...')
+                                                                : (t('options.regenerateStageToken') || 'Regenerate Token')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </section>
                             )}

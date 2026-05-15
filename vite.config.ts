@@ -61,6 +61,14 @@ export default async function viteConfig({ mode }: ConfigEnv): Promise<UserConfi
     worker: {
       format: 'es'
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: 'index.html',
+          stageClient: 'stage-client.html',
+        },
+      },
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',

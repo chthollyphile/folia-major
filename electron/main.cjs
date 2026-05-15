@@ -3,6 +3,7 @@ const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
+const { createStageApi } = require('./stageApi.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
   process.platform === 'linux' &&
@@ -44,6 +45,10 @@ const CACHE_DIRECTORY_SETTING_KEY = 'CACHE_DIRECTORY';
 const ENABLE_UPDATE_CHECK_SETTING_KEY = 'ENABLE_UPDATE_CHECK';
 const ENABLE_AUTO_UPDATE_SETTING_KEY = 'ENABLE_AUTO_UPDATE';
 const LAST_SEEN_UPDATE_VERSION_SETTING_KEY = 'LAST_SEEN_UPDATE_VERSION';
+const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
+const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
+const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
+const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
 const WINDOWS_APP_USER_MODEL_ID = 'top.izuna.foliamajor';
@@ -57,6 +62,17 @@ const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
       next: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'next.png')).resize({ width: 16, height: 16, quality: 'best' }),
     }
   : null;
+
+const stageApi = createStageApi({
+  app,
+  store,
+  getMainWindow: () => mainWindow,
+  stageModeEnabledSettingKey: STAGE_MODE_ENABLED_SETTING_KEY,
+  stageApiTokenSettingKey: STAGE_API_TOKEN_SETTING_KEY,
+  stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
+  defaultStageApiPort: DEFAULT_STAGE_API_PORT,
+  getNeteasePort: () => assignedPort,
+});
 
 function getStoredWindowState() {
   const storedBounds = store.get('WINDOW_BOUNDS');
@@ -1334,6 +1350,11 @@ app.whenReady().then(async () => {
   setupFileSystemAccessPermissionHandlers();
   setupAutoUpdater();
   await startApi();
+  try {
+    await stageApi.startStageServerIfNeeded();
+  } catch (error) {
+    console.error('[Stage] Failed to start stage server during app startup', error);
+  }
   createWindow();
   focusMainWindow();
   scheduleStartupUpdateCheck();
@@ -1535,6 +1556,30 @@ ipcMain.handle('window-is-maximized', () => {
   }
 
   return mainWindow.isMaximized();
+});
+
+ipcMain.handle('stage-get-status', () => {
+  return stageApi.buildStageStatus();
+});
+
+ipcMain.handle('stage-set-enabled', async (_event, enabled) => {
+  return stageApi.setStageEnabled(enabled);
+});
+
+ipcMain.handle('stage-regenerate-token', async () => {
+  return stageApi.regenerateStageToken();
+});
+
+ipcMain.handle('stage-clear-state', async () => {
+  return stageApi.clearStageState();
+});
+
+ipcMain.handle('stage-complete-external-play', (event, result) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to complete a Stage external play request.');
+  }
+
+  return stageApi.completeStageExternalPlayRequest(result);
 });
 
 ipcMain.handle('thumbar-update-buttons', (event, state) => {

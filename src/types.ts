@@ -48,6 +48,121 @@ export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
 
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
+export type PlaybackContext = 'main' | 'stage';
+export type StageLoopMode = 'off' | 'all' | 'one';
+export type StageActiveEntryKind = 'lyrics' | 'media';
+
+export interface StageEmbeddedUsltTag {
+  language?: string;
+  descriptor?: string;
+  text: string;
+}
+
+export interface StageEmbeddedLyricSource {
+  type: 'embedded';
+  usltTags?: StageEmbeddedUsltTag[];
+  textContent?: string;
+  translationContent?: string;
+}
+
+export interface StageLocalLyricSource {
+  type: 'local';
+  lrcContent: string;
+  tLrcContent?: string;
+  formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+}
+
+export interface StageNeteaseLyricBranch {
+  lyric?: string;
+  pureMusic?: boolean;
+}
+
+export interface StageNeteaseLyricSource {
+  type: 'netease';
+  lrc?: StageNeteaseLyricBranch & {
+    yrc?: StageNeteaseLyricBranch;
+    ytlrc?: StageNeteaseLyricBranch;
+  };
+  yrc?: StageNeteaseLyricBranch;
+  ytlrc?: StageNeteaseLyricBranch;
+  tlyric?: StageNeteaseLyricBranch;
+  pureMusic?: boolean;
+}
+
+export interface StageNavidromeStructuredLyricLine {
+  start?: number;
+  value?: string;
+}
+
+export interface StageNavidromeLyricSource {
+  type: 'navidrome';
+  structuredLyrics?: StageNavidromeStructuredLyricLine[];
+  plainLyrics?: string;
+}
+
+export type StageLyricSource =
+  | StageEmbeddedLyricSource
+  | StageLocalLyricSource
+  | StageNeteaseLyricSource
+  | StageNavidromeLyricSource;
+
+export interface StageLyricsSession {
+  title?: string;
+  artist?: string;
+  album?: string;
+  lyricSource: StageLyricSource;
+  updatedAt: number;
+}
+
+export interface StageMediaSession {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  durationMs?: number | null;
+  coverUrl?: string | null;
+  coverArtUrl?: string | null;
+  audioUrl?: string | null;
+  audioSrc: string;
+  audioMimeType?: string;
+  coverMimeType?: string;
+  lyricsText?: string | null;
+  lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
+  updatedAt: number;
+}
+
+export type StageSession = StageMediaSession;
+
+export interface StageSearchResult {
+  songId: number;
+  title: string;
+  artists: string[];
+  album: string;
+  durationMs: number | null;
+  coverUrl: string | null;
+}
+
+export interface StageExternalPlayRequest {
+  requestId: string;
+  songId: number;
+  appendToQueue?: boolean;
+}
+
+export interface StageExternalPlayResult {
+  requestId: string;
+  ok: boolean;
+  error?: string | null;
+}
+
+export interface StageStatus {
+  enabled: boolean;
+  port: number;
+  token: string | null;
+  activeEntryKind: StageActiveEntryKind | null;
+  lyricsSession: StageLyricsSession | null;
+  mediaSession: StageMediaSession | null;
+}
+
 export interface CadenzaTuning {
   fontScale: number;
   widthRatio: number;

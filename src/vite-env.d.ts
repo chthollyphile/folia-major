@@ -62,6 +62,119 @@ declare global {
     } | null;
   }
 
+  type StageActiveEntryKind = 'lyrics' | 'media';
+
+  interface StageEmbeddedUsltTag {
+    language?: string;
+    descriptor?: string;
+    text: string;
+  }
+
+  interface StageEmbeddedLyricSource {
+    type: 'embedded';
+    usltTags?: StageEmbeddedUsltTag[];
+    textContent?: string;
+    translationContent?: string;
+  }
+
+  interface StageLocalLyricSource {
+    type: 'local';
+    lrcContent: string;
+    tLrcContent?: string;
+    formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+  }
+
+  interface StageNeteaseLyricBranch {
+    lyric?: string;
+    pureMusic?: boolean;
+  }
+
+  interface StageNeteaseLyricSource {
+    type: 'netease';
+    lrc?: StageNeteaseLyricBranch & {
+      yrc?: StageNeteaseLyricBranch;
+      ytlrc?: StageNeteaseLyricBranch;
+    };
+    yrc?: StageNeteaseLyricBranch;
+    ytlrc?: StageNeteaseLyricBranch;
+    tlyric?: StageNeteaseLyricBranch;
+    pureMusic?: boolean;
+  }
+
+  interface StageNavidromeStructuredLyricLine {
+    start?: number;
+    value?: string;
+  }
+
+  interface StageNavidromeLyricSource {
+    type: 'navidrome';
+    structuredLyrics?: StageNavidromeStructuredLyricLine[];
+    plainLyrics?: string;
+  }
+
+  type StageLyricSource =
+    | StageEmbeddedLyricSource
+    | StageLocalLyricSource
+    | StageNeteaseLyricSource
+    | StageNavidromeLyricSource;
+
+  interface StageLyricsSession {
+    title?: string;
+    artist?: string;
+    album?: string;
+    lyricSource: StageLyricSource;
+    updatedAt: number;
+  }
+
+  interface StageMediaSession {
+    id: string;
+    title: string;
+    artist: string;
+    album?: string;
+    durationMs?: number | null;
+    coverUrl?: string | null;
+    coverArtUrl?: string | null;
+    audioUrl?: string | null;
+    audioSrc: string;
+    audioMimeType?: string;
+    coverMimeType?: string;
+    lyricsText?: string | null;
+    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
+    updatedAt: number;
+  }
+
+  type StageSession = StageMediaSession;
+
+  interface StageSearchResult {
+    songId: number;
+    title: string;
+    artists: string[];
+    album: string;
+    durationMs: number | null;
+    coverUrl: string | null;
+  }
+
+  interface StageExternalPlayRequest {
+    requestId: string;
+    songId: number;
+    appendToQueue?: boolean;
+  }
+
+  interface StageExternalPlayResult {
+    requestId: string;
+    ok: boolean;
+    error?: string | null;
+  }
+
+  interface StageStatus {
+    enabled: boolean;
+    port: number;
+    token: string | null;
+    activeEntryKind: StageActiveEntryKind | null;
+    lyricsSession: StageLyricsSession | null;
+    mediaSession: StageMediaSession | null;
+  }
+
   interface Window {
     electron?: {
       getSettings: () => Promise<any>;
@@ -90,6 +203,14 @@ declare global {
       isWindowMaximized: () => Promise<boolean>;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
+      getStageStatus: () => Promise<StageStatus>;
+      setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
+      regenerateStageToken: () => Promise<StageStatus>;
+      clearStageState: () => Promise<StageStatus>;
+      completeStageExternalPlayRequest: (result: StageExternalPlayResult) => Promise<boolean>;
+      onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
+      onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
+      onStageExternalPlayRequest: (callback: (request: StageExternalPlayRequest) => void) => () => void;
     };
   }
 }
