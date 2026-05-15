@@ -64,9 +64,22 @@ interface RenderLineSlice {
     end: number;
     graphemes: string[];
     glyphOffsets: number[];
+    segments: RenderSegmentSlice[];
     left: number;
     top: number;
     width: number;
+}
+
+interface RenderSegmentSlice {
+    text: string;
+    start: number;
+    end: number;
+    localStart: number;
+    localEnd: number;
+    x: number;
+    width: number;
+    isFullSegment: boolean;
+    measuredGlyphOffsets: number[];
 }
 
 interface FumeBlock {
@@ -661,6 +674,101 @@ const resolveGlyphAdvance = (
     return Math.max(nextOffset - currentOffset, 0);
 };
 
+const buildRenderSegments = (
+    prepared: PreparedTextWithSegments,
+    segmentMetas: SegmentMeta[],
+    lineStart: number,
+    lineEnd: number,
+    fontSpec: string,
+) => {
+    const segments: RenderSegmentSlice[] = [];
+
+    for (let segmentIndex = 0; segmentIndex < segmentMetas.length; segmentIndex += 1) {
+        const meta = segmentMetas[segmentIndex]!;
+        if (lineEnd <= meta.graphemeStart) {
+            break;
+        }
+        if (lineStart >= meta.graphemeEnd) {
+            continue;
+        }
+
+        const start = Math.max(lineStart, meta.graphemeStart);
+        const end = Math.min(lineEnd, meta.graphemeEnd);
+        if (end <= start) {
+            continue;
+        }
+
+        const localStart = start - lineStart;
+        const localEnd = end - lineStart;
+        const segmentText = prepared.segments[segmentIndex] ?? '';
+        const segmentGraphemes = splitGraphemes(segmentText);
+        const text = start === meta.graphemeStart && end === meta.graphemeEnd
+            ? segmentText
+            : segmentGraphemes.slice(start - meta.graphemeStart, end - meta.graphemeStart).join('');
+        const measuredGlyphOffsets = measureSegmentGlyphOffsets(text, fontSpec);
+
+        segments.push({
+            text,
+            start,
+            end,
+            localStart,
+            localEnd,
+            x: widthBetweenOffsets(prepared, segmentMetas, lineStart, start),
+            width: widthBetweenOffsets(prepared, segmentMetas, start, end),
+            isFullSegment: start === meta.graphemeStart && end === meta.graphemeEnd,
+            measuredGlyphOffsets,
+        });
+    }
+
+    return segments;
+};
+
+const buildFontSpec = (
+    fontPx: number,
+    variant: 'body' | 'hero',
+    fontFamily: string,
+) => {
+    const fontWeight = variant === 'hero' ? 780 : 640;
+    return `${fontWeight} ${fontPx}px ${fontFamily}`;
+};
+
+let segmentMeasureCanvas: HTMLCanvasElement | null = null;
+const segmentMeasureCache = new Map<string, number[]>();
+
+const measureSegmentGlyphOffsets = (
+    text: string,
+    fontSpec: string,
+) => {
+    const cacheKey = `${fontSpec}__${text}`;
+    const cached = segmentMeasureCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const graphemes = splitGraphemes(text);
+    const offsets = new Array<number>(graphemes.length + 1).fill(0);
+    if (typeof document === 'undefined') {
+        return offsets;
+    }
+
+    if (!segmentMeasureCanvas) {
+        segmentMeasureCanvas = document.createElement('canvas');
+    }
+
+    const context = segmentMeasureCanvas.getContext('2d');
+    if (!context) {
+        return offsets;
+    }
+
+    context.font = fontSpec;
+    for (let index = 1; index <= graphemes.length; index += 1) {
+        offsets[index] = context.measureText(graphemes.slice(0, index).join('')).width;
+    }
+
+    segmentMeasureCache.set(cacheKey, offsets);
+    return offsets;
+};
+
 const buildWordRangeIndexByOffset = (
     graphemeCount: number,
     wordRanges: WordRange[],
@@ -817,7 +925,8 @@ const buildPreparedSingleLine = (
             * lyricsFontScale
             * densityScale
             * (variant === 'hero' ? heroScale : 1);
-        const prepared = prepareWithSegments(text, `700 ${candidateFontPx}px ${fontFamily}`);
+        const fontSpec = buildFontSpec(candidateFontPx, variant, fontFamily);
+        const prepared = prepareWithSegments(text, fontSpec);
         const layout = layoutWithLines(prepared, width, Math.round(candidateFontPx * (variant === 'hero' ? 1.02 : 1.06)));
 
         if (layout.lineCount <= 1) {
@@ -840,7 +949,8 @@ const buildPreparedSingleLine = (
         * lyricsFontScale
         * densityScale
         * (variant === 'hero' ? heroScale : 1);
-    const prepared = prepareWithSegments(text, `700 ${fallbackFontPx}px ${fontFamily}`);
+    const fontSpec = buildFontSpec(fallbackFontPx, variant, fontFamily);
+    const prepared = prepareWithSegments(text, fontSpec);
     return {
         fontPx: fallbackFontPx,
         prepared,
@@ -1133,25 +1243,34 @@ function buildArticleLayoutAttempt(
             // Render passes continue and build every structure needed for glyph printing and per-line focus.
             const renderDetailsStart = timing ? nowMs() : 0;
             const prepared = preparedSingleLine.prepared;
+            const fontSpec = buildFontSpec(fontPx, variant, fontFamily);
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
             const wordRanges = buildWordRangesFromWords(line, graphemes);
             const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
             const colorRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges, 'color');
             const renderLines = layout.lines.map((layoutLine, lineIndex) => {
                 const start = cursorToGlobalOffset(layoutLine.start, segmentMetas);
+                const end = cursorToGlobalOffset(layoutLine.end, segmentMetas);
                 const lineGraphemes = splitGraphemes(layoutLine.text);
 
                 return {
                     id: `${line.startTime}-${lineIndex}`,
                     text: layoutLine.text,
                     start,
-                    end: cursorToGlobalOffset(layoutLine.end, segmentMetas),
+                    end,
                     graphemes: lineGraphemes,
                     glyphOffsets: buildGlyphOffsets(
                         prepared,
                         segmentMetas,
                         start,
                         lineGraphemes.length,
+                    ),
+                    segments: buildRenderSegments(
+                        prepared,
+                        segmentMetas,
+                        start,
+                        end,
+                        fontSpec,
                     ),
                     left: variant === 'hero'
                         ? Math.max((blockWidth - layoutLine.width) * 0.08, 0)
@@ -1472,8 +1591,79 @@ const resolveBlockEntryFocusPoint = (
 
 const buildCanvasFont = (block: FumeBlock, theme: Theme) => {
     const fontFamily = resolveThemeFontStack(theme);
-    const fontWeight = block.variant === 'hero' ? 780 : 640;
-    return `${fontWeight} ${block.fontPx}px ${fontFamily}`;
+    return buildFontSpec(block.fontPx, block.variant, fontFamily);
+};
+
+const buildTextStyleKey = (
+    fillStyle: string,
+    shadowBlur: number,
+    shadowColor: string,
+) => `${fillStyle}|${shadowColor}|${shadowBlur.toFixed(3)}`;
+
+const resolveRenderLineOffset = (
+    renderLine: RenderLineSlice,
+    localOffset: number,
+) => {
+    if (localOffset <= 0) {
+        return 0;
+    }
+    if (localOffset >= renderLine.graphemes.length) {
+        return renderLine.width;
+    }
+    return renderLine.glyphOffsets[localOffset] ?? renderLine.width;
+};
+
+const resolveSegmentGlyphOffset = (
+    segment: RenderSegmentSlice,
+    globalOffset: number,
+) => {
+    const localOffset = clamp(globalOffset - segment.start, 0, segment.measuredGlyphOffsets.length - 1);
+    return segment.measuredGlyphOffsets[localOffset] ?? 0;
+};
+
+const resolveSegmentGlyphAdvance = (
+    segment: RenderSegmentSlice,
+    globalOffset: number,
+) => {
+    const localOffset = clamp(globalOffset - segment.start, 0, segment.measuredGlyphOffsets.length - 2);
+    const current = segment.measuredGlyphOffsets[localOffset] ?? 0;
+    const next = segment.measuredGlyphOffsets[localOffset + 1] ?? current;
+    return Math.max(next - current, 0);
+};
+
+const drawRenderTextRun = (
+    context: CanvasRenderingContext2D,
+    renderLine: RenderLineSlice,
+    segment: RenderSegmentSlice,
+    runStart: number,
+    runEnd: number,
+    baseX: number,
+    baseY: number,
+) => {
+    if (!segment.text || runEnd <= runStart) {
+        return;
+    }
+
+    const segmentRunStart = Math.max(runStart - segment.localStart, 0);
+    const segmentRunEnd = Math.min(runEnd - segment.localStart, segment.measuredGlyphOffsets.length - 1);
+    const clipLeft = segment.measuredGlyphOffsets[segmentRunStart] ?? (resolveRenderLineOffset(renderLine, runStart) - segment.x);
+    const clipRight = segment.measuredGlyphOffsets[segmentRunEnd] ?? (resolveRenderLineOffset(renderLine, runEnd) - segment.x);
+    const clipWidth = Math.max(clipRight - clipLeft, 0);
+    if (clipWidth <= 0) {
+        return;
+    }
+
+    context.save();
+    context.beginPath();
+    context.rect(
+        baseX + segment.x + clipLeft,
+        baseY - Math.max(clipWidth, 1) - 64,
+        clipWidth,
+        Math.max(128 + clipWidth * 2, 256),
+    );
+    context.clip();
+    context.fillText(segment.text, baseX + segment.x, baseY);
+    context.restore();
 };
 
 const createStaticBlockSnapshot = (
@@ -2584,14 +2774,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         const glowBaseX = block.x + renderLine.left;
                         const glowBaseY = block.y + renderLine.top + baselineOffset;
 
-                        for (let graphemeIndex = 0; graphemeIndex < renderLine.graphemes.length; graphemeIndex += 1) {
-                            const grapheme = renderLine.graphemes[graphemeIndex]!;
-                            if (grapheme.trim().length === 0) {
+                        for (const segment of renderLine.segments) {
+                            if (segment.text.trim().length === 0) {
                                 continue;
                             }
 
-                            const glyphX = glowBaseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
-                            context.fillText(grapheme, glyphX, glowBaseY);
+                            context.fillText(segment.text, glowBaseX + segment.x, glowBaseY);
                         }
                     }
 
@@ -2602,165 +2790,211 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     const baseX = block.x + renderLine.left;
                     const baseY = block.y + renderLine.top + baselineOffset;
 
-                    for (let graphemeIndex = 0; graphemeIndex < renderLine.graphemes.length; graphemeIndex += 1) {
-                        const grapheme = renderLine.graphemes[graphemeIndex]!;
-                        const globalOffset = renderLine.start + graphemeIndex;
-                        const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
-                        const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
-                        const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
-                        const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
-                        const isPrinted = hasRevealCompleted || globalOffset < printedCount;
-                        const isFrontier = printedCount > 0
-                            && globalOffset === printedCount
-                            && printedCount < totalGraphemeCount
-                            && !hasRevealCompleted
-                            && !hasPassCutoffReached;
+                    for (const segment of renderLine.segments) {
+                        let runStart = -1;
+                        let runFillStyle = '';
+                        let runShadowBlur = 0;
+                        let runShadowColor = 'transparent';
+                        let runStyleKey = '';
 
-                        let alpha = isPrinted
-                            ? activeOpacity
-                            : isFrontier
-                                ? 0.82
-                                : waitingOpacity;
-                        let shadowBlur = 0;
-                        let shadowColor = 'transparent';
-                        let fillStyle = colorWithAlpha(theme.primaryColor, alpha);
-                        let activationBlockAlpha = 0;
-                        let activationBlockY = baseY;
-                        let activationBlockWidth = 0;
-                        let activationBlockHeight = 0;
-                        let activationBlockColor = theme.accentColor;
-                        let activationBlockBlur = 0;
-
-                        if (range) {
-                            const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
-                            const wordProgress = clamp((time - range.word.startTime) / wordDuration, 0, 1);
-                            const glyphCount = Math.max(range.end - range.start, 1);
-                            const glyphIndexInRange = globalOffset - range.start;
-                            const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
-                            const easedGlyphProgress = easeOutCubic(glyphProgress);
-                            const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
-                            const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
-                            const colorTrailPhase = resolveVisualProgressWithCutoff(
-                                glyphTrailStart,
-                                colorTrailDuration,
-                                time,
-                                linePassCutoffTime,
-                            );
-                            const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
-
-                            if (hasPassCutoffReached) {
-                                alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
-                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
-                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
-                                shadowColor = colorWithAlpha(
-                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
-                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
-                                );
-                            } else if (time < range.word.startTime) {
-                                alpha = waitingOpacity;
-                                fillStyle = colorWithAlpha(theme.primaryColor, alpha);
-                            } else if (time <= glyphTrailStart) {
-                                alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
-                                fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
-                                shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
-                                shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
-                            } else {
-                                alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
-                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
-                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
-                                shadowColor = colorWithAlpha(
-                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
-                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
-                                );
+                        const flushRun = (segmentEnd: number) => {
+                            if (runStart < 0 || !runStyleKey || segmentEnd <= runStart) {
+                                return;
                             }
 
-                            if (showPrintStamp && grapheme.trim().length > 0) {
-                                const glyphWindowDuration = Math.max(wordDuration / glyphCount, 0.04);
-                                const activationLeadDuration = clamp(
-                                    Math.min(glyphWindowDuration * 0.86, lineDuration * 0.16),
-                                    0.055,
-                                    block.variant === 'hero' ? 0.2 : 0.16,
-                                );
-                                const activationReleaseDuration = activationLeadDuration * 0.42;
-                                const activationWindowStart = glyphTrailStart - activationLeadDuration;
-                                const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
-                                const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
-                                const stampProgress = resolveVisualProgressWithCutoff(
-                                    activationWindowStart,
-                                    activationWindowEnd - activationWindowStart,
+                            const localStart = runStart - renderLine.start;
+                            const localEnd = segmentEnd - renderLine.start;
+                            const runText = renderLine.graphemes.slice(localStart, localEnd).join('');
+                            if (!runText || runText.trim().length === 0 && runFillStyle === '') {
+                                runStart = -1;
+                                runStyleKey = '';
+                                return;
+                            }
+
+                            context.fillStyle = runFillStyle;
+                            context.shadowBlur = runShadowBlur;
+                            context.shadowColor = runShadowColor;
+                            drawRenderTextRun(
+                                context,
+                                renderLine,
+                                segment,
+                                localStart,
+                                localEnd,
+                                baseX,
+                                baseY,
+                            );
+                            context.shadowBlur = 0;
+                            context.shadowColor = 'transparent';
+                            runStart = -1;
+                            runStyleKey = '';
+                        };
+
+                        for (let globalOffset = segment.start; globalOffset < segment.end; globalOffset += 1) {
+                            const graphemeIndex = globalOffset - renderLine.start;
+                            const grapheme = renderLine.graphemes[graphemeIndex]!;
+                            const rangeIndex = block.wordRangeIndexByOffset[globalOffset] ?? -1;
+                            const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
+                            const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
+                            const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
+                            const isPrinted = hasRevealCompleted || globalOffset < printedCount;
+                            const isFrontier = printedCount > 0
+                                && globalOffset === printedCount
+                                && printedCount < totalGraphemeCount
+                                && !hasRevealCompleted
+                                && !hasPassCutoffReached;
+
+                            let alpha = isPrinted
+                                ? activeOpacity
+                                : isFrontier
+                                    ? 0.82
+                                    : waitingOpacity;
+                            let shadowBlur = 0;
+                            let shadowColor = 'transparent';
+                            let fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+
+                            if (range) {
+                                const wordDuration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+                                const wordProgress = clamp((time - range.word.startTime) / wordDuration, 0, 1);
+                                const glyphCount = Math.max(range.end - range.start, 1);
+                                const glyphIndexInRange = globalOffset - range.start;
+                                const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
+                                const easedGlyphProgress = easeOutCubic(glyphProgress);
+                                const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
+                                const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
+                                const colorTrailPhase = resolveVisualProgressWithCutoff(
+                                    glyphTrailStart,
+                                    colorTrailDuration,
                                     time,
                                     linePassCutoffTime,
                                 );
+                                const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
-                                if (stampProgress > 0 && stampProgress < 1) {
-                                    const glyphTrailPhase = resolveVisualProgressWithCutoff(
-                                        glyphTrailStart,
-                                        Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                if (hasPassCutoffReached) {
+                                    alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
+                                    fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
+                                    shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
+                                    shadowColor = colorWithAlpha(
+                                        mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
+                                        transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
+                                    );
+                                } else if (time < range.word.startTime) {
+                                    alpha = waitingOpacity;
+                                    fillStyle = colorWithAlpha(theme.primaryColor, alpha);
+                                } else if (time <= glyphTrailStart) {
+                                    alpha = mix(waitingOpacity, activeOpacity, easedGlyphProgress);
+                                    fillStyle = mixColors(theme.primaryColor, activeColor, 0.22 + easedGlyphProgress * 0.78, alpha);
+                                    shadowBlur = (4 + block.fontPx * 0.22) * easedGlyphProgress * activeGlowBoost;
+                                    shadowColor = colorWithAlpha(activeColor, 0.4 + easedGlyphProgress * 0.44);
+                                } else {
+                                    alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
+                                    fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
+                                    shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
+                                    shadowColor = colorWithAlpha(
+                                        mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
+                                        transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
+                                    );
+                                }
+
+                                if (showPrintStamp && grapheme.trim().length > 0) {
+                                    const glyphWindowDuration = Math.max(wordDuration / glyphCount, 0.04);
+                                    const activationLeadDuration = clamp(
+                                        Math.min(glyphWindowDuration * 0.86, lineDuration * 0.16),
+                                        0.055,
+                                        block.variant === 'hero' ? 0.2 : 0.16,
+                                    );
+                                    const activationReleaseDuration = activationLeadDuration * 0.42;
+                                    const activationWindowStart = glyphTrailStart - activationLeadDuration;
+                                    const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
+                                    const glyphAdvance = resolveSegmentGlyphAdvance(segment, globalOffset);
+                                    const stampProgress = resolveVisualProgressWithCutoff(
+                                        activationWindowStart,
+                                        activationWindowEnd - activationWindowStart,
                                         time,
                                         linePassCutoffTime,
                                     );
-                                    const isDropping = glyphTrailPhase <= 0;
-                                    const dropProgress = isDropping
-                                        ? easeOutCubic(
-                                            resolveVisualProgressWithCutoff(
-                                                activationWindowStart,
-                                                Math.max(glyphTrailStart - activationWindowStart, 0.001),
-                                                time,
-                                                linePassCutoffTime,
-                                            ),
-                                        )
-                                        : 1;
-                                    const fadeProgress = isDropping
-                                        ? 0
-                                        : easeInOutCubic(glyphTrailPhase);
-                                    const blockPulse = isDropping
-                                        ? mix(0.18, 1, Math.pow(dropProgress, 0.78))
-                                        : Math.pow(1 - fadeProgress, 1.2);
-                                    const glyphVisualWidth = Math.max(
-                                        glyphAdvance * 0.88,
-                                        isCJK(grapheme) ? block.fontPx * 0.56 : block.fontPx * 0.38,
-                                    );
-                                    const blockCenterX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0) + glyphAdvance * 0.5;
-                                    const dropDistance = block.lineHeight * (block.variant === 'hero' ? 0.24 : 0.2);
-                                    activationBlockAlpha = blockPulse * (block.variant === 'hero' ? 0.82 : 0.72);
-                                    activationBlockWidth = glyphVisualWidth + block.fontPx * (block.variant === 'hero' ? 0.18 : 0.12);
-                                    activationBlockHeight = block.fontPx * (block.variant === 'hero' ? 0.72 : 0.62);
-                                    activationBlockY = baseY
-                                        - block.fontPx * 0.38
-                                        - mix(dropDistance, 0, dropProgress);
-                                    activationBlockColor = activeColor;
-                                    activationBlockBlur = (8 + block.fontPx * 0.24) * blockPulse * activeGlowBoost;
 
-                                    if (activationBlockWidth > 0) {
-                                        const blockLeft = blockCenterX - activationBlockWidth * 0.5;
-                                        context.save();
-                                        context.fillStyle = colorWithAlpha(activationBlockColor, activationBlockAlpha);
-                                        context.shadowBlur = activationBlockBlur;
-                                        context.shadowColor = colorWithAlpha(activationBlockColor, 0.56 * blockPulse);
-                                        context.fillRect(
-                                            blockLeft,
-                                            activationBlockY - activationBlockHeight * 0.5,
-                                            activationBlockWidth,
-                                            activationBlockHeight,
+                                    if (stampProgress > 0 && stampProgress < 1) {
+                                        const glyphTrailPhase = resolveVisualProgressWithCutoff(
+                                            glyphTrailStart,
+                                            Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                            time,
+                                            linePassCutoffTime,
                                         );
-                                        context.restore();
+                                        const isDropping = glyphTrailPhase <= 0;
+                                        const dropProgress = isDropping
+                                            ? easeOutCubic(
+                                                resolveVisualProgressWithCutoff(
+                                                    activationWindowStart,
+                                                    Math.max(glyphTrailStart - activationWindowStart, 0.001),
+                                                    time,
+                                                    linePassCutoffTime,
+                                                ),
+                                            )
+                                            : 1;
+                                        const fadeProgress = isDropping
+                                            ? 0
+                                            : easeInOutCubic(glyphTrailPhase);
+                                        const blockPulse = isDropping
+                                            ? mix(0.18, 1, Math.pow(dropProgress, 0.78))
+                                            : Math.pow(1 - fadeProgress, 1.2);
+                                        const glyphVisualWidth = Math.max(
+                                            glyphAdvance * 0.88,
+                                            isCJK(grapheme) ? block.fontPx * 0.56 : block.fontPx * 0.38,
+                                        );
+                                        const blockCenterX = baseX + segment.x + resolveSegmentGlyphOffset(segment, globalOffset) + glyphAdvance * 0.5;
+                                        const dropDistance = block.lineHeight * (block.variant === 'hero' ? 0.24 : 0.2);
+                                        const activationBlockAlpha = blockPulse * (block.variant === 'hero' ? 0.82 : 0.72);
+                                        const activationBlockWidth = glyphVisualWidth + block.fontPx * (block.variant === 'hero' ? 0.18 : 0.12);
+                                        const activationBlockHeight = block.fontPx * (block.variant === 'hero' ? 0.72 : 0.62);
+                                        const activationBlockY = baseY
+                                            - block.fontPx * 0.38
+                                            - mix(dropDistance, 0, dropProgress);
+                                        const activationBlockBlur = (8 + block.fontPx * 0.24) * blockPulse * activeGlowBoost;
+
+                                        if (activationBlockWidth > 0) {
+                                            const blockLeft = blockCenterX - activationBlockWidth * 0.5;
+                                            context.save();
+                                            context.fillStyle = colorWithAlpha(activeColor, activationBlockAlpha);
+                                            context.shadowBlur = activationBlockBlur;
+                                            context.shadowColor = colorWithAlpha(activeColor, 0.56 * blockPulse);
+                                            context.fillRect(
+                                                blockLeft,
+                                                activationBlockY - activationBlockHeight * 0.5,
+                                                activationBlockWidth,
+                                                activationBlockHeight,
+                                            );
+                                            context.restore();
+                                        }
                                     }
                                 }
                             }
+
+                            if (alpha <= 0.002) {
+                                flushRun(globalOffset);
+                                continue;
+                            }
+
+                            const styleKey = buildTextStyleKey(fillStyle, shadowBlur, shadowColor);
+                            if (runStart < 0) {
+                                runStart = globalOffset;
+                                runFillStyle = fillStyle;
+                                runShadowBlur = shadowBlur;
+                                runShadowColor = shadowColor;
+                                runStyleKey = styleKey;
+                                continue;
+                            }
+
+                            if (styleKey !== runStyleKey) {
+                                flushRun(globalOffset);
+                                runStart = globalOffset;
+                                runFillStyle = fillStyle;
+                                runShadowBlur = shadowBlur;
+                                runShadowColor = shadowColor;
+                                runStyleKey = styleKey;
+                            }
                         }
 
-                        if (alpha <= 0.002) {
-                            continue;
-                        }
-
-                        const glyphX = baseX + (renderLine.glyphOffsets[graphemeIndex] ?? 0);
-
-                        context.fillStyle = fillStyle;
-                        context.shadowBlur = shadowBlur;
-                        context.shadowColor = shadowColor;
-                        context.fillText(grapheme, glyphX, baseY);
-                        context.shadowBlur = 0;
-                        context.shadowColor = 'transparent';
+                        flushRun(segment.end);
                     }
                 }
 
