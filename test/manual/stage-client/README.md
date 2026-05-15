@@ -1,7 +1,7 @@
 # Stage API 示例
 
 ## Bili Live Song Demo
-您可以在 `test/manual/bili-livesong/main.py` 中找到一个使用 `POST /stage/search` 和 `POST /stage/play` 的示例程序，展示了如何监听 B 站直播间的弹幕，并将符合条件的点歌请求发送到本地播放器接口。
+您可以在 `test/manual/bili-livesong/main.py` 中找到一个使用 `POST /stage/search` 和 `POST /stage/play` 的[示例程序](https://github.com/chthollyphile/folia-major/tree/main/test/manual/bili-livesong)，展示了如何监听 B 站直播间的弹幕，并将符合条件的点歌请求发送到本地播放器接口。
 
 ## Stage 联调客户端
 
