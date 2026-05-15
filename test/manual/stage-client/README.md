@@ -1,6 +1,7 @@
-# Stage API Docs Console
+# Stage API 示例
 
-这个目录现在提供的是新版本地 Stage API 文档式联调台。
+## Bili Live Song Demo
+您可以在 `test/manual/bili-livesong/main.py` 中找到一个使用 `POST /stage/search` 和 `POST /stage/play` 的示例程序，展示了如何监听 B 站直播间的弹幕，并将符合条件的点歌请求发送到本地播放器接口。
 
 ## Stage 联调客户端
 
@@ -71,8 +72,3 @@ npm run stage:client
 - `POST /stage/session` 支持 JSON 和 multipart 两种传输方式
 - 上传音频文件时，Folia 会尝试读取内嵌歌词、封面和歌曲 metadata
 - `POST /stage/play` 只触发 Folia 主播放器，不负责回写当前 Stage 输入状态
-
-# Stage API 示例
-
-## Bili Live Song Demo
-您可以在 `test/manual/bili-livesong/main.py` 中找到一个使用 `POST /stage/search` 和 `POST /stage/play` 的示例程序，展示了如何监听 B 站直播间的弹幕，并将符合条件的点歌请求发送到本地播放器接口。
