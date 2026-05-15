@@ -1,25 +1,9 @@
-import {
-    PlayerState,
-    type StageControlRequest,
-    type StageControlRequestType,
-    type StageLoopMode,
-    type StageRealtimeState,
-    type StageTrack,
-} from '../types';
+import type { StageDisplayWord } from '../types';
 
-// Shared helpers keep the manual Stage controller page and its tests aligned with the latest HTTP and WS protocol.
+// Shared helpers keep the manual Stage API console and its tests aligned
+// with the latest local-only HTTP contract.
 
 export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
-export type StageRealtimeMessageType =
-    | 'hello'
-    | 'hello_ack'
-    | 'server_hello'
-    | 'stage_state'
-    | 'stage_session'
-    | 'stage_session_cleared'
-    | 'control_request'
-    | 'stale_request'
-    | 'error';
 
 export interface StageSessionRequestInput {
     baseUrl: string;
@@ -36,43 +20,31 @@ export interface StageSessionRequestInput {
     coverFile?: File | null;
 }
 
+export interface StageLineRequestInput {
+    baseUrl: string;
+    token: string;
+    fullText?: string;
+    translation?: string;
+    words?: StageDisplayWord[];
+}
+
+export interface StageSearchRequestInput {
+    baseUrl: string;
+    token: string;
+    query: string;
+    limit?: number;
+}
+
+export interface StagePlayRequestInput {
+    baseUrl: string;
+    token: string;
+    songId: number;
+}
+
 export interface StageRequestBuildResult {
     endpoint: string;
     init: RequestInit;
     transport: 'json' | 'multipart';
-}
-
-export interface StageRealtimeEnvelope<TPayload = unknown> {
-    type: StageRealtimeMessageType;
-    payload: TPayload;
-}
-
-export interface StageControllerHelloPayload {
-    role: 'controller';
-    controllerId: string;
-}
-
-export interface StageRealtimeStateDraft {
-    revision?: number;
-    sessionId?: string | null;
-    tracks?: StageTrack[];
-    currentTrackId?: string | null;
-    playerState?: PlayerState | string;
-    currentTimeMs?: number;
-    durationMs?: number;
-    loopMode?: StageLoopMode | string;
-    canGoNext?: boolean;
-    canGoPrev?: boolean;
-    updatedAt?: number;
-}
-
-export interface StageControlRequestDraft {
-    requestId?: string;
-    originPlayerId?: string;
-    requestedAt?: number;
-    baseRevision?: number;
-    type: StageControlRequestType;
-    payload?: StageControlRequest['payload'];
 }
 
 const normalizeText = (value?: string) => value?.trim() ?? '';
@@ -85,19 +57,27 @@ export const normalizeStageBaseUrl = (baseUrl: string) => {
 export const isSupportedStageLyricsFormat = (format: string): format is StageLyricsFormat =>
     format === 'lrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'yrc';
 
-export const isSupportedStagePlayerState = (value: string): value is PlayerState =>
-    value === 'IDLE' || value === 'PLAYING' || value === 'PAUSED';
+const buildStageBearerHeaders = (token: string, extraHeaders?: Record<string, string>) => ({
+    Authorization: `Bearer ${normalizeText(token)}`,
+    ...(extraHeaders || {}),
+});
 
-export const isSupportedStageLoopMode = (value: string): value is StageLoopMode =>
-    value === 'off' || value === 'all' || value === 'one';
-
-export const validateStageSessionRequestInput = (input: StageSessionRequestInput): string | null => {
-    if (!normalizeStageBaseUrl(input.baseUrl)) {
+const validateStageBaseAuth = (baseUrl: string, token: string): string | null => {
+    if (!normalizeStageBaseUrl(baseUrl)) {
         return 'Stage address is required.';
     }
 
-    if (!normalizeText(input.token)) {
+    if (!normalizeText(token)) {
         return 'Bearer token is required.';
+    }
+
+    return null;
+};
+
+export const validateStageSessionRequestInput = (input: StageSessionRequestInput): string | null => {
+    const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
+    if (baseAuthError) {
+        return baseAuthError;
     }
 
     const normalizedLyricsFormat = normalizeText(input.lyricsFormat);
@@ -123,8 +103,103 @@ export const validateStageSessionRequestInput = (input: StageSessionRequestInput
     return null;
 };
 
+export const validateStageLineRequestInput = (input: StageLineRequestInput): string | null => {
+    const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
+    if (baseAuthError) {
+        return baseAuthError;
+    }
+
+    const fullText = normalizeText(input.fullText);
+    const hasWords = Array.isArray(input.words) && input.words.some((word) => normalizeText(word?.text));
+    if (!fullText && !hasWords) {
+        return 'Provide fullText or at least one word.';
+    }
+
+    return null;
+};
+
+export const validateStageSearchRequestInput = (input: StageSearchRequestInput): string | null => {
+    const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
+    if (baseAuthError) {
+        return baseAuthError;
+    }
+
+    if (!normalizeText(input.query)) {
+        return 'Search query is required.';
+    }
+
+    return null;
+};
+
+export const validateStagePlayRequestInput = (input: StagePlayRequestInput): string | null => {
+    const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
+    if (baseAuthError) {
+        return baseAuthError;
+    }
+
+    if (!Number.isInteger(input.songId) || input.songId <= 0) {
+        return 'songId must be a positive integer.';
+    }
+
+    return null;
+};
+
 export const shouldUseStageMultipart = (input: StageSessionRequestInput) =>
     Boolean(input.audioFile || input.lyricsFile || input.coverFile);
+
+export const buildStageHealthRequest = (baseUrl: string): StageRequestBuildResult => {
+    const normalizedBaseUrl = normalizeStageBaseUrl(baseUrl);
+    if (!normalizedBaseUrl) {
+        throw new Error('Stage address is required.');
+    }
+
+    return {
+        endpoint: `${normalizedBaseUrl}/stage/health`,
+        transport: 'json',
+        init: {
+            method: 'GET',
+        },
+    };
+};
+
+export const buildStageStatusRequest = (baseUrl: string, token: string): StageRequestBuildResult => {
+    const baseAuthError = validateStageBaseAuth(baseUrl, token);
+    if (baseAuthError) {
+        throw new Error(baseAuthError);
+    }
+
+    return {
+        endpoint: `${normalizeStageBaseUrl(baseUrl)}/stage/status`,
+        transport: 'json',
+        init: {
+            method: 'GET',
+            headers: buildStageBearerHeaders(token),
+        },
+    };
+};
+
+export const buildStageLineRequest = (input: StageLineRequestInput): StageRequestBuildResult => {
+    const validationError = validateStageLineRequestInput(input);
+    if (validationError) {
+        throw new Error(validationError);
+    }
+
+    return {
+        endpoint: `${normalizeStageBaseUrl(input.baseUrl)}/stage/line`,
+        transport: 'json',
+        init: {
+            method: 'POST',
+            headers: buildStageBearerHeaders(input.token, {
+                'Content-Type': 'application/json',
+            }),
+            body: JSON.stringify({
+                ...(normalizeText(input.fullText) ? { fullText: normalizeText(input.fullText) } : {}),
+                ...(normalizeText(input.translation) ? { translation: normalizeText(input.translation) } : {}),
+                ...(Array.isArray(input.words) && input.words.length > 0 ? { words: input.words } : {}),
+            }),
+        },
+    };
+};
 
 export const buildStageSessionRequest = (input: StageSessionRequestInput): StageRequestBuildResult => {
     const validationError = validateStageSessionRequestInput(input);
@@ -160,9 +235,7 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
             transport: 'multipart',
             init: {
                 method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: buildStageBearerHeaders(token),
                 body: formData,
             },
         };
@@ -173,10 +246,9 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
         transport: 'json',
         init: {
             method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
+            headers: buildStageBearerHeaders(token, {
                 'Content-Type': 'application/json',
-            },
+            }),
             body: JSON.stringify({
                 ...(title ? { title } : {}),
                 ...(artist ? { artist } : {}),
@@ -191,118 +263,60 @@ export const buildStageSessionRequest = (input: StageSessionRequestInput): Stage
 };
 
 export const buildStageClearRequest = (baseUrl: string, token: string): StageRequestBuildResult => {
-    const normalizedBaseUrl = normalizeStageBaseUrl(baseUrl);
-    const normalizedToken = normalizeText(token);
-
-    if (!normalizedBaseUrl) {
-        throw new Error('Stage address is required.');
-    }
-
-    if (!normalizedToken) {
-        throw new Error('Bearer token is required.');
+    const baseAuthError = validateStageBaseAuth(baseUrl, token);
+    if (baseAuthError) {
+        throw new Error(baseAuthError);
     }
 
     return {
-        endpoint: `${normalizedBaseUrl}/stage/session`,
+        endpoint: `${normalizeStageBaseUrl(baseUrl)}/stage/state`,
         transport: 'json',
         init: {
             method: 'DELETE',
-            headers: {
-                Authorization: `Bearer ${normalizedToken}`,
-            },
+            headers: buildStageBearerHeaders(token),
         },
     };
 };
 
-export const buildStageWebSocketUrl = (baseUrl: string, token: string) => {
-    const normalizedBaseUrl = normalizeStageBaseUrl(baseUrl);
-    const normalizedToken = normalizeText(token);
-
-    if (!normalizedBaseUrl) {
-        throw new Error('Stage address is required.');
+export const buildStageSearchRequest = (input: StageSearchRequestInput): StageRequestBuildResult => {
+    const validationError = validateStageSearchRequestInput(input);
+    if (validationError) {
+        throw new Error(validationError);
     }
-
-    if (!normalizedToken) {
-        throw new Error('Bearer token is required.');
-    }
-
-    let parsedUrl: URL;
-    try {
-        parsedUrl = new URL(normalizedBaseUrl);
-    } catch (error) {
-        throw new Error(`Invalid Stage address: ${normalizedBaseUrl}`);
-    }
-
-    parsedUrl.protocol = parsedUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    parsedUrl.pathname = '/stage/ws';
-    parsedUrl.searchParams.set('token', normalizedToken);
-    return parsedUrl.toString();
-};
-
-export const normalizeStageControllerId = (controllerId?: string) =>
-    normalizeText(controllerId) || `stage-controller-${Date.now()}`;
-
-export const buildStageControllerHelloMessage = (controllerId?: string): StageRealtimeEnvelope<StageControllerHelloPayload> => ({
-    type: 'hello',
-    payload: {
-        role: 'controller',
-        controllerId: normalizeStageControllerId(controllerId),
-    },
-});
-
-const normalizeStageTrack = (track: Partial<StageTrack> | null | undefined, index: number, sessionId: string | null) => ({
-    trackId:
-        typeof track?.trackId === 'string' && track.trackId.trim()
-            ? track.trackId.trim()
-            : `${sessionId || 'stage-session'}-track-${index}`,
-    title:
-        typeof track?.title === 'string' && track.title.trim()
-            ? track.title.trim()
-            : `Stage Track ${index + 1}`,
-    artist: typeof track?.artist === 'string' ? track.artist : '',
-    album: typeof track?.album === 'string' ? track.album : '',
-    coverUrl: typeof track?.coverUrl === 'string' && track.coverUrl.trim() ? track.coverUrl.trim() : null,
-    durationMs: Number.isFinite(track?.durationMs) ? Math.max(0, Math.floor(track.durationMs as number)) : null,
-});
-
-export const buildStageRealtimeStatePayload = (draft: StageRealtimeStateDraft): StageRealtimeState => {
-    const nextSessionId = typeof draft.sessionId === 'string' && draft.sessionId.trim() ? draft.sessionId.trim() : null;
-    const tracks = (draft.tracks || []).map((track, index) => normalizeStageTrack(track, index, nextSessionId));
-    const fallbackCurrentTrackId = tracks[0]?.trackId ?? null;
-    const currentTrackId =
-        typeof draft.currentTrackId === 'string' && draft.currentTrackId.trim()
-            ? draft.currentTrackId.trim()
-            : fallbackCurrentTrackId;
-    const rawPlayerState = typeof draft.playerState === 'string' ? draft.playerState : PlayerState.IDLE;
-    const rawLoopMode = typeof draft.loopMode === 'string' ? draft.loopMode : 'off';
 
     return {
-        revision: Math.max(1, Math.floor(Number(draft.revision) || 1)),
-        sessionId: nextSessionId,
-        tracks,
-        currentTrackId,
-        playerState: isSupportedStagePlayerState(rawPlayerState) ? rawPlayerState : PlayerState.IDLE,
-        currentTimeMs: Math.max(0, Math.floor(Number(draft.currentTimeMs) || 0)),
-        durationMs: Math.max(0, Math.floor(Number(draft.durationMs) || 0)),
-        loopMode: isSupportedStageLoopMode(rawLoopMode) ? rawLoopMode : 'off',
-        canGoNext: Boolean(draft.canGoNext),
-        canGoPrev: Boolean(draft.canGoPrev),
-        updatedAt: Math.max(1, Math.floor(Number(draft.updatedAt) || Date.now())),
+        endpoint: `${normalizeStageBaseUrl(input.baseUrl)}/stage/search`,
+        transport: 'json',
+        init: {
+            method: 'POST',
+            headers: buildStageBearerHeaders(input.token, {
+                'Content-Type': 'application/json',
+            }),
+            body: JSON.stringify({
+                query: normalizeText(input.query),
+                ...(Number.isInteger(input.limit) ? { limit: input.limit } : {}),
+            }),
+        },
     };
 };
 
-export const buildStageRealtimeStateMessage = (
-    draft: StageRealtimeStateDraft,
-): StageRealtimeEnvelope<StageRealtimeState> => ({
-    type: 'stage_state',
-    payload: buildStageRealtimeStatePayload(draft),
-});
+export const buildStagePlayRequest = (input: StagePlayRequestInput): StageRequestBuildResult => {
+    const validationError = validateStagePlayRequestInput(input);
+    if (validationError) {
+        throw new Error(validationError);
+    }
 
-export const buildStageControlRequestPayload = (draft: StageControlRequestDraft): StageControlRequest => ({
-    requestId: normalizeText(draft.requestId) || `stage-request-${Date.now()}`,
-    originPlayerId: normalizeText(draft.originPlayerId) || 'stage-client-demo',
-    requestedAt: Math.max(1, Math.floor(Number(draft.requestedAt) || Date.now())),
-    baseRevision: Math.max(0, Math.floor(Number(draft.baseRevision) || 0)),
-    type: draft.type,
-    payload: draft.payload,
-});
+    return {
+        endpoint: `${normalizeStageBaseUrl(input.baseUrl)}/stage/play`,
+        transport: 'json',
+        init: {
+            method: 'POST',
+            headers: buildStageBearerHeaders(input.token, {
+                'Content-Type': 'application/json',
+            }),
+            body: JSON.stringify({
+                songId: input.songId,
+            }),
+        },
+    };
+};

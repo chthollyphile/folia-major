@@ -1,6 +1,6 @@
-# Stage Controller Console
+# Stage API Console
 
-这个目录现在提供的是新版 Stage API 的播放器控制 demo。它保留底层 HTTP / WS 调试能力，但主界面已经改成围绕“播放列表 + 当前曲目 + 进度条 + 多实例同步”的控制台。
+这个目录现在提供的是新版本地 Stage API 调试台。
 
 运行方式：
 
@@ -10,26 +10,17 @@ npm run stage:client
 
 页面能力：
 
-- 管理多个 Electron Folia Stage 实例
-- 导入多首音频文件，直接建立 controller 播放列表
-- 把当前表单草稿追加成一个 playlist track
-- 显示从 Folia 回读的当前曲目、播放状态、当前时间和总时长
-- 通过进度条直接发起 `seek`
-- 用 `Prev / Play / Pause / Next / Cycle Loop` 模拟外部 controller 控制流
-- 对选中实例执行 `GET /stage/health`
-- 对选中实例执行 `POST /stage/session`
-- 对选中实例执行 `DELETE /stage/session`
-- 通过浏览器 `WebSocket` 连接 `/stage/ws?token=...`
-- 自动发送 controller `hello`
-- 查看 `server_hello`、`hello_ack`、`stage_session`、`stage_session_cleared`、`control_request`、`error`
-- 编辑并广播权威 `stage_state`
-- 在页面内直接执行 `play / pause / seek / next / prev / cycle loop`
-- 把同一份状态广播给多个已连接实例
+- 检查 `GET /stage/health`
+- 检查 `GET /stage/status`
+- 触发 `DELETE /stage/state`
+- 通过 `POST /stage/line` 推送一句歌词和可选翻译
+- 通过 `POST /stage/session` 推送 URL 或上传文件形式的媒体会话
+- 通过 `POST /stage/search` 搜索网易云歌曲
+- 通过 `POST /stage/play` 从外部请求 Folia 主播放器点歌
 
 说明：
 
-- 浏览器端不能给 `WebSocket` 带自定义 `Authorization` header，所以这里使用查询参数 `?token=...`
-- `Tracks JSON` 用于构造多曲目 queue；如果留空，会用上面的单曲字段生成一首歌
-- 播放列表存在时，播放器 demo 会优先用 playlist tracks 来生成 `stage_state.tracks`
-- `Auto-apply incoming control_request` 打开后，页面会把 Folia 发来的本地控制请求结算成新的 `stage_state`
-- `Broadcast state to all selected instances` 打开后，单个实例收到的控制请求会同步广播到所有选中实例，适合测试多实例一致性
+- 除 `GET /stage/health` 之外，其余接口都需要 Bearer token
+- `POST /stage/session` 仍支持 JSON 和 multipart 两种传输方式
+- 上传音频文件时，Folia 会尝试读取内嵌歌词、封面和歌曲 metadata
+- `POST /stage/play` 只负责触发 Folia 主播放器播放，不会写入当前 Stage 输入

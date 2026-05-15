@@ -71,6 +71,7 @@ const stageApi = createStageApi({
   stageApiTokenSettingKey: STAGE_API_TOKEN_SETTING_KEY,
   stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
+  getNeteasePort: () => assignedPort,
 });
 
 function getStoredWindowState() {
@@ -1569,40 +1570,16 @@ ipcMain.handle('stage-regenerate-token', async () => {
   return stageApi.regenerateStageToken();
 });
 
-ipcMain.handle('stage-clear-session', async () => {
-  return stageApi.clearStageSession();
+ipcMain.handle('stage-clear-state', async () => {
+  return stageApi.clearStageState();
 });
 
-ipcMain.handle('stage-connect-realtime', (event) => {
+ipcMain.handle('stage-complete-external-play', (event, result) => {
   if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to connect Stage realtime bridge.');
+    throw new Error('Untrusted renderer attempted to complete a Stage external play request.');
   }
 
-  return stageApi.connectRealtimePlayer(event.sender);
-});
-
-ipcMain.handle('stage-disconnect-realtime', (event) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to disconnect Stage realtime bridge.');
-  }
-
-  return stageApi.disconnectRealtimePlayer(event.sender);
-});
-
-ipcMain.handle('stage-send-control-request', (event, request) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to send Stage control request.');
-  }
-
-  return stageApi.sendControlRequestFromPlayer(event.sender, request);
-});
-
-ipcMain.handle('stage-report-playback-state', (event, report) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to report Stage playback state.');
-  }
-
-  return stageApi.reportRealtimePlayerState(event.sender, report);
+  return stageApi.completeStageExternalPlayRequest(result);
 });
 
 ipcMain.handle('thumbar-update-buttons', (event, state) => {

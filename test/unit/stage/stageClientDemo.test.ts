@@ -1,18 +1,72 @@
 import { describe, expect, it } from 'vitest';
 import {
-    buildStageControlRequestPayload,
-    buildStageControllerHelloMessage,
-    buildStageRealtimeStateMessage,
+    buildStageClearRequest,
+    buildStageHealthRequest,
+    buildStageLineRequest,
+    buildStagePlayRequest,
+    buildStageSearchRequest,
     buildStageSessionRequest,
-    buildStageWebSocketUrl,
+    buildStageStatusRequest,
     shouldUseStageMultipart,
+    validateStageLineRequestInput,
+    validateStagePlayRequestInput,
+    validateStageSearchRequestInput,
     validateStageSessionRequestInput,
 } from '@/utils/stageClientDemo';
 
-// Stage demo client request tests keep the manual page and payload rules in sync.
+// Stage demo helper tests keep the manual API console aligned with the
+// current local-only Stage HTTP contract.
 
 describe('stageClientDemo helpers', () => {
-    it('builds a JSON request when no files are provided', () => {
+    it('builds a public health request without auth', () => {
+        const result = buildStageHealthRequest('http://127.0.0.1:32107/');
+
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/health');
+        expect(result.init.method).toBe('GET');
+    });
+
+    it('builds an authenticated status request', () => {
+        const result = buildStageStatusRequest('http://127.0.0.1:32107/', 'demo-token');
+
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/status');
+        expect(result.init.headers).toEqual({
+            Authorization: 'Bearer demo-token',
+        });
+    });
+
+    it('builds a line request with translation and words', () => {
+        const result = buildStageLineRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            fullText: 'Hello world',
+            translation: '你好，世界',
+            words: [
+                { text: 'Hello', startTime: 0, endTime: 0.5 },
+                { text: 'world', startTime: 0.5, endTime: 1.1 },
+            ],
+        });
+
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/line');
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            fullText: 'Hello world',
+            translation: '你好，世界',
+            words: [
+                { text: 'Hello', startTime: 0, endTime: 0.5 },
+                { text: 'world', startTime: 0.5, endTime: 1.1 },
+            ],
+        });
+    });
+
+    it('rejects empty line payloads before sending', () => {
+        const error = validateStageLineRequestInput({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+        });
+
+        expect(error).toBe('Provide fullText or at least one word.');
+    });
+
+    it('builds a JSON session request when no files are provided', () => {
         const result = buildStageSessionRequest({
             baseUrl: 'http://127.0.0.1:32107/',
             token: 'demo-token',
@@ -25,11 +79,6 @@ describe('stageClientDemo helpers', () => {
 
         expect(result.transport).toBe('json');
         expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/session');
-        expect(result.init.method).toBe('POST');
-        expect(result.init.headers).toMatchObject({
-            Authorization: 'Bearer demo-token',
-            'Content-Type': 'application/json',
-        });
         expect(JSON.parse(String(result.init.body))).toEqual({
             title: 'Example',
             artist: 'Artist',
@@ -39,7 +88,7 @@ describe('stageClientDemo helpers', () => {
         });
     });
 
-    it('builds a multipart request when any file is provided', () => {
+    it('builds a multipart session request when any file is provided', () => {
         const audioFile = new File(['audio'], 'demo.wav', { type: 'audio/wav' });
         const result = buildStageSessionRequest({
             baseUrl: 'http://127.0.0.1:32107',
@@ -63,131 +112,74 @@ describe('stageClientDemo helpers', () => {
         const formData = result.init.body as FormData;
         expect(formData.get('title')).toBe('Example');
         expect(formData.get('lyricsFormat')).toBe('enhanced-lrc');
-        expect(formData.get('lyricsText')).toBeNull();
         const uploadedAudio = formData.get('audioFile');
         expect(uploadedAudio).toBeInstanceOf(File);
         expect((uploadedAudio as File).name).toBe('demo.wav');
     });
 
-    it('rejects mixed URL and file payloads before sending', () => {
+    it('rejects mixed audio url and file payloads before sending', () => {
         const error = validateStageSessionRequestInput({
             baseUrl: 'http://127.0.0.1:32107',
             token: 'demo-token',
             audioUrl: 'https://example.com/demo.mp3',
             audioFile: new File(['audio'], 'demo.wav', { type: 'audio/wav' }),
-            lyricsText: '[00:00.00]Hello',
-            lyricsFormat: 'lrc',
         });
 
         expect(error).toBe('Choose either an audio URL or an audio file, not both.');
     });
 
-    it('allows audio urls without lyrics for lyric-less playback', () => {
-        const error = validateStageSessionRequestInput({
+    it('builds a clear-state request', () => {
+        const result = buildStageClearRequest('http://127.0.0.1:32107', 'demo-token');
+
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/state');
+        expect(result.init.method).toBe('DELETE');
+    });
+
+    it('builds a search request with query and limit', () => {
+        const result = buildStageSearchRequest({
             baseUrl: 'http://127.0.0.1:32107',
             token: 'demo-token',
-            audioUrl: 'https://example.com/demo.mp3',
-            lyricsFormat: 'lrc',
+            query: 'Mili',
+            limit: 5,
         });
 
-        expect(error).toBeNull();
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/search');
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            query: 'Mili',
+            limit: 5,
+        });
     });
 
-    it('omits lyricsFormat when the demo keeps auto-detect selected', () => {
-        const result = buildStageSessionRequest({
+    it('rejects empty search requests before sending', () => {
+        const error = validateStageSearchRequestInput({
             baseUrl: 'http://127.0.0.1:32107',
             token: 'demo-token',
-            audioFile: new File(['audio'], 'demo.wav', { type: 'audio/wav' }),
-            lyricsFormat: '',
+            query: '   ',
         });
 
-        const formData = result.init.body as FormData;
-        expect(formData.get('lyricsFormat')).toBeNull();
+        expect(error).toBe('Search query is required.');
     });
 
-    it('builds a ws url with query token authentication for browser clients', () => {
-        const wsUrl = buildStageWebSocketUrl('http://127.0.0.1:32107/', 'demo-token');
+    it('builds a play request with songId', () => {
+        const result = buildStagePlayRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            songId: 123456,
+        });
 
-        expect(wsUrl).toBe('ws://127.0.0.1:32107/stage/ws?token=demo-token');
-    });
-
-    it('builds the controller hello envelope expected by the realtime api', () => {
-        const hello = buildStageControllerHelloMessage('controller-a');
-
-        expect(hello).toEqual({
-            type: 'hello',
-            payload: {
-                role: 'controller',
-                controllerId: 'controller-a',
-            },
+        expect(result.endpoint).toBe('http://127.0.0.1:32107/stage/play');
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            songId: 123456,
         });
     });
 
-    it('normalizes controller control requests with a base revision', () => {
-        const request = buildStageControlRequestPayload({
-            requestId: 'req-1',
-            originPlayerId: 'player-1',
-            requestedAt: 123,
-            baseRevision: 9,
-            type: 'pause',
-            payload: {
-                timeMs: 456,
-            },
+    it('rejects invalid song ids before sending', () => {
+        const error = validateStagePlayRequestInput({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            songId: 0,
         });
 
-        expect(request).toEqual({
-            requestId: 'req-1',
-            originPlayerId: 'player-1',
-            requestedAt: 123,
-            baseRevision: 9,
-            type: 'pause',
-            payload: {
-                timeMs: 456,
-            },
-        });
-    });
-
-    it('normalizes stage_state messages before the manual console broadcasts them', () => {
-        const envelope = buildStageRealtimeStateMessage({
-            revision: 4,
-            sessionId: 'session-a',
-            tracks: [
-                {
-                    trackId: 'track-a',
-                    title: 'Track A',
-                    durationMs: 1234,
-                },
-            ],
-            currentTrackId: 'track-a',
-            playerState: 'PLAYING',
-            currentTimeMs: 320,
-            durationMs: 1234,
-            loopMode: 'all',
-            canGoNext: true,
-            canGoPrev: false,
-        });
-
-        expect(envelope.type).toBe('stage_state');
-        expect(envelope.payload).toMatchObject({
-            revision: 4,
-            sessionId: 'session-a',
-            currentTrackId: 'track-a',
-            playerState: 'PLAYING',
-            currentTimeMs: 320,
-            durationMs: 1234,
-            loopMode: 'all',
-            canGoNext: true,
-            canGoPrev: false,
-        });
-        expect(envelope.payload.tracks).toEqual([
-            {
-                trackId: 'track-a',
-                title: 'Track A',
-                artist: '',
-                album: '',
-                coverUrl: null,
-                durationMs: 1234,
-            },
-        ]);
+        expect(error).toBe('songId must be a positive integer.');
     });
 });

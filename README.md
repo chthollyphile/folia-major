@@ -203,8 +203,7 @@ vercel dev
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
-| `npm run stage:client` | 打开完整 Stage 协议联调客户端 |
-| `npm run stage:conductor` | 打开最小化 Stage controller demo |
+| `npm run stage:client` | 打开本地 Stage API 联调台 |
 
 ## 本地音乐与匹配说明
 
@@ -218,7 +217,7 @@ vercel dev
 
 ## Stage 联调客户端
 
-如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的 Stage controller 调试台向 Folia 推送会话，并测试新版实时控制协议。
+如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的本地 Stage API 调试台向 Folia 推送一句歌词、推送媒体会话，或者从外部程序触发搜索与点歌。
 
 1. 在 Folia 设置中开启 Stage Mode，并复制 Bearer token
 2. 运行：
@@ -227,32 +226,24 @@ vercel dev
 npm run stage:client
 ```
 
-如果你只想要一个简洁的 controller 播放器界面，也可以运行：
-
-```bash
-npm run stage:conductor
-```
-
 3. 页面打开后填写：
 
 - Stage 地址，默认 `http://127.0.0.1:32107`
 - Bearer token
-- controller ID
-- 音频 URL 或音频文件
-- 歌词文本或歌词文件
+- 需要推送的歌词、媒体或搜索关键词
 
-如果上传的是音频文件，Folia 还会尝试直接读取文件内嵌歌词、封面和歌曲 metadata。歌词现在是可选的；如果提供了歌词，Stage 会复用 Folia 自己的解析链来尝试解析，失败时会降级成无歌词播放。
-联调页面里的 `Lyrics format` 也可以保持 `auto-detect`，或者显式指定 `lrc`、`enhanced-lrc`、`vtt`、`yrc`。
-页面会分别展示 `GET /stage/health`、`POST /stage/session`、`DELETE /stage/session` 以及 `WS /stage/ws` 的组装请求和返回结果。
+调试台当前覆盖这些接口：
 
-新版调试台还支持：
+- `GET /stage/health`
+- `GET /stage/status`
+- `POST /stage/line`
+- `POST /stage/session`
+- `POST /stage/search`
+- `POST /stage/play`
+- `DELETE /stage/state`
 
-- 连接多个 Electron Folia 实例
-- 自动发送 controller `hello`
-- 查看 `server_hello`、`hello_ack`、`control_request`、`stage_session` 等实时消息
-- 在浏览器里直接广播 `stage_state`
-- 手动测试 `play / pause / seek / next / prev / loop`
-- 将单个实例收到的控制请求同步广播到多个选中实例，验证集群一致性
+如果上传的是音频文件，Folia 还会尝试直接读取文件内嵌歌词、封面和歌曲 metadata。歌词仍然是可选的；如果提供了歌词，Stage 会复用 Folia 自己的解析链来尝试解析，失败时会降级成无歌词播放。
+`Lyrics format` 可以保持 `auto-detect`，或者显式指定 `lrc`、`enhanced-lrc`、`vtt`、`yrc`。
 
 ## 技术栈
 

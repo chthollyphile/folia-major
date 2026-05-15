@@ -112,7 +112,7 @@ interface HomeProps {
     stageStatus?: StageStatus | null;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
-    onClearStageSession?: () => Promise<void> | void;
+    onClearStageState?: () => Promise<void> | void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -195,7 +195,7 @@ const Home: React.FC<HomeProps> = ({
     stageStatus = null,
     onToggleStageMode,
     onRegenerateStageToken,
-    onClearStageSession,
+    onClearStageState,
 }) => {
     const { t } = useTranslation();
     const {
@@ -960,7 +960,7 @@ const Home: React.FC<HomeProps> = ({
                                 stageStatus={stageStatus}
                                 onToggleStageMode={onToggleStageMode}
                                 onRegenerateStageToken={onRegenerateStageToken}
-                                onClearStageSession={onClearStageSession}
+                                onClearStageState={onClearStageState}
                             />
                         )
                     }

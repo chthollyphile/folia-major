@@ -62,7 +62,22 @@ declare global {
     } | null;
   }
 
-  interface StageSession {
+  type StageActiveEntryKind = 'line' | 'media';
+
+  interface StageDisplayWord {
+    text: string;
+    startTime?: number;
+    endTime?: number;
+  }
+
+  interface StageDisplayLine {
+    fullText: string;
+    translation?: string;
+    words?: StageDisplayWord[];
+    updatedAt: number;
+  }
+
+  interface StageMediaSession {
     id: string;
     title: string;
     artist: string;
@@ -79,75 +94,35 @@ declare global {
     updatedAt: number;
   }
 
-  type StageLoopMode = 'off' | 'all' | 'one';
-  type StageControlRequestType = 'play' | 'pause' | 'seek' | 'next' | 'prev' | 'set_loop_mode';
+  type StageSession = StageMediaSession;
 
-  interface StageTrack {
-    trackId: string;
+  interface StageSearchResult {
+    songId: number;
     title: string;
-    artist?: string;
-    album?: string;
-    coverUrl?: string | null;
-    durationMs?: number | null;
+    artists: string[];
+    album: string;
+    durationMs: number | null;
+    coverUrl: string | null;
   }
 
-  interface StageRealtimeState {
-    revision: number;
-    sessionId: string | null;
-    tracks: StageTrack[];
-    currentTrackId: string | null;
-    playerState: import('./types').PlayerState;
-    currentTimeMs: number;
-    durationMs: number;
-    loopMode: StageLoopMode;
-    canGoNext: boolean;
-    canGoPrev: boolean;
-    updatedAt: number;
-  }
-
-  interface StageControlRequest {
+  interface StageExternalPlayRequest {
     requestId: string;
-    originPlayerId: string;
-    requestedAt: number;
-    baseRevision: number;
-    type: StageControlRequestType;
-    payload?: {
-      timeMs?: number;
-      loopMode?: StageLoopMode;
-    };
+    songId: number;
   }
 
-  interface StagePlaybackReport {
-    sessionId: string;
-    playerState?: import('./types').PlayerState;
-    currentTimeMs?: number;
-    durationMs?: number;
-    errorMessage?: string | null;
-  }
-
-  interface StageControllerPolicy {
-    collapseWindowMs: number;
-    allowPlayerLoopModeChange: boolean;
-  }
-
-  interface StageConnectionState {
-    connected: boolean;
-    playerId: string | null;
-    hasController: boolean;
-    controllerId: string | null;
-    pendingRequestCount: number;
-    lastError?: string | null;
+  interface StageExternalPlayResult {
+    requestId: string;
+    ok: boolean;
+    error?: string | null;
   }
 
   interface StageStatus {
     enabled: boolean;
     port: number;
     token: string | null;
-    hasSession: boolean;
-    session: StageSession | null;
-    realtimeState: StageRealtimeState | null;
-    connection: StageConnectionState;
-    policy: StageControllerPolicy;
+    activeEntryKind: StageActiveEntryKind | null;
+    displayLine: StageDisplayLine | null;
+    mediaSession: StageMediaSession | null;
   }
 
   interface Window {
@@ -181,15 +156,11 @@ declare global {
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;
-      clearStageSession: () => Promise<StageStatus>;
-      connectStageRealtime: () => Promise<StageConnectionState>;
-      disconnectStageRealtime: () => Promise<StageConnectionState>;
-      sendStageControlRequest: (request: StageControlRequest) => Promise<boolean>;
-      reportStagePlaybackState: (report: StagePlaybackReport) => Promise<StageStatus>;
+      clearStageState: () => Promise<StageStatus>;
+      completeStageExternalPlayRequest: (result: StageExternalPlayResult) => Promise<boolean>;
       onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
       onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
-      onStageRealtimeState: (callback: (state: StageRealtimeState | null) => void) => () => void;
-      onStageConnectionState: (callback: (state: StageConnectionState) => void) => () => void;
+      onStageExternalPlayRequest: (callback: (request: StageExternalPlayRequest) => void) => () => void;
     };
   }
 }

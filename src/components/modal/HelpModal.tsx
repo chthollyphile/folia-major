@@ -57,7 +57,7 @@ interface HelpModalProps {
     stageStatus?: StageStatus | null;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
-    onClearStageSession?: () => Promise<void> | void;
+    onClearStageState?: () => Promise<void> | void;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -104,7 +104,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     stageStatus = null,
     onToggleStageMode,
     onRegenerateStageToken,
-    onClearStageSession,
+    onClearStageState,
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');

@@ -50,9 +50,22 @@ export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio
 
 export type PlaybackContext = 'main' | 'stage';
 export type StageLoopMode = 'off' | 'all' | 'one';
-export type StageControlRequestType = 'play' | 'pause' | 'seek' | 'next' | 'prev' | 'set_loop_mode';
+export type StageActiveEntryKind = 'line' | 'media';
 
-export interface StageSession {
+export interface StageDisplayWord {
+  text: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface StageDisplayLine {
+  fullText: string;
+  translation?: string;
+  words?: StageDisplayWord[];
+  updatedAt: number;
+}
+
+export interface StageMediaSession {
   id: string;
   title: string;
   artist: string;
@@ -69,72 +82,35 @@ export interface StageSession {
   updatedAt: number;
 }
 
-export interface StageTrack {
-  trackId: string;
+export type StageSession = StageMediaSession;
+
+export interface StageSearchResult {
+  songId: number;
   title: string;
-  artist?: string;
-  album?: string;
-  coverUrl?: string | null;
-  durationMs?: number | null;
+  artists: string[];
+  album: string;
+  durationMs: number | null;
+  coverUrl: string | null;
 }
 
-export interface StageRealtimeState {
-  revision: number;
-  sessionId: string | null;
-  tracks: StageTrack[];
-  currentTrackId: string | null;
-  playerState: PlayerState;
-  currentTimeMs: number;
-  durationMs: number;
-  loopMode: StageLoopMode;
-  canGoNext: boolean;
-  canGoPrev: boolean;
-  updatedAt: number;
-}
-
-export interface StageControlRequest {
+export interface StageExternalPlayRequest {
   requestId: string;
-  originPlayerId: string;
-  requestedAt: number;
-  baseRevision: number;
-  type: StageControlRequestType;
-  payload?: {
-    timeMs?: number;
-    loopMode?: StageLoopMode;
-  };
+  songId: number;
 }
 
-export interface StagePlaybackReport {
-  sessionId: string;
-  playerState?: PlayerState;
-  currentTimeMs?: number;
-  durationMs?: number;
-  errorMessage?: string | null;
-}
-
-export interface StageControllerPolicy {
-  collapseWindowMs: number;
-  allowPlayerLoopModeChange: boolean;
-}
-
-export interface StageConnectionState {
-  connected: boolean;
-  playerId: string | null;
-  hasController: boolean;
-  controllerId: string | null;
-  pendingRequestCount: number;
-  lastError?: string | null;
+export interface StageExternalPlayResult {
+  requestId: string;
+  ok: boolean;
+  error?: string | null;
 }
 
 export interface StageStatus {
   enabled: boolean;
   port: number;
   token: string | null;
-  hasSession: boolean;
-  session: StageSession | null;
-  realtimeState: StageRealtimeState | null;
-  connection: StageConnectionState;
-  policy: StageControllerPolicy;
+  activeEntryKind: StageActiveEntryKind | null;
+  displayLine: StageDisplayLine | null;
+  mediaSession: StageMediaSession | null;
 }
 
 export interface CadenzaTuning {
