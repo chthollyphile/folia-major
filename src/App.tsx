@@ -481,6 +481,8 @@ export default function App() {
     const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
+    const lastKnownMainSongRef = useRef<SongResult | null>(null);
+    const lastKnownMainQueueRef = useRef<SongResult[]>([]);
     const stageLyricsClockRef = useRef<StageLyricsClockState>({
         startTimeSec: 0,
         endTimeSec: 0,
@@ -1270,10 +1272,12 @@ export default function App() {
     useEffect(() => {
         if (activePlaybackContext === 'main') {
             mainPlaybackSnapshotRef.current = buildPlaybackSnapshot();
+            lastKnownMainSongRef.current = currentSong;
+            lastKnownMainQueueRef.current = playQueue;
         } else {
             stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
         }
-    }, [activePlaybackContext, buildPlaybackSnapshot]);
+    }, [activePlaybackContext, buildPlaybackSnapshot, currentSong, playQueue]);
 
     useEffect(() => {
         const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
@@ -1951,6 +1955,47 @@ export default function App() {
         setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
     }, [handleSetLyricFilterPattern, loadCurrentSongLyricPreview]);
 
+    const appendNeteaseSongsToMainQueue = useCallback((songs: SongResult[]) => {
+        if (songs.length === 0) {
+            return false;
+        }
+
+        const mainSnapshot = activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current : null;
+        const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
+        const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
+        const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
+        const existingIds = new Set(baseQueue.map(song => song.id));
+        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
+        const nextQueue = appendedSongs.length > 0 ? [...baseQueue, ...appendedSongs] : baseQueue;
+
+        if (activePlaybackContext === 'stage') {
+            mainPlaybackSnapshotRef.current = mainSnapshot
+                ? { ...mainSnapshot, playQueue: nextQueue }
+                : {
+                    currentSong: queueAnchorSong,
+                    lyrics: null,
+                    cachedCoverUrl: null,
+                    audioSrc: null,
+                    playQueue: nextQueue,
+                    isFmMode: false,
+                    playerState: PlayerState.IDLE,
+                    currentTime: 0,
+                    duration: 0,
+                    currentLineIndex: -1,
+                };
+        } else {
+            setPlayQueue(nextQueue);
+        }
+
+        if (appendedSongs.length > 0) {
+            void persistLastPlaybackCache(queueAnchorSong, nextQueue);
+            setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+            return true;
+        }
+
+        return false;
+    }, [activePlaybackContext, currentSong, persistLastPlaybackCache, playQueue, t]);
+
     const handleLocalQueueAdd = async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
         const { unifiedSong } = await resolveLocalMetadataUI(preparedLocalSong, null);
@@ -1967,27 +2012,12 @@ export default function App() {
             return;
         }
 
-        const exists = playQueue.some(queuedSong => queuedSong.id === song.id);
-        const nextQueue = exists ? playQueue : [...playQueue, song];
-
-        setPlayQueue(nextQueue);
-        void persistLastPlaybackCache(currentSong, nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
+        appendNeteaseSongsToMainQueue([song]);
+    }, [appendNeteaseSongsToMainQueue]);
 
     const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
-        if (songs.length === 0) {
-            return;
-        }
-
-        const existingIds = new Set(playQueue.map(song => song.id));
-        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
-
-        setPlayQueue(nextQueue);
-        void persistLastPlaybackCache(currentSong, nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
+        appendNeteaseSongsToMainQueue(songs);
+    }, [appendNeteaseSongsToMainQueue]);
 
     const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
         if (songs.length === 0) {
@@ -2828,7 +2858,11 @@ export default function App() {
                         throw new Error(`Song ${request.songId} was not found.`);
                     }
 
-                    await playSong(song, [song], false, { shouldNavigateToPlayer: true });
+                    if (request.appendToQueue) {
+                        appendNeteaseSongsToMainQueue([song]);
+                    } else {
+                        await playSong(song, [song], false, { shouldNavigateToPlayer: true });
+                    }
                     await window.electron?.completeStageExternalPlayRequest?.({
                         requestId: request.requestId,
                         ok: true,
@@ -2843,7 +2877,7 @@ export default function App() {
                 }
             })();
         });
-    }, [playSong]);
+    }, [appendNeteaseSongsToMainQueue, playSong]);
 
     const cacheSongAssets = async () => {
         if (!currentSong || !audioSrc || audioSrc.startsWith('blob:')) return;

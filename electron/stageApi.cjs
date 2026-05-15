@@ -1039,7 +1039,7 @@ function createStageApi({
     return songs.map(normalizeStageSearchResult).filter((song) => Number.isFinite(song.songId) && song.songId > 0);
   };
 
-  const requestStageSongPlay = async (songId) => {
+  const requestStageSongPlay = async (songId, options = {}) => {
     const mainWindow = getMainWindow();
     if (!mainWindow || mainWindow.isDestroyed()) {
       throw new StageApiError('Folia main window is unavailable for external play requests.', {
@@ -1064,6 +1064,7 @@ function createStageApi({
       mainWindow.webContents.send('stage-external-play-request', {
         requestId,
         songId,
+        appendToQueue: options.appendToQueue === true,
       });
     });
   };
@@ -1296,12 +1297,13 @@ function createStageApi({
       }
 
       const songId = Number(payload.songId);
+      const appendToQueue = payload.appendToQueue === true;
       if (!Number.isInteger(songId) || songId <= 0) {
         throw createStageValidationError('Stage play payload requires a positive integer songId.', 'INVALID_STAGE_PLAY_SONG_ID');
       }
 
-      await requestStageSongPlay(songId);
-      sendStageJson(res, 200, { ok: true, songId });
+      await requestStageSongPlay(songId, { appendToQueue });
+      sendStageJson(res, 200, { ok: true, songId, appendToQueue });
       return;
     }
 

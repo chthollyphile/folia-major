@@ -188,6 +188,20 @@ describe('stageClientDemo helpers', () => {
         });
     });
 
+    it('builds a queue-append play request when requested', () => {
+        const result = buildStagePlayRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            songId: 123456,
+            appendToQueue: true,
+        });
+
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            songId: 123456,
+            appendToQueue: true,
+        });
+    });
+
     it('rejects invalid song ids before sending', () => {
         const error = validateStagePlayRequestInput({
             baseUrl: 'http://127.0.0.1:32107',

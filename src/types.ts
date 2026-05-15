@@ -145,6 +145,7 @@ export interface StageSearchResult {
 export interface StageExternalPlayRequest {
   requestId: string;
   songId: number;
+  appendToQueue?: boolean;
 }
 
 export interface StageExternalPlayResult {

@@ -40,6 +40,7 @@ export interface StagePlayRequestInput {
     baseUrl: string;
     token: string;
     songId: number;
+    appendToQueue?: boolean;
 }
 
 export interface StageRequestBuildResult {
@@ -331,6 +332,7 @@ export const buildStagePlayRequest = (input: StagePlayRequestInput): StageReques
             }),
             body: JSON.stringify({
                 songId: input.songId,
+                ...(input.appendToQueue ? { appendToQueue: true } : {}),
             }),
         },
     };

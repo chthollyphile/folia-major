@@ -41,6 +41,7 @@ const createStore = () => {
 const withStageApi = async (options: {
     searchStageSongs?: (query: string, limit: number) => Promise<any[]>;
     autoCompletePlay?: boolean;
+    onPlayRequest?: (payload: any) => void;
 } = {}) => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'folia-stage-api-'));
     const port = await getFreePort();
@@ -62,6 +63,9 @@ const withStageApi = async (options: {
             isDestroyed: () => false,
             webContents: {
                 send: (channel: string, payload: any) => {
+                    if (channel === 'stage-external-play-request') {
+                        options.onPlayRequest?.(payload);
+                    }
                     if (options.autoCompletePlay && channel === 'stage-external-play-request') {
                         queueMicrotask(() => {
                             stageApi.completeStageExternalPlayRequest({
@@ -253,6 +257,43 @@ describe('stageApi http contract', () => {
         expect(payload).toEqual({
             ok: true,
             songId: 123456,
+            appendToQueue: false,
+        });
+    });
+
+    it('passes appendToQueue through /stage/play requests', async () => {
+        const receivedRequests: Array<{ appendToQueue?: boolean; songId: number; }> = [];
+        const context = await withStageApi({
+            autoCompletePlay: true,
+            onPlayRequest: (payload) => {
+                receivedRequests.push(payload);
+            },
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/play`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                songId: 654321,
+                appendToQueue: true,
+            }),
+        });
+
+        expect(response.status).toBe(200);
+        const payload = await response.json();
+        expect(payload).toEqual({
+            ok: true,
+            songId: 654321,
+            appendToQueue: true,
+        });
+        expect(receivedRequests).toHaveLength(1);
+        expect(receivedRequests[0]).toMatchObject({
+            songId: 654321,
+            appendToQueue: true,
         });
     });
 });

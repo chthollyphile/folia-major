@@ -157,6 +157,7 @@ declare global {
   interface StageExternalPlayRequest {
     requestId: string;
     songId: number;
+    appendToQueue?: boolean;
   }
 
   interface StageExternalPlayResult {

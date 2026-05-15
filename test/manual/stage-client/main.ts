@@ -143,7 +143,10 @@ const renderSearchResults = (songs: StageSearchResult[]) => {
                     <strong>${song.title}</strong>
                     <p class="hint">${song.artists.join(' / ') || 'Unknown artist'}${song.album ? ` · ${song.album}` : ''}</p>
                 </div>
-                <button type="button" class="secondary" data-play-song="${song.songId}">Play In Folia</button>
+                <div class="button-row">
+                    <button type="button" class="secondary" data-play-song="${song.songId}">Play In Folia</button>
+                    <button type="button" class="secondary" data-queue-song="${song.songId}">Add To Queue</button>
+                </div>
             </div>
             <pre class="request-preview compact">${formatJson(song)}</pre>
         </article>
@@ -223,11 +226,12 @@ const runSearchRequest = async () => {
     }
 };
 
-const runPlayRequest = async (songId: number) => {
+const runPlayRequest = async (songId: number, appendToQueue = false) => {
     const request = buildStagePlayRequest({
         baseUrl: baseUrlInput.value,
         token: tokenInput.value,
         songId,
+        appendToQueue,
     });
     renderRequestPreview(searchPreview, request);
     await updateRequestResult(searchStatus, searchResponse, request);
@@ -273,12 +277,12 @@ searchResults.addEventListener('click', (event) => {
         return;
     }
 
-    const songId = Number(target.dataset.playSong);
+    const songId = Number(target.dataset.playSong || target.dataset.queueSong);
     if (!Number.isInteger(songId) || songId <= 0) {
         return;
     }
 
-    void runPlayRequest(songId);
+    void runPlayRequest(songId, target.dataset.queueSong === String(songId));
 });
 
 healthPreview.textContent = 'Click Run to preview the health request.';
