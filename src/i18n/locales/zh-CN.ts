@@ -236,7 +236,7 @@ export default {
     "showOpenPanelCloseButtonDescSub": "移动端可能仍然更需要这个按钮。",
     "stageMode": "舞台模式",
     "enableStageMode": "启用舞台模式",
-    "enableStageModeDesc": "开放仅本机可访问的 Stage API，供外部程序推送歌词、媒体或点歌。",
+    "enableStageModeDesc": "API 已开启",
     "enableStageModeDescEnabled": "Stage API 已开启，可供外部程序推送歌词、媒体或点歌。",
     "enableStageModeDescDisabled": "启用后会开放本地 Stage API，供外部程序推送歌词、媒体或点歌。",
     "stageAddress": "Stage 地址",

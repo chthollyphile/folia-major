@@ -12,7 +12,8 @@ import {
 } from '../../../src/utils/stageClientDemo';
 import type { StageSearchResult } from '../../../src/types';
 
-// Manual Stage API console for the local-only desktop protocol.
+// Manual Stage API docs keep example snippets and live requests aligned
+// with the current local-only desktop protocol.
 
 const getElement = <T extends HTMLElement>(id: string) => {
     const element = document.getElementById(id);
@@ -28,14 +29,17 @@ const tokenInput = getElement<HTMLInputElement>('token');
 const healthPreview = getElement<HTMLElement>('health-preview');
 const healthStatus = getElement<HTMLElement>('health-status');
 const healthResponse = getElement<HTMLElement>('health-response');
+const healthExample = getElement<HTMLElement>('health-example');
 
 const statusPreview = getElement<HTMLElement>('status-preview');
 const statusStatus = getElement<HTMLElement>('status-status');
 const statusResponse = getElement<HTMLElement>('status-response');
+const statusExample = getElement<HTMLElement>('status-example');
 
 const clearPreview = getElement<HTMLElement>('clear-preview');
 const clearStatus = getElement<HTMLElement>('clear-status');
 const clearResponse = getElement<HTMLElement>('clear-response');
+const clearExample = getElement<HTMLElement>('clear-example');
 
 const lyricsTitleInput = getElement<HTMLInputElement>('lyrics-title');
 const lyricsArtistInput = getElement<HTMLInputElement>('lyrics-artist');
@@ -44,6 +48,7 @@ const lyricsSourceJsonInput = getElement<HTMLTextAreaElement>('lyrics-source-jso
 const lyricsPreview = getElement<HTMLElement>('lyrics-preview');
 const lyricsStatus = getElement<HTMLElement>('lyrics-status');
 const lyricsResponse = getElement<HTMLElement>('lyrics-response');
+const lyricsExample = getElement<HTMLElement>('lyrics-example');
 
 const titleInput = getElement<HTMLInputElement>('title');
 const artistInput = getElement<HTMLInputElement>('artist');
@@ -58,6 +63,8 @@ const coverFileInput = getElement<HTMLInputElement>('cover-file');
 const sessionPreview = getElement<HTMLElement>('session-preview');
 const sessionStatus = getElement<HTMLElement>('session-status');
 const sessionResponse = getElement<HTMLElement>('session-response');
+const sessionExampleJson = getElement<HTMLElement>('session-example-json');
+const sessionExampleMultipart = getElement<HTMLElement>('session-example-multipart');
 
 const searchQueryInput = getElement<HTMLInputElement>('search-query');
 const searchLimitInput = getElement<HTMLInputElement>('search-limit');
@@ -65,6 +72,12 @@ const searchPreview = getElement<HTMLElement>('search-preview');
 const searchStatus = getElement<HTMLElement>('search-status');
 const searchResponse = getElement<HTMLElement>('search-response');
 const searchResults = getElement<HTMLDivElement>('search-results');
+const searchExample = getElement<HTMLElement>('search-example');
+
+const playPreview = getElement<HTMLElement>('play-preview');
+const playStatus = getElement<HTMLElement>('play-status');
+const playResponse = getElement<HTMLElement>('play-response');
+const playExample = getElement<HTMLElement>('play-example');
 
 const formatJson = (value: unknown) => JSON.stringify(value, null, 2);
 const normalizeText = (value?: string | null) => value?.trim() ?? '';
@@ -102,10 +115,49 @@ const renderRequestPreview = (target: HTMLElement, request: StageRequestBuildRes
     target.textContent = [
         `${request.init.method || 'GET'} ${request.endpoint}`,
         '',
+        `Transport: ${request.transport}`,
+        '',
         `Headers: ${formatJson(request.init.headers || {})}`,
         '',
         `Body: ${summarizeBody(request.init.body as BodyInit | null | undefined)}`,
     ].join('\n');
+};
+
+const renderExampleError = (target: HTMLElement, error: unknown) => {
+    target.textContent = error instanceof Error ? `# Invalid input\n${error.message}` : String(error);
+};
+
+const toCurl = (request: StageRequestBuildResult) => {
+    const parts = [`curl -X ${request.init.method || 'GET'}`, `"${request.endpoint}"`];
+    const headers = request.init.headers;
+
+    if (headers && typeof headers === 'object') {
+        for (const [key, value] of Object.entries(headers)) {
+            parts.push(`-H "${key}: ${String(value)}"`);
+        }
+    }
+
+    if (typeof request.init.body === 'string') {
+        parts.push(`-d '${request.init.body}'`);
+    } else if (request.init.body instanceof FormData) {
+        request.init.body.forEach((value, key) => {
+            if (value instanceof File) {
+                parts.push(`-F "${key}=@${value.name}"`);
+            } else {
+                parts.push(`-F "${key}=${String(value)}"`);
+            }
+        });
+    }
+
+    return parts.join(' \\\n  ');
+};
+
+const renderExample = (target: HTMLElement, builder: () => StageRequestBuildResult) => {
+    try {
+        target.textContent = toCurl(builder());
+    } catch (error) {
+        renderExampleError(target, error);
+    }
 };
 
 const updateRequestResult = async (
@@ -137,7 +189,7 @@ const renderSearchResults = (songs: StageSearchResult[]) => {
     }
 
     searchResults.innerHTML = songs.map((song) => `
-        <article class="stage-client-card" data-song-id="${song.songId}">
+        <article class="stage-result-card" data-song-id="${song.songId}">
             <div class="doc-head">
                 <div>
                     <strong>${song.title}</strong>
@@ -151,6 +203,125 @@ const renderSearchResults = (songs: StageSearchResult[]) => {
             <pre class="request-preview compact">${formatJson(song)}</pre>
         </article>
     `).join('');
+};
+
+const buildLyricsRequestFromInputs = () => buildStageLyricsRequest({
+    baseUrl: baseUrlInput.value,
+    token: tokenInput.value,
+    title: lyricsTitleInput.value,
+    artist: lyricsArtistInput.value,
+    album: lyricsAlbumInput.value,
+    lyricSourceJson: lyricsSourceJsonInput.value,
+});
+
+const buildSessionRequestFromInputs = () => buildStageSessionRequest({
+    baseUrl: baseUrlInput.value,
+    token: tokenInput.value,
+    title: titleInput.value,
+    artist: artistInput.value,
+    album: albumInput.value,
+    coverUrl: coverUrlInput.value,
+    audioUrl: audioUrlInput.value,
+    lyricsText: lyricsTextInput.value,
+    lyricsFormat: lyricsFormatInput.value as '' | 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc',
+    audioFile: audioFileInput.files?.[0] || null,
+    lyricsFile: lyricsFileInput.files?.[0] || null,
+    coverFile: coverFileInput.files?.[0] || null,
+});
+
+const buildSearchRequestFromInputs = () => buildStageSearchRequest({
+    baseUrl: baseUrlInput.value,
+    token: tokenInput.value,
+    query: searchQueryInput.value,
+    limit: Number(searchLimitInput.value) || 10,
+});
+
+const renderLiveExamples = () => {
+    renderExample(healthExample, () => buildStageHealthRequest(baseUrlInput.value));
+    renderExample(statusExample, () => buildStageStatusRequest(baseUrlInput.value, tokenInput.value));
+    renderExample(clearExample, () => buildStageClearRequest(baseUrlInput.value, tokenInput.value));
+    renderExample(lyricsExample, buildLyricsRequestFromInputs);
+    renderExample(sessionExampleJson, () => buildStageSessionRequest({
+        baseUrl: baseUrlInput.value,
+        token: tokenInput.value,
+        title: titleInput.value,
+        artist: artistInput.value,
+        album: albumInput.value,
+        coverUrl: coverUrlInput.value,
+        audioUrl: audioUrlInput.value || 'https://example.com/demo.mp3',
+        lyricsText: lyricsTextInput.value,
+        lyricsFormat: lyricsFormatInput.value as '' | 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc',
+    }));
+    renderExample(sessionExampleMultipart, () => {
+        const formData = new FormData();
+        formData.set('title', normalizeText(titleInput.value) || 'Folia Demo Tone');
+        formData.set('artist', normalizeText(artistInput.value) || 'Folia');
+        formData.set('lyricsFormat', normalizeText(lyricsFormatInput.value) || 'lrc');
+        formData.set('audioFile', new File(['binary'], 'stage-demo-tone.wav', { type: 'audio/wav' }));
+        formData.set('lyricsFile', new File(['lyrics'], 'stage-demo.lrc', { type: 'text/plain' }));
+
+        return {
+            endpoint: `${normalizeText(baseUrlInput.value).replace(/\/+$/, '')}/stage/session`,
+            transport: 'multipart',
+            init: {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${normalizeText(tokenInput.value)}`,
+                },
+                body: formData,
+            },
+        };
+    });
+    renderExample(searchExample, buildSearchRequestFromInputs);
+    renderExample(playExample, () => buildStagePlayRequest({
+        baseUrl: baseUrlInput.value,
+        token: tokenInput.value,
+        songId: 123456,
+        appendToQueue: false,
+    }));
+};
+
+const renderStaticPreviews = () => {
+    try {
+        renderRequestPreview(healthPreview, buildStageHealthRequest(baseUrlInput.value));
+    } catch (error) {
+        renderExampleError(healthPreview, error);
+    }
+
+    try {
+        renderRequestPreview(statusPreview, buildStageStatusRequest(baseUrlInput.value, tokenInput.value));
+    } catch (error) {
+        renderExampleError(statusPreview, error);
+    }
+
+    try {
+        renderRequestPreview(clearPreview, buildStageClearRequest(baseUrlInput.value, tokenInput.value));
+    } catch (error) {
+        renderExampleError(clearPreview, error);
+    }
+
+    try {
+        renderRequestPreview(lyricsPreview, buildLyricsRequestFromInputs());
+    } catch (error) {
+        renderExampleError(lyricsPreview, error);
+    }
+
+    try {
+        renderRequestPreview(sessionPreview, buildSessionRequestFromInputs());
+    } catch (error) {
+        renderExampleError(sessionPreview, error);
+    }
+
+    try {
+        renderRequestPreview(searchPreview, buildSearchRequestFromInputs());
+    } catch (error) {
+        renderExampleError(searchPreview, error);
+    }
+};
+
+const rerenderDocs = () => {
+    renderStaticPreviews();
+    renderLiveExamples();
 };
 
 const runHealthRequest = async () => {
@@ -172,44 +343,19 @@ const runClearRequest = async () => {
 };
 
 const runLyricsRequest = async () => {
-    const request = buildStageLyricsRequest({
-        baseUrl: baseUrlInput.value,
-        token: tokenInput.value,
-        title: lyricsTitleInput.value,
-        artist: lyricsArtistInput.value,
-        album: lyricsAlbumInput.value,
-        lyricSourceJson: lyricsSourceJsonInput.value,
-    });
+    const request = buildLyricsRequestFromInputs();
     renderRequestPreview(lyricsPreview, request);
     await updateRequestResult(lyricsStatus, lyricsResponse, request);
 };
 
 const runSessionRequest = async () => {
-    const request = buildStageSessionRequest({
-        baseUrl: baseUrlInput.value,
-        token: tokenInput.value,
-        title: titleInput.value,
-        artist: artistInput.value,
-        album: albumInput.value,
-        coverUrl: coverUrlInput.value,
-        audioUrl: audioUrlInput.value,
-        lyricsText: lyricsTextInput.value,
-        lyricsFormat: lyricsFormatInput.value as '' | 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc',
-        audioFile: audioFileInput.files?.[0] || null,
-        lyricsFile: lyricsFileInput.files?.[0] || null,
-        coverFile: coverFileInput.files?.[0] || null,
-    });
+    const request = buildSessionRequestFromInputs();
     renderRequestPreview(sessionPreview, request);
     await updateRequestResult(sessionStatus, sessionResponse, request);
 };
 
 const runSearchRequest = async () => {
-    const request = buildStageSearchRequest({
-        baseUrl: baseUrlInput.value,
-        token: tokenInput.value,
-        query: searchQueryInput.value,
-        limit: Number(searchLimitInput.value) || 10,
-    });
+    const request = buildSearchRequestFromInputs();
     renderRequestPreview(searchPreview, request);
     searchStatus.textContent = 'Sending...';
 
@@ -233,8 +379,8 @@ const runPlayRequest = async (songId: number, appendToQueue = false) => {
         songId,
         appendToQueue,
     });
-    renderRequestPreview(searchPreview, request);
-    await updateRequestResult(searchStatus, searchResponse, request);
+    renderRequestPreview(playPreview, request);
+    await updateRequestResult(playStatus, playResponse, request);
 };
 
 getElement<HTMLButtonElement>('run-health').addEventListener('click', () => {
@@ -285,9 +431,29 @@ searchResults.addEventListener('click', (event) => {
     void runPlayRequest(songId, target.dataset.queueSong === String(songId));
 });
 
-healthPreview.textContent = 'Click Run to preview the health request.';
-statusPreview.textContent = 'Click Run to preview the status request.';
-clearPreview.textContent = 'Click Run to preview the clear request.';
-lyricsPreview.textContent = 'Fill the lyrics fields, then click Push Lyrics.';
-sessionPreview.textContent = 'Fill the session fields, then click Push Session.';
-searchPreview.textContent = 'Search results can be played directly back into Folia.';
+[
+    baseUrlInput,
+    tokenInput,
+    lyricsTitleInput,
+    lyricsArtistInput,
+    lyricsAlbumInput,
+    lyricsSourceJsonInput,
+    titleInput,
+    artistInput,
+    albumInput,
+    coverUrlInput,
+    audioUrlInput,
+    lyricsTextInput,
+    lyricsFormatInput,
+    searchQueryInput,
+    searchLimitInput,
+].forEach((element) => {
+    element.addEventListener('input', rerenderDocs);
+});
+
+[audioFileInput, lyricsFileInput, coverFileInput].forEach((element) => {
+    element.addEventListener('change', rerenderDocs);
+});
+
+rerenderDocs();
+renderSearchResults([]);

@@ -64,8 +64,8 @@ export default async function viteConfig({ mode }: ConfigEnv): Promise<UserConfi
     build: {
       rollupOptions: {
         input: {
-          main: path.resolve(__dirname, 'index.html'),
-          stageClient: path.resolve(__dirname, 'stage-client.html'),
+          main: 'index.html',
+          stageClient: 'stage-client.html',
         },
       },
     },

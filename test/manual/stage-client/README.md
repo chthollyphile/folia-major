@@ -1,10 +1,10 @@
-# Stage API Console
+# Stage API Docs Console
 
-这个目录现在提供的是新版本地 Stage API 调试台。
+这个目录现在提供的是新版本地 Stage API 文档式联调台。
 
 ## Stage 联调客户端
 
-如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的本地 Stage API 调试台向 Folia 推送完整歌词对象、推送媒体会话，或者从外部程序触发搜索与点歌。
+如果你已经在桌面端开启了 Stage Mode，可以使用仓库内置的本地 Stage API 文档页向 Folia 推送完整歌词对象、推送媒体会话，或者从外部程序触发搜索与点歌。
 
 1. 在 Folia 设置中开启 Stage Mode，并复制 Bearer token
 2. 运行：
@@ -18,6 +18,13 @@ npm run stage:client
 - Stage 地址，默认 `http://127.0.0.1:32107`
 - Bearer token
 - 需要推送的歌词、媒体或搜索关键词
+
+当前页面采用“文档优先”的信息架构：
+
+- 左侧目录按 endpoint 导航
+- 每个接口同时展示用途、鉴权、字段说明、cURL 示例
+- 右侧同屏显示最终请求预览和实际响应
+- `POST /stage/play` 通过搜索结果按钮联动触发，便于模拟真实对接流程
 
 调试台当前覆盖这些接口：
 
