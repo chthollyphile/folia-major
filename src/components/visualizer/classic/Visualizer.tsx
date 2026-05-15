@@ -29,6 +29,7 @@ interface VisualizerProps {
     seed?: string | number; // Added seed for geometric bg
     backgroundOpacity?: number;
     lyricsFontScale?: number;
+    isPlayerChromeHidden?: boolean;
     onBack?: () => void;
 }
 
@@ -261,6 +262,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
+    isPlayerChromeHidden = false,
     onBack
 }) => {
     const { t } = useTranslation();
@@ -625,6 +627,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 theme={theme}
                 translationFontSize={translationFontSize}
                 upcomingFontSize={upcomingFontSize}
+                isPlayerChromeHidden={isPlayerChromeHidden}
             />
         </VisualizerShell>
     );

@@ -444,6 +444,7 @@ export const drawFumeBackground = ({
     time = 0,
     audioLevels,
     parallax,
+    objectOpacityMultiplier = 1,
 }: {
     context: CanvasRenderingContext2D;
     scene: FumeBackgroundScene;
@@ -451,7 +452,9 @@ export const drawFumeBackground = ({
     time?: number;
     audioLevels?: FumeBackgroundAudioLevels;
     parallax?: FumeBackgroundParallax;
+    objectOpacityMultiplier?: number;
 }) => {
+    const resolvedObjectOpacityMultiplier = clamp(objectOpacityMultiplier, 0, 2);
     const createLineGradient = (
         shape: FumeBackgroundShape,
         opacity: number,
@@ -517,15 +520,24 @@ export const drawFumeBackground = ({
         };
 
         if (shape.kind === 'spark') {
-            context.strokeStyle = colorWithAlpha(shapeColor, clamp(shape.opacity * audioOpacityBoost, 0, 0.42));
+            context.strokeStyle = colorWithAlpha(
+                shapeColor,
+                clamp(shape.opacity * audioOpacityBoost * resolvedObjectOpacityMultiplier, 0, 0.42),
+            );
             context.lineWidth = shape.strokeWidth;
             context.shadowBlur = 10 * audioScale;
-            context.shadowColor = colorWithAlpha(shapeColor, shape.opacity * audioOpacityBoost * 0.75);
+            context.shadowColor = colorWithAlpha(
+                shapeColor,
+                shape.opacity * audioOpacityBoost * 0.75 * resolvedObjectOpacityMultiplier,
+            );
             traceShape(context, renderedShape);
         } else {
             context.translate(renderedShape.x, renderedShape.y);
             context.rotate(renderedShape.rotation);
-            drawGradientGeometry(renderedShape, clamp(shape.opacity * audioOpacityBoost, 0, 0.42));
+            drawGradientGeometry(
+                renderedShape,
+                clamp(shape.opacity * audioOpacityBoost * resolvedObjectOpacityMultiplier, 0, 0.42),
+            );
         }
         context.restore();
     }

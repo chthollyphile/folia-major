@@ -12,6 +12,7 @@ interface VisualizerSubtitleOverlayProps {
     translationFontSize: string;
     upcomingFontSize: string;
     opacity?: number;
+    isPlayerChromeHidden?: boolean;
 }
 
 const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
@@ -23,15 +24,25 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
     translationFontSize,
     upcomingFontSize,
     opacity = 0.6,
+    isPlayerChromeHidden = false,
 }) => {
     return (
         <AnimatePresence>
             {showText && (
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity, y: 0 }}
+                    animate={{
+                        opacity,
+                        y: 0,
+                        bottom: isPlayerChromeHidden ? 32 : 112,
+                    }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="absolute bottom-28 w-full text-center space-y-2 px-4 z-20 pointer-events-none"
+                    transition={{
+                        bottom: { type: 'spring', stiffness: 280, damping: 28 },
+                        opacity: { duration: 0.24, ease: 'easeOut' },
+                        y: { duration: 0.24, ease: 'easeOut' },
+                    }}
+                    className="absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
                 >
                     {(activeLine?.translation || recentCompletedLine?.translation) ? (
                         <motion.div

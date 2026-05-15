@@ -678,17 +678,25 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             </div>
 
             {/* Toggle Button */}
-            {!hideToggleButton && (!isOpen || showOpenPanelCloseButton) && (
-                <div className="pointer-events-auto fixed bottom-8 right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end">
-                    <button
-                        onClick={onToggle}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
-                            border-none ${toggleButtonMotionClass} ${isOpen ? 'bg-white text-black' : 'bg-black/40 text-white'}`}
+            <AnimatePresence>
+                {!hideToggleButton && (!isOpen || showOpenPanelCloseButton) && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20, y: 12, scale: 0.92 }}
+                        animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 20, y: 12, scale: 0.92 }}
+                        transition={{ duration: 0.24, ease: 'easeOut' }}
+                        className="pointer-events-auto fixed bottom-8 right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end"
                     >
-                        {isOpen ? <X size={20} /> : <Settings2 size={20} />}
-                    </button>
-                </div>
-            )}
+                        <button
+                            onClick={onToggle}
+                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
+                                border-none ${toggleButtonMotionClass} ${isOpen ? 'bg-white text-black' : 'bg-black/40 text-white'}`}
+                        >
+                            {isOpen ? <X size={20} /> : <Settings2 size={20} />}
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

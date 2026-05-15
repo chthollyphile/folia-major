@@ -70,6 +70,14 @@ const clampFumeGlowIntensity = (value: number, fallback: number) => {
     return Math.min(1.8, Math.max(0, value));
 };
 
+const clampFumeBackgroundObjectOpacity = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, value));
+};
+
 const clampFumeHeroScale = (value: number, fallback: number) => {
     if (!Number.isFinite(value)) {
         return fallback;
@@ -104,6 +112,10 @@ const readStoredFumeTuning = (): FumeTuning => {
         return {
             hidePrintSymbols: parsed.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
             disableGeometricBackground: parsed.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+            backgroundObjectOpacity: clampFumeBackgroundObjectOpacity(
+                parsed.backgroundObjectOpacity ?? DEFAULT_FUME_TUNING.backgroundObjectOpacity,
+                DEFAULT_FUME_TUNING.backgroundObjectOpacity,
+            ),
             textHoldRatio: clampFumeTextHoldRatio(parsed.textHoldRatio ?? migratedTextHoldRatio, DEFAULT_FUME_TUNING.textHoldRatio),
             cameraTrackingMode: resolveFumeCameraTrackingMode(parsed.cameraTrackingMode),
             cameraSpeed: clampFumeCameraSpeed(parsed.cameraSpeed ?? DEFAULT_FUME_TUNING.cameraSpeed, DEFAULT_FUME_TUNING.cameraSpeed),
@@ -307,6 +319,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             const next = {
                 hidePrintSymbols: patch.hidePrintSymbols ?? prev.hidePrintSymbols,
                 disableGeometricBackground: patch.disableGeometricBackground ?? prev.disableGeometricBackground,
+                backgroundObjectOpacity: clampFumeBackgroundObjectOpacity(
+                    patch.backgroundObjectOpacity ?? prev.backgroundObjectOpacity,
+                    prev.backgroundObjectOpacity,
+                ),
                 textHoldRatio: clampFumeTextHoldRatio(patch.textHoldRatio ?? prev.textHoldRatio, prev.textHoldRatio),
                 cameraTrackingMode: resolveFumeCameraTrackingMode(patch.cameraTrackingMode ?? prev.cameraTrackingMode),
                 cameraSpeed: clampFumeCameraSpeed(patch.cameraSpeed ?? prev.cameraSpeed, prev.cameraSpeed),

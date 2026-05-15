@@ -120,6 +120,25 @@ export default VisualizerFoo;
 
 只有在传入 `onBack` 时才显示返回按钮。
 
+## 排查建议
+
+当 visualizer 出现“切句太早 / 太晚”“逐字动画没走完”“当前句和下一句状态看起来不一致”这类问题时，优先打开 `DevDebugOverlay` 看实际时序，而不是只凭肉眼猜。
+
+特别建议先看 Lyrics 面板里的这些信息：
+
+- `Current Line` / `Next Line`
+  用来确认当前 visualizer 实际拿到的是哪一句，以及下一句何时开始
+- `start` / `end` / `renderEnd`
+  用来区分“逐字 reveal 什么时候应该完成”和“当前句最多还能占用时间轴多久”
+- 胶囊状态
+  用来快速判断当前句是否已经到 `endTime`、是否仍处于 render hold、以及 `renderEndTime` 会不会被下一句 `startTime` 截断
+
+这一步对排查下面几类问题尤其有用：
+
+- `currentLineIndex` 已经切到下一句，但当前句尾部动画还没收干净
+- `renderEndTime` 看起来没有生效，其实是被下一句时间截断
+- visualizer 把 `endTime` 和 `renderEndTime` 的职责混用了
+
 ## 当前模块化架构
 
 当前目录已经开始按“共享基座 + 各自 renderer”组织，而不是每个 visualizer 都各写一整棵树。
@@ -255,6 +274,22 @@ visualizer/
 - `passed`
 
 这样更容易复用已有的视觉语言和 render hints。
+
+### `endTime` 与 `renderEndTime` 的职责区别
+
+- `line.words[*].endTime` 与整句 `line.endTime`
+  语义：逐词 / 逐字 reveal 的真实完成时间。到这里时，最后一个字本身应该已经完成渲染。
+- `renderEndTime`
+  语义：visualizer 最长允许继续占用时间轴的结束点，用于 active -> passed、尾迹、退场等视觉过渡。
+
+这两个时间点不要混为一谈：
+
+- `endTime` 负责“字什么时候应该出现完”
+- `renderEndTime` 负责“当前句最多还能留在屏幕上多久”
+
+另外，`renderEndTime` 不是独立于下一句存在的硬时间轴。
+如果下一句 `startTime` 更早到来，当前句的额外过渡窗口会被截断。
+visualizer 在这种情况下应当直接补完成当前句剩余的 pass / trail 状态，而不是继续拖着半截 active 动画跨到下一句之后。
 
 ## 预热与缓存
 

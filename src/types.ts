@@ -168,6 +168,7 @@ export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
 export interface FumeTuning {
   hidePrintSymbols: boolean;
   disableGeometricBackground: boolean;
+  backgroundObjectOpacity: number;
   textHoldRatio: number;
   cameraTrackingMode: 'stepped' | 'smooth';
   cameraSpeed: number;
@@ -178,6 +179,7 @@ export interface FumeTuning {
 export const DEFAULT_FUME_TUNING: FumeTuning = {
   hidePrintSymbols: false,
   disableGeometricBackground: true,
+  backgroundObjectOpacity: 0.5,
   textHoldRatio: 1,
   cameraTrackingMode: 'smooth',
   cameraSpeed: 1,

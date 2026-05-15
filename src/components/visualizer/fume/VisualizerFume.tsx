@@ -33,6 +33,7 @@ interface VisualizerProps {
     backgroundOpacity?: number;
     lyricsFontScale?: number;
     fumeTuning?: FumeTuning;
+    isPlayerChromeHidden?: boolean;
     onBack?: () => void;
 }
 
@@ -158,7 +159,11 @@ interface CameraRetargetState {
     fromX: number;
     fromY: number;
     fromScale: number;
-    useLinearBridge: boolean;
+    bridgeMode: 'none' | 'direct' | 'overview';
+    bridgeWaypointX: number;
+    bridgeWaypointY: number;
+    bridgeWaypointScale: number;
+    bridgeWaypointPhase: number;
 }
 
 interface CameraViewTarget {
@@ -181,6 +186,11 @@ const splitGraphemes = (text: string) => {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const quadraticBezier = (from: number, control: number, to: number, amount: number) => {
+    const normalized = clamp(amount, 0, 1);
+    const inverse = 1 - normalized;
+    return inverse * inverse * from + 2 * inverse * normalized * control + normalized * normalized * to;
+};
 const easeOutCubic = (value: number) => 1 - Math.pow(1 - clamp(value, 0, 1), 3);
 const easeInCubic = (value: number) => Math.pow(clamp(value, 0, 1), 3);
 const easeInOutCubic = (value: number) => {
@@ -188,6 +198,19 @@ const easeInOutCubic = (value: number) => {
     return normalized < 0.5
         ? 4 * normalized * normalized * normalized
         : 1 - Math.pow(-2 * normalized + 2, 3) / 2;
+};
+const resolveDelayedGlowEnvelope = (
+    progress: number,
+    peakProgress = 0.8,
+) => {
+    const normalized = clamp(progress, 0, 1);
+    const clampedPeak = clamp(peakProgress, 0.05, 0.95);
+
+    if (normalized <= clampedPeak) {
+        return easeOutCubic(normalized / clampedPeak);
+    }
+
+    return 1 - easeInCubic((normalized - clampedPeak) / (1 - clampedPeak));
 };
 
 const nowMs = () => (
@@ -257,8 +280,6 @@ const FUME_BACKGROUND_PARALLAX_Y = 0.74;
 const FUME_BACKGROUND_SCALE_FACTOR = 0.94;
 const FUME_BACKGROUND_VERTICAL_OFFSET_RATIO = 0.22;
 const FUME_CAMERA_TELEPORT_TRIGGER_SCREENS = 2.75;
-const FUME_CAMERA_TELEPORT_START_SCREENS = 1;
-
 const resolvePassedTextStyle = (
     variant: 'body' | 'hero',
     textHoldStyle: 'standard' | 'dimmed',
@@ -429,81 +450,116 @@ const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
     return { graphemes, segmentMetas };
 };
 
-const isLatinTokenGrapheme = (value: string) => /^[A-Za-z0-9_]$/.test(value);
-
-const expandRangeToLatinToken = (
-    graphemes: string[],
-    start: number,
-    end: number,
-) => {
-    let expandedStart = clamp(start, 0, graphemes.length);
-    let expandedEnd = clamp(end, expandedStart, graphemes.length);
-
-    while (expandedStart > 0 && isLatinTokenGrapheme(graphemes[expandedStart - 1] ?? '')) {
-        expandedStart -= 1;
-    }
-
-    while (expandedEnd < graphemes.length && isLatinTokenGrapheme(graphemes[expandedEnd] ?? '')) {
-        expandedEnd += 1;
-    }
-
-    return {
-        start: expandedStart,
-        end: expandedEnd,
-    };
-};
-
-const findWordRanges = (line: Line, graphemes: string[]) => {
+export const buildWordRangesFromWords = (line: Line, graphemes: string[]) => {
     if (line.words.length === 0 || graphemes.length === 0) {
         return [] as WordRange[];
     }
 
-    const validWords = line.words.filter(word => word.endTime > word.startTime);
-    if (validWords.length === 0) {
+    const rangedWords = line.words.filter(word => splitGraphemes(word.text).length > 0);
+    if (rangedWords.length === 0) {
         return [] as WordRange[];
     }
-
-    const totalDuration = validWords.reduce((sum, word) => sum + (word.endTime - word.startTime), 0);
-    if (totalDuration <= 0) {
-        return [] as WordRange[];
-    }
-
     const ranges: WordRange[] = [];
     let cursor = 0;
-    let accumulatedDuration = 0;
 
-    for (let wordIndex = 0; wordIndex < validWords.length; wordIndex += 1) {
-        const word = validWords[wordIndex]!;
-        const start = cursor;
-        accumulatedDuration += (word.endTime - word.startTime);
+    for (let wordIndex = 0; wordIndex < rangedWords.length; wordIndex += 1) {
+        const word = rangedWords[wordIndex]!;
+        const wordGraphemes = splitGraphemes(word.text);
+        const start = clamp(cursor, 0, graphemes.length);
+        let end = clamp(start + wordGraphemes.length, start, graphemes.length);
 
-        const isLastWord = wordIndex === validWords.length - 1;
-        const idealEnd = isLastWord
-            ? graphemes.length
-            : Math.round((accumulatedDuration / totalDuration) * graphemes.length);
-        const remainingWords = validWords.length - wordIndex - 1;
-        const maxEnd = graphemes.length - remainingWords;
-        const end = clamp(Math.max(start + 1, idealEnd), start + 1, Math.max(start + 1, maxEnd));
-        const expandedRange = isCJK(word.text)
-            ? { start, end }
-            : expandRangeToLatinToken(graphemes, start, end);
+        // Some lyric payloads omit inter-word spaces from word.text while fullText keeps them.
+        // In that case, keep the visual stream contiguous by attaching immediately following
+        // whitespace to the current word range instead of shifting every later word left.
+        while (end < graphemes.length && /\s/.test(graphemes[end] ?? '')) {
+            end += 1;
+        }
 
         ranges.push({
             wordIndex,
             word,
             start,
             end,
-            colorStart: expandedRange.start,
-            colorEnd: expandedRange.end,
+            colorStart: start,
+            colorEnd: end,
         });
         cursor = end;
     }
 
-    if (ranges.length > 0) {
-        ranges[ranges.length - 1]!.end = graphemes.length;
+    return ranges;
+};
+
+const resolveWordRevealProgress = (
+    range: WordRange,
+    currentTimeValue: number,
+) => {
+    if (range.word.endTime <= range.word.startTime) {
+        return currentTimeValue >= range.word.endTime ? 1 : 0;
     }
 
-    return ranges;
+    const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+    return clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
+};
+
+const resolvePrintedGlyphsInRange = (
+    range: WordRange,
+    currentTimeValue: number,
+) => {
+    const length = Math.max(range.end - range.start, 0);
+    if (length === 0) {
+        return 0;
+    }
+
+    if (currentTimeValue < range.word.startTime) {
+        return 0;
+    }
+
+    const progress = resolveWordRevealProgress(range, currentTimeValue);
+    if (progress >= 1) {
+        return length;
+    }
+
+    return clamp(
+        Math.floor(progress * length + 0.2),
+        progress > 0 ? 1 : 0,
+        length,
+    );
+};
+
+const hasRevealCompletedByLineEnd = (
+    line: Line,
+    currentTimeValue: number,
+) => currentTimeValue >= line.endTime;
+
+export const resolveLinePassCutoffTime = (
+    line: Line,
+    nextLineStartTime: number | null | undefined,
+) => {
+    const renderEndTime = getLineRenderEndTime(line);
+    if (typeof nextLineStartTime !== 'number' || !Number.isFinite(nextLineStartTime)) {
+        return renderEndTime;
+    }
+
+    return Math.min(renderEndTime, nextLineStartTime);
+};
+
+export const resolveVisualProgressWithCutoff = (
+    startedAt: number,
+    duration: number,
+    currentTimeValue: number,
+    cutoffTime: number,
+) => {
+    const nominalEndTime = startedAt + Math.max(duration, 0.001);
+    const effectiveEndTime = Math.max(
+        startedAt + 0.001,
+        Math.min(nominalEndTime, cutoffTime),
+    );
+
+    return clamp(
+        (currentTimeValue - startedAt) / Math.max(effectiveEndTime - startedAt, 0.001),
+        0,
+        1,
+    );
 };
 
 const cursorToGlobalOffset = (cursor: LayoutCursor, segmentMetas: SegmentMeta[]) => {
@@ -821,15 +877,12 @@ const buildLayoutCacheKey = (
     ].join('|');
 };
 
-const resolvePrintedGraphemeCount = (
+export const resolvePrintedGraphemeCount = (
     line: Line,
-    variant: 'body' | 'hero',
     wordRanges: WordRange[],
     graphemeCount: number,
     currentTimeValue: number,
 ) => {
-    // Hero blocks print more like a stamped headline.
-    // Body blocks print word-by-word so they feel more like reading through an article.
     if (graphemeCount === 0) {
         return 0;
     }
@@ -838,15 +891,12 @@ const resolvePrintedGraphemeCount = (
         return 0;
     }
 
-    if (variant === 'hero') {
-        const lineDuration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.18);
-        const stampDuration = clamp(lineDuration * 0.94, 0.24, lineDuration);
-        const progress = clamp((currentTimeValue - line.startTime) / stampDuration, 0, 1);
-        return clamp(Math.floor(progress * graphemeCount + (progress > 0 ? 1 : 0)), 0, graphemeCount);
+    if (hasRevealCompletedByLineEnd(line, currentTimeValue)) {
+        return graphemeCount;
     }
 
     if (wordRanges.length === 0) {
-        const duration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.12);
+        const duration = Math.max(line.endTime - line.startTime, 0.12);
         const progress = clamp((currentTimeValue - line.startTime) / duration, 0, 1);
         return clamp(Math.floor(progress * graphemeCount + (progress > 0 ? 1 : 0)), 0, graphemeCount);
     }
@@ -854,29 +904,19 @@ const resolvePrintedGraphemeCount = (
     let printed = 0;
     for (let index = 0; index < wordRanges.length; index += 1) {
         const range = wordRanges[index]!;
-        const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
+        const partial = resolvePrintedGlyphsInRange(range, currentTimeValue);
+        printed = range.start + partial;
 
-        if (currentTimeValue >= range.word.endTime) {
-            printed = range.end;
-            continue;
+        if (partial < range.end - range.start) {
+            return clamp(printed, 0, graphemeCount);
         }
-
-        if (currentTimeValue >= range.word.startTime) {
-            const progress = clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
-            const length = Math.max(range.end - range.start, 1);
-            const partial = clamp(Math.floor(progress * length + 0.2), progress > 0 ? 1 : 0, length);
-            return clamp(range.start + partial, 0, graphemeCount);
-        }
-
-        return clamp(printed, 0, graphemeCount);
     }
 
     return clamp(printed, 0, graphemeCount);
 };
 
-const resolvePrintedGraphemeProgress = (
+export const resolvePrintedGraphemeProgress = (
     line: Line,
-    variant: 'body' | 'hero',
     wordRanges: WordRange[],
     graphemeCount: number,
     currentTimeValue: number,
@@ -889,15 +929,12 @@ const resolvePrintedGraphemeProgress = (
         return 0;
     }
 
-    if (variant === 'hero') {
-        const lineDuration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.18);
-        const stampDuration = clamp(lineDuration * 0.94, 0.24, lineDuration);
-        const progress = clamp((currentTimeValue - line.startTime) / stampDuration, 0, 1);
-        return clamp(progress * graphemeCount, 0, graphemeCount);
+    if (hasRevealCompletedByLineEnd(line, currentTimeValue)) {
+        return graphemeCount;
     }
 
     if (wordRanges.length === 0) {
-        const duration = Math.max(getLineRenderEndTime(line) - line.startTime, 0.12);
+        const duration = Math.max(line.endTime - line.startTime, 0.12);
         const progress = clamp((currentTimeValue - line.startTime) / duration, 0, 1);
         return clamp(progress * graphemeCount, 0, graphemeCount);
     }
@@ -905,20 +942,17 @@ const resolvePrintedGraphemeProgress = (
     let printed = 0;
     for (let index = 0; index < wordRanges.length; index += 1) {
         const range = wordRanges[index]!;
-        const duration = Math.max(range.word.endTime - range.word.startTime, 0.08);
-
-        if (currentTimeValue >= range.word.endTime) {
-            printed = range.end;
-            continue;
+        if (currentTimeValue < range.word.startTime) {
+            return clamp(printed, 0, graphemeCount);
         }
 
-        if (currentTimeValue >= range.word.startTime) {
-            const progress = clamp((currentTimeValue - range.word.startTime) / duration, 0, 1);
-            const length = Math.max(range.end - range.start, 1);
-            return clamp(range.start + progress * length, 0, graphemeCount);
-        }
+        const progress = resolveWordRevealProgress(range, currentTimeValue);
+        const length = Math.max(range.end - range.start, 0);
+        printed = range.start + progress * length;
 
-        return clamp(printed, 0, graphemeCount);
+        if (progress < 1) {
+            return clamp(printed, 0, graphemeCount);
+        }
     }
 
     return clamp(printed, 0, graphemeCount);
@@ -1100,7 +1134,7 @@ function buildArticleLayoutAttempt(
             const renderDetailsStart = timing ? nowMs() : 0;
             const prepared = preparedSingleLine.prepared;
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
-            const wordRanges = findWordRanges(line, graphemes);
+            const wordRanges = buildWordRangesFromWords(line, graphemes);
             const wordRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges);
             const colorRangeIndexByOffset = buildWordRangeIndexByOffset(graphemes.length, wordRanges, 'color');
             const renderLines = layout.lines.map((layoutLine, lineIndex) => {
@@ -1532,22 +1566,30 @@ const resolveOverviewRetargetDuration = (viewport: ViewportSize) => clamp(
     0.58,
 );
 
-const resolveCameraTeleportStart = ({
+const resolveOverviewFlightBridge = ({
     fromX,
     fromY,
+    fromScale,
     targetX,
     targetY,
-    scale,
+    targetScale,
+    overviewCamera,
     viewport,
 }: {
     fromX: number;
     fromY: number;
+    fromScale: number;
     targetX: number;
     targetY: number;
-    scale: number;
+    targetScale: number;
+    overviewCamera: CameraViewTarget | null;
     viewport: ViewportSize;
 }) => {
-    const safeScale = Math.max(scale, 0.001);
+    if (!overviewCamera) {
+        return null;
+    }
+
+    const safeScale = Math.max(fromScale, targetScale, overviewCamera.scale, 0.001);
     const minViewportSide = Math.max(Math.min(viewport.width, viewport.height), 1);
     const deltaX = fromX - targetX;
     const deltaY = fromY - targetY;
@@ -1558,13 +1600,44 @@ const resolveCameraTeleportStart = ({
         return null;
     }
 
-    const startWorldDistance = (minViewportSide * FUME_CAMERA_TELEPORT_START_SCREENS) / safeScale;
-    const directionX = deltaX / worldDistance;
-    const directionY = deltaY / worldDistance;
+    const loftStrength = clamp(
+        (screenDistance / minViewportSide - FUME_CAMERA_TELEPORT_TRIGGER_SCREENS) / 3.4,
+        0,
+        1,
+    );
+    const midpointX = mix(fromX, targetX, 0.5);
+    const midpointY = mix(fromY, targetY, 0.5);
+    const waypointCenterBias = mix(0.18, 0.42, loftStrength);
+    const waypointX = mix(midpointX, overviewCamera.x, waypointCenterBias);
+    const waypointY = mix(midpointY, overviewCamera.y, waypointCenterBias);
+    const endpointScale = Math.max(fromScale, targetScale, 0.001);
+    const loftedScale = endpointScale * mix(0.62, 0.4, loftStrength);
+    const overviewLimitedScale = overviewCamera.scale * mix(1.85, 1.55, loftStrength);
+    const waypointScale = clamp(
+        Math.max(loftedScale, overviewLimitedScale),
+        CAMERA_SCALE_MIN,
+        Math.max(endpointScale * 0.92, CAMERA_SCALE_MIN),
+    );
+    const overviewDistanceFromStart = Math.hypot(waypointX - fromX, waypointY - fromY)
+        * Math.max(fromScale, waypointScale, 0.001);
+    const overviewDistanceToTarget = Math.hypot(targetX - waypointX, targetY - waypointY)
+        * Math.max(targetScale, waypointScale, 0.001);
+    const totalLegDistance = overviewDistanceFromStart + overviewDistanceToTarget;
+    const waypointPhase = totalLegDistance <= 0
+        ? 0.36
+        : clamp(overviewDistanceFromStart / totalLegDistance, 0.26, 0.44);
+    const duration = clamp(
+        0.26 + (screenDistance / (minViewportSide * 5.5)) * 0.28,
+        0.3,
+        0.68,
+    );
 
     return {
-        x: targetX + directionX * startWorldDistance,
-        y: targetY + directionY * startWorldDistance,
+        waypointX,
+        waypointY,
+        waypointScale,
+        waypointPhase,
+        duration,
     };
 };
 
@@ -1639,7 +1712,6 @@ const resolveFocusBlock = (
     const latestPrintedBlock = article.blocks.reduce<FumeBlock | null>((latest, block) => {
         const printedCount = resolvePrintedGraphemeCount(
             block.line,
-            block.variant,
             block.wordRanges,
             block.graphemes.length,
             currentTimeValue,
@@ -1685,6 +1757,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
     fumeTuning,
+    isPlayerChromeHidden = false,
     onBack,
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1698,7 +1771,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         fromX: 0,
         fromY: 0,
         fromScale: 1,
-        useLinearBridge: false,
+        bridgeMode: 'none',
+        bridgeWaypointX: 0,
+        bridgeWaypointY: 0,
+        bridgeWaypointScale: 1,
+        bridgeWaypointPhase: 0.36,
     });
     const cameraRef = useRef<CameraTarget>({
         x: 0,
@@ -1763,6 +1840,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
         disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
+        backgroundObjectOpacity: clamp(
+            fumeTuning?.backgroundObjectOpacity ?? DEFAULT_FUME_TUNING.backgroundObjectOpacity,
+            0,
+            1,
+        ),
         textHoldRatio: clamp(fumeTuning?.textHoldRatio ?? DEFAULT_FUME_TUNING.textHoldRatio, 0, 1),
         cameraTrackingMode: fumeTuning?.cameraTrackingMode === 'stepped' || fumeTuning?.cameraTrackingMode === 'smooth'
             ? fumeTuning.cameraTrackingMode
@@ -1866,6 +1948,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     );
     const cameraSpeed = resolvedFumeTuning.cameraSpeed;
     const glowIntensity = resolvedFumeTuning.glowIntensity;
+    const backgroundObjectOpacity = resolvedFumeTuning.backgroundObjectOpacity;
     const showPrintStamp = !resolvedFumeTuning.hidePrintSymbols;
     const textHoldRatio = resolvedFumeTuning.textHoldRatio;
     const passedFadeDuration = useMemo(
@@ -1974,6 +2057,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         theme,
                         time: time + now * 0.00018,
                         audioLevels: fumeBackgroundAudioLevels,
+                        objectOpacityMultiplier: backgroundObjectOpacity * 2,
                     });
                     context.restore();
                 }
@@ -2012,7 +2096,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         fromX: cameraRef.current.x,
                         fromY: cameraRef.current.y,
                         fromScale: cameraRef.current.scale,
-                        useLinearBridge: false,
+                        bridgeMode: 'none',
+                        bridgeWaypointX: 0,
+                        bridgeWaypointY: 0,
+                        bridgeWaypointScale: 1,
+                        bridgeWaypointPhase: 0.36,
                     };
                     didRetargetThisFrame = true;
                 }
@@ -2022,7 +2110,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         focusBlock,
                         resolvePrintedGraphemeCount(
                             focusBlock.line,
-                            focusBlock.variant,
                             focusBlock.wordRanges,
                             focusBlock.graphemes.length,
                             time,
@@ -2032,7 +2119,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         focusBlock,
                         resolvePrintedGraphemeProgress(
                             focusBlock.line,
-                            focusBlock.variant,
                             focusBlock.wordRanges,
                             focusBlock.graphemes.length,
                             time,
@@ -2051,7 +2137,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         fromX: cameraRef.current.x,
                         fromY: cameraRef.current.y,
                         fromScale: cameraRef.current.scale,
-                        useLinearBridge: false,
+                        bridgeMode: 'none',
+                        bridgeWaypointX: 0,
+                        bridgeWaypointY: 0,
+                        bridgeWaypointScale: 1,
+                        bridgeWaypointPhase: 0.36,
                     };
                     didRetargetThisFrame = true;
                 }
@@ -2063,7 +2153,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     fromX: cameraRef.current.x,
                     fromY: cameraRef.current.y,
                     fromScale: cameraRef.current.scale,
-                    useLinearBridge: false,
+                    bridgeMode: 'none',
+                    bridgeWaypointX: 0,
+                    bridgeWaypointY: 0,
+                    bridgeWaypointScale: 1,
+                    bridgeWaypointPhase: 0.36,
                 };
                 didRetargetThisFrame = true;
             }
@@ -2118,28 +2212,36 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const screenDeltaX = Math.abs(targetCameraX - cameraRetargetRef.current.fromX) * bridgeScale;
                 const screenDeltaY = Math.abs(targetCameraY - cameraRetargetRef.current.fromY) * bridgeScale;
                 const screenDistance = Math.hypot(screenDeltaX, screenDeltaY);
-                cameraRetargetRef.current.useLinearBridge = screenDistance >= Math.min(viewport.width, viewport.height) * 0.42;
+                cameraRetargetRef.current.bridgeMode = screenDistance >= Math.min(viewport.width, viewport.height) * 0.42
+                    ? 'direct'
+                    : 'none';
+                cameraRetargetRef.current.bridgeWaypointX = targetCameraX;
+                cameraRetargetRef.current.bridgeWaypointY = targetCameraY;
+                cameraRetargetRef.current.bridgeWaypointScale = targetCameraScale;
+                cameraRetargetRef.current.bridgeWaypointPhase = 0.5;
 
                 if (cameraRetargetRef.current.sourceLineIndex >= 0) {
-                    const teleportStart = resolveCameraTeleportStart({
+                    const overviewFlightBridge = resolveOverviewFlightBridge({
                         fromX: cameraRetargetRef.current.fromX,
                         fromY: cameraRetargetRef.current.fromY,
+                        fromScale: cameraRetargetRef.current.fromScale,
                         targetX: targetCameraX,
                         targetY: targetCameraY,
-                        scale: bridgeScale,
+                        targetScale: targetCameraScale,
+                        overviewCamera,
                         viewport,
                     });
 
-                    if (teleportStart) {
-                        cameraRef.current.x = clamp(teleportStart.x, 0, article.width);
-                        cameraRef.current.y = clamp(teleportStart.y, 0, article.height);
-                        cameraRef.current.focusX = cameraRef.current.x;
-                        cameraRef.current.focusY = cameraRef.current.y;
-                        cameraRef.current.velocityX = 0;
-                        cameraRef.current.velocityY = 0;
-                        cameraRetargetRef.current.fromX = cameraRef.current.x;
-                        cameraRetargetRef.current.fromY = cameraRef.current.y;
-                        cameraRetargetRef.current.useLinearBridge = true;
+                    if (overviewFlightBridge) {
+                        cameraRetargetRef.current.bridgeMode = 'overview';
+                        cameraRetargetRef.current.bridgeWaypointX = overviewFlightBridge.waypointX;
+                        cameraRetargetRef.current.bridgeWaypointY = overviewFlightBridge.waypointY;
+                        cameraRetargetRef.current.bridgeWaypointScale = overviewFlightBridge.waypointScale;
+                        cameraRetargetRef.current.bridgeWaypointPhase = overviewFlightBridge.waypointPhase;
+                        cameraRetargetRef.current.duration = Math.max(
+                            cameraRetargetRef.current.duration,
+                            clamp(overviewFlightBridge.duration / cameraSpeed, 0.16, 0.9),
+                        );
                     }
                 }
             }
@@ -2148,14 +2250,45 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 targetCameraX - cameraRef.current.x,
                 targetCameraY - cameraRef.current.y,
             );
-            const shouldUseLinearBridge = cameraRetargetRef.current.useLinearBridge && retargetPhase < 1;
+            const shouldUseBridge = cameraRetargetRef.current.bridgeMode !== 'none' && retargetPhase < 1;
 
-            if (shouldUseLinearBridge) {
-                const bridgePhase = easeInOutCubic(retargetPhase);
-                const bridgedCameraX = mix(cameraRetargetRef.current.fromX, targetCameraX, bridgePhase);
-                const bridgedCameraY = mix(cameraRetargetRef.current.fromY, targetCameraY, bridgePhase);
-                const bridgedCameraScale = mix(cameraRetargetRef.current.fromScale, targetCameraScale, bridgePhase);
-                const bridgeCatchUp = 1 - Math.exp(-dt * mix(10.5, 17.5, 1 - retargetPhase));
+            if (shouldUseBridge) {
+                let bridgedCameraX = targetCameraX;
+                let bridgedCameraY = targetCameraY;
+                let bridgedCameraScale = targetCameraScale;
+
+                if (cameraRetargetRef.current.bridgeMode === 'overview') {
+                    const bridgePhase = easeOutCubic(retargetPhase);
+                    bridgedCameraX = quadraticBezier(
+                        cameraRetargetRef.current.fromX,
+                        cameraRetargetRef.current.bridgeWaypointX,
+                        targetCameraX,
+                        bridgePhase,
+                    );
+                    bridgedCameraY = quadraticBezier(
+                        cameraRetargetRef.current.fromY,
+                        cameraRetargetRef.current.bridgeWaypointY,
+                        targetCameraY,
+                        bridgePhase,
+                    );
+                    bridgedCameraScale = quadraticBezier(
+                        cameraRetargetRef.current.fromScale,
+                        cameraRetargetRef.current.bridgeWaypointScale,
+                        targetCameraScale,
+                        bridgePhase,
+                    );
+                } else {
+                    const bridgePhase = easeInOutCubic(retargetPhase);
+                    bridgedCameraX = mix(cameraRetargetRef.current.fromX, targetCameraX, bridgePhase);
+                    bridgedCameraY = mix(cameraRetargetRef.current.fromY, targetCameraY, bridgePhase);
+                    bridgedCameraScale = mix(cameraRetargetRef.current.fromScale, targetCameraScale, bridgePhase);
+                }
+
+                const bridgeCatchUp = 1 - Math.exp(-dt * (
+                    cameraRetargetRef.current.bridgeMode === 'overview'
+                        ? mix(12.5, 22, 1 - retargetPhase)
+                        : mix(10.5, 17.5, 1 - retargetPhase)
+                ));
 
                 cameraRef.current.focusX = bridgedCameraX;
                 cameraRef.current.focusY = bridgedCameraY;
@@ -2168,49 +2301,49 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 cameraRef.current.velocityY *= 0.72;
                 cameraRef.current.velocityScale *= 0.68;
             } else {
-            const boostedCatchUpRate = clamp(
-                4.8 / Math.max(cameraRetargetRef.current.duration, 0.05),
-                20,
-                54,
-            );
-            const targetCatchUp = 1 - Math.exp(-dt * mix(11.2, boostedCatchUpRate, retargetBoost));
-            cameraRef.current.focusX += (targetCameraX - cameraRef.current.focusX) * targetCatchUp;
-            cameraRef.current.focusY += (targetCameraY - cameraRef.current.focusY) * targetCatchUp;
-            cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale)
-                * (1 - Math.exp(-dt * mix(5.4, 12.8, retargetBoost)));
+                const boostedCatchUpRate = clamp(
+                    4.8 / Math.max(cameraRetargetRef.current.duration, 0.05),
+                    20,
+                    54,
+                );
+                const targetCatchUp = 1 - Math.exp(-dt * mix(11.2, boostedCatchUpRate, retargetBoost));
+                cameraRef.current.focusX += (targetCameraX - cameraRef.current.focusX) * targetCatchUp;
+                cameraRef.current.focusY += (targetCameraY - cameraRef.current.focusY) * targetCatchUp;
+                cameraRef.current.focusScale += (targetCameraScale - cameraRef.current.focusScale)
+                    * (1 - Math.exp(-dt * mix(5.4, 12.8, retargetBoost)));
 
-            const springStrength = mix(
-                208,
-                clamp(15.8 / Math.max(cameraRetargetRef.current.duration * cameraRetargetRef.current.duration, 0.0064), 260, 780),
-                retargetBoost,
-            );
-            const damping = mix(
-                24,
-                clamp(Math.sqrt(springStrength) * 1.36, 24, 40),
-                retargetBoost,
-            );
-            const accelX = (cameraRef.current.focusX - cameraRef.current.x) * springStrength - cameraRef.current.velocityX * damping;
-            const accelY = (cameraRef.current.focusY - cameraRef.current.y) * springStrength - cameraRef.current.velocityY * damping;
-            cameraRef.current.velocityX += accelX * dt;
-            cameraRef.current.velocityY += accelY * dt;
-            const maxVelocity = mix(
-                1320,
-                clamp(cameraDistance / Math.max(cameraRetargetRef.current.duration * 0.28, 0.028), 2600, 8800),
-                retargetBoost,
-            );
-            cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -maxVelocity, maxVelocity);
-            cameraRef.current.velocityY = clamp(cameraRef.current.velocityY, -maxVelocity, maxVelocity);
-            cameraRef.current.x += cameraRef.current.velocityX * dt;
-            cameraRef.current.y += cameraRef.current.velocityY * dt;
+                const springStrength = mix(
+                    208,
+                    clamp(15.8 / Math.max(cameraRetargetRef.current.duration * cameraRetargetRef.current.duration, 0.0064), 260, 780),
+                    retargetBoost,
+                );
+                const damping = mix(
+                    24,
+                    clamp(Math.sqrt(springStrength) * 1.36, 24, 40),
+                    retargetBoost,
+                );
+                const accelX = (cameraRef.current.focusX - cameraRef.current.x) * springStrength - cameraRef.current.velocityX * damping;
+                const accelY = (cameraRef.current.focusY - cameraRef.current.y) * springStrength - cameraRef.current.velocityY * damping;
+                cameraRef.current.velocityX += accelX * dt;
+                cameraRef.current.velocityY += accelY * dt;
+                const maxVelocity = mix(
+                    1320,
+                    clamp(cameraDistance / Math.max(cameraRetargetRef.current.duration * 0.28, 0.028), 2600, 8800),
+                    retargetBoost,
+                );
+                cameraRef.current.velocityX = clamp(cameraRef.current.velocityX, -maxVelocity, maxVelocity);
+                cameraRef.current.velocityY = clamp(cameraRef.current.velocityY, -maxVelocity, maxVelocity);
+                cameraRef.current.x += cameraRef.current.velocityX * dt;
+                cameraRef.current.y += cameraRef.current.velocityY * dt;
 
-            const scaleSpringStrength = mix(54, 108, retargetBoost);
-            const scaleDamping = mix(13.5, 21, retargetBoost);
-            const accelScale = (cameraRef.current.focusScale - cameraRef.current.scale) * scaleSpringStrength
-                - cameraRef.current.velocityScale * scaleDamping;
-            cameraRef.current.velocityScale += accelScale * dt;
-            cameraRef.current.velocityScale = clamp(cameraRef.current.velocityScale, -1.6, 1.6);
-            cameraRef.current.scale += cameraRef.current.velocityScale * dt;
-            cameraRef.current.scale = clamp(cameraRef.current.scale, CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
+                const scaleSpringStrength = mix(54, 108, retargetBoost);
+                const scaleDamping = mix(13.5, 21, retargetBoost);
+                const accelScale = (cameraRef.current.focusScale - cameraRef.current.scale) * scaleSpringStrength
+                    - cameraRef.current.velocityScale * scaleDamping;
+                cameraRef.current.velocityScale += accelScale * dt;
+                cameraRef.current.velocityScale = clamp(cameraRef.current.velocityScale, -1.6, 1.6);
+                cameraRef.current.scale += cameraRef.current.velocityScale * dt;
+                cameraRef.current.scale = clamp(cameraRef.current.scale, CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
             }
 
             const screenScale = cameraRef.current.scale;
@@ -2249,6 +2382,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     theme,
                     time,
                     audioLevels: fumeBackgroundAudioLevels,
+                    objectOpacityMultiplier: backgroundObjectOpacity * 2,
                     parallax: {
                         cameraX: backgroundCameraX,
                         cameraY: backgroundCameraY,
@@ -2296,6 +2430,11 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 const transitionPassedStyle = resolvePassedTextStyle(block.variant, 'standard');
                 const baselineOffset = block.lineHeight * (isCJK(block.line.fullText) ? 0.52 : 0.5);
                 const lineEndTime = getLineRenderEndTime(block.line);
+                const nextLineStartTime = lines[block.sourceLineIndex + 1]?.startTime ?? null;
+                const linePassCutoffTime = resolveLinePassCutoffTime(block.line, nextLineStartTime);
+                const revealCompleteTime = block.line.endTime;
+                const hasRevealCompleted = time >= revealCompleteTime;
+                const hasPassCutoffReached = time >= linePassCutoffTime;
                 const lineDuration = Math.max(lineEndTime - block.line.startTime, 0.18);
                 const colorTrailDuration = clamp(
                     lineDuration * (block.variant === 'hero' ? 0.42 : 0.52),
@@ -2406,7 +2545,6 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
 
                 const printedCount = resolvePrintedGraphemeCount(
                     block.line,
-                    block.variant,
                     block.wordRanges,
                     block.graphemes.length,
                     time,
@@ -2418,10 +2556,15 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 context.textAlign = 'left';
                 context.textBaseline = 'middle';
 
-                const isLineActive = time >= block.line.startTime && time <= lineEndTime;
+                const isLineActive = time >= block.line.startTime && time <= linePassCutoffTime;
                 if (isLineActive) {
-                    const lineProgress = clamp((time - block.line.startTime) / lineDuration, 0, 1);
-                    const lineGlowEnvelope = Math.sin(lineProgress * Math.PI);
+                    const lineProgress = resolveVisualProgressWithCutoff(
+                        block.line.startTime,
+                        lineDuration,
+                        time,
+                        linePassCutoffTime,
+                    );
+                    const lineGlowEnvelope = resolveDelayedGlowEnvelope(lineProgress, 0.8);
                     const lineGlowAlpha = (
                         (block.variant === 'hero' ? 0.16 : 0.12)
                         + lineGlowEnvelope * (block.variant === 'hero' ? 0.26 : 0.2)
@@ -2466,10 +2609,12 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                         const range = rangeIndex >= 0 ? block.wordRanges[rangeIndex]! : null;
                         const colorRangeIndex = block.colorRangeIndexByOffset[globalOffset] ?? -1;
                         const colorRange = colorRangeIndex >= 0 ? block.wordRanges[colorRangeIndex]! : range;
-                        const isPrinted = globalOffset < printedCount;
+                        const isPrinted = hasRevealCompleted || globalOffset < printedCount;
                         const isFrontier = printedCount > 0
                             && globalOffset === printedCount
-                            && printedCount < totalGraphemeCount;
+                            && printedCount < totalGraphemeCount
+                            && !hasRevealCompleted
+                            && !hasPassCutoffReached;
 
                         let alpha = isPrinted
                             ? activeOpacity
@@ -2495,10 +2640,23 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                             const easedGlyphProgress = easeOutCubic(glyphProgress);
                             const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
                             const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
-                            const colorTrailPhase = clamp((time - glyphTrailStart) / colorTrailDuration, 0, 1);
+                            const colorTrailPhase = resolveVisualProgressWithCutoff(
+                                glyphTrailStart,
+                                colorTrailDuration,
+                                time,
+                                linePassCutoffTime,
+                            );
                             const colorTrailProgress = Math.pow(colorTrailPhase, 1.35);
 
-                            if (time < range.word.startTime) {
+                            if (hasPassCutoffReached) {
+                                alpha = mix(activeOpacity, transitionPassedStyle.opacity, colorTrailProgress);
+                                fillStyle = mixColors(activeColor, theme.primaryColor, 0.18 + colorTrailProgress * 0.82, alpha);
+                                shadowBlur = (2 + block.fontPx * 0.1) * (1 - colorTrailProgress * 0.35) * passedGlowBase * transitionPassedStyle.glowMultiplier;
+                                shadowColor = colorWithAlpha(
+                                    mixColors(activeColor, theme.primaryColor, 0.55 + colorTrailProgress * 0.45),
+                                    transitionPassedStyle.shadowAlphaBase + (1 - colorTrailProgress) * transitionPassedStyle.shadowAlphaTrail,
+                                );
+                            } else if (time < range.word.startTime) {
                                 alpha = waitingOpacity;
                                 fillStyle = colorWithAlpha(theme.primaryColor, alpha);
                             } else if (time <= glyphTrailStart) {
@@ -2527,32 +2685,34 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                                 const activationWindowStart = glyphTrailStart - activationLeadDuration;
                                 const activationWindowEnd = glyphTrailStart + activationReleaseDuration;
                                 const glyphAdvance = resolveGlyphAdvance(renderLine, graphemeIndex);
-                                const stampProgress = clamp(
-                                    (time - activationWindowStart) / Math.max(activationWindowEnd - activationWindowStart, 0.001),
-                                    0,
-                                    1,
+                                const stampProgress = resolveVisualProgressWithCutoff(
+                                    activationWindowStart,
+                                    activationWindowEnd - activationWindowStart,
+                                    time,
+                                    linePassCutoffTime,
                                 );
 
                                 if (stampProgress > 0 && stampProgress < 1) {
-                                    const isDropping = time <= glyphTrailStart;
+                                    const glyphTrailPhase = resolveVisualProgressWithCutoff(
+                                        glyphTrailStart,
+                                        Math.max(activationWindowEnd - glyphTrailStart, 0.001),
+                                        time,
+                                        linePassCutoffTime,
+                                    );
+                                    const isDropping = glyphTrailPhase <= 0;
                                     const dropProgress = isDropping
                                         ? easeOutCubic(
-                                            clamp(
-                                                (time - activationWindowStart) / Math.max(glyphTrailStart - activationWindowStart, 0.001),
-                                                0,
-                                                1,
+                                            resolveVisualProgressWithCutoff(
+                                                activationWindowStart,
+                                                Math.max(glyphTrailStart - activationWindowStart, 0.001),
+                                                time,
+                                                linePassCutoffTime,
                                             ),
                                         )
                                         : 1;
                                     const fadeProgress = isDropping
                                         ? 0
-                                        : easeInOutCubic(
-                                            clamp(
-                                                (time - glyphTrailStart) / Math.max(activationWindowEnd - glyphTrailStart, 0.001),
-                                                0,
-                                                1,
-                                            ),
-                                        );
+                                        : easeInOutCubic(glyphTrailPhase);
                                     const blockPulse = isDropping
                                         ? mix(0.18, 1, Math.pow(dropProgress, 0.78))
                                         : Math.pow(1 - fadeProgress, 1.2);
@@ -2622,6 +2782,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         audioBands,
         audioPower,
         backgroundScene,
+        backgroundObjectOpacity,
         cameraSpeed,
         currentTime,
         glowIntensity,
@@ -2721,6 +2882,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 translationFontSize={translationFontSize}
                 upcomingFontSize={upcomingFontSize}
                 opacity={0.48}
+                isPlayerChromeHidden={isPlayerChromeHidden}
             />
         </VisualizerShell>
     );

@@ -34,6 +34,7 @@ export interface VisualizerSharedProps {
     staticMode?: boolean;
     backgroundOpacity?: number;
     lyricsFontScale?: number;
+    isPlayerChromeHidden?: boolean;
     onBack?: () => void;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
@@ -66,6 +67,7 @@ const renderClassic = ({
     staticMode,
     backgroundOpacity,
     lyricsFontScale,
+    isPlayerChromeHidden,
     onBack,
 }: VisualizerSharedProps) => (
     <Visualizer
@@ -82,6 +84,7 @@ const renderClassic = ({
         staticMode={staticMode}
         backgroundOpacity={backgroundOpacity}
         lyricsFontScale={lyricsFontScale}
+        isPlayerChromeHidden={isPlayerChromeHidden}
         onBack={onBack}
     />
 );
@@ -100,6 +103,7 @@ const renderCadenza = ({
     staticMode,
     backgroundOpacity,
     lyricsFontScale = 1,
+    isPlayerChromeHidden,
     onBack,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
 }: VisualizerSharedProps) => (
@@ -122,6 +126,7 @@ const renderCadenza = ({
             fontScale: cadenzaTuning.fontScale * lyricsFontScale,
         }}
         lyricsFontScale={lyricsFontScale}
+        isPlayerChromeHidden={isPlayerChromeHidden}
         onBack={onBack}
     />
 );
@@ -140,6 +145,7 @@ const renderPartita = ({
     staticMode,
     backgroundOpacity,
     lyricsFontScale,
+    isPlayerChromeHidden,
     onBack,
     partitaTuning,
 }: VisualizerSharedProps) => (
@@ -158,6 +164,7 @@ const renderPartita = ({
         backgroundOpacity={backgroundOpacity}
         partitaTuning={partitaTuning}
         lyricsFontScale={lyricsFontScale}
+        isPlayerChromeHidden={isPlayerChromeHidden}
         onBack={onBack}
     />
 );
@@ -176,6 +183,7 @@ const renderFume = ({
     staticMode,
     backgroundOpacity,
     lyricsFontScale,
+    isPlayerChromeHidden,
     onBack,
     fumeTuning,
 }: VisualizerSharedProps) => (
@@ -194,6 +202,7 @@ const renderFume = ({
         backgroundOpacity={backgroundOpacity}
         lyricsFontScale={lyricsFontScale}
         fumeTuning={fumeTuning}
+        isPlayerChromeHidden={isPlayerChromeHidden}
         onBack={onBack}
     />
 );

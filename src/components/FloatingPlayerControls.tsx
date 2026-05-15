@@ -126,15 +126,19 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
 
-    if (isHidden) {
-        return null;
-    }
-
     return (
         <>
-            <div
+            <motion.div
                 className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-60 w-full flex justify-center transition-all duration-300 pointer-events-none
                     ${currentView === 'home' ? 'max-w-[calc(100vw-120px)] md:max-w-lg' : 'max-w-lg px-4'}`}
+                initial={false}
+                animate={{
+                    opacity: isHidden ? 0 : 1,
+                    y: isHidden ? 24 : 0,
+                    scale: isHidden ? 0.97 : 1,
+                }}
+                transition={{ duration: 0.26, ease: 'easeOut' }}
+                style={{ pointerEvents: isHidden ? 'none' : 'auto' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
@@ -186,7 +190,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         </motion.div>
                     </motion.div>
                 </div>
-            </div>
+            </motion.div>
 
             <LyricsTimelineModal
                 isOpen={isTimelineOpen}

@@ -268,6 +268,7 @@ export default {
     "fumeSettingsDesc": "控制打印方块、镜头节奏、追焦方式、辉光和大标题比例。",
     "fumeHidePrintSymbols": "隐藏打印方块",
     "fumeGeometricBackground": "通用几何图形",
+    "fumeBackgroundObjectOpacity": "世界背景物体透明度",
     "fumeTextHoldRatio": "文字停留比例",
     "fumeCameraSpeed": "摄影机移动速度",
     "fumeCameraTrackingMode": "摄影机追焦方式",

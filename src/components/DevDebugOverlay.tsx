@@ -122,10 +122,124 @@ const DebugRow: React.FC<{ label: string; value: string; }> = ({ label, value })
     );
 };
 
-const DebugLineBlock: React.FC<{ label: string; line: DevDebugLineSnapshot | null; isDaylight: boolean; }> = ({ label, line, isDaylight }) => {
+interface LyricStatusPill {
+    key: string;
+    label: string;
+    value?: string;
+    tone: 'slate' | 'blue' | 'amber' | 'emerald' | 'rose';
+}
+
+const buildLyricStatusPills = (
+    line: DevDebugLineSnapshot | null,
+    currentTime: number,
+    nextLineStartTime: number | null | undefined,
+): LyricStatusPill[] => {
+    if (!line) {
+        return [];
+    }
+
+    const startTime = line.startTime;
+    const endTime = line.endTime;
+    const renderEndTime = line.renderEndTime;
+    const hasCompleteTiming = [startTime, endTime, renderEndTime].every(value => typeof value === 'number' && Number.isFinite(value));
+
+    if (!hasCompleteTiming) {
+        return [
+            { key: 'timing', label: 'Timing', value: 'N/A', tone: 'slate' },
+        ];
+    }
+
+    const start = startTime as number;
+    const end = endTime as number;
+    const renderEnd = renderEndTime as number;
+    const revealLag = renderEnd - end;
+
+    const phase: LyricStatusPill = currentTime < start
+        ? { key: 'phase', label: 'Phase', value: 'Before Start', tone: 'slate' }
+        : currentTime < end
+            ? { key: 'phase', label: 'Phase', value: 'Reveal Active', tone: 'blue' }
+            : currentTime < renderEnd
+                ? { key: 'phase', label: 'Phase', value: 'Past End / Hold', tone: 'amber' }
+                : { key: 'phase', label: 'Phase', value: 'Past RenderEnd', tone: 'emerald' };
+
+    const revealState: LyricStatusPill = currentTime < end
+        ? { key: 'reveal', label: 'Reveal', value: 'Incomplete', tone: 'rose' }
+        : { key: 'reveal', label: 'Reveal', value: 'Completed', tone: 'emerald' };
+
+    const holdState: LyricStatusPill = renderEnd > end
+        ? currentTime < end
+            ? { key: 'hold', label: 'Render Hold', value: `+${(revealLag).toFixed(3)}s`, tone: 'amber' }
+            : currentTime < renderEnd
+                ? { key: 'hold', label: 'Render Hold', value: `${(renderEnd - currentTime).toFixed(3)}s left`, tone: 'amber' }
+                : { key: 'hold', label: 'Render Hold', value: 'Consumed', tone: 'slate' }
+        : { key: 'hold', label: 'Render Hold', value: 'None', tone: 'slate' };
+
+    const cutoffState: LyricStatusPill = typeof nextLineStartTime === 'number' && Number.isFinite(nextLineStartTime)
+        ? nextLineStartTime < renderEnd
+            ? {
+                key: 'cutoff',
+                label: 'RenderEnd Cutoff',
+                value: `${formatSeconds(renderEnd)} -> ${formatSeconds(nextLineStartTime)}`,
+                tone: 'rose',
+            }
+            : {
+                key: 'cutoff',
+                label: 'RenderEnd Cutoff',
+                value: `No (${formatSeconds(nextLineStartTime)} >= ${formatSeconds(renderEnd)})`,
+                tone: 'emerald',
+            }
+        : {
+            key: 'cutoff',
+            label: 'RenderEnd Cutoff',
+            value: 'N/A',
+            tone: 'slate',
+        };
+
+    const currentMarker: LyricStatusPill = currentTime < end
+        ? { key: 'marker', label: 'Current vs End', value: `${(end - currentTime).toFixed(3)}s left`, tone: 'blue' }
+        : currentTime < renderEnd
+            ? { key: 'marker', label: 'Current vs End', value: `+${(currentTime - end).toFixed(3)}s`, tone: 'amber' }
+            : { key: 'marker', label: 'Current vs End', value: `+${(currentTime - end).toFixed(3)}s`, tone: 'slate' };
+
+    return [phase, revealState, cutoffState, holdState, currentMarker];
+};
+
+const DebugStatusPill: React.FC<{ pill: LyricStatusPill; isDaylight: boolean; }> = ({ pill, isDaylight }) => {
+    const toneClassMap = isDaylight
+        ? {
+            slate: 'bg-zinc-900/8 text-zinc-800',
+            blue: 'bg-sky-500/18 text-sky-900',
+            amber: 'bg-amber-500/20 text-amber-950',
+            emerald: 'bg-emerald-500/18 text-emerald-900',
+            rose: 'bg-rose-500/18 text-rose-900',
+        }
+        : {
+            slate: 'bg-white/10 text-zinc-100',
+            blue: 'bg-sky-400/20 text-sky-100',
+            amber: 'bg-amber-400/20 text-amber-100',
+            emerald: 'bg-emerald-400/20 text-emerald-100',
+            rose: 'bg-rose-400/20 text-rose-100',
+        };
+
+    return (
+        <div className={`rounded-full px-2.5 py-1 text-[10px] leading-tight ${toneClassMap[pill.tone]}`}>
+            <span className="uppercase tracking-[0.14em] opacity-70">{pill.label}</span>
+            {pill.value ? <span className="ml-1 font-semibold">{pill.value}</span> : null}
+        </div>
+    );
+};
+
+const DebugLineBlock: React.FC<{ label: string; line: DevDebugLineSnapshot | null; isDaylight: boolean; currentTime: number; nextLineStartTime?: number | null; }> = ({
+    label,
+    line,
+    isDaylight,
+    currentTime,
+    nextLineStartTime,
+}) => {
     const blockClass = isDaylight
         ? 'border-black/10 bg-black/[0.04]'
         : 'border-white/10 bg-black/15';
+    const statusPills = buildLyricStatusPills(line, currentTime, nextLineStartTime);
 
     if (!line) {
         return (
@@ -139,6 +253,13 @@ const DebugLineBlock: React.FC<{ label: string; line: DevDebugLineSnapshot | nul
     return (
         <section className={`rounded-xl border px-3 py-2 ${blockClass}`}>
             <div className="text-[10px] uppercase tracking-[0.16em] opacity-60">{label}</div>
+            {statusPills.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {statusPills.map(pill => (
+                        <DebugStatusPill key={pill.key} pill={pill} isDaylight={isDaylight} />
+                    ))}
+                </div>
+            ) : null}
             <div className="mt-1 text-[11px] font-medium whitespace-pre-wrap break-words">
                 {line.text || 'N/A'}
             </div>
@@ -441,8 +562,20 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
 
                 {activeTab === 'lyrics' && (
                     <div className="mt-3 grid gap-2">
-                        <DebugLineBlock label="Current Line" line={snapshot.activeLine} isDaylight={isDaylight} />
-                        <DebugLineBlock label="Next Line" line={snapshot.nextLine} isDaylight={isDaylight} />
+                        <DebugLineBlock
+                            label="Current Line"
+                            line={snapshot.activeLine}
+                            isDaylight={isDaylight}
+                            currentTime={liveCurrentTime}
+                            nextLineStartTime={snapshot.nextLine?.startTime ?? null}
+                        />
+                        <DebugLineBlock
+                            label="Next Line"
+                            line={snapshot.nextLine}
+                            isDaylight={isDaylight}
+                            currentTime={liveCurrentTime}
+                            nextLineStartTime={null}
+                        />
                     </div>
                 )}
             </div>
