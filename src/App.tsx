@@ -42,6 +42,7 @@ import { ensureLyricDataRenderHints, getLineRenderHints, migrateLyricDataRenderH
 import { migrateMatchedLyricsCarrierRenderHints } from './utils/lyrics/storageMigration';
 import { processNeteaseLyrics } from './utils/lyrics/neteaseProcessing';
 import { applyLyricDisplayFilter } from './utils/lyrics/filtering';
+import { buildNowPlayingLyricSource } from './utils/lyrics/nowPlayingSource';
 import { NowPlayingProvider } from './services/nowPlayingProvider';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
@@ -274,42 +275,6 @@ const buildStageEntryKey = (entryKind: StageStatus['activeEntryKind'], lyricsSes
     }
 
     return null;
-};
-
-const isNeteaseNowPlayingSource = (source: string | null | undefined) => source === 'netease' || source === 'neteasecloudmusic';
-
-const buildNowPlayingLyricSource = (payload: NowPlayingLyricPayload): StageLyricsSession['lyricSource'] | null => {
-    const translatedLyric = payload.translatedLyric?.trim() || undefined;
-    const karaokeLyric = payload.karaokeLyric?.trim() || '';
-    const lrc = payload.lrc?.trim() || '';
-
-    if (payload.hasKaraokeLyric && karaokeLyric) {
-        if (isNeteaseNowPlayingSource(payload.source)) {
-            return {
-                type: 'local',
-                lrcContent: karaokeLyric,
-                ...(translatedLyric ? { tLrcContent: translatedLyric } : {}),
-                formatHint: 'yrc',
-            };
-        }
-
-        return {
-            type: 'qrc',
-            qrcContent: karaokeLyric,
-            ...(translatedLyric ? { translationContent: translatedLyric } : {}),
-        };
-    }
-
-    if (!payload.hasLyric || !lrc) {
-        return null;
-    }
-
-    return {
-        type: 'local',
-        lrcContent: lrc,
-        ...(translatedLyric ? { tLrcContent: translatedLyric } : {}),
-        formatHint: 'lrc',
-    };
 };
 
 const resolveDebugSongSource = (song: SongResult | null): 'none' | 'local' | 'navidrome' | 'online' => {
