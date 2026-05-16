@@ -51,6 +51,31 @@ export type NowPlayingProviderSnapshot = {
     progressMs: number;
 };
 
+const decodeXmlEntities = (value: string): string => {
+    return value
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&#10;|&#x0A;/gi, '\n')
+        .replace(/&#13;|&#x0D;/gi, '\r');
+};
+
+const extractQrcLyricContent = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('<?xml') && !trimmed.includes('<Lyric_')) {
+        return value;
+    }
+
+    const contentMatch = trimmed.match(/LyricContent="([\s\S]*?)"\s*\/?>/i);
+    if (!contentMatch?.[1]) {
+        return value;
+    }
+
+    return decodeXmlEntities(contentMatch[1]).replace(/\r\n/g, '\n');
+};
+
 type NowPlayingProviderCallbacks = {
     onConnectionStatusChange?: (status: NowPlayingConnectionStatus) => void;
     onTrack?: (track: NowPlayingTrackSnapshot | null) => void;
@@ -153,7 +178,9 @@ export const normalizeNowPlayingLyricPayload = (raw: unknown): NowPlayingLyricPa
     const lyric = raw as NowPlayingLyricMessage;
     const lrc = typeof lyric.lrc === 'string' ? lyric.lrc : '';
     const translatedLyric = typeof lyric.translatedLyric === 'string' ? lyric.translatedLyric : '';
-    const karaokeLyric = typeof lyric.karaokeLyric === 'string' ? lyric.karaokeLyric : '';
+    const karaokeLyric = typeof lyric.karaokeLyric === 'string'
+        ? extractQrcLyricContent(lyric.karaokeLyric)
+        : '';
     const hasUsableLyric = Boolean(lrc.trim() || translatedLyric.trim() || karaokeLyric.trim());
 
     if (!hasUsableLyric && !lyric.hasLyric && !lyric.hasKaraokeLyric) {

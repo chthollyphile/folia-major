@@ -553,19 +553,60 @@ export const parseQRC = (
 
         const words: Word[] = [];
         let fullText = '';
+        const tagRegex = /\((\d+),(\d+)(?:,\d+)?\)/g;
+        const tags: Array<{ startMs: number; durationMs: number; tagStart: number; tagEnd: number; }> = [];
+        let tagMatch: RegExpExecArray | null;
 
-        const wordRegex = /\((\d+),(\d+)(?:,\d+)?\)([^\(]*)/g;
-        let wordMatch: RegExpExecArray | null;
+        while ((tagMatch = tagRegex.exec(rest)) !== null) {
+            tags.push({
+                startMs: parseInt(tagMatch[1], 10),
+                durationMs: parseInt(tagMatch[2], 10),
+                tagStart: tagMatch.index,
+                tagEnd: tagMatch.index + tagMatch[0].length,
+            });
+        }
 
-        while ((wordMatch = wordRegex.exec(rest)) !== null) {
-            const wordStartMs = parseInt(wordMatch[1], 10);
-            const wordDurationMs = parseInt(wordMatch[2], 10);
-            const text = wordMatch[3];
+        if (tags.length === 0) {
+            continue;
+        }
+
+        const textChunks: string[] = [];
+        let cursor = 0;
+        for (const tag of tags) {
+            textChunks.push(rest.slice(cursor, tag.tagStart));
+            cursor = tag.tagEnd;
+        }
+        textChunks.push(rest.slice(cursor));
+
+        const prefersLeadingText = textChunks[0].trim().length > 0 && textChunks[textChunks.length - 1].trim().length === 0;
+        const prefersTrailingText = textChunks[0].trim().length === 0 && textChunks[textChunks.length - 1].trim().length > 0;
+
+        for (let index = 0; index < tags.length; index += 1) {
+            const tag = tags[index];
+            const leadingText = textChunks[index] ?? '';
+            const trailingText = textChunks[index + 1] ?? '';
+            let text = '';
+
+            if (prefersLeadingText) {
+                text = leadingText;
+            } else if (prefersTrailingText) {
+                text = trailingText;
+            } else if (trailingText.trim().length > 0 && leadingText.trim().length === 0) {
+                text = trailingText;
+            } else if (leadingText.trim().length > 0 && trailingText.trim().length === 0) {
+                text = leadingText;
+            } else {
+                text = trailingText.length >= leadingText.length ? trailingText : leadingText;
+            }
+
+            if (!text) {
+                continue;
+            }
 
             words.push({
                 text,
-                startTime: wordStartMs / 1000,
-                endTime: (wordStartMs + wordDurationMs) / 1000
+                startTime: tag.startMs / 1000,
+                endTime: (tag.startMs + tag.durationMs) / 1000
             });
             fullText += text;
         }

@@ -79,6 +79,20 @@ describe('parserCore', () => {
         expectNonDecreasingWordTimes(lyrics.lines[0].words);
     });
 
+    it('parses QRC when text appears before each timing tag', () => {
+        const lyrics = parseQRC(
+            '[1000,800]你(1000,250)好(1250,250)',
+            '[00:01.00]hello'
+        );
+
+        expect(lyrics.lines).toHaveLength(1);
+        expect(lyrics.lines[0].fullText).toBe('你好');
+        expect(lyrics.lines[0].translation).toBe('hello');
+        expect(lyrics.lines[0].words.map(word => word.text)).toEqual(['你', '好']);
+        expect(lyrics.lines[0].words[0].startTime).toBe(1);
+        expect(lyrics.lines[0].words[1].startTime).toBe(1.25);
+    });
+
     it('parses VTT cues and strips cue markup', () => {
         const lyrics = parseVTT(
             'WEBVTT\n\n00:00.000 --> 00:01.500\n<c.red>Hello&nbsp;&amp; hi</c>',

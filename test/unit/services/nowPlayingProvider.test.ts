@@ -41,4 +41,24 @@ describe('nowPlayingProvider', () => {
         expect(lyric?.translatedLyric).toContain('你好');
         expect(lyric?.karaokeLyric).toContain('(1000,250)');
     });
+
+    it('extracts qrc lyric content from now-playing xml payloads', () => {
+        const lyric = normalizeNowPlayingLyricPayload({
+            source: 'QQ',
+            hasKaraokeLyric: true,
+            karaokeLyric: `<?xml version="1.0" encoding="utf-8"?>
+<QrcInfos>
+<LyricInfo LyricCount="1">
+<Lyric_1 LyricType="1" LyricContent="[ti:Song]
+[ar:Artist]
+[1000,800]你(1000,250)好(1250,250)"/>
+</LyricInfo>
+</QrcInfos>`,
+        });
+
+        expect(lyric?.karaokeLyric).toContain('[ti:Song]');
+        expect(lyric?.karaokeLyric).toContain('[1000,800]你(1000,250)好(1250,250)');
+        expect(lyric?.karaokeLyric).not.toContain('<?xml');
+        expect(lyric?.karaokeLyric).not.toContain('<Lyric_1');
+    });
 });
