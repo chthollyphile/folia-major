@@ -32,6 +32,7 @@ interface VisualizerPartitaProps {
     partitaTuning?: PartitaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    paused?: boolean;
     onBack?: () => void;
 }
 
@@ -696,6 +697,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
     partitaTuning = DEFAULT_PARTITA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
+    paused = false,
     onBack,
 }) => {
     const { t } = useTranslation();
@@ -935,6 +937,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            paused={paused}
             onBack={onBack}
         >
             <motion.div

@@ -569,6 +569,7 @@ export default function App() {
         setAudioQuality,
         useCoverColorBg,
         staticMode,
+        enableHomeDynamicBackground,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -586,6 +587,7 @@ export default function App() {
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
+        handleToggleHomeDynamicBackground,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,
@@ -4380,6 +4382,7 @@ export default function App() {
         nextLine: toDebugLineSnapshot(debugNextLine),
     };
     const isPlayerView = currentView === 'player';
+    const shouldPauseVisualizerBackground = currentView !== 'player' && !enableHomeDynamicBackground;
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
     const canToggleCurrentPlayback = !isNowPlayingControlDisabled && Boolean(
         audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
@@ -4554,7 +4557,7 @@ export default function App() {
                     useCoverColorBg={useCoverColorBg}
                     seed={visualizerGeometrySeed}
                     staticMode={staticMode}
-                    paused={currentView !== 'player'}
+                    paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
@@ -4625,7 +4628,9 @@ export default function App() {
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
                             staticMode={staticMode}
+                            enableHomeDynamicBackground={enableHomeDynamicBackground}
                             onToggleStaticMode={handleToggleStaticMode}
+                            onToggleHomeDynamicBackground={handleToggleHomeDynamicBackground}
                             enableMediaCache={enableMediaCache}
                             onToggleMediaCache={handleToggleMediaCache}
                             theme={theme}

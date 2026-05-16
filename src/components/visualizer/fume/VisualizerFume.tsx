@@ -34,6 +34,7 @@ interface VisualizerProps {
     lyricsFontScale?: number;
     fumeTuning?: FumeTuning;
     isPlayerChromeHidden?: boolean;
+    paused?: boolean;
     onBack?: () => void;
 }
 
@@ -1948,6 +1949,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     lyricsFontScale = 1,
     fumeTuning,
     isPlayerChromeHidden = false,
+    paused = false,
     onBack,
 }) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -2252,7 +2254,9 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                     context.restore();
                 }
 
-                frameId = window.requestAnimationFrame(draw);
+                if (!paused) {
+                    frameId = window.requestAnimationFrame(draw);
+                }
                 return;
             }
 
@@ -3003,7 +3007,9 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             }
             context.restore();
 
-            frameId = window.requestAnimationFrame(draw);
+            if (!paused) {
+                frameId = window.requestAnimationFrame(draw);
+            }
         };
 
         draw();
@@ -3023,6 +3029,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
         passedFadeDuration,
         showPrintStamp,
         showText,
+        paused,
         staticMode,
         textHoldRatio,
         theme,
@@ -3041,6 +3048,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             staticMode={staticMode}
             disableGeometricBackground={resolvedFumeTuning.disableGeometricBackground}
             backgroundOpacity={backgroundOpacity}
+            paused={paused}
             onBack={onBack}
         >
             <div ref={viewportRef} className="relative z-10 h-full w-full pointer-events-none">

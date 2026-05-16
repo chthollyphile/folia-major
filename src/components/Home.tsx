@@ -68,7 +68,9 @@ interface HomeProps {
     pendingNavidromeSelection?: NavidromeViewSelection | null;
     onPendingNavidromeSelectionHandled?: () => void;
     staticMode?: boolean;
+    enableHomeDynamicBackground?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
+    onToggleHomeDynamicBackground?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme: Theme;
@@ -158,7 +160,9 @@ const Home: React.FC<HomeProps> = ({
     pendingNavidromeSelection = null,
     onPendingNavidromeSelectionHandled,
     staticMode = false,
+    enableHomeDynamicBackground = false,
     onToggleStaticMode,
+    onToggleHomeDynamicBackground,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -945,7 +949,9 @@ const Home: React.FC<HomeProps> = ({
                                 onClose={() => setShowHelpModal(false)}
                                 initialTab={helpModalInitialTabRef.current}
                                 staticMode={staticMode}
+                                enableHomeDynamicBackground={enableHomeDynamicBackground}
                                 onToggleStaticMode={onToggleStaticMode}
+                                onToggleHomeDynamicBackground={onToggleHomeDynamicBackground}
                                 enableMediaCache={enableMediaCache}
                                 onToggleMediaCache={onToggleMediaCache}
                                 theme={theme}

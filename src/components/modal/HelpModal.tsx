@@ -17,7 +17,9 @@ interface HelpModalProps {
     onClose: () => void;
     initialTab?: 'help' | 'options';
     staticMode?: boolean;
+    enableHomeDynamicBackground?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
+    onToggleHomeDynamicBackground?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
@@ -70,7 +72,9 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onClose,
     initialTab = 'help',
     staticMode = false,
+    enableHomeDynamicBackground = false,
     onToggleStaticMode,
+    onToggleHomeDynamicBackground,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -1483,7 +1487,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     启用 Now Playing
                                                 </div>
                                                 <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    开启后首页显示舞台入口，并通过本机 `localhost` 连接 now-playing 服务。
+                                                    开启后首页显示舞台入口，并通过本机 localhost 连接 now-playing 服务。
                                                 </div>
                                             </div>
                                             <button
@@ -1647,6 +1651,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                     onToggleStaticMode?.(false);
+                                    onToggleHomeDynamicBackground?.(false);
                                     onToggleOpenPanelCloseButton(true);
                                 }}
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
@@ -1678,6 +1683,28 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         style={{ backgroundColor: staticMode ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                     >
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${staticMode ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <PlayCircle size={14} />
+                                            {t('options.enableHomeDynamicBackground') || '启用主页动态背景'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.enableHomeDynamicBackgroundDesc') || '允许主页继续播放背景动画。'}
+                                        </div>
+                                        <div className="text-[11px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.enableHomeDynamicBackgroundWarning') || '会严重消耗 GPU 资源，默认关闭。'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => onToggleHomeDynamicBackground?.(!enableHomeDynamicBackground)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableHomeDynamicBackground ? toggleOffBackgroundClass : ''}`}
+                                        style={{ backgroundColor: enableHomeDynamicBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableHomeDynamicBackground ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
 

@@ -174,6 +174,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     });
     const [useCoverColorBg, setUseCoverColorBg] = useState(() => getStoredBoolean('use_cover_color_bg', false));
     const [staticMode, setStaticMode] = useState(() => getStoredBoolean('static_mode', false));
+    const [enableHomeDynamicBackground, setEnableHomeDynamicBackground] = useState(() => getStoredBoolean('enable_home_dynamic_background', false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
         const saved = localStorage.getItem('background_opacity');
@@ -241,6 +242,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '静态模式已开启' : '静态模式已关闭'
+        });
+    };
+
+    const handleToggleHomeDynamicBackground = (enable: boolean) => {
+        setEnableHomeDynamicBackground(enable);
+        localStorage.setItem('enable_home_dynamic_background', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '主页动态背景已开启' : '主页动态背景已关闭',
         });
     };
 
@@ -397,7 +407,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         localStorage.setItem('enable_now_playing_stage', String(enable));
         setStatusMsg({
             type: 'info',
-            text: enable ? '已启用舞台视图入口' : '已关闭舞台视图入口'
+            text: enable ? '舞台模式已启用' : '舞台模式已关闭'
         });
     }, [setStatusMsg]);
 
@@ -429,6 +439,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setAudioQuality,
         useCoverColorBg,
         staticMode,
+        enableHomeDynamicBackground,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -447,6 +458,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
+        handleToggleHomeDynamicBackground,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,

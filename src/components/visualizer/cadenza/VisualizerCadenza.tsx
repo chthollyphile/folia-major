@@ -33,6 +33,7 @@ interface VisualizerProps {
     cadenzaTuning?: CadenzaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    paused?: boolean;
     onBack?: () => void;
 }
 
@@ -1376,6 +1377,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
+    paused = false,
     onBack,
 }) => {
     const { t } = useTranslation();
@@ -1772,6 +1774,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            paused={paused}
             onBack={onBack}
         >
             <div
