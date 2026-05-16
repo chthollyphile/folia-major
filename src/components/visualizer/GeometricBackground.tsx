@@ -9,9 +9,10 @@ interface GeometricBackgroundProps {
   audioBands?: AudioBands;
   seed?: string | number;
   hideShapes?: boolean;
+  paused?: boolean;
 }
 
-const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower, audioBands, seed, hideShapes = false }) => {
+const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower, audioBands, seed, hideShapes = false, paused = false }) => {
   const shapes = useMemo(() => {
     const shapeTypes = ['circle', 'square', 'triangle', 'cross'];
     const availableIcons = theme.lyricsIcons || [];
@@ -70,6 +71,10 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower,
     default: useBandScale(audioPower),
   };
 
+  // paused 时使用静态缩放值，避免 spring 驱动持续更新
+  const staticScale = 1;
+  const getScale = (liveScale: MotionValue<number>) => paused ? staticScale : liveScale;
+
   return (
     <motion.div
       className="absolute inset-0"
@@ -95,26 +100,28 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower,
                       width: shape.size,
                       height: shape.size,
                       color: theme.secondaryColor,
-                      scale: scales.vocal,
+                      scale: getScale(scales.vocal),
                     }}
-                    animate={{
-                      y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
-                      x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
-                      rotate: [shape.initialRotation, shape.initialRotation + 360],
-                      opacity: [0, shape.opacity * 3, 0],
-                    }}
-                    transition={{
-                      duration: shape.duration,
-                      repeat: Infinity,
-                      ease: 'linear',
-                      delay: shape.delay,
-                      opacity: {
-                        duration: shape.duration * 0.5,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                        delay: shape.delay,
+                    {...(!paused && {
+                      animate: {
+                        y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
+                        x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
+                        rotate: [shape.initialRotation, shape.initialRotation + 360],
+                        opacity: [0, shape.opacity * 3, 0],
                       },
-                    }}
+                      transition: {
+                        duration: shape.duration,
+                        repeat: Infinity,
+                        ease: 'linear' as const,
+                        delay: shape.delay,
+                        opacity: {
+                          duration: shape.duration * 0.5,
+                          repeat: Infinity,
+                          ease: 'easeInOut' as const,
+                          delay: shape.delay,
+                        },
+                      },
+                    })}
                   >
                     <IconComponent size={shape.size} strokeWidth={1} absoluteStrokeWidth />
                   </motion.div>
@@ -138,32 +145,36 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower,
                   backgroundColor: !useStroke ? theme.secondaryColor : 'transparent',
                   borderRadius: shape.type === 'circle' ? '50%' : '0%',
                   opacity: shape.opacity,
-                  scale: shape.type === 'circle'
-                    ? scales.bass
-                    : shape.type === 'square'
-                      ? scales.lowMid
-                      : shape.type === 'triangle'
-                        ? scales.mid
-                        : shape.type === 'cross'
-                          ? scales.treble
-                          : scales.default,
+                  scale: getScale(
+                    shape.type === 'circle'
+                      ? scales.bass
+                      : shape.type === 'square'
+                        ? scales.lowMid
+                        : shape.type === 'triangle'
+                          ? scales.mid
+                          : shape.type === 'cross'
+                            ? scales.treble
+                            : scales.default
+                  ),
                   clipPath: shape.type === 'triangle'
                     ? 'polygon(50% 0%, 0% 100%, 100% 100%)'
                     : shape.type === 'cross'
                       ? 'polygon(20% 0%, 0% 20%, 30% 50%, 0% 80%, 20% 100%, 50% 70%, 80% 100%, 100% 80%, 70% 50%, 100% 20%, 80% 0%, 50% 30%)'
                       : 'none',
                 }}
-                animate={{
-                  y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
-                  x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
-                  rotate: [shape.initialRotation, shape.initialRotation + 360],
-                }}
-                transition={{
-                  duration: shape.duration,
-                  repeat: Infinity,
-                  ease: 'linear',
-                  delay: shape.delay,
-                }}
+                {...(!paused && {
+                  animate: {
+                    y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
+                    x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
+                    rotate: [shape.initialRotation, shape.initialRotation + 360],
+                  },
+                  transition: {
+                    duration: shape.duration,
+                    repeat: Infinity,
+                    ease: 'linear' as const,
+                    delay: shape.delay,
+                  },
+                })}
               />
             );
           }
@@ -181,16 +192,18 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({ theme, audioPower,
                 top: `${particle.top}%`,
                 opacity: particle.opacity,
               }}
-              animate={{
-                y: [0, -100],
-                opacity: [0, particle.opacity, 0],
-              }}
-              transition={{
-                duration: particle.duration,
-                repeat: Infinity,
-                ease: 'linear',
-                delay: particle.delay,
-              }}
+              {...(!paused && {
+                animate: {
+                  y: [0, -100],
+                  opacity: [0, particle.opacity, 0],
+                },
+                transition: {
+                  duration: particle.duration,
+                  repeat: Infinity,
+                  ease: 'linear' as const,
+                  delay: particle.delay,
+                },
+              })}
             />
           ))}
         </>
@@ -223,6 +236,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo((prop
   if (prevProps.seed !== nextProps.seed) return false;
   if (prevProps.audioPower !== nextProps.audioPower) return false;
   if (prevProps.hideShapes !== nextProps.hideShapes) return false;
+  if (prevProps.paused !== nextProps.paused) return false;
 
   const previousBands = prevProps.audioBands;
   const nextBands = nextProps.audioBands;

@@ -4554,6 +4554,7 @@ export default function App() {
                     useCoverColorBg={useCoverColorBg}
                     seed={visualizerGeometrySeed}
                     staticMode={staticMode}
+                    paused={currentView !== 'player'}
                     backgroundOpacity={backgroundOpacity}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
