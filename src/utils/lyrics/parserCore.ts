@@ -3,7 +3,7 @@ import type { TimedLyricFormat } from './formatDetection';
 import { annotateLyricLines } from './renderHints';
 import type { LyricProcessingOptions } from './types';
 
-export type LyricParseFormat = TimedLyricFormat | 'yrc';
+export type LyricParseFormat = TimedLyricFormat | 'yrc' | 'qrc';
 
 interface TimedTextEntry {
     startTime: number;
@@ -523,6 +523,80 @@ export const parseYRC = (
     return { lines: finalizeParsedLyricLines(lines, options) };
 };
 
+export const parseQRC = (
+    qrcString: string,
+    translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
+    const rawLinesData: Array<{
+        words: Word[];
+        startTime: number;
+        endTime: number;
+        fullText: string;
+    }> = [];
+    const translationEntries = parseTimedTextEntries(translationString).entries;
+    const rawLines = qrcString.replace(/^\uFEFF/, '').split(/\r?\n/);
+    let isSorted = true;
+    let lastStartTime = Number.NEGATIVE_INFINITY;
+
+    for (const rawLine of rawLines) {
+        const lineMatch = rawLine.match(/^\[(\d+),(\d+)\](.*)/);
+        if (!lineMatch) {
+            continue;
+        }
+
+        const lineStartTimeMs = parseInt(lineMatch[1], 10);
+        const lineDurationMs = parseInt(lineMatch[2], 10);
+        const rest = lineMatch[3];
+        const lineStartTime = lineStartTimeMs / 1000;
+        const lineEndTime = (lineStartTimeMs + lineDurationMs) / 1000;
+
+        const words: Word[] = [];
+        let fullText = '';
+
+        const wordRegex = /\((\d+),(\d+)(?:,\d+)?\)([^\(]*)/g;
+        let wordMatch: RegExpExecArray | null;
+
+        while ((wordMatch = wordRegex.exec(rest)) !== null) {
+            const wordStartMs = parseInt(wordMatch[1], 10);
+            const wordDurationMs = parseInt(wordMatch[2], 10);
+            const text = wordMatch[3];
+
+            words.push({
+                text,
+                startTime: wordStartMs / 1000,
+                endTime: (wordStartMs + wordDurationMs) / 1000
+            });
+            fullText += text;
+        }
+
+        if (words.length > 0) {
+            if (lineStartTime < lastStartTime) {
+                isSorted = false;
+            }
+            lastStartTime = lineStartTime;
+            rawLinesData.push({
+                words,
+                startTime: lineStartTime,
+                endTime: lineEndTime,
+                fullText
+            });
+        }
+    }
+
+    const sortedRawLines = sortByStartTimeIfNeeded(rawLinesData, isSorted);
+    const translations = findTranslationsForSortedStartTimes(
+        sortedRawLines.map(line => line.startTime),
+        translationEntries
+    );
+    const lines: Line[] = sortedRawLines.map((line, index) => ({
+        ...line,
+        translation: translations[index]
+    }));
+
+    return { lines: finalizeParsedLyricLines(lines, options) };
+};
+
 const parseVttTimestamp = (value: string): number => {
     const normalized = value.trim();
     const parts = normalized.split(':');
@@ -741,6 +815,8 @@ export const parseLyricsByFormat = (
     switch (format) {
         case 'yrc':
             return parseYRC(content, translation, options);
+        case 'qrc':
+            return parseQRC(content, translation, options);
         case 'enhanced-lrc':
             return parseEnhancedLRC(content, translation, options);
         case 'vtt':

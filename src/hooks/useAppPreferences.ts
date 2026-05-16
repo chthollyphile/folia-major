@@ -201,6 +201,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
     const [lyricFilterPattern, setLyricFilterPattern] = useState<string>(readStoredLyricFilterPattern);
     const [showOpenPanelCloseButton, setShowOpenPanelCloseButton] = useState(() => getStoredBoolean('show_open_panel_close_button', true));
+    const [enableNowPlayingStage, setEnableNowPlayingStage] = useState(() => getStoredBoolean('enable_now_playing_stage', false));
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('player_volume');
         return saved !== null ? parseFloat(saved) : 1.0;
@@ -391,6 +392,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         });
     }, [setStatusMsg]);
 
+    const handleToggleNowPlayingStage = useCallback((enable: boolean) => {
+        setEnableNowPlayingStage(enable);
+        localStorage.setItem('enable_now_playing_stage', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '已启用舞台视图入口' : '已关闭舞台视图入口'
+        });
+    }, [setStatusMsg]);
+
     const handleSetVolume = useCallback((val: number) => {
         setVolume(val);
         localStorage.setItem('player_volume', String(val));
@@ -433,6 +443,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         lyricFilterPattern,
         lyricFilterPatternError: getLyricFilterError(lyricFilterPattern),
         showOpenPanelCloseButton,
+        enableNowPlayingStage,
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -451,6 +462,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleSetLyricsCustomFont,
         handleSetLyricFilterPattern,
         handleToggleOpenPanelCloseButton,
+        handleToggleNowPlayingStage,
         volume,
         isMuted,
         handleSetVolume,

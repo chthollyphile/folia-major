@@ -49,6 +49,7 @@ export type VisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
 export type PlaybackContext = 'main' | 'stage';
+export type StageSource = 'stage-api' | 'now-playing';
 export type StageLoopMode = 'off' | 'all' | 'one';
 export type StageActiveEntryKind = 'lyrics' | 'media';
 
@@ -69,7 +70,7 @@ export interface StageLocalLyricSource {
   type: 'local';
   lrcContent: string;
   tLrcContent?: string;
-  formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+  formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc';
 }
 
 export interface StageNeteaseLyricBranch {
@@ -100,11 +101,18 @@ export interface StageNavidromeLyricSource {
   plainLyrics?: string;
 }
 
+export interface StageQrcLyricSource {
+  type: 'qrc';
+  qrcContent: string;
+  translationContent?: string;
+}
+
 export type StageLyricSource =
   | StageEmbeddedLyricSource
   | StageLocalLyricSource
   | StageNeteaseLyricSource
-  | StageNavidromeLyricSource;
+  | StageNavidromeLyricSource
+  | StageQrcLyricSource;
 
 export interface StageLyricsSession {
   title?: string;
@@ -156,11 +164,39 @@ export interface StageExternalPlayResult {
 
 export interface StageStatus {
   enabled: boolean;
+  modeEnabled?: boolean;
+  source?: StageSource | null;
   port: number;
   token: string | null;
   activeEntryKind: StageActiveEntryKind | null;
   lyricsSession: StageLyricsSession | null;
   mediaSession: StageMediaSession | null;
+}
+
+export type NowPlayingConnectionStatus = 'disabled' | 'connecting' | 'connected' | 'error';
+
+export interface NowPlayingTrackSnapshot {
+  title: string;
+  author: string;
+  album: string;
+  cover: string;
+  duration: number;
+  id?: string;
+  isVideo?: boolean;
+  isAdvertisement?: boolean;
+}
+
+export interface NowPlayingLyricPayload {
+  source: string;
+  title: string;
+  author: string;
+  duration: number;
+  hasLyric: boolean;
+  hasTranslatedLyric: boolean;
+  hasKaraokeLyric: boolean;
+  lrc: string;
+  translatedLyric: string;
+  karaokeLyric: string;
 }
 
 export interface CadenzaTuning {

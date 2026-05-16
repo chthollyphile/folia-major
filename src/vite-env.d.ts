@@ -63,6 +63,7 @@ declare global {
   }
 
   type StageActiveEntryKind = 'lyrics' | 'media';
+  type StageSource = 'stage-api' | 'now-playing';
 
   interface StageEmbeddedUsltTag {
     language?: string;
@@ -81,7 +82,7 @@ declare global {
     type: 'local';
     lrcContent: string;
     tLrcContent?: string;
-    formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+    formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc';
   }
 
   interface StageNeteaseLyricBranch {
@@ -112,11 +113,18 @@ declare global {
     plainLyrics?: string;
   }
 
+  interface StageQrcLyricSource {
+    type: 'qrc';
+    qrcContent: string;
+    translationContent?: string;
+  }
+
   type StageLyricSource =
     | StageEmbeddedLyricSource
     | StageLocalLyricSource
     | StageNeteaseLyricSource
-    | StageNavidromeLyricSource;
+    | StageNavidromeLyricSource
+    | StageQrcLyricSource;
 
   interface StageLyricsSession {
     title?: string;
@@ -139,7 +147,7 @@ declare global {
     audioMimeType?: string;
     coverMimeType?: string;
     lyricsText?: string | null;
-    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
+    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc' | null;
     updatedAt: number;
   }
 
@@ -168,6 +176,8 @@ declare global {
 
   interface StageStatus {
     enabled: boolean;
+    modeEnabled?: boolean;
+    source?: StageSource | null;
     port: number;
     token: string | null;
     activeEntryKind: StageActiveEntryKind | null;
