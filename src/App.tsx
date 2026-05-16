@@ -480,6 +480,7 @@ export default function App() {
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
     const [isPlayerChromeHidden, setIsPlayerChromeHidden] = useState(false);
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
+    const [pendingOpenSettings, setPendingOpenSettings] = useState(false);
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -4782,6 +4783,8 @@ export default function App() {
                                 }
                             }}
                             nowPlayingConnectionStatus={nowPlayingConnectionStatus}
+                            pendingOpenSettings={pendingOpenSettings}
+                            onPendingOpenSettingsHandled={() => setPendingOpenSettings(false)}
                         />
                     </motion.div>
                 )}
@@ -5039,6 +5042,10 @@ export default function App() {
                         hideToggleButton={isPlayerChromeHidden}
                         isStageContext={activePlaybackContext === 'stage'}
                         playbackControlsDisabled={isNowPlayingControlDisabled}
+                        onOpenSettings={() => {
+                            setPendingOpenSettings(true);
+                            navigateToHome();
+                        }}
                     />
                 )
             }

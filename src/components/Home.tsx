@@ -118,6 +118,8 @@ interface HomeProps {
     enableNowPlayingStage?: boolean;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
+    pendingOpenSettings?: boolean;
+    onPendingOpenSettingsHandled?: () => void;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -206,6 +208,8 @@ const Home: React.FC<HomeProps> = ({
     enableNowPlayingStage = false,
     onToggleNowPlayingStage,
     nowPlayingConnectionStatus = 'disabled',
+    pendingOpenSettings = false,
+    onPendingOpenSettingsHandled,
 }) => {
     const { t } = useTranslation();
     const {
@@ -245,6 +249,17 @@ const Home: React.FC<HomeProps> = ({
     // UI State
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHelpModal, setShowHelpModal] = useState(false);
+    const helpModalInitialTabRef = useRef<'help' | 'options'>('help');
+
+    // 当从播放器视图导航回来时，自动打开设置弹窗并跳到选项页
+    useEffect(() => {
+        if (pendingOpenSettings) {
+            helpModalInitialTabRef.current = 'options';
+            setShowHelpModal(true);
+            onPendingOpenSettingsHandled?.();
+        }
+    }, [pendingOpenSettings]);
+
     const [updateStatus, setUpdateStatus] = useState<ElectronUpdateStatus | null>(null);
     const [navidromeEnabled, setNavidromeEnabled] = useState(isNavidromeEnabled());
     const [scanProgress, setScanProgress] = useState<{
@@ -537,7 +552,7 @@ const Home: React.FC<HomeProps> = ({
                                     Folia
                                 </h1>
                                 <button
-                                    onClick={() => setShowHelpModal(true)}
+                                    onClick={() => { helpModalInitialTabRef.current = 'help'; setShowHelpModal(true); }}
                                     className="relative p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
                                     title="Help & About"
                                 >
@@ -860,7 +875,7 @@ const Home: React.FC<HomeProps> = ({
                                         <NavidromeMusicView
                                             onPlaySong={onPlayNavidromeSong || (() => { })}
                                             onAddSongsToQueue={onAddNavidromeSongsToQueue}
-                                            onOpenSettings={() => setShowHelpModal(true)}
+                                            onOpenSettings={() => { helpModalInitialTabRef.current = 'help'; setShowHelpModal(true); }}
                                             onMatchSong={onMatchNavidromeSong}
                                             theme={theme}
                                             isDaylight={isDaylight}
@@ -928,6 +943,7 @@ const Home: React.FC<HomeProps> = ({
                         showHelpModal && (
                             <HelpModal
                                 onClose={() => setShowHelpModal(false)}
+                                initialTab={helpModalInitialTabRef.current}
                                 staticMode={staticMode}
                                 onToggleStaticMode={onToggleStaticMode}
                                 enableMediaCache={enableMediaCache}
