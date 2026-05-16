@@ -18,7 +18,7 @@ const STAGE_MULTIPART_PART_COUNT_LIMIT = 10;
 const STAGE_MULTIPART_FIELD_COUNT_LIMIT = 10;
 const STAGE_SESSION_RETENTION_LIMIT = 12;
 const STAGE_PLAY_REQUEST_TIMEOUT_MS = 15_000;
-const STAGE_LYRICS_FORMAT_VALUES = new Set(['lrc', 'enhanced-lrc', 'vtt', 'yrc']);
+const STAGE_LYRICS_FORMAT_VALUES = new Set(['lrc', 'enhanced-lrc', 'vtt', 'yrc', 'qrc']);
 
 class StageApiError extends Error {
   constructor(message, details = {}) {
@@ -138,6 +138,7 @@ function createStageApi({
   store,
   getMainWindow,
   stageModeEnabledSettingKey,
+  stageModeSourceSettingKey,
   stageApiTokenSettingKey,
   stageApiPortSettingKey,
   defaultStageApiPort,
@@ -171,7 +172,14 @@ function createStageApi({
     return Number.isInteger(storedPort) && storedPort > 0 ? storedPort : defaultStageApiPort;
   };
 
-  const isStageEnabled = () => Boolean(store.get(stageModeEnabledSettingKey));
+  const isStageModeEnabled = () => Boolean(store.get(stageModeEnabledSettingKey));
+
+  const getStageModeSource = () => {
+    const configuredSource = store.get(stageModeSourceSettingKey);
+    return configuredSource === 'now-playing' ? 'now-playing' : 'stage-api';
+  };
+
+  const isStageEnabled = () => isStageModeEnabled() && getStageModeSource() === 'stage-api';
 
   const getStageToken = ({ generateIfMissing = false } = {}) => {
     const existing = store.get(stageApiTokenSettingKey);
@@ -224,6 +232,8 @@ function createStageApi({
 
   const buildStageStatus = () => ({
     enabled: isStageEnabled(),
+    modeEnabled: isStageModeEnabled(),
+    source: isStageModeEnabled() ? getStageModeSource() : null,
     port: getConfiguredStagePort(),
     token: getStageToken(),
     activeEntryKind: stageActiveEntryKind,
@@ -1115,6 +1125,8 @@ function createStageApi({
     if (pathname === '/stage/health' && req.method === 'GET') {
       sendStageJson(res, 200, {
         enabled: isStageEnabled(),
+        modeEnabled: isStageModeEnabled(),
+        source: isStageModeEnabled() ? getStageModeSource() : null,
         port: getConfiguredStagePort(),
         activeEntryKind: stageActiveEntryKind,
       });
@@ -1375,21 +1387,28 @@ function createStageApi({
     logStage('info', `Stage API server listening on http://127.0.0.1:${getConfiguredStagePort()}.`);
   };
 
-  const setStageEnabled = async (enabled) => {
-    const nextEnabled = Boolean(enabled);
-    store.set(stageModeEnabledSettingKey, nextEnabled);
-
-    if (nextEnabled) {
+  const syncStageModeState = async () => {
+    if (isStageEnabled()) {
       getStageToken({ generateIfMissing: true });
       await startStageServerIfNeeded();
-      logStage('info', 'Stage mode enabled.');
     } else {
       await stopStageServer();
-      logStage('info', 'Stage mode disabled.');
     }
 
     const status = buildStageStatus();
     broadcastStageEvent('stage-session-updated');
+    return status;
+  };
+
+  const setStageEnabled = async (enabled) => {
+    const nextEnabled = Boolean(enabled);
+    store.set(stageModeEnabledSettingKey, nextEnabled);
+    if (nextEnabled && !store.has(stageModeSourceSettingKey)) {
+      store.set(stageModeSourceSettingKey, 'stage-api');
+    }
+
+    const status = await syncStageModeState();
+    logStage('info', nextEnabled ? 'Stage mode enabled.' : 'Stage mode disabled.');
     return status;
   };
 
@@ -1415,6 +1434,7 @@ function createStageApi({
     logStage,
     regenerateStageToken,
     setStageEnabled,
+    syncStageModeState,
     startStageServerIfNeeded,
     stopStageServer,
   };

@@ -24,6 +24,12 @@ export interface RawLocalFileLyric {
     formatHint?: LyricParseFormat;
 }
 
+export interface RawQrcLyric {
+    type: 'qrc';
+    qrcContent: string;
+    translationContent?: string;
+}
+
 export interface RawNeteaseLyric {
     type: 'netease';
     lrc?: {
@@ -49,5 +55,6 @@ export interface RawNavidromeLyric {
 export type RawLyricSource = 
     | RawEmbeddedLyric 
     | RawLocalFileLyric 
+    | RawQrcLyric
     | RawNeteaseLyric 
     | RawNavidromeLyric;

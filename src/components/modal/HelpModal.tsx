@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional, RefreshCw, Download, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, StageStatus, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type PartitaTuning, type VisualizerMode } from '../../types';
+import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -55,9 +55,14 @@ interface HelpModalProps {
     onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
     stageStatus?: StageStatus | null;
+    stageSource?: StageSource | null;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
+    onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
     onClearStageState?: () => Promise<void> | void;
+    enableNowPlayingStage?: boolean;
+    onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
+    nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
 }
 
 const HelpModal: React.FC<HelpModalProps> = ({
@@ -102,9 +107,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onSaveLyricFilterPattern,
     onToggleOpenPanelCloseButton,
     stageStatus = null,
+    stageSource = null,
     onToggleStageMode,
+    onStageSourceChange,
     onRegenerateStageToken,
     onClearStageState,
+    enableNowPlayingStage = false,
+    onToggleNowPlayingStage,
+    nowPlayingConnectionStatus = 'disabled',
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
@@ -137,7 +147,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
         AI_PROVIDER: 'gemini',
         USE_SYSTEM_PROXY_FOR_AI: false,
         ENABLE_UPDATE_CHECK: true,
-        ENABLE_AUTO_UPDATE: false
+        ENABLE_AUTO_UPDATE: false,
+        STAGE_MODE_SOURCE: 'stage-api'
     });
     const [electronSaveStatus, setElectronSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [updateStatus, setUpdateStatus] = useState<ElectronUpdateStatus | null>(null);
@@ -444,6 +455,19 @@ const HelpModal: React.FC<HelpModalProps> = ({
         if (token.length <= 12) return token;
         return `${token.slice(0, 6)}...${token.slice(-6)}`;
     };
+
+    const nowPlayingStatusLabel = (() => {
+        switch (nowPlayingConnectionStatus) {
+            case 'connected':
+                return '已连接';
+            case 'connecting':
+                return '连接中';
+            case 'error':
+                return '未连接';
+            default:
+                return '未启用';
+        }
+    })();
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/82' : 'bg-zinc-900/95';
@@ -1320,21 +1344,60 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     {t('options.enableStageMode') || 'Enable Stage Mode'}
                                                 </div>
                                                 <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {stageStatus.enabled
-                                                        ? (t('options.enableStageModeDescEnabled') || 'Stage API 已开启，可供外部程序推送音频和歌词。')
-                                                        : (t('options.enableStageModeDescDisabled') || '启用后会开放本地 Stage API，供外部程序推送音频和歌词。')}
+                                                    {stageStatus.modeEnabled
+                                                        ? '舞台视图已启用，请在下方选择 Stage API 或 Now Playing。'
+                                                        : (t('options.enableStageModeDescDisabled') || '启用后可在舞台视图中选择 Stage API 或 Now Playing。')}
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={() => void onToggleStageMode?.(!stageStatus.enabled)}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!stageStatus.enabled ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: stageStatus.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                onClick={() => void onToggleStageMode?.(!(stageStatus.modeEnabled ?? false))}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!(stageStatus.modeEnabled ?? false) ? toggleOffBackgroundClass : ''}`}
+                                                style={{ backgroundColor: (stageStatus.modeEnabled ?? false) ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                             >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${stageStatus.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${(stageStatus.modeEnabled ?? false) ? 'translate-x-6' : 'translate-x-0'}`} />
                                             </button>
                                         </div>
-                                        {stageStatus.enabled && (
+                                        {(stageStatus.modeEnabled ?? false) && (
                                             <div className="space-y-3">
+                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                        舞台来源
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {([
+                                                            { value: 'stage-api', label: 'Stage API' },
+                                                            { value: 'now-playing', label: 'Now Playing' },
+                                                        ] as Array<{ value: StageSource; label: string }>).map((option) => {
+                                                            const selected = stageSource === option.value;
+                                                            return (
+                                                                <button
+                                                                    key={option.value}
+                                                                    type="button"
+                                                                    onClick={() => void onStageSourceChange?.(option.value)}
+                                                                    className={`rounded-xl border px-3 py-3 text-sm transition-colors ${selected ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
+                                                                    style={{ color: 'var(--text-primary)' }}
+                                                                >
+                                                                    {option.label}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {stageSource === 'now-playing' ? (
+                                                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                            Now Playing
+                                                        </div>
+                                                        <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                                                            连接状态：{nowPlayingStatusLabel}
+                                                        </div>
+                                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            固定连接 `ws://localhost:9863/api/ws/lyric`，请先在本机启动 now-playing 服务。
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <>
                                                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
                                                     <div>
                                                         <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -1397,6 +1460,45 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                                 : (t('options.regenerateStageToken') || 'Regenerate Token')}
                                                         </button>
                                                     </div>
+                                                </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+                            )}
+
+                            {!isElectron && (
+                                <section>
+                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                        <Server size={14} /> 舞台
+                                    </h3>
+                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    启用 Now Playing
+                                                </div>
+                                                <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    开启后首页显示舞台入口，并通过本机 `localhost` 连接 now-playing 服务。
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => void onToggleNowPlayingStage?.(!enableNowPlayingStage)}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableNowPlayingStage ? toggleOffBackgroundClass : ''}`}
+                                                style={{ backgroundColor: enableNowPlayingStage ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableNowPlayingStage ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+                                        {enableNowPlayingStage && (
+                                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                    Now Playing
+                                                </div>
+                                                <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                                                    连接状态：{nowPlayingStatusLabel}
                                                 </div>
                                             </div>
                                         )}

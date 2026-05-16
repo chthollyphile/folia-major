@@ -11,6 +11,7 @@ interface LyricsTimelineModalProps {
     duration: number;
     currentTime: MotionValue<number>;
     onSeek: (time: number) => void;
+    disabled?: boolean;
     primaryColor?: string;
     secondaryColor?: string;
     accentColor?: string;
@@ -25,6 +26,7 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     duration,
     currentTime,
     onSeek,
+    disabled = false,
     primaryColor = 'var(--text-primary)',
     secondaryColor = 'var(--text-secondary)',
     accentColor = 'var(--text-accent)',
@@ -45,6 +47,8 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     const headerText = isDaylight ? 'text-zinc-800/90' : 'text-white/90';
     const closeIconColor = isDaylight ? 'text-zinc-800/70' : 'text-white/70';
     const closeBtnHover = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10';
+    const disabledCursorClass = disabled ? 'cursor-not-allowed' : 'cursor-pointer';
+    const disabledItemClass = disabled ? 'opacity-65' : '';
     const [activeLineIndex, setActiveLineIndex] = useState(-1);
     const [isUserScrolling, setIsUserScrolling] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -178,6 +182,14 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
         });
     }, [lyrics, duration]);
 
+    const handleSeek = (time: number) => {
+        if (disabled) {
+            return;
+        }
+
+        onSeek(time);
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -250,9 +262,9 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                             className="max-w-[90%]"
                                                         >
                                                             <div
-                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer ${itemHoverBg} transition-all`}
+                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 ${disabledCursorClass} ${disabledItemClass} ${disabled ? '' : itemHoverBg} transition-all`}
                                                                 onClick={() => {
-                                                                    onSeek(dot.startTime);
+                                                                    handleSeek(dot.startTime);
                                                                 }}
                                                             >
                                                                 <div className="text-right">
@@ -280,14 +292,14 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                             backgroundColor: isActive ? accentColor : secondaryColor,
                                                         }}
                                                         transition={{ duration: 0.3 }}
-                                                        className="w-3 h-3 rounded-full cursor-pointer"
+                                                        className={`w-3 h-3 rounded-full ${disabledCursorClass}`}
                                                         style={{
                                                             boxShadow: isActive ? `0 0 20px ${accentColor}` : 'none'
                                                         }}
                                                         onClick={() => {
-                                                            onSeek(dot.startTime);
+                                                            handleSeek(dot.startTime);
                                                         }}
-                                                        whileHover={{ scale: isActive ? 1.7 : 1.3 }}
+                                                        whileHover={disabled ? undefined : { scale: isActive ? 1.7 : 1.3 }}
                                                     />
                                                 </div>
 
@@ -303,9 +315,9 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                             className="max-w-[90%]"
                                                         >
                                                             <div
-                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 cursor-pointer ${itemHoverBg} transition-all`}
+                                                                className={`inline-block ${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-6 ${disabledCursorClass} ${disabledItemClass} ${disabled ? '' : itemHoverBg} transition-all`}
                                                                 onClick={() => {
-                                                                    onSeek(dot.startTime);
+                                                                    handleSeek(dot.startTime);
                                                                 }}
                                                             >
                                                                 <div className="text-left">
@@ -335,9 +347,9 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
                                                     className="hidden max-md:block absolute left-6 right-0"
                                                 >
                                                     <div
-                                                        className={`${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-4 cursor-pointer ${itemHoverBg} transition-all`}
+                                                        className={`${itemBg} backdrop-blur-xl border ${itemBorder} rounded-lg p-4 ${disabledCursorClass} ${disabledItemClass} ${disabled ? '' : itemHoverBg} transition-all`}
                                                         onClick={() => {
-                                                            onSeek(dot.startTime);
+                                                            handleSeek(dot.startTime);
                                                         }}
                                                     >
                                                         <div className="text-left">

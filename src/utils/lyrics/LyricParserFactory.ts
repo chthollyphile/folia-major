@@ -5,6 +5,7 @@ import { EmbeddedLyricAdapter } from './adapters/EmbeddedLyricAdapter';
 import { NeteaseLyricAdapter } from './adapters/NeteaseLyricAdapter';
 import { NavidromeLyricAdapter } from './adapters/NavidromeLyricAdapter';
 import { LocalFileLyricAdapter } from './adapters/LocalFileLyricAdapter';
+import { QrcLyricAdapter } from './adapters/QrcLyricAdapter';
 import type { LyricProcessingOptions } from './types';
 
 export class LyricParserFactory {
@@ -24,6 +25,9 @@ export class LyricParserFactory {
                 break;
             case 'local':
                 parsed = await new LocalFileLyricAdapter().parse(source, resolvedOptions);
+                break;
+            case 'qrc':
+                parsed = await new QrcLyricAdapter().parse(source, resolvedOptions);
                 break;
             default:
                 console.warn('[LyricParserFactory] Unknown lyric source type:', (source as any)?.type);

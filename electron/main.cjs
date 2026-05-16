@@ -46,6 +46,7 @@ const ENABLE_UPDATE_CHECK_SETTING_KEY = 'ENABLE_UPDATE_CHECK';
 const ENABLE_AUTO_UPDATE_SETTING_KEY = 'ENABLE_AUTO_UPDATE';
 const LAST_SEEN_UPDATE_VERSION_SETTING_KEY = 'LAST_SEEN_UPDATE_VERSION';
 const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
+const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
 const DEFAULT_STAGE_API_PORT = 32107;
@@ -68,6 +69,7 @@ const stageApi = createStageApi({
   store,
   getMainWindow: () => mainWindow,
   stageModeEnabledSettingKey: STAGE_MODE_ENABLED_SETTING_KEY,
+  stageModeSourceSettingKey: STAGE_MODE_SOURCE_SETTING_KEY,
   stageApiTokenSettingKey: STAGE_API_TOKEN_SETTING_KEY,
   stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
@@ -1405,6 +1407,12 @@ ipcMain.handle('save-settings', (event, key, value) => {
         });
       });
     }
+  }
+
+  if (key === STAGE_MODE_SOURCE_SETTING_KEY) {
+    void stageApi.syncStageModeState?.().catch((error) => {
+      console.error('[Stage] Failed to sync Stage mode source setting', error);
+    });
   }
 
   return store.store;

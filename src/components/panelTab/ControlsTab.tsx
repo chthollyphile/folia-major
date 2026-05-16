@@ -35,6 +35,7 @@ interface ControlsTabProps {
     onVolumePreview: (val: number) => void;
     onVolumeChange: (val: number) => void;
     onToggleMute: () => void;
+    loopToggleDisabled?: boolean;
 }
 
 const ControlsTab: React.FC<ControlsTabProps> = ({
@@ -64,6 +65,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     onVolumePreview,
     onVolumeChange,
     onToggleMute,
+    loopToggleDisabled = false,
 }) => {
     const { t } = useTranslation();
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
@@ -170,7 +172,8 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                 <div className="grid grid-cols-3 gap-3">
                     <button
                         onClick={onToggleLoop}
-                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${loopMode !== 'off' ? activeIconBg : buttonBg}`}
+                        disabled={loopToggleDisabled}
+                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${loopMode !== 'off' ? activeIconBg : buttonBg} ${loopToggleDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                     >
                         {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
                     </button>

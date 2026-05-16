@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode, type StageStatus } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -107,12 +107,17 @@ interface HomeProps {
     onToggleOpenPanelCloseButton: (enable: boolean) => void;
     onSearchCommitted: (query: string, sourceTab: HomeViewTab, replace?: boolean) => void;
     stageEnabled?: boolean;
+    stageSource?: StageSource | null;
     stageIsActive?: boolean;
     onOpenStagePlayer?: () => void;
     stageStatus?: StageStatus | null;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
+    onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
     onClearStageState?: () => Promise<void> | void;
+    enableNowPlayingStage?: boolean;
+    onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
+    nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -190,12 +195,17 @@ const Home: React.FC<HomeProps> = ({
     onToggleOpenPanelCloseButton,
     onSearchCommitted,
     stageEnabled = false,
+    stageSource = null,
     stageIsActive = false,
     onOpenStagePlayer,
     stageStatus = null,
     onToggleStageMode,
+    onStageSourceChange,
     onRegenerateStageToken,
     onClearStageState,
+    enableNowPlayingStage = false,
+    onToggleNowPlayingStage,
+    nowPlayingConnectionStatus = 'disabled',
 }) => {
     const { t } = useTranslation();
     const {
@@ -959,8 +969,13 @@ const Home: React.FC<HomeProps> = ({
                                 onToggleOpenPanelCloseButton={onToggleOpenPanelCloseButton}
                                 stageStatus={stageStatus}
                                 onToggleStageMode={onToggleStageMode}
+                                stageSource={stageSource}
+                                onStageSourceChange={onStageSourceChange}
                                 onRegenerateStageToken={onRegenerateStageToken}
                                 onClearStageState={onClearStageState}
+                                enableNowPlayingStage={enableNowPlayingStage}
+                                onToggleNowPlayingStage={onToggleNowPlayingStage}
+                                nowPlayingConnectionStatus={nowPlayingConnectionStatus}
                             />
                         )
                     }

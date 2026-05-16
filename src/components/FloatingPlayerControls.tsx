@@ -36,6 +36,7 @@ interface FloatingPlayerControlsProps {
     theme?: Theme;
     isDaylight: boolean;
     isHidden?: boolean;
+    controlsDisabled?: boolean;
 }
 
 
@@ -58,7 +59,8 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     secondaryColor = 'var(--text-secondary)',
     theme,
     isDaylight,
-    isHidden = false
+    isHidden = false,
+    controlsDisabled = false,
 }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
@@ -178,6 +180,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     trackColor={trackColor}
                                     hasLyrics={!!lyrics}
                                     isDaylight={isDaylight}
+                                    controlsDisabled={controlsDisabled}
                                 />
                             ) : (
                                 <CollapsedView
@@ -187,6 +190,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     primaryColor={primaryColor}
                                     secondaryColor={secondaryColor}
                                     trackColor={trackColor}
+                                    controlsDisabled={controlsDisabled}
                                 />
                             )}
                         </motion.div>
@@ -206,6 +210,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 accentColor="var(--text-accent)"
                 theme={theme}
                 isDaylight={isDaylight}
+                disabled={controlsDisabled}
             />
         </>
     );
@@ -229,6 +234,7 @@ interface ExpandedViewProps {
     hasLyrics: boolean;
     trackColor?: string;
     isDaylight?: boolean;
+    controlsDisabled?: boolean;
 }
 
 const ExpandedView: React.FC<ExpandedViewProps> = ({
@@ -247,7 +253,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     secondaryColor,
     hasLyrics,
     trackColor,
-    isDaylight
+    isDaylight,
+    controlsDisabled = false,
 }) => {
     return (
         <>
@@ -258,8 +265,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         e.stopPropagation();
                         onTogglePlay();
                     }}
-                    disabled={!canTogglePlay}
-                    className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
+                    disabled={!canTogglePlay || controlsDisabled}
+                    className={`w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center transition-transform shrink-0 shadow-lg border-none ${controlsDisabled ? 'opacity-45 cursor-not-allowed' : 'hover:scale-105'}`}
                     style={{ backgroundColor: primaryColor, color: 'var(--bg-color)' }}
                 >
                     {playerState === PlayerState.PLAYING ? (
@@ -281,6 +288,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             onSeek={onSeek}
                             primaryColor={primaryColor}
                             secondaryColor={secondaryColor}
+                            disabled={controlsDisabled}
                         />
                     </div>
                 </div>
@@ -291,7 +299,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             e.stopPropagation();
                             onToggleLoop();
                         }}
-                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/20') : 'opacity-40 hover:opacity-100'}`}
+                        disabled={controlsDisabled}
+                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/20') : 'opacity-40 hover:opacity-100'} ${controlsDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                         style={{ color: primaryColor }}
                     >
                         {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
@@ -326,7 +335,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             e.stopPropagation();
                             onToggleLoop();
                         }}
-                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? 'bg-white/20' : 'opacity-40 hover:opacity-100'}`}
+                        disabled={controlsDisabled}
+                        className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? 'bg-white/20' : 'opacity-40 hover:opacity-100'} ${controlsDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                         style={{ color: primaryColor }}
                     >
                         {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
@@ -337,8 +347,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             e.stopPropagation();
                             onTogglePlay();
                         }}
-                        disabled={!canTogglePlay}
-                        className="w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0 shadow-lg border-none"
+                        disabled={!canTogglePlay || controlsDisabled}
+                        className={`w-12 h-12 rounded-full bg-(--text-primary) text-black flex items-center justify-center transition-transform shrink-0 shadow-lg border-none ${controlsDisabled ? 'opacity-45 cursor-not-allowed' : 'hover:scale-105'}`}
                         style={{ backgroundColor: primaryColor, color: 'var(--bg-color)' }}
                     >
                         {playerState === PlayerState.PLAYING ? (
@@ -371,6 +381,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                             onSeek={onSeek}
                             primaryColor={primaryColor}
                             secondaryColor={secondaryColor}
+                            disabled={controlsDisabled}
                         />
                     </div>
                 </div>
@@ -389,6 +400,7 @@ interface CollapsedViewProps {
     primaryColor: string;
     secondaryColor: string;
     trackColor?: string;
+    controlsDisabled?: boolean;
 }
 
 const CollapsedView: React.FC<CollapsedViewProps> = ({
@@ -397,7 +409,8 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
     onSeek,
     primaryColor,
     secondaryColor,
-    trackColor
+    trackColor,
+    controlsDisabled = false,
 }) => {
     return (
         <div className="flex items-center w-full justify-center h-8 px-4">
@@ -408,6 +421,7 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
                 trackColor={trackColor}
+                disabled={controlsDisabled}
             />
         </div>
     );
