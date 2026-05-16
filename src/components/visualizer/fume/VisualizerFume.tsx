@@ -34,6 +34,7 @@ interface VisualizerProps {
     lyricsFontScale?: number;
     fumeTuning?: FumeTuning;
     isPlayerChromeHidden?: boolean;
+    hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
 }
@@ -1949,6 +1950,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     lyricsFontScale = 1,
     fumeTuning,
     isPlayerChromeHidden = false,
+    hideTranslationSubtitle = false,
     paused = false,
     onBack,
 }) => {
@@ -3125,6 +3127,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
                 upcomingFontSize={upcomingFontSize}
                 opacity={0.48}
                 isPlayerChromeHidden={isPlayerChromeHidden}
+                hideTranslationSubtitle={hideTranslationSubtitle}
             />
         </VisualizerShell>
     );

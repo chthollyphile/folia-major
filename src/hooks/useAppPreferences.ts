@@ -11,6 +11,20 @@ const getStoredBoolean = (key: string, fallback: boolean) => {
     return saved !== null ? saved === 'true' : fallback;
 };
 
+const readStoredDisableHomeDynamicBackground = (): boolean => {
+    const saved = localStorage.getItem('disable_home_dynamic_background');
+    if (saved !== null) {
+        return saved === 'true';
+    }
+
+    const legacySaved = localStorage.getItem('enable_home_dynamic_background');
+    if (legacySaved !== null) {
+        return legacySaved !== 'true';
+    }
+
+    return false;
+};
+
 const readStoredCadenzaTuning = (): CadenzaTuning => {
     const saved = localStorage.getItem('cadenza_tuning') ?? localStorage.getItem('cadenze_tuning');
     if (!saved) return DEFAULT_CADENZA_TUNING;
@@ -174,7 +188,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     });
     const [useCoverColorBg, setUseCoverColorBg] = useState(() => getStoredBoolean('use_cover_color_bg', false));
     const [staticMode, setStaticMode] = useState(() => getStoredBoolean('static_mode', false));
-    const [enableHomeDynamicBackground, setEnableHomeDynamicBackground] = useState(() => getStoredBoolean('enable_home_dynamic_background', false));
+    const [disableHomeDynamicBackground, setDisableHomeDynamicBackground] = useState(readStoredDisableHomeDynamicBackground);
+    const [hidePlayerProgressBar, setHidePlayerProgressBar] = useState(() => getStoredBoolean('hide_player_progress_bar', false));
+    const [hidePlayerTranslationSubtitle, setHidePlayerTranslationSubtitle] = useState(() => getStoredBoolean('hide_player_translation_subtitle', false));
+    const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
         const saved = localStorage.getItem('background_opacity');
@@ -245,12 +262,39 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         });
     };
 
-    const handleToggleHomeDynamicBackground = (enable: boolean) => {
-        setEnableHomeDynamicBackground(enable);
-        localStorage.setItem('enable_home_dynamic_background', String(enable));
+    const handleToggleDisableHomeDynamicBackground = (disable: boolean) => {
+        setDisableHomeDynamicBackground(disable);
+        localStorage.setItem('disable_home_dynamic_background', String(disable));
         setStatusMsg({
             type: 'info',
-            text: enable ? '主页动态背景已开启' : '主页动态背景已关闭',
+            text: disable ? '主页动态背景已关闭' : '主页动态背景已开启',
+        });
+    };
+
+    const handleToggleHidePlayerProgressBar = (enable: boolean) => {
+        setHidePlayerProgressBar(enable);
+        localStorage.setItem('hide_player_progress_bar', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '播放页底部控制条已隐藏' : '播放页底部控制条已显示',
+        });
+    };
+
+    const handleToggleHidePlayerTranslationSubtitle = (enable: boolean) => {
+        setHidePlayerTranslationSubtitle(enable);
+        localStorage.setItem('hide_player_translation_subtitle', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '播放页翻译字幕已隐藏' : '播放页翻译字幕已显示',
+        });
+    };
+
+    const handleToggleHidePlayerRightPanelButton = (enable: boolean) => {
+        setHidePlayerRightPanelButton(enable);
+        localStorage.setItem('hide_player_right_panel_button', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '播放页右侧按钮已隐藏' : '播放页右侧按钮已显示',
         });
     };
 
@@ -439,7 +483,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setAudioQuality,
         useCoverColorBg,
         staticMode,
-        enableHomeDynamicBackground,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -458,7 +505,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
-        handleToggleHomeDynamicBackground,
+        handleToggleDisableHomeDynamicBackground,
+        handleToggleHidePlayerProgressBar,
+        handleToggleHidePlayerTranslationSubtitle,
+        handleToggleHidePlayerRightPanelButton,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,

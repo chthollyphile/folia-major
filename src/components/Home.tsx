@@ -68,9 +68,15 @@ interface HomeProps {
     pendingNavidromeSelection?: NavidromeViewSelection | null;
     onPendingNavidromeSelectionHandled?: () => void;
     staticMode?: boolean;
-    enableHomeDynamicBackground?: boolean;
+    disableHomeDynamicBackground?: boolean;
+    hidePlayerProgressBar?: boolean;
+    hidePlayerTranslationSubtitle?: boolean;
+    hidePlayerRightPanelButton?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
-    onToggleHomeDynamicBackground?: (enable: boolean) => void;
+    onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
+    onToggleHidePlayerProgressBar?: (enable: boolean) => void;
+    onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
+    onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme: Theme;
@@ -160,9 +166,15 @@ const Home: React.FC<HomeProps> = ({
     pendingNavidromeSelection = null,
     onPendingNavidromeSelectionHandled,
     staticMode = false,
-    enableHomeDynamicBackground = false,
+    disableHomeDynamicBackground = false,
+    hidePlayerProgressBar = false,
+    hidePlayerTranslationSubtitle = false,
+    hidePlayerRightPanelButton = false,
     onToggleStaticMode,
-    onToggleHomeDynamicBackground,
+    onToggleDisableHomeDynamicBackground,
+    onToggleHidePlayerProgressBar,
+    onToggleHidePlayerTranslationSubtitle,
+    onToggleHidePlayerRightPanelButton,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -949,9 +961,15 @@ const Home: React.FC<HomeProps> = ({
                                 onClose={() => setShowHelpModal(false)}
                                 initialTab={helpModalInitialTabRef.current}
                                 staticMode={staticMode}
-                                enableHomeDynamicBackground={enableHomeDynamicBackground}
+                                disableHomeDynamicBackground={disableHomeDynamicBackground}
+                                hidePlayerProgressBar={hidePlayerProgressBar}
+                                hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
+                                hidePlayerRightPanelButton={hidePlayerRightPanelButton}
                                 onToggleStaticMode={onToggleStaticMode}
-                                onToggleHomeDynamicBackground={onToggleHomeDynamicBackground}
+                                onToggleDisableHomeDynamicBackground={onToggleDisableHomeDynamicBackground}
+                                onToggleHidePlayerProgressBar={onToggleHidePlayerProgressBar}
+                                onToggleHidePlayerTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
+                                onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
                                 enableMediaCache={enableMediaCache}
                                 onToggleMediaCache={onToggleMediaCache}
                                 theme={theme}

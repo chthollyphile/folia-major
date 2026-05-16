@@ -36,6 +36,7 @@ interface FloatingPlayerControlsProps {
     theme?: Theme;
     isDaylight: boolean;
     isHidden?: boolean;
+    hideControlBar?: boolean;
     controlsDisabled?: boolean;
 }
 
@@ -60,6 +61,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     theme,
     isDaylight,
     isHidden = false,
+    hideControlBar = false,
     controlsDisabled = false,
 }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
@@ -129,6 +131,10 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
             onNavigateToPlayer();
         }
     };
+
+    if (hideControlBar) {
+        return null;
+    }
 
     return (
         <>

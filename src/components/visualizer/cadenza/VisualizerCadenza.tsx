@@ -33,6 +33,7 @@ interface VisualizerProps {
     cadenzaTuning?: CadenzaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
 }
@@ -1377,6 +1378,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
+    hideTranslationSubtitle = false,
     paused = false,
     onBack,
 }) => {
@@ -1822,6 +1824,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
                 upcomingFontSize={upcomingFontSize}
                 opacity={0.72}
                 isPlayerChromeHidden={isPlayerChromeHidden}
+                hideTranslationSubtitle={hideTranslationSubtitle}
             />
         </VisualizerShell>
     );

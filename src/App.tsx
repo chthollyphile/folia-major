@@ -569,7 +569,10 @@ export default function App() {
         setAudioQuality,
         useCoverColorBg,
         staticMode,
-        enableHomeDynamicBackground,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -587,7 +590,10 @@ export default function App() {
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
-        handleToggleHomeDynamicBackground,
+        handleToggleDisableHomeDynamicBackground,
+        handleToggleHidePlayerProgressBar,
+        handleToggleHidePlayerTranslationSubtitle,
+        handleToggleHidePlayerRightPanelButton,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,
@@ -4120,6 +4126,12 @@ export default function App() {
                     e.preventDefault();
                     setIsPlayerChromeHidden(prev => !prev);
                     break;
+                case 'KeyP':
+                    if (currentView !== 'player' || hasBlockingWindow()) return;
+                    if (e.ctrlKey || e.altKey || e.metaKey) return;
+                    e.preventDefault();
+                    setIsPanelOpen(prev => !prev);
+                    break;
             }
         };
 
@@ -4382,7 +4394,10 @@ export default function App() {
         nextLine: toDebugLineSnapshot(debugNextLine),
     };
     const isPlayerView = currentView === 'player';
-    const shouldPauseVisualizerBackground = currentView !== 'player' && !enableHomeDynamicBackground;
+    const shouldPauseVisualizerBackground = currentView !== 'player' && disableHomeDynamicBackground;
+    const shouldHidePlayerProgressBar = isPlayerView && hidePlayerProgressBar;
+    const shouldHidePlayerTranslationSubtitle = isPlayerView && hidePlayerTranslationSubtitle;
+    const shouldHidePlayerRightPanelButton = isPlayerView && hidePlayerRightPanelButton;
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
     const canToggleCurrentPlayback = !isNowPlayingControlDisabled && Boolean(
         audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
@@ -4561,6 +4576,7 @@ export default function App() {
                     backgroundOpacity={backgroundOpacity}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
+                    hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
@@ -4628,9 +4644,15 @@ export default function App() {
                             localMusicState={localMusicState}
                             setLocalMusicState={setLocalMusicState}
                             staticMode={staticMode}
-                            enableHomeDynamicBackground={enableHomeDynamicBackground}
+                            disableHomeDynamicBackground={disableHomeDynamicBackground}
+                            hidePlayerProgressBar={hidePlayerProgressBar}
+                            hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
+                            hidePlayerRightPanelButton={hidePlayerRightPanelButton}
                             onToggleStaticMode={handleToggleStaticMode}
-                            onToggleHomeDynamicBackground={handleToggleHomeDynamicBackground}
+                            onToggleDisableHomeDynamicBackground={handleToggleDisableHomeDynamicBackground}
+                            onToggleHidePlayerProgressBar={handleToggleHidePlayerProgressBar}
+                            onToggleHidePlayerTranslationSubtitle={handleToggleHidePlayerTranslationSubtitle}
+                            onToggleHidePlayerRightPanelButton={handleToggleHidePlayerRightPanelButton}
                             enableMediaCache={enableMediaCache}
                             onToggleMediaCache={handleToggleMediaCache}
                             theme={theme}
@@ -4964,6 +4986,7 @@ export default function App() {
                         theme={theme}
                         isDaylight={isDaylight}
                         isHidden={currentView === 'player' && isPlayerChromeHidden}
+                        hideControlBar={shouldHidePlayerProgressBar}
                     />
                 )
             }
@@ -5045,7 +5068,7 @@ export default function App() {
                         onOpenCurrentNavidromeAlbum={openCurrentNavidromeAlbum}
                         onOpenCurrentNavidromeArtist={openCurrentNavidromeArtist}
                         showOpenPanelCloseButton={showOpenPanelCloseButton}
-                        hideToggleButton={isPlayerChromeHidden}
+                        hideToggleButton={isPlayerChromeHidden || shouldHidePlayerRightPanelButton}
                         isStageContext={activePlaybackContext === 'stage'}
                         playbackControlsDisabled={isNowPlayingControlDisabled}
                         onOpenSettings={() => {
