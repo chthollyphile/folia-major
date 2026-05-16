@@ -15,6 +15,7 @@ import type { LyricData } from '../../types';
 
 interface HelpModalProps {
     onClose: () => void;
+    initialTab?: 'help' | 'options';
     staticMode?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     enableMediaCache?: boolean;
@@ -67,6 +68,7 @@ interface HelpModalProps {
 
 const HelpModal: React.FC<HelpModalProps> = ({
     onClose,
+    initialTab = 'help',
     staticMode = false,
     onToggleStaticMode,
     enableMediaCache = false,
@@ -117,7 +119,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     nowPlayingConnectionStatus = 'disabled',
 }) => {
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<'help' | 'options'>('help');
+    const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showLabSettings, setShowLabSettings] = useState(false);

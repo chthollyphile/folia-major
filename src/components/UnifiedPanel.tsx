@@ -98,6 +98,7 @@ interface UnifiedPanelProps {
     hideToggleButton?: boolean;
     isStageContext?: boolean;
     playbackControlsDisabled?: boolean;
+    onOpenSettings?: () => void;
 }
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -177,6 +178,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     hideToggleButton = false,
     isStageContext = false,
     playbackControlsDisabled = false,
+    onOpenSettings,
 }) => {
     const { t } = useTranslation();
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
@@ -289,6 +291,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         setIsCoverActionsVisible(false);
         onToggle();
         onNavigateHomeDirect();
+    };
+
+    // 关闭面板并导航回首页，同时打开设置页面
+    const handleOpenSettings = () => {
+        setIsCoverActionsVisible(false);
+        onToggle();
+        onOpenSettings?.();
     };
 
     const clearHideActionLayerTimeout = () => {
@@ -410,6 +419,35 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 >
                                                     <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
                                                 </motion.div>
+
+                                                {/* 左上角：打开设置 */}
+                                                {onOpenSettings && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, x: -12, y: -12 }}
+                                                        animate={{ opacity: 1, x: 0, y: 0 }}
+                                                        exit={{ opacity: 0, x: -10, y: -10 }}
+                                                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                                                        className="absolute left-3 top-3 pointer-events-auto"
+                                                        onMouseEnter={() => clearHideActionLayerTimeout()}
+                                                        onMouseLeave={() => {
+                                                            if (supportsHover) {
+                                                                hideCoverActions(120);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                handleOpenSettings();
+                                                            }}
+                                                            className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
+                                                            title={t('ui.options') || '设置'}
+                                                        >
+                                                            <Settings2 size={18} />
+                                                        </button>
+                                                    </motion.div>
+                                                )}
 
                                                 <motion.div
                                                     initial={{ opacity: 0, x: -12, y: 12 }}
