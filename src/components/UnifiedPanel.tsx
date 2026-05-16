@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, Radio, Cloud, Star } from 'lucide-react';
+import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, Radio, Cloud, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerMode } from '../types';
 import CoverTab from './panelTab/CoverTab';
@@ -735,7 +735,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
                                 border-none ${toggleButtonMotionClass} ${isOpen ? 'bg-white text-black' : 'bg-black/40 text-white'}`}
                         >
-                            {isOpen ? <X size={20} /> : <Settings size={20} />}
+                            {isOpen ? <X size={20} /> : <Settings2 size={20} />}
                         </button>
                     </motion.div>
                 )}
