@@ -712,17 +712,19 @@ export default function App() {
 
     const syncNowPlayingClock = useCallback((progressSec: number, durationSec: number, paused: boolean) => {
         const safeDuration = Math.max(0, durationSec);
-        console.log('[NowPlaying][App] syncNowPlayingClock', {
-            progressSec,
-            durationSec,
-            paused,
-        });
+        if (isDev) {
+            console.log('[NowPlaying][App] syncNowPlayingClock', {
+                progressSec,
+                durationSec,
+                paused,
+            });
+        }
         nowPlayingClockRef.current = {
             baseTimeSec: Math.min(Math.max(progressSec, 0), safeDuration || progressSec),
             startedAtMs: paused ? null : performance.now(),
             durationSec: safeDuration,
         };
-    }, []);
+    }, [isDev]);
 
     const getNowPlayingDisplayTime = useCallback((nowMs = performance.now()) => {
         const clock = nowPlayingClockRef.current;
@@ -863,14 +865,16 @@ export default function App() {
             : ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
         const durationSec = Math.max(0, (track?.durationMs ?? lyricPayload?.durationMs ?? 0) / 1000);
         const progressSec = Math.max(0, progressMs / 1000);
-        console.log('[NowPlaying][App] loadNowPlayingIntoPlayback', {
-            options,
-            nextPlayerState,
-            durationSec,
-            progressSec,
-            nowPlayingTrack: track,
-            nowPlayingLyricPayload: lyricPayload,
-        });
+        if (isDev) {
+            console.log('[NowPlaying][App] loadNowPlayingIntoPlayback', {
+                options,
+                nextPlayerState,
+                durationSec,
+                progressSec,
+                nowPlayingTrack: track,
+                nowPlayingLyricPayload: lyricPayload,
+            });
+        }
         const nextLyricsSession = lyricPayload
             ? buildNowPlayingLyricsSession(track, lyricPayload)
             : null;
@@ -915,7 +919,7 @@ export default function App() {
         setDuration(durationSec);
         setPlayerState(nextPlayerState);
         syncNowPlayingClock(progressSec, durationSec, nextPlayerState !== PlayerState.PLAYING);
-    }, [buildNowPlayingLyricsSession, clearPlaybackSurface, currentTime, loadStageLyricsIntoPlayback, resetStageLyricsClock, syncNowPlayingClock]);
+    }, [buildNowPlayingLyricsSession, clearPlaybackSurface, currentTime, isDev, loadStageLyricsIntoPlayback, resetStageLyricsClock, syncNowPlayingClock]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -1599,14 +1603,16 @@ export default function App() {
         const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
             ? Math.max(incomingTime, displayTime)
             : incomingTime;
-        console.log('[NowPlaying][App] Applying progress to currentTime', {
-            nowPlayingProgressMs,
-            nextTime,
-            nowPlayingProgressQuality,
-            nowPlayingPaused,
-            displayTime,
-            hasLyrics: Boolean(lyrics),
-        });
+        if (isDev) {
+            console.log('[NowPlaying][App] Applying progress to currentTime', {
+                nowPlayingProgressMs,
+                nextTime,
+                nowPlayingProgressQuality,
+                nowPlayingPaused,
+                displayTime,
+                hasLyrics: Boolean(lyrics),
+            });
+        }
         currentTime.set(nextTime);
 
         if (lyrics) {
@@ -1617,7 +1623,7 @@ export default function App() {
         } else if (currentLineIndexRef.current !== -1) {
             setCurrentLineIndex(-1);
         }
-    }, [currentTime, getNowPlayingDisplayTime, isNowPlayingStageActive, lyrics, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality]);
+    }, [currentTime, getNowPlayingDisplayTime, isDev, isNowPlayingStageActive, lyrics, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality]);
 
     const restoreSession = async () => {
         try {
