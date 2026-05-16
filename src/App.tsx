@@ -465,6 +465,7 @@ export default function App() {
     const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrackSnapshot | null>(null);
     const [nowPlayingLyricPayload, setNowPlayingLyricPayload] = useState<NowPlayingLyricPayload | null>(null);
     const [nowPlayingProgressMs, setNowPlayingProgressMs] = useState(0);
+    const [nowPlayingProgressQuality, setNowPlayingProgressQuality] = useState<'precise' | 'coarse'>('coarse');
     const [nowPlayingPaused, setNowPlayingPaused] = useState(true);
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
     const stageLyricsSession = stageStatus?.lyricsSession ?? null;
@@ -531,6 +532,7 @@ export default function App() {
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
     const lastKnownMainSongRef = useRef<SongResult | null>(null);
     const lastKnownMainQueueRef = useRef<SongResult[]>([]);
+    const isNowPlayingControlDisabledRef = useRef(false);
     const stageLyricsClockRef = useRef<StageLyricsClockState>({
         startTimeSec: 0,
         endTimeSec: 0,
@@ -665,6 +667,20 @@ export default function App() {
         currentTime.set(0);
         setDuration(0);
     }, [currentTime, setLyrics]);
+
+    // Clears the main player context so Now Playing can stay fully external-driven.
+    const clearMainPlaybackContext = useCallback(() => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
+
+        currentSongRef.current = null;
+        mainPlaybackSnapshotRef.current = null;
+        lastKnownMainSongRef.current = null;
+        lastKnownMainQueueRef.current = [];
+        clearPlaybackSurface();
+    }, [clearPlaybackSurface]);
 
     const buildStagePlaybackSong = useCallback((session: StageMediaSession): SongResult => ({
         id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
@@ -861,22 +877,28 @@ export default function App() {
         syncStageLyricsClock(initialTime, endTimeSec, nextPlayerState, startTimeSec);
     }, [buildStageLyricsPlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics, syncStageLyricsClock, t]);
 
-    const loadNowPlayingIntoPlayback = useCallback(async (options: { autoplay?: boolean; } = {}) => {
-        const nextPlayerState = nowPlayingPaused
+    const loadNowPlayingIntoPlayback = useCallback(async (
+        track: NowPlayingTrackSnapshot | null,
+        lyricPayload: NowPlayingLyricPayload | null,
+        progressMs: number,
+        paused: boolean,
+        options: { autoplay?: boolean; } = {},
+    ) => {
+        const nextPlayerState = paused
             ? PlayerState.PAUSED
             : ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
-        const durationSec = Math.max(0, (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000);
-        const progressSec = Math.max(0, nowPlayingProgressMs / 1000);
+        const durationSec = Math.max(0, (track?.durationMs ?? lyricPayload?.durationMs ?? 0) / 1000);
+        const progressSec = Math.max(0, progressMs / 1000);
         console.log('[NowPlaying][App] loadNowPlayingIntoPlayback', {
             options,
             nextPlayerState,
             durationSec,
             progressSec,
-            nowPlayingTrack,
-            nowPlayingLyricPayload,
+            nowPlayingTrack: track,
+            nowPlayingLyricPayload: lyricPayload,
         });
-        const nextLyricsSession = nowPlayingLyricPayload
-            ? buildNowPlayingLyricsSession(nowPlayingTrack, nowPlayingLyricPayload)
+        const nextLyricsSession = lyricPayload
+            ? buildNowPlayingLyricsSession(track, lyricPayload)
             : null;
 
         if (nextLyricsSession) {
@@ -885,20 +907,20 @@ export default function App() {
                 resumeTime: progressSec,
                 playerState: nextPlayerState,
             });
-            setCachedCoverUrl(nowPlayingTrack?.coverUrl || null);
+            setCachedCoverUrl(track?.coverUrl || null);
             syncNowPlayingClock(progressSec, Math.max(durationSec, progressSec), nextPlayerState !== PlayerState.PLAYING);
             return;
         }
 
-        const fallbackSong: SongResult | null = nowPlayingTrack ? ({
+        const fallbackSong: SongResult | null = track ? ({
             id: -Math.max(1, Math.floor(Date.now())),
-            name: nowPlayingTrack.title || 'Now Playing',
-            artists: [{ id: 0, name: nowPlayingTrack.artist || 'Now Playing' }],
-            album: { id: 0, name: nowPlayingTrack.album || 'Now Playing', picUrl: nowPlayingTrack.coverUrl || undefined },
-            duration: Math.max(0, Math.floor((nowPlayingTrack.durationMs || 0))),
-            al: { id: 0, name: nowPlayingTrack.album || 'Now Playing', picUrl: nowPlayingTrack.coverUrl || undefined },
-            ar: [{ id: 0, name: nowPlayingTrack.artist || 'Now Playing' }],
-            dt: Math.max(0, Math.floor((nowPlayingTrack.durationMs || 0))),
+            name: track.title || 'Now Playing',
+            artists: [{ id: 0, name: track.artist || 'Now Playing' }],
+            album: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
+            duration: Math.max(0, Math.floor((track.durationMs || 0))),
+            al: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
+            ar: [{ id: 0, name: track.artist || 'Now Playing' }],
+            dt: Math.max(0, Math.floor((track.durationMs || 0))),
             sourceType: 'cloud',
             isStage: true,
         } as SongResult) : null;
@@ -909,7 +931,7 @@ export default function App() {
         pendingResumeTimeRef.current = null;
         currentSongRef.current = fallbackSong?.id ?? null;
         setCurrentSong(fallbackSong);
-        setCachedCoverUrl(nowPlayingTrack?.coverUrl || null);
+        setCachedCoverUrl(track?.coverUrl || null);
         setAudioSrc(null);
         setPlayQueue([]);
         setIsFmMode(false);
@@ -919,7 +941,7 @@ export default function App() {
         setDuration(durationSec);
         setPlayerState(nextPlayerState);
         syncNowPlayingClock(progressSec, durationSec, nextPlayerState !== PlayerState.PLAYING);
-    }, [buildNowPlayingLyricsSession, clearPlaybackSurface, currentTime, loadStageLyricsIntoPlayback, nowPlayingLyricPayload, nowPlayingPaused, nowPlayingProgressMs, nowPlayingTrack, resetStageLyricsClock, syncNowPlayingClock]);
+    }, [buildNowPlayingLyricsSession, clearPlaybackSurface, currentTime, loadStageLyricsIntoPlayback, resetStageLyricsClock, syncNowPlayingClock]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -1091,11 +1113,7 @@ export default function App() {
     }, [audioQuality, audioSrc, currentSong]);
 
     const resumePlayback = useCallback(async () => {
-        if (isNowPlayingStageActive && !audioSrc) {
-            const nextTime = getNowPlayingDisplayTime();
-            syncNowPlayingClock(nextTime, duration, false);
-            currentTime.set(nextTime);
-            setPlayerState(PlayerState.PLAYING);
+        if (isNowPlayingStageActive) {
             return;
         }
 
@@ -1158,14 +1176,10 @@ export default function App() {
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getNowPlayingDisplayTime, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncNowPlayingClock, syncOutputGain, syncStageLyricsClock, t]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
-        if (isNowPlayingStageActive && !audioSrc) {
-            const nextTime = getNowPlayingDisplayTime();
-            syncNowPlayingClock(nextTime, duration, true);
-            currentTime.set(nextTime);
-            setPlayerState(PlayerState.PAUSED);
+        if (isNowPlayingStageActive) {
             return;
         }
 
@@ -1184,7 +1198,7 @@ export default function App() {
         audioRef.current.pause();
         syncOutputGain(getTargetPlaybackVolume(), 0);
         setPlayerState(PlayerState.PAUSED);
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getNowPlayingDisplayTime, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, stageActiveEntryKind, syncNowPlayingClock, syncOutputGain, syncStageLyricsClock]);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
 
     const getCoverUrl = useCallback(() => {
         if (cachedCoverUrl) return cachedCoverUrl;
@@ -1307,8 +1321,16 @@ export default function App() {
         }
 
         if (stageSource === 'now-playing') {
+            clearMainPlaybackContext();
+            stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('stage');
-            await loadNowPlayingIntoPlayback({ autoplay: true });
+            await loadNowPlayingIntoPlayback(
+                nowPlayingTrack,
+                nowPlayingLyricPayload,
+                nowPlayingProgressMs,
+                nowPlayingPaused,
+                { autoplay: true },
+            );
             navigateToPlayer();
             if (!nowPlayingTrack && !nowPlayingLyricPayload) {
                 setStatusMsg({ type: 'info', text: '等待本地 Now Playing 服务输入' });
@@ -1341,22 +1363,36 @@ export default function App() {
         if (!nextStageEntryKey) {
             setStatusMsg({ type: 'info', text: t('status.stageWaiting') || '等待外部 Stage 输入' });
         }
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, loadNowPlayingIntoPlayback, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, nowPlayingLyricPayload, nowPlayingTrack, stageActiveEntryKind, stageLyricsSession, stageMediaSession, stageSource, syncStageLyricsClock, t]);
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, loadNowPlayingIntoPlayback, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, nowPlayingLyricPayload, nowPlayingPaused, nowPlayingProgressMs, nowPlayingTrack, stageActiveEntryKind, stageLyricsSession, stageMediaSession, stageSource, syncStageLyricsClock, t]);
 
     const leaveStagePlayback = useCallback(() => {
         if (activePlaybackContext !== 'stage') {
             return;
         }
 
+        if (stageSource === 'now-playing') {
+            stagePlaybackSnapshotRef.current = null;
+            setActivePlaybackContext('main');
+            clearMainPlaybackContext();
+            return;
+        }
+
         stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
         setActivePlaybackContext('main');
         applyPlaybackSnapshot(mainPlaybackSnapshotRef.current);
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, stageSource]);
 
     // Restore the main snapshot before starting any normal playback so Stage state
     // stays isolated and the next playback flow reads the correct queue/context.
     const interruptStagePlaybackForMainTransition = useCallback(() => {
         if (activePlaybackContext !== 'stage') {
+            return null;
+        }
+
+        if (stageSource === 'now-playing') {
+            stagePlaybackSnapshotRef.current = null;
+            setActivePlaybackContext('main');
+            clearMainPlaybackContext();
             return null;
         }
 
@@ -1368,7 +1404,7 @@ export default function App() {
         applyPlaybackSnapshot(restoredMainSnapshot);
 
         return restoredMainSnapshot;
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot]);
+    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, stageSource]);
 
     const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
         setPendingNavidromeSelection(selection);
@@ -1482,8 +1518,9 @@ export default function App() {
             onTrack: setNowPlayingTrack,
             onLyric: setNowPlayingLyricPayload,
             onPauseState: setNowPlayingPaused,
-            onProgress: ({ progressMs }) => {
+            onProgress: ({ progressMs, quality }) => {
                 setNowPlayingProgressMs(progressMs);
+                setNowPlayingProgressQuality(quality);
             },
         });
 
@@ -1500,8 +1537,13 @@ export default function App() {
 
     useEffect(() => {
         const durationSec = Math.max(0, (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000);
-        syncNowPlayingClock(nowPlayingProgressMs / 1000, durationSec, nowPlayingPaused);
-    }, [nowPlayingLyricPayload?.durationMs, nowPlayingPaused, nowPlayingProgressMs, nowPlayingTrack?.durationMs, syncNowPlayingClock]);
+        const incomingTime = nowPlayingProgressMs / 1000;
+        const displayTime = getNowPlayingDisplayTime();
+        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
+            ? Math.max(incomingTime, displayTime)
+            : incomingTime;
+        syncNowPlayingClock(nextTime, durationSec, nowPlayingPaused);
+    }, [getNowPlayingDisplayTime, nowPlayingLyricPayload?.durationMs, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality, nowPlayingTrack?.durationMs, syncNowPlayingClock]);
 
     useEffect(() => {
         if (activePlaybackContext === 'main') {
@@ -1554,18 +1596,41 @@ export default function App() {
             return;
         }
 
-        void loadNowPlayingIntoPlayback({ autoplay: true });
+        void loadNowPlayingIntoPlayback(
+            nowPlayingTrack,
+            nowPlayingLyricPayload,
+            nowPlayingProgressMs,
+            nowPlayingPaused,
+            { autoplay: true },
+        );
     }, [activePlaybackContext, loadNowPlayingIntoPlayback, nowPlayingLyricPayload, nowPlayingTrack, stageSource]);
+
+    useEffect(() => {
+        if (activePlaybackContext !== 'stage' || stageSource) {
+            return;
+        }
+
+        stagePlaybackSnapshotRef.current = null;
+        setActivePlaybackContext('main');
+        clearMainPlaybackContext();
+    }, [activePlaybackContext, clearMainPlaybackContext, stageSource]);
 
     useEffect(() => {
         if (!isNowPlayingStageActive) {
             return;
         }
 
-        const nextTime = Math.max(0, nowPlayingProgressMs / 1000);
+        const incomingTime = Math.max(0, nowPlayingProgressMs / 1000);
+        const displayTime = getNowPlayingDisplayTime();
+        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
+            ? Math.max(incomingTime, displayTime)
+            : incomingTime;
         console.log('[NowPlaying][App] Applying progress to currentTime', {
             nowPlayingProgressMs,
             nextTime,
+            nowPlayingProgressQuality,
+            nowPlayingPaused,
+            displayTime,
             hasLyrics: Boolean(lyrics),
         });
         currentTime.set(nextTime);
@@ -1578,7 +1643,7 @@ export default function App() {
         } else if (currentLineIndexRef.current !== -1) {
             setCurrentLineIndex(-1);
         }
-    }, [currentTime, isNowPlayingStageActive, lyrics, nowPlayingProgressMs]);
+    }, [currentTime, getNowPlayingDisplayTime, isNowPlayingStageActive, lyrics, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality]);
 
     const restoreSession = async () => {
         try {
@@ -3323,6 +3388,7 @@ export default function App() {
     }, [handleAlbumSelect, hideSearchOverlay, openLocalAlbumByName, setHomeViewTab]);
 
     const handleNextTrack = useCallback(async (options?: NextTrackOptions) => {
+        if (isNowPlayingStageActive) return;
         if (!currentSong || playQueue.length === 0) return;
 
         const shouldNavigateToPlayer = options?.shouldNavigateToPlayer ?? true;
@@ -3366,9 +3432,10 @@ export default function App() {
             }
             setPlayerState(PlayerState.IDLE);
         }
-    }, [currentSong, playQueue, loopMode, isFmMode]);
+    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue]);
 
     const handlePrevTrack = useCallback(() => {
+        if (isNowPlayingStageActive) return;
         if (!currentSong || playQueue.length === 0) return;
 
         const currentIndex = playQueue.findIndex(s => s.id === currentSong.id);
@@ -3383,7 +3450,7 @@ export default function App() {
         if (prevIndex >= 0) {
             playSong(playQueue[prevIndex], playQueue, isFmMode);
         }
-    }, [currentSong, playQueue, loopMode, isFmMode]);
+    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue]);
 
     const skipAfterPlaybackFailure = useCallback(() => {
         clearPendingUnavailableSkip();
@@ -3447,6 +3514,10 @@ export default function App() {
         }
 
         return window.electron.onTaskbarControl((action) => {
+            if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
+
             if (!audioRef.current || !taskbarHasTrackRef.current) {
                 return;
             }
@@ -3474,10 +3545,10 @@ export default function App() {
             return;
         }
 
-        const hasActiveTrack = Boolean(currentSong);
+        const hasActiveTrack = !isNowPlayingStageActive && Boolean(currentSong);
         const isStageContext = activePlaybackContext === 'stage';
         const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
-        const canGoPrevious = currentIndex > 0 || (effectiveLoopMode === 'all' && playQueue.length > 1);
+        const canGoPrevious = !isNowPlayingStageActive && (currentIndex > 0 || (effectiveLoopMode === 'all' && playQueue.length > 1));
         const canGoNext = hasActiveTrack && (
             isFmMode ||
             currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
@@ -3488,13 +3559,17 @@ export default function App() {
             hasActiveTrack,
             canGoPrevious,
             canGoNext,
-            isPlaying: hasActiveTrack && playerState === PlayerState.PLAYING,
+            isPlaying: !isNowPlayingStageActive && hasActiveTrack && playerState === PlayerState.PLAYING,
         }).catch((error) => {
             console.warn('[Electron] Failed to update Windows taskbar controls', error);
         });
-    }, [activePlaybackContext, currentSong, effectiveLoopMode, isFmMode, playQueue, playerState]);
+    }, [activePlaybackContext, currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
 
     const handleFmTrash = async () => {
+        if (isNowPlayingStageActive) {
+            return;
+        }
+
         if (currentSong && isFmMode) {
             try {
                 await neteaseApi.fmTrash(currentSong.id);
@@ -3505,6 +3580,7 @@ export default function App() {
     };
 
     const shuffleQueue = useCallback(() => {
+        if (isNowPlayingStageActive) return;
         if (!playQueue || playQueue.length <= 1) return;
 
         // 1. Identify current song
@@ -3537,7 +3613,7 @@ export default function App() {
         if (currentId && newQueue.length > 1) {
             invalidateAndRefetch(currentId, newQueue, audioQuality);
         }
-    }, [playQueue, currentSong, t, audioQuality]);
+    }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, t]);
 
     // Volume & Mute Sync
     useEffect(() => {
@@ -3628,6 +3704,10 @@ export default function App() {
         };
 
         setActionHandlerSafely('play', async () => {
+            if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
+
             if (!audioRef.current) {
                 return;
             }
@@ -3639,6 +3719,10 @@ export default function App() {
             }
         });
         setActionHandlerSafely('pause', () => {
+            if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
+
             if (!audioRef.current) {
                 return;
             }
@@ -3646,9 +3730,15 @@ export default function App() {
             mediaSessionPauseRef.current();
         });
         setActionHandlerSafely('previoustrack', () => {
+            if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
             mediaSessionPrevRef.current();
         });
         setActionHandlerSafely('nexttrack', () => {
+            if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
             void mediaSessionNextRef.current();
         });
 
@@ -3702,13 +3792,15 @@ export default function App() {
         }
 
         try {
-            navigator.mediaSession.playbackState = currentSong
+            navigator.mediaSession.playbackState = isNowPlayingStageActive
+                ? 'none'
+                : currentSong
                 ? (playerState === PlayerState.PLAYING ? 'playing' : 'paused')
                 : 'none';
         } catch (e) {
             console.warn('[MediaSession] Failed to update playback state', e);
         }
-    }, [currentSong, playerState]);
+    }, [currentSong, isNowPlayingStageActive, playerState]);
 
 
     useEffect(() => {
@@ -3908,7 +4000,11 @@ export default function App() {
     const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
         e?.stopPropagation();
 
-        if ((isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics')) && !audioSrc) {
+        if (isNowPlayingStageActive) {
+            return;
+        }
+
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             if (playerState === PlayerState.PLAYING) {
                 pausePlayback();
             } else {
@@ -3953,6 +4049,9 @@ export default function App() {
                     // Space key works in both home and player views if there's a current song
                     if (currentSong && (audioSrc || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
                         e.preventDefault();
+                        if (isNowPlayingStageActive) {
+                            return;
+                        }
                         togglePlay(e);
                     }
                     break;
@@ -3960,6 +4059,9 @@ export default function App() {
                     if (e.ctrlKey && !e.altKey && !e.metaKey) {
                         if (currentSong) {
                             e.preventDefault();
+                            if (isNowPlayingStageActive) {
+                                return;
+                            }
                             handlePrevTrack();
                         }
                         return;
@@ -3968,11 +4070,11 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (isNowPlayingStageActive && !audioSrc) {
-                        const nextTime = Math.max(0, currentTime.get() - 5);
-                        syncNowPlayingClock(nextTime, duration, playerState !== PlayerState.PLAYING);
-                        currentTime.set(nextTime);
-                    } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                    if (isNowPlayingStageActive) {
+                        return;
+                    }
+
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
                         const nextTime = Math.max(stageLyricsClockRef.current.startTimeSec, currentTime.get() - 5);
                         syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                         currentTime.set(nextTime);
@@ -3985,6 +4087,9 @@ export default function App() {
                     if (e.ctrlKey && !e.altKey && !e.metaKey) {
                         if (currentSong) {
                             e.preventDefault();
+                            if (isNowPlayingStageActive) {
+                                return;
+                            }
                             void handleNextTrack();
                         }
                         return;
@@ -3993,11 +4098,11 @@ export default function App() {
                     // Arrow keys only work in player view
                     if (currentView !== 'player') return;
                     e.preventDefault();
-                    if (isNowPlayingStageActive && !audioSrc) {
-                        const nextTime = Math.min(duration, currentTime.get() + 5);
-                        syncNowPlayingClock(nextTime, duration, playerState !== PlayerState.PLAYING);
-                        currentTime.set(nextTime);
-                    } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                    if (isNowPlayingStageActive) {
+                        return;
+                    }
+
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
                         const nextTime = Math.min(duration, currentTime.get() + 5);
                         syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                         currentTime.set(nextTime);
@@ -4017,10 +4122,13 @@ export default function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activePlaybackContext, audioSrc, currentSong, currentTime, currentView, duration, handleNextTrack, handlePrevTrack, isDev, isNowPlayingStageActive, isPanelOpen, pausePlayback, playerState, resumePlayback, stageActiveEntryKind, syncNowPlayingClock, syncStageLyricsClock]);
+    }, [activePlaybackContext, audioSrc, currentSong, currentTime, currentView, duration, handleNextTrack, handlePrevTrack, isDev, isNowPlayingStageActive, isPanelOpen, pausePlayback, playerState, resumePlayback, stageActiveEntryKind, syncStageLyricsClock]);
 
     const toggleLoop = (e?: React.MouseEvent) => {
         e?.stopPropagation();
+        if (isNowPlayingStageActive) {
+            return;
+        }
 
         handleToggleLoopMode();
     };
@@ -4271,9 +4379,14 @@ export default function App() {
         nextLine: toDebugLineSnapshot(debugNextLine),
     };
     const isPlayerView = currentView === 'player';
-    const canToggleCurrentPlayback = Boolean(
+    const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    const canToggleCurrentPlayback = !isNowPlayingControlDisabled && Boolean(
         audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
     );
+
+    useEffect(() => {
+        isNowPlayingControlDisabledRef.current = isNowPlayingControlDisabled;
+    }, [isNowPlayingControlDisabled]);
 
     useEffect(() => {
         if (!isElectronWindow) {
@@ -4812,8 +4925,13 @@ export default function App() {
                         currentView={currentView}
                         audioSrc={audioSrc}
                         canTogglePlay={canToggleCurrentPlayback}
+                        controlsDisabled={isNowPlayingControlDisabled}
                         lyrics={lyrics}
                         onSeek={(time) => {
+                            if (isNowPlayingControlDisabled) {
+                                return;
+                            }
+
                             if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
                                 syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                                 currentTime.set(time);
@@ -4920,6 +5038,7 @@ export default function App() {
                         showOpenPanelCloseButton={showOpenPanelCloseButton}
                         hideToggleButton={isPlayerChromeHidden}
                         isStageContext={activePlaybackContext === 'stage'}
+                        playbackControlsDisabled={isNowPlayingControlDisabled}
                     />
                 )
             }

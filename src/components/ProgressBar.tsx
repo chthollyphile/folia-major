@@ -10,6 +10,7 @@ interface ProgressBarProps {
     primaryColor?: string;
     secondaryColor?: string;
     trackColor?: string;
+    disabled?: boolean;
 }
 
 
@@ -28,7 +29,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     onSeekEnd,
     primaryColor = 'white',
     secondaryColor = 'rgba(255,255,255,0.5)',
-    trackColor = 'rgba(255,255,255,0.1)'
+    trackColor = 'rgba(255,255,255,0.1)',
+    disabled = false,
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [localValue, setLocalValue] = useState(0);
@@ -82,6 +84,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     });
 
     const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
+        if (disabled) {
+            return;
+        }
         const val = Number(e.currentTarget.value);
         setLocalValue(val);
 
@@ -105,7 +110,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                 00:00
             </span>
 
-            <div className="relative h-1.5 flex-1 rounded-sm md:rounded-full flex items-center group cursor-pointer" style={{ backgroundColor: trackColor }}>
+            <div className={`relative h-1.5 flex-1 rounded-sm md:rounded-full flex items-center group ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} style={{ backgroundColor: trackColor }}>
                 <div
                     ref={progressRef}
                     className="absolute top-0 left-0 h-full rounded-sm md:rounded-full pointer-events-none"
@@ -116,29 +121,34 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                     type="range"
                     min={0} max={duration || 100}
                     step={0.1}
+                    disabled={disabled}
                     defaultValue={0}
                     onMouseDown={() => {
+                        if (disabled) return;
                         setIsDragging(true);
                         onSeekStart?.();
                     }}
                     onTouchStart={() => {
+                        if (disabled) return;
                         setIsDragging(true);
                         onSeekStart?.();
                     }}
                     onInput={handleInput}
                     onChange={() => { }} // React requires this
                     onMouseUp={(e) => {
+                        if (disabled) return;
                         setIsDragging(false);
                         onSeek(Number(e.currentTarget.value));
                         onSeekEnd?.();
                     }}
                     onTouchEnd={(e) => {
+                        if (disabled) return;
                         setIsDragging(false);
                         onSeek(Number(e.currentTarget.value));
                         onSeekEnd?.();
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    className={`absolute inset-0 w-full h-full opacity-0 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 />
             </div>
 

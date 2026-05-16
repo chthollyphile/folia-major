@@ -40,6 +40,7 @@ type NowPlayingWsEnvelope = {
 export type NowPlayingProgressUpdate = {
     progressMs: number;
     isReplay: boolean;
+    quality: 'precise' | 'coarse';
 };
 
 export type NowPlayingProviderSnapshot = {
@@ -79,6 +80,38 @@ const normalizeDurationMs = (value: unknown): number => {
     // while progress fields arrive in milliseconds.
     if (safeValue > 0 && safeValue < 10_000) {
         return Math.floor(safeValue * 1000);
+    }
+
+    return Math.floor(safeValue);
+};
+
+const resolveSnapshotDurationMs = (snapshot: NowPlayingProviderSnapshot): number => {
+    return snapshot.track?.durationMs || snapshot.lyric?.durationMs || 0;
+};
+
+const normalizePauseStateProgressMs = (
+    value: unknown,
+    snapshot: NowPlayingProviderSnapshot,
+    statePercent?: unknown
+): number => {
+    const numericValue = typeof value === 'number' ? value : Number(value);
+    const numericPercent = typeof statePercent === 'number' ? statePercent : Number(statePercent);
+    const durationMs = resolveSnapshotDurationMs(snapshot);
+
+    if (!Number.isFinite(numericValue)) {
+        if (Number.isFinite(numericPercent) && durationMs > 0) {
+            return Math.max(0, Math.min(durationMs, Math.floor(durationMs * numericPercent)));
+        }
+        return 0;
+    }
+
+    const safeValue = Math.max(0, numericValue);
+
+    if (durationMs > 0) {
+        const durationSeconds = durationMs / 1000;
+        if (safeValue <= durationSeconds + 1) {
+            return Math.min(durationMs, Math.floor(safeValue * 1000));
+        }
     }
 
     return Math.floor(safeValue);
@@ -146,6 +179,8 @@ export class NowPlayingProvider {
     private socket: WebSocket | null = null;
     private reconnectTimer: number | null = null;
     private stopped = true;
+    private lastPreciseProgressMs = 0;
+    private lastPreciseProgressAtMs = 0;
     private snapshot: NowPlayingProviderSnapshot = {
         connectionStatus: 'disabled',
         track: null,
@@ -189,6 +224,8 @@ export class NowPlayingProvider {
                 isPaused: true,
                 progressMs: 0,
             };
+            this.lastPreciseProgressMs = 0;
+            this.lastPreciseProgressAtMs = 0;
             this.callbacks.onTrack?.(null);
             this.callbacks.onLyric?.(null);
             this.callbacks.onPauseState?.(true);
@@ -274,10 +311,20 @@ export class NowPlayingProvider {
                     ? payload.data as NowPlayingPlayerStateMessage
                     : null;
                 const isPaused = Boolean(playerState?.isPaused);
-                const progressMs = clampProgressMs(playerState?.seekbarCurrentPosition);
+                const coarseProgressMs = normalizePauseStateProgressMs(
+                    playerState?.seekbarCurrentPosition,
+                    this.snapshot,
+                    playerState?.statePercent,
+                );
+                const hasRecentPreciseProgress = Date.now() - this.lastPreciseProgressAtMs <= 5_000;
+                const progressMs = hasRecentPreciseProgress
+                    ? this.lastPreciseProgressMs
+                    : coarseProgressMs;
                 console.log('[NowPlaying][ws] Pause state update:', {
                     raw: playerState,
                     isPaused,
+                    coarseProgressMs,
+                    usedRecentPreciseProgress: hasRecentPreciseProgress,
                     progressMs,
                 });
                 this.snapshot = {
@@ -286,12 +333,18 @@ export class NowPlayingProvider {
                     progressMs,
                 };
                 this.callbacks.onPauseState?.(isPaused);
-                this.callbacks.onProgress?.({ progressMs, isReplay: false });
+                this.callbacks.onProgress?.({
+                    progressMs,
+                    isReplay: false,
+                    quality: hasRecentPreciseProgress ? 'precise' : 'coarse',
+                });
                 break;
             }
             case 'PlayerProgress': {
                 const data = payload.data as { progress?: number } | undefined;
                 const progressMs = clampProgressMs(data?.progress);
+                this.lastPreciseProgressMs = progressMs;
+                this.lastPreciseProgressAtMs = Date.now();
                 console.log('[NowPlaying][ws] Progress update:', {
                     raw: data,
                     progressMs,
@@ -300,16 +353,18 @@ export class NowPlayingProvider {
                     ...this.snapshot,
                     progressMs,
                 };
-                this.callbacks.onProgress?.({ progressMs, isReplay: false });
+                this.callbacks.onProgress?.({ progressMs, isReplay: false, quality: 'precise' });
                 break;
             }
             case 'PlayerProgressReplay': {
                 console.log('[NowPlaying][ws] Replay progress reset');
+                this.lastPreciseProgressMs = 0;
+                this.lastPreciseProgressAtMs = Date.now();
                 this.snapshot = {
                     ...this.snapshot,
                     progressMs: 0,
                 };
-                this.callbacks.onProgress?.({ progressMs: 0, isReplay: true });
+                this.callbacks.onProgress?.({ progressMs: 0, isReplay: true, quality: 'precise' });
                 break;
             }
             default:
