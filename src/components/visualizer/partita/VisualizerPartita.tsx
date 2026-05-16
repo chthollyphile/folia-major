@@ -32,6 +32,7 @@ interface VisualizerPartitaProps {
     partitaTuning?: PartitaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
 }
@@ -697,6 +698,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
     partitaTuning = DEFAULT_PARTITA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
+    hideTranslationSubtitle = false,
     paused = false,
     onBack,
 }) => {
@@ -1018,6 +1020,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
                 translationFontSize={translationFontSize}
                 upcomingFontSize={upcomingFontSize}
                 isPlayerChromeHidden={isPlayerChromeHidden}
+                hideTranslationSubtitle={hideTranslationSubtitle}
             />
         </VisualizerShell>
     );

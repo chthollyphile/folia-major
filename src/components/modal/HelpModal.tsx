@@ -17,9 +17,15 @@ interface HelpModalProps {
     onClose: () => void;
     initialTab?: 'help' | 'options';
     staticMode?: boolean;
-    enableHomeDynamicBackground?: boolean;
+    disableHomeDynamicBackground?: boolean;
+    hidePlayerProgressBar?: boolean;
+    hidePlayerTranslationSubtitle?: boolean;
+    hidePlayerRightPanelButton?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
-    onToggleHomeDynamicBackground?: (enable: boolean) => void;
+    onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
+    onToggleHidePlayerProgressBar?: (enable: boolean) => void;
+    onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
+    onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
@@ -72,9 +78,15 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onClose,
     initialTab = 'help',
     staticMode = false,
-    enableHomeDynamicBackground = false,
+    disableHomeDynamicBackground = false,
+    hidePlayerProgressBar = false,
+    hidePlayerTranslationSubtitle = false,
+    hidePlayerRightPanelButton = false,
     onToggleStaticMode,
-    onToggleHomeDynamicBackground,
+    onToggleDisableHomeDynamicBackground,
+    onToggleHidePlayerProgressBar,
+    onToggleHidePlayerTranslationSubtitle,
+    onToggleHidePlayerRightPanelButton,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -661,6 +673,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
                                         <span>{t('help.hidePlayerChrome')}</span>
                                         <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">H</kbd>
+                                    </li>
+                                    <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
+                                        <span>{t('help.toggleRightPanel') || '切换右侧面板'}</span>
+                                        <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">P</kbd>
                                     </li>
                                     <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
                                         <span>{t('help.browserFullscreen')}</span>
@@ -1651,7 +1667,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 type="button"
                                 onClick={() => {
                                     onToggleStaticMode?.(false);
-                                    onToggleHomeDynamicBackground?.(false);
+                                    onToggleDisableHomeDynamicBackground?.(false);
+                                    onToggleHidePlayerProgressBar?.(false);
+                                    onToggleHidePlayerTranslationSubtitle?.(false);
+                                    onToggleHidePlayerRightPanelButton?.(false);
                                     onToggleOpenPanelCloseButton(true);
                                 }}
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
@@ -1690,24 +1709,72 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     <div className="space-y-1">
                                         <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                                             <PlayCircle size={14} />
-                                            {t('options.enableHomeDynamicBackground') || '启用主页动态背景'}
+                                            {t('options.disableHomeDynamicBackground') || '关闭主页动态背景'}
                                         </div>
                                         <div className="text-xs opacity-50 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.enableHomeDynamicBackgroundDesc') || '允许主页继续播放背景动画。'}
+                                            {t('options.disableHomeDynamicBackgroundDesc') || '关闭后主页不再继续播放背景动画，可降低 GPU 占用。'}
                                         </div>
                                         <div className="text-[11px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.enableHomeDynamicBackgroundWarning') || '会严重消耗 GPU 资源，默认关闭。'}
+                                            {t('options.disableHomeDynamicBackgroundWarning') || '默认关闭，默认情况下允许动态背景。'}
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => onToggleHomeDynamicBackground?.(!enableHomeDynamicBackground)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableHomeDynamicBackground ? toggleOffBackgroundClass : ''}`}
-                                        style={{ backgroundColor: enableHomeDynamicBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                        onClick={() => onToggleDisableHomeDynamicBackground?.(!disableHomeDynamicBackground)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!disableHomeDynamicBackground ? toggleOffBackgroundClass : ''}`}
+                                        style={{ backgroundColor: disableHomeDynamicBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                     >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableHomeDynamicBackground ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${disableHomeDynamicBackground ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
 
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Settings2 size={14} />
+                                            {t('options.labHidePlayerUi') || '隐藏播放页 UI'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.labHidePlayerUiDesc') || '仅对播放页生效。可分别隐藏进度条、翻译字幕和右侧按钮；隐藏右侧按钮后仍可使用 P 键打开或关闭右侧面板。'}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleHidePlayerProgressBar?.(!hidePlayerProgressBar)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${hidePlayerProgressBar ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${hidePlayerProgressBar ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {hidePlayerProgressBar ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.hidePlayerProgressBar') || '隐藏播放页底部控制条'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleHidePlayerTranslationSubtitle?.(!hidePlayerTranslationSubtitle)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${hidePlayerTranslationSubtitle ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${hidePlayerTranslationSubtitle ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {hidePlayerTranslationSubtitle ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.hidePlayerTranslationSubtitle') || '隐藏播放页翻译字幕'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleHidePlayerRightPanelButton?.(!hidePlayerRightPanelButton)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${hidePlayerRightPanelButton ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${hidePlayerRightPanelButton ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {hidePlayerRightPanelButton ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.hidePlayerRightPanelButton') || '隐藏播放页右侧按钮'}</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between gap-4">
                                     <div className="space-y-1">
                                         <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>

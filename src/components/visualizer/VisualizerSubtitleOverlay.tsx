@@ -13,6 +13,7 @@ interface VisualizerSubtitleOverlayProps {
     upcomingFontSize: string;
     opacity?: number;
     isPlayerChromeHidden?: boolean;
+    hideTranslationSubtitle?: boolean;
 }
 
 const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
@@ -25,10 +26,13 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
     upcomingFontSize,
     opacity = 0.6,
     isPlayerChromeHidden = false,
+    hideTranslationSubtitle = false,
 }) => {
+    const translationText = activeLine?.translation || recentCompletedLine?.translation || null;
+
     return (
         <AnimatePresence>
-            {showText && (
+            {showText && !hideTranslationSubtitle && (
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{
@@ -44,7 +48,7 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                     }}
                     className="absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
                 >
-                    {(activeLine?.translation || recentCompletedLine?.translation) ? (
+                    {translationText ? (
                         <motion.div
                             key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
                             initial={{ opacity: 0, y: 10 }}
@@ -58,10 +62,10 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                                 fontFamily: resolveThemeTranslationFontStack(theme),
                             }}
                         >
-                            {activeLine?.translation || recentCompletedLine?.translation}
+                            {translationText}
                         </motion.div>
-                    ) : (
-                        activeLine && nextLines.map((line, index) => (
+                    ) : activeLine ? (
+                        nextLines.map((line, index) => (
                             <p
                                 key={index}
                                 className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
@@ -73,7 +77,7 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                                 {line.fullText}
                             </p>
                         ))
-                    )}
+                    ) : null}
                 </motion.div>
             )}
         </AnimatePresence>

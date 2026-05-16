@@ -35,6 +35,7 @@ export interface VisualizerSharedProps {
     backgroundOpacity?: number;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
     cadenzaTuning?: CadenzaTuning;
@@ -69,6 +70,7 @@ const renderClassic = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    hideTranslationSubtitle,
     paused,
     onBack,
 }: VisualizerSharedProps) => (
@@ -87,6 +89,7 @@ const renderClassic = ({
         backgroundOpacity={backgroundOpacity}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        hideTranslationSubtitle={hideTranslationSubtitle}
         paused={paused}
         onBack={onBack}
     />
@@ -107,6 +110,7 @@ const renderCadenza = ({
     backgroundOpacity,
     lyricsFontScale = 1,
     isPlayerChromeHidden,
+    hideTranslationSubtitle,
     paused,
     onBack,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
@@ -131,6 +135,7 @@ const renderCadenza = ({
         }}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        hideTranslationSubtitle={hideTranslationSubtitle}
         paused={paused}
         onBack={onBack}
     />
@@ -151,6 +156,7 @@ const renderPartita = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    hideTranslationSubtitle,
     paused,
     onBack,
     partitaTuning,
@@ -171,6 +177,7 @@ const renderPartita = ({
         partitaTuning={partitaTuning}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        hideTranslationSubtitle={hideTranslationSubtitle}
         paused={paused}
         onBack={onBack}
     />
@@ -191,6 +198,7 @@ const renderFume = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    hideTranslationSubtitle,
     paused,
     onBack,
     fumeTuning,
@@ -211,6 +219,7 @@ const renderFume = ({
         lyricsFontScale={lyricsFontScale}
         fumeTuning={fumeTuning}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        hideTranslationSubtitle={hideTranslationSubtitle}
         paused={paused}
         onBack={onBack}
     />
