@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, User, Loader2, ChevronRight, HelpCircle, ChevronDown } from 'lucide-react';
+import { Search, User, Loader2, ChevronRight, Settings , ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
 import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
@@ -541,7 +541,7 @@ const Home: React.FC<HomeProps> = ({
                                     className="relative p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
                                     title="Help & About"
                                 >
-                                    <HelpCircle size={20} style={{ color: 'var(--text-primary)' }} />
+                                    <Settings size={20} style={{ color: 'var(--text-primary)' }} />
                                     {showUpdateIndicator && (
                                         <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-400 ring-2 ring-black/20" />
                                     )}
