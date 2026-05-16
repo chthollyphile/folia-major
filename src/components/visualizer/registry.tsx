@@ -35,6 +35,7 @@ export interface VisualizerSharedProps {
     backgroundOpacity?: number;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    paused?: boolean;
     onBack?: () => void;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
@@ -68,6 +69,7 @@ const renderClassic = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    paused,
     onBack,
 }: VisualizerSharedProps) => (
     <Visualizer
@@ -85,6 +87,7 @@ const renderClassic = ({
         backgroundOpacity={backgroundOpacity}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        paused={paused}
         onBack={onBack}
     />
 );
@@ -104,6 +107,7 @@ const renderCadenza = ({
     backgroundOpacity,
     lyricsFontScale = 1,
     isPlayerChromeHidden,
+    paused,
     onBack,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
 }: VisualizerSharedProps) => (
@@ -127,6 +131,7 @@ const renderCadenza = ({
         }}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        paused={paused}
         onBack={onBack}
     />
 );
@@ -146,6 +151,7 @@ const renderPartita = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    paused,
     onBack,
     partitaTuning,
 }: VisualizerSharedProps) => (
@@ -165,6 +171,7 @@ const renderPartita = ({
         partitaTuning={partitaTuning}
         lyricsFontScale={lyricsFontScale}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        paused={paused}
         onBack={onBack}
     />
 );
@@ -184,6 +191,7 @@ const renderFume = ({
     backgroundOpacity,
     lyricsFontScale,
     isPlayerChromeHidden,
+    paused,
     onBack,
     fumeTuning,
 }: VisualizerSharedProps) => (
@@ -203,6 +211,7 @@ const renderFume = ({
         lyricsFontScale={lyricsFontScale}
         fumeTuning={fumeTuning}
         isPlayerChromeHidden={isPlayerChromeHidden}
+        paused={paused}
         onBack={onBack}
     />
 );

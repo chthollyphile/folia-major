@@ -30,6 +30,7 @@ interface VisualizerProps {
     backgroundOpacity?: number;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
+    paused?: boolean;
     onBack?: () => void;
 }
 
@@ -263,6 +264,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     backgroundOpacity = 0.75,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
+    paused = false,
     onBack
 }) => {
     const { t } = useTranslation();
@@ -538,6 +540,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            paused={paused}
             onBack={onBack}
         >
             {/* Main Container */}

@@ -20,6 +20,7 @@ interface VisualizerShellProps {
     backgroundOpacity?: number;
     staticMode?: boolean;
     disableGeometricBackground?: boolean;
+    paused?: boolean;
     onBack?: () => void;
     children: React.ReactNode;
     className?: string;
@@ -35,6 +36,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     backgroundOpacity = 0.75,
     staticMode = false,
     disableGeometricBackground = false,
+    paused = false,
     onBack,
     children,
     className = '',
@@ -125,6 +127,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                         audioBands={audioBands}
                         seed={seed}
                         hideShapes={disableGeometricBackground}
+                        paused={paused}
                     />
                 </div>
             )}
