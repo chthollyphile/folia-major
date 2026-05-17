@@ -33,6 +33,7 @@ type UseLibraryPlaybackControllerParams = {
     currentSong: SongResult | null;
     lyrics: LyricData | null;
     playQueue: SongResult[];
+    likedSongIds: Set<number>;
     userId?: number;
     currentTime: MotionValue<number>;
     setCurrentSong: SetState<SongResult | null>;
@@ -46,6 +47,7 @@ type UseLibraryPlaybackControllerParams = {
     setIsLyricsLoading: SetState<boolean>;
     setStatusMsg: SetState<StatusMessage | null>;
     setIsPanelOpen: SetState<boolean>;
+    setLikedSongIds: Dispatch<SetStateAction<Set<number>>>;
     navigateToPlayer: () => void;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     restoreCachedThemeForSong: (songId: number, options?: {
@@ -66,6 +68,7 @@ export function useLibraryPlaybackController({
     currentSong,
     lyrics,
     playQueue,
+    likedSongIds,
     userId,
     currentTime,
     setCurrentSong,
@@ -79,6 +82,7 @@ export function useLibraryPlaybackController({
     setIsLyricsLoading,
     setStatusMsg,
     setIsPanelOpen,
+    setLikedSongIds,
     navigateToPlayer,
     persistLastPlaybackCache,
     restoreCachedThemeForSong,
@@ -801,10 +805,7 @@ export function useLibraryPlaybackController({
         }
     }, [currentSong, loadLocalSongs, setCachedCoverUrl, setCurrentSong, setLyrics]);
 
-    const handleLike = useCallback(async (
-        likedSongIds: Set<number>,
-        setLikedSongIds: Dispatch<SetStateAction<Set<number>>>,
-    ) => {
+    const handleLike = useCallback(async () => {
         if (!currentSong) return;
 
         if (isStagePlaybackSong(currentSong)) {
@@ -844,7 +845,7 @@ export function useLibraryPlaybackController({
             console.error('Like failed', error);
             setStatusMsg({ type: 'error', text: t('status.likeFailed') });
         }
-    }, [currentSong, isLocalSongLiked, loadLocalPlaylists, setStatusMsg, t]);
+    }, [currentSong, isLocalSongLiked, likedSongIds, loadLocalPlaylists, setLikedSongIds, setStatusMsg, t]);
 
     return {
         localSongs,

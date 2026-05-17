@@ -32,6 +32,7 @@ const createStore = () => {
     const values = new Map<string, unknown>();
     return {
         get: (key: string) => values.get(key),
+        has: (key: string) => values.has(key),
         set: (key: string, value: unknown) => {
             values.set(key, value);
         },

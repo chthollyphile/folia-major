@@ -41,9 +41,13 @@ src/
   App 顶层装配目录。
   负责承接 `App.tsx` 直接挂载的入口组件、overlay 归口、dialog 归口，以及顶层视图包装层。
 
-- `components/app/view-models/*`
-  App 装配层的参数组装文件。
-  负责聚合底层 hook / state / action，生成给 `Home`、`PlayerPanel`、`AppOverlays`、`AppDialogs` 消费的模型。
+- `components/app/home/*` / `player-panel/*` / `overlays/*` / `dialogs/*`
+  App 装配层的参数组装与功能邻近文件。
+  负责用 `build*.ts` / `create*.ts` 聚合底层 hook / state / action，生成给顶层 app 组件消费的模型和动作。
+
+- `components/app/navigation/*` / `playback/*` / `presentation/*`
+  App 装配层的纯函数辅助目录。
+  分别承接顶层导航辅助、播放装配辅助、展示派生计算，避免这些实现回流到 `App.tsx`。
 
 - `components/Home.tsx`
   首页主入口。包含搜索、网易云入口、本地音乐入口、Navidrome 入口、帮助/设置弹窗。
@@ -191,6 +195,6 @@ src/
 - 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
 - `HelpModal.tsx` 是设置中心，不只是帮助说明。
 - `UnifiedPanel.tsx` 通过 `panelTab/*` 组合，不要重新把面板逻辑塞回一个大组件。
-- 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/view-models/*`。
+- 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/*` 下与功能相邻的 `build*.ts` / `create*.ts`。
 - 本地音乐导入是增量快照式，不是单次全量扫描。
 - 歌词解析优先从 `parserCore.ts` 理解，不要从旧兼容层反推。

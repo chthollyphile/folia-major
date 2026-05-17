@@ -1,12 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { saveSessionData, getSessionData, getFromCache, saveToCache, removeFromCache, clearCacheByCategory } from './services/db';
-import { getCachedAudioBlob } from './services/audioCache';
 import { loadCachedOrFetchCover } from './services/coverCache';
-import { loadOnlineSongAudioSource } from './services/onlinePlayback';
-import { buildNavidromeQueue } from './services/playbackAdapters';
-import { invalidatePrefetchedLyrics } from './services/prefetchService';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import AppShell from './components/app/AppShell';
 import Home from './components/app/Home';
@@ -15,6 +10,7 @@ import AppDialogs from './components/app/dialogs/AppDialogs';
 import AppOverlays from './components/app/overlays/AppOverlays';
 import { buildAppDialogsModel } from './components/app/dialogs/buildAppDialogsModel';
 import { buildHomeModel } from './components/app/home/buildHomeModel';
+import { createLyricFilterPatternSaver } from './components/app/home/createLyricFilterPatternSaver';
 import { createLocalLibraryNavigation } from './components/app/navigation/createLocalLibraryNavigation';
 import { createNavidromeNavigation } from './components/app/navigation/createNavidromeNavigation';
 import { createPanelNavigation } from './components/app/navigation/createPanelNavigation';
@@ -29,11 +25,8 @@ import { persistPlaybackCache } from './components/app/playback/persistPlaybackC
 import { buildAppOverlaysModel } from './components/app/overlays/buildAppOverlaysModel';
 import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, UnifiedSong, StatusMessage, PlaybackContext, StageLoopMode } from './types';
-import { NavidromeSong, NavidromeViewSelection } from './types/navidrome';
-import { getOnlineSongCacheKey, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
-import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
-import { removeSongsFromLocalPlaylist } from './services/localPlaylistService';
+import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode } from './types';
+import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useAppPreferences } from './hooks/useAppPreferences';
@@ -51,9 +44,8 @@ import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { clampMediaVolume, formatTime, replayGainModeLabels } from './utils/appPlaybackHelpers';
+import { clampMediaVolume } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
-import { getNextLoopMode, getStageLyricsTimelineBounds } from './utils/appStageHelpers';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
@@ -516,13 +508,14 @@ export default function App() {
         handleLyricMatchComplete,
         handleNaviLyricMatchComplete,
         handleHomeMatchSong,
-        handleLike: handleLibraryLike,
+        handleLike,
     } = useLibraryPlaybackController({
         t: (key, fallback) => t(key, fallback ?? ''),
         audioQuality,
         currentSong,
         lyrics,
         playQueue,
+        likedSongIds,
         userId: user?.userId,
         currentTime,
         setCurrentSong,
@@ -536,6 +529,7 @@ export default function App() {
         setIsLyricsLoading,
         setStatusMsg,
         setIsPanelOpen,
+        setLikedSongIds,
         navigateToPlayer,
         persistLastPlaybackCache,
         restoreCachedThemeForSong,
@@ -577,18 +571,13 @@ export default function App() {
         setLocalMusicState,
         navigateDirectHome,
     });
-
-
-    const handleSaveLyricFilterPattern = useCallback(async (pattern: string) => {
-        handleSetLyricFilterPattern(pattern);
-        await clearCacheByCategory('lyrics');
-        invalidatePrefetchedLyrics();
-
-        const previewLyrics = await loadCurrentSongLyricPreview();
-        setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(previewLyrics, pattern)));
-        setCurrentLineIndex(-1);
-        setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
-    }, [handleSetLyricFilterPattern, loadCurrentSongLyricPreview]);
+    const handleSaveLyricFilterPattern = createLyricFilterPatternSaver({
+        handleSetLyricFilterPattern,
+        loadCurrentSongLyricPreview,
+        setLyrics,
+        setCurrentLineIndex,
+        setStatusMsg,
+    });
 
     const { addNavidromeSongsToQueue } = createQueueMutations({
         currentSong,
@@ -840,10 +829,6 @@ export default function App() {
         resumePlayback,
         syncStageLyricsClock,
     });
-
-    const handleLike = useCallback(async () => {
-        await handleLibraryLike(likedSongIds, setLikedSongIds);
-    }, [handleLibraryLike, likedSongIds, setLikedSongIds]);
 
     const appStyle = buildAppStyle({
         bgMode,
