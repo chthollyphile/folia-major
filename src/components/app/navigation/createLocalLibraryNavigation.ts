@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
+import type { HomeViewTab, LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
 import { isLocalPlaybackSong } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/navigation/createLocalLibraryNavigation.ts
@@ -19,7 +19,7 @@ type CreateLocalLibraryNavigationParams = {
     currentView: string;
     currentSong: SongResult | null;
     localSongs: LocalSong[];
-    setHomeViewTab: (tab: string) => void;
+    setHomeViewTab: (tab: HomeViewTab) => void;
     setLocalMusicState: Dispatch<SetStateAction<LocalMusicState>>;
     navigateDirectHome: (options?: { clearContext?: boolean }) => void;
 };

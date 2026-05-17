@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { RefObject } from 'react';
 import type LegacyUnifiedPanel from '../../UnifiedPanel';
 
 // src/components/app/player-panel/buildPlayerPanelModel.ts
@@ -61,7 +62,7 @@ type BuildPlayerPanelModelParams = {
     setPendingOpenSettings: React.Dispatch<React.SetStateAction<boolean>>;
     playQueue: LegacyUnifiedPanelProps['queue']['playQueue'];
     playSong: LegacyUnifiedPanelProps['queue']['onPlaySong'];
-    queueScrollRef: LegacyUnifiedPanelProps['queue']['queueScrollRef'];
+    queueScrollRef: RefObject<HTMLDivElement | null>;
     shuffleQueue: LegacyUnifiedPanelProps['queue']['onShuffle'];
     localPlaylists: LegacyUnifiedPanelProps['library']['localPlaylists'];
     playlists: LegacyUnifiedPanelProps['library']['neteasePlaylists'];

@@ -62,9 +62,9 @@ type UsePlaybackQueueControllerParams = {
     setPanelTab: SetState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>;
     setIsPanelOpen: SetState<boolean>;
     navigateToPlayer: () => void;
-    navigateToSearch: (args: { query: string; sourceTab: string; replace?: boolean }) => void;
+    navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean }) => void;
     hideSearchOverlay: () => void;
-    setHomeViewTab: (tab: string) => void;
+    setHomeViewTab: (tab: HomeViewTab) => void;
     setPendingNavidromeSelection: (selection: { type: 'artist'; artistId: string } | { type: 'album'; albumId: string }) => void;
     handleArtistSelect: (artistId: number) => void;
     handleAlbumSelect: (albumId: number) => void;

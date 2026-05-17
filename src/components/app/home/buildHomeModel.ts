@@ -1,5 +1,5 @@
 import type React from 'react';
-import { PlayerState } from '../../../types';
+import { PlayerState, type HomeViewTab } from '../../../types';
 import type LegacyHome from '../../Home';
 
 // src/components/app/home/buildHomeModel.ts
@@ -30,7 +30,7 @@ type BuildHomeModelParams = {
     setFocusedRadioIndex?: LegacyHomeProps['setFocusedRadioIndex'];
     pendingOpenSettings?: LegacyHomeProps['pendingOpenSettings'];
     setPendingOpenSettings: React.Dispatch<React.SetStateAction<boolean>>;
-    navigateToSearch: (args: { query: string; sourceTab: string; replace?: boolean }) => void;
+    navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean }) => void;
     openLocalAlbumByName?: LegacyHomeProps['onSelectLocalAlbum'];
     openLocalArtistByName?: LegacyHomeProps['onSelectLocalArtist'];
     localSongs: LegacyHomeProps['localSongs'];

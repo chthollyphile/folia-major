@@ -1,12 +1,12 @@
 import type { NavidromeViewSelection } from '../../../types/navidrome';
-import type { SongResult } from '../../../types';
+import type { HomeViewTab, SongResult } from '../../../types';
 
 // src/components/app/navigation/createNavidromeNavigation.ts
 
 type CreateNavidromeNavigationParams = {
     currentSong: SongResult | null;
     setPendingNavidromeSelection: (selection: NavidromeViewSelection) => void;
-    setHomeViewTab: (tab: string) => void;
+    setHomeViewTab: (tab: HomeViewTab) => void;
     navigateDirectHome: (options?: { clearContext?: boolean }) => void;
 };
 
