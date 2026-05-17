@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, removeFromCache, clearCacheByCategory } from './services/db';
-import { getCachedAudioBlob, hasCachedAudio, saveAudioBlob } from './services/audioCache';
+import { getCachedAudioBlob } from './services/audioCache';
 import { loadCachedOrFetchCover } from './services/coverCache';
 import { loadOnlineSongAudioSource } from './services/onlinePlayback';
 import { buildNavidromeQueue } from './services/playbackAdapters';
@@ -27,15 +27,18 @@ import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
 import { useMediaSessionBridge } from './hooks/useMediaSessionBridge';
+import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
+import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
 import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
+import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { clampMediaVolume, findLatestActiveLineIndex, formatTime, getAudioSrcKind, replayGainModeLabels, resolveDebugLyricsSource, resolveDebugSongSource, toDebugLineSnapshot, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
+import { clampMediaVolume, formatTime, getAudioSrcKind, replayGainModeLabels, resolveDebugLyricsSource, resolveDebugSongSource, toDebugLineSnapshot, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
 import { getNextLoopMode, getStageLyricsTimelineBounds } from './utils/appStageHelpers';
 import { ensureLyricDataRenderHints, getLineRenderHints } from './utils/lyrics/renderHints';
@@ -115,7 +118,6 @@ export default function App() {
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(null);
-    const previousAudioSrcRef = useRef<string | null>(null);
     const animationFrameRef = useRef<number>(0);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -130,7 +132,6 @@ export default function App() {
     const playbackAutoSkipCountRef = useRef(0);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
-    const replayGainLogSignatureRef = useRef<string | null>(null);
     const volumePreviewFrameRef = useRef<number | null>(null);
     const pendingVolumePreviewRef = useRef<number | null>(null);
     const pendingResumeTimeRef = useRef<number | null>(null);
@@ -1026,77 +1027,29 @@ export default function App() {
         onClearPendingUnavailableSkip: clearPendingUnavailableSkip,
     });
 
-    // Audio Analyzer Setup
-    // TODO: LOW PRIORITY::
-    // Currently if a song contains rapidly changing audio, the analyzer can't keep up and causes a weird frame-skip-like effect on the gemotries(they seem to be static, like too slow to keep up), but this dosen't causes real visual stutter or audio issues, just the GeometricBackground is not responsive to the audio changes.
-    // Very likely caused by
-    //             analyser.smoothingTimeConstant = 0.6;
-    // What do you think? Lowering the smoothingTimeConstant can make the analyzer more responsive, but it will also make it more jittery and less smooth, which might not look good for the visualizer. It's a trade-off between responsiveness and visual quality. We can experiment with different values to find a good balance. Maybe we can even make it dynamic based on the song's audio characteristics, but that might be overkill for now.
-    const setupAudioAnalyzer = () => {
-        if (!audioRef.current || sourceRef.current) return;
-        try {
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            const ctx = new AudioContextClass();
-            audioContextRef.current = ctx;
-
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 2048;
-            analyser.smoothingTimeConstant = 0.6;
-            analyserRef.current = analyser;
-
-            const gainNode = ctx.createGain();
-            gainNodeRef.current = gainNode;
-
-            const source = ctx.createMediaElementSource(audioRef.current);
-            source.connect(gainNode);
-            gainNode.connect(analyser);
-            analyser.connect(ctx.destination);
-            sourceRef.current = source;
-            syncOutputGain(getTargetPlaybackVolume(), 0);
-        } catch (e) {
-            console.error("Audio Context Setup Failed:", e);
-        }
-    };
-
-    const cacheSongAssets = async () => {
-        if (!currentSong || !audioSrc || audioSrc.startsWith('blob:')) return;
-
-        // Don't re-cache if already in cache
-        const existing = await hasCachedAudio(getOnlineSongCacheKey('audio', currentSong));
-        if (existing) return;
-
-        if (!enableMediaCache) return;
-
-        console.log("[Cache] Caching fully played song:", currentSong.name);
-
-        // 1. Cache Audio
-        try {
-            const response = await fetch(audioSrc);
-            const blob = await response.blob();
-            await saveAudioBlob(getOnlineSongCacheKey('audio', currentSong), blob);
-            console.log("[Cache] Audio saved");
-        } catch (e) {
-            console.error("[Cache] Failed to download audio for cache", e);
-        }
-
-        // 2. Cache Cover
-        const coverUrl = getCoverUrl();
-        if (coverUrl) {
-            try {
-                // Netease images might need proxy handling due to CORS? 
-                // Usually images are fine, but if it fails we catch it.
-                const response = await fetch(coverUrl, { mode: 'cors' });
-                const blob = await response.blob();
-                await saveToCache(getOnlineSongCacheKey('cover', currentSong), blob);
-                console.log("[Cache] Cover saved");
-            } catch (e) {
-                console.error("[Cache] Failed to download cover for cache", e);
-            }
-        }
-
-        // Update usage if panel is open
-        if (isPanelOpen && panelTab === 'account') updateCacheSize();
-    };
+    const { setupAudioAnalyzer, cacheSongAssets } = usePlaybackAudioBridge({
+        audioRef,
+        audioSrc,
+        currentSong,
+        isLyricsLoading,
+        enableMediaCache,
+        isPanelOpen,
+        panelTab,
+        replayGainMode,
+        shouldAutoPlayRef: shouldAutoPlay,
+        audioContextRef,
+        analyserRef,
+        gainNodeRef,
+        replayGainLinearRef,
+        sourceRef,
+        setPlayerState,
+        setStatusMsg,
+        syncOutputGain,
+        getTargetPlaybackVolume,
+        getCoverUrl,
+        updateCacheSize,
+        t: key => t(key),
+    });
 
     const mediaSessionPlayRef = useRef(resumePlayback);
     const mediaSessionPauseRef = useRef(pausePlayback);
@@ -1163,437 +1116,67 @@ export default function App() {
         onExternalPlayRequest: handleStageExternalPlayRequest,
     });
 
-    const handleFmTrash = async () => {
-        if (isNowPlayingStageActive) {
-            return;
-        }
+    usePlaybackVisualizerBridge({
+        audioRef,
+        analyserRef,
+        animationFrameRef,
+        activePlaybackContext,
+        audioPower,
+        audioBands,
+        currentTime,
+        lyrics,
+        playerState,
+        duration,
+        effectiveLoopMode,
+        isNowPlayingStageActive,
+        stageActiveEntryKind,
+        stageLyricsSession,
+        stageLyricsClockRef,
+        setCurrentLineIndex,
+        setPlayerState,
+        getSyntheticStageLyricsTime,
+        syncStageLyricsClock,
+        getNowPlayingDisplayTime,
+        syncNowPlayingClock,
+    });
 
-        if (currentSong && isFmMode) {
-            try {
-                await neteaseApi.fmTrash(currentSong.id);
-            } catch (e) { }
-            // Skip immediately
-            handleNextTrack();
-        }
-    };
-
-    // Volume & Mute Sync
-    useEffect(() => {
-        if (audioRef.current) {
-            syncOutputGain(getTargetPlaybackVolume(), 0.015);
-        }
-    }, [getTargetPlaybackVolume, syncOutputGain]);
-
-    useEffect(() => {
-        localStorage.setItem('local_replaygain_mode', replayGainMode);
-    }, [replayGainMode]);
-
-    // ReplayGain Effect
-    useEffect(() => {
-        if (!currentSong || !gainNodeRef.current || !audioContextRef.current) return;
-        
-        let replayGainDb = 0;
-        let replayGainPeak: number | undefined;
-        if ((currentSong as any).isLocal && (currentSong as any).localData) {
-            const localData = (currentSong as any).localData as LocalSong;
-
-            if (replayGainMode === 'track') {
-                replayGainDb = typeof localData.replayGainTrackGain === 'number'
-                    ? localData.replayGainTrackGain
-                    : (typeof localData.replayGain === 'number' ? localData.replayGain : 0);
-                replayGainPeak = localData.replayGainTrackPeak;
-            } else if (replayGainMode === 'album') {
-                replayGainDb = typeof localData.replayGainAlbumGain === 'number'
-                    ? localData.replayGainAlbumGain
-                    : (typeof localData.replayGainTrackGain === 'number'
-                        ? localData.replayGainTrackGain
-                        : (typeof localData.replayGain === 'number' ? localData.replayGain : 0));
-                replayGainPeak = localData.replayGainAlbumPeak ?? localData.replayGainTrackPeak;
-            }
-        }
-
-        let effectiveReplayGainDb = replayGainDb;
-        if (
-            replayGainMode !== 'off' &&
-            typeof replayGainPeak === 'number' &&
-            replayGainPeak > 0 &&
-            replayGainPeak <= 1 &&
-            replayGainDb > 0
-        ) {
-            const clipSafeGainDb = -20 * Math.log10(replayGainPeak);
-            effectiveReplayGainDb = Math.min(replayGainDb, clipSafeGainDb);
-        }
-
-        const linearGain = Math.pow(10, effectiveReplayGainDb / 20);
-        replayGainLinearRef.current = linearGain;
-        
-        try {
-            syncOutputGain(getTargetPlaybackVolume(), 0.1);
-            const replayGainLogSignature = JSON.stringify({
-                songId: currentSong.id,
-                mode: replayGainMode,
-                raw: replayGainDb,
-                effective: effectiveReplayGainDb,
-                peak: replayGainPeak ?? null,
-            });
-
-            if (replayGainLogSignatureRef.current !== replayGainLogSignature) {
-                replayGainLogSignatureRef.current = replayGainLogSignature;
-                console.log(`[AudioContext] ReplayGain mode=${replayGainMode} gain=${effectiveReplayGainDb}dB (raw=${replayGainDb}dB, peak=${replayGainPeak ?? 'n/a'}, linear=${linearGain.toFixed(2)})`);
-            }
-        } catch (e) {
-            console.warn('[AudioContext] Failed to apply ReplayGain', e);
-        }
-    }, [currentSong, getTargetPlaybackVolume, replayGainMode, syncOutputGain]);
-
-    useEffect(() => {
-        const audioElement = audioRef.current;
-        if (!audioElement) {
-            previousAudioSrcRef.current = audioSrc;
-            return;
-        }
-
-        if (audioSrc && previousAudioSrcRef.current && previousAudioSrcRef.current !== audioSrc) {
-            // Force the media element to detach from the previous stream before
-            // autoplay kicks in, otherwise Stage session swaps can stay pinned
-            // to the old buffered song.
-            audioElement.pause();
-            audioElement.load();
-        }
-
-        previousAudioSrcRef.current = audioSrc;
-    }, [audioSrc]);
-
-    useEffect(() => {
-        if (audioSrc && audioRef.current) {
-            // Only play if shouldAutoPlay is true AND lyrics are not loading
-            if (shouldAutoPlay.current && !isLyricsLoading) {
-                syncOutputGain(getTargetPlaybackVolume(), 0);
-                const playPromise = audioRef.current.play();
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            setPlayerState(PlayerState.PLAYING);
-                            setupAudioAnalyzer();
-                        })
-                        .catch(e => {
-                            if (audioRef.current && !audioRef.current.paused && !audioRef.current.ended) {
-                                setPlayerState(PlayerState.PLAYING);
-                                return;
-                            }
-
-                            if (e.name === 'NotAllowedError') {
-                                setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
-                                setPlayerState(PlayerState.PAUSED);
-                            }
-                        });
-                }
-            } else if (!shouldAutoPlay.current && audioRef.current.paused) {
-                // If we're not auto-playing (e.g. restore session), just set state to paused
-                setPlayerState(PlayerState.PAUSED);
-            }
-        }
-    }, [audioSrc, getTargetPlaybackVolume, isLyricsLoading, syncOutputGain, t]);
-
-    // Ref to track currentLineIndex inside animation loop (avoid callback recreation)
-    const currentLineIndexRef = useRef(currentLineIndex);
-    currentLineIndexRef.current = currentLineIndex;
-
-    // Sync Logic & Audio Power
-    const updateLoop = useCallback(() => {
-        const audioElement = audioRef.current;
-        const isActuallyPlaying = Boolean(audioElement && !audioElement.paused && !audioElement.ended);
-
-        // 1. Audio Power / Visualizer Data
-        if (isActuallyPlaying && analyserRef.current) {
-            const bufferLength = analyserRef.current.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyserRef.current.getByteFrequencyData(dataArray);
-
-            // Helper to get average energy of a frequency range
-            // fftSize 2048 -> bin size ~21.5Hz (44100/2048)
-            const getEnergy = (minHz: number, maxHz: number): number => {
-                const start = Math.floor(minHz / 21.5);
-                const end = Math.floor(maxHz / 21.5);
-                let sum = 0;
-                for (let i = start; i <= end; i++) {
-                    sum += dataArray[i];
-                }
-                const count = end - start + 1;
-                return count > 0 ? sum / count : 0;
-            };
-
-            // Calculate bands
-            const bass = getEnergy(20, 150);       // Circles
-            const lowMid = getEnergy(150, 400);    // Squares
-            const mid = getEnergy(400, 1200);      // Triangles
-            const vocal = getEnergy(1000, 3500);   // Icons (Vocal range)
-            const treble = getEnergy(3500, 12000); // Crosses
-
-            // Apply sensitivity and update
-            const process = (val: number, boost: number = 2) => {
-                const norm = val / 255;
-                return Math.pow(norm, boost) * 255;
-            };
-
-            // Main audio power (keep for legacy compatibility)
-            // Use bass + low mid for main pulse
-            audioPower.set(process((bass + lowMid) / 2, 3));
-
-            // Set individual bands
-            audioBands.bass.set(process(bass, 1.8)); // slightly more sensitive bass
-            audioBands.lowMid.set(process(lowMid, 2));
-            audioBands.mid.set(process(mid, 2));
-            audioBands.vocal.set(process(vocal, 1.5)); // Vocal sensitive
-            audioBands.treble.set(process(treble, 2));
-
-        } else {
-            // Idle Animation (Breathing effect for PV background)
-            const time = Date.now() / 2000;
-            const breath = (Math.sin(time) + 1) * 20;
-            audioPower.set(breath);
-
-            // Idle state for bands
-            audioBands.bass.set(breath);
-            audioBands.lowMid.set(breath);
-            audioBands.mid.set(breath);
-            audioBands.vocal.set(breath);
-            audioBands.treble.set(breath);
-        }
-
-        // 2. Playback Time & Lyrics Sync
-        if (isActuallyPlaying && audioElement) {
-            const time = audioElement.currentTime;
-            currentTime.set(time);
-
-            if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, time);
-                // Update currentLineIndex whenever it changes, including when moving to -1 (no active lyric)
-                if (foundIndex !== currentLineIndexRef.current) {
-                    setCurrentLineIndex(foundIndex);
-                }
-            }
-        } else if (isNowPlayingStageActive) {
-            const nextTime = getNowPlayingDisplayTime();
-            const hasReachedEnd = playerState === PlayerState.PLAYING && duration > 0 && nextTime >= duration;
-
-            currentTime.set(nextTime);
-
-            if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-                if (foundIndex !== currentLineIndexRef.current) {
-                    setCurrentLineIndex(foundIndex);
-                }
-            } else if (currentLineIndexRef.current !== -1) {
-                setCurrentLineIndex(-1);
-            }
-
-            if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
-                    syncNowPlayingClock(0, duration, false);
-                    currentTime.set(0);
-                    if (lyrics) {
-                        const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, 0);
-                        if (restartedLineIndex !== currentLineIndexRef.current) {
-                            setCurrentLineIndex(restartedLineIndex);
-                        }
-                    }
-                } else {
-                    syncNowPlayingClock(duration, duration, true);
-                    setPlayerState(PlayerState.PAUSED);
-                }
-            }
-        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
-            const nextTime = getSyntheticStageLyricsTime();
-            const clock = stageLyricsClockRef.current;
-            const hasReachedEnd = playerState === PlayerState.PLAYING && nextTime >= clock.endTimeSec;
-
-            currentTime.set(nextTime);
-
-            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndexRef.current) {
-                setCurrentLineIndex(foundIndex);
-            }
-
-            if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
-                    syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
-                    currentTime.set(clock.startTimeSec);
-                    const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
-                    if (restartedLineIndex !== currentLineIndexRef.current) {
-                        setCurrentLineIndex(restartedLineIndex);
-                    }
-                } else {
-                    syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
-                    setPlayerState(PlayerState.PAUSED);
-                }
-            }
-        }
-
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
-    }, [activePlaybackContext, audioPower, duration, effectiveLoopMode, getNowPlayingDisplayTime, getSyntheticStageLyricsTime, isNowPlayingStageActive, lyrics, playerState, stageActiveEntryKind, stageLyricsSession, syncNowPlayingClock, syncStageLyricsClock]);
-
-    useEffect(() => {
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
-        return () => {
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-        };
-    }, [updateLoop]);
-
-    const togglePlay = (e?: React.MouseEvent | KeyboardEvent) => {
-        e?.stopPropagation();
-
-        if (isNowPlayingStageActive) {
-            return;
-        }
-
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-            if (playerState === PlayerState.PLAYING) {
-                pausePlayback();
-            } else {
-                void resumePlayback();
-            }
-            return;
-        }
-
-        if (audioRef.current) {
-            if (!audioRef.current.paused && !audioRef.current.ended) {
-                pausePlayback();
-            } else {
-                void resumePlayback();
-            }
-        }
-    };
-
-    // Keyboard Shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if typing in an input (though we don't have many inputs yet)
-            if (
-                e.target instanceof HTMLInputElement
-                || e.target instanceof HTMLTextAreaElement
-                || (e.target instanceof HTMLElement && e.target.isContentEditable)
-            ) {
-                return;
-            }
-
-            const hasBlockingWindow = () => Boolean(
-                document.querySelector('[data-folia-keyboard-window="true"]')
-            );
-
-            if (isDev && e.altKey && e.shiftKey && e.code === 'KeyD') {
-                e.preventDefault();
-                setIsDevDebugOverlayVisible(prev => !prev);
-                return;
-            }
-
-            switch (e.code) {
-                case 'Space':
-                    // Space key works in both home and player views if there's a current song
-                    if (currentSong && (audioSrc || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
-                        e.preventDefault();
-                        if (isNowPlayingStageActive) {
-                            return;
-                        }
-                        togglePlay(e);
-                    }
-                    break;
-                case 'ArrowLeft':
-                    if (e.ctrlKey && !e.altKey && !e.metaKey) {
-                        if (currentSong) {
-                            e.preventDefault();
-                            if (isNowPlayingStageActive) {
-                                return;
-                            }
-                            handlePrevTrack();
-                        }
-                        return;
-                    }
-
-                    // Arrow keys only work in player view
-                    if (currentView !== 'player') return;
-                    e.preventDefault();
-                    if (isNowPlayingStageActive) {
-                        return;
-                    }
-
-                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-                        const nextTime = Math.max(stageLyricsClockRef.current.startTimeSec, currentTime.get() - 5);
-                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
-                        currentTime.set(nextTime);
-                    } else if (audioRef.current) {
-                        const nextTime = Math.max(0, audioRef.current.currentTime - 5);
-                        audioRef.current.currentTime = nextTime;
-                    }
-                    break;
-                case 'ArrowRight':
-                    if (e.ctrlKey && !e.altKey && !e.metaKey) {
-                        if (currentSong) {
-                            e.preventDefault();
-                            if (isNowPlayingStageActive) {
-                                return;
-                            }
-                            void handleNextTrack();
-                        }
-                        return;
-                    }
-
-                    // Arrow keys only work in player view
-                    if (currentView !== 'player') return;
-                    e.preventDefault();
-                    if (isNowPlayingStageActive) {
-                        return;
-                    }
-
-                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-                        const nextTime = Math.min(duration, currentTime.get() + 5);
-                        syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
-                        currentTime.set(nextTime);
-                    } else if (audioRef.current) {
-                        const nextTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
-                        audioRef.current.currentTime = nextTime;
-                    }
-                    break;
-                case 'KeyH':
-                    if (currentView !== 'player' || isPanelOpen || hasBlockingWindow()) return;
-                    if (e.ctrlKey || e.altKey || e.metaKey) return;
-                    e.preventDefault();
-                    setIsPlayerChromeHidden(prev => !prev);
-                    break;
-                case 'KeyP':
-                    if (currentView !== 'player' || hasBlockingWindow()) return;
-                    if (e.ctrlKey || e.altKey || e.metaKey) return;
-                    e.preventDefault();
-                    setIsPanelOpen(prev => !prev);
-                    break;
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activePlaybackContext, audioSrc, currentSong, currentTime, currentView, duration, handleNextTrack, handlePrevTrack, isDev, isNowPlayingStageActive, isPanelOpen, pausePlayback, playerState, resumePlayback, stageActiveEntryKind, syncStageLyricsClock]);
-
-    const toggleLoop = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if (isNowPlayingStageActive) {
-            return;
-        }
-
-        handleToggleLoopMode();
-    };
-
-    const handleChangeReplayGainMode = (mode: ReplayGainMode) => {
-        setReplayGainMode(mode);
-        setStatusMsg({ type: 'info', text: replayGainModeLabels[mode] });
-    };
+    const {
+        togglePlay,
+        toggleLoop,
+        handleChangeReplayGainMode,
+        handleContainerClick,
+        handleFmTrash,
+    } = usePlaybackInteractionBridge({
+        isDev,
+        currentSong,
+        currentView,
+        audioSrc,
+        activePlaybackContext,
+        stageActiveEntryKind,
+        isNowPlayingStageActive,
+        isPanelOpen,
+        isFmMode,
+        playerState,
+        duration,
+        currentTime,
+        audioRef,
+        stageLyricsClockRef,
+        setIsDevDebugOverlayVisible,
+        setIsPlayerChromeHidden,
+        setIsPanelOpen,
+        setReplayGainMode,
+        setStatusMsg,
+        handleNextTrack,
+        handlePrevTrack,
+        handleToggleLoopMode,
+        pausePlayback,
+        resumePlayback,
+        syncStageLyricsClock,
+    });
 
     const handleLike = useCallback(async () => {
         await handleLibraryLike(likedSongIds, setLikedSongIds);
     }, [handleLibraryLike, likedSongIds, setLikedSongIds]);
-
-    const handleContainerClick = () => {
-        if (isPanelOpen) setIsPanelOpen(false);
-    };
 
     // Define dynamic style for theme variables
     const appStyle = {
