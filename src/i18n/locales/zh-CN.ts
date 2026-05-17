@@ -234,7 +234,7 @@ export default {
     "labSettingsDesc": "高级自定义功能",
     "disableHomeDynamicBackground": "关闭主页动态背景",
     "disableHomeDynamicBackgroundDesc": "关闭后主页不再继续播放背景动画，可降低 GPU 占用。",
-    "disableHomeDynamicBackgroundWarning": "默认关闭，默认情况下允许动态背景。",
+    "disableHomeDynamicBackgroundWarning": "默认情况下允许动态背景。",
     "labHidePlayerUi": "隐藏播放页 UI",
     "labHidePlayerUiDesc": "仅对播放页生效。可分别隐藏底部控制条、底部字幕和右侧按钮；隐藏右侧按钮后仍可使用 P 键打开或关闭右侧面板。",
     "hidePlayerProgressBar": "隐藏底部控制条",

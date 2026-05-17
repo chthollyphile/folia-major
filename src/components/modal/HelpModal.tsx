@@ -1715,7 +1715,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             {t('options.disableHomeDynamicBackgroundDesc') || '关闭后主页不再继续播放背景动画，可降低 GPU 占用。'}
                                         </div>
                                         <div className="text-[11px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.disableHomeDynamicBackgroundWarning') || '默认关闭，默认情况下允许动态背景。'}
+                                            {t('options.disableHomeDynamicBackgroundWarning') || '默认情况下允许动态背景。'}
                                         </div>
                                     </div>
                                     <button
