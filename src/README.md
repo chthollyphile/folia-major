@@ -37,6 +37,14 @@ src/
 
 ### Components
 
+- `components/app/*`
+  App 顶层装配目录。
+  负责承接 `App.tsx` 直接挂载的入口组件、overlay 归口、dialog 归口，以及顶层视图包装层。
+
+- `components/app/view-models/*`
+  App 装配层的参数组装文件。
+  负责聚合底层 hook / state / action，生成给 `Home`、`PlayerPanel`、`AppOverlays`、`AppDialogs` 消费的模型。
+
 - `components/Home.tsx`
   首页主入口。包含搜索、网易云入口、本地音乐入口、Navidrome 入口、帮助/设置弹窗。
 
@@ -57,6 +65,10 @@ src/
 
 - `components/UnifiedPanel.tsx`
   播放器右侧面板容器。根据当前歌曲来源切换不同 tab。
+
+- `components/app/views/*`
+  由 App 顶层 overlay 栈直接调度的视图包装层。
+  当前用于 `PlaylistView`、`AlbumView`、`ArtistView` 的 app-level 入口。
 
 - `components/panelTab/*`
   右侧面板各 tab 的具体实现。
@@ -153,6 +165,7 @@ src/
 ## 4. Where Changes Usually Belong
 
 - 改页面布局或交互：`components/*`
+- 改 App 顶层装配、overlay 归口、dialog 归口、参数组装：`components/app/*`
 - 改跨页面状态或导航：`hooks/*`
 - 改 API、缓存、导入、播放数据流：`services/*`
 - 改解析、纯逻辑、格式转换：`utils/*`
@@ -178,5 +191,6 @@ src/
 - 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
 - `HelpModal.tsx` 是设置中心，不只是帮助说明。
 - `UnifiedPanel.tsx` 通过 `panelTab/*` 组合，不要重新把面板逻辑塞回一个大组件。
+- 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/view-models/*`。
 - 本地音乐导入是增量快照式，不是单次全量扫描。
 - 歌词解析优先从 `parserCore.ts` 理解，不要从旧兼容层反推。

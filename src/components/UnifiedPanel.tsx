@@ -15,7 +15,7 @@ import TextInputDialog from './shared/TextInputDialog';
 
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi';
 
-interface UnifiedPanelProps {
+type UnifiedPanelPlaybackProps = {
     isOpen: boolean;
     currentTab: PanelTab;
     onTabChange: (tab: PanelTab) => void;
@@ -23,11 +23,9 @@ interface UnifiedPanelProps {
     onNavigateHome: () => void;
     onNavigateHomeDirect: () => void;
     coverUrl: string | null;
-    // Cover Tab Props
     currentSong: SongResult | null;
     onAlbumSelect: (albumId: number) => void;
     onSelectArtist: (artistId: number) => void;
-    // Controls Tab Props
     loopMode: 'off' | 'all' | 'one';
     onToggleLoop: () => void;
     onLike: () => void;
@@ -46,12 +44,37 @@ interface UnifiedPanelProps {
     daylightTheme: Theme;
     visualizerMode: VisualizerMode;
     onVisualizerModeChange: (mode: VisualizerMode) => void;
-    // Queue Tab Props
+    onMatchOnline: () => void;
+    onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
+    onChangeLyricsSource: (source: 'local' | 'embedded' | 'online') => void;
+    replayGainMode: ReplayGainMode;
+    onChangeReplayGainMode: (mode: ReplayGainMode) => void;
+    isFmMode: boolean;
+    onFmTrash: () => void;
+    onNextTrack: () => void;
+    onPrevTrack: () => void;
+    playerState: PlayerState;
+    onTogglePlay: () => void;
+    volume: number;
+    isMuted: boolean;
+    onVolumePreview: (val: number) => void;
+    onVolumeChange: (val: number) => void;
+    onToggleMute: () => void;
+    showOpenPanelCloseButton: boolean;
+    hideToggleButton?: boolean;
+    isStageContext?: boolean;
+    playbackControlsDisabled?: boolean;
+    onOpenSettings?: () => void;
+};
+
+type UnifiedPanelQueueProps = {
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
     queueScrollRef: React.RefObject<HTMLDivElement>;
     onShuffle: () => void;
-    // Account Tab Props
+};
+
+type UnifiedPanelAccountProps = {
     user: any; // NeteaseUser | null
     onLogout: () => void;
     audioQuality: 'exhigh' | 'lossless' | 'hires';
@@ -64,24 +87,9 @@ interface UnifiedPanelProps {
     onToggleCoverColorBg: (enable: boolean) => void;
     isDaylight: boolean;
     onToggleDaylight: () => void;
-    // Local Tab Props
-    onMatchOnline: () => void;
-    onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
-    onChangeLyricsSource: (source: 'local' | 'embedded' | 'online') => void;
-    replayGainMode: ReplayGainMode;
-    onChangeReplayGainMode: (mode: ReplayGainMode) => void;
-    // FM Mode Props
-    isFmMode: boolean;
-    onFmTrash: () => void;
-    onNextTrack: () => void;
-    onPrevTrack: () => void;
-    playerState: PlayerState;
-    onTogglePlay: () => void;
-    volume: number;
-    isMuted: boolean;
-    onVolumePreview: (val: number) => void;
-    onVolumeChange: (val: number) => void;
-    onToggleMute: () => void;
+};
+
+type UnifiedPanelLibraryProps = {
     localPlaylists: LocalPlaylist[];
     neteasePlaylists: NeteasePlaylist[];
     onSaveCurrentQueueAsPlaylist: (name: string) => Promise<void>;
@@ -94,93 +102,102 @@ interface UnifiedPanelProps {
     onOpenCurrentLocalArtist: () => void;
     onOpenCurrentNavidromeAlbum: () => void;
     onOpenCurrentNavidromeArtist: () => void;
-    showOpenPanelCloseButton: boolean;
-    hideToggleButton?: boolean;
-    isStageContext?: boolean;
-    playbackControlsDisabled?: boolean;
-    onOpenSettings?: () => void;
-}
+};
+
+type UnifiedPanelProps = {
+    playback: UnifiedPanelPlaybackProps;
+    queue: UnifiedPanelQueueProps;
+    library: UnifiedPanelLibraryProps;
+    account: UnifiedPanelAccountProps;
+};
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
-    isOpen,
-    currentTab,
-    onTabChange,
-    onToggle,
-    onNavigateHome,
-    onNavigateHomeDirect,
-    coverUrl,
-    currentSong,
-    onAlbumSelect,
-    onSelectArtist,
-    loopMode,
-    onToggleLoop,
-    onLike,
-    isLiked,
-    onGenerateAITheme,
-    isGeneratingTheme,
-    hasLyrics,
-    canGenerateAITheme,
-    theme,
-    onThemeChange,
-    bgMode,
-    onBgModeChange,
-    hasCustomTheme,
-    onResetTheme,
-    defaultTheme,
-    daylightTheme,
-    visualizerMode,
-    onVisualizerModeChange,
-    playQueue,
-    onPlaySong,
-    queueScrollRef,
-    onShuffle,
-    user,
-    onLogout,
-    audioQuality,
-    onAudioQualityChange,
-    cacheSize,
-    onClearCache,
-    onSyncData,
-    isSyncing,
-    useCoverColorBg,
-    onToggleCoverColorBg,
-    isDaylight,
-    onToggleDaylight,
-    onMatchOnline,
-    onUpdateLocalLyrics,
-    onChangeLyricsSource,
-    replayGainMode,
-    onChangeReplayGainMode,
-    isFmMode,
-    onFmTrash,
-    onNextTrack,
-    onPrevTrack,
-    playerState,
-    onTogglePlay,
-    volume,
-    isMuted,
-    onVolumePreview,
-    onVolumeChange,
-    onToggleMute,
-    localPlaylists,
-    neteasePlaylists,
-    onSaveCurrentQueueAsPlaylist,
-    onAddCurrentSongToLocalPlaylist,
-    onCreateCurrentLocalPlaylist,
-    onAddCurrentSongToNeteasePlaylist,
-    onAddCurrentSongToNavidromePlaylist,
-    onCreateCurrentNavidromePlaylist,
-    onOpenCurrentLocalAlbum,
-    onOpenCurrentLocalArtist,
-    onOpenCurrentNavidromeAlbum,
-    onOpenCurrentNavidromeArtist,
-    showOpenPanelCloseButton,
-    hideToggleButton = false,
-    isStageContext = false,
-    playbackControlsDisabled = false,
-    onOpenSettings,
+    playback,
+    queue,
+    library,
+    account,
 }) => {
     const { t } = useTranslation();
+    const {
+        isOpen,
+        currentTab,
+        onTabChange,
+        onToggle,
+        onNavigateHome,
+        onNavigateHomeDirect,
+        coverUrl,
+        currentSong,
+        onAlbumSelect,
+        onSelectArtist,
+        loopMode,
+        onToggleLoop,
+        onLike,
+        isLiked,
+        onGenerateAITheme,
+        isGeneratingTheme,
+        hasLyrics,
+        canGenerateAITheme,
+        theme,
+        onThemeChange,
+        bgMode,
+        onBgModeChange,
+        hasCustomTheme,
+        onResetTheme,
+        defaultTheme,
+        daylightTheme,
+        visualizerMode,
+        onVisualizerModeChange,
+        onMatchOnline,
+        onUpdateLocalLyrics,
+        onChangeLyricsSource,
+        replayGainMode,
+        onChangeReplayGainMode,
+        isFmMode,
+        onFmTrash,
+        onNextTrack,
+        onPrevTrack,
+        playerState,
+        onTogglePlay,
+        volume,
+        isMuted,
+        onVolumePreview,
+        onVolumeChange,
+        onToggleMute,
+        showOpenPanelCloseButton,
+        hideToggleButton = false,
+        isStageContext = false,
+        playbackControlsDisabled = false,
+        onOpenSettings,
+    } = playback;
+    const { playQueue, onPlaySong, queueScrollRef, onShuffle } = queue;
+    const {
+        localPlaylists,
+        neteasePlaylists,
+        onSaveCurrentQueueAsPlaylist,
+        onAddCurrentSongToLocalPlaylist,
+        onCreateCurrentLocalPlaylist,
+        onAddCurrentSongToNeteasePlaylist,
+        onAddCurrentSongToNavidromePlaylist,
+        onCreateCurrentNavidromePlaylist,
+        onOpenCurrentLocalAlbum,
+        onOpenCurrentLocalArtist,
+        onOpenCurrentNavidromeAlbum,
+        onOpenCurrentNavidromeArtist,
+    } = library;
+    const {
+        user,
+        onLogout,
+        audioQuality,
+        onAudioQualityChange,
+        cacheSize,
+        onClearCache,
+        onSyncData,
+        isSyncing,
+        useCoverColorBg,
+        onToggleCoverColorBg,
+        isDaylight,
+        onToggleDaylight,
+    } = account;
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
     const hideActionLayerTimeoutRef = React.useRef<number | null>(null);
     const [isCoverActionsVisible, setIsCoverActionsVisible] = React.useState(false);
