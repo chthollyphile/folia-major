@@ -57,7 +57,11 @@ description: Use when the user refers to repository-specific terms such as home 
 ### Home / Library
 
 - “首页”
-  -> `src/components/Home.tsx`
+  -> app-level entry: `src/components/app/Home.tsx`
+  -> legacy implementation: `src/components/Home.tsx`
+
+- “首页模型”“Home 装配输入”
+  -> `src/components/app/home/buildHomeModel.ts`
 
 - “本地音乐页”“本地视图”
   -> `src/components/LocalMusicView.tsx`
@@ -72,13 +76,16 @@ description: Use when the user refers to repository-specific terms such as home 
   -> `src/components/navidrome/NavidromeAlbumView.tsx`
 
 - “网易云歌单页”“歌单详情页”
-  -> `src/components/PlaylistView.tsx`
+  -> app-level overlay entry: `src/components/app/views/PlaylistView.tsx`
+  -> legacy implementation: `src/components/PlaylistView.tsx`
 
 - “网易云专辑页”“专辑详情页”
-  -> `src/components/AlbumView.tsx`
+  -> app-level overlay entry: `src/components/app/views/AlbumView.tsx`
+  -> legacy implementation: `src/components/AlbumView.tsx`
 
 - “网易云歌手页”“歌手详情页”
-  -> `src/components/ArtistView.tsx`
+  -> app-level overlay entry: `src/components/app/views/ArtistView.tsx`
+  -> legacy implementation: `src/components/ArtistView.tsx`
 
 ### Search
 
@@ -92,12 +99,25 @@ description: Use when the user refers to repository-specific terms such as home 
   -> `searchSourceTab` in `src/stores/useSearchNavigationStore.ts`
 
 - “搜索结果页面”
-  -> `src/components/SearchResultsOverlay.tsx`
+  -> app-level overlay assembly: `src/components/app/overlays/AppOverlays.tsx`
+  -> legacy implementation: `src/components/SearchResultsOverlay.tsx`
 
 ### Panel / Modal
 
 - “右侧面板”“播放器面板”“unified panel”
-  -> `src/components/UnifiedPanel.tsx`
+  -> app-level entry: `src/components/app/PlayerPanel.tsx`
+  -> legacy implementation: `src/components/UnifiedPanel.tsx`
+
+- “面板模型”“PlayerPanel 装配输入”
+  -> `src/components/app/player-panel/buildPlayerPanelModel.ts`
+
+- “overlay 总装配”
+  -> `src/components/app/overlays/AppOverlays.tsx`
+  -> model builder: `src/components/app/overlays/buildAppOverlaysModel.ts`
+
+- “dialog 总装配”
+  -> `src/components/app/dialogs/AppDialogs.tsx`
+  -> model builder: `src/components/app/dialogs/buildAppDialogsModel.ts`
 
 - “封面 tab”
   -> `src/components/panelTab/CoverTab.tsx`
@@ -193,10 +213,13 @@ description: Use when the user refers to repository-specific terms such as home 
 ## Fast Lookup Heuristics
 
 - 术语里带“页面”“视图”“弹窗”“tab”
-  -> 先看 `components/*`
+  -> 先看 `components/app/*` 是否已有 app-level 入口，再看 `components/*`
 
 - 术语里带“状态”“导航”“当前模式”“偏好”
   -> 先看 `hooks/*` 或 `stores/*`
+
+- 术语里带“模型”“装配”“入口透传”“顶层派生”
+  -> 先看 `components/app/*/build*.ts` 或 `create*.ts`
 
 - 术语里带“接口”“缓存”“导入”“播放流程”
   -> 先看 `services/*`

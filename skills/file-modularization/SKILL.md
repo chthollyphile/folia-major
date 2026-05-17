@@ -23,7 +23,7 @@ description: Use when adding or refactoring frontend features in this repository
 优先按下面的归属拆分：
 
 - 视图结构：`components/*`
-- 页面装配或容器协调：页面级组件或容器组件
+- 页面装配或容器协调：页面级组件、容器组件、`components/app/*`
 - 可复用交互状态：`hooks/*`
 - 跨组件共享状态：`stores/*`
 - 数据访问、接口、播放流程、缓存：`services/*`
@@ -66,6 +66,8 @@ description: Use when adding or refactoring frontend features in this repository
 入口文件变大时，优先拆成：
 
 - `components/<feature>/*`
+- `components/app/<feature>/build*.ts`
+- `components/app/<feature>/create*.ts`
 - `hooks/use<Feature>*.ts`
 - `services/<feature>*.ts`
 - `utils/<feature>*.ts`
@@ -76,10 +78,11 @@ description: Use when adding or refactoring frontend features in this repository
 新增功能时，按这个顺序判断拆分：
 
 1. 先抽离独立视觉区块。
-2. 再抽离可复用状态和副作用到 hook。
-3. 再抽离接口调用、缓存、适配逻辑到 service。
-4. 再把纯函数、常量、映射挪到 util 或 types。
-5. 最后让原文件只保留装配代码。
+2. 再抽离页面装配层的 model / helper 到相邻 `components/app/*/build*.ts` 或 `create*.ts`。
+3. 再抽离可复用状态和副作用到 hook。
+4. 再抽离接口调用、缓存、适配逻辑到 service。
+5. 再把纯函数、常量、映射挪到 util 或 types。
+6. 最后让原文件只保留装配代码。
 
 适合拆组件的信号：
 
@@ -92,6 +95,12 @@ description: Use when adding or refactoring frontend features in this repository
 - 同类状态和 `useEffect` 成组出现
 - 某段状态逻辑和 UI 结构弱相关
 - 这段逻辑未来会被另一个组件复用
+
+适合拆到 `components/app/*/build*.ts` 或 `create*.ts` 的信号：
+
+- 这段逻辑只服务于某个 app-level 顶层区域，例如 `Home`、`PlayerPanel`、`AppOverlays`、`AppDialogs`
+- 主要是 props 组装、导航映射、展示派生、单区域动作封装
+- 不依赖 React 生命周期，不值得为了“能放代码”硬做成 hook
 
 适合拆 service 或 util 的信号：
 
@@ -137,6 +146,8 @@ description: Use when adding or refactoring frontend features in this repository
 正例：
 
 - 把新面板拆成 `components/...` 子组件
+- 把 app-level 模型组装拆成 `components/app/<feature>/build*.ts`
+- 把顶层导航/播放/展示辅助拆成 `components/app/<feature>/create*.ts`
 - 把新功能状态机拆成 `hooks/use...`
 - 把接口拼装与响应适配拆成 `services/...`
 - 把筛选、分组、格式化拆成 `utils/...`
@@ -147,4 +158,5 @@ description: Use when adding or refactoring frontend features in this repository
 - 在一个文件里混合页面结构、业务状态、接口细节、工具函数、类型声明
 - 因为“这次改动不大”就反复往超大文件继续追加
 - 创建名义上拆分、实际上仍强耦合且不可复用的空壳文件
+- 把只属于 app-level 装配的纯逻辑统统塞进 hook，而不是按功能落在 `components/app/*`
 - 把拆分理解成纯文件数量增加，而不是职责真正变清晰

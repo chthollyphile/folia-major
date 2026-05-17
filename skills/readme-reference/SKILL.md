@@ -74,6 +74,7 @@ description: Use when making code, workflow, testing, or documentation changes i
 ## Repository-Specific Heuristics
 
 - 涉及前端主流程，优先看 `src/README.md` 对 `App.tsx`、`Home.tsx`、`services/*` 的职责描述。
+- 如果 `src/README.md` 提到的 app-level 装配目录已经演进，优先核对 `components/app/*`、`build*.ts`、`create*.ts` 的现状，不要默认存在旧的 `view-models/*`。
 - 涉及测试、开发、部署、脚本，优先看 `README.md` 的“部署与开发”“常用脚本”。
 - 涉及本地音乐、Navidrome、网易云三个来源的边界，先看 README 对三类来源的产品说明，再回到代码实现确认。
 
