@@ -129,7 +129,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     }, [isVisualizerOverlayOpen]);
 
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
-    const activeIconBg = isDaylight ? 'bg-black text-white' : 'bg-white text-black';
+    const activeIconBg = isDaylight ? 'bg-zinc-500 text-white' : 'bg-white text-black';
     const wellBg = isDaylight ? 'bg-black/5' : 'bg-black/20';
     const activeOptionBg = isDaylight ? 'bg-white shadow-sm hover:bg-white/90' : 'bg-white/20 shadow-sm hover:bg-white/30';
     const overlaySurfaceClass = isDaylight ? 'text-black border-black/[0.08]' : 'text-white border-white/[0.08]';

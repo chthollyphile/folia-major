@@ -733,7 +733,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                         <button
                             onClick={onToggle}
                             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
-                                border-none ${toggleButtonMotionClass} ${isOpen ? 'bg-white text-black' : 'bg-black/40 text-white'}`}
+                                border-none ${toggleButtonMotionClass} ${isOpen ? 'bg-white text-black' : (isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white')}`}
                         >
                             {isOpen ? <X size={20} /> : <Settings2 size={20} />}
                         </button>

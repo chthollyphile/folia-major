@@ -1,12 +1,31 @@
 import { NeteaseUser, NeteasePlaylist, NoCopyrightRecommendation, SongPrivilege, SongResult } from "../types";
 
+type UnavailableSongReplacement = {
+  replacementSong: SongResult;
+  replacementSongId: number;
+  typeDesc?: string;
+};
+
 // Robustly check for environment variable, falling back if undefined
 let API_BASE: string | null = null;
+let songCopyrightRecommendationApiSupported: boolean | null = null;
+
+const getElectronBridge = () => {
+  if (typeof window === 'undefined' || !window) {
+    return null;
+  }
+
+  return (window as any).electron ?? null;
+};
+
+const isElectronRuntime = () =>
+  Boolean(getElectronBridge() && typeof getElectronBridge()?.getNeteasePort === 'function');
+
 const getApiBase = async () => {
   if (API_BASE) return API_BASE;
 
-  if ((window as any).electron && typeof (window as any).electron.getNeteasePort === 'function') {
-    const port = await (window as any).electron.getNeteasePort();
+  if (isElectronRuntime()) {
+    const port = await getElectronBridge().getNeteasePort();
     API_BASE = `http://localhost:${port}`;
     return API_BASE;
   }
@@ -49,7 +68,7 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
   // Note: For Vercel hosted APIs, we rely on the `cookie` query param if cross-site cookies are blocked,
   // or `credentials: 'include'` if the server allows it. 
 
-  const storedCookie = localStorage.getItem('netease_cookie');
+  const storedCookie = typeof localStorage === 'undefined' ? null : localStorage.getItem('netease_cookie');
 
   if (storedCookie) {
     // Append cookie to URL
@@ -129,6 +148,17 @@ const normalizeNoCopyrightRecommendation = (raw: any): NoCopyrightRecommendation
     songId: typeof raw.songId === 'string' || typeof raw.songId === 'number' ? raw.songId : undefined,
     thirdPartySong: raw.thirdPartySong ?? null,
     expInfo: raw.expInfo ?? null,
+  };
+};
+
+const applyPrivilegeToSong = (song: SongResult, privilege?: SongPrivilege): SongResult => {
+  if (!privilege) {
+    return song;
+  }
+
+  return {
+    ...song,
+    privilege,
   };
 };
 
@@ -239,6 +269,20 @@ export const isSongMarkedUnavailable = (
   return typeof song.privilege?.st === 'number' && song.privilege.st < 0;
 };
 
+export const getSongUnavailableTagText = (
+  song: Pick<SongResult, 'privilege' | 'noCopyrightRcmd'> | null | undefined,
+  fallbackLabel: string
+): string => {
+  if (!isSongMarkedUnavailable(song)) {
+    return fallbackLabel;
+  }
+
+  const typeDesc = song?.noCopyrightRcmd?.typeDesc;
+  return typeof typeDesc === 'string' && typeDesc.trim()
+    ? typeDesc.trim()
+    : fallbackLabel;
+};
+
 export const getSongAlternativeVersionId = (
   song?: Pick<SongResult, 'privilege' | 'noCopyrightRcmd'> | null
 ): number | null => {
@@ -256,6 +300,125 @@ export const getSongAlternativeVersionId = (
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed;
     }
+  }
+
+  return null;
+};
+
+const getReplacementSongFromDetailResponse = (
+  response: any,
+  replacementSongId: number
+): SongResult | null => {
+  const replacementSong = response?.songs?.find((candidate: SongResult) => candidate.id === replacementSongId)
+    || response?.songs?.[0];
+
+  if (!replacementSong || isSongMarkedUnavailable(replacementSong)) {
+    return null;
+  }
+
+  return replacementSong;
+};
+
+const normalizeUnavailableSongReplacement = (response: any): UnavailableSongReplacement | null => {
+  if (response?.code !== 200) {
+    return null;
+  }
+
+  const rawReplacementSong = response?.data?.rcmd;
+  if (!rawReplacementSong || typeof rawReplacementSong !== 'object') {
+    return null;
+  }
+
+  const replacementSong = applyPrivilegeToSong(
+    normalizeSongResult(rawReplacementSong),
+    normalizeSongPrivilege(response?.data?.sp)
+  );
+
+  if (!replacementSong.id || isSongMarkedUnavailable(replacementSong)) {
+    return null;
+  }
+
+  const typeDesc = typeof response?.data?.originSong?.noCopyrightRcmd?.typeDesc === 'string'
+    ? response.data.originSong.noCopyrightRcmd.typeDesc
+    : undefined;
+
+  return {
+    replacementSong,
+    replacementSongId: replacementSong.id,
+    typeDesc,
+  };
+};
+
+const getSongDetail = async (ids: number[] | number) => {
+  const idParam = Array.isArray(ids) ? ids.join(',') : String(ids);
+  const res = await fetchWithCreds(`/song/detail?ids=${idParam}`);
+  res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
+  return res;
+};
+
+const getSongCopyrightRecommendation = async (songId: number) => {
+  const result = await fetchWithCreds(`/song/copyright/rcmd?songid=${songId}`);
+  return normalizeUnavailableSongReplacement(result);
+};
+
+// Resolves an alternate playable song while keeping legacy APIs as the primary path.
+const getUnavailableSongReplacement = async (
+  song?: Pick<SongResult, 'id' | 'privilege' | 'noCopyrightRcmd'> | null
+): Promise<UnavailableSongReplacement | null> => {
+  if (!song || !isSongMarkedUnavailable(song)) {
+    return null;
+  }
+
+  const fallbackTypeDesc = typeof song.noCopyrightRcmd?.typeDesc === 'string'
+    ? song.noCopyrightRcmd.typeDesc
+    : undefined;
+  const replacementSongId = getSongAlternativeVersionId(song);
+  let detailError: unknown = null;
+
+  if (replacementSongId) {
+    try {
+      const detailResponse = await getSongDetail(replacementSongId);
+      const replacementSong = getReplacementSongFromDetailResponse(detailResponse, replacementSongId);
+      if (replacementSong) {
+        return {
+          replacementSong,
+          replacementSongId,
+          typeDesc: fallbackTypeDesc,
+        };
+      }
+    } catch (error) {
+      detailError = error;
+    }
+  }
+
+  if (songCopyrightRecommendationApiSupported === false) {
+    if (detailError) {
+      throw detailError;
+    }
+    return null;
+  }
+
+  try {
+    const replacement = await getSongCopyrightRecommendation(song.id);
+    if (replacement) {
+      songCopyrightRecommendationApiSupported = true;
+      return {
+        ...replacement,
+        typeDesc: replacement.typeDesc || fallbackTypeDesc,
+      };
+    }
+
+    if (!isElectronRuntime()) {
+      songCopyrightRecommendationApiSupported = false;
+    }
+  } catch {
+    if (!isElectronRuntime()) {
+      songCopyrightRecommendationApiSupported = false;
+    }
+  }
+
+  if (detailError) {
+    throw detailError;
   }
 
   return null;
@@ -386,10 +549,7 @@ export const neteaseApi = {
   },
 
   getSongDetail: async (ids: number[] | number) => {
-    const idParam = Array.isArray(ids) ? ids.join(',') : String(ids);
-    const res = await fetchWithCreds(`/song/detail?ids=${idParam}`);
-    res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);
-    return res;
+    return getSongDetail(ids);
   },
 
   getFavoriteAlbums: async (limit = 25, offset = 0) => {
@@ -484,6 +644,7 @@ export const neteaseApi = {
 
   normalizeSongResult,
   getProcessedLyricPayload,
+  getUnavailableSongReplacement,
 
   // --- Search ---
   cloudSearch: async (keywords: string, limit = 30, offset = 0) => {

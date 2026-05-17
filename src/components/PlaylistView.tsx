@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Play, ChevronLeft, Disc, Loader2, Pencil, X, ListPlus, Plus } from 'lucide-react';
 import { NeteasePlaylist, SongResult } from '../types';
-import { isSongMarkedUnavailable, neteaseApi } from '../services/netease';
+import { getSongUnavailableTagText, isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -368,6 +368,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
 
             {tracks.map((track, idx) => {
               const isUnavailable = isSongMarkedUnavailable(track);
+              const unavailableTagText = getSongUnavailableTagText(track, t('status.songUnavailableTag'));
               return (
               <div
                 key={`${track.id}-${idx}`}
@@ -384,7 +385,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                     {formatSongName(track)}
                     {isUnavailable && (
                       <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
-                        {t('status.songUnavailableTag')}
+                        {unavailableTagText}
                       </span>
                     )}
                   </div>

@@ -6,7 +6,7 @@ import type { HomeViewTab, Theme, UnifiedSong } from '../types';
 import { formatSongName } from '../utils/songNameFormatter';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { isSongMarkedUnavailable } from '../services/netease';
+import { getSongUnavailableTagText, isSongMarkedUnavailable } from '../services/netease';
 
 const toSafeRemoteUrl = (url: string | null | undefined): string | undefined => {
     if (!url) {
@@ -186,6 +186,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                             <div className="space-y-3 max-w-4xl mx-auto pb-20">
                                 {searchResults.map((track, index) => {
                                     const isUnavailable = isSongMarkedUnavailable(track);
+                                    const unavailableTagText = getSongUnavailableTagText(track, t('status.songUnavailableTag'));
                                     return (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
@@ -209,7 +210,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                                 {formatSongName(track)}
                                                 {isUnavailable && (
                                                     <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
-                                                        {t('status.songUnavailableTag')}
+                                                        {unavailableTagText}
                                                     </span>
                                                 )}
                                             </div>
