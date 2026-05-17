@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
-import type { PlayerState, SongResult } from '../types';
+import { PlayerState } from '../types';
+import type { SongResult } from '../types';
 
 // Bridges Folia playback state to the browser Media Session API.
 type UseMediaSessionBridgeOptions = {

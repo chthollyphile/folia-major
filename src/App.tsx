@@ -19,10 +19,10 @@ import { useAppDialogsModel } from './components/app/view-models/useAppDialogsMo
 import { useAppOverlaysModel } from './components/app/view-models/useAppOverlaysModel';
 import { useHomeViewModel } from './components/app/view-models/useHomeViewModel';
 import { usePlayerPanelViewModel } from './components/app/view-models/usePlayerPanelViewModel';
-import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage, PlaybackContext, StageLyricsSession, StageMediaSession, StageStatus, StageLoopMode, StageSource, NowPlayingConnectionStatus, NowPlayingLyricPayload, NowPlayingTrackSnapshot } from './types';
+import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, LocalPlaylist, UnifiedSong, StatusMessage, PlaybackContext, StageLoopMode } from './types';
 import { NavidromeSong, NavidromeViewSelection } from './types/navidrome';
 import { NavidromeMatchData } from './components/modal/NaviLyricMatchModal';
-import { NextTrackOptions, NowPlayingClockState, PlaybackNavigationOptions, PlaybackSnapshot, SkipPromptMessageKey, StageLyricsClockState, UnavailableReplacementRequest } from './types/appPlayback';
+import { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from './types/appPlayback';
 import { getOnlineSongCacheKey, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { navidromeApi, getNavidromeConfig } from './services/navidromeService';
 import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, removeSongsFromLocalPlaylist, setLocalSongFavorite } from './services/localPlaylistService';
@@ -32,20 +32,20 @@ import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
 import { useMediaSessionBridge } from './hooks/useMediaSessionBridge';
 import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
+import { useSessionRestoreController } from './hooks/useSessionRestoreController';
+import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from './utils/appNavidromeLyrics';
-import { clampMediaVolume, extractCloudLyricText, findLatestActiveLineIndex, formatTime, getAudioSrcKind, hasRenderableLyrics, replayGainModeLabels, resolveDebugLyricsSource, resolveDebugSongSource, toDebugLineSnapshot } from './utils/appPlaybackHelpers';
+import { clampMediaVolume, extractCloudLyricText, findLatestActiveLineIndex, formatTime, getAudioSrcKind, hasRenderableLyrics, replayGainModeLabels, resolveDebugLyricsSource, resolveDebugSongSource, toDebugLineSnapshot, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong, resolveNavidromePlaybackCarrier } from './utils/appPlaybackGuards';
-import { buildStageEntryKey, getNextLoopMode, getStageLyricsTimelineBounds } from './utils/appStageHelpers';
+import { getNextLoopMode, getStageLyricsTimelineBounds } from './utils/appStageHelpers';
 import { isPureMusicLyricText } from './utils/lyrics/pureMusic';
 import { ensureLyricDataRenderHints, getLineRenderHints, migrateLyricDataRenderHints } from './utils/lyrics/renderHints';
 import { migrateMatchedLyricsCarrierRenderHints } from './utils/lyrics/storageMigration';
 import { processNeteaseLyrics } from './utils/lyrics/neteaseProcessing';
 import { applyLyricDisplayFilter } from './utils/lyrics/filtering';
-import { buildNowPlayingLyricSource } from './utils/lyrics/nowPlayingSource';
-import { NowPlayingProvider } from './services/nowPlayingProvider';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const LOCAL_PREWARM_OFFSETS = [-1, 1, 2] as const;
@@ -93,16 +93,6 @@ export default function App() {
     const [lyrics, setLyricsState] = useState<LyricData | null>(null);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
     const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext>('main');
-    const [stageStatus, setStageStatus] = useState<StageStatus | null>(null);
-    const [nowPlayingConnectionStatus, setNowPlayingConnectionStatus] = useState<NowPlayingConnectionStatus>('disabled');
-    const [nowPlayingTrack, setNowPlayingTrack] = useState<NowPlayingTrackSnapshot | null>(null);
-    const [nowPlayingLyricPayload, setNowPlayingLyricPayload] = useState<NowPlayingLyricPayload | null>(null);
-    const [nowPlayingProgressMs, setNowPlayingProgressMs] = useState(0);
-    const [nowPlayingProgressQuality, setNowPlayingProgressQuality] = useState<'precise' | 'coarse'>('coarse');
-    const [nowPlayingPaused, setNowPlayingPaused] = useState(true);
-    const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
-    const stageLyricsSession = stageStatus?.lyricsSession ?? null;
-    const stageMediaSession = stageStatus?.mediaSession ?? null;
 
     // Queue
     const [playQueue, setPlayQueue] = useState<SongResult[]>([]);
@@ -161,24 +151,7 @@ export default function App() {
     const currentOnlineAudioUrlFetchedAtRef = useRef<number | null>(null);
     const [isLyricsLoading, setIsLyricsLoading] = useState(false);
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
-    const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
-    const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
-    const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
-    const lastKnownMainSongRef = useRef<SongResult | null>(null);
-    const lastKnownMainQueueRef = useRef<SongResult[]>([]);
     const isNowPlayingControlDisabledRef = useRef(false);
-    const stageLyricsClockRef = useRef<StageLyricsClockState>({
-        startTimeSec: 0,
-        endTimeSec: 0,
-        baseTimeSec: 0,
-        startedAtMs: null,
-    });
-    const nowPlayingClockRef = useRef<NowPlayingClockState>({
-        baseTimeSec: 0,
-        startedAtMs: null,
-        durationSec: 0,
-    });
-    const nowPlayingProviderRef = useRef<NowPlayingProvider | null>(null);
 
     // Local Music State
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
@@ -250,344 +223,11 @@ export default function App() {
         handleToggleLoopMode,
     } = useAppPreferences(setStatusMsg);
 
-    const stageSource: StageSource | null = isElectronWindow
-        ? (stageStatus?.modeEnabled ? (stageStatus?.source ?? 'stage-api') : null)
-        : (enableNowPlayingStage ? 'now-playing' : null);
-    const isNowPlayingStageActive = activePlaybackContext === 'stage' && stageSource === 'now-playing';
-
     const setLyrics = useCallback((nextLyrics: LyricData | null) => {
         setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(nextLyrics, lyricFilterPattern)));
     }, [lyricFilterPattern]);
 
     const effectiveLoopMode: StageLoopMode = loopMode;
-
-    const buildPlaybackSnapshot = useCallback((): PlaybackSnapshot => ({
-        currentSong,
-        lyrics,
-        cachedCoverUrl,
-        audioSrc,
-        playQueue,
-        isFmMode,
-        playerState,
-        currentTime: audioRef.current?.currentTime ?? currentTime.get(),
-        duration,
-        currentLineIndex,
-    }), [audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
-
-    const applyPlaybackSnapshot = useCallback((snapshot: PlaybackSnapshot | null) => {
-        pendingResumeTimeRef.current = snapshot ? Math.max(0, snapshot.currentTime) : null;
-        shouldAutoPlay.current = snapshot?.playerState === PlayerState.PLAYING;
-        lastAudioRecoverySourceRef.current = null;
-        currentOnlineAudioUrlFetchedAtRef.current = null;
-        setCurrentSong(snapshot?.currentSong ?? null);
-        setLyrics(snapshot?.lyrics ?? null);
-        setCachedCoverUrl(snapshot?.cachedCoverUrl ?? null);
-        setAudioSrc(snapshot?.audioSrc ?? null);
-        setPlayQueue(snapshot?.playQueue ?? []);
-        setIsFmMode(snapshot?.isFmMode ?? false);
-        setIsLyricsLoading(false);
-        setPlayerState(snapshot?.playerState ?? PlayerState.IDLE);
-        setCurrentLineIndex(snapshot?.currentLineIndex ?? -1);
-        currentTime.set(snapshot?.currentTime ?? 0);
-        setDuration(snapshot?.duration ?? 0);
-    }, [currentTime, setLyrics]);
-
-    const clearPlaybackSurface = useCallback(() => {
-        pendingResumeTimeRef.current = null;
-        shouldAutoPlay.current = false;
-        lastAudioRecoverySourceRef.current = null;
-        currentOnlineAudioUrlFetchedAtRef.current = null;
-        setCurrentSong(null);
-        setLyrics(null);
-        setCachedCoverUrl(null);
-        setAudioSrc(null);
-        setPlayQueue([]);
-        setIsFmMode(false);
-        setIsLyricsLoading(false);
-        setPlayerState(PlayerState.IDLE);
-        setCurrentLineIndex(-1);
-        currentTime.set(0);
-        setDuration(0);
-    }, [currentTime, setLyrics]);
-
-    // Clears the main player context so Now Playing can stay fully external-driven.
-    const clearMainPlaybackContext = useCallback(() => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
-
-        currentSongRef.current = null;
-        mainPlaybackSnapshotRef.current = null;
-        lastKnownMainSongRef.current = null;
-        lastKnownMainQueueRef.current = [];
-        clearPlaybackSurface();
-    }, [clearPlaybackSurface]);
-
-    const buildStagePlaybackSong = useCallback((session: StageMediaSession): SongResult => ({
-        id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
-        name: session.title || 'Stage Session',
-        artists: [{ id: 0, name: session.artist || 'Stage' }],
-        album: { id: 0, name: session.album || 'Stage', picUrl: session.coverArtUrl || session.coverUrl || undefined },
-        duration: Math.max(0, Math.floor((session.durationMs || 0))),
-        al: { id: 0, name: session.album || 'Stage', picUrl: session.coverArtUrl || session.coverUrl || undefined },
-        ar: [{ id: 0, name: session.artist || 'Stage' }],
-        dt: Math.max(0, Math.floor((session.durationMs || 0))),
-        sourceType: 'cloud',
-        isStage: true,
-        stageData: session,
-    } as SongResult), []);
-
-    const resetStageLyricsClock = useCallback(() => {
-        stageLyricsClockRef.current = {
-            startTimeSec: 0,
-            endTimeSec: 0,
-            baseTimeSec: 0,
-            startedAtMs: null,
-        };
-    }, []);
-
-    const resetNowPlayingClock = useCallback(() => {
-        nowPlayingClockRef.current = {
-            baseTimeSec: 0,
-            startedAtMs: null,
-            durationSec: 0,
-        };
-    }, []);
-
-    const syncStageLyricsClock = useCallback((timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec = 0) => {
-        const safeStartTime = Math.max(0, startTimeSec);
-        const safeEndTime = Math.max(safeStartTime, endTimeSec);
-        const safeTime = Math.min(Math.max(timeSec, safeStartTime), safeEndTime);
-
-        stageLyricsClockRef.current = {
-            startTimeSec: safeStartTime,
-            endTimeSec: safeEndTime,
-            baseTimeSec: safeTime,
-            startedAtMs: nextPlayerState === PlayerState.PLAYING ? performance.now() : null,
-        };
-    }, []);
-
-    const getSyntheticStageLyricsTime = useCallback((nowMs = performance.now()) => {
-        const clock = stageLyricsClockRef.current;
-        if (clock.startedAtMs === null) {
-            return Math.min(Math.max(clock.baseTimeSec, clock.startTimeSec), clock.endTimeSec);
-        }
-
-        const elapsedSeconds = Math.max(0, (nowMs - clock.startedAtMs) / 1000);
-        return Math.min(Math.max(clock.baseTimeSec + elapsedSeconds, clock.startTimeSec), clock.endTimeSec);
-    }, []);
-
-    const syncNowPlayingClock = useCallback((progressSec: number, durationSec: number, paused: boolean) => {
-        const safeDuration = Math.max(0, durationSec);
-        if (isDev) {
-            console.log('[NowPlaying][App] syncNowPlayingClock', {
-                progressSec,
-                durationSec,
-                paused,
-            });
-        }
-        nowPlayingClockRef.current = {
-            baseTimeSec: Math.min(Math.max(progressSec, 0), safeDuration || progressSec),
-            startedAtMs: paused ? null : performance.now(),
-            durationSec: safeDuration,
-        };
-    }, [isDev]);
-
-    const getNowPlayingDisplayTime = useCallback((nowMs = performance.now()) => {
-        const clock = nowPlayingClockRef.current;
-        if (clock.startedAtMs === null) {
-            return Math.min(Math.max(clock.baseTimeSec, 0), clock.durationSec || clock.baseTimeSec);
-        }
-
-        const elapsedSeconds = Math.max(0, (nowMs - clock.startedAtMs) / 1000);
-        const nextTime = clock.baseTimeSec + elapsedSeconds;
-        return Math.min(Math.max(nextTime, 0), clock.durationSec || nextTime);
-    }, []);
-
-    const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
-        id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
-        name: session.title || lyricData.title || 'Stage Lyrics',
-        artists: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
-        album: { id: 0, name: session.album || 'Stage', picUrl: undefined },
-        duration: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
-        al: { id: 0, name: session.album || 'Stage', picUrl: undefined },
-        ar: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
-        dt: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
-        sourceType: 'cloud',
-        isStage: true,
-        stageData: session,
-    } as SongResult), []);
-
-    const buildNowPlayingLyricsSession = useCallback((track: NowPlayingTrackSnapshot | null, payload: NowPlayingLyricPayload): StageLyricsSession | null => {
-        const lyricSource = buildNowPlayingLyricSource(payload);
-        if (!lyricSource) {
-            return null;
-        }
-
-        return {
-            title: track?.title || payload.title || 'Now Playing',
-            artist: track?.artist || payload.artist || 'Now Playing',
-            album: track?.album || undefined,
-            lyricSource,
-            updatedAt: Date.now(),
-        };
-    }, []);
-
-    const loadStageSessionIntoPlayback = useCallback(async (session: StageMediaSession | null, options: { autoplay?: boolean; } = {}) => {
-        if (!session) {
-            currentSongRef.current = null;
-            resetStageLyricsClock();
-            clearPlaybackSurface();
-            return;
-        }
-
-        resetStageLyricsClock();
-        const stageSong = buildStagePlaybackSong(session);
-        shouldAutoPlay.current = options.autoplay ?? true;
-        pendingResumeTimeRef.current = null;
-        currentSongRef.current = stageSong.id;
-        setIsLyricsLoading(false);
-        let parsedLyrics: LyricData | null = null;
-        if (session.lyricsText?.trim()) {
-            try {
-                parsedLyrics = await LyricParserFactory.parse({
-                    type: 'local',
-                    lrcContent: session.lyricsText,
-                    formatHint: session.lyricsFormat || undefined,
-                });
-            } catch (error) {
-                console.warn('[Stage] Failed to parse stage lyrics', error);
-            }
-        }
-        setCurrentSong(stageSong);
-        setLyrics(parsedLyrics);
-        setCachedCoverUrl(session.coverArtUrl || session.coverUrl || null);
-        setAudioSrc(session.audioSrc);
-        setPlayQueue([]);
-        setIsFmMode(false);
-        setPlayerState(PlayerState.IDLE);
-        setCurrentLineIndex(-1);
-        currentTime.set(0);
-        setDuration(Math.max(0, (session.durationMs || 0) / 1000));
-    }, [buildStagePlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics]);
-
-    const loadStageLyricsIntoPlayback = useCallback(async (
-        session: StageLyricsSession | null,
-        options: { autoplay?: boolean; resumeTime?: number; playerState?: PlayerState; } = {},
-    ) => {
-        if (!session) {
-            currentSongRef.current = null;
-            resetStageLyricsClock();
-            clearPlaybackSurface();
-            return;
-        }
-
-        let parsedLyrics: LyricData | null = null;
-        try {
-            parsedLyrics = await LyricParserFactory.parse(session.lyricSource as any);
-        } catch (error) {
-            console.warn('[Stage] Failed to parse stage lyrics session', error);
-        }
-
-        if (!hasRenderableLyrics(parsedLyrics)) {
-            resetStageLyricsClock();
-            clearPlaybackSurface();
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            return;
-        }
-
-        const { startTimeSec, endTimeSec } = getStageLyricsTimelineBounds(parsedLyrics);
-        const nextPlayerState = options.playerState ?? ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
-        const initialTime = options.resumeTime ?? startTimeSec;
-        const nextLineIndex = findLatestActiveLineIndex(parsedLyrics.lines, initialTime);
-        const stageSong = buildStageLyricsPlaybackSong(session, parsedLyrics);
-
-        clearPlaybackSurface();
-        shouldAutoPlay.current = false;
-        pendingResumeTimeRef.current = null;
-        currentSongRef.current = stageSong.id;
-        setCurrentSong(stageSong);
-        setCachedCoverUrl(null);
-        setAudioSrc(null);
-        setPlayQueue([]);
-        setIsFmMode(false);
-        setIsLyricsLoading(false);
-        setLyrics(parsedLyrics);
-        currentTime.set(initialTime);
-        setCurrentLineIndex(nextLineIndex);
-        setDuration(endTimeSec);
-        setPlayerState(nextPlayerState);
-        syncStageLyricsClock(initialTime, endTimeSec, nextPlayerState, startTimeSec);
-    }, [buildStageLyricsPlaybackSong, clearPlaybackSurface, currentTime, resetStageLyricsClock, setLyrics, syncStageLyricsClock, t]);
-
-    const loadNowPlayingIntoPlayback = useCallback(async (
-        track: NowPlayingTrackSnapshot | null,
-        lyricPayload: NowPlayingLyricPayload | null,
-        progressMs: number,
-        paused: boolean,
-        options: { autoplay?: boolean; } = {},
-    ) => {
-        const nextPlayerState = paused
-            ? PlayerState.PAUSED
-            : ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
-        const durationSec = Math.max(0, (track?.durationMs ?? lyricPayload?.durationMs ?? 0) / 1000);
-        const progressSec = Math.max(0, progressMs / 1000);
-        if (isDev) {
-            console.log('[NowPlaying][App] loadNowPlayingIntoPlayback', {
-                options,
-                nextPlayerState,
-                durationSec,
-                progressSec,
-                nowPlayingTrack: track,
-                nowPlayingLyricPayload: lyricPayload,
-            });
-        }
-        const nextLyricsSession = lyricPayload
-            ? buildNowPlayingLyricsSession(track, lyricPayload)
-            : null;
-
-        if (nextLyricsSession) {
-            await loadStageLyricsIntoPlayback(nextLyricsSession, {
-                autoplay: options.autoplay,
-                resumeTime: progressSec,
-                playerState: nextPlayerState,
-            });
-            setCachedCoverUrl(track?.coverUrl || null);
-            syncNowPlayingClock(progressSec, Math.max(durationSec, progressSec), nextPlayerState !== PlayerState.PLAYING);
-            return;
-        }
-
-        const fallbackSong: SongResult | null = track ? ({
-            id: -Math.max(1, Math.floor(Date.now())),
-            name: track.title || 'Now Playing',
-            artists: [{ id: 0, name: track.artist || 'Now Playing' }],
-            album: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
-            duration: Math.max(0, Math.floor((track.durationMs || 0))),
-            al: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
-            ar: [{ id: 0, name: track.artist || 'Now Playing' }],
-            dt: Math.max(0, Math.floor((track.durationMs || 0))),
-            sourceType: 'cloud',
-            isStage: true,
-        } as SongResult) : null;
-
-        clearPlaybackSurface();
-        resetStageLyricsClock();
-        shouldAutoPlay.current = false;
-        pendingResumeTimeRef.current = null;
-        currentSongRef.current = fallbackSong?.id ?? null;
-        setCurrentSong(fallbackSong);
-        setCachedCoverUrl(track?.coverUrl || null);
-        setAudioSrc(null);
-        setPlayQueue([]);
-        setIsFmMode(false);
-        setIsLyricsLoading(false);
-        currentTime.set(progressSec);
-        setCurrentLineIndex(-1);
-        setDuration(durationSec);
-        setPlayerState(nextPlayerState);
-        syncNowPlayingClock(progressSec, durationSec, nextPlayerState !== PlayerState.PLAYING);
-    }, [buildNowPlayingLyricsSession, clearPlaybackSurface, currentTime, isDev, loadStageLyricsIntoPlayback, resetStageLyricsClock, syncNowPlayingClock]);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -601,30 +241,6 @@ export default function App() {
             saveToCache('last_song', song),
             saveToCache('last_queue', sanitizedQueue),
         ]);
-    }, []);
-
-    const clearPersistedStagePlaybackCache = useCallback(async () => {
-        const cachedLastSong = await getFromCache<SongResult>('last_song');
-        const cachedLastQueue = await getFromCache<SongResult[]>('last_queue');
-
-        const tasks: Promise<void>[] = [];
-
-        if (isStagePlaybackSong(cachedLastSong)) {
-            tasks.push(removeFromCache('last_song'));
-        }
-
-        if (cachedLastQueue?.some(queuedSong => isStagePlaybackSong(queuedSong))) {
-            const sanitizedQueue = cachedLastQueue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
-            tasks.push(
-                sanitizedQueue.length > 0
-                    ? saveToCache('last_queue', sanitizedQueue)
-                    : removeFromCache('last_queue')
-            );
-        }
-
-        if (tasks.length > 0) {
-            await Promise.all(tasks);
-        }
     }, []);
 
     const syncOutputGain = useCallback((targetVolume: number, smoothing = 0.015) => {
@@ -758,94 +374,6 @@ export default function App() {
         return recoveryTask;
     }, [audioQuality, audioSrc, currentSong]);
 
-    const resumePlayback = useCallback(async () => {
-        if (isNowPlayingStageActive) {
-            return;
-        }
-
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-            const currentSyntheticTime = getSyntheticStageLyricsTime();
-            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
-            currentTime.set(currentSyntheticTime);
-            setPlayerState(PlayerState.PLAYING);
-            return;
-        }
-
-        if (!audioRef.current) {
-            return;
-        }
-
-        setupAudioAnalyzer();
-        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-            await audioContextRef.current.resume();
-        }
-
-        syncOutputGain(getTargetPlaybackVolume(), 0);
-        if (shouldRefreshCurrentOnlineAudioSource()) {
-            const refreshed = await recoverOnlinePlaybackSource({
-                failedSrc: audioRef.current.currentSrc || audioSrc,
-                resumeAt: audioRef.current.currentTime,
-                autoplay: true,
-            });
-
-            if (refreshed) {
-                return;
-            }
-        }
-
-        try {
-            await audioRef.current.play();
-            setPlayerState(PlayerState.PLAYING);
-        } catch (error) {
-            const recovered = await recoverOnlinePlaybackSource({
-                failedSrc: audioRef.current.currentSrc || audioSrc,
-                resumeAt: audioRef.current.currentTime,
-                autoplay: true,
-            });
-
-            if (recovered) {
-                return;
-            }
-
-            if (!audioRef.current.paused && !audioRef.current.ended) {
-                setPlayerState(PlayerState.PLAYING);
-                return;
-            }
-
-            if (error instanceof DOMException && error.name === 'NotAllowedError') {
-                setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
-                setPlayerState(PlayerState.PAUSED);
-                return;
-            }
-
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            setPlayerState(PlayerState.PAUSED);
-            throw error;
-        }
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
-
-    const pausePlayback = useCallback(() => {
-        if (isNowPlayingStageActive) {
-            return;
-        }
-
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-            const currentSyntheticTime = getSyntheticStageLyricsTime();
-            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PAUSED, stageLyricsClockRef.current.startTimeSec);
-            currentTime.set(currentSyntheticTime);
-            setPlayerState(PlayerState.PAUSED);
-            return;
-        }
-
-        if (!audioRef.current) {
-            return;
-        }
-
-        audioRef.current.pause();
-        syncOutputGain(getTargetPlaybackVolume(), 0);
-        setPlayerState(PlayerState.PAUSED);
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
-
     const getCoverUrl = useCallback(() => {
         if (cachedCoverUrl) return cachedCoverUrl;
         let url = null;
@@ -951,106 +479,156 @@ export default function App() {
         t,
     });
 
-    // --- Initialization ---
+    const {
+        stageStatus,
+        setStageStatus,
+        stageSource,
+        stageActiveEntryKind,
+        stageLyricsSession,
+        stageMediaSession,
+        nowPlayingConnectionStatus,
+        nowPlayingTrack,
+        nowPlayingLyricPayload,
+        nowPlayingProgressMs,
+        nowPlayingProgressQuality,
+        nowPlayingPaused,
+        isNowPlayingStageActive,
+        mainPlaybackSnapshotRef,
+        stageLyricsClockRef,
+        syncStageLyricsClock,
+        getSyntheticStageLyricsTime,
+        syncNowPlayingClock,
+        getNowPlayingDisplayTime,
+        loadStageSessionIntoPlayback,
+        clearPersistedStagePlaybackCache,
+        openStagePlayer,
+        leaveStagePlayback,
+        interruptStagePlaybackForMainTransition,
+        clearStagePlaybackSession,
+    } = useStagePlaybackController({
+        t: (key) => t(key),
+        isDev,
+        isElectronWindow,
+        enableNowPlayingStage,
+        activePlaybackContext,
+        setActivePlaybackContext,
+        currentSong,
+        lyrics,
+        cachedCoverUrl,
+        audioSrc,
+        playQueue,
+        isFmMode,
+        playerState,
+        duration,
+        currentLineIndex,
+        currentTime,
+        audioRef,
+        currentSongRef,
+        shouldAutoPlayRef: shouldAutoPlay,
+        pendingResumeTimeRef,
+        lastAudioRecoverySourceRef,
+        currentOnlineAudioUrlFetchedAtRef,
+        setCurrentSong,
+        setLyrics,
+        setCachedCoverUrl,
+        setAudioSrc,
+        setPlayQueue,
+        setIsFmMode,
+        setIsLyricsLoading,
+        setPlayerState,
+        setCurrentLineIndex,
+        setDuration,
+        setStatusMsg,
+        navigateToPlayer,
+    });
 
-    useEffect(() => {
-        restoreSession();
-        loadLocalSongs();
-        void loadLocalPlaylists();
-    }, []);
-
-    const openStagePlayer = useCallback(async () => {
-        if (activePlaybackContext === 'main') {
-            mainPlaybackSnapshotRef.current = buildPlaybackSnapshot();
-        } else {
-            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
+    const resumePlayback = useCallback(async () => {
+        if (isNowPlayingStageActive) {
+            return;
         }
 
-        if (stageSource === 'now-playing') {
-            clearMainPlaybackContext();
-            stagePlaybackSnapshotRef.current = null;
-            setActivePlaybackContext('stage');
-            await loadNowPlayingIntoPlayback(
-                nowPlayingTrack,
-                nowPlayingLyricPayload,
-                nowPlayingProgressMs,
-                nowPlayingPaused,
-                { autoplay: true },
-            );
-            navigateToPlayer();
-            if (!nowPlayingTrack && !nowPlayingLyricPayload) {
-                setStatusMsg({ type: 'info', text: '等待本地 Now Playing 服务输入' });
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
+        if (!audioRef.current) {
+            return;
+        }
+
+        setupAudioAnalyzer();
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            await audioContextRef.current.resume();
+        }
+
+        syncOutputGain(getTargetPlaybackVolume(), 0);
+        if (shouldRefreshCurrentOnlineAudioSource()) {
+            const refreshed = await recoverOnlinePlaybackSource({
+                failedSrc: audioRef.current.currentSrc || audioSrc,
+                resumeAt: audioRef.current.currentTime,
+                autoplay: true,
+            });
+
+            if (refreshed) {
+                return;
             }
-            return;
         }
 
-        const savedStageSnapshot = stagePlaybackSnapshotRef.current;
-        const savedStageEntryKey = lastLoadedStageEntryKeyRef.current;
-        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
-        setActivePlaybackContext('stage');
-        if (savedStageSnapshot && savedStageEntryKey && savedStageEntryKey === nextStageEntryKey) {
-            applyPlaybackSnapshot(savedStageSnapshot);
-            if (stageActiveEntryKind === 'lyrics') {
-                syncStageLyricsClock(
-                    savedStageSnapshot.currentTime,
-                    savedStageSnapshot.duration,
-                    savedStageSnapshot.playerState,
-                    stageLyricsClockRef.current.startTimeSec,
-                );
+        try {
+            await audioRef.current.play();
+            setPlayerState(PlayerState.PLAYING);
+        } catch (error) {
+            const recovered = await recoverOnlinePlaybackSource({
+                failedSrc: audioRef.current.currentSrc || audioSrc,
+                resumeAt: audioRef.current.currentTime,
+                autoplay: true,
+            });
+
+            if (recovered) {
+                return;
             }
-        } else if (stageActiveEntryKind === 'lyrics') {
-            void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
-        } else if (stageActiveEntryKind === 'media') {
-            await loadStageSessionIntoPlayback(stageMediaSession, { autoplay: Boolean(stageMediaSession) });
-        } else {
-            await loadStageSessionIntoPlayback(null);
-        }
-        navigateToPlayer();
-        if (!nextStageEntryKey) {
-            setStatusMsg({ type: 'info', text: t('status.stageWaiting') || '等待外部 Stage 输入' });
-        }
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, loadNowPlayingIntoPlayback, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, navigateToPlayer, nowPlayingLyricPayload, nowPlayingPaused, nowPlayingProgressMs, nowPlayingTrack, stageActiveEntryKind, stageLyricsSession, stageMediaSession, stageSource, syncStageLyricsClock, t]);
 
-    const leaveStagePlayback = useCallback(() => {
-        if (activePlaybackContext !== 'stage') {
+            if (!audioRef.current.paused && !audioRef.current.ended) {
+                setPlayerState(PlayerState.PLAYING);
+                return;
+            }
+
+            if (error instanceof DOMException && error.name === 'NotAllowedError') {
+                setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
+                setPlayerState(PlayerState.PAUSED);
+                return;
+            }
+
+            setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            setPlayerState(PlayerState.PAUSED);
+            throw error;
+        }
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
+
+    const pausePlayback = useCallback(() => {
+        if (isNowPlayingStageActive) {
             return;
         }
 
-        if (stageSource === 'now-playing') {
-            stagePlaybackSnapshotRef.current = null;
-            setActivePlaybackContext('main');
-            clearMainPlaybackContext();
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            const currentSyntheticTime = getSyntheticStageLyricsTime();
+            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PAUSED, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(currentSyntheticTime);
+            setPlayerState(PlayerState.PAUSED);
             return;
         }
 
-        stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
-        setActivePlaybackContext('main');
-        applyPlaybackSnapshot(mainPlaybackSnapshotRef.current);
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, stageSource]);
-
-    // Restore the main snapshot before starting any normal playback so Stage state
-    // stays isolated and the next playback flow reads the correct queue/context.
-    const interruptStagePlaybackForMainTransition = useCallback(() => {
-        if (activePlaybackContext !== 'stage') {
-            return null;
+        if (!audioRef.current) {
+            return;
         }
 
-        if (stageSource === 'now-playing') {
-            stagePlaybackSnapshotRef.current = null;
-            setActivePlaybackContext('main');
-            clearMainPlaybackContext();
-            return null;
-        }
-
-        const currentStageSnapshot = buildPlaybackSnapshot();
-        const restoredMainSnapshot = mainPlaybackSnapshotRef.current;
-
-        stagePlaybackSnapshotRef.current = currentStageSnapshot;
-        setActivePlaybackContext('main');
-        applyPlaybackSnapshot(restoredMainSnapshot);
-
-        return restoredMainSnapshot;
-    }, [activePlaybackContext, applyPlaybackSnapshot, buildPlaybackSnapshot, clearMainPlaybackContext, stageSource]);
+        audioRef.current.pause();
+        syncOutputGain(getTargetPlaybackVolume(), 0);
+        setPlayerState(PlayerState.PAUSED);
+    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
 
     const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
         setPendingNavidromeSelection(selection);
@@ -1086,377 +664,6 @@ export default function App() {
         navigateDirectHome();
     }, [navigateDirectHome]);
 
-    useEffect(() => {
-        if (!window.electron?.getStageStatus) {
-            return;
-        }
-
-        let disposed = false;
-
-        const syncStageStatus = (nextStatus: StageStatus) => {
-            if (disposed) {
-                return;
-            }
-
-            setStageStatus(nextStatus);
-        };
-
-        window.electron.getStageStatus().then(syncStageStatus).catch((error) => {
-            console.warn('[Stage] Failed to load stage status', error);
-        });
-
-        const unsubscribeUpdated = window.electron.onStageSessionUpdated?.((nextStatus) => {
-            syncStageStatus(nextStatus);
-        });
-
-        const unsubscribeCleared = window.electron.onStageSessionCleared?.((nextStatus) => {
-            syncStageStatus(nextStatus);
-        });
-
-        return () => {
-            disposed = true;
-            unsubscribeUpdated?.();
-            unsubscribeCleared?.();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (stageSource !== 'now-playing') {
-            nowPlayingProviderRef.current?.stop();
-            nowPlayingProviderRef.current = null;
-            setNowPlayingConnectionStatus('disabled');
-            setNowPlayingTrack(null);
-            setNowPlayingLyricPayload(null);
-            setNowPlayingProgressMs(0);
-            setNowPlayingPaused(true);
-            resetNowPlayingClock();
-            return;
-        }
-
-        const provider = new NowPlayingProvider({
-            onConnectionStatusChange: setNowPlayingConnectionStatus,
-            onTrack: setNowPlayingTrack,
-            onLyric: setNowPlayingLyricPayload,
-            onPauseState: setNowPlayingPaused,
-            onProgress: ({ progressMs, quality }) => {
-                setNowPlayingProgressMs(progressMs);
-                setNowPlayingProgressQuality(quality);
-            },
-        });
-
-        nowPlayingProviderRef.current = provider;
-        provider.start();
-
-        return () => {
-            provider.stop();
-            if (nowPlayingProviderRef.current === provider) {
-                nowPlayingProviderRef.current = null;
-            }
-        };
-    }, [resetNowPlayingClock, stageSource]);
-
-    useEffect(() => {
-        const durationSec = Math.max(0, (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000);
-        const incomingTime = nowPlayingProgressMs / 1000;
-        const displayTime = getNowPlayingDisplayTime();
-        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
-            ? Math.max(incomingTime, displayTime)
-            : incomingTime;
-        syncNowPlayingClock(nextTime, durationSec, nowPlayingPaused);
-    }, [getNowPlayingDisplayTime, nowPlayingLyricPayload?.durationMs, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality, nowPlayingTrack?.durationMs, syncNowPlayingClock]);
-
-    useEffect(() => {
-        if (activePlaybackContext === 'main') {
-            mainPlaybackSnapshotRef.current = buildPlaybackSnapshot();
-            lastKnownMainSongRef.current = currentSong;
-            lastKnownMainQueueRef.current = playQueue;
-        } else {
-            stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
-        }
-    }, [activePlaybackContext, buildPlaybackSnapshot, currentSong, playQueue]);
-
-    useEffect(() => {
-        if (stageSource === 'now-playing') {
-            lastLoadedStageEntryKeyRef.current = null;
-            stagePlaybackSnapshotRef.current = null;
-            return;
-        }
-
-        const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
-
-        if (!nextStageEntryKey) {
-            lastLoadedStageEntryKeyRef.current = null;
-            if (activePlaybackContext === 'stage') {
-                void loadStageSessionIntoPlayback(null);
-            } else {
-                stagePlaybackSnapshotRef.current = null;
-            }
-            return;
-        }
-
-        if (activePlaybackContext === 'stage') {
-            if (lastLoadedStageEntryKeyRef.current === nextStageEntryKey) {
-                return;
-            }
-            lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
-            if (stageActiveEntryKind === 'lyrics') {
-                void loadStageLyricsIntoPlayback(stageLyricsSession, { autoplay: true });
-            } else {
-                void loadStageSessionIntoPlayback(stageMediaSession, { autoplay: true });
-            }
-            return;
-        }
-
-        lastLoadedStageEntryKeyRef.current = nextStageEntryKey;
-        stagePlaybackSnapshotRef.current = null;
-    }, [activePlaybackContext, loadStageLyricsIntoPlayback, loadStageSessionIntoPlayback, stageActiveEntryKind, stageLyricsSession, stageMediaSession, stageSource]);
-
-    useEffect(() => {
-        if (stageSource !== 'now-playing' || activePlaybackContext !== 'stage') {
-            return;
-        }
-
-        void loadNowPlayingIntoPlayback(
-            nowPlayingTrack,
-            nowPlayingLyricPayload,
-            nowPlayingProgressMs,
-            nowPlayingPaused,
-            { autoplay: true },
-        );
-    }, [activePlaybackContext, loadNowPlayingIntoPlayback, nowPlayingLyricPayload, nowPlayingTrack, stageSource]);
-
-    useEffect(() => {
-        if (activePlaybackContext !== 'stage' || stageSource) {
-            return;
-        }
-
-        stagePlaybackSnapshotRef.current = null;
-        setActivePlaybackContext('main');
-        clearMainPlaybackContext();
-    }, [activePlaybackContext, clearMainPlaybackContext, stageSource]);
-
-    useEffect(() => {
-        if (!isNowPlayingStageActive) {
-            return;
-        }
-
-        const incomingTime = Math.max(0, nowPlayingProgressMs / 1000);
-        const displayTime = getNowPlayingDisplayTime();
-        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
-            ? Math.max(incomingTime, displayTime)
-            : incomingTime;
-        if (isDev) {
-            console.log('[NowPlaying][App] Applying progress to currentTime', {
-                nowPlayingProgressMs,
-                nextTime,
-                nowPlayingProgressQuality,
-                nowPlayingPaused,
-                displayTime,
-                hasLyrics: Boolean(lyrics),
-            });
-        }
-        currentTime.set(nextTime);
-
-        if (lyrics) {
-            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndexRef.current) {
-                setCurrentLineIndex(foundIndex);
-            }
-        } else if (currentLineIndexRef.current !== -1) {
-            setCurrentLineIndex(-1);
-        }
-    }, [currentTime, getNowPlayingDisplayTime, isDev, isNowPlayingStageActive, lyrics, nowPlayingPaused, nowPlayingProgressMs, nowPlayingProgressQuality]);
-
-    const restoreSession = async () => {
-        try {
-            const lastSong = await getFromCache<SongResult>('last_song');
-            const lastQueue = await getFromCache<SongResult[]>('last_queue');
-
-            if (isStagePlaybackSong(lastSong) || lastQueue?.some(song => isStagePlaybackSong(song))) {
-                await clearPersistedStagePlaybackCache();
-                return;
-            }
-
-            if (lastSong) {
-                console.log("[Session] Restoring last song:", lastSong.name);
-                setCurrentSong(lastSong);
-                if (lastQueue && lastQueue.length > 0) {
-                    setPlayQueue(lastQueue);
-                } else {
-                    setPlayQueue([lastSong]);
-                }
-
-                const restoredThemeKind = await restoreCachedThemeForSong(lastSong.id, {
-                    allowLastUsedFallback: true,
-                    preserveCurrentOnMiss: false,
-                });
-                if (restoredThemeKind === 'fallback-dual') {
-                    console.log("[restoreSession] Using last_dual_theme fallback");
-                } else if (restoredThemeKind === 'none') {
-                    console.log("[restoreSession] No cached theme, resetting to default");
-                }
-
-                // Try to restore cover
-                setCachedCoverUrl(await getCachedCoverUrl(getOnlineSongCacheKey('cover', lastSong)));
-
-                // Load resources silently (without auto-playing)
-                try {
-                    // Check if this is a local song
-                    const isNavidromeSong = isNavidromePlaybackSong(lastSong);
-                    const isLocalSong = isLocalPlaybackSong(lastSong);
-
-                    if (isNavidromeSong) {
-                        const navidromeSongToRestore = (lastSong as any).navidromeData as NavidromeSong | undefined;
-                        const config = getNavidromeConfig();
-                        const navidromeId = navidromeSongToRestore?.navidromeData?.id;
-
-                        if (navidromeSongToRestore && config && navidromeId) {
-                            setAudioSrc(navidromeApi.getStreamUrl(config, navidromeId));
-                            const restoredCoverUrl = lastSong.al?.picUrl || lastSong.album?.picUrl || navidromeSongToRestore.navidromeData.coverArtUrl;
-                            if (restoredCoverUrl) {
-                                setCachedCoverUrl(restoredCoverUrl);
-                            }
-
-                            if (navidromeSongToRestore.lyricsSource === 'online' && navidromeSongToRestore.matchedLyrics) {
-                                setLyrics(navidromeSongToRestore.matchedLyrics);
-                            } else {
-                                await hydrateNavidromeLyricPayload(config, navidromeSongToRestore);
-                                const restoredLyrics = await resolvePreferredNavidromeLyrics(navidromeSongToRestore);
-                                if (hasRenderableLyrics(restoredLyrics)) {
-                                    navidromeSongToRestore.lyricsSource = 'navi';
-                                }
-                                setLyrics(restoredLyrics);
-                            }
-
-                            const restoredSong = { ...(lastSong as any), navidromeData: navidromeSongToRestore } as SongResult;
-                            setCurrentSong(restoredSong);
-                            void persistLastPlaybackCache(restoredSong, lastQueue || [restoredSong]);
-                        } else {
-                            console.warn('[restoreSession] Navidrome song could not be restored');
-                        }
-                    } else if (isLocalSong) {
-                        // For local songs, we need to try to restore from localSongs list
-                        // FileSystemFileHandle cannot be serialized to IndexedDB
-                        console.log("[restoreSession] Detected local song, attempting to restore from file handles...");
-
-                        // Wait for localSongs to be loaded (loadLocalSongs runs in parallel)
-                        // We'll try to match by name and duration
-                        const localData = (lastSong as any).localData;
-                        let songToRestore: LocalSong | undefined;
-
-                        // Load local songs if not already loaded
-                        const songs = await getLocalSongs();
-
-                        if (localData?.id) {
-                            // Try to find by original local ID
-                            songToRestore = songs.find(s => s.id === localData.id);
-                        }
-
-                        if (!songToRestore) {
-                            // Fallback: match by name and duration
-                            songToRestore = songs.find(s =>
-                                (s.title || s.fileName) === lastSong.name &&
-                                Math.abs(s.duration - lastSong.duration) < 1000
-                            );
-                        }
-
-                        if (songToRestore) {
-                            // Try to get audio from the file handle
-                            const blobUrl = await getAudioFromLocalSong(songToRestore);
-                            if (blobUrl) {
-                                songToRestore = await ensureLocalSongEmbeddedCover(songToRestore);
-                                if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-                                blobUrlRef.current = blobUrl;
-                                currentOnlineAudioUrlFetchedAtRef.current = null;
-                                setAudioSrc(blobUrl);
-                                console.log("[restoreSession] Successfully restored local song audio");
-
-                                // Also restore lyrics using lyricsSource priority
-                                const source = songToRestore.lyricsSource;
-                                if (source === 'online' && songToRestore.matchedLyrics) {
-                                    setLyrics(songToRestore.matchedLyrics);
-                                } else if (source === 'embedded' && songToRestore.embeddedLyricsContent) {
-                                    setLyrics(await LyricParserFactory.parse({ type: 'embedded', textContent: songToRestore.embeddedLyricsContent, translationContent: songToRestore.embeddedTranslationLyricsContent }));
-                                } else if (source === 'local' && songToRestore.localLyricsContent) {
-                                    setLyrics(await LyricParserFactory.parse({ type: 'local', lrcContent: songToRestore.localLyricsContent, tLrcContent: songToRestore.localTranslationLyricsContent }));
-                                } else if (songToRestore.hasLocalLyrics && songToRestore.localLyricsContent) {
-                                    setLyrics(await LyricParserFactory.parse({ type: 'local', lrcContent: songToRestore.localLyricsContent, tLrcContent: songToRestore.localTranslationLyricsContent }));
-                                } else if (songToRestore.hasEmbeddedLyrics && songToRestore.embeddedLyricsContent) {
-                                    setLyrics(await LyricParserFactory.parse({ type: 'embedded', textContent: songToRestore.embeddedLyricsContent, translationContent: songToRestore.embeddedTranslationLyricsContent }));
-                                } else if (songToRestore.matchedLyrics) {
-                                    setLyrics(songToRestore.matchedLyrics);
-                                }
-
-                                // Restore cover
-                                if (songToRestore.embeddedCover) {
-                                    setCachedCoverUrl(URL.createObjectURL(songToRestore.embeddedCover));
-                                } else if (songToRestore.matchedCoverUrl) {
-                                    setCachedCoverUrl(songToRestore.matchedCoverUrl);
-                                }
-                            } else {
-                                // File handle is no longer valid (permission revoked or file moved)
-                                console.warn("[restoreSession] Local song file not accessible - needs resync");
-                                setStatusMsg({
-                                    type: 'info',
-                                    text: '本地歌曲文件需要重新授权访问，请从本地音乐列表重新选择播放'
-                                });
-                            }
-                        } else {
-                            // TODO: NEED INVESTIGATION, meow~
-                            // This case happens when try to restore a navidrome song, it fails to find the song from server or local storage.
-                            // dosen't cause any critical issue, just can't restore the last played song's audio and lyrics, but it will show a warning toast in screen every time open the app, which is annoying! need to investigate why it happens and how to fix it.
-                            console.warn("[restoreSession] Could not find local song in library");
-                            setStatusMsg({
-                                type: 'info',
-                                text: '上次播放的本地歌曲已不在曲库中'
-                            });
-                        }
-                    } else {
-                        // Cloud song - original logic
-                        const cachedAudio = await getCachedAudioBlob(getOnlineSongCacheKey('audio', lastSong));
-                        if (cachedAudio) {
-                            const blobUrl = URL.createObjectURL(cachedAudio);
-                            if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-                            blobUrlRef.current = blobUrl;
-                            currentOnlineAudioUrlFetchedAtRef.current = null;
-                            setAudioSrc(blobUrl);
-                        } else {
-                            const urlRes = await neteaseApi.getSongUrl(lastSong.id, audioQuality);
-                            let url = urlRes.data?.[0]?.url;
-                            if (url) {
-                                if (url.startsWith('http:')) {
-                                    url = url.replace('http:', 'https:');
-                                }
-                                currentOnlineAudioUrlFetchedAtRef.current = Date.now();
-                                setAudioSrc(url);
-                            }
-                        }
-
-                        // Try cache first for lyrics (cloud songs only)
-                        const cachedLyrics = await getFromCacheWithMigration<LyricData>(getOnlineSongCacheKey('lyric', lastSong), migrateLyricDataRenderHints);
-                        if (cachedLyrics) {
-                            const cachedText = cachedLyrics.lines.map(line => line.fullText).join('\n');
-                            setCurrentSong(prev => prev?.id === lastSong.id ? { ...prev, isPureMusic: isPureMusicLyricText(cachedText) } : prev);
-                            setLyrics(cachedLyrics);
-                        } else {
-                            const lyricRes = isCloudSong(lastSong) && user?.userId
-                                ? await neteaseApi.getCloudLyric(user.userId, lastSong.id)
-                                : await neteaseApi.getLyric(lastSong.id);
-                            const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes));
-
-                            setCurrentSong(prev => prev?.id === lastSong.id ? { ...prev, isPureMusic: processed.isPureMusic } : prev);
-                            setLyrics(processed.lyrics);
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Failed to restore audio/lyrics for last session", e);
-                }
-            }
-        } catch (e) {
-            console.error("Session restore failed", e);
-        }
-    };
-
     // --- Local Music Functions ---
 
     const loadLocalSongs = async () => {
@@ -1481,6 +688,24 @@ export default function App() {
         await loadLocalSongs();
         await loadLocalPlaylists();
     };
+
+    useSessionRestoreController({
+        audioQuality,
+        userId: user?.userId,
+        blobUrlRef,
+        currentOnlineAudioUrlFetchedAtRef,
+        setCurrentSong,
+        setPlayQueue,
+        setCachedCoverUrl,
+        setAudioSrc,
+        setLyrics,
+        setStatusMsg,
+        restoreCachedThemeForSong,
+        persistLastPlaybackCache,
+        clearPersistedStagePlaybackCache,
+        loadLocalSongs,
+        loadLocalPlaylists,
+    });
 
     const getFavoriteLocalPlaylist = useMemo(
         () => localPlaylists.find(playlist => playlist.isFavorite) ?? null,
@@ -3976,7 +3201,7 @@ export default function App() {
                         leaveStagePlayback();
                     }
                     if (!enabled) {
-                        stagePlaybackSnapshotRef.current = null;
+                        clearStagePlaybackSession();
                         await clearPersistedStagePlaybackCache();
                     }
                 }
