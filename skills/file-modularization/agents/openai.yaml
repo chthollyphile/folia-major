@@ -1,0 +1,4 @@
+interface:
+  display_name: "File Modularization"
+  short_description: "Keep files short and split features into modules."
+  default_prompt: "Use this skill to keep changes modular, avoid bloated entry files, and split large UI or logic changes into focused files."

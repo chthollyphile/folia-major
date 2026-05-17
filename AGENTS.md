@@ -23,6 +23,10 @@
   路径：`skills/glossary-alignment/SKILL.md`
   用于把开发者口头说的组件、视图、状态、面板、模式等术语，快速对齐到具体代码归属。
 
+- `file-modularization`
+  路径：`skills/file-modularization/SKILL.md`
+  用于在新增或重构前端功能时约束文件长度、入口文件职责和模块拆分，避免继续把大量实现堆进 `App.tsx`、页面根组件或单个大文件。
+
 全局沟通规则：
 
 - 不需要使用skills的时候，不要读取它们。
