@@ -34,7 +34,7 @@ type UseSessionRestoreControllerParams = {
     restoreCachedThemeForSong: (songId: number, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
-    }) => Promise<'fallback-dual' | 'restored' | 'none'>;
+    }) => Promise<'legacy' | 'dual' | 'fallback-dual' | 'restored' | 'none'>;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     clearPersistedStagePlaybackCache: () => Promise<void>;
     loadLocalSongs: () => Promise<void>;
@@ -99,7 +99,7 @@ export function useSessionRestoreController({
 
                 try {
                     if (isNavidromePlaybackSong(lastSong)) {
-                        const navidromeSongToRestore = (lastSong as SongResult & { navidromeData?: NavidromeSong }).navidromeData;
+                        const navidromeSongToRestore = (lastSong as unknown as SongResult & { navidromeData?: NavidromeSong }).navidromeData;
                         const config = getNavidromeConfig();
                         const navidromeId = navidromeSongToRestore?.navidromeData?.id;
 

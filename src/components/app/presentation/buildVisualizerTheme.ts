@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Theme } from '../../../types';
+import type { Theme, VisualizerMode } from '../../../types';
 
 // src/components/app/presentation/buildVisualizerTheme.ts
 
@@ -14,10 +14,10 @@ export const buildVisualizerTheme = ({
 }: {
     appStyle: CSSProperties;
     theme: Theme;
-    lyricsFontStyle: string;
+    lyricsFontStyle: Theme['fontStyle'];
     lyricsCustomFontFamily: string | null;
     currentSongId?: number | null;
-    visualizerMode: string;
+    visualizerMode: VisualizerMode;
 }) => {
     const visualizerBackgroundColor = String(appStyle['--bg-color']);
     return {

@@ -256,7 +256,7 @@ export class NowPlayingProvider {
             this.callbacks.onTrack?.(null);
             this.callbacks.onLyric?.(null);
             this.callbacks.onPauseState?.(true);
-            this.callbacks.onProgress?.({ progressMs: 0, isReplay: true });
+            this.callbacks.onProgress?.({ progressMs: 0, isReplay: true, quality: 'precise' });
             this.callbacks.onConnectionStatusChange?.('disabled');
         }
     }

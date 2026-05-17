@@ -6,7 +6,8 @@ import type DevDebugOverlay from '../../DevDebugOverlay';
 import type PlaylistView from '../views/PlaylistView';
 import type AlbumView from '../views/AlbumView';
 import type ArtistView from '../views/ArtistView';
-import type { SongResult, UnifiedSong, LyricData, PlayerState } from '../../../types';
+import { PlayerState } from '../../../types';
+import type { SongResult, UnifiedSong, LyricData } from '../../../types';
 
 // src/components/app/overlays/buildAppOverlaysModel.ts
 
@@ -33,7 +34,7 @@ export type AppOverlaysModel = {
 };
 
 type BuildAppOverlaysModelParams = {
-    currentView: string;
+    currentView: FloatingControlsProps['currentView'];
     isOverlayVisible: boolean;
     topOverlay: any;
     overlayStack: any[];
@@ -55,7 +56,7 @@ type BuildAppOverlaysModelParams = {
     handleArtistSelect: (artistId: number) => void;
     userId?: number;
     playlists: Array<{ id: number }>;
-    refreshUserData: () => Promise<void>;
+    refreshUserData: () => Promise<unknown>;
     isDev: boolean;
     isDevDebugOverlayVisible: boolean;
     devDebugSnapshot: any;
@@ -152,7 +153,6 @@ export const buildAppOverlaysModel = ({
             ? {
                 type: 'playlist' as const,
                 props: {
-                    key: `playlist-${topOverlay.playlist.id}-${overlayStack.length - 1}`,
                     playlist: topOverlay.playlist,
                     onBack: popOverlay,
                     onPlaySong: (song, ctx) => {
@@ -178,7 +178,6 @@ export const buildAppOverlaysModel = ({
                 ? {
                     type: 'album' as const,
                     props: {
-                        key: `album-${topOverlay.id}-${overlayStack.length - 1}`,
                         albumId: topOverlay.id,
                         onBack: popOverlay,
                         onPlaySong: (song, ctx) => {
@@ -197,7 +196,6 @@ export const buildAppOverlaysModel = ({
                 : {
                     type: 'artist' as const,
                     props: {
-                        key: `artist-${topOverlay.id}-${overlayStack.length - 1}`,
                         artistId: topOverlay.id,
                         onBack: popOverlay,
                         onPlaySong: (song, ctx) => {
@@ -236,8 +234,8 @@ export const buildAppOverlaysModel = ({
                 if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
                     syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                     currentTime.set(time);
-                    if (playerState !== 'playing') {
-                        setPlayerState('playing');
+                    if (playerState !== PlayerState.PLAYING) {
+                        setPlayerState(PlayerState.PLAYING);
                     }
                 } else {
                     onSeekMainAudio(time);

@@ -176,27 +176,27 @@ export interface StageStatus {
 export type NowPlayingConnectionStatus = 'disabled' | 'connecting' | 'connected' | 'error';
 
 export interface NowPlayingTrackSnapshot {
+  id: string | null;
   title: string;
-  author: string;
+  artist: string;
   album: string;
-  cover: string;
-  duration: number;
-  id?: string;
+  coverUrl: string | null;
+  durationMs: number | null;
   isVideo?: boolean;
   isAdvertisement?: boolean;
 }
 
 export interface NowPlayingLyricPayload {
-  source: string;
+  source: string | null;
   title: string;
-  author: string;
-  duration: number;
+  artist: string;
+  durationMs: number | null;
   hasLyric: boolean;
   hasTranslatedLyric: boolean;
   hasKaraokeLyric: boolean;
-  lrc: string;
-  translatedLyric: string;
-  karaokeLyric: string;
+  lrc: string | null;
+  translatedLyric: string | null;
+  karaokeLyric: string | null;
 }
 
 export interface CadenzaTuning {

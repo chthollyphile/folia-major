@@ -8,7 +8,11 @@ type LocalMusicState = {
     activeRow: 0 | 1 | 2 | 3;
     selectedGroup: LocalLibraryGroup | null;
     detailStack: LocalLibraryGroup[];
-    detailOriginView: 'player' | null;
+    detailOriginView: 'home' | 'player' | null;
+    focusedFolderIndex: number;
+    focusedAlbumIndex: number;
+    focusedArtistIndex: number;
+    focusedPlaylistIndex: number;
 };
 
 type CreateLocalLibraryNavigationParams = {

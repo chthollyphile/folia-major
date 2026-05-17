@@ -6,7 +6,7 @@ import { hasCachedAudio } from '../services/audioCache';
 import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
 import { getOnlineSongCacheKey, isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
-import { PlayerState } from '../types';
+import { PlayerState, type HomeViewTab } from '../types';
 import type { LocalSong, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
@@ -19,7 +19,7 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 type SearchDeps = {
     submitSearch: (args: {
         query: string;
-        sourceTab: string;
+        sourceTab: HomeViewTab;
         deps: {
             localSongs: LocalSong[];
             t: (key: string, fallback?: string) => string;
@@ -44,7 +44,7 @@ type UsePlaybackQueueControllerParams = {
     isFmMode: boolean;
     isNowPlayingStageActive: boolean;
     searchQuery: string;
-    searchSourceTab: string;
+    searchSourceTab: HomeViewTab;
     localSongs: LocalSong[];
     userId?: number;
     currentTime: MotionValue<number>;
@@ -438,7 +438,7 @@ export function usePlaybackQueueController({
             }
 
             const localQueue = queueContext
-                .map(queuedSong => queuedSong.localData)
+                .map(queuedSong => (queuedSong as SongResult & { localData?: LocalSong }).localData)
                 .filter((queuedSong): queuedSong is LocalSong => Boolean(queuedSong));
             await onPlayLocalSong(localData, localQueue);
             return;

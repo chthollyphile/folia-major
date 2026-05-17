@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { PlayerState } from '../../../types';
+import { PlayerState } from '../../../types';
 import type LegacyHome from '../../Home';
 
 // src/components/app/home/buildHomeModel.ts
@@ -13,7 +13,7 @@ export type HomeViewModel = {
 type BuildHomeModelParams = {
     playSong: LegacyHomeProps['onPlaySong'];
     navigateToPlayer: LegacyHomeProps['onBackToPlayer'];
-    refreshUserData: () => Promise<void>;
+    refreshUserData: () => Promise<unknown>;
     user: LegacyHomeProps['user'];
     playlists: LegacyHomeProps['playlists'];
     cloudPlaylist?: LegacyHomeProps['cloudPlaylist'];
@@ -213,7 +213,7 @@ export const buildHomeModel = ({
             playlists,
             cloudPlaylist,
             currentTrack: currentSong,
-            isPlaying: playerState === 'playing',
+            isPlaying: playerState === PlayerState.PLAYING,
             onSelectPlaylist: handlePlaylistSelect,
             onSelectAlbum: handleAlbumSelect,
             onSelectArtist: handleArtistSelect,

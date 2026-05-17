@@ -591,6 +591,7 @@ export default function App() {
     } = usePlaybackQueueController({
         t,
         audioQuality,
+        activePlaybackContext,
         currentSong,
         playQueue,
         playerState,

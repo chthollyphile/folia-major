@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import type React from 'react';
 import type { RefObject } from 'react';
-import type { PlayerState, SongResult } from '../types';
+import { PlayerState } from '../types';
+import type { SongResult } from '../types';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 type UseElectronPlaybackBridgeOptions = {

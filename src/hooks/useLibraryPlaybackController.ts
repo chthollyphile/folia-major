@@ -717,7 +717,10 @@ export function useLibraryPlaybackController({
 
             setLyrics(nextLyrics);
             setCurrentLineIndex(-1);
-            setCurrentSong({ ...currentSong, localData: updatedLocalSong });
+            setCurrentSong(prev => prev?.id === currentSong.id
+                ? ({ ...(prev as SongResult & { localData?: LocalSong; }), localData: updatedLocalSong } as SongResult)
+                : prev
+            );
             await loadLocalSongs();
             setStatusMsg({ type: 'success', text: '歌词来源已切换' });
         } catch (error) {

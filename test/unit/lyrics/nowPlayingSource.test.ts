@@ -8,8 +8,8 @@ describe('nowPlayingSource', () => {
         const lyricSource = buildNowPlayingLyricSource({
             source: 'spotify',
             title: 'Song',
-            author: 'Artist',
-            duration: 0,
+            artist: 'Artist',
+            durationMs: 0,
             hasLyric: true,
             hasTranslatedLyric: true,
             hasKaraokeLyric: false,
@@ -35,8 +35,8 @@ describe('nowPlayingSource', () => {
         const lyricSource = buildNowPlayingLyricSource({
             source: 'netease',
             title: 'Song',
-            author: 'Artist',
-            duration: 0,
+            artist: 'Artist',
+            durationMs: 0,
             hasLyric: false,
             hasTranslatedLyric: true,
             hasKaraokeLyric: true,
@@ -57,8 +57,8 @@ describe('nowPlayingSource', () => {
         const lyricSource = buildNowPlayingLyricSource({
             source: 'qq',
             title: 'Song',
-            author: 'Artist',
-            duration: 0,
+            artist: 'Artist',
+            durationMs: 0,
             hasLyric: false,
             hasTranslatedLyric: false,
             hasKaraokeLyric: true,

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
+import { PlayerState } from '../types';
 import type { ReplayGainMode, SongResult, StatusMessage } from '../types';
-import type { LocalSong, PlayerState } from '../types';
+import type { LocalSong } from '../types';
 import { hasCachedAudio, saveAudioBlob } from '../services/audioCache';
 import { getOnlineSongCacheKey } from '../services/netease';
 import { saveToCache } from '../services/db';
@@ -210,18 +211,18 @@ export function usePlaybackAudioBridge({
                 if (playPromise !== undefined) {
                     playPromise
                         .then(() => {
-                            setPlayerState('playing');
+                            setPlayerState(PlayerState.PLAYING);
                             setupAudioAnalyzer();
                         })
                         .catch(error => {
                             if (audioRef.current && !audioRef.current.paused && !audioRef.current.ended) {
-                                setPlayerState('playing');
+                                setPlayerState(PlayerState.PLAYING);
                                 return;
                             }
 
                             if (error.name === 'NotAllowedError') {
                                 setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
-                                setPlayerState('paused');
+                                setPlayerState(PlayerState.PAUSED);
                             }
                         });
                 }

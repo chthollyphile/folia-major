@@ -49,6 +49,7 @@ const withStageApi = async (options: {
     const store = createStore();
     const settings = {
         enabled: 'TEST_STAGE_MODE_ENABLED',
+        source: 'TEST_STAGE_MODE_SOURCE',
         token: 'TEST_STAGE_TOKEN',
         port: 'TEST_STAGE_PORT',
     };
@@ -79,6 +80,7 @@ const withStageApi = async (options: {
             },
         }),
         stageModeEnabledSettingKey: settings.enabled,
+        stageModeSourceSettingKey: settings.source,
         stageApiTokenSettingKey: settings.token,
         stageApiPortSettingKey: settings.port,
         defaultStageApiPort: port,

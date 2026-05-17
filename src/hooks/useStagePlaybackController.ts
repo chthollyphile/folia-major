@@ -381,7 +381,7 @@ export function useStagePlaybackController({
         setAudioSrc(session.audioSrc);
         setPlayQueue([]);
         setIsFmMode(false);
-        setPlayerState('idle');
+        setPlayerState(PlayerState.IDLE);
         setCurrentLineIndex(-1);
         currentTime.set(0);
         setDuration(Math.max(0, (session.durationMs || 0) / 1000));
