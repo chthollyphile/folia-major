@@ -136,6 +136,11 @@ export function useStagePlaybackController({
         durationSec: 0,
     });
     const nowPlayingProviderRef = useRef<NowPlayingProvider | null>(null);
+    const lastLoadedNowPlayingTrackSignatureRef = useRef<string | null>(null);
+    const lastLoadedNowPlayingLyricSignatureRef = useRef<string | null>(null);
+    const currentLineIndexRef = useRef(currentLineIndex);
+
+    currentLineIndexRef.current = currentLineIndex;
 
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
     const stageLyricsSession = stageStatus?.lyricsSession ?? null;
@@ -737,6 +742,8 @@ export function useStagePlaybackController({
         if (stageSource !== 'now-playing') {
             nowPlayingProviderRef.current?.stop();
             nowPlayingProviderRef.current = null;
+            lastLoadedNowPlayingTrackSignatureRef.current = null;
+            lastLoadedNowPlayingLyricSignatureRef.current = null;
             setNowPlayingConnectionStatus('disabled');
             setNowPlayingTrack(null);
             setNowPlayingLyricPayload(null);
@@ -850,6 +857,40 @@ export function useStagePlaybackController({
             return;
         }
 
+        const nextTrackSignature = nowPlayingTrack
+            ? JSON.stringify({
+                id: nowPlayingTrack.id,
+                title: nowPlayingTrack.title,
+                artist: nowPlayingTrack.artist,
+                album: nowPlayingTrack.album,
+                coverUrl: nowPlayingTrack.coverUrl,
+                durationMs: nowPlayingTrack.durationMs,
+            })
+            : null;
+        const nextLyricSignature = nowPlayingLyricPayload
+            ? JSON.stringify({
+                source: nowPlayingLyricPayload.source,
+                title: nowPlayingLyricPayload.title,
+                artist: nowPlayingLyricPayload.artist,
+                durationMs: nowPlayingLyricPayload.durationMs,
+                hasLyric: nowPlayingLyricPayload.hasLyric,
+                hasTranslatedLyric: nowPlayingLyricPayload.hasTranslatedLyric,
+                hasKaraokeLyric: nowPlayingLyricPayload.hasKaraokeLyric,
+                lrc: nowPlayingLyricPayload.lrc,
+                translatedLyric: nowPlayingLyricPayload.translatedLyric,
+                karaokeLyric: nowPlayingLyricPayload.karaokeLyric,
+            })
+            : null;
+
+        if (
+            lastLoadedNowPlayingTrackSignatureRef.current === nextTrackSignature &&
+            lastLoadedNowPlayingLyricSignatureRef.current === nextLyricSignature
+        ) {
+            return;
+        }
+
+        lastLoadedNowPlayingTrackSignatureRef.current = nextTrackSignature;
+        lastLoadedNowPlayingLyricSignatureRef.current = nextLyricSignature;
         void loadNowPlayingIntoPlayback(
             nowPlayingTrack,
             nowPlayingLyricPayload,
@@ -866,16 +907,6 @@ export function useStagePlaybackController({
         nowPlayingTrack,
         stageSource,
     ]);
-
-    useEffect(() => {
-        if (activePlaybackContext !== 'stage' || stageSource) {
-            return;
-        }
-
-        stagePlaybackSnapshotRef.current = null;
-        setActivePlaybackContext('main');
-        clearMainPlaybackContext();
-    }, [activePlaybackContext, clearMainPlaybackContext, setActivePlaybackContext, stageSource]);
 
     useEffect(() => {
         if (!isNowPlayingStageActive) {
@@ -901,14 +932,16 @@ export function useStagePlaybackController({
 
         if (lyrics) {
             const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndex) {
+            if (foundIndex !== currentLineIndexRef.current) {
+                currentLineIndexRef.current = foundIndex;
                 setCurrentLineIndex(foundIndex);
             }
-        } else if (currentLineIndex !== -1) {
+        } else if (currentLineIndexRef.current !== -1) {
+            currentLineIndexRef.current = -1;
             setCurrentLineIndex(-1);
         }
+
     }, [
-        currentLineIndex,
         currentTime,
         getNowPlayingDisplayTime,
         isDev,
@@ -919,6 +952,25 @@ export function useStagePlaybackController({
         nowPlayingProgressQuality,
         setCurrentLineIndex,
     ]);
+
+    useEffect(() => {
+        if (!isNowPlayingStageActive) {
+            return;
+        }
+
+        const nextPlayerState = nowPlayingPaused ? PlayerState.PAUSED : PlayerState.PLAYING;
+        setPlayerState(current => current === nextPlayerState ? current : nextPlayerState);
+    }, [isNowPlayingStageActive, nowPlayingPaused, setPlayerState]);
+
+    useEffect(() => {
+        if (activePlaybackContext !== 'stage' || stageSource) {
+            return;
+        }
+
+        stagePlaybackSnapshotRef.current = null;
+        setActivePlaybackContext('main');
+        clearMainPlaybackContext();
+    }, [activePlaybackContext, clearMainPlaybackContext, setActivePlaybackContext, stageSource]);
 
     return {
         stageStatus,
