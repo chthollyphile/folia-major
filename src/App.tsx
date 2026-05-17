@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { saveSessionData, getSessionData, getFromCache, saveToCache, removeFromCache, clearCacheByCategory } from './services/db';
@@ -13,10 +13,22 @@ import Home from './components/app/Home';
 import PlayerPanel from './components/app/PlayerPanel';
 import AppDialogs from './components/app/dialogs/AppDialogs';
 import AppOverlays from './components/app/overlays/AppOverlays';
-import { useAppDialogsModel } from './components/app/view-models/useAppDialogsModel';
-import { useAppOverlaysModel } from './components/app/view-models/useAppOverlaysModel';
-import { useHomeViewModel } from './components/app/view-models/useHomeViewModel';
-import { usePlayerPanelViewModel } from './components/app/view-models/usePlayerPanelViewModel';
+import { buildAppDialogsModel } from './components/app/dialogs/buildAppDialogsModel';
+import { buildHomeModel } from './components/app/home/buildHomeModel';
+import { createLocalLibraryNavigation } from './components/app/navigation/createLocalLibraryNavigation';
+import { createNavidromeNavigation } from './components/app/navigation/createNavidromeNavigation';
+import { createPanelNavigation } from './components/app/navigation/createPanelNavigation';
+import { buildAppStyle } from './components/app/presentation/buildAppStyle';
+import { buildDebugSnapshot } from './components/app/presentation/buildDebugSnapshot';
+import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerViewFlags';
+import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
+import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
+import { createLyricsSetter } from './components/app/playback/createLyricsSetter';
+import { createOnlineRecoveryController } from './components/app/playback/createOnlineRecoveryController';
+import { persistPlaybackCache } from './components/app/playback/persistPlaybackCache';
+import { buildAppOverlaysModel } from './components/app/overlays/buildAppOverlaysModel';
+import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
+import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
 import { LyricData, Theme, PlayerState, SongResult, LocalSong, ReplayGainMode, LocalLibraryGroup, UnifiedSong, StatusMessage, PlaybackContext, StageLoopMode } from './types';
 import { NavidromeSong, NavidromeViewSelection } from './types/navidrome';
 import { getOnlineSongCacheKey, isCloudSong, isSongMarkedUnavailable, neteaseApi } from './services/netease';
@@ -32,17 +44,16 @@ import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBrid
 import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
+import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
 import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { clampMediaVolume, formatTime, getAudioSrcKind, replayGainModeLabels, resolveDebugLyricsSource, resolveDebugSongSource, toDebugLineSnapshot, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
+import { clampMediaVolume, formatTime, replayGainModeLabels } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
 import { getNextLoopMode, getStageLyricsTimelineBounds } from './utils/appStageHelpers';
-import { ensureLyricDataRenderHints, getLineRenderHints } from './utils/lyrics/renderHints';
-import { applyLyricDisplayFilter } from './utils/lyrics/filtering';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
@@ -208,25 +219,13 @@ export default function App() {
         handleToggleLoopMode,
     } = useAppPreferences(setStatusMsg);
 
-    const setLyrics = useCallback((nextLyrics: LyricData | null) => {
-        setLyricsState(ensureLyricDataRenderHints(applyLyricDisplayFilter(nextLyrics, lyricFilterPattern)));
-    }, [lyricFilterPattern]);
+    const setLyrics = createLyricsSetter(setLyricsState, lyricFilterPattern);
 
     const effectiveLoopMode: StageLoopMode = loopMode;
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
-    const persistLastPlaybackCache = useCallback(async (song: SongResult | null, queue: SongResult[]) => {
-        if (!song || isStagePlaybackSong(song)) {
-            return;
-        }
-
-        const sanitizedQueue = queue.filter(queuedSong => !isStagePlaybackSong(queuedSong));
-        await Promise.all([
-            saveToCache('last_song', song),
-            saveToCache('last_queue', sanitizedQueue),
-        ]);
-    }, []);
+    const persistLastPlaybackCache = useCallback(persistPlaybackCache, []);
 
     const syncOutputGain = useCallback((targetVolume: number, smoothing = 0.015) => {
         const clampedVolume = clampMediaVolume(targetVolume);
@@ -274,98 +273,27 @@ export default function App() {
         });
     }, [syncOutputGain]);
 
-    const shouldRefreshCurrentOnlineAudioSource = useCallback(() => {
-        if (!currentSong || isLocalPlaybackSong(currentSong) || isNavidromePlaybackSong(currentSong) || isStagePlaybackSong(currentSong)) {
-            return false;
-        }
+    const {
+        shouldRefreshCurrentOnlineAudioSource,
+        recoverOnlinePlaybackSource,
+    } = createOnlineRecoveryController({
+        audioQuality,
+        currentSong,
+        audioSrc,
+        audioRef,
+        currentSongRef,
+        blobUrlRef,
+        shouldAutoPlayRef: shouldAutoPlay,
+        pendingResumeTimeRef,
+        onlinePlaybackRecoveryRef,
+        lastAudioRecoverySourceRef,
+        currentOnlineAudioUrlFetchedAtRef,
+        setAudioSrc,
+        onlineAudioUrlTtlMs: ONLINE_AUDIO_URL_TTL_MS,
+        onlineAudioUrlRefreshBufferMs: ONLINE_AUDIO_URL_REFRESH_BUFFER_MS,
+    });
 
-        if (!audioSrc || audioSrc.startsWith('blob:')) {
-            return false;
-        }
-
-        const fetchedAt = currentOnlineAudioUrlFetchedAtRef.current;
-        if (!fetchedAt) {
-            return false;
-        }
-
-        return Date.now() - fetchedAt >= ONLINE_AUDIO_URL_TTL_MS - ONLINE_AUDIO_URL_REFRESH_BUFFER_MS;
-    }, [audioSrc, currentSong]);
-
-    const recoverOnlinePlaybackSource = useCallback(async ({
-        failedSrc,
-        resumeAt,
-        autoplay,
-    }: {
-        failedSrc?: string | null;
-        resumeAt?: number;
-        autoplay: boolean;
-    }): Promise<boolean> => {
-        const song = currentSong;
-        const audioElement = audioRef.current;
-
-        if (!song || !audioElement || isLocalPlaybackSong(song) || isNavidromePlaybackSong(song) || isStagePlaybackSong(song)) {
-            return false;
-        }
-
-        const normalizedFailedSrc = failedSrc || audioElement.currentSrc || audioSrc || null;
-        if (normalizedFailedSrc && lastAudioRecoverySourceRef.current === normalizedFailedSrc) {
-            return false;
-        }
-
-        if (onlinePlaybackRecoveryRef.current) {
-            return onlinePlaybackRecoveryRef.current;
-        }
-
-        const recoveryTask = (async () => {
-            if (normalizedFailedSrc) {
-                lastAudioRecoverySourceRef.current = normalizedFailedSrc;
-            }
-
-            try {
-                const audioResult = await loadOnlineSongAudioSource(song, audioQuality, null);
-                if (currentSongRef.current !== song.id || !audioRef.current) {
-                    return false;
-                }
-
-                if (audioResult.kind === 'unavailable') {
-                    return false;
-                }
-
-                if (blobUrlRef.current && blobUrlRef.current !== audioResult.blobUrl) {
-                    URL.revokeObjectURL(blobUrlRef.current);
-                    blobUrlRef.current = null;
-                }
-
-                if (audioResult.blobUrl) {
-                    blobUrlRef.current = audioResult.blobUrl;
-                }
-
-                pendingResumeTimeRef.current = Math.max(0, resumeAt ?? audioRef.current.currentTime ?? 0);
-                shouldAutoPlay.current = autoplay;
-                currentOnlineAudioUrlFetchedAtRef.current = audioResult.audioSrc.startsWith('blob:')
-                    ? null
-                    : Date.now();
-                setAudioSrc(audioResult.audioSrc);
-                return true;
-            } catch (error) {
-                console.error('[App] Failed to recover online playback source', error);
-                return false;
-            } finally {
-                onlinePlaybackRecoveryRef.current = null;
-            }
-        })();
-
-        onlinePlaybackRecoveryRef.current = recoveryTask;
-        return recoveryTask;
-    }, [audioQuality, audioSrc, currentSong]);
-
-    const getCoverUrl = useCallback(() => {
-        if (cachedCoverUrl) return cachedCoverUrl;
-        let url = null;
-        if (currentSong?.al?.picUrl) url = currentSong.al.picUrl;
-        else if (currentSong?.album?.picUrl) url = currentSong.album.picUrl;
-        return toSafeRemoteUrl(url) || null;
-    }, [cachedCoverUrl, currentSong]);
+    const getCoverUrl = createCoverUrlResolver(cachedCoverUrl, currentSong);
 
     const coverUrl = getCoverUrl();
 
@@ -527,127 +455,36 @@ export default function App() {
         navigateToPlayer,
     });
 
-    const resumePlayback = useCallback(async () => {
-        if (isNowPlayingStageActive) {
-            return;
-        }
+    const { resumePlayback, pausePlayback } = usePlaybackTransportController({
+        activePlaybackContext,
+        stageActiveEntryKind,
+        isNowPlayingStageActive,
+        audioSrc,
+        duration,
+        audioRef,
+        audioContextRef,
+        currentTime,
+        stageLyricsClockRef,
+        setPlayerState,
+        setStatusMsg,
+        setupAudioAnalyzer,
+        syncOutputGain,
+        getTargetPlaybackVolume,
+        shouldRefreshCurrentOnlineAudioSource,
+        recoverOnlinePlaybackSource,
+        getSyntheticStageLyricsTime,
+        syncStageLyricsClock,
+        t: key => t(key),
+    });
 
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-            const currentSyntheticTime = getSyntheticStageLyricsTime();
-            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
-            currentTime.set(currentSyntheticTime);
-            setPlayerState(PlayerState.PLAYING);
-            return;
-        }
+    const { openCurrentNavidromeAlbum, openCurrentNavidromeArtist } = createNavidromeNavigation({
+        currentSong,
+        setPendingNavidromeSelection,
+        setHomeViewTab,
+        navigateDirectHome,
+    });
 
-        if (!audioRef.current) {
-            return;
-        }
-
-        setupAudioAnalyzer();
-        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-            await audioContextRef.current.resume();
-        }
-
-        syncOutputGain(getTargetPlaybackVolume(), 0);
-        if (shouldRefreshCurrentOnlineAudioSource()) {
-            const refreshed = await recoverOnlinePlaybackSource({
-                failedSrc: audioRef.current.currentSrc || audioSrc,
-                resumeAt: audioRef.current.currentTime,
-                autoplay: true,
-            });
-
-            if (refreshed) {
-                return;
-            }
-        }
-
-        try {
-            await audioRef.current.play();
-            setPlayerState(PlayerState.PLAYING);
-        } catch (error) {
-            const recovered = await recoverOnlinePlaybackSource({
-                failedSrc: audioRef.current.currentSrc || audioSrc,
-                resumeAt: audioRef.current.currentTime,
-                autoplay: true,
-            });
-
-            if (recovered) {
-                return;
-            }
-
-            if (!audioRef.current.paused && !audioRef.current.ended) {
-                setPlayerState(PlayerState.PLAYING);
-                return;
-            }
-
-            if (error instanceof DOMException && error.name === 'NotAllowedError') {
-                setStatusMsg({ type: 'info', text: t('status.clickToPlay') });
-                setPlayerState(PlayerState.PAUSED);
-                return;
-            }
-
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            setPlayerState(PlayerState.PAUSED);
-            throw error;
-        }
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock, t]);
-
-    const pausePlayback = useCallback(() => {
-        if (isNowPlayingStageActive) {
-            return;
-        }
-
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-            const currentSyntheticTime = getSyntheticStageLyricsTime();
-            syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PAUSED, stageLyricsClockRef.current.startTimeSec);
-            currentTime.set(currentSyntheticTime);
-            setPlayerState(PlayerState.PAUSED);
-            return;
-        }
-
-        if (!audioRef.current) {
-            return;
-        }
-
-        audioRef.current.pause();
-        syncOutputGain(getTargetPlaybackVolume(), 0);
-        setPlayerState(PlayerState.PAUSED);
-    }, [activePlaybackContext, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, stageActiveEntryKind, syncOutputGain, syncStageLyricsClock]);
-
-    const openNavidromeSelection = useCallback((selection: NavidromeViewSelection) => {
-        setPendingNavidromeSelection(selection);
-        setHomeViewTab('navidrome');
-        navigateDirectHome({ clearContext: false });
-    }, [navigateDirectHome, setHomeViewTab]);
-
-    const resolveCurrentNavidromeTargetIds = useCallback(() => {
-        const currentNavidromeSong = (currentSong as any)?.navidromeData;
-        const playbackCarrier = currentNavidromeSong?.navidromeData;
-
-        return {
-            albumId: currentNavidromeSong?.albumId || playbackCarrier?.albumId,
-            artistId: currentNavidromeSong?.artistId || playbackCarrier?.artistId,
-        } as { albumId?: string; artistId?: string; };
-    }, [currentSong]);
-
-    const openCurrentNavidromeAlbum = useCallback(() => {
-        const { albumId } = resolveCurrentNavidromeTargetIds();
-        if (albumId) {
-            openNavidromeSelection({ type: 'album', albumId });
-        }
-    }, [openNavidromeSelection, resolveCurrentNavidromeTargetIds]);
-
-    const openCurrentNavidromeArtist = useCallback(() => {
-        const { artistId } = resolveCurrentNavidromeTargetIds();
-        if (artistId) {
-            openNavidromeSelection({ type: 'artist', artistId });
-        }
-    }, [openNavidromeSelection, resolveCurrentNavidromeTargetIds]);
-
-    const handleDirectHomeFromPanel = useCallback(() => {
-        navigateDirectHome();
-    }, [navigateDirectHome]);
+    const { handleDirectHomeFromPanel } = createPanelNavigation(navigateDirectHome);
 
     // --- Local Music Functions ---
 
@@ -727,132 +564,19 @@ export default function App() {
         loadLocalPlaylists,
     });
 
-    const openLocalLibraryGroup = useCallback((group: LocalLibraryGroup, row: 0 | 1 | 2 | 3) => {
-        setHomeViewTab('local');
-        setLocalMusicState(prev => ({
-            ...prev,
-            activeRow: row,
-            selectedGroup: group,
-            detailStack: prev.selectedGroup && prev.selectedGroup.id !== group.id
-                ? [...prev.detailStack, prev.selectedGroup]
-                : prev.selectedGroup
-                    ? prev.detailStack
-                    : [],
-            detailOriginView: prev.selectedGroup
-                ? prev.detailOriginView
-                : (currentView === 'player' ? 'player' : null),
-        }));
-        navigateDirectHome({ clearContext: false });
-    }, [currentView, navigateDirectHome, setHomeViewTab, setLocalMusicState]);
-
-    const openCurrentLocalAlbum = useCallback(() => {
-        if (!isLocalPlaybackSong(currentSong) || !currentSong.localData) {
-            return;
-        }
-
-        const localSong = currentSong.localData;
-        const albumName = currentSong.al?.name || currentSong.album?.name || localSong.matchedAlbumName || localSong.album;
-        if (!albumName) {
-            return;
-        }
-
-        const songs = localSongs.filter(song => {
-            const candidateAlbum = song.matchedAlbumName || song.album || '';
-            return candidateAlbum === albumName;
-        });
-
-        if (!songs.length) {
-            return;
-        }
-
-        openLocalLibraryGroup({
-            type: 'album',
-            id: `album-current-${albumName}`,
-            name: albumName,
-            songs,
-            coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl,
-            albumId: localSong.matchedAlbumId,
-            description: currentSong.ar?.map(artist => artist.name).join(', '),
-        }, 1);
-    }, [currentSong, localSongs, openLocalLibraryGroup]);
-
-    const openCurrentLocalArtist = useCallback(() => {
-        if (!isLocalPlaybackSong(currentSong) || !currentSong.localData) {
-            return;
-        }
-
-        const artistName = currentSong.ar?.[0]?.name || currentSong.artists?.[0]?.name || currentSong.localData.matchedArtists || currentSong.localData.artist;
-        if (!artistName) {
-            return;
-        }
-
-        const songs = localSongs.filter(song => {
-            const candidateArtist = song.matchedArtists || song.artist || '';
-            return candidateArtist === artistName;
-        });
-
-        if (!songs.length) {
-            return;
-        }
-
-        openLocalLibraryGroup({
-            type: 'artist',
-            id: `artist-current-${artistName}`,
-            name: artistName,
-            songs,
-            coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl,
-            description: `${songs.length} 首歌曲`,
-        }, 2);
-    }, [currentSong, localSongs, openLocalLibraryGroup]);
-
-    const openLocalAlbumByName = useCallback((albumName: string) => {
-        if (!albumName) {
-            return;
-        }
-
-        const songs = localSongs.filter(song => {
-            const candidateAlbum = song.matchedAlbumName || song.album || '';
-            return candidateAlbum === albumName;
-        });
-
-        if (!songs.length) {
-            return;
-        }
-
-        openLocalLibraryGroup({
-            type: 'album',
-            id: `album-by-name-${albumName}`,
-            name: albumName,
-            songs,
-            coverUrl: songs.find(song => song.matchedCoverUrl)?.matchedCoverUrl,
-            albumId: songs.find(song => song.matchedAlbumId)?.matchedAlbumId,
-            description: songs[0]?.matchedArtists || songs[0]?.artist,
-        }, 1);
-    }, [localSongs, openLocalLibraryGroup]);
-
-    const openLocalArtistByName = useCallback((artistName: string) => {
-        if (!artistName) {
-            return;
-        }
-
-        const songs = localSongs.filter(song => {
-            const candidateArtist = song.matchedArtists || song.artist || '';
-            return candidateArtist === artistName;
-        });
-
-        if (!songs.length) {
-            return;
-        }
-
-        openLocalLibraryGroup({
-            type: 'artist',
-            id: `artist-by-name-${artistName}`,
-            name: artistName,
-            songs,
-            coverUrl: songs.find(song => song.matchedCoverUrl)?.matchedCoverUrl,
-            description: `${songs.length} 首歌曲`,
-        }, 2);
-    }, [localSongs, openLocalLibraryGroup]);
+    const {
+        openCurrentLocalAlbum,
+        openCurrentLocalArtist,
+        openLocalAlbumByName,
+        openLocalArtistByName,
+    } = createLocalLibraryNavigation({
+        currentView,
+        currentSong,
+        localSongs,
+        setHomeViewTab,
+        setLocalMusicState,
+        navigateDirectHome,
+    });
 
 
     const handleSaveLyricFilterPattern = useCallback(async (pattern: string) => {
@@ -866,73 +590,14 @@ export default function App() {
         setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
     }, [handleSetLyricFilterPattern, loadCurrentSongLyricPreview]);
 
-    const appendNeteaseSongsToMainQueue = useCallback((songs: SongResult[]) => {
-        if (songs.length === 0) {
-            return false;
-        }
-
-        const mainSnapshot = activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current : null;
-        const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
-        const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
-        const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
-        const existingIds = new Set(baseQueue.map(song => song.id));
-        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...baseQueue, ...appendedSongs] : baseQueue;
-
-        if (activePlaybackContext === 'stage') {
-            mainPlaybackSnapshotRef.current = mainSnapshot
-                ? { ...mainSnapshot, playQueue: nextQueue }
-                : {
-                    currentSong: queueAnchorSong,
-                    lyrics: null,
-                    cachedCoverUrl: null,
-                    audioSrc: null,
-                    playQueue: nextQueue,
-                    isFmMode: false,
-                    playerState: PlayerState.IDLE,
-                    currentTime: 0,
-                    duration: 0,
-                    currentLineIndex: -1,
-                };
-        } else {
-            setPlayQueue(nextQueue);
-        }
-
-        if (appendedSongs.length > 0) {
-            void persistLastPlaybackCache(queueAnchorSong, nextQueue);
-            setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-            return true;
-        }
-
-        return false;
-    }, [activePlaybackContext, currentSong, persistLastPlaybackCache, playQueue, t]);
-
-    const addNeteaseSongToQueue = useCallback((song: SongResult) => {
-        if (isSongMarkedUnavailable(song)) {
-            return;
-        }
-
-        appendNeteaseSongsToMainQueue([song]);
-    }, [appendNeteaseSongsToMainQueue]);
-
-    const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
-        appendNeteaseSongsToMainQueue(songs);
-    }, [appendNeteaseSongsToMainQueue]);
-
-    const addNavidromeSongsToQueue = useCallback((songs: NavidromeSong[]) => {
-        if (songs.length === 0) {
-            return;
-        }
-
-        const unifiedSongs = buildNavidromeQueue(songs);
-        const existingIds = new Set(playQueue.map(song => song.id));
-        const appendedSongs = unifiedSongs.filter(song => !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
-
-        setPlayQueue(nextQueue);
-        void persistLastPlaybackCache(currentSong, nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [currentSong, persistLastPlaybackCache, playQueue, t]);
+    const { addNavidromeSongsToQueue } = createQueueMutations({
+        currentSong,
+        playQueue,
+        setPlayQueue,
+        persistLastPlaybackCache,
+        setStatusMsg,
+        t: key => t(key),
+    });
 
     // --- Effects ---
 
@@ -940,6 +605,8 @@ export default function App() {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         clearPendingUnavailableSkip,
+        addNeteaseSongToQueue,
+        addNeteaseSongsToQueue,
         playSong,
         playOnlineQueueFromStart,
         handleQueueAddAndPlay,
@@ -990,7 +657,6 @@ export default function App() {
         handleAlbumSelect,
         openLocalArtistByName,
         openLocalAlbumByName,
-        appendNeteaseSongsToMainQueue,
         persistLastPlaybackCache,
         restoreCachedThemeForSong,
         interruptStagePlaybackForMainTransition,
@@ -1004,6 +670,7 @@ export default function App() {
         blobUrlRef,
         shouldAutoPlayRef: shouldAutoPlay,
         currentSongRef,
+        mainPlaybackSnapshotRef,
         playbackRequestIdRef,
         playbackAutoSkipCountRef,
         pendingUnavailableSkipTimerRef,
@@ -1178,486 +845,300 @@ export default function App() {
         await handleLibraryLike(likedSongIds, setLikedSongIds);
     }, [handleLibraryLike, likedSongIds, setLikedSongIds]);
 
-    // Define dynamic style for theme variables
-    const appStyle = {
-        '--bg-color': bgMode === 'default' ? (isDaylight ? DAYLIGHT_THEME.backgroundColor : DEFAULT_THEME.backgroundColor) : theme.backgroundColor,
-        '--text-primary': theme.primaryColor,
-        '--text-secondary': theme.secondaryColor,
-        '--text-accent': theme.accentColor,
-        backgroundColor: 'var(--bg-color)',
-        color: 'var(--text-primary)'
-    } as React.CSSProperties;
-    const visualizerBackgroundColor = String(appStyle['--bg-color']);
-    const visualizerTheme = useMemo(() => ({
-        ...theme,
-        fontStyle: lyricsFontStyle,
-        fontFamily: lyricsCustomFontFamily ?? undefined,
-        backgroundColor: visualizerBackgroundColor,
-    }), [lyricsCustomFontFamily, lyricsFontStyle, theme, visualizerBackgroundColor]);
-    const visualizerGeometrySeed = currentSong?.id ?? `geometry-${visualizerMode}`;
+    const appStyle = buildAppStyle({
+        bgMode,
+        isDaylight,
+        theme,
+        daylightTheme: DAYLIGHT_THEME,
+        defaultTheme: DEFAULT_THEME,
+    });
+    const { visualizerTheme, visualizerGeometrySeed } = buildVisualizerTheme({
+        appStyle,
+        theme,
+        lyricsFontStyle,
+        lyricsCustomFontFamily,
+        currentSongId: currentSong?.id,
+        visualizerMode,
+    });
+    const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    const {
+        isPlayerView,
+        shouldPauseVisualizerBackground,
+        shouldHidePlayerProgressBar,
+        shouldHidePlayerTranslationSubtitle,
+        shouldHidePlayerRightPanelButton,
+        canToggleCurrentPlayback,
+    } = buildPlayerViewFlags({
+        currentView,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
+        isNowPlayingControlDisabled,
+        activePlaybackContext,
+        stageActiveEntryKind,
+        audioSrc,
+        duration,
+    });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
-    const debugCurrentTimeValue = currentTime.get();
-    const debugActiveLine = lyrics && currentLineIndex >= 0 ? lyrics.lines[currentLineIndex] ?? null : null;
-    const debugNextLine = (() => {
-        if (!lyrics?.lines.length) {
-            return null;
-        }
-
-        if (debugActiveLine) {
-            return lyrics.lines[currentLineIndex + 1] ?? null;
-        }
-
-        return lyrics.lines.find(line => line.startTime > debugCurrentTimeValue) ?? null;
-    })();
-    const debugCoverUrlKind = getAudioSrcKind(coverUrl);
-    const debugTotalWords = lyrics?.lines.reduce((sum, line) => sum + line.words.length, 0) ?? 0;
-    const debugMaxWordsPerLine = lyrics?.lines.reduce((max, line) => Math.max(max, line.words.length), 0) ?? 0;
-    const toDebugLineSnapshot = (line: LyricData['lines'][number] | null) => {
-        if (!line) {
-            return null;
-        }
-
-        const renderHints = getLineRenderHints(line);
-        return {
-            text: line.fullText || null,
-            translation: line.translation ?? null,
-            wordCount: line.words.length,
-            startTime: line.startTime,
-            endTime: line.endTime,
-            renderEndTime: renderHints?.renderEndTime ?? null,
-            rawDuration: renderHints?.rawDuration ?? Math.max(line.endTime - line.startTime, 0),
-            timingClass: renderHints?.timingClass ?? null,
-            lineTransitionMode: renderHints?.lineTransitionMode ?? null,
-            wordRevealMode: renderHints?.wordRevealMode ?? null,
-        };
-    };
-    const devDebugSnapshot = {
+    const devDebugSnapshot = buildDebugSnapshot({
         shortcutLabel: DEV_DEBUG_SHORTCUT_LABEL,
-        songKey: currentSong ? `${resolveDebugSongSource(currentSong)}:${currentSong.id}` : null,
+        currentSong,
         currentView,
         playerState,
         visualizerMode,
-        songName: currentSong?.name ?? null,
-        songSource: resolveDebugSongSource(currentSong),
-        lyricsSource: resolveDebugLyricsSource(currentSong, lyrics),
-        audioSrcKind: getAudioSrcKind(audioSrc),
-        coverUrlKind: debugCoverUrlKind,
-        duration,
+        lyrics,
         currentLineIndex,
-        totalLines: lyrics?.lines.length ?? 0,
-        totalWords: debugTotalWords,
-        maxWordsPerLine: debugMaxWordsPerLine,
-        activeLine: toDebugLineSnapshot(debugActiveLine),
-        nextLine: toDebugLineSnapshot(debugNextLine),
-    };
-    const isPlayerView = currentView === 'player';
-    const shouldPauseVisualizerBackground = currentView !== 'player' && disableHomeDynamicBackground;
-    const shouldHidePlayerProgressBar = isPlayerView && hidePlayerProgressBar;
-    const shouldHidePlayerTranslationSubtitle = isPlayerView && hidePlayerTranslationSubtitle;
-    const shouldHidePlayerRightPanelButton = isPlayerView && hidePlayerRightPanelButton;
-    const isNowPlayingControlDisabled = isNowPlayingStageActive;
-    const canToggleCurrentPlayback = !isNowPlayingControlDisabled && Boolean(
-        audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0)
-    );
-
-    const homeModel = useHomeViewModel({
-        navigation: {
-            onPlaySong: playSong,
-            onBackToPlayer: navigateToPlayer,
-            onRefreshUser: () => refreshUserData(),
-            user,
-            playlists,
-            cloudPlaylist,
-            currentTrack: currentSong,
-            isPlaying: playerState === PlayerState.PLAYING,
-            onSelectPlaylist: handlePlaylistSelect,
-            onSelectAlbum: handleAlbumSelect,
-            onSelectArtist: handleArtistSelect,
-            focusedPlaylistIndex,
-            setFocusedPlaylistIndex,
-            focusedFavoriteAlbumIndex,
-            setFocusedFavoriteAlbumIndex,
-            focusedRadioIndex,
-            setFocusedRadioIndex,
-            pendingOpenSettings,
-            onPendingOpenSettingsHandled: () => setPendingOpenSettings(false),
-        },
-        search: {
-            onSearchCommitted: (query, sourceTab, replace = false) => {
-                navigateToSearch({ query, sourceTab, replace });
-            },
-        },
-        localLibrary: {
-            onSelectLocalAlbum: openLocalAlbumByName,
-            onSelectLocalArtist: openLocalArtistByName,
-            localSongs,
-            localPlaylists,
-            onRefreshLocalSongs,
-            onPlayLocalSong,
-            onAddLocalSongToQueue: handleLocalQueueAdd,
-            localMusicState,
-            setLocalMusicState,
-            onMatchSong: handleHomeMatchSong,
-        },
-        navidrome: {
-            onPlayNavidromeSong,
-            onAddNavidromeSongsToQueue: addNavidromeSongsToQueue,
-            onMatchNavidromeSong,
-            navidromeFocusedAlbumIndex,
-            setNavidromeFocusedAlbumIndex,
-            pendingNavidromeSelection,
-            onPendingNavidromeSelectionHandled: () => setPendingNavidromeSelection(null),
-        },
-        stage: {
-            stageEnabled: Boolean(stageSource),
-            stageSource,
-            stageIsActive: activePlaybackContext === 'stage',
-            onOpenStagePlayer: () => {
-                void openStagePlayer();
-            },
-            stageStatus,
-            onToggleStageMode: async (enabled) => {
-                const nextStatus = await window.electron?.setStageEnabled(enabled);
-                if (nextStatus) {
-                    setStageStatus(nextStatus);
-                    if (!enabled && activePlaybackContext === 'stage') {
-                        leaveStagePlayback();
-                    }
-                    if (!enabled) {
-                        clearStagePlaybackSession();
-                        await clearPersistedStagePlaybackCache();
-                    }
-                }
-            },
-            onStageSourceChange: async (source) => {
-                if (!window.electron?.saveSettings) {
-                    return;
-                }
-
-                await window.electron.saveSettings('STAGE_MODE_SOURCE', source);
-            },
-            onRegenerateStageToken: async () => {
-                const nextStatus = await window.electron?.regenerateStageToken();
-                if (nextStatus) {
-                    setStageStatus(nextStatus);
-                }
-            },
-            onClearStageState: async () => {
-                const nextStatus = await window.electron?.clearStageState();
-                if (nextStatus) {
-                    setStageStatus(nextStatus);
-                    if (activePlaybackContext === 'stage') {
-                        await loadStageSessionIntoPlayback(null);
-                    }
-                }
-            },
-            enableNowPlayingStage,
-            onToggleNowPlayingStage: async (enabled) => {
-                handleToggleNowPlayingStage(enabled);
-                if (!enabled && activePlaybackContext === 'stage') {
-                    leaveStagePlayback();
-                }
-            },
-            nowPlayingConnectionStatus,
-        },
-        appearance: {
-            staticMode,
-            disableHomeDynamicBackground,
-            hidePlayerProgressBar,
-            hidePlayerTranslationSubtitle,
-            hidePlayerRightPanelButton,
-            onToggleStaticMode: handleToggleStaticMode,
-            onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
-            onToggleHidePlayerProgressBar: handleToggleHidePlayerProgressBar,
-            onToggleHidePlayerTranslationSubtitle: handleToggleHidePlayerTranslationSubtitle,
-            onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
-            enableMediaCache,
-            onToggleMediaCache: handleToggleMediaCache,
-            theme,
-            backgroundOpacity,
-            setBackgroundOpacity: handleSetBackgroundOpacity,
-            bgMode,
-            onApplyDefaultTheme: applyDefaultTheme,
-            hasCustomTheme,
-            themeParkInitialTheme: getThemeParkSeedTheme(),
-            isCustomThemePreferred,
-            onSaveCustomTheme: saveCustomDualTheme,
-            onApplyCustomTheme: applyCustomTheme,
-            onToggleCustomThemePreferred: handleCustomThemePreferenceChange,
-            isDaylight,
-            visualizerMode,
-            cadenzaTuning,
-            partitaTuning,
-            fumeTuning,
-            onVisualizerModeChange: handleSetVisualizerMode,
-            onPartitaTuningChange: handleSetPartitaTuning,
-            onResetPartitaTuning: handleResetPartitaTuning,
-            onFumeTuningChange: handleSetFumeTuning,
-            onResetFumeTuning: handleResetFumeTuning,
-            lyricsFontStyle,
-            lyricsFontScale,
-            lyricsCustomFontFamily,
-            lyricsCustomFontLabel,
-            lyricFilterPattern,
-            currentSongTitle: currentSong?.name || null,
-            showOpenPanelCloseButton,
-            onLyricsFontStyleChange: handleSetLyricsFontStyle,
-            onLyricsFontScaleChange: handleSetLyricsFontScale,
-            onLyricsCustomFontChange: handleSetLyricsCustomFont,
-            loadLyricFilterPreview: loadCurrentSongLyricPreview,
-            onSaveLyricFilterPattern: handleSaveLyricFilterPattern,
-            onToggleOpenPanelCloseButton: handleToggleOpenPanelCloseButton,
-        },
+        currentTimeValue: currentTime.get(),
+        audioSrc,
+        coverUrl,
     });
-
-    const playerPanelModel = usePlayerPanelViewModel({
-        playback: {
-            isOpen: isPanelOpen,
-            currentTab: panelTab,
-            onTabChange: setPanelTab,
-            onToggle: () => setIsPanelOpen(!isPanelOpen),
-            onNavigateHome: navigateToHome,
-            onNavigateHomeDirect: handleDirectHomeFromPanel,
-            coverUrl,
-            currentSong,
-            onAlbumSelect: handleAlbumSelect,
-            onSelectArtist: handleArtistSelect,
-            loopMode: effectiveLoopMode,
-            onToggleLoop: toggleLoop,
-            onLike: handleLike,
-            isLiked: currentSong ? (isLocalPlaybackSong(currentSong) ? isLocalSongLiked(currentSong) : likedSongIds.has(currentSong.id)) : false,
-            onGenerateAITheme: () => generateAITheme(lyrics, currentSong),
-            isGeneratingTheme,
-            hasLyrics: !!lyrics,
-            canGenerateAITheme,
-            theme,
-            onThemeChange: setTheme,
-            bgMode,
-            onBgModeChange: handleBgModeChange,
-            hasCustomTheme,
-            onResetTheme: handleResetTheme,
-            defaultTheme: DEFAULT_THEME,
-            daylightTheme: DAYLIGHT_THEME,
-            visualizerMode,
-            onVisualizerModeChange: handleSetVisualizerMode,
-            onMatchOnline: handleManualMatchOnline,
-            onUpdateLocalLyrics: handleUpdateLocalLyrics,
-            onChangeLyricsSource: handleChangeLyricsSource,
-            replayGainMode,
-            onChangeReplayGainMode: handleChangeReplayGainMode,
-            isFmMode,
-            onFmTrash: handleFmTrash,
-            onNextTrack: handleNextTrack,
-            onPrevTrack: handlePrevTrack,
-            playerState,
-            onTogglePlay: togglePlay,
-            volume,
-            isMuted,
-            onVolumePreview: handlePreviewVolume,
-            onVolumeChange: handleSetVolume,
-            onToggleMute: handleToggleMute,
-            showOpenPanelCloseButton,
-            hideToggleButton: isPlayerChromeHidden || shouldHidePlayerRightPanelButton,
-            isStageContext: activePlaybackContext === 'stage',
-            playbackControlsDisabled: isNowPlayingControlDisabled,
-            onOpenSettings: () => {
-                setPendingOpenSettings(true);
-                navigateToHome();
-            },
-        },
-        queue: {
-            playQueue,
-            onPlaySong: playSong,
-            queueScrollRef,
-            onShuffle: shuffleQueue,
-        },
-        library: {
-            localPlaylists,
-            neteasePlaylists: playlists,
-            onSaveCurrentQueueAsPlaylist: saveCurrentQueueAsLocalPlaylist,
-            onAddCurrentSongToLocalPlaylist: addCurrentSongToLocalPlaylist,
-            onCreateCurrentLocalPlaylist: createCurrentLocalPlaylist,
-            onAddCurrentSongToNeteasePlaylist: addCurrentSongToNeteasePlaylist,
-            onAddCurrentSongToNavidromePlaylist: addCurrentSongToNavidromePlaylist,
-            onCreateCurrentNavidromePlaylist: createCurrentNavidromePlaylist,
-            onOpenCurrentLocalAlbum: openCurrentLocalAlbum,
-            onOpenCurrentLocalArtist: openCurrentLocalArtist,
-            onOpenCurrentNavidromeAlbum: openCurrentNavidromeAlbum,
-            onOpenCurrentNavidromeArtist: openCurrentNavidromeArtist,
-        },
-        account: {
-            user,
-            onLogout: handleLogout,
-            audioQuality,
-            onAudioQualityChange: setAudioQuality,
-            cacheSize,
-            onClearCache: handleClearCache,
-            onSyncData: handleSyncData,
-            isSyncing,
-            useCoverColorBg,
-            onToggleCoverColorBg: handleToggleCoverColorBg,
-            isDaylight,
-            onToggleDaylight: () => handleToggleDaylight(!isDaylight),
-        },
+    const homeModel = buildHomeModel({
+        playSong,
+        navigateToPlayer,
+        refreshUserData,
+        user,
+        playlists,
+        cloudPlaylist,
+        currentSong,
+        playerState,
+        handlePlaylistSelect,
+        handleAlbumSelect,
+        handleArtistSelect,
+        focusedPlaylistIndex,
+        setFocusedPlaylistIndex,
+        focusedFavoriteAlbumIndex,
+        setFocusedFavoriteAlbumIndex,
+        focusedRadioIndex,
+        setFocusedRadioIndex,
+        pendingOpenSettings,
+        setPendingOpenSettings,
+        navigateToSearch,
+        openLocalAlbumByName,
+        openLocalArtistByName,
+        localSongs,
+        localPlaylists,
+        onRefreshLocalSongs,
+        onPlayLocalSong,
+        onAddLocalSongToQueue: handleLocalQueueAdd,
+        localMusicState,
+        setLocalMusicState,
+        onMatchSong: handleHomeMatchSong,
+        onPlayNavidromeSong,
+        onAddNavidromeSongsToQueue: addNavidromeSongsToQueue,
+        onMatchNavidromeSong,
+        navidromeFocusedAlbumIndex,
+        setNavidromeFocusedAlbumIndex,
+        pendingNavidromeSelection,
+        setPendingNavidromeSelection,
+        stageSource,
+        activePlaybackContext,
+        openStagePlayer,
+        stageStatus,
+        setStageStatus,
+        leaveStagePlayback,
+        clearStagePlaybackSession,
+        clearPersistedStagePlaybackCache,
+        loadStageSessionIntoPlayback,
+        enableNowPlayingStage,
+        handleToggleNowPlayingStage,
+        nowPlayingConnectionStatus,
+        staticMode,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
+        handleToggleStaticMode,
+        handleToggleDisableHomeDynamicBackground,
+        handleToggleHidePlayerProgressBar,
+        handleToggleHidePlayerTranslationSubtitle,
+        handleToggleHidePlayerRightPanelButton,
+        enableMediaCache,
+        handleToggleMediaCache,
+        theme,
+        backgroundOpacity,
+        handleSetBackgroundOpacity,
+        bgMode,
+        applyDefaultTheme,
+        hasCustomTheme,
+        getThemeParkSeedTheme: getThemeParkSeedTheme(),
+        isCustomThemePreferred,
+        saveCustomDualTheme,
+        applyCustomTheme,
+        handleCustomThemePreferenceChange,
+        isDaylight,
+        visualizerMode,
+        cadenzaTuning,
+        partitaTuning,
+        fumeTuning,
+        handleSetVisualizerMode,
+        handleSetPartitaTuning,
+        handleResetPartitaTuning,
+        handleSetFumeTuning,
+        handleResetFumeTuning,
+        lyricsFontStyle,
+        lyricsFontScale,
+        lyricsCustomFontFamily,
+        lyricsCustomFontLabel,
+        lyricFilterPattern,
+        showOpenPanelCloseButton,
+        handleSetLyricsFontStyle,
+        handleSetLyricsFontScale,
+        handleSetLyricsCustomFont,
+        loadCurrentSongLyricPreview,
+        handleSaveLyricFilterPattern,
+        handleToggleOpenPanelCloseButton,
     });
-
-    const appOverlaysModel = useAppOverlaysModel({
-        homeOverlay: currentView === 'home' && !isOverlayVisible
-            ? { isVisible: true, content: <Home model={homeModel} /> }
-            : null,
-        searchOverlay: currentView === 'home'
-            ? {
-                theme,
-                isDaylight,
-                onClose: closeSearchView,
-                onSubmitSearch: handleSearchOverlaySubmit,
-                onLoadMore: handleSearchLoadMore,
-                onPlayTrack: handleSearchResultPlay,
-                onSelectArtist: handleSearchResultArtistSelect,
-                onSelectAlbum: handleSearchResultAlbumSelect,
-            }
-            : null,
-        detailOverlay: isOverlayVisible && topOverlay
-            ? (topOverlay.type === 'playlist'
-                ? {
-                    type: 'playlist' as const,
-                    props: {
-                        key: `playlist-${topOverlay.playlist.id}-${overlayStack.length - 1}`,
-                        playlist: topOverlay.playlist,
-                        onBack: popOverlay,
-                        onPlaySong: (song, ctx) => {
-                            playSong(song, ctx, false);
-                        },
-                        onPlayAll: (songs) => {
-                            playOnlineQueueFromStart(songs);
-                        },
-                        onAddAllToQueue: addNeteaseSongsToQueue,
-                        onAddSongToQueue: addNeteaseSongToQueue,
-                        onSelectAlbum: handleAlbumSelect,
-                        onSelectArtist: handleArtistSelect,
-                        currentUserId: user?.userId,
-                        isLikedSongsPlaylist: playlists[0]?.id === topOverlay.playlist.id,
-                        onPlaylistMutated: async () => {
-                            await refreshUserData();
-                        },
-                        theme,
-                        isDaylight,
-                    },
+    const playerPanelModel = buildPlayerPanelModel({
+        isPanelOpen,
+        setIsPanelOpen,
+        panelTab,
+        setPanelTab,
+        navigateToHome,
+        handleDirectHomeFromPanel,
+        coverUrl,
+        currentSong,
+        handleAlbumSelect,
+        handleArtistSelect,
+        effectiveLoopMode,
+        toggleLoop,
+        handleLike,
+        isLiked: currentSong ? (isLocalPlaybackSong(currentSong) ? isLocalSongLiked(currentSong) : likedSongIds.has(currentSong.id)) : false,
+        generateAITheme: () => generateAITheme(lyrics, currentSong),
+        isGeneratingTheme,
+        hasLyrics: !!lyrics,
+        canGenerateAITheme,
+        theme,
+        setTheme,
+        bgMode,
+        handleBgModeChange,
+        hasCustomTheme,
+        handleResetTheme,
+        defaultTheme: DEFAULT_THEME,
+        daylightTheme: DAYLIGHT_THEME,
+        visualizerMode,
+        handleSetVisualizerMode,
+        handleManualMatchOnline,
+        handleUpdateLocalLyrics,
+        handleChangeLyricsSource,
+        replayGainMode,
+        handleChangeReplayGainMode,
+        isFmMode,
+        handleFmTrash,
+        handleNextTrack,
+        handlePrevTrack,
+        playerState,
+        togglePlay,
+        volume,
+        isMuted,
+        handlePreviewVolume,
+        handleSetVolume,
+        handleToggleMute,
+        showOpenPanelCloseButton,
+        hideToggleButton: isPlayerChromeHidden || shouldHidePlayerRightPanelButton,
+        activePlaybackContext,
+        isNowPlayingControlDisabled,
+        setPendingOpenSettings,
+        playQueue,
+        playSong,
+        queueScrollRef,
+        shuffleQueue,
+        localPlaylists,
+        playlists,
+        saveCurrentQueueAsLocalPlaylist,
+        addCurrentSongToLocalPlaylist,
+        createCurrentLocalPlaylist,
+        addCurrentSongToNeteasePlaylist,
+        addCurrentSongToNavidromePlaylist,
+        createCurrentNavidromePlaylist,
+        openCurrentLocalAlbum,
+        openCurrentLocalArtist,
+        openCurrentNavidromeAlbum,
+        openCurrentNavidromeArtist,
+        user,
+        handleLogout,
+        audioQuality,
+        setAudioQuality,
+        cacheSize,
+        handleClearCache,
+        handleSyncData,
+        isSyncing,
+        useCoverColorBg,
+        handleToggleCoverColorBg,
+        isDaylight,
+        handleToggleDaylight: () => handleToggleDaylight(!isDaylight),
+        navigateToHomeForSettings: navigateToHome,
+    });
+    const appOverlaysModel = buildAppOverlaysModel({
+        currentView,
+        isOverlayVisible,
+        topOverlay,
+        overlayStack,
+        homeContent: <Home model={homeModel} />,
+        theme,
+        isDaylight,
+        closeSearchView,
+        handleSearchOverlaySubmit,
+        handleSearchLoadMore,
+        handleSearchResultPlay,
+        handleSearchResultArtistSelect,
+        handleSearchResultAlbumSelect,
+        popOverlay,
+        playSong,
+        playOnlineQueueFromStart,
+        addNeteaseSongsToQueue,
+        addNeteaseSongToQueue,
+        handleAlbumSelect,
+        handleArtistSelect,
+        userId: user?.userId,
+        playlists,
+        refreshUserData,
+        isDev,
+        isDevDebugOverlayVisible,
+        devDebugSnapshot,
+        currentTime,
+        currentSong,
+        playerState,
+        duration,
+        effectiveLoopMode,
+        audioSrc,
+        canToggleCurrentPlayback,
+        isNowPlayingControlDisabled,
+        lyrics,
+        activePlaybackContext,
+        stageActiveEntryKind,
+        syncStageLyricsClock,
+        stageLyricsClockRef,
+        setPlayerState,
+        togglePlay,
+        toggleLoop,
+        navigateToPlayer,
+        isPlayerChromeHidden,
+        shouldHidePlayerProgressBar,
+        onSeekMainAudio: (time) => {
+            if (audioRef.current) {
+                audioRef.current.currentTime = time;
+                if (audioRef.current.paused) {
+                    void audioRef.current.play();
+                    setPlayerState(PlayerState.PLAYING);
                 }
-                : topOverlay.type === 'album'
-                    ? {
-                        type: 'album' as const,
-                        props: {
-                            key: `album-${topOverlay.id}-${overlayStack.length - 1}`,
-                            albumId: topOverlay.id,
-                            onBack: popOverlay,
-                            onPlaySong: (song, ctx) => {
-                                playSong(song, ctx, false);
-                            },
-                            onPlayAll: (songs) => {
-                                playOnlineQueueFromStart(songs);
-                            },
-                            onAddAllToQueue: addNeteaseSongsToQueue,
-                            onAddSongToQueue: addNeteaseSongToQueue,
-                            onSelectArtist: handleArtistSelect,
-                            theme,
-                            isDaylight,
-                        },
-                    }
-                    : {
-                        type: 'artist' as const,
-                        props: {
-                            key: `artist-${topOverlay.id}-${overlayStack.length - 1}`,
-                            artistId: topOverlay.id,
-                            onBack: popOverlay,
-                            onPlaySong: (song, ctx) => {
-                                playSong(song, ctx, false);
-                            },
-                            onSelectAlbum: handleAlbumSelect,
-                            theme,
-                            isDaylight,
-                        },
-                    })
-            : null,
-        debugOverlay: isDev && currentView === 'player' && isDevDebugOverlayVisible
-            ? {
-                snapshot: devDebugSnapshot,
-                currentTime,
-                isDaylight,
             }
-            : null,
-        floatingControls: currentSong
-            ? {
-                currentSong,
-                playerState,
-                currentTime,
-                duration,
-                loopMode: effectiveLoopMode,
-                currentView,
-                audioSrc,
-                canTogglePlay: canToggleCurrentPlayback,
-                controlsDisabled: isNowPlayingControlDisabled,
-                lyrics,
-                onSeek: (time) => {
-                    if (isNowPlayingControlDisabled) {
-                        return;
-                    }
-
-                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-                        syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
-                        currentTime.set(time);
-                        if (playerState !== PlayerState.PLAYING) {
-                            setPlayerState(PlayerState.PAUSED);
-                        }
-                    } else if (audioRef.current) {
-                        audioRef.current.currentTime = time;
-                        if (audioRef.current.paused) {
-                            audioRef.current.play();
-                            setPlayerState(PlayerState.PLAYING);
-                        }
-                    }
-                },
-                onTogglePlay: togglePlay,
-                onToggleLoop: toggleLoop,
-                onNavigateToPlayer: navigateToPlayer,
-                noTrackText: t('ui.noTrack'),
-                primaryColor: 'var(--text-primary)',
-                secondaryColor: 'var(--text-secondary)',
-                theme,
-                isDaylight,
-                isHidden: currentView === 'player' && isPlayerChromeHidden,
-                hideControlBar: shouldHidePlayerProgressBar,
-            }
-            : null,
-    });
-
-    const appDialogsModel = useAppDialogsModel({
-        statusToast: statusMsg ? { ...statusMsg, isDaylight } : null,
-        lyricMatchDialog: showLyricMatchModal && currentSong && isLocalPlaybackSong(currentSong) && currentSong.localData
-            ? {
-                song: (currentSong as any).localData as LocalSong,
-                onClose: () => setShowLyricMatchModal(false),
-                onMatch: handleLyricMatchComplete,
-                isDaylight,
-            }
-            : null,
-        naviLyricMatchDialog: showNaviLyricMatchModal && currentSong && (currentSong as any).isNavidrome
-            ? {
-                song: (currentSong as any).navidromeData,
-                onClose: () => setShowNaviLyricMatchModal(false),
-                onMatch: handleNaviLyricMatchComplete,
-                isDaylight,
-            }
-            : null,
-        unavailableReplacementDialog: {
-            isOpen: Boolean(pendingUnavailableReplacement),
-            originalSong: pendingUnavailableReplacement?.originalSong || null,
-            replacementSong: pendingUnavailableReplacement?.replacementSong || null,
-            typeDesc: pendingUnavailableReplacement?.typeDesc,
-            isDaylight,
-            onClose: () => setPendingUnavailableReplacement(null),
-            onConfirm: handleUnavailableReplacementConfirm,
         },
+        noTrackText: t('ui.noTrack'),
+    });
+    const appDialogsModel = buildAppDialogsModel({
+        statusMsg,
+        isDaylight,
+        showLyricMatchModal,
+        showNaviLyricMatchModal,
+        currentSong,
+        setShowLyricMatchModal,
+        setShowNaviLyricMatchModal,
+        handleLyricMatchComplete,
+        handleNaviLyricMatchComplete,
+        pendingUnavailableReplacement,
+        setPendingUnavailableReplacement,
+        handleUnavailableReplacementConfirm,
     });
 
     useEffect(() => {

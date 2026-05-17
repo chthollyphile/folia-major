@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import LyricMatchModal from '../../modal/LyricMatchModal';
 import NaviLyricMatchModal from '../../modal/NaviLyricMatchModal';
 import UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
-import type { AppDialogsModel } from '../view-models/useAppDialogsModel';
+import type { AppDialogsModel } from './buildAppDialogsModel';
 
 // Centralized app-level dialog and toast renderer for the player shell.
 type AppDialogsProps = {

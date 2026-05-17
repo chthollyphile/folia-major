@@ -36,6 +36,7 @@ type SearchDeps = {
 type UsePlaybackQueueControllerParams = {
     t: (key: string, options?: any) => string;
     audioQuality: string;
+    activePlaybackContext: 'main' | 'stage';
     currentSong: SongResult | null;
     playQueue: SongResult[];
     playerState: PlayerState;
@@ -69,7 +70,6 @@ type UsePlaybackQueueControllerParams = {
     handleAlbumSelect: (albumId: number) => void;
     openLocalArtistByName: (artistName: string) => void;
     openLocalAlbumByName: (albumName: string) => void;
-    appendNeteaseSongsToMainQueue: (songs: SongResult[]) => boolean;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     restoreCachedThemeForSong: (songId: number, options?: {
         allowLastUsedFallback?: boolean;
@@ -87,6 +87,18 @@ type UsePlaybackQueueControllerParams = {
     blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
     currentSongRef: MutableRefObject<number | null>;
+    mainPlaybackSnapshotRef: MutableRefObject<{
+        currentSong: SongResult | null;
+        lyrics: any;
+        cachedCoverUrl: string | null;
+        audioSrc: string | null;
+        playQueue: SongResult[];
+        isFmMode: boolean;
+        playerState: PlayerState;
+        currentTime: number;
+        duration: number;
+        currentLineIndex: number;
+    } | null>;
     playbackRequestIdRef: MutableRefObject<number>;
     playbackAutoSkipCountRef: MutableRefObject<number>;
     pendingUnavailableSkipTimerRef: MutableRefObject<number | null>;
@@ -104,6 +116,7 @@ const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
 export function usePlaybackQueueController({
     t,
     audioQuality,
+    activePlaybackContext,
     currentSong,
     playQueue,
     playerState,
@@ -137,7 +150,6 @@ export function usePlaybackQueueController({
     handleAlbumSelect,
     openLocalArtistByName,
     openLocalAlbumByName,
-    appendNeteaseSongsToMainQueue,
     persistLastPlaybackCache,
     restoreCachedThemeForSong,
     interruptStagePlaybackForMainTransition,
@@ -148,6 +160,7 @@ export function usePlaybackQueueController({
     blobUrlRef,
     shouldAutoPlayRef,
     currentSongRef,
+    mainPlaybackSnapshotRef,
     playbackRequestIdRef,
     playbackAutoSkipCountRef,
     pendingUnavailableSkipTimerRef,
@@ -157,6 +170,59 @@ export function usePlaybackQueueController({
     lastAudioRecoverySourceRef,
 }: UsePlaybackQueueControllerParams) {
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
+
+    const appendNeteaseSongsToMainQueue = useCallback((songs: SongResult[]) => {
+        if (songs.length === 0) {
+            return false;
+        }
+
+        const mainSnapshot = activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current : null;
+        const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
+        const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
+        const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
+        const existingIds = new Set(baseQueue.map(song => song.id));
+        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
+        const nextQueue = appendedSongs.length > 0 ? [...baseQueue, ...appendedSongs] : baseQueue;
+
+        if (activePlaybackContext === 'stage') {
+            mainPlaybackSnapshotRef.current = mainSnapshot
+                ? { ...mainSnapshot, playQueue: nextQueue }
+                : {
+                    currentSong: queueAnchorSong,
+                    lyrics: null,
+                    cachedCoverUrl: null,
+                    audioSrc: null,
+                    playQueue: nextQueue,
+                    isFmMode: false,
+                    playerState: PlayerState.IDLE,
+                    currentTime: 0,
+                    duration: 0,
+                    currentLineIndex: -1,
+                };
+        } else {
+            setPlayQueue(nextQueue);
+        }
+
+        if (appendedSongs.length > 0) {
+            void persistLastPlaybackCache(queueAnchorSong, nextQueue);
+            setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+            return true;
+        }
+
+        return false;
+    }, [activePlaybackContext, currentSong, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, setPlayQueue, setStatusMsg, t]);
+
+    const addNeteaseSongToQueue = useCallback((song: SongResult) => {
+        if (isSongMarkedUnavailable(song)) {
+            return;
+        }
+
+        appendNeteaseSongsToMainQueue([song]);
+    }, [appendNeteaseSongsToMainQueue]);
+
+    const addNeteaseSongsToQueue = useCallback((songs: SongResult[]) => {
+        appendNeteaseSongsToMainQueue(songs);
+    }, [appendNeteaseSongsToMainQueue]);
 
     const clearPendingUnavailableSkip = useCallback(() => {
         if (pendingUnavailableSkipTimerRef.current !== null) {
@@ -847,6 +913,8 @@ export function usePlaybackQueueController({
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         clearPendingUnavailableSkip,
+        addNeteaseSongToQueue,
+        addNeteaseSongsToQueue,
         playSong,
         playOnlineQueueFromStart,
         handleQueueAddAndPlay,

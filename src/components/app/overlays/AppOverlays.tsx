@@ -6,7 +6,7 @@ import DevDebugOverlay from '../../DevDebugOverlay';
 import PlaylistView from '../views/PlaylistView';
 import AlbumView from '../views/AlbumView';
 import ArtistView from '../views/ArtistView';
-import type { AppOverlaysModel } from '../view-models/useAppOverlaysModel';
+import type { AppOverlaysModel } from './buildAppOverlaysModel';
 
 // Centralized app-level overlay renderer so App.tsx does not mount leaf overlays directly.
 type AppOverlaysProps = {
