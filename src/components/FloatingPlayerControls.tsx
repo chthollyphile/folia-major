@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Repeat, Repeat1, ChartBar } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, RepeatOff,ChartBar } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 import { PlayerState, LyricData, Theme } from '../types';
@@ -309,7 +309,11 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/20') : 'opacity-40 hover:opacity-100'} ${controlsDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                         style={{ color: primaryColor }}
                     >
-                        {loopMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+                        {loopMode === 'off'
+                            ? <RepeatOff size={18} />
+                            : loopMode === 'one'
+                                ? <Repeat1 size={18} />
+                                : <Repeat size={18} />}
                     </button>
 
                     <button
@@ -345,7 +349,11 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         className={`p-2 rounded-full transition-colors ${loopMode !== 'off' ? 'bg-white/20' : 'opacity-40 hover:opacity-100'} ${controlsDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                         style={{ color: primaryColor }}
                     >
-                        {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
+                        {loopMode === 'off'
+                            ? <RepeatOff size={20} />
+                            : loopMode === 'one'
+                                ? <Repeat1 size={20} />
+                                : <Repeat size={20} />}
                     </button>
 
                     <button

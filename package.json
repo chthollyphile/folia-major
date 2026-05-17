@@ -108,7 +108,7 @@
     "framer-motion": "^12.38.0",
     "i18next": "^25.6.3",
     "i18next-browser-languagedetector": "^8.2.0",
-    "lucide-react": "^0.554.0",
+    "lucide-react": "^1.16.0",
     "music-metadata": "^11.12.3",
     "react": "^19.2.4",
     "react-colorful": "^5.6.1",

@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Repeat, Repeat1, Heart, Sparkles, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
@@ -128,8 +128,8 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
         return () => document.removeEventListener('pointerdown', handlePointerDown);
     }, [isVisualizerOverlayOpen]);
 
+    const loopButtonBg = isDaylight ? 'bg-black/5 hover:bg-zinc-300/85' : 'bg-white/5 hover:bg-white/10';
     const buttonBg = isDaylight ? 'bg-black/5 hover:bg-black/10' : 'bg-white/5 hover:bg-white/10';
-    const activeIconBg = isDaylight ? 'bg-zinc-500 text-white' : 'bg-white text-black';
     const wellBg = isDaylight ? 'bg-black/5' : 'bg-black/20';
     const activeOptionBg = isDaylight ? 'bg-white shadow-sm hover:bg-white/90' : 'bg-white/20 shadow-sm hover:bg-white/30';
     const overlaySurfaceClass = isDaylight ? 'text-black border-black/[0.08]' : 'text-white border-white/[0.08]';
@@ -173,9 +173,9 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     <button
                         onClick={onToggleLoop}
                         disabled={loopToggleDisabled}
-                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${loopMode !== 'off' ? activeIconBg : buttonBg} ${loopToggleDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
+                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${loopButtonBg} ${loopToggleDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                     >
-                        {loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
+                        {loopMode === 'off' ? <RepeatOff size={20} /> : loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
                     </button>
 
                     <button
