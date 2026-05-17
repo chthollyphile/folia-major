@@ -204,6 +204,7 @@ export function usePlaybackAudioBridge({
     useEffect(() => {
         if (audioSrc && audioRef.current) {
             if (shouldAutoPlayRef.current && !isLyricsLoading) {
+                shouldAutoPlayRef.current = false;
                 syncOutputGain(getTargetPlaybackVolume(), 0);
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
@@ -224,8 +225,6 @@ export function usePlaybackAudioBridge({
                             }
                         });
                 }
-            } else if (!shouldAutoPlayRef.current && audioRef.current.paused) {
-                setPlayerState('paused');
             }
         }
     }, [audioRef, audioSrc, getTargetPlaybackVolume, isLyricsLoading, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldAutoPlayRef, syncOutputGain, t]);

@@ -447,28 +447,6 @@ export default function App() {
         navigateToPlayer,
     });
 
-    const { resumePlayback, pausePlayback } = usePlaybackTransportController({
-        activePlaybackContext,
-        stageActiveEntryKind,
-        isNowPlayingStageActive,
-        audioSrc,
-        duration,
-        audioRef,
-        audioContextRef,
-        currentTime,
-        stageLyricsClockRef,
-        setPlayerState,
-        setStatusMsg,
-        setupAudioAnalyzer,
-        syncOutputGain,
-        getTargetPlaybackVolume,
-        shouldRefreshCurrentOnlineAudioSource,
-        recoverOnlinePlaybackSource,
-        getSyntheticStageLyricsTime,
-        syncStageLyricsClock,
-        t: key => t(key),
-    });
-
     const { openCurrentNavidromeAlbum, openCurrentNavidromeArtist } = createNavidromeNavigation({
         currentSong,
         setPendingNavidromeSelection,
@@ -704,6 +682,28 @@ export default function App() {
         getTargetPlaybackVolume,
         getCoverUrl,
         updateCacheSize,
+        t: key => t(key),
+    });
+
+    const { resumePlayback, pausePlayback } = usePlaybackTransportController({
+        activePlaybackContext,
+        stageActiveEntryKind,
+        isNowPlayingStageActive,
+        audioSrc,
+        duration,
+        audioRef,
+        audioContextRef,
+        currentTime,
+        stageLyricsClockRef,
+        setPlayerState,
+        setStatusMsg,
+        setupAudioAnalyzer,
+        syncOutputGain,
+        getTargetPlaybackVolume,
+        shouldRefreshCurrentOnlineAudioSource,
+        recoverOnlinePlaybackSource,
+        getSyntheticStageLyricsTime,
+        syncStageLyricsClock,
         t: key => t(key),
     });
 
@@ -1142,16 +1142,19 @@ export default function App() {
                 crossOrigin="anonymous"
                 loop={effectiveLoopMode === 'one'}
                 onPlay={(e) => {
+                    shouldAutoPlay.current = false;
                     currentTime.set(e.currentTarget.currentTime);
                     setPlayerState(PlayerState.PLAYING);
                 }}
                 onPlaying={(e) => {
+                    shouldAutoPlay.current = false;
                     currentTime.set(e.currentTarget.currentTime);
                     setupAudioAnalyzer();
                     playbackAutoSkipCountRef.current = 0;
                     setPlayerState(PlayerState.PLAYING);
                 }}
                 onPause={(e) => {
+                    shouldAutoPlay.current = false;
                     if (!e.currentTarget.ended) {
                         setPlayerState(PlayerState.PAUSED);
                     }
