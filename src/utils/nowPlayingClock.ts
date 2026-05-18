@@ -4,7 +4,7 @@ import type { NowPlayingLyricPayload, NowPlayingTrackSnapshot } from '../types';
 
 export const NOW_PLAYING_PROGRESS_QUERY_URL = 'http://localhost:9863/api/query/progress';
 export const NOW_PLAYING_PROGRESS_POLL_INTERVAL_MS = 5000;
-export const NOW_PLAYING_PROGRESS_CORRECTION_THRESHOLD_SEC = 0.75;
+export const NOW_PLAYING_PROGRESS_CORRECTION_THRESHOLD_SEC = 0.5;
 
 type ResolveNowPlayingAnchorTimeParams = {
     progressMs: number;

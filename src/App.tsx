@@ -397,6 +397,7 @@ export default function App() {
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
         nowPlayingPaused,
+        nowPlayingDebugInfo,
         isNowPlayingStageActive,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,
@@ -878,6 +879,16 @@ export default function App() {
         currentTimeValue: currentTime.get(),
         audioSrc,
         coverUrl,
+        nowPlayingDebug: stageSource === 'now-playing' ? {
+            connectionStatus: nowPlayingConnectionStatus,
+            isActive: isNowPlayingStageActive,
+            paused: nowPlayingPaused,
+            progressMs: nowPlayingProgressMs,
+            progressQuality: nowPlayingProgressQuality,
+            trackTitle: nowPlayingTrack?.title ?? nowPlayingLyricPayload?.title ?? null,
+            durationSec: (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000,
+            ...nowPlayingDebugInfo,
+        } : null,
     });
     const homeModel = buildHomeModel({
         playSong,

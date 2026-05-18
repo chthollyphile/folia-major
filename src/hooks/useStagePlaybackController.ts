@@ -83,6 +83,17 @@ type LoadPlaybackOptions = {
     playerState?: PlayerState;
 };
 
+type NowPlayingDebugInfo = {
+    lastQuerySource: 'idle' | 'progress' | 'pause-boundary' | 'resume-boundary' | 'poll';
+    lastQueryStatus: 'idle' | 'pending' | 'applied' | 'skipped' | 'failed';
+    lastResponseProgressMs: number | null;
+    lastResponseRttMs: number | null;
+    lastCandidateTimeSec: number | null;
+    lastDisplayTimeSec: number | null;
+    lastDriftSec: number | null;
+    lastError: string | null;
+};
+
 // Keeps Stage / Now Playing state isolated from the main player snapshot.
 export function useStagePlaybackController({
     t,
@@ -127,6 +138,16 @@ export function useStagePlaybackController({
     const [nowPlayingProgressMs, setNowPlayingProgressMs] = useState(0);
     const [nowPlayingProgressQuality, setNowPlayingProgressQuality] = useState<'precise' | 'coarse'>('coarse');
     const [nowPlayingPaused, setNowPlayingPaused] = useState(true);
+    const [nowPlayingDebugInfo, setNowPlayingDebugInfo] = useState<NowPlayingDebugInfo>({
+        lastQuerySource: 'idle',
+        lastQueryStatus: 'idle',
+        lastResponseProgressMs: null,
+        lastResponseRttMs: null,
+        lastCandidateTimeSec: null,
+        lastDisplayTimeSec: null,
+        lastDriftSec: null,
+        lastError: null,
+    });
 
     const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
@@ -362,7 +383,7 @@ export function useStagePlaybackController({
     const applyNowPlayingPreciseAnchor = useCallback((
         progressMs: number,
         paused: boolean,
-        options: { rttMs?: number; onlyIfDrifted?: boolean; }
+        options: { rttMs?: number; onlyIfDrifted?: boolean; source: NowPlayingDebugInfo['lastQuerySource']; }
     ) => {
         const durationSec = getNowPlayingDurationSec();
         const candidateTimeSec = resolveNowPlayingAnchorTime({
@@ -375,26 +396,29 @@ export function useStagePlaybackController({
         const shouldApply = !options.onlyIfDrifted || shouldApplyNowPlayingProgressCorrection(displayTimeSec, candidateTimeSec);
         const driftSec = candidateTimeSec - displayTimeSec;
 
-        if (isDev) {
-            console.log(
-                shouldApply
-                    ? '[NowPlaying][App] Progress correction APPLIED'
-                    : '[NowPlaying][App] Progress correction SKIPPED',
-                {
-                    source: options.onlyIfDrifted ? 'poll' : 'boundary-or-progress',
-                    progressMs,
-                    paused,
-                    rttMs: options.rttMs ?? 0,
-                    displayTimeSec,
-                    candidateTimeSec,
-                    driftSec,
-                    durationSec,
-                }
-            );
-        }
+        setNowPlayingDebugInfo({
+            lastQuerySource: options.source,
+            lastQueryStatus: shouldApply ? 'applied' : 'skipped',
+            lastResponseProgressMs: progressMs,
+            lastResponseRttMs: options.rttMs ?? 0,
+            lastCandidateTimeSec: candidateTimeSec,
+            lastDisplayTimeSec: displayTimeSec,
+            lastDriftSec: driftSec,
+            lastError: null,
+        });
 
         if (!shouldApply) {
             return false;
+        }
+
+        if (isDev) {
+            console.log('[NowPlaying][App] Progress correction APPLIED', {
+                source: options.source,
+                paused,
+                progressMs,
+                rttMs: options.rttMs ?? 0,
+                driftSec,
+            });
         }
 
         syncNowPlayingClock(candidateTimeSec, Math.max(durationSec, candidateTimeSec), paused);
@@ -412,11 +436,17 @@ export function useStagePlaybackController({
 
     const queryNowPlayingPreciseProgress = useCallback(async (
         paused: boolean,
-        options: { onlyIfDrifted?: boolean; }
+        options: { onlyIfDrifted?: boolean; source: NowPlayingDebugInfo['lastQuerySource']; }
     ) => {
         const requestId = nowPlayingPreciseQueryRequestIdRef.current + 1;
         nowPlayingPreciseQueryRequestIdRef.current = requestId;
         const requestStartedAt = performance.now();
+        setNowPlayingDebugInfo(current => ({
+            ...current,
+            lastQuerySource: options.source,
+            lastQueryStatus: 'pending',
+            lastError: null,
+        }));
 
         try {
             const response = await fetch(NOW_PLAYING_PROGRESS_QUERY_URL, { cache: 'no-store' });
@@ -431,34 +461,27 @@ export function useStagePlaybackController({
                 throw new Error('Missing progress value');
             }
 
-            if (isDev) {
-                console.log('[NowPlaying][App] query/progress response', {
-                    paused,
-                    source: options.onlyIfDrifted ? 'poll' : 'boundary-or-progress',
-                    progressMs,
-                    rttMs: responseAt - requestStartedAt,
-                });
-            }
-
             if (nowPlayingPreciseQueryRequestIdRef.current !== requestId) {
-                if (isDev) {
-                    console.log('[NowPlaying][App] query/progress ignored stale response', {
-                        requestId,
-                        currentRequestId: nowPlayingPreciseQueryRequestIdRef.current,
-                    });
-                }
                 return false;
             }
 
             return applyNowPlayingPreciseAnchor(progressMs, paused, {
                 rttMs: responseAt - requestStartedAt,
                 onlyIfDrifted: options.onlyIfDrifted,
+                source: options.source,
             });
         } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setNowPlayingDebugInfo(current => ({
+                ...current,
+                lastQuerySource: options.source,
+                lastQueryStatus: 'failed',
+                lastError: message,
+            }));
             console.warn('[NowPlaying] Failed to query precise progress', {
+                source: options.source,
                 paused,
-                onlyIfDrifted: Boolean(options.onlyIfDrifted),
-                error,
+                error: message,
             });
             return false;
         }
@@ -890,6 +913,16 @@ export function useStagePlaybackController({
             setNowPlayingProgressMs(0);
             setNowPlayingProgressQuality('coarse');
             setNowPlayingPaused(true);
+            setNowPlayingDebugInfo({
+                lastQuerySource: 'idle',
+                lastQueryStatus: 'idle',
+                lastResponseProgressMs: null,
+                lastResponseRttMs: null,
+                lastCandidateTimeSec: null,
+                lastDisplayTimeSec: null,
+                lastDriftSec: null,
+                lastError: null,
+            });
             resetNowPlayingClock();
             return;
         }
@@ -925,7 +958,7 @@ export function useStagePlaybackController({
             return;
         }
 
-        void applyNowPlayingPreciseAnchor(nowPlayingProgressMs, nowPlayingPausedRef.current, {});
+        void applyNowPlayingPreciseAnchor(nowPlayingProgressMs, nowPlayingPausedRef.current, { source: 'progress' });
     }, [
         applyNowPlayingPreciseAnchor,
         nowPlayingProgressMs,
@@ -1058,15 +1091,10 @@ export function useStagePlaybackController({
             return;
         }
 
-        if (isDev) {
-            console.log('[NowPlaying][App] Pause boundary requesting precise progress', {
-                nowPlayingPaused,
-                nowPlayingProgressMs,
-            });
-        }
-        void queryNowPlayingPreciseProgress(nowPlayingPaused, {});
+        void queryNowPlayingPreciseProgress(nowPlayingPaused, {
+            source: nowPlayingPaused ? 'pause-boundary' : 'resume-boundary',
+        });
     }, [
-        isDev,
         nowPlayingLyricPayload,
         nowPlayingPaused,
         nowPlayingProgressMs,
@@ -1089,16 +1117,13 @@ export function useStagePlaybackController({
         }
 
         const intervalId = window.setInterval(() => {
-            if (isDev) {
-                console.log('[NowPlaying][App] Polling precise progress for drift correction');
-            }
-            void queryNowPlayingPreciseProgress(false, { onlyIfDrifted: true });
+            void queryNowPlayingPreciseProgress(false, { onlyIfDrifted: true, source: 'poll' });
         }, NOW_PLAYING_PROGRESS_POLL_INTERVAL_MS);
 
         return () => {
             window.clearInterval(intervalId);
         };
-    }, [isDev, isNowPlayingStageActive, nowPlayingPaused, queryNowPlayingPreciseProgress]);
+    }, [isNowPlayingStageActive, nowPlayingPaused, queryNowPlayingPreciseProgress]);
 
     useEffect(() => {
         if (activePlaybackContext === 'stage' && stageSource === 'now-playing') {
@@ -1141,6 +1166,7 @@ export function useStagePlaybackController({
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
         nowPlayingPaused,
+        nowPlayingDebugInfo,
         isNowPlayingStageActive,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,

@@ -16,6 +16,7 @@ export const buildDebugSnapshot = ({
     currentTimeValue,
     audioSrc,
     coverUrl,
+    nowPlayingDebug,
 }: {
     shortcutLabel: string;
     currentSong: SongResult | null;
@@ -27,6 +28,23 @@ export const buildDebugSnapshot = ({
     currentTimeValue: number;
     audioSrc: string | null;
     coverUrl: string | null;
+    nowPlayingDebug: {
+        connectionStatus: string;
+        isActive: boolean;
+        paused: boolean;
+        progressMs: number;
+        progressQuality: 'precise' | 'coarse';
+        trackTitle: string | null;
+        durationSec: number;
+        lastQuerySource: 'idle' | 'progress' | 'pause-boundary' | 'resume-boundary' | 'poll';
+        lastQueryStatus: 'idle' | 'pending' | 'applied' | 'skipped' | 'failed';
+        lastResponseProgressMs: number | null;
+        lastResponseRttMs: number | null;
+        lastCandidateTimeSec: number | null;
+        lastDisplayTimeSec: number | null;
+        lastDriftSec: number | null;
+        lastError: string | null;
+    } | null;
 }) => {
     const debugActiveLine = lyrics && currentLineIndex >= 0 ? lyrics.lines[currentLineIndex] ?? null : null;
     const debugNextLine = (() => {
@@ -77,6 +95,7 @@ export const buildDebugSnapshot = ({
         totalLines: lyrics?.lines.length ?? 0,
         totalWords: lyrics?.lines.reduce((sum, line) => sum + line.words.length, 0) ?? 0,
         maxWordsPerLine: lyrics?.lines.reduce((max, line) => Math.max(max, line.words.length), 0) ?? 0,
+        nowPlaying: nowPlayingDebug,
         activeLine: toLineSnapshot(debugActiveLine),
         nextLine: toLineSnapshot(debugNextLine),
     };

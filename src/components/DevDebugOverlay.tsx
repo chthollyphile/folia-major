@@ -30,6 +30,23 @@ export interface DevDebugSnapshot {
     totalLines: number;
     totalWords?: number;
     maxWordsPerLine?: number;
+    nowPlaying?: {
+        connectionStatus: string;
+        isActive: boolean;
+        paused: boolean;
+        progressMs: number;
+        progressQuality: 'precise' | 'coarse';
+        trackTitle: string | null;
+        durationSec: number;
+        lastQuerySource: 'idle' | 'progress' | 'pause-boundary' | 'resume-boundary' | 'poll';
+        lastQueryStatus: 'idle' | 'pending' | 'applied' | 'skipped' | 'failed';
+        lastResponseProgressMs: number | null;
+        lastResponseRttMs: number | null;
+        lastCandidateTimeSec: number | null;
+        lastDisplayTimeSec: number | null;
+        lastDriftSec: number | null;
+        lastError: string | null;
+    } | null;
     activeLine: DevDebugLineSnapshot | null;
     nextLine: DevDebugLineSnapshot | null;
 }
@@ -541,6 +558,27 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                                 </dl>
                             </div>
                         </section>
+
+                        {snapshot.nowPlaying ? (
+                            <section className={panelClass}>
+                                <div className="px-3 pt-3 text-[10px] uppercase tracking-[0.16em] opacity-60">Now Playing Clock</div>
+                                <div className="px-3 pb-3">
+                                    <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[10px]">
+                                        <DebugRow label="connection" value={snapshot.nowPlaying.connectionStatus} />
+                                        <DebugRow label="active" value={snapshot.nowPlaying.isActive ? 'yes' : 'no'} />
+                                        <DebugRow label="paused" value={snapshot.nowPlaying.paused ? 'yes' : 'no'} />
+                                        <DebugRow label="wsProgress" value={`${snapshot.nowPlaying.progressMs}ms (${snapshot.nowPlaying.progressQuality})`} />
+                                        <DebugRow label="lastQuery" value={`${snapshot.nowPlaying.lastQuerySource} / ${snapshot.nowPlaying.lastQueryStatus}`} />
+                                        <DebugRow label="queryProgress" value={snapshot.nowPlaying.lastResponseProgressMs === null ? 'N/A' : `${snapshot.nowPlaying.lastResponseProgressMs}ms`} />
+                                        <DebugRow label="rtt" value={snapshot.nowPlaying.lastResponseRttMs === null ? 'N/A' : `${snapshot.nowPlaying.lastResponseRttMs.toFixed(1)}ms`} />
+                                        <DebugRow label="display" value={formatSeconds(snapshot.nowPlaying.lastDisplayTimeSec)} />
+                                        <DebugRow label="candidate" value={formatSeconds(snapshot.nowPlaying.lastCandidateTimeSec)} />
+                                        <DebugRow label="drift" value={formatSeconds(snapshot.nowPlaying.lastDriftSec)} />
+                                        <DebugRow label="error" value={snapshot.nowPlaying.lastError ?? 'N/A'} />
+                                    </dl>
+                                </div>
+                            </section>
+                        ) : null}
 
                         <section className={panelClass}>
                             <div className="px-3 pt-3 text-[10px] uppercase tracking-[0.16em] opacity-60">Lyrics Scale</div>
