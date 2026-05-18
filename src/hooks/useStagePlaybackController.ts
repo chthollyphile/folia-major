@@ -7,6 +7,15 @@ import { NowPlayingProvider } from '../services/nowPlayingProvider';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../utils/appPlaybackHelpers';
 import { buildStageEntryKey, getStageLyricsTimelineBounds } from '../utils/appStageHelpers';
 import { isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import {
+    buildNowPlayingContentLoadKey,
+    clampNowPlayingTimeSec,
+    NOW_PLAYING_PROGRESS_POLL_INTERVAL_MS,
+    NOW_PLAYING_PROGRESS_QUERY_URL,
+    parseNowPlayingProgressResponseMs,
+    resolveNowPlayingAnchorTime,
+    shouldApplyNowPlayingProgressCorrection,
+} from '../utils/nowPlayingClock';
 import { buildNowPlayingLyricSource } from '../utils/lyrics/nowPlayingSource';
 import {
     LyricData,
@@ -136,10 +145,14 @@ export function useStagePlaybackController({
         durationSec: 0,
     });
     const nowPlayingProviderRef = useRef<NowPlayingProvider | null>(null);
-    const lastLoadedNowPlayingTrackSignatureRef = useRef<string | null>(null);
-    const lastLoadedNowPlayingLyricSignatureRef = useRef<string | null>(null);
+    const nowPlayingContentLoadKeyRef = useRef<string | null>(null);
+    const nowPlayingContentLoadRequestIdRef = useRef(0);
+    const nowPlayingPreciseQueryRequestIdRef = useRef(0);
+    const nowPlayingPausedRef = useRef(nowPlayingPaused);
+    const lastNowPlayingPauseStateRef = useRef(nowPlayingPaused);
     const currentLineIndexRef = useRef(currentLineIndex);
 
+    nowPlayingPausedRef.current = nowPlayingPaused;
     currentLineIndexRef.current = currentLineIndex;
 
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
@@ -325,6 +338,132 @@ export function useStagePlaybackController({
         return Math.min(Math.max(nextTime, 0), clock.durationSec || nextTime);
     }, []);
 
+    const getNowPlayingDurationSec = useCallback(() => {
+        return Math.max(0, (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000);
+    }, [nowPlayingLyricPayload?.durationMs, nowPlayingTrack?.durationMs]);
+
+    const syncNowPlayingDisplaySurface = useCallback((timeSec: number, nextLyrics: LyricData | null = lyrics) => {
+        const durationSec = getNowPlayingDurationSec();
+        const safeTime = clampNowPlayingTimeSec(timeSec, durationSec || timeSec);
+        currentTime.set(safeTime);
+
+        if (nextLyrics) {
+            const foundIndex = findLatestActiveLineIndex(nextLyrics.lines, safeTime);
+            if (foundIndex !== currentLineIndexRef.current) {
+                currentLineIndexRef.current = foundIndex;
+                setCurrentLineIndex(foundIndex);
+            }
+        } else if (currentLineIndexRef.current !== -1) {
+            currentLineIndexRef.current = -1;
+            setCurrentLineIndex(-1);
+        }
+    }, [currentTime, getNowPlayingDurationSec, lyrics, setCurrentLineIndex]);
+
+    const applyNowPlayingPreciseAnchor = useCallback((
+        progressMs: number,
+        paused: boolean,
+        options: { rttMs?: number; onlyIfDrifted?: boolean; }
+    ) => {
+        const durationSec = getNowPlayingDurationSec();
+        const candidateTimeSec = resolveNowPlayingAnchorTime({
+            progressMs,
+            rttMs: options.rttMs ?? 0,
+            paused,
+            durationSec: durationSec || undefined,
+        });
+        const displayTimeSec = getNowPlayingDisplayTime();
+        const shouldApply = !options.onlyIfDrifted || shouldApplyNowPlayingProgressCorrection(displayTimeSec, candidateTimeSec);
+        const driftSec = candidateTimeSec - displayTimeSec;
+
+        if (isDev) {
+            console.log(
+                shouldApply
+                    ? '[NowPlaying][App] Progress correction APPLIED'
+                    : '[NowPlaying][App] Progress correction SKIPPED',
+                {
+                    source: options.onlyIfDrifted ? 'poll' : 'boundary-or-progress',
+                    progressMs,
+                    paused,
+                    rttMs: options.rttMs ?? 0,
+                    displayTimeSec,
+                    candidateTimeSec,
+                    driftSec,
+                    durationSec,
+                }
+            );
+        }
+
+        if (!shouldApply) {
+            return false;
+        }
+
+        syncNowPlayingClock(candidateTimeSec, Math.max(durationSec, candidateTimeSec), paused);
+        if (isNowPlayingStageActive) {
+            syncNowPlayingDisplaySurface(candidateTimeSec);
+        }
+        return true;
+    }, [
+        getNowPlayingDisplayTime,
+        getNowPlayingDurationSec,
+        isNowPlayingStageActive,
+        syncNowPlayingClock,
+        syncNowPlayingDisplaySurface,
+    ]);
+
+    const queryNowPlayingPreciseProgress = useCallback(async (
+        paused: boolean,
+        options: { onlyIfDrifted?: boolean; }
+    ) => {
+        const requestId = nowPlayingPreciseQueryRequestIdRef.current + 1;
+        nowPlayingPreciseQueryRequestIdRef.current = requestId;
+        const requestStartedAt = performance.now();
+
+        try {
+            const response = await fetch(NOW_PLAYING_PROGRESS_QUERY_URL, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const payload = await response.json() as { progress?: unknown };
+            const responseAt = performance.now();
+            const progressMs = parseNowPlayingProgressResponseMs(payload.progress);
+            if (progressMs === null) {
+                throw new Error('Missing progress value');
+            }
+
+            if (isDev) {
+                console.log('[NowPlaying][App] query/progress response', {
+                    paused,
+                    source: options.onlyIfDrifted ? 'poll' : 'boundary-or-progress',
+                    progressMs,
+                    rttMs: responseAt - requestStartedAt,
+                });
+            }
+
+            if (nowPlayingPreciseQueryRequestIdRef.current !== requestId) {
+                if (isDev) {
+                    console.log('[NowPlaying][App] query/progress ignored stale response', {
+                        requestId,
+                        currentRequestId: nowPlayingPreciseQueryRequestIdRef.current,
+                    });
+                }
+                return false;
+            }
+
+            return applyNowPlayingPreciseAnchor(progressMs, paused, {
+                rttMs: responseAt - requestStartedAt,
+                onlyIfDrifted: options.onlyIfDrifted,
+            });
+        } catch (error) {
+            console.warn('[NowPlaying] Failed to query precise progress', {
+                paused,
+                onlyIfDrifted: Boolean(options.onlyIfDrifted),
+                error,
+            });
+            return false;
+        }
+    }, [applyNowPlayingPreciseAnchor, isDev]);
+
     const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
         id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
         name: session.title || lyricData.title || 'Stage Lyrics',
@@ -483,21 +622,13 @@ export function useStagePlaybackController({
     const loadNowPlayingIntoPlayback = useCallback(async (
         track: NowPlayingTrackSnapshot | null,
         lyricPayload: NowPlayingLyricPayload | null,
-        progressMs: number,
-        paused: boolean,
-        options: { autoplay?: boolean; } = {},
+        requestId: number,
     ) => {
-        const nextPlayerState = paused
-            ? PlayerState.PAUSED
-            : ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
         const durationSec = Math.max(0, (track?.durationMs ?? lyricPayload?.durationMs ?? 0) / 1000);
-        const progressSec = Math.max(0, progressMs / 1000);
         if (isDev) {
             console.log('[NowPlaying][App] loadNowPlayingIntoPlayback', {
-                options,
-                nextPlayerState,
                 durationSec,
-                progressSec,
+                requestId,
                 nowPlayingTrack: track,
                 nowPlayingLyricPayload: lyricPayload,
             });
@@ -507,55 +638,67 @@ export function useStagePlaybackController({
             ? buildNowPlayingLyricsSession(track, lyricPayload)
             : null;
 
+        let parsedLyrics: LyricData | null = null;
         if (nextLyricsSession) {
-            await loadStageLyricsIntoPlayback(nextLyricsSession, {
-                autoplay: options.autoplay,
-                resumeTime: progressSec,
-                playerState: nextPlayerState,
-            });
-            setCachedCoverUrl(track?.coverUrl || null);
-            syncNowPlayingClock(progressSec, Math.max(durationSec, progressSec), nextPlayerState !== PlayerState.PLAYING);
+            try {
+                parsedLyrics = await LyricParserFactory.parse(nextLyricsSession.lyricSource as never);
+            } catch (error) {
+                console.warn('[NowPlaying] Failed to parse now playing lyrics', error);
+            }
+        }
+
+        if (nowPlayingContentLoadRequestIdRef.current !== requestId) {
             return;
         }
 
-        const fallbackSong: SongResult | null = track ? ({
+        const renderableLyrics = hasRenderableLyrics(parsedLyrics) ? parsedLyrics : null;
+        const fallbackTitle = track?.title || lyricPayload?.title || 'Now Playing';
+        const fallbackArtist = track?.artist || lyricPayload?.artist || 'Now Playing';
+        const fallbackAlbum = track?.album || '';
+        const fallbackCoverUrl = track?.coverUrl || null;
+        const resolvedDurationSec = durationSec || (renderableLyrics ? getStageLyricsTimelineBounds(renderableLyrics).endTimeSec : 0);
+        const fallbackSong: SongResult | null = (track || lyricPayload) ? ({
             id: -Math.max(1, Math.floor(Date.now())),
-            name: track.title || 'Now Playing',
-            artists: [{ id: 0, name: track.artist || 'Now Playing' }],
-            album: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
-            duration: Math.max(0, Math.floor(track.durationMs || 0)),
-            al: { id: 0, name: track.album || 'Now Playing', picUrl: track.coverUrl || undefined },
-            ar: [{ id: 0, name: track.artist || 'Now Playing' }],
-            dt: Math.max(0, Math.floor(track.durationMs || 0)),
+            name: fallbackTitle,
+            artists: [{ id: 0, name: fallbackArtist }],
+            album: { id: 0, name: fallbackAlbum || 'Now Playing', picUrl: fallbackCoverUrl || undefined },
+            duration: Math.max(0, Math.floor(resolvedDurationSec * 1000)),
+            al: { id: 0, name: fallbackAlbum || 'Now Playing', picUrl: fallbackCoverUrl || undefined },
+            ar: [{ id: 0, name: fallbackArtist }],
+            dt: Math.max(0, Math.floor(resolvedDurationSec * 1000)),
             sourceType: 'cloud',
             isStage: true,
         } as SongResult) : null;
 
-        clearPlaybackSurface();
-        resetStageLyricsClock();
         shouldAutoPlayRef.current = false;
         pendingResumeTimeRef.current = null;
         currentSongRef.current = fallbackSong?.id ?? null;
         setCurrentSong(fallbackSong);
-        setCachedCoverUrl(track?.coverUrl || null);
+        setCachedCoverUrl(fallbackCoverUrl);
         setAudioSrc(null);
         setPlayQueue([]);
         setIsFmMode(false);
         setIsLyricsLoading(false);
-        currentTime.set(progressSec);
-        setCurrentLineIndex(-1);
-        setDuration(durationSec);
-        setPlayerState(nextPlayerState);
-        syncNowPlayingClock(progressSec, durationSec, nextPlayerState !== PlayerState.PLAYING);
+        setLyrics(renderableLyrics);
+        setDuration(resolvedDurationSec);
+
+        const displayTimeSec = clampNowPlayingTimeSec(getNowPlayingDisplayTime(), resolvedDurationSec);
+        if (isNowPlayingStageActive) {
+            syncNowPlayingDisplaySurface(displayTimeSec, renderableLyrics);
+        } else {
+            const nextLineIndex = renderableLyrics ? findLatestActiveLineIndex(renderableLyrics.lines, displayTimeSec) : -1;
+            if (nextLineIndex !== currentLineIndexRef.current) {
+                currentLineIndexRef.current = nextLineIndex;
+                setCurrentLineIndex(nextLineIndex);
+            }
+        }
     }, [
         buildNowPlayingLyricsSession,
-        clearPlaybackSurface,
         currentSongRef,
-        currentTime,
+        getNowPlayingDisplayTime,
         isDev,
-        loadStageLyricsIntoPlayback,
+        isNowPlayingStageActive,
         pendingResumeTimeRef,
-        resetStageLyricsClock,
         setAudioSrc,
         setCachedCoverUrl,
         setCurrentLineIndex,
@@ -563,10 +706,10 @@ export function useStagePlaybackController({
         setDuration,
         setIsFmMode,
         setIsLyricsLoading,
+        setLyrics,
         setPlayQueue,
-        setPlayerState,
         shouldAutoPlayRef,
-        syncNowPlayingClock,
+        syncNowPlayingDisplaySurface,
     ]);
 
     const clearPersistedStagePlaybackCache = useCallback(async () => {
@@ -603,13 +746,11 @@ export function useStagePlaybackController({
             clearMainPlaybackContext();
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('stage');
-            await loadNowPlayingIntoPlayback(
-                nowPlayingTrack,
-                nowPlayingLyricPayload,
-                nowPlayingProgressMs,
-                nowPlayingPaused,
-                { autoplay: true },
-            );
+            if (nowPlayingTrack || nowPlayingLyricPayload) {
+                const requestId = nowPlayingContentLoadRequestIdRef.current + 1;
+                nowPlayingContentLoadRequestIdRef.current = requestId;
+                void loadNowPlayingIntoPlayback(nowPlayingTrack, nowPlayingLyricPayload, requestId);
+            }
             navigateToPlayer();
             if (!nowPlayingTrack && !nowPlayingLyricPayload) {
                 setStatusMsg({ type: 'info', text: '等待本地 Now Playing 服务输入' });
@@ -654,8 +795,6 @@ export function useStagePlaybackController({
         loadStageSessionIntoPlayback,
         navigateToPlayer,
         nowPlayingLyricPayload,
-        nowPlayingPaused,
-        nowPlayingProgressMs,
         nowPlayingTrack,
         setActivePlaybackContext,
         setStatusMsg,
@@ -742,8 +881,9 @@ export function useStagePlaybackController({
         if (stageSource !== 'now-playing') {
             nowPlayingProviderRef.current?.stop();
             nowPlayingProviderRef.current = null;
-            lastLoadedNowPlayingTrackSignatureRef.current = null;
-            lastLoadedNowPlayingLyricSignatureRef.current = null;
+            nowPlayingContentLoadKeyRef.current = null;
+            nowPlayingContentLoadRequestIdRef.current = 0;
+            nowPlayingPreciseQueryRequestIdRef.current = 0;
             setNowPlayingConnectionStatus('disabled');
             setNowPlayingTrack(null);
             setNowPlayingLyricPayload(null);
@@ -781,22 +921,16 @@ export function useStagePlaybackController({
             return;
         }
 
-        const durationSec = Math.max(0, (nowPlayingTrack?.durationMs ?? nowPlayingLyricPayload?.durationMs ?? 0) / 1000);
-        const incomingTime = nowPlayingProgressMs / 1000;
-        const displayTime = getNowPlayingDisplayTime();
-        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
-            ? Math.max(incomingTime, displayTime)
-            : incomingTime;
-        syncNowPlayingClock(nextTime, durationSec, nowPlayingPaused);
+        if (nowPlayingProgressQuality !== 'precise') {
+            return;
+        }
+
+        void applyNowPlayingPreciseAnchor(nowPlayingProgressMs, nowPlayingPausedRef.current, {});
     }, [
-        getNowPlayingDisplayTime,
-        nowPlayingLyricPayload?.durationMs,
-        nowPlayingPaused,
+        applyNowPlayingPreciseAnchor,
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
-        nowPlayingTrack?.durationMs,
         stageSource,
-        syncNowPlayingClock,
     ]);
 
     useEffect(() => {
@@ -857,54 +991,87 @@ export function useStagePlaybackController({
             return;
         }
 
-        const nextTrackSignature = nowPlayingTrack
-            ? JSON.stringify({
-                id: nowPlayingTrack.id,
-                title: nowPlayingTrack.title,
-                artist: nowPlayingTrack.artist,
-                album: nowPlayingTrack.album,
-                coverUrl: nowPlayingTrack.coverUrl,
-                durationMs: nowPlayingTrack.durationMs,
-            })
-            : null;
-        const nextLyricSignature = nowPlayingLyricPayload
-            ? JSON.stringify({
-                source: nowPlayingLyricPayload.source,
-                title: nowPlayingLyricPayload.title,
-                artist: nowPlayingLyricPayload.artist,
-                durationMs: nowPlayingLyricPayload.durationMs,
-                hasLyric: nowPlayingLyricPayload.hasLyric,
-                hasTranslatedLyric: nowPlayingLyricPayload.hasTranslatedLyric,
-                hasKaraokeLyric: nowPlayingLyricPayload.hasKaraokeLyric,
-                lrc: nowPlayingLyricPayload.lrc,
-                translatedLyric: nowPlayingLyricPayload.translatedLyric,
-                karaokeLyric: nowPlayingLyricPayload.karaokeLyric,
-            })
-            : null;
-
-        if (
-            lastLoadedNowPlayingTrackSignatureRef.current === nextTrackSignature &&
-            lastLoadedNowPlayingLyricSignatureRef.current === nextLyricSignature
-        ) {
+        const nextContentLoadKey = buildNowPlayingContentLoadKey(nowPlayingTrack, nowPlayingLyricPayload);
+        if (!nextContentLoadKey || nowPlayingContentLoadKeyRef.current === nextContentLoadKey) {
             return;
         }
 
-        lastLoadedNowPlayingTrackSignatureRef.current = nextTrackSignature;
-        lastLoadedNowPlayingLyricSignatureRef.current = nextLyricSignature;
-        void loadNowPlayingIntoPlayback(
-            nowPlayingTrack,
-            nowPlayingLyricPayload,
-            nowPlayingProgressMs,
-            nowPlayingPaused,
-            { autoplay: true },
-        );
+        nowPlayingContentLoadKeyRef.current = nextContentLoadKey;
+        const requestId = nowPlayingContentLoadRequestIdRef.current + 1;
+        nowPlayingContentLoadRequestIdRef.current = requestId;
+        void loadNowPlayingIntoPlayback(nowPlayingTrack, nowPlayingLyricPayload, requestId);
     }, [
         activePlaybackContext,
+        buildNowPlayingContentLoadKey,
         loadNowPlayingIntoPlayback,
+        nowPlayingLyricPayload,
+        nowPlayingTrack,
+        stageSource,
+    ]);
+
+    useEffect(() => {
+        if (stageSource !== 'now-playing') {
+            return;
+        }
+
+        const durationSec = getNowPlayingDurationSec();
+        const displayTime = clampNowPlayingTimeSec(getNowPlayingDisplayTime(), durationSec || getNowPlayingDisplayTime());
+        syncNowPlayingClock(displayTime, Math.max(durationSec, displayTime), nowPlayingPaused);
+
+        if (isDev) {
+            console.log('[NowPlaying][App] Syncing pause state into currentTime', {
+                displayTime,
+                nowPlayingPaused,
+                durationSec,
+            });
+        }
+
+        if (isNowPlayingStageActive) {
+            syncNowPlayingDisplaySurface(displayTime);
+        }
+    }, [
+        getNowPlayingDisplayTime,
+        getNowPlayingDurationSec,
+        isDev,
+        isNowPlayingStageActive,
+        nowPlayingLyricPayload,
+        nowPlayingPaused,
+        nowPlayingTrack,
+        stageSource,
+        syncNowPlayingClock,
+        syncNowPlayingDisplaySurface,
+    ]);
+
+    useEffect(() => {
+        if (stageSource !== 'now-playing') {
+            lastNowPlayingPauseStateRef.current = nowPlayingPaused;
+            return;
+        }
+
+        const pauseStateChanged = lastNowPlayingPauseStateRef.current !== nowPlayingPaused;
+        lastNowPlayingPauseStateRef.current = nowPlayingPaused;
+        if (!pauseStateChanged) {
+            return;
+        }
+
+        if (!nowPlayingTrack && !nowPlayingLyricPayload && nowPlayingProgressMs === 0) {
+            return;
+        }
+
+        if (isDev) {
+            console.log('[NowPlaying][App] Pause boundary requesting precise progress', {
+                nowPlayingPaused,
+                nowPlayingProgressMs,
+            });
+        }
+        void queryNowPlayingPreciseProgress(nowPlayingPaused, {});
+    }, [
+        isDev,
         nowPlayingLyricPayload,
         nowPlayingPaused,
         nowPlayingProgressMs,
         nowPlayingTrack,
+        queryNowPlayingPreciseProgress,
         stageSource,
     ]);
 
@@ -913,45 +1080,34 @@ export function useStagePlaybackController({
             return;
         }
 
-        const incomingTime = Math.max(0, nowPlayingProgressMs / 1000);
-        const displayTime = getNowPlayingDisplayTime();
-        const nextTime = nowPlayingPaused && nowPlayingProgressQuality === 'coarse'
-            ? Math.max(incomingTime, displayTime)
-            : incomingTime;
-        if (isDev) {
-            console.log('[NowPlaying][App] Applying progress to currentTime', {
-                nowPlayingProgressMs,
-                nextTime,
-                nowPlayingProgressQuality,
-                nowPlayingPaused,
-                displayTime,
-                hasLyrics: Boolean(lyrics),
-            });
-        }
-        currentTime.set(nextTime);
+        syncNowPlayingDisplaySurface(getNowPlayingDisplayTime());
+    }, [getNowPlayingDisplayTime, isNowPlayingStageActive, nowPlayingLyricPayload, nowPlayingTrack, syncNowPlayingDisplaySurface]);
 
-        if (lyrics) {
-            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndexRef.current) {
-                currentLineIndexRef.current = foundIndex;
-                setCurrentLineIndex(foundIndex);
+    useEffect(() => {
+        if (!isNowPlayingStageActive || nowPlayingPaused) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            if (isDev) {
+                console.log('[NowPlaying][App] Polling precise progress for drift correction');
             }
-        } else if (currentLineIndexRef.current !== -1) {
-            currentLineIndexRef.current = -1;
-            setCurrentLineIndex(-1);
+            void queryNowPlayingPreciseProgress(false, { onlyIfDrifted: true });
+        }, NOW_PLAYING_PROGRESS_POLL_INTERVAL_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isDev, isNowPlayingStageActive, nowPlayingPaused, queryNowPlayingPreciseProgress]);
+
+    useEffect(() => {
+        if (activePlaybackContext === 'stage' && stageSource === 'now-playing') {
+            return;
         }
 
-    }, [
-        currentTime,
-        getNowPlayingDisplayTime,
-        isDev,
-        isNowPlayingStageActive,
-        lyrics,
-        nowPlayingPaused,
-        nowPlayingProgressMs,
-        nowPlayingProgressQuality,
-        setCurrentLineIndex,
-    ]);
+        nowPlayingContentLoadRequestIdRef.current += 1;
+        nowPlayingPreciseQueryRequestIdRef.current += 1;
+    }, [activePlaybackContext, stageSource]);
 
     useEffect(() => {
         if (!isNowPlayingStageActive) {
