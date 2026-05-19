@@ -51,6 +51,7 @@ export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio
 export type PlaybackContext = 'main' | 'stage';
 export type StageSource = 'stage-api' | 'now-playing';
 export type StageLoopMode = 'off' | 'all' | 'one';
+export type QueueAddBehavior = 'append' | 'next';
 export type StageActiveEntryKind = 'lyrics' | 'media';
 
 export interface StageEmbeddedUsltTag {

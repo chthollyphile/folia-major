@@ -498,7 +498,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed inset-0 z-[130] backdrop-blur-xl px-3 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-5"
+            className="fixed inset-0 z-[140] backdrop-blur-xl px-3 pt-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-5"
             style={{ backgroundColor: overlayBackground }}
             onClick={onClose}
         >

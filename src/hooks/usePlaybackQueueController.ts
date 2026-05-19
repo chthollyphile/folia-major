@@ -8,10 +8,11 @@ import { getOnlineSongCacheKey, isSongMarkedUnavailable, neteaseApi } from '../s
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { PlayerState, type HomeViewTab } from '../types';
-import type { LocalSong, SongResult, StatusMessage, UnifiedSong } from '../types';
+import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
+import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 
 // src/hooks/usePlaybackQueueController.ts
 
@@ -44,6 +45,7 @@ type UsePlaybackQueueControllerParams = {
     loopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
     isNowPlayingStageActive: boolean;
+    queueAddBehavior: QueueAddBehavior;
     searchQuery: string;
     searchSourceTab: HomeViewTab;
     localSongs: LocalSong[];
@@ -124,6 +126,7 @@ export function usePlaybackQueueController({
     loopMode,
     isFmMode,
     isNowPlayingStageActive,
+    queueAddBehavior,
     searchQuery,
     searchSourceTab,
     localSongs,
@@ -181,9 +184,13 @@ export function usePlaybackQueueController({
         const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
         const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
         const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
-        const existingIds = new Set(baseQueue.map(song => song.id));
-        const appendedSongs = songs.filter(song => !isSongMarkedUnavailable(song) && !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...baseQueue, ...appendedSongs] : baseQueue;
+        const queueableSongs = songs.filter(song => !isSongMarkedUnavailable(song));
+        const { nextQueue, addedSongs } = applyQueueAddBehavior({
+            queue: baseQueue,
+            songs: queueableSongs,
+            currentSong: queueAnchorSong,
+            behavior: queueAddBehavior,
+        });
 
         if (activePlaybackContext === 'stage') {
             mainPlaybackSnapshotRef.current = mainSnapshot
@@ -204,14 +211,17 @@ export function usePlaybackQueueController({
             setPlayQueue(nextQueue);
         }
 
-        if (appendedSongs.length > 0) {
+        if (addedSongs.length > 0) {
             void persistLastPlaybackCache(queueAnchorSong, nextQueue);
-            setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+            setStatusMsg({
+                type: 'success',
+                text: queueAddBehavior === 'next' ? '已插入到下一首' : (t('status.queueUpdated') || '已添加到播放队列'),
+            });
             return true;
         }
 
         return false;
-    }, [activePlaybackContext, currentSong, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, setPlayQueue, setStatusMsg, t]);
+    }, [activePlaybackContext, currentSong, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, queueAddBehavior, setPlayQueue, setStatusMsg, t]);
 
     const addNeteaseSongToQueue = useCallback((song: SongResult) => {
         if (isSongMarkedUnavailable(song)) {

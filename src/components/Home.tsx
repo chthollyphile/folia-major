@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, Settings , ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type QueueAddBehavior, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -128,6 +128,8 @@ interface HomeProps {
     enableNowPlayingStage?: boolean;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
+    queueAddBehavior: QueueAddBehavior;
+    onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
     pendingOpenSettings?: boolean;
     onPendingOpenSettingsHandled?: () => void;
 }
@@ -228,6 +230,8 @@ const Home: React.FC<HomeProps> = ({
     enableNowPlayingStage = false,
     onToggleNowPlayingStage,
     nowPlayingConnectionStatus = 'disabled',
+    queueAddBehavior,
+    onQueueAddBehaviorChange,
     pendingOpenSettings = false,
     onPendingOpenSettingsHandled,
 }) => {
@@ -1022,6 +1026,8 @@ const Home: React.FC<HomeProps> = ({
                                 enableNowPlayingStage={enableNowPlayingStage}
                                 onToggleNowPlayingStage={onToggleNowPlayingStage}
                                 nowPlayingConnectionStatus={nowPlayingConnectionStatus}
+                                queueAddBehavior={queueAddBehavior}
+                                onQueueAddBehaviorChange={onQueueAddBehaviorChange}
                             />
                         )
                     }

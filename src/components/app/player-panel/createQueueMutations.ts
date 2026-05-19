@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { buildNavidromeQueue } from '../../../services/playbackAdapters';
+import { applyQueueAddBehavior } from '../../../utils/queueAddBehavior';
 import type { NavidromeSong } from '../../../types/navidrome';
-import type { SongResult, StatusMessage } from '../../../types';
+import type { QueueAddBehavior, SongResult, StatusMessage } from '../../../types';
 
 // src/components/app/player-panel/createQueueMutations.ts
 
@@ -12,6 +13,7 @@ type CreateQueueMutationsParams = {
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     setStatusMsg: Dispatch<SetStateAction<StatusMessage | null>>;
     t: (key: string) => string;
+    queueAddBehavior: QueueAddBehavior;
 };
 
 // Creates queue mutations that are triggered from app-level panel and home surfaces.
@@ -22,6 +24,7 @@ export const createQueueMutations = ({
     persistLastPlaybackCache,
     setStatusMsg,
     t,
+    queueAddBehavior,
 }: CreateQueueMutationsParams) => {
     const addNavidromeSongsToQueue = (songs: NavidromeSong[]) => {
         if (songs.length === 0) {
@@ -29,13 +32,23 @@ export const createQueueMutations = ({
         }
 
         const unifiedSongs = buildNavidromeQueue(songs);
-        const existingIds = new Set(playQueue.map(song => song.id));
-        const appendedSongs = unifiedSongs.filter(song => !existingIds.has(song.id));
-        const nextQueue = appendedSongs.length > 0 ? [...playQueue, ...appendedSongs] : playQueue;
+        const baseQueue = playQueue.length > 0 ? playQueue : (currentSong ? [currentSong] : []);
+        const { nextQueue, addedSongs } = applyQueueAddBehavior({
+            queue: baseQueue,
+            songs: unifiedSongs,
+            currentSong,
+            behavior: queueAddBehavior,
+        });
 
         setPlayQueue(nextQueue);
         void persistLastPlaybackCache(currentSong, nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
+
+        if (addedSongs.length > 0) {
+            setStatusMsg({
+                type: 'success',
+                text: queueAddBehavior === 'next' ? '已插入到下一首' : (t('status.queueUpdated') || '已添加到播放队列'),
+            });
+        }
     };
 
     return {

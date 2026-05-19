@@ -60,6 +60,8 @@ type BuildHomeModelParams = {
     enableNowPlayingStage?: LegacyHomeProps['enableNowPlayingStage'];
     handleToggleNowPlayingStage: (enabled: boolean) => void;
     nowPlayingConnectionStatus?: LegacyHomeProps['nowPlayingConnectionStatus'];
+    queueAddBehavior: LegacyHomeProps['queueAddBehavior'];
+    handleSetQueueAddBehavior: LegacyHomeProps['onQueueAddBehaviorChange'];
     staticMode?: LegacyHomeProps['staticMode'];
     disableHomeDynamicBackground?: LegacyHomeProps['disableHomeDynamicBackground'];
     hidePlayerProgressBar?: LegacyHomeProps['hidePlayerProgressBar'];
@@ -160,6 +162,8 @@ export const buildHomeModel = ({
     enableNowPlayingStage,
     handleToggleNowPlayingStage,
     nowPlayingConnectionStatus,
+    queueAddBehavior,
+    handleSetQueueAddBehavior,
     staticMode,
     disableHomeDynamicBackground,
     hidePlayerProgressBar,
@@ -298,6 +302,8 @@ export const buildHomeModel = ({
                 }
             },
             nowPlayingConnectionStatus,
+            queueAddBehavior,
+            onQueueAddBehaviorChange: handleSetQueueAddBehavior,
             staticMode,
             disableHomeDynamicBackground,
             hidePlayerProgressBar,

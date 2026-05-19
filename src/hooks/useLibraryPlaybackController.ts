@@ -19,10 +19,11 @@ import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
 import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from '../services/netease';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { PlayerState } from '../types';
-import type { LyricData, LocalPlaylist, LocalSong, SongResult, StatusMessage } from '../types';
+import type { LyricData, LocalPlaylist, LocalSong, QueueAddBehavior, SongResult, StatusMessage } from '../types';
 import type { PlaybackSnapshot, PlaybackNavigationOptions } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
 import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal';
+import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 
 // src/hooks/useLibraryPlaybackController.ts
 
@@ -31,6 +32,7 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 type UseLibraryPlaybackControllerParams = {
     t: (key: string, fallback?: string) => string;
     audioQuality: string;
+    queueAddBehavior: QueueAddBehavior;
     currentSong: SongResult | null;
     lyrics: LyricData | null;
     playQueue: SongResult[];
@@ -66,6 +68,7 @@ type UseLibraryPlaybackControllerParams = {
 export function useLibraryPlaybackController({
     t,
     audioQuality,
+    queueAddBehavior,
     currentSong,
     lyrics,
     playQueue,
@@ -370,13 +373,25 @@ export function useLibraryPlaybackController({
     const handleLocalQueueAdd = useCallback(async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
         const { unifiedSong } = await resolveLocalMetadataUI(preparedLocalSong, null);
-        const exists = playQueue.some(song => song.id === unifiedSong.id);
-        const nextQueue = exists ? playQueue : [...playQueue, unifiedSong];
+        const baseQueue = playQueue.length > 0 ? playQueue : (currentSong ? [currentSong] : []);
+        const { nextQueue, addedSongs } = applyQueueAddBehavior({
+            queue: baseQueue,
+            songs: [unifiedSong],
+            currentSong,
+            behavior: queueAddBehavior,
+        });
+
+        if (addedSongs.length === 0) {
+            return;
+        }
 
         setPlayQueue(nextQueue);
         void persistLastPlaybackCache(currentSong, nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueUpdated') || '已添加到播放队列' });
-    }, [currentSong, persistLastPlaybackCache, playQueue, resolveLocalMetadataUI, setPlayQueue, setStatusMsg, t]);
+        setStatusMsg({
+            type: 'success',
+            text: queueAddBehavior === 'next' ? '已插入到下一首' : (t('status.queueUpdated') || '已添加到播放队列'),
+        });
+    }, [currentSong, persistLastPlaybackCache, playQueue, queueAddBehavior, resolveLocalMetadataUI, setPlayQueue, setStatusMsg, t]);
 
     const prewarmLocalSongMetadata = useCallback(async (localSong: LocalSong) => {
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);

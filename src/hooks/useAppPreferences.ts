@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type StatusMessage, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type Theme, type VisualizerMode } from '../types';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
@@ -181,6 +181,11 @@ const readStoredLoopMode = (): 'off' | 'all' | 'one' => {
     return saved === 'all' || saved === 'one' ? saved : 'off';
 };
 
+const readStoredQueueAddBehavior = (): QueueAddBehavior => {
+    const saved = localStorage.getItem('queue_add_behavior');
+    return saved === 'next' ? 'next' : 'append';
+};
+
 export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [audioQuality, setAudioQuality] = useState<AudioQuality>(() => {
         const saved = localStorage.getItem('default_audio_quality');
@@ -220,6 +225,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [lyricFilterPattern, setLyricFilterPattern] = useState<string>(readStoredLyricFilterPattern);
     const [showOpenPanelCloseButton, setShowOpenPanelCloseButton] = useState(() => getStoredBoolean('show_open_panel_close_button', true));
     const [enableNowPlayingStage, setEnableNowPlayingStage] = useState(() => getStoredBoolean('enable_now_playing_stage', false));
+    const [queueAddBehavior, setQueueAddBehavior] = useState<QueueAddBehavior>(readStoredQueueAddBehavior);
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('player_volume');
         return saved !== null ? parseFloat(saved) : 1.0;
@@ -455,6 +461,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         });
     }, [setStatusMsg]);
 
+    const handleSetQueueAddBehavior = useCallback((behavior: QueueAddBehavior) => {
+        setQueueAddBehavior(behavior);
+        localStorage.setItem('queue_add_behavior', behavior);
+        setStatusMsg({
+            type: 'info',
+            text: behavior === 'next' ? '加入队列将插到下一首' : '加入队列将追加到末尾',
+        });
+    }, [setStatusMsg]);
+
     const handleSetVolume = useCallback((val: number) => {
         setVolume(val);
         localStorage.setItem('player_volume', String(val));
@@ -502,6 +517,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         lyricFilterPatternError: getLyricFilterError(lyricFilterPattern),
         showOpenPanelCloseButton,
         enableNowPlayingStage,
+        queueAddBehavior,
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -525,6 +541,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleSetLyricFilterPattern,
         handleToggleOpenPanelCloseButton,
         handleToggleNowPlayingStage,
+        handleSetQueueAddBehavior,
         volume,
         isMuted,
         handleSetVolume,
