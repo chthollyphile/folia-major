@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Play, ChevronLeft, Disc, Loader2, User } from 'lucide-react';
+import { ChevronLeft, Disc, Loader2, Plus, User } from 'lucide-react';
 import { SongResult } from '../types';
 import { getSongUnavailableTagText, isSongMarkedUnavailable, neteaseApi } from '../services/netease';
 import { useTranslation } from 'react-i18next';
@@ -10,12 +10,13 @@ interface ArtistViewProps {
     artistId: number;
     onBack: () => void;
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[]) => void;
+    onAddSongToQueue: (song: SongResult) => void;
     onSelectAlbum: (id: number) => void;
     theme: any;
     isDaylight: boolean;
 }
 
-const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onSelectAlbum, theme, isDaylight }) => {
+const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, onAddSongToQueue, onSelectAlbum, theme, isDaylight }) => {
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/60 backdrop-blur-md border border-white/20 shadow-xl' : 'bg-black/40 backdrop-blur-md border border-white/10';
     const panelBg = isDaylight ? 'bg-white/40 shadow-xl border border-white/20' : 'bg-black/20';
@@ -176,6 +177,20 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                             <div className="text-xs font-medium opacity-40 group-hover:opacity-80">
                                                 {formatDuration(track.dt || track.duration)}
                                             </div>
+                                            {!isUnavailable && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        onAddSongToQueue(track);
+                                                    }}
+                                                    className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                    title={t('navidrome.addToQueue') || '加入播放队列'}
+                                                    style={{ color: 'var(--text-secondary)' }}
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                         );
                                     })}

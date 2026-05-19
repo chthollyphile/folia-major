@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Disc, Loader2, Search, X } from 'lucide-react';
+import { Disc, Loader2, Plus, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { HomeViewTab, Theme, UnifiedSong } from '../types';
 import { formatSongName } from '../utils/songNameFormatter';
@@ -27,6 +27,7 @@ interface SearchResultsOverlayProps {
     onSubmitSearch: () => void;
     onLoadMore: () => void;
     onPlayTrack: (track: UnifiedSong) => void;
+    onAddSongToQueue: (track: UnifiedSong) => void;
     onSelectArtist: (track: UnifiedSong, artistName: string, artistId?: number) => void;
     onSelectAlbum: (track: UnifiedSong, albumName: string, albumId?: number) => void;
 }
@@ -83,6 +84,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
     onSubmitSearch,
     onLoadMore,
     onPlayTrack,
+    onAddSongToQueue,
     onSelectArtist,
     onSelectAlbum,
 }) => {
@@ -247,6 +249,20 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                         <div className="text-xs font-mono opacity-30">
                                             {((track.dt || track.duration) / 60000).toFixed(2).replace('.', ':')}
                                         </div>
+                                        {!isUnavailable && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onAddSongToQueue(track);
+                                                }}
+                                                className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                                                title={t('navidrome.addToQueue') || '加入播放队列'}
+                                                style={{ color: 'var(--text-secondary)' }}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        )}
                                     </motion.div>
                                     );
                                 })}

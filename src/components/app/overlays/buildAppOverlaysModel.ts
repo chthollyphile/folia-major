@@ -144,6 +144,7 @@ export const buildAppOverlaysModel = ({
             onSubmitSearch: handleSearchOverlaySubmit,
             onLoadMore: handleSearchLoadMore,
             onPlayTrack: handleSearchResultPlay,
+            onAddSongToQueue: addNeteaseSongToQueue,
             onSelectArtist: handleSearchResultArtistSelect,
             onSelectAlbum: handleSearchResultAlbumSelect,
         }
@@ -201,6 +202,7 @@ export const buildAppOverlaysModel = ({
                         onPlaySong: (song, ctx) => {
                             void playSong(song, ctx, false);
                         },
+                        onAddSongToQueue: addNeteaseSongToQueue,
                         onSelectAlbum: handleAlbumSelect,
                         theme,
                         isDaylight,
