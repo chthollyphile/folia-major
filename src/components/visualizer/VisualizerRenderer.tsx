@@ -1,6 +1,7 @@
 import React from 'react';
 import { type VisualizerMode } from '../../types';
-import { getVisualizerRegistryEntry, type VisualizerSharedProps } from './registry';
+import { type VisualizerSharedProps } from './definition';
+import { getVisualizerRegistryEntry } from './registry';
 
 interface VisualizerRendererProps extends VisualizerSharedProps {
     mode: VisualizerMode;

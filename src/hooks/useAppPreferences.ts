@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
@@ -208,13 +209,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         if (saved === 'cadenza' || saved === 'cadenze') {
             return 'cadenza';
         }
-        if (saved === 'partita') {
-            return 'partita';
-        }
-        if (saved === 'fume') {
-            return 'fume';
-        }
-        return 'classic';
+        return hasVisualizerMode(saved) ? saved : DEFAULT_VISUALIZER_MODE;
     });
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
     const [partitaTuning, setPartitaTuning] = useState<PartitaTuning>(readStoredPartitaTuning);
@@ -320,17 +315,12 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     };
 
     const handleSetVisualizerMode = (mode: VisualizerMode) => {
+        const entry = getVisualizerRegistryEntry(mode);
         setVisualizerMode(mode);
         localStorage.setItem('visualizer_mode', mode);
         setStatusMsg({
             type: 'info',
-            text: mode === 'cadenza'
-                ? '已切换到心象歌词'
-                : mode === 'partita'
-                    ? '已切换到云阶歌词'
-                    : mode === 'fume'
-                        ? '已切换到浮名歌词'
-                    : '已切换到流光歌词'
+            text: `已切换到${entry.labelFallback}歌词`,
         });
     };
 

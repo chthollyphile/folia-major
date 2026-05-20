@@ -410,37 +410,58 @@ const VisualizerFoo: React.FC<VisualizerFooProps & { staticMode?: boolean; }> = 
 export default VisualizerFoo;
 ```
 
-## 接入一个新 visualizer 需要修改的文件
+## 接入一个新 visualizer
 
-实现组件本身之后，通常还要接下面几个点。
+实现组件本身之后，新增模式只需要创建自己的注册入口：
 
-### 1. `src/types.ts`
+```text
+visualizer/
+└─ foo/
+   ├─ VisualizerFoo.tsx
+   └─ entry.tsx
+```
 
-如果是一个全新的模式：
+`entry.tsx` 使用 `defineVisualizer(...)` 默认导出注册对象：
 
-- 给 `VisualizerMode` 增加新枚举值
+```tsx
+import React from 'react';
+import { defineVisualizer } from '../definition';
+import VisualizerFoo from './VisualizerFoo';
 
-如果有专属调参：
+// src/components/visualizer/foo/entry.tsx
+// Registers the Foo visualizer mode.
+export default defineVisualizer({
+    mode: 'foo',
+    order: 50,
+    labelKey: 'ui.visualizerFoo',
+    labelFallback: 'Foo',
+    previewSeed: 'foo',
+    previewStartOffset: 0,
+    tuningKind: 'none',
+    render: props => <VisualizerFoo {...props} />,
+});
+```
 
-- 新增 `FooTuning`
-- 新增 `DEFAULT_FOO_TUNING`
+`registry.tsx` 会通过 `import.meta.glob('./*/entry.tsx', { eager: true })` 自动发现所有入口。播放器、模式列表、预览面板和主题预览都继续读取同一份 registry，不需要再去手动 import 新组件或改 `VisualizerRenderer.tsx`。
 
-### 2. `src/components/visualizer/registry.tsx`
+如果新模式需要预览面板专属设置，可以在 entry 上提供：
 
-这是新增模式的主注册入口。
+```tsx
+renderSettingsPanel: props => <FooSettingsPanel {...props} />
+```
 
-至少补下面这些元数据：
+### 仍然可能需要同步的文件
 
-- `mode`
-- `labelKey`
-- `previewSeed`
-- `previewStartOffset`
-- `tuningKind`
-- `render`
+#### `src/types.ts`
 
-播放器、预览器、主题预览器当前都通过这里拿模式信息和渲染入口。
+`VisualizerMode` 已允许未来模式字符串，不再要求每个新模式都改模式联合类型。
 
-### 3. `src/hooks/useAppPreferences.ts`
+如果有专属调参，仍建议新增：
+
+- `FooTuning`
+- `DEFAULT_FOO_TUNING`
+
+#### `src/hooks/useAppPreferences.ts`
 
 如果新模式需要用户可调参数：
 
@@ -448,17 +469,7 @@ export default VisualizerFoo;
 - 提供 `handleSetFooTuning`
 - 提供 `handleResetFooTuning`
 
-### 4. `src/components/visualizer/VisualizerRenderer.tsx`
-
-这里是统一渲染入口。正常情况下，不需要再去 `App.tsx` / `VisPlayground.tsx` / `ThemePark.tsx` 里分别手写模式分支。
-
-如果 registry 已经注册完成，这里通常只需要确认：
-
-- 共享 props 是否足够
-- 新模式的专属 tuning 是否已经透传
-- 模式专属解释逻辑是否放在统一渲染层，而不是散落到各页面
-
-### 5. `src/components/visualizer/VisPlayground.tsx`
+#### `src/components/visualizer/VisPlayground.tsx`
 
 预览面板入口仍然可能需要改，但重点不再是“注册组件”，而是：
 
@@ -466,7 +477,9 @@ export default VisualizerFoo;
 - 确认是否需要针对新模式补额外控制项
 - 复用 registry 提供的模式标签和 preview seed / offset
 
-### 6. `src/components/modal/HelpModal.tsx`
+优先把专属控制拆到模式相邻文件，再由 entry 的 `renderSettingsPanel` 挂回预览面板，避免继续在 `VisPlayground.tsx` 里堆模式分支。
+
+#### `src/components/modal/HelpModal.tsx`
 
 如果设置面板需要打开预览器，通常这里还要：
 
@@ -475,17 +488,17 @@ export default VisualizerFoo;
 
 模式按钮列表当前由 registry 生成，不应再手写一排 `classic / cadenza / partita / fume` 分支。
 
-### 7. `src/components/modal/ThemePark.tsx`
+#### `src/components/modal/ThemePark.tsx`
 
 主题预览器也会复用同一套 renderer。
 
 如果你的模式会在主题预览中明显受益于专属 tuning，这里也要确认对应 props 已经透传。
 
-### 8. `src/components/app/Home.tsx` / `src/components/Home.tsx`
+#### `src/components/app/Home.tsx` / `src/components/Home.tsx`
 
 如果 `HelpModal` 的 props 发生变化，通常需要先检查 app-level `Home.tsx` 包装层，再同步到 legacy `Home.tsx` 实现。
 
-### 9. 文案文件
+#### 文案文件
 
 至少同步：
 
@@ -558,7 +571,7 @@ export default VisualizerFoo;
 - 是否支持 `showText = false`
 - 是否正确使用 `lyricsFontScale`
 - 是否在 `staticMode` 下关闭重背景动画
-- 是否已经在 `registry.tsx` 中注册
+- 是否已经创建 `<mode>/entry.tsx` 并由 registry 自动发现
 - 是否经过统一 renderer 验证
 - 是否已经接入 `VisPlayground.tsx` 的专属设置面板（如果需要）
 - 是否已经接入 `ThemePark.tsx`（如果需要专属 tuning）
