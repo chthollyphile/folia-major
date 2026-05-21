@@ -570,12 +570,29 @@ const CappellaMessageRow: React.FC<{
         [bubbleFontSize, bubblePaddingX, bubblePaddingY, isActiveMessage, lineHeightPx, maxTextWidth, message, metricsCache, theme]
     );
     const targetSize = useMemo(() => {
-        if (message.kind !== 'lyric' || !isActiveMessage) {
+        if (message.kind !== 'lyric') {
             return null;
         }
 
-        const prepared = preparedMetrics ?? getOrBuildBubbleMetrics(metricsCache.current, {
-            line: message.line,
+        if (isActiveMessage) {
+            const prepared = preparedMetrics ?? getOrBuildBubbleMetrics(metricsCache.current, {
+                line: message.line,
+                theme,
+                fontSize: bubbleFontSize,
+                lineHeightPx,
+                maxTextWidth,
+                paddingX: bubblePaddingX,
+                paddingY: bubblePaddingY,
+            });
+            const clampedVisibleCount = Math.max(0, Math.min(visibleCharacterCount, prepared.sizes.length - 1));
+
+            return prepared.sizes[clampedVisibleCount];
+        }
+
+        // 对非 active 歌词也计算显式尺寸，使 active→passed 过渡时
+        // width/height 连续动画，避免头像因布局瞬变而跳跃
+        return measureBubbleText({
+            text: message.line.fullText,
             theme,
             fontSize: bubbleFontSize,
             lineHeightPx,
@@ -583,9 +600,6 @@ const CappellaMessageRow: React.FC<{
             paddingX: bubblePaddingX,
             paddingY: bubblePaddingY,
         });
-        const clampedVisibleCount = Math.max(0, Math.min(visibleCharacterCount, prepared.sizes.length - 1));
-
-        return prepared.sizes[clampedVisibleCount];
     }, [
         bubbleFontSize,
         bubblePaddingX,
