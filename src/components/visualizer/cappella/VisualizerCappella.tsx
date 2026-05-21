@@ -9,6 +9,7 @@ import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { pickRandomEmoImage } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
 // Renders parsercore-timed lyrics as a chat-style cappella conversation.
@@ -44,6 +45,17 @@ interface CappellaLineMessage {
     avatarIndex: number;
 }
 
+interface CappellaEmoMessage {
+    id: string;
+    kind: 'emo';
+    line: Line;
+    lineIndex: number;
+    side: ChatSide;
+    avatarIndex: number;
+    /** 表情图片的 resolved URL */
+    emoImageUrl: string;
+}
+
 interface CappellaTitleMessage {
     id: string;
     kind: 'title';
@@ -52,7 +64,13 @@ interface CappellaTitleMessage {
     avatarIndex: number;
 }
 
-type CappellaMessage = CappellaTitleMessage | CappellaLineMessage;
+type CappellaMessage = CappellaTitleMessage | CappellaLineMessage | CappellaEmoMessage;
+
+/** 带有 line/lineIndex 的消息（lyric 和 emo），用于类型窄化 */
+type CappellaTimedMessage = CappellaLineMessage | CappellaEmoMessage;
+
+const isTimedMessage = (m: CappellaMessage): m is CappellaTimedMessage =>
+    m.kind === 'lyric' || m.kind === 'emo';
 
 const SHORT_LINE_CHAR_LIMIT = 12;
 const MAX_VISIBLE_MESSAGES = 10;
@@ -77,6 +95,8 @@ interface PreparedBubbleMetrics {
     characters: string[];
     sizes: BubbleSize[];
 }
+
+const INTERLUDE_TEXT = '......';
 
 const countCompactChars = (text: string) => Array.from(text.replace(/\s/g, '')).length;
 
@@ -111,14 +131,29 @@ const buildCappellaMessages = (lines: Line[], titleText: string): CappellaMessag
                     : RIGHT_AVATAR_INDEX,
             };
 
-        messages.push({
-            id: `line-${line.startTime}-${lineIndex}`,
-            kind: 'lyric',
-            line,
-            lineIndex,
-            side: sender.side,
-            avatarIndex: sender.avatarIndex,
-        });
+        const isInterlude = line.fullText === INTERLUDE_TEXT;
+        const emoImage = isInterlude ? pickRandomEmoImage(/* emotionHint */) : null;
+
+        if (isInterlude && emoImage) {
+            messages.push({
+                id: `emo-${line.startTime}-${lineIndex}`,
+                kind: 'emo',
+                line,
+                lineIndex,
+                side: sender.side,
+                avatarIndex: sender.avatarIndex,
+                emoImageUrl: emoImage.url,
+            });
+        } else {
+            messages.push({
+                id: `line-${line.startTime}-${lineIndex}`,
+                kind: 'lyric',
+                line,
+                lineIndex,
+                side: sender.side,
+                avatarIndex: sender.avatarIndex,
+            });
+        }
 
         if (shouldForceRight) {
             sideSequenceCursor = 0;
@@ -173,24 +208,60 @@ const getAvatarPosition = (avatarIndex: number) => {
     };
 };
 
-const getVisibleMessages = (messages: CappellaMessage[], visibleLineIndex: number, maxVisibleMessages: number) => {
-    const visible = messages.filter(message => (
-        message.kind === 'title' || message.lineIndex <= visibleLineIndex
-    ));
-
-    return visible.slice(-maxVisibleMessages);
+/**
+ * 估算特定消息渲染后的高度，用于动态控制可见消息列表的行数，避免超出视口。
+ */
+const getEstimatedMessageHeight = (message: CappellaMessage, isActive: boolean): number => {
+    if (message.kind === 'title') {
+        return 40;
+    }
+    if (message.kind === 'emo') {
+        const imageSize = isActive ? 160 : 110;
+        return imageSize + 48 + 12; // 图像高度 + pt-12 (48px) padding + gap-3 (12px) 间距
+    }
+    const baseHeight = isActive ? 80 : 54;
+    return baseHeight + 12; // 估算的气泡高度 + gap-3 (12px) 间距
 };
 
-const getMaxVisibleMessages = (viewportHeight: number) => {
-    if (viewportHeight < 560) {
-        return 4;
+/**
+ * 根据视口高度以及所有消息的累积估算高度，动态筛选在视口中展示的最新歌词消息列表，从而防止底部超出。
+ */
+const getVisibleMessages = (
+    messages: CappellaMessage[],
+    visibleLineIndex: number,
+    viewportHeight: number,
+    currentLineIndex: number
+) => {
+    const visible = messages.filter(message => (
+        message.kind === 'title' || (isTimedMessage(message) && message.lineIndex <= visibleLineIndex)
+    ));
+
+    // 计算气泡展示区域的可用高度：总高度减去底部播放控制条区域 (~160px) 和顶部状态栏/间距 (~80px)
+    const usableHeight = Math.max(200, viewportHeight - 240);
+    let accumulatedHeight = 0;
+    const result: CappellaMessage[] = [];
+
+    // 从最新消息（数组末尾）反向往前进行累加，防止下方溢出
+    for (let i = visible.length - 1; i >= 0; i--) {
+        const message = visible[i];
+        const timedData = isTimedMessage(message) ? message : null;
+        const isActive = timedData !== null && timedData.lineIndex === currentLineIndex;
+        const estHeight = getEstimatedMessageHeight(message, isActive);
+
+        if (accumulatedHeight + estHeight > usableHeight && result.length >= 2) {
+            // 保留至少 2 条消息做为上下文，其余超出高度的不再包括
+            break;
+        }
+
+        accumulatedHeight += estHeight;
+        result.unshift(message);
+
+        if (result.length >= MAX_VISIBLE_MESSAGES) {
+            break;
+        }
     }
 
-    if (viewportHeight < 700) {
-        return 6;
-    }
-
-    return MAX_VISIBLE_MESSAGES;
+    return result;
 };
 
 const getVisibleLineIndexAtTime = (lines: Line[], currentTime: number) => {
@@ -288,7 +359,7 @@ const getBubbleMetricsCacheKey = ({
     line.startTime,
     line.endTime,
     line.words.length,
-    theme.id,
+    theme.name,
     fontSize.toFixed(3),
     lineHeightPx.toFixed(3),
     maxTextWidth,
@@ -395,6 +466,10 @@ const CappellaText: React.FC<{
 }> = ({ message }) => {
     if (message.kind === 'title') {
         return <>{message.text}</>;
+    }
+
+    if (message.kind === 'emo') {
+        return null;
     }
 
     return <>{message.line.fullText}</>;
@@ -538,8 +613,10 @@ const CappellaMessageRow: React.FC<{
     metricsCache,
 }) => {
     const isRight = message.side === 'right';
-    const isActiveMessage = message.kind === 'lyric' && message.lineIndex === currentLineIndex;
-    const isPassedMessage = message.kind === 'lyric' && message.lineIndex < currentLineIndex;
+    const timedData: CappellaTimedMessage | null = isTimedMessage(message) ? message : null;
+    const isActiveMessage = timedData !== null && timedData.lineIndex === currentLineIndex;
+    const isPassedMessage = timedData !== null && timedData.lineIndex < currentLineIndex;
+    const isEmoMessage = message.kind === 'emo';
     const bubbleFontSize = isActiveMessage
         ? baseFontSize * 1.34
         : message.kind === 'title'
@@ -552,7 +629,7 @@ const CappellaMessageRow: React.FC<{
         message.kind === 'lyric' ? getVisibleCharacterCount(message.line, currentTime.get()) : 0
     ));
     const [isTimestampVisible, setIsTimestampVisible] = useState(() => (
-        message.kind === 'lyric' && (isPassedMessage || currentTime.get() >= message.line.endTime)
+        timedData !== null && (isPassedMessage || currentTime.get() >= timedData.line.endTime)
     ));
     const lineHeightPx = bubbleFontSize * 1.45;
     const preparedMetrics = useMemo(
@@ -567,9 +644,16 @@ const CappellaMessageRow: React.FC<{
                 paddingY: bubblePaddingY,
             })
             : null,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [bubbleFontSize, bubblePaddingX, bubblePaddingY, isActiveMessage, lineHeightPx, maxTextWidth, message, metricsCache, theme]
     );
+    // 表情图片：active 时更大
+    const emoImageSize = isActiveMessage ? 160 : 110;
     const targetSize = useMemo(() => {
+        if (isEmoMessage) {
+            return { width: emoImageSize, height: emoImageSize };
+        }
+
         if (message.kind !== 'lyric') {
             return null;
         }
@@ -604,7 +688,9 @@ const CappellaMessageRow: React.FC<{
         bubbleFontSize,
         bubblePaddingX,
         bubblePaddingY,
+        emoImageSize,
         isActiveMessage,
+        isEmoMessage,
         lineHeightPx,
         maxTextWidth,
         message,
@@ -614,7 +700,7 @@ const CappellaMessageRow: React.FC<{
         visibleCharacterCount,
     ]);
     useEffect(() => {
-        if (message.kind !== 'lyric') {
+        if (message.kind !== 'lyric' && message.kind !== 'emo') {
             return;
         }
 
@@ -623,7 +709,7 @@ const CappellaMessageRow: React.FC<{
     }, [currentTime, isActiveMessage, message]);
 
     useMotionValueEvent(currentTime, 'change', latest => {
-        if (message.kind === 'lyric') {
+        if (message.kind === 'lyric' || message.kind === 'emo') {
             const nextTimestampVisible = isPassedMessage || latest >= message.line.endTime;
             setIsTimestampVisible(current => current === nextTimestampVisible ? current : nextTimestampVisible);
         }
@@ -641,7 +727,7 @@ const CappellaMessageRow: React.FC<{
             initial={{ opacity: 0, y: 22, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.32, ease: 'easeOut' }}
-            className={`flex w-full items-end gap-3 ${isRight ? 'justify-end' : 'justify-start'}`}
+            className={`flex w-full items-end gap-3 ${isRight ? 'justify-end' : 'justify-start'} ${isEmoMessage ? 'pt-12' : ''}`}
         >
             <motion.div
                 animate={{
@@ -665,58 +751,101 @@ const CappellaMessageRow: React.FC<{
                     theme={theme}
                     side={message.side}
                 />
-                <AnimatedBubbleFrame
-                    className={`relative rounded-3xl shadow-lg transition-[min-height,box-shadow,background-color] duration-200 ease-out ${
-                        isRight ? 'rounded-br-md' : 'rounded-bl-md'
-                    }`}
-                    floatingAdornment={message.kind === 'lyric' ? (
-                        <CappellaTimestamp
-                            line={message.line}
-                            color={theme.secondaryColor}
-                            isVisible={isTimestampVisible}
-                            style={{
-                                bottom: 4,
-                                [isRight ? 'right' : 'left']: 'calc(100% + 8px)',
+                {isEmoMessage
+                    ? (
+                        <motion.div
+                            className="relative shrink-0"
+                            animate={{
+                                width: emoImageSize,
+                                height: emoImageSize,
                             }}
-                        />
-                    ) : undefined}
-                    targetSize={targetSize ?? undefined}
-                    style={{
-                        backgroundColor: bubbleColors.backgroundColor,
-                        border: `1px solid ${bubbleColors.borderColor}`,
-                        color: bubbleColors.textColor,
-                        fontSize: bubbleFontSize,
-                        lineHeight: 1.45,
-                        maxWidth: maxTextWidth + bubblePaddingX * 2,
-                        minHeight: Math.max(
-                            isActiveMessage ? 64 : 44,
-                            bubbleFontSize * 1.45 + bubblePaddingY * 2
-                        ),
-                        minWidth: isActiveMessage ? 72 : undefined,
-                        padding: `${bubblePaddingY}px ${bubblePaddingX}px`,
-                        boxShadow: isActiveMessage
-                            ? `0 18px 48px ${mixColors(theme.backgroundColor, theme.accentColor, 0.2, 0.34)}`
-                            : undefined,
-                        whiteSpace: 'pre-wrap',
-                        overflowWrap: 'anywhere',
-                    }}
-                    >
-                    <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
-                        <CappellaBubbleGlow isActive={isActiveMessage} isRight={isRight} />
-                    </div>
-                    <span className="relative z-10">
-                        {message.kind === 'lyric' && isActiveMessage && preparedMetrics
-                            ? (
-                                <ActiveCappellaText
-                                    characters={preparedMetrics.characters}
-                                    visibleCharacterCount={visibleCharacterCount}
+                            transition={{
+                                width: { duration: 0.25, ease: 'easeOut' as const },
+                                height: { duration: 0.25, ease: 'easeOut' as const },
+                            }}
+                            style={{ width: emoImageSize, height: emoImageSize }}
+                        >
+                            {timedData && (
+                                <CappellaTimestamp
+                                    line={timedData.line}
+                                    color={theme.secondaryColor}
+                                    isVisible={isTimestampVisible}
+                                    style={{
+                                        bottom: -2,
+                                        [isRight ? 'right' : 'left']: 'calc(100% + 8px)',
+                                    }}
                                 />
-                            )
-                            : (
-                                <CappellaText message={message} />
                             )}
-                    </span>
-                </AnimatedBubbleFrame>
+                            <motion.img
+                                src={message.emoImageUrl}
+                                alt="emo"
+                                initial={{ opacity: 0, scale: 0.6 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.32, ease: 'easeOut' }}
+                                className="rounded-2xl"
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'contain',
+                                    display: 'block',
+                                }}
+                            />
+                        </motion.div>
+                    )
+                    : (
+                        <AnimatedBubbleFrame
+                            className={`relative rounded-3xl shadow-lg transition-[min-height,box-shadow,background-color] duration-200 ease-out ${
+                                isRight ? 'rounded-br-md' : 'rounded-bl-md'
+                            }`}
+                            floatingAdornment={timedData ? (
+                                <CappellaTimestamp
+                                    line={timedData.line}
+                                    color={theme.secondaryColor}
+                                    isVisible={isTimestampVisible}
+                                    style={{
+                                        bottom: 4,
+                                        [isRight ? 'right' : 'left']: 'calc(100% + 8px)',
+                                    }}
+                                />
+                            ) : undefined}
+                            targetSize={targetSize ?? undefined}
+                            style={{
+                                backgroundColor: bubbleColors.backgroundColor,
+                                border: `1px solid ${bubbleColors.borderColor}`,
+                                color: bubbleColors.textColor,
+                                fontSize: bubbleFontSize,
+                                lineHeight: 1.45,
+                                maxWidth: maxTextWidth + bubblePaddingX * 2,
+                                minHeight: Math.max(
+                                    isActiveMessage ? 64 : 44,
+                                    bubbleFontSize * 1.45 + bubblePaddingY * 2
+                                ),
+                                minWidth: isActiveMessage ? 72 : undefined,
+                                padding: `${bubblePaddingY}px ${bubblePaddingX}px`,
+                                boxShadow: isActiveMessage
+                                    ? `0 18px 48px ${mixColors(theme.backgroundColor, theme.accentColor, 0.2, 0.34)}`
+                                    : undefined,
+                                whiteSpace: 'pre-wrap',
+                                overflowWrap: 'anywhere',
+                            }}
+                        >
+                            <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
+                                <CappellaBubbleGlow isActive={isActiveMessage} isRight={isRight} />
+                            </div>
+                            <span className="relative z-10">
+                                {message.kind === 'lyric' && isActiveMessage && preparedMetrics
+                                    ? (
+                                        <ActiveCappellaText
+                                            characters={preparedMetrics.characters}
+                                            visibleCharacterCount={visibleCharacterCount}
+                                        />
+                                    )
+                                    : (
+                                        <CappellaText message={message} />
+                                    )}
+                            </span>
+                        </AnimatedBubbleFrame>
+                    )}
             </motion.div>
         </motion.div>
     );
@@ -752,11 +881,10 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
     const [visibleLineIndex, setVisibleLineIndex] = useState(() => getVisibleLineIndexAtTime(lines, currentTime.get()));
     const visibleLineIndexRef = useRef(visibleLineIndex);
     const titleText = songTitle?.trim() || t('ui.noTrack');
-    const maxVisibleMessages = useMemo(() => getMaxVisibleMessages(viewportSize.height), [viewportSize.height]);
     const messages = useMemo(() => buildCappellaMessages(lines, titleText), [lines, titleText]);
     const visibleMessages = useMemo(
-        () => getVisibleMessages(messages, visibleLineIndex, maxVisibleMessages),
-        [maxVisibleMessages, messages, visibleLineIndex]
+        () => getVisibleMessages(messages, visibleLineIndex, viewportSize.height, currentLineIndex),
+        [messages, visibleLineIndex, viewportSize.height, currentLineIndex]
     );
     const baseFontSize = Math.max(15, Math.min(26, 18 * lyricsFontScale));
     const maxPanelWidth = Math.min(Math.max(viewportSize.width - 32, 1), 896);
