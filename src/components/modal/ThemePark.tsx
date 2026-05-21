@@ -6,9 +6,12 @@ import { useTranslation } from 'react-i18next';
 import VisualizerRenderer from '../visualizer/VisualizerRenderer';
 import {
     DEFAULT_CADENZA_TUNING,
+    DEFAULT_CAPPELLA_TUNING,
     DEFAULT_FUME_TUNING,
     DEFAULT_PARTITA_TUNING,
     AudioBands,
+    CappellaEmojiImage,
+    CappellaTuning,
     CadenzaTuning,
     DualTheme,
     FumeTuning,
@@ -33,6 +36,8 @@ interface ThemeParkProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily?: string | null;
@@ -79,6 +84,8 @@ const ThemePreviewLayer: React.FC<{
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    cappellaTuning: CappellaTuning;
+    cappellaCustomEmojiImages: CappellaEmojiImage[];
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -97,6 +104,8 @@ const ThemePreviewLayer: React.FC<{
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    cappellaTuning,
+    cappellaCustomEmojiImages,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -133,11 +142,14 @@ const ThemePreviewLayer: React.FC<{
                     songTitle="Cappella Preview"
                     showText
                     staticMode={staticMode}
+                    isPreviewMode
                     backgroundOpacity={backgroundOpacity}
                     lyricsFontScale={lyricsFontScale}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
+                    cappellaTuning={cappellaTuning}
+                    cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                     seed={getVisualizerScopedSeed(visualizerMode, `theme-park-${mode}`)}
                 />
             </div>
@@ -194,6 +206,8 @@ const DiagonalThemePreview: React.FC<{
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    cappellaTuning: CappellaTuning;
+    cappellaCustomEmojiImages: CappellaEmojiImage[];
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -211,6 +225,8 @@ const DiagonalThemePreview: React.FC<{
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    cappellaTuning,
+    cappellaCustomEmojiImages,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -251,6 +267,8 @@ const DiagonalThemePreview: React.FC<{
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
                 fumeTuning={fumeTuning}
+                cappellaTuning={cappellaTuning}
+                cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -270,6 +288,8 @@ const DiagonalThemePreview: React.FC<{
                 cadenzaTuning={cadenzaTuning}
                 partitaTuning={partitaTuning}
                 fumeTuning={fumeTuning}
+                cappellaTuning={cappellaTuning}
+                cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -292,6 +312,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
+    cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+    cappellaCustomEmojiImages = [],
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -471,6 +493,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
                             fumeTuning={fumeTuning}
+                            cappellaTuning={cappellaTuning}
+                            cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

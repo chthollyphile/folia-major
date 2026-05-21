@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValueEvent, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
-import { type AudioBands, type Line, type Theme, type Word } from '../../../types';
+import { DEFAULT_CAPPELLA_TUNING, type AudioBands, type CappellaEmojiImage, type CappellaTuning, type Line, type Theme, type Word } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
-import { emoImages } from './emoImages';
+import { builtinEmoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
 // Renders parsercore-timed lyrics as a chat-style cappella conversation.
@@ -32,6 +32,9 @@ interface VisualizerCappellaProps {
     hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
+    isPreviewMode?: boolean;
 }
 
 type ChatSide = 'left' | 'right';
@@ -153,13 +156,13 @@ const hashString = (input: string) => {
 
 const seededUnit = (...parts: Array<string | number>) => hashString(parts.join('|')) / 0xffffffff;
 
-const pickStableEmoImage = (...seedParts: Array<string | number>) => {
-    if (emoImages.length === 0) {
+const pickStableEmoImage = (imagePool: CappellaEmojiImage[], ...seedParts: Array<string | number>) => {
+    if (imagePool.length === 0) {
         return null;
     }
 
-    const index = Math.floor(seededUnit(...seedParts) * emoImages.length) % emoImages.length;
-    return emoImages[index] ?? emoImages[0];
+    const index = Math.floor(seededUnit(...seedParts) * imagePool.length) % imagePool.length;
+    return imagePool[index] ?? imagePool[0];
 };
 
 const getEffectiveRenderEndTime = (line: Line, nextLine?: Line) =>
@@ -289,7 +292,10 @@ const getCappellaIntensityConfig = (animationIntensity: Theme['animationIntensit
 const buildCappellaMessages = (
     lines: Line[],
     titleText: string,
-    config: CappellaIntensityConfig
+    config: CappellaIntensityConfig,
+    tuning: CappellaTuning,
+    emoImagePool: CappellaEmojiImage[],
+    forcePreviewEmo: boolean,
 ): CappellaMessage[] => {
     const messages: CappellaMessage[] = [{
         id: 'title',
@@ -299,9 +305,13 @@ const buildCappellaMessages = (
         avatarIndex: AVATAR_GRID_SIZE * AVATAR_GRID_SIZE - 1,
     }];
 
+    const showEmoMessages = tuning.showEmoMessages && emoImagePool.length > 0;
+
     if (lines.length === 0) {
-        const fallbackEmo = pickStableEmoImage('no-lyrics', titleText, config.sequencing.forceRightEveryLines);
-        if (fallbackEmo) {
+        const fallbackEmo = showEmoMessages
+            ? pickStableEmoImage(emoImagePool, 'no-lyrics', titleText, config.sequencing.forceRightEveryLines)
+            : null;
+        if (fallbackEmo && showEmoMessages) {
             messages.push({
                 id: 'emo-no-lyrics',
                 kind: 'emo',
@@ -359,9 +369,11 @@ const buildCappellaMessages = (
             };
 
         const isInterlude = line.fullText === INTERLUDE_TEXT;
-        const emoImage = isInterlude ? pickStableEmoImage('interlude', line.startTime, lineIndex) : null;
+        const emoImage = isInterlude && showEmoMessages
+            ? pickStableEmoImage(emoImagePool, 'interlude', line.startTime, lineIndex)
+            : null;
         const effectiveRenderEndTime = getEffectiveRenderEndTime(line, nextLine);
-        if (isInterlude && emoImage) {
+        if (isInterlude && emoImage && showEmoMessages) {
             messages.push({
                 id: `emo-${line.startTime}-${lineIndex}`,
                 kind: 'emo',
@@ -388,6 +400,7 @@ const buildCappellaMessages = (
 
         const renderHints = getLineRenderHints(line);
         const canAppendRandomEmo = !isInterlude
+            && showEmoMessages
             && config.sequencing.randomEmoChance > 0
             && randomEmoCount < randomEmoCap
             && lyricMessagesSinceRandomEmo >= config.sequencing.minLinesBetweenRandomEmos
@@ -396,7 +409,7 @@ const buildCappellaMessages = (
         if (canAppendRandomEmo) {
             const score = seededUnit('random-emo', line.startTime, line.endTime, lineIndex, config.sequencing.randomEmoChance);
             if (score < config.sequencing.randomEmoChance) {
-                const reactionImage = pickStableEmoImage('reaction', line.startTime, line.endTime, lineIndex, sender.side);
+                const reactionImage = pickStableEmoImage(emoImagePool, 'reaction', line.startTime, line.endTime, lineIndex, sender.side);
                 if (reactionImage) {
                     messages.push({
                         id: `emo-reaction-${line.startTime}-${lineIndex}`,
@@ -429,6 +442,34 @@ const buildCappellaMessages = (
         }
     });
 
+    if (
+        forcePreviewEmo
+        && showEmoMessages
+        && !messages.some(message => message.kind === 'emo')
+    ) {
+        const previewLine = lines[0] ?? {
+            words: [],
+            startTime: 0,
+            endTime: 0,
+            fullText: INTERLUDE_TEXT,
+        };
+        const previewEmo = pickStableEmoImage(emoImagePool, 'preview-emo', titleText, lines.length);
+        if (previewEmo) {
+            messages.splice(1, 0, {
+                id: 'emo-preview',
+                kind: 'emo',
+                line: previewLine,
+                lineIndex: -1,
+                side: 'right',
+                avatarIndex: RIGHT_AVATAR_INDEX,
+                emoImageUrl: previewEmo.url,
+                activationStartTime: 0,
+                activationEndTime: Number.POSITIVE_INFINITY,
+                isInterludeEmo: true,
+            });
+        }
+    }
+
     return messages;
 };
 
@@ -449,10 +490,51 @@ const getVisibleWordCharacters = (word: Word, currentTime: number) => {
     return characters.slice(0, visibleCount);
 };
 
-const getLineCharacters = (line: Line) => Array.from(line.words.map(word => word.text).join(''));
+const getLineCharacters = (line: Line) => Array.from(line.fullText);
 
-const getVisibleLineText = (line: Line, currentTime: number) =>
-    line.words.map(word => getVisibleWordCharacters(word, currentTime).join('')).join('');
+const getWordTextRanges = (line: Line) => {
+    const ranges: Array<{ start: number; end: number } | null> = [];
+    let searchCursor = 0;
+
+    line.words.forEach(word => {
+        const start = line.fullText.indexOf(word.text, searchCursor);
+        if (start < 0) {
+            ranges.push(null);
+            return;
+        }
+
+        const end = start + word.text.length;
+        ranges.push({ start, end });
+        searchCursor = end;
+    });
+
+    return ranges;
+};
+
+const getVisibleLineText = (line: Line, currentTime: number) => {
+    const ranges = getWordTextRanges(line);
+    let lastCompletedWordEnd = 0;
+
+    for (let index = 0; index < line.words.length; index += 1) {
+        const word = line.words[index];
+        const range = ranges[index];
+
+        if (currentTime < word.startTime) {
+            break;
+        }
+
+        if (currentTime >= word.endTime) {
+            lastCompletedWordEnd = range?.end ?? lastCompletedWordEnd;
+            continue;
+        }
+
+        const visibleWordText = getVisibleWordCharacters(word, currentTime).join('');
+        const prefixEnd = range?.start ?? lastCompletedWordEnd;
+        return line.fullText.slice(0, prefixEnd) + visibleWordText;
+    }
+
+    return lastCompletedWordEnd > 0 ? line.fullText.slice(0, lastCompletedWordEnd) : '';
+};
 
 const getVisibleCharacterCount = (line: Line, currentTime: number) =>
     Array.from(getVisibleLineText(line, currentTime)).length;
@@ -861,34 +943,22 @@ const ActiveCappellaText: React.FC<{
     line: Line;
     visibleCharacterCount: number;
 }> = ({ line, visibleCharacterCount }) => {
-    let revealedCharacterCount = 0;
+    const visibleCharacters = Array.from(line.fullText).slice(0, Math.max(0, visibleCharacterCount));
 
     return (
         <span className="inline-flex flex-wrap items-baseline">
-            {line.words.map((word, wordIndex) => {
-                const wordCharacters = Array.from(word.text);
-                const remainingVisibleCount = visibleCharacterCount - revealedCharacterCount;
-                const visibleCharacters = wordCharacters.slice(0, Math.max(0, remainingVisibleCount));
-                // Disabled for now: per-word AI theme color made active bubble lyrics harder to read here.
-                // const activeColor = getActiveColor(word.text, theme);
-
-                revealedCharacterCount += wordCharacters.length;
-
-                return visibleCharacters.map((character, characterIndex) => (
-                    <span
-                        key={`${wordIndex}-${characterIndex}-${character}`}
-                        className="inline-block"
-                        style={{
-                            // Disabled for now: per-word AI theme color hurt active lyric readability in chat bubbles.
-                            // color: activeColor ?? undefined,
-                            whiteSpace: character.trim() ? 'pre' : 'pre-wrap',
-                            animation: 'cappella-char-fade 220ms ease-out',
-                        }}
-                    >
-                        {character}
-                    </span>
-                ));
-            })}
+            {visibleCharacters.map((character, index) => (
+                <span
+                    key={`${index}-${character}`}
+                    className="inline-block"
+                    style={{
+                        whiteSpace: character.trim() ? 'pre' : 'pre-wrap',
+                        animation: 'cappella-char-fade 220ms ease-out',
+                    }}
+                >
+                    {character}
+                </span>
+            ))}
         </span>
     );
 };
@@ -1215,6 +1285,9 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
     hideTranslationSubtitle = false,
     paused = false,
     onBack,
+    cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+    cappellaCustomEmojiImages = [],
+    isPreviewMode = false,
 }) => {
     const { t } = useTranslation();
     const [viewportSize, setViewportSize] = useState(() => (
@@ -1227,9 +1300,23 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
     const visibleLineIndexRef = useRef(visibleLineIndex);
     const titleText = songTitle?.trim() || t('ui.noTrack');
     const intensityConfig = useMemo(() => getCappellaIntensityConfig(theme.animationIntensity), [theme.animationIntensity]);
+    const resolvedCappellaTuning = useMemo<CappellaTuning>(() => ({
+        showEmoMessages: cappellaTuning.showEmoMessages ?? DEFAULT_CAPPELLA_TUNING.showEmoMessages,
+        emojiPackSource: (
+            cappellaTuning.emojiPackSource === 'custom' && cappellaCustomEmojiImages.length > 0
+                ? 'custom'
+                : DEFAULT_CAPPELLA_TUNING.emojiPackSource
+        ),
+    }), [cappellaCustomEmojiImages.length, cappellaTuning.emojiPackSource, cappellaTuning.showEmoMessages]);
+    const activeEmoImages = useMemo(
+        () => resolvedCappellaTuning.emojiPackSource === 'custom' && cappellaCustomEmojiImages.length > 0
+            ? cappellaCustomEmojiImages
+            : builtinEmoImages,
+        [cappellaCustomEmojiImages, resolvedCappellaTuning.emojiPackSource]
+    );
     const messages = useMemo(
-        () => buildCappellaMessages(lines, titleText, intensityConfig),
-        [intensityConfig, lines, titleText]
+        () => buildCappellaMessages(lines, titleText, intensityConfig, resolvedCappellaTuning, activeEmoImages, isPreviewMode),
+        [activeEmoImages, intensityConfig, isPreviewMode, lines, resolvedCappellaTuning, titleText]
     );
     const visibleMessages = useMemo(
         () => getVisibleMessages(

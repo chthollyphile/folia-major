@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, Settings , ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type FumeTuning, type LyricData, type PartitaTuning, type QueueAddBehavior, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type LyricData, type PartitaTuning, type QueueAddBehavior, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
@@ -97,11 +97,18 @@ interface HomeProps {
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    cappellaTuning: CappellaTuning;
+    cappellaCustomEmojiImages: CappellaEmojiImage[];
     onVisualizerModeChange: (mode: VisualizerMode) => void;
     onPartitaTuningChange: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning: () => void;
     onFumeTuningChange: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning: () => void;
+    onCappellaTuningChange: (patch: Partial<CappellaTuning>) => void;
+    onResetCappellaTuning: () => void;
+    onImportCappellaCustomEmojiPack: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearCappellaCustomEmojiPack: () => Promise<void> | void;
+    isLoadingCappellaCustomEmojiPack: boolean;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
@@ -199,11 +206,18 @@ const Home: React.FC<HomeProps> = ({
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    cappellaTuning,
+    cappellaCustomEmojiImages,
     onVisualizerModeChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onCappellaTuningChange,
+    onResetCappellaTuning,
+    onImportCappellaCustomEmojiPack,
+    onClearCappellaCustomEmojiPack,
+    isLoadingCappellaCustomEmojiPack,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -999,11 +1013,18 @@ const Home: React.FC<HomeProps> = ({
                                 cadenzaTuning={cadenzaTuning}
                                 partitaTuning={partitaTuning}
                                 fumeTuning={fumeTuning}
+                                cappellaTuning={cappellaTuning}
+                                cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                                 onVisualizerModeChange={onVisualizerModeChange}
                                 onPartitaTuningChange={onPartitaTuningChange}
                                 onResetPartitaTuning={onResetPartitaTuning}
                                 onFumeTuningChange={onFumeTuningChange}
                                 onResetFumeTuning={onResetFumeTuning}
+                                onCappellaTuningChange={onCappellaTuningChange}
+                                onResetCappellaTuning={onResetCappellaTuning}
+                                onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
+                                onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
+                                isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
                                 lyricsFontStyle={lyricsFontStyle}
                                 lyricsFontScale={lyricsFontScale}
                                 lyricsCustomFontFamily={lyricsCustomFontFamily}

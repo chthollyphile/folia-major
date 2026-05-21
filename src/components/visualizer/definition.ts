@@ -2,6 +2,8 @@ import React from 'react';
 import { type MotionValue } from 'framer-motion';
 import {
     type AudioBands,
+    type CappellaEmojiImage,
+    type CappellaTuning,
     type CadenzaTuning,
     type FumeTuning,
     type Line,
@@ -12,7 +14,7 @@ import {
 
 // src/components/visualizer/definition.ts
 // Shared contracts for discoverable visualizer modes.
-export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume';
+export type VisualizerTuningKind = 'none' | 'cadenza' | 'partita' | 'fume' | 'cappella';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -33,9 +35,12 @@ export interface VisualizerSharedProps {
     hideTranslationSubtitle?: boolean;
     paused?: boolean;
     onBack?: () => void;
+    isPreviewMode?: boolean;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
 }
 
 export interface VisualizerSettingsPanelProps {
@@ -47,11 +52,20 @@ export interface VisualizerSettingsPanelProps {
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     fumeTuning?: FumeTuning;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
+    onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
+    cappellaCustomEmojiCount?: number;
+    hasCappellaCustomEmojiPack?: boolean;
+    isCappellaCustomEmojiPackLoading?: boolean;
+    onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
 }
 
 export interface VisualizerSettingsResetProps {
     resetPartitaTuning?: () => void;
     resetFumeTuning?: () => void;
+    resetCappellaTuning?: () => void;
     setDraftFumeTuning?: (tuning: FumeTuning) => void;
 }
 

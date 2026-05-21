@@ -6,9 +6,12 @@ import { List, useListRef } from 'react-window';
 import VisualizerRenderer from './VisualizerRenderer';
 import {
     DEFAULT_CADENZA_TUNING,
+    DEFAULT_CAPPELLA_TUNING,
     DEFAULT_FUME_TUNING,
     DEFAULT_PARTITA_TUNING,
     type AudioBands,
+    type CappellaEmojiImage,
+    type CappellaTuning,
     type CadenzaTuning,
     type FumeTuning,
     type PartitaTuning,
@@ -33,6 +36,8 @@ interface VisPlaygroundProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
     fontStyle: Theme['fontStyle'];
     fontScale: number;
     customFontFamily: string | null;
@@ -44,6 +49,11 @@ interface VisPlaygroundProps {
     onResetPartitaTuning?: () => void;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning?: () => void;
+    onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
+    onResetCappellaTuning?: () => void;
+    onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
+    isLoadingCappellaCustomEmojiPack?: boolean;
     onClose: () => void;
 }
 
@@ -178,6 +188,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
+    cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+    cappellaCustomEmojiImages = [],
     fontStyle,
     fontScale,
     customFontFamily,
@@ -189,6 +201,11 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onCappellaTuningChange,
+    onResetCappellaTuning,
+    onImportCappellaCustomEmojiPack,
+    onClearCappellaCustomEmojiPack,
+    isLoadingCappellaCustomEmojiPack = false,
     onClose,
 }) => {
     const { t } = useTranslation();
@@ -325,6 +342,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         visualizerEntry.resetSettings?.({
             resetPartitaTuning: onResetPartitaTuning,
             resetFumeTuning: onResetFumeTuning,
+            resetCappellaTuning: onResetCappellaTuning,
             setDraftFumeTuning,
         });
     };
@@ -525,11 +543,14 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 songTitle="Cappella Preview"
                                 showText
                                 staticMode={staticMode}
+                                isPreviewMode
                                 backgroundOpacity={backgroundOpacity}
                                 lyricsFontScale={normalizedFontScale}
                                 cadenzaTuning={cadenzaTuning}
                                 partitaTuning={resolvedPartitaTuning}
                                 fumeTuning={resolvedFumeTuning}
+                                cappellaTuning={cappellaTuning}
+                                cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                                 seed={getVisualizerScopedSeed(visualizerMode, 'vis-playground')}
                             />
                         </div>
@@ -601,6 +622,14 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 onPartitaTuningChange,
                                 fumeTuning: resolvedFumeTuning,
                                 onFumeTuningChange: handleFumeTuningChange,
+                                cappellaTuning,
+                                cappellaCustomEmojiImages,
+                                onCappellaTuningChange,
+                                cappellaCustomEmojiCount: cappellaCustomEmojiImages.length,
+                                hasCappellaCustomEmojiPack: cappellaCustomEmojiImages.length > 0,
+                                isCappellaCustomEmojiPackLoading: isLoadingCappellaCustomEmojiPack,
+                                onImportCappellaCustomEmojiPack,
+                                onClearCappellaCustomEmojiPack,
                             })}
 
                         </div>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type Theme, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaEmojiImage, type Theme, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
+import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, getCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
@@ -142,6 +143,21 @@ const readStoredFumeTuning = (): FumeTuning => {
     }
 };
 
+const readStoredCappellaTuning = (): CappellaTuning => {
+    const saved = localStorage.getItem('cappella_tuning');
+    if (!saved) return DEFAULT_CAPPELLA_TUNING;
+
+    try {
+        const parsed = JSON.parse(saved) as Partial<CappellaTuning>;
+        return {
+            showEmoMessages: parsed.showEmoMessages ?? DEFAULT_CAPPELLA_TUNING.showEmoMessages,
+            emojiPackSource: parsed.emojiPackSource === 'custom' ? 'custom' : 'builtin',
+        };
+    } catch {
+        return DEFAULT_CAPPELLA_TUNING;
+    }
+};
+
 const readStoredLyricsFontStyle = (): Theme['fontStyle'] => {
     const saved = localStorage.getItem('lyrics_font_style');
     return saved === 'serif' || saved === 'mono' ? saved : 'sans';
@@ -214,6 +230,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [cadenzaTuning, setCadenzaTuning] = useState<CadenzaTuning>(readStoredCadenzaTuning);
     const [partitaTuning, setPartitaTuning] = useState<PartitaTuning>(readStoredPartitaTuning);
     const [fumeTuning, setFumeTuning] = useState<FumeTuning>(readStoredFumeTuning);
+    const [cappellaTuning, setCappellaTuning] = useState<CappellaTuning>(readStoredCappellaTuning);
+    const [storedCappellaEmojiPack, setStoredCappellaEmojiPack] = useState<StoredCappellaEmojiImage[]>([]);
+    const [cappellaCustomEmojiImages, setCappellaCustomEmojiImages] = useState<CappellaEmojiImage[]>([]);
+    const [isLoadingCappellaCustomEmojiPack, setIsLoadingCappellaCustomEmojiPack] = useState(true);
     const [lyricsFontStyle, setLyricsFontStyle] = useState<Theme['fontStyle']>(readStoredLyricsFontStyle);
     const [lyricsFontScale, setLyricsFontScale] = useState<number>(readStoredLyricsFontScale);
     const [lyricsCustomFont, setLyricsCustomFont] = useState<StoredCustomLyricsFont | null>(readStoredCustomLyricsFont);
@@ -244,6 +264,56 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             root.style.setProperty('--scrollbar-thumb-hover', '#52525b');
         }
     }, [isDaylight]);
+
+    useEffect(() => {
+        let isCancelled = false;
+
+        const loadCustomEmojiPack = async () => {
+            try {
+                const storedPack = await getCustomCappellaEmojiPack();
+                if (!isCancelled) {
+                    setStoredCappellaEmojiPack(storedPack);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingCappellaCustomEmojiPack(false);
+                }
+            }
+        };
+
+        void loadCustomEmojiPack();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        const nextImages = storedCappellaEmojiPack.map(image => ({
+            id: image.id,
+            name: image.name,
+            url: URL.createObjectURL(image.blob),
+        }));
+        setCappellaCustomEmojiImages(nextImages);
+
+        return () => {
+            nextImages.forEach(image => URL.revokeObjectURL(image.url));
+        };
+    }, [storedCappellaEmojiPack]);
+
+    useEffect(() => {
+        if (storedCappellaEmojiPack.length > 0 || cappellaTuning.emojiPackSource !== 'custom') {
+            return;
+        }
+
+        setCappellaTuning(prev => {
+            const next = {
+                ...prev,
+                emojiPackSource: 'builtin' as const,
+            };
+            localStorage.setItem('cappella_tuning', JSON.stringify(next));
+            return next;
+        });
+    }, [cappellaTuning.emojiPackSource, storedCappellaEmojiPack.length]);
 
     const handleToggleCoverColorBg = (enable: boolean) => {
         setUseCoverColorBg(enable);
@@ -395,6 +465,84 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         });
     };
 
+    const handleSetCappellaTuning = useCallback((patch: Partial<CappellaTuning>) => {
+        const requestedCustomWithoutPack = patch.emojiPackSource === 'custom' && storedCappellaEmojiPack.length === 0;
+        if (requestedCustomWithoutPack) {
+            setStatusMsg({
+                type: 'info',
+                text: '请先上传自定义表情包'
+            });
+        }
+
+        setCappellaTuning(prev => {
+            const next = {
+                showEmoMessages: patch.showEmoMessages ?? prev.showEmoMessages,
+                emojiPackSource: patch.emojiPackSource === 'custom' && storedCappellaEmojiPack.length === 0
+                    ? 'builtin'
+                    : (patch.emojiPackSource ?? prev.emojiPackSource),
+            };
+
+            localStorage.setItem('cappella_tuning', JSON.stringify(next));
+            return next;
+        });
+    }, [setStatusMsg, storedCappellaEmojiPack.length]);
+
+    const handleResetCappellaTuning = useCallback(() => {
+        setCappellaTuning(DEFAULT_CAPPELLA_TUNING);
+        localStorage.setItem('cappella_tuning', JSON.stringify(DEFAULT_CAPPELLA_TUNING));
+        setStatusMsg({
+            type: 'info',
+            text: '群唱参数已重置'
+        });
+    }, [setStatusMsg]);
+
+    const handleImportCustomCappellaEmojiPack = useCallback(async (files: File[]) => {
+        if (files.length === 0) {
+            return { ok: false, error: '请选择图片文件。' };
+        }
+
+        const nextTotal = storedCappellaEmojiPack.length + files.length;
+        if (nextTotal > MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES) {
+            return { ok: false, error: `最多只能上传 ${MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES} 张图片，当前已上传 ${storedCappellaEmojiPack.length} 张。` };
+        }
+
+        if (!files.every(isSupportedCappellaEmojiFile)) {
+            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+        }
+
+        const appendedPack = buildStoredCappellaEmojiPack(files);
+        const storedPack = [...storedCappellaEmojiPack, ...appendedPack];
+        await saveCustomCappellaEmojiPack(storedPack);
+        setStoredCappellaEmojiPack(storedPack);
+        setStatusMsg({
+            type: 'success',
+            text: `已新增 ${appendedPack.length} 张群唱表情包，当前共 ${storedPack.length} 张`
+        });
+
+        return { ok: true };
+    }, [setStatusMsg, storedCappellaEmojiPack]);
+
+    const handleClearCustomCappellaEmojiPack = useCallback(async () => {
+        await clearCustomCappellaEmojiPack();
+        setStoredCappellaEmojiPack([]);
+        setCappellaTuning(prev => {
+            if (prev.emojiPackSource !== 'custom') {
+                return prev;
+            }
+
+            const next = {
+                ...prev,
+                emojiPackSource: 'builtin' as const,
+            };
+            localStorage.setItem('cappella_tuning', JSON.stringify(next));
+            return next;
+        });
+        setStatusMsg({
+            type: 'info',
+            text: '自定义群唱表情包已清空'
+        });
+    }, [setStatusMsg]);
+
     const handleSetLyricsFontStyle = useCallback((fontStyle: Theme['fontStyle']) => {
         setLyricsFontStyle(fontStyle);
         localStorage.setItem('lyrics_font_style', fontStyle);
@@ -499,6 +647,9 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        cappellaTuning,
+        cappellaCustomEmojiImages,
+        isLoadingCappellaCustomEmojiPack,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily: lyricsCustomFont?.family ?? null,
@@ -525,6 +676,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleResetPartitaTuning,
         handleSetFumeTuning,
         handleResetFumeTuning,
+        handleSetCappellaTuning,
+        handleResetCappellaTuning,
+        handleImportCustomCappellaEmojiPack,
+        handleClearCustomCappellaEmojiPack,
         handleSetLyricsFontStyle,
         handleSetLyricsFontScale,
         handleSetLyricsCustomFont,

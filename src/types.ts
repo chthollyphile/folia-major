@@ -251,6 +251,31 @@ export const DEFAULT_FUME_TUNING: FumeTuning = {
   heroScale: 1,
 };
 
+export type CappellaEmojiPackSource = 'builtin' | 'custom';
+
+export interface CappellaTuning {
+  showEmoMessages: boolean;
+  emojiPackSource: CappellaEmojiPackSource;
+}
+
+export const DEFAULT_CAPPELLA_TUNING: CappellaTuning = {
+  showEmoMessages: true,
+  emojiPackSource: 'builtin',
+};
+
+export interface StoredCappellaEmojiImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  blob: Blob;
+}
+
+export interface CappellaEmojiImage {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export enum PlayerState {
   IDLE = 'IDLE',
   PLAYING = 'PLAYING',

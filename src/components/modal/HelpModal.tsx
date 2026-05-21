@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional, RefreshCw, Download, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type QueueAddBehavior, type VisualizerMode } from '../../types';
+import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type QueueAddBehavior, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -47,11 +47,18 @@ interface HelpModalProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    cappellaTuning?: CappellaTuning;
+    cappellaCustomEmojiImages?: CappellaEmojiImage[];
     onVisualizerModeChange?: (mode: VisualizerMode) => void;
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     onResetPartitaTuning?: () => void;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning?: () => void;
+    onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
+    onResetCappellaTuning?: () => void;
+    onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
+    isLoadingCappellaCustomEmojiPack?: boolean;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily: string | null;
@@ -112,11 +119,18 @@ const HelpModal: React.FC<HelpModalProps> = ({
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    cappellaTuning,
+    cappellaCustomEmojiImages,
     onVisualizerModeChange,
     onPartitaTuningChange,
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onCappellaTuningChange,
+    onResetCappellaTuning,
+    onImportCappellaCustomEmojiPack,
+    onClearCappellaCustomEmojiPack,
+    isLoadingCappellaCustomEmojiPack = false,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -1910,6 +1924,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        cappellaTuning={cappellaTuning}
+                        cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
                         customFontFamily={lyricsCustomFontFamily}
@@ -1921,6 +1937,11 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         onResetPartitaTuning={onResetPartitaTuning}
                         onFumeTuningChange={onFumeTuningChange}
                         onResetFumeTuning={onResetFumeTuning}
+                        onCappellaTuningChange={onCappellaTuningChange}
+                        onResetCappellaTuning={onResetCappellaTuning}
+                        onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
+                        onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
+                        isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
                         onClose={() => setShowVisPlayground(false)}
                     />
                 )}
@@ -1936,6 +1957,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        cappellaTuning={cappellaTuning}
+                        cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         lyricsFontStyle={lyricsFontStyle}
                         lyricsFontScale={lyricsFontScale}
                         lyricsCustomFontFamily={lyricsCustomFontFamily}

@@ -1,3 +1,5 @@
+import type { CappellaEmojiImage } from '../../../types';
+
 // src/components/visualizer/cappella/emoImages.ts
 // Loads emoji images from the `emo` directory via Vite's import.meta.glob
 // and provides a random picker with a reserved emotionHint interface.
@@ -7,18 +9,15 @@ const emoModules = import.meta.glob<{ default: string }>(
     { eager: true },
 );
 
-interface EmoImageEntry {
-    /** Resolved URL of the image asset. */
-    url: string;
-    /** Filename without extension, e.g. "happy" from "happy.png". */
-    name: string;
-}
-
-const emoImages: EmoImageEntry[] = Object.entries(emoModules).map(
+const builtinEmoImages: CappellaEmojiImage[] = Object.entries(emoModules).map(
     ([path, mod]) => {
         const filename = path.split('/').pop() ?? '';
         const name = filename.replace(/\.[^.]+$/, '');
-        return { url: mod.default, name };
+        return {
+            id: `builtin-${name}`,
+            url: mod.default,
+            name,
+        };
     },
 );
 
@@ -34,17 +33,16 @@ const emoImages: EmoImageEntry[] = Object.entries(emoModules).map(
  */
 export const pickRandomEmoImage = (
     _emotionHint?: string,
-): EmoImageEntry | null => {
-    if (emoImages.length === 0) {
+): CappellaEmojiImage | null => {
+    if (builtinEmoImages.length === 0) {
         return null;
     }
 
     // TODO: 当 _emotionHint 有值时，先过滤出名称匹配的子集，
     // 如果子集非空则从中随机选取，否则 fallback 到全集。
 
-    const index = Math.floor(Math.random() * emoImages.length);
-    return emoImages[index];
+    const index = Math.floor(Math.random() * builtinEmoImages.length);
+    return builtinEmoImages[index];
 };
 
-export { emoImages };
-export type { EmoImageEntry };
+export { builtinEmoImages };
