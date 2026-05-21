@@ -5,6 +5,7 @@ import { Hourglass } from 'lucide-react';
 import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
+import { colorWithAlpha, mixColors } from '../colorMix';
 import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from '../FumeBackground';
 import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
@@ -259,37 +260,6 @@ let lastFumePassedFadeDurationCache: {
 
 const isCJK = (text: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(text);
 
-const colorWithAlpha = (color: string, alpha: number) => {
-    const normalizedAlpha = clamp(alpha, 0, 1);
-
-    if (color.startsWith('#')) {
-        const hex = color.slice(1);
-        const parse = (value: string) => Number.parseInt(value, 16);
-
-        if (hex.length === 3) {
-            const r = parse(hex[0] + hex[0]);
-            const g = parse(hex[1] + hex[1]);
-            const b = parse(hex[2] + hex[2]);
-            return `rgba(${r}, ${g}, ${b}, ${normalizedAlpha})`;
-        }
-
-        if (hex.length === 6) {
-            const r = parse(hex.slice(0, 2));
-            const g = parse(hex.slice(2, 4));
-            const b = parse(hex.slice(4, 6));
-            return `rgba(${r}, ${g}, ${b}, ${normalizedAlpha})`;
-        }
-    }
-
-    const rgbMatch = color.match(/^rgba?\(([^)]+)\)$/);
-    if (rgbMatch) {
-        const channels = rgbMatch[1].split(',').slice(0, 3).map(part => part.trim());
-        return `rgba(${channels.join(', ')}, ${normalizedAlpha})`;
-    }
-
-    return color;
-};
-
 const CAMERA_SCALE_MIN = 0.22;
 const CAMERA_SCALE_MAX = 2.24;
 const OVERVIEW_CAMERA_SOURCE = -2;
@@ -367,53 +337,6 @@ const resolveFumePassedFadeDuration = (lines: Line[], textHoldRatio: number) => 
     const duration = clamp(totalDuration * textHoldRatio, 2.4, 130);
     lastFumePassedFadeDurationCache = { key: cacheKey, duration };
     return duration;
-};
-
-const parseColorChannels = (color: string) => {
-    if (color.startsWith('#')) {
-        const hex = color.slice(1);
-        const parse = (value: string) => Number.parseInt(value, 16);
-
-        if (hex.length === 3) {
-            return {
-                r: parse(hex[0] + hex[0]),
-                g: parse(hex[1] + hex[1]),
-                b: parse(hex[2] + hex[2]),
-            };
-        }
-
-        if (hex.length === 6) {
-            return {
-                r: parse(hex.slice(0, 2)),
-                g: parse(hex.slice(2, 4)),
-                b: parse(hex.slice(4, 6)),
-            };
-        }
-    }
-
-    const rgbMatch = color.match(/^rgba?\(([^)]+)\)$/);
-    if (rgbMatch) {
-        const [r = '255', g = '255', b = '255'] = rgbMatch[1].split(',').slice(0, 3).map(part => part.trim());
-        return {
-            r: Number.parseFloat(r),
-            g: Number.parseFloat(g),
-            b: Number.parseFloat(b),
-        };
-    }
-
-    return null;
-};
-
-const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
-    const normalizedAmount = clamp(amount, 0, 1);
-    const fromChannels = parseColorChannels(from);
-    const toChannels = parseColorChannels(to);
-
-    if (!fromChannels || !toChannels) {
-        return colorWithAlpha(normalizedAmount >= 0.5 ? to : from, alpha);
-    }
-
-    return `rgba(${Math.round(mix(fromChannels.r, toChannels.r, normalizedAmount))}, ${Math.round(mix(fromChannels.g, toChannels.g, normalizedAmount))}, ${Math.round(mix(fromChannels.b, toChannels.b, normalizedAmount))}, ${clamp(alpha, 0, 1)})`;
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
