@@ -83,6 +83,9 @@ export default async function viteConfig({ mode }: ConfigEnv): Promise<UserConfi
         devOptions: {
           enabled: true
         },
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5000000
+        },
         manifest: {
           name: 'Folia Music',
           short_name: 'Folia',
