@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import { type AudioBands, type Line, type Theme, type Word } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
-import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
-import { pickRandomEmoImage } from './emoImages';
+import { emoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
 // Renders parsercore-timed lyrics as a chat-style cappella conversation.
@@ -54,6 +54,9 @@ interface CappellaEmoMessage {
     avatarIndex: number;
     /** 表情图片的 resolved URL */
     emoImageUrl: string;
+    activationStartTime: number;
+    activationEndTime: number;
+    isInterludeEmo?: boolean;
 }
 
 interface CappellaTitleMessage {
@@ -72,13 +75,14 @@ type CappellaTimedMessage = CappellaLineMessage | CappellaEmoMessage;
 const isTimedMessage = (m: CappellaMessage): m is CappellaTimedMessage =>
     m.kind === 'lyric' || m.kind === 'emo';
 
+// Disabled for now: AI semantic word coloring reduced bubble-text readability in cappella.
+// const isCJK = (text: string) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
+
 const SHORT_LINE_CHAR_LIMIT = 12;
 const MAX_VISIBLE_MESSAGES = 10;
 const AVATAR_GRID_SIZE = 3;
-const FORCE_RIGHT_EVERY_LINES = 5;
 const LEFT_AVATAR_INDICES = [0, 3, 6, 1, 4];
 const RIGHT_AVATAR_INDEX = 8;
-const SIDE_SEQUENCE: ChatSide[] = ['left', 'right', 'left', 'right', 'right'];
 const CAPPELLA_PREHEAT_WINDOW: VisualizerPreheatWindow = {
     minLead: 0.18,
     maxLead: 1.1,
@@ -91,6 +95,44 @@ interface BubbleSize {
     height: number;
 }
 
+interface CappellaIntensityConfig {
+    sequencing: {
+        forceRightEveryLines: number;
+        shortLineCarryChance: number;
+        sideSequence: ChatSide[];
+        sideFlipChance: number;
+        randomEmoChance: number;
+        minLinesBetweenRandomEmos: number;
+        maxRandomEmoRatio: number;
+    };
+    motion: {
+        rowEnterY: number;
+        rowEnterScale: number;
+        rowEnterDuration: number;
+        avatarSpring: { stiffness: number; damping: number; mass: number };
+        activeScale: number;
+        passedScale: number;
+        passedOpacity: number;
+        activeFontMultiplier: number;
+        inactiveFontMultiplier: number;
+        activePaddingX: number;
+        activePaddingY: number;
+        inactivePaddingX: number;
+        inactivePaddingY: number;
+        activeMinHeight: number;
+        inactiveMinHeight: number;
+        glowOpacity: number;
+        glowDuration: number;
+        glowRightAlpha: number;
+        glowLeftAlpha: number;
+        activeShadowAlpha: number;
+        emoActiveSize: number;
+        emoInactiveSize: number;
+        emoEnterScale: number;
+        emoSizeTransitionDuration: number;
+    };
+}
+
 interface PreparedBubbleMetrics {
     characters: string[];
     sizes: BubbleSize[];
@@ -100,8 +142,155 @@ const INTERLUDE_TEXT = '......';
 
 const countCompactChars = (text: string) => Array.from(text.replace(/\s/g, '')).length;
 
-// Assigns stable chat senders so short lyric fragments feel like consecutive messages from one user.
-const buildCappellaMessages = (lines: Line[], titleText: string): CappellaMessage[] => {
+const hashString = (input: string) => {
+    let hash = 2166136261;
+    for (let index = 0; index < input.length; index += 1) {
+        hash ^= input.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+};
+
+const seededUnit = (...parts: Array<string | number>) => hashString(parts.join('|')) / 0xffffffff;
+
+const pickStableEmoImage = (...seedParts: Array<string | number>) => {
+    if (emoImages.length === 0) {
+        return null;
+    }
+
+    const index = Math.floor(seededUnit(...seedParts) * emoImages.length) % emoImages.length;
+    return emoImages[index] ?? emoImages[0];
+};
+
+const getEffectiveRenderEndTime = (line: Line, nextLine?: Line) =>
+    Math.min(getLineRenderEndTime(line), nextLine?.startTime ?? Number.POSITIVE_INFINITY);
+
+const getCappellaIntensityConfig = (animationIntensity: Theme['animationIntensity']): CappellaIntensityConfig => {
+    if (animationIntensity === 'calm') {
+        return {
+            sequencing: {
+                forceRightEveryLines: 7,
+                shortLineCarryChance: 0.92,
+                sideSequence: ['left', 'left', 'right', 'left', 'right'],
+                sideFlipChance: 0.08,
+                randomEmoChance: 0,
+                minLinesBetweenRandomEmos: 6,
+                maxRandomEmoRatio: 0,
+            },
+            motion: {
+                rowEnterY: 14,
+                rowEnterScale: 0.992,
+                rowEnterDuration: 0.28,
+                avatarSpring: { stiffness: 280, damping: 30, mass: 0.78 },
+                activeScale: 1.07,
+                passedScale: 0.96,
+                passedOpacity: 0.88,
+                activeFontMultiplier: 1.22,
+                inactiveFontMultiplier: 0.96,
+                activePaddingX: 18,
+                activePaddingY: 14,
+                inactivePaddingX: 16,
+                inactivePaddingY: 12,
+                activeMinHeight: 58,
+                inactiveMinHeight: 44,
+                glowOpacity: 0.26,
+                glowDuration: 2.2,
+                glowRightAlpha: 0.26,
+                glowLeftAlpha: 0.14,
+                activeShadowAlpha: 0.24,
+                emoActiveSize: 132,
+                emoInactiveSize: 96,
+                emoEnterScale: 0.74,
+                emoSizeTransitionDuration: 0.22,
+            },
+        };
+    }
+
+    if (animationIntensity === 'chaotic') {
+        return {
+            sequencing: {
+                forceRightEveryLines: 3,
+                shortLineCarryChance: 0.36,
+                sideSequence: ['left', 'right', 'right', 'left', 'right', 'left'],
+                sideFlipChance: 0.42,
+                randomEmoChance: 0.22,
+                minLinesBetweenRandomEmos: 2,
+                maxRandomEmoRatio: 1 / 6,
+            },
+            motion: {
+                rowEnterY: 30,
+                rowEnterScale: 0.968,
+                rowEnterDuration: 0.38,
+                avatarSpring: { stiffness: 360, damping: 24, mass: 0.68 },
+                activeScale: 1.18,
+                passedScale: 0.88,
+                passedOpacity: 0.76,
+                activeFontMultiplier: 1.4,
+                inactiveFontMultiplier: 0.92,
+                activePaddingX: 22,
+                activePaddingY: 17,
+                inactivePaddingX: 15,
+                inactivePaddingY: 11,
+                activeMinHeight: 68,
+                inactiveMinHeight: 42,
+                glowOpacity: 0.52,
+                glowDuration: 1.35,
+                glowRightAlpha: 0.42,
+                glowLeftAlpha: 0.24,
+                activeShadowAlpha: 0.42,
+                emoActiveSize: 178,
+                emoInactiveSize: 122,
+                emoEnterScale: 0.54,
+                emoSizeTransitionDuration: 0.28,
+            },
+        };
+    }
+
+    return {
+        sequencing: {
+            forceRightEveryLines: 5,
+            shortLineCarryChance: 0.68,
+            sideSequence: ['left', 'right', 'left', 'right', 'right'],
+            sideFlipChance: 0.18,
+            randomEmoChance: 0.1,
+            minLinesBetweenRandomEmos: 3,
+            maxRandomEmoRatio: 1 / 8,
+        },
+        motion: {
+            rowEnterY: 22,
+            rowEnterScale: 0.98,
+            rowEnterDuration: 0.32,
+            avatarSpring: { stiffness: 340, damping: 28, mass: 0.72 },
+            activeScale: 1.12,
+            passedScale: 0.92,
+            passedOpacity: 0.82,
+            activeFontMultiplier: 1.34,
+            inactiveFontMultiplier: 0.94,
+            activePaddingX: 20,
+            activePaddingY: 16,
+            inactivePaddingX: 16,
+            inactivePaddingY: 12,
+            activeMinHeight: 64,
+            inactiveMinHeight: 44,
+            glowOpacity: 0.4,
+            glowDuration: 1.8,
+            glowRightAlpha: 0.34,
+            glowLeftAlpha: 0.18,
+            activeShadowAlpha: 0.34,
+            emoActiveSize: 160,
+            emoInactiveSize: 110,
+            emoEnterScale: 0.6,
+            emoSizeTransitionDuration: 0.25,
+        },
+    };
+};
+
+// Assigns stable chat senders and reaction emojis so the conversation stays deterministic per song.
+const buildCappellaMessages = (
+    lines: Line[],
+    titleText: string,
+    config: CappellaIntensityConfig
+): CappellaMessage[] => {
     const messages: CappellaMessage[] = [{
         id: 'title',
         kind: 'title',
@@ -110,30 +299,68 @@ const buildCappellaMessages = (lines: Line[], titleText: string): CappellaMessag
         avatarIndex: AVATAR_GRID_SIZE * AVATAR_GRID_SIZE - 1,
     }];
 
+    if (lines.length === 0) {
+        const fallbackEmo = pickStableEmoImage('no-lyrics', titleText, config.sequencing.forceRightEveryLines);
+        if (fallbackEmo) {
+            messages.push({
+                id: 'emo-no-lyrics',
+                kind: 'emo',
+                line: {
+                    words: [],
+                    startTime: 0,
+                    endTime: 0,
+                    fullText: INTERLUDE_TEXT,
+                },
+                lineIndex: 0,
+                side: 'right',
+                avatarIndex: AVATAR_GRID_SIZE * AVATAR_GRID_SIZE - 1,
+                emoImageUrl: fallbackEmo.url,
+                activationStartTime: 0,
+                activationEndTime: 999999,
+                isInterludeEmo: true,
+            });
+        }
+
+        return messages;
+    }
+
     let sideSequenceCursor = 0;
     let nextLeftAvatarCursor = 0;
     let lastLyricSender: Pick<CappellaLineMessage, 'side' | 'avatarIndex'> | null = null;
+    let lyricMessagesSinceRandomEmo = Number.POSITIVE_INFINITY;
+    let randomEmoCount = 0;
+    const randomEmoCap = Math.floor(lines.length * config.sequencing.maxRandomEmoRatio);
 
     lines.forEach((line, lineIndex) => {
+        const nextLine = lines[lineIndex + 1];
         const isShortLine = countCompactChars(line.fullText) <= SHORT_LINE_CHAR_LIMIT;
-        const shouldForceRight = (lineIndex + 1) % FORCE_RIGHT_EVERY_LINES === 0;
+        const shouldForceRight = (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
+        const shouldCarrySender = isShortLine
+            && lastLyricSender
+            && seededUnit('carry', line.startTime, lineIndex) <= config.sequencing.shortLineCarryChance;
+        const baseSide = config.sequencing.sideSequence[sideSequenceCursor % config.sequencing.sideSequence.length];
+        const shouldFlipSide = !shouldForceRight
+            && seededUnit('flip', line.startTime, lineIndex) < config.sequencing.sideFlipChance;
+        const resolvedSide = shouldFlipSide
+            ? (baseSide === 'left' ? 'right' : 'left')
+            : baseSide;
         const sender = shouldForceRight
             ? {
                 side: 'right' as const,
                 avatarIndex: RIGHT_AVATAR_INDEX,
             }
-            : isShortLine && lastLyricSender
+            : shouldCarrySender
             ? lastLyricSender
             : {
-                side: SIDE_SEQUENCE[sideSequenceCursor % SIDE_SEQUENCE.length],
-                avatarIndex: SIDE_SEQUENCE[sideSequenceCursor % SIDE_SEQUENCE.length] === 'left'
+                side: resolvedSide,
+                avatarIndex: resolvedSide === 'left'
                     ? LEFT_AVATAR_INDICES[nextLeftAvatarCursor % LEFT_AVATAR_INDICES.length]
                     : RIGHT_AVATAR_INDEX,
             };
 
         const isInterlude = line.fullText === INTERLUDE_TEXT;
-        const emoImage = isInterlude ? pickRandomEmoImage(/* emotionHint */) : null;
-
+        const emoImage = isInterlude ? pickStableEmoImage('interlude', line.startTime, lineIndex) : null;
+        const effectiveRenderEndTime = getEffectiveRenderEndTime(line, nextLine);
         if (isInterlude && emoImage) {
             messages.push({
                 id: `emo-${line.startTime}-${lineIndex}`,
@@ -143,6 +370,9 @@ const buildCappellaMessages = (lines: Line[], titleText: string): CappellaMessag
                 side: sender.side,
                 avatarIndex: sender.avatarIndex,
                 emoImageUrl: emoImage.url,
+                activationStartTime: line.startTime,
+                activationEndTime: Math.max(line.startTime + 0.12, effectiveRenderEndTime),
+                isInterludeEmo: true,
             });
         } else {
             messages.push({
@@ -153,6 +383,36 @@ const buildCappellaMessages = (lines: Line[], titleText: string): CappellaMessag
                 side: sender.side,
                 avatarIndex: sender.avatarIndex,
             });
+        }
+        lyricMessagesSinceRandomEmo += 1;
+
+        const renderHints = getLineRenderHints(line);
+        const canAppendRandomEmo = !isInterlude
+            && config.sequencing.randomEmoChance > 0
+            && randomEmoCount < randomEmoCap
+            && lyricMessagesSinceRandomEmo >= config.sequencing.minLinesBetweenRandomEmos
+            && renderHints?.timingClass === 'normal';
+
+        if (canAppendRandomEmo) {
+            const score = seededUnit('random-emo', line.startTime, line.endTime, lineIndex, config.sequencing.randomEmoChance);
+            if (score < config.sequencing.randomEmoChance) {
+                const reactionImage = pickStableEmoImage('reaction', line.startTime, line.endTime, lineIndex, sender.side);
+                if (reactionImage) {
+                    messages.push({
+                        id: `emo-reaction-${line.startTime}-${lineIndex}`,
+                        kind: 'emo',
+                        line,
+                        lineIndex,
+                        side: sender.side,
+                        avatarIndex: sender.avatarIndex,
+                        emoImageUrl: reactionImage.url,
+                        activationStartTime: line.endTime,
+                        activationEndTime: Math.max(line.endTime + 0.08, effectiveRenderEndTime),
+                    });
+                    randomEmoCount += 1;
+                    lyricMessagesSinceRandomEmo = 0;
+                }
+            }
         }
 
         if (shouldForceRight) {
@@ -197,6 +457,27 @@ const getVisibleLineText = (line: Line, currentTime: number) =>
 const getVisibleCharacterCount = (line: Line, currentTime: number) =>
     Array.from(getVisibleLineText(line, currentTime)).length;
 
+// Disabled for now: AI semantic word coloring reduced bubble-text readability in cappella.
+// const getActiveColor = (wordText: string, theme: Theme) => {
+//     if (!theme.wordColors || theme.wordColors.length === 0) {
+//         return null;
+//     }
+//
+//     const cleanCurrent = wordText.trim();
+//     const matched = theme.wordColors.find(entry => {
+//         const target = entry.word;
+//         if (isCJK(cleanCurrent)) {
+//             return target.includes(cleanCurrent) || cleanCurrent.includes(target);
+//         }
+//
+//         const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
+//         const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
+//         return targetWords.includes(normalizedCurrent);
+//     });
+//
+//     return matched?.color ?? null;
+// };
+
 const getAvatarPosition = (avatarIndex: number) => {
     const safeIndex = ((avatarIndex % 9) + 9) % 9;
     const col = safeIndex % AVATAR_GRID_SIZE;
@@ -211,15 +492,19 @@ const getAvatarPosition = (avatarIndex: number) => {
 /**
  * 估算特定消息渲染后的高度，用于动态控制可见消息列表的行数，避免超出视口。
  */
-const getEstimatedMessageHeight = (message: CappellaMessage, isActive: boolean): number => {
+const getEstimatedMessageHeight = (
+    message: CappellaMessage,
+    isActive: boolean,
+    motionConfig: CappellaIntensityConfig['motion']
+): number => {
     if (message.kind === 'title') {
         return 40;
     }
     if (message.kind === 'emo') {
-        const imageSize = isActive ? 160 : 110;
+        const imageSize = isActive ? motionConfig.emoActiveSize : motionConfig.emoInactiveSize;
         return imageSize + 48 + 12; // 图像高度 + pt-12 (48px) padding + gap-3 (12px) 间距
     }
-    const baseHeight = isActive ? 80 : 54;
+    const baseHeight = isActive ? motionConfig.activeMinHeight + 16 : motionConfig.inactiveMinHeight + 10;
     return baseHeight + 12; // 估算的气泡高度 + gap-3 (12px) 间距
 };
 
@@ -230,11 +515,21 @@ const getVisibleMessages = (
     messages: CappellaMessage[],
     visibleLineIndex: number,
     viewportHeight: number,
-    currentLineIndex: number
+    currentLineIndex: number,
+    currentTime: number,
+    motionConfig: CappellaIntensityConfig['motion']
 ) => {
-    const visible = messages.filter(message => (
-        message.kind === 'title' || (isTimedMessage(message) && message.lineIndex <= visibleLineIndex)
-    ));
+    const visible = messages.filter(message => {
+        if (message.kind === 'title') {
+            return true;
+        }
+
+        if (message.kind === 'emo') {
+            return currentTime >= message.activationStartTime;
+        }
+
+        return message.lineIndex <= visibleLineIndex;
+    });
 
     // 计算气泡展示区域的可用高度：总高度减去底部播放控制条区域 (~160px) 和顶部状态栏/间距 (~80px)
     const usableHeight = Math.max(200, viewportHeight - 240);
@@ -245,8 +540,8 @@ const getVisibleMessages = (
     for (let i = visible.length - 1; i >= 0; i--) {
         const message = visible[i];
         const timedData = isTimedMessage(message) ? message : null;
-        const isActive = timedData !== null && timedData.lineIndex === currentLineIndex;
-        const estHeight = getEstimatedMessageHeight(message, isActive);
+        const isActive = timedData ? getTimedMessageState(timedData, currentTime, currentLineIndex).isActive : false;
+        const estHeight = getEstimatedMessageHeight(message, isActive, motionConfig);
 
         if (accumulatedHeight + estHeight > usableHeight && result.length >= 2) {
             // 保留至少 2 条消息做为上下文，其余超出高度的不再包括
@@ -272,6 +567,20 @@ const getVisibleLineIndexAtTime = (lines: Line[], currentTime: number) => {
     }
 
     return -1;
+};
+
+const getTimedMessageState = (message: CappellaTimedMessage, currentTime: number, currentLineIndex: number) => {
+    if (message.kind === 'emo') {
+        return {
+            isActive: currentTime >= message.activationStartTime && currentTime < message.activationEndTime,
+            isPassed: currentTime >= message.activationEndTime,
+        };
+    }
+
+    return {
+        isActive: message.lineIndex === currentLineIndex,
+        isPassed: message.lineIndex < currentLineIndex,
+    };
 };
 
 const getBubbleColors = (message: CappellaMessage, theme: Theme) => {
@@ -549,23 +858,37 @@ const AnimatedBubbleFrame: React.FC<{
 };
 
 const ActiveCappellaText: React.FC<{
-    characters: string[];
+    line: Line;
     visibleCharacterCount: number;
-}> = ({ characters, visibleCharacterCount }) => {
+}> = ({ line, visibleCharacterCount }) => {
+    let revealedCharacterCount = 0;
+
     return (
         <span className="inline-flex flex-wrap items-baseline">
-            {characters.slice(0, visibleCharacterCount).map((character, index) => (
-                <span
-                    key={`${index}-${character}`}
-                    className="inline-block"
-                    style={{
-                        whiteSpace: character.trim() ? 'pre' : 'pre-wrap',
-                        animation: 'cappella-char-fade 220ms ease-out',
-                    }}
-                >
-                    {character}
-                </span>
-            ))}
+            {line.words.map((word, wordIndex) => {
+                const wordCharacters = Array.from(word.text);
+                const remainingVisibleCount = visibleCharacterCount - revealedCharacterCount;
+                const visibleCharacters = wordCharacters.slice(0, Math.max(0, remainingVisibleCount));
+                // Disabled for now: per-word AI theme color made active bubble lyrics harder to read here.
+                // const activeColor = getActiveColor(word.text, theme);
+
+                revealedCharacterCount += wordCharacters.length;
+
+                return visibleCharacters.map((character, characterIndex) => (
+                    <span
+                        key={`${wordIndex}-${characterIndex}-${character}`}
+                        className="inline-block"
+                        style={{
+                            // Disabled for now: per-word AI theme color hurt active lyric readability in chat bubbles.
+                            // color: activeColor ?? undefined,
+                            whiteSpace: character.trim() ? 'pre' : 'pre-wrap',
+                            animation: 'cappella-char-fade 220ms ease-out',
+                        }}
+                    >
+                        {character}
+                    </span>
+                ));
+            })}
         </span>
     );
 };
@@ -573,22 +896,24 @@ const ActiveCappellaText: React.FC<{
 const CappellaBubbleGlow: React.FC<{
     isActive: boolean;
     isRight: boolean;
-}> = ({ isActive, isRight }) => {
+    motionConfig: CappellaIntensityConfig['motion'];
+}> = ({ isActive, isRight, motionConfig }) => {
     if (!isActive) {
         return null;
     }
 
     return (
         <motion.div
-            className="pointer-events-none absolute inset-0 opacity-40"
+            className="pointer-events-none absolute inset-0"
             style={{
+                opacity: motionConfig.glowOpacity,
                 background: isRight
-                    ? 'linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.34) 46%, transparent 68%)'
-                    : 'linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.18) 46%, transparent 68%)',
+                    ? `linear-gradient(105deg, transparent 0%, rgba(255,255,255,${motionConfig.glowRightAlpha}) 46%, transparent 68%)`
+                    : `linear-gradient(105deg, transparent 0%, rgba(255,255,255,${motionConfig.glowLeftAlpha}) 46%, transparent 68%)`,
                 backgroundSize: '240% 100%',
             }}
             animate={{ backgroundPosition: ['160% 0%', '-80% 0%'] }}
-            transition={{ duration: 1.8, ease: 'linear', repeat: Infinity }}
+            transition={{ duration: motionConfig.glowDuration, ease: 'linear', repeat: Infinity }}
         />
     );
 };
@@ -602,6 +927,7 @@ const CappellaMessageRow: React.FC<{
     baseFontSize: number;
     maxTextWidth: number;
     metricsCache: React.MutableRefObject<Map<string, PreparedBubbleMetrics>>;
+    intensityConfig: CappellaIntensityConfig;
 }> = ({
     message,
     currentTime,
@@ -611,25 +937,32 @@ const CappellaMessageRow: React.FC<{
     baseFontSize,
     maxTextWidth,
     metricsCache,
+    intensityConfig,
 }) => {
     const isRight = message.side === 'right';
     const timedData: CappellaTimedMessage | null = isTimedMessage(message) ? message : null;
-    const isActiveMessage = timedData !== null && timedData.lineIndex === currentLineIndex;
-    const isPassedMessage = timedData !== null && timedData.lineIndex < currentLineIndex;
+    const timedState = timedData ? getTimedMessageState(timedData, currentTime.get(), currentLineIndex) : null;
+    const isActiveMessage = timedState?.isActive ?? false;
+    const isPassedMessage = timedState?.isPassed ?? false;
     const isEmoMessage = message.kind === 'emo';
+    const motionConfig = intensityConfig.motion;
     const bubbleFontSize = isActiveMessage
-        ? baseFontSize * 1.34
+        ? baseFontSize * motionConfig.activeFontMultiplier
         : message.kind === 'title'
             ? baseFontSize
-            : baseFontSize * 0.94;
-    const bubblePaddingX = isActiveMessage ? 20 : 16;
-    const bubblePaddingY = isActiveMessage ? 16 : 12;
+            : baseFontSize * motionConfig.inactiveFontMultiplier;
+    const bubblePaddingX = isActiveMessage ? motionConfig.activePaddingX : motionConfig.inactivePaddingX;
+    const bubblePaddingY = isActiveMessage ? motionConfig.activePaddingY : motionConfig.inactivePaddingY;
     const bubbleColors = getBubbleColors(message, theme);
     const [visibleCharacterCount, setVisibleCharacterCount] = useState(() => (
         message.kind === 'lyric' ? getVisibleCharacterCount(message.line, currentTime.get()) : 0
     ));
     const [isTimestampVisible, setIsTimestampVisible] = useState(() => (
-        timedData !== null && (isPassedMessage || currentTime.get() >= timedData.line.endTime)
+        timedData !== null && (
+            timedData.kind === 'emo'
+                ? currentTime.get() >= timedData.activationEndTime
+                : isPassedMessage || currentTime.get() >= timedData.line.endTime
+        )
     ));
     const lineHeightPx = bubbleFontSize * 1.45;
     const preparedMetrics = useMemo(
@@ -648,7 +981,7 @@ const CappellaMessageRow: React.FC<{
         [bubbleFontSize, bubblePaddingX, bubblePaddingY, isActiveMessage, lineHeightPx, maxTextWidth, message, metricsCache, theme]
     );
     // 表情图片：active 时更大
-    const emoImageSize = isActiveMessage ? 160 : 110;
+    const emoImageSize = isActiveMessage ? motionConfig.emoActiveSize : motionConfig.emoInactiveSize;
     const targetSize = useMemo(() => {
         if (isEmoMessage) {
             return { width: emoImageSize, height: emoImageSize };
@@ -705,12 +1038,17 @@ const CappellaMessageRow: React.FC<{
         }
 
         setVisibleCharacterCount(getVisibleCharacterCount(message.line, currentTime.get()));
-        setIsTimestampVisible(isPassedMessage || currentTime.get() >= message.line.endTime);
+        const nextTimestampVisible = message.kind === 'emo'
+            ? currentTime.get() >= message.activationEndTime
+            : isPassedMessage || currentTime.get() >= message.line.endTime;
+        setIsTimestampVisible(nextTimestampVisible);
     }, [currentTime, isActiveMessage, message]);
 
     useMotionValueEvent(currentTime, 'change', latest => {
         if (message.kind === 'lyric' || message.kind === 'emo') {
-            const nextTimestampVisible = isPassedMessage || latest >= message.line.endTime;
+            const nextTimestampVisible = message.kind === 'emo'
+                ? latest >= message.activationEndTime
+                : isPassedMessage || latest >= message.line.endTime;
             setIsTimestampVisible(current => current === nextTimestampVisible ? current : nextTimestampVisible);
         }
 
@@ -724,22 +1062,17 @@ const CappellaMessageRow: React.FC<{
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 22, scale: 0.98 }}
+            initial={{ opacity: 0, y: motionConfig.rowEnterY, scale: motionConfig.rowEnterScale }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.32, ease: 'easeOut' }}
+            transition={{ duration: motionConfig.rowEnterDuration, ease: 'easeOut' }}
             className={`flex w-full items-end gap-3 ${isRight ? 'justify-end' : 'justify-start'} ${isEmoMessage ? 'pt-12' : ''}`}
         >
             <motion.div
                 animate={{
-                    opacity: isPassedMessage ? 0.82 : 1,
-                    scale: isActiveMessage ? 1.12 : isPassedMessage ? 0.92 : 1,
+                    opacity: isPassedMessage ? motionConfig.passedOpacity : 1,
+                    scale: isActiveMessage ? motionConfig.activeScale : isPassedMessage ? motionConfig.passedScale : 1,
                 }}
-                transition={{
-                    type: 'spring',
-                    stiffness: 340,
-                    damping: 28,
-                    mass: 0.72,
-                }}
+                transition={{ type: 'spring', ...motionConfig.avatarSpring }}
                 className={`flex max-w-[78%] items-end gap-3 sm:max-w-[68%] ${isRight ? 'flex-row-reverse' : 'flex-row'}`}
                 style={{
                     transformOrigin: isRight ? '100% 100%' : '0% 100%',
@@ -760,8 +1093,8 @@ const CappellaMessageRow: React.FC<{
                                 height: emoImageSize,
                             }}
                             transition={{
-                                width: { duration: 0.25, ease: 'easeOut' as const },
-                                height: { duration: 0.25, ease: 'easeOut' as const },
+                                width: { duration: motionConfig.emoSizeTransitionDuration, ease: 'easeOut' as const },
+                                height: { duration: motionConfig.emoSizeTransitionDuration, ease: 'easeOut' as const },
                             }}
                             style={{ width: emoImageSize, height: emoImageSize }}
                         >
@@ -779,9 +1112,21 @@ const CappellaMessageRow: React.FC<{
                             <motion.img
                                 src={message.emoImageUrl}
                                 alt="emo"
-                                initial={{ opacity: 0, scale: 0.6 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.32, ease: 'easeOut' }}
+                                initial={{ opacity: 0, scale: motionConfig.emoEnterScale }}
+                                animate={message.isInterludeEmo
+                                    ? {
+                                        opacity: 1,
+                                        scale: 1,
+                                        rotate: [-1.6, 1.6, -1.6],
+                                    }
+                                    : { opacity: 1, scale: 1 }}
+                                transition={message.isInterludeEmo
+                                    ? {
+                                        opacity: { duration: motionConfig.rowEnterDuration, ease: 'easeOut' },
+                                        scale: { duration: motionConfig.rowEnterDuration, ease: 'easeOut' },
+                                        rotate: { duration: 1.9, ease: 'easeInOut', repeat: Infinity },
+                                    }
+                                    : { duration: motionConfig.rowEnterDuration, ease: 'easeOut' }}
                                 className="rounded-2xl"
                                 style={{
                                     width: '100%',
@@ -817,26 +1162,26 @@ const CappellaMessageRow: React.FC<{
                                 lineHeight: 1.45,
                                 maxWidth: maxTextWidth + bubblePaddingX * 2,
                                 minHeight: Math.max(
-                                    isActiveMessage ? 64 : 44,
+                                    isActiveMessage ? motionConfig.activeMinHeight : motionConfig.inactiveMinHeight,
                                     bubbleFontSize * 1.45 + bubblePaddingY * 2
                                 ),
                                 minWidth: isActiveMessage ? 72 : undefined,
                                 padding: `${bubblePaddingY}px ${bubblePaddingX}px`,
                                 boxShadow: isActiveMessage
-                                    ? `0 18px 48px ${mixColors(theme.backgroundColor, theme.accentColor, 0.2, 0.34)}`
+                                    ? `0 18px 48px ${mixColors(theme.backgroundColor, theme.accentColor, 0.2, motionConfig.activeShadowAlpha)}`
                                     : undefined,
                                 whiteSpace: 'pre-wrap',
                                 overflowWrap: 'anywhere',
                             }}
                         >
                             <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
-                                <CappellaBubbleGlow isActive={isActiveMessage} isRight={isRight} />
+                                <CappellaBubbleGlow isActive={isActiveMessage} isRight={isRight} motionConfig={motionConfig} />
                             </div>
                             <span className="relative z-10">
                                 {message.kind === 'lyric' && isActiveMessage && preparedMetrics
                                     ? (
                                         <ActiveCappellaText
-                                            characters={preparedMetrics.characters}
+                                            line={message.line}
                                             visibleCharacterCount={visibleCharacterCount}
                                         />
                                     )
@@ -881,10 +1226,21 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
     const [visibleLineIndex, setVisibleLineIndex] = useState(() => getVisibleLineIndexAtTime(lines, currentTime.get()));
     const visibleLineIndexRef = useRef(visibleLineIndex);
     const titleText = songTitle?.trim() || t('ui.noTrack');
-    const messages = useMemo(() => buildCappellaMessages(lines, titleText), [lines, titleText]);
+    const intensityConfig = useMemo(() => getCappellaIntensityConfig(theme.animationIntensity), [theme.animationIntensity]);
+    const messages = useMemo(
+        () => buildCappellaMessages(lines, titleText, intensityConfig),
+        [intensityConfig, lines, titleText]
+    );
     const visibleMessages = useMemo(
-        () => getVisibleMessages(messages, visibleLineIndex, viewportSize.height, currentLineIndex),
-        [messages, visibleLineIndex, viewportSize.height, currentLineIndex]
+        () => getVisibleMessages(
+            messages,
+            visibleLineIndex,
+            viewportSize.height,
+            currentLineIndex,
+            currentTime.get(),
+            intensityConfig.motion
+        ),
+        [currentLineIndex, currentTime, intensityConfig.motion, messages, viewportSize.height, visibleLineIndex]
     );
     const baseFontSize = Math.max(15, Math.min(26, 18 * lyricsFontScale));
     const maxPanelWidth = Math.min(Math.max(viewportSize.width - 32, 1), 896);
@@ -931,11 +1287,11 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
         getOrBuildBubbleMetrics(bubbleMetricsCacheRef.current, {
             line: upcomingLine,
             theme,
-            fontSize: baseFontSize * 1.34,
-            lineHeightPx: baseFontSize * 1.34 * 1.45,
+            fontSize: baseFontSize * intensityConfig.motion.activeFontMultiplier,
+            lineHeightPx: baseFontSize * intensityConfig.motion.activeFontMultiplier * 1.45,
             maxTextWidth,
-            paddingX: 20,
-            paddingY: 16,
+            paddingX: intensityConfig.motion.activePaddingX,
+            paddingY: intensityConfig.motion.activePaddingY,
         });
     });
 
@@ -966,6 +1322,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
                                 baseFontSize={baseFontSize}
                                 maxTextWidth={maxTextWidth}
                                 metricsCache={bubbleMetricsCacheRef}
+                                intensityConfig={intensityConfig}
                             />
                         ))}
                     </div>
