@@ -22,6 +22,7 @@ export interface VisualizerSharedProps {
     audioPower: MotionValue<number>;
     audioBands: AudioBands;
     showText?: boolean;
+    songTitle?: string | null;
     coverUrl?: string | null;
     useCoverColorBg?: boolean;
     seed?: string | number;

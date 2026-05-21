@@ -522,6 +522,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 theme={previewTheme}
                                 audioPower={audioPower}
                                 audioBands={audioBands}
+                                songTitle="Cappella Preview"
                                 showText
                                 staticMode={staticMode}
                                 backgroundOpacity={backgroundOpacity}

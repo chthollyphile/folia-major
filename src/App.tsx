@@ -1562,6 +1562,7 @@ export default function App() {
                     theme={visualizerTheme}
                     audioPower={audioPower}
                     audioBands={audioBands}
+                    songTitle={currentSong?.name}
                     coverUrl={getCoverUrl()}
                     showText={currentView === 'player'}
                     useCoverColorBg={useCoverColorBg}

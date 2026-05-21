@@ -130,6 +130,7 @@ const ThemePreviewLayer: React.FC<{
                     theme={theme}
                     audioPower={audioPower}
                     audioBands={audioBands}
+                    songTitle="Cappella Preview"
                     showText
                     staticMode={staticMode}
                     backgroundOpacity={backgroundOpacity}

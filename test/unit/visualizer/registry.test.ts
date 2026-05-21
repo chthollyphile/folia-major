@@ -16,6 +16,7 @@ describe('visualizer registry', () => {
             'cadenza',
             'partita',
             'fume',
+            'cappella',
         ]);
     });
 
