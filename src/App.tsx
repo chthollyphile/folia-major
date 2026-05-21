@@ -190,6 +190,7 @@ export default function App() {
         showOpenPanelCloseButton,
         enableNowPlayingStage,
         queueAddBehavior,
+        audioOutputDeviceId,
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -218,6 +219,7 @@ export default function App() {
         handleToggleOpenPanelCloseButton,
         handleToggleNowPlayingStage,
         handleSetQueueAddBehavior,
+        handleSetAudioOutputDeviceId: persistAudioOutputDeviceId,
         volume,
         isMuted,
         handleSetVolume,
@@ -265,6 +267,132 @@ export default function App() {
             audioRef.current.muted = isMuted;
         }
     }, [isMuted]);
+
+    const applyAudioOutputDevice = useCallback(async (
+        targetDeviceId: string,
+        reportError = true,
+    ) => {
+        const audioElement = audioRef.current as (HTMLAudioElement & {
+            setSinkId?: (sinkId: string) => Promise<void>;
+            sinkId?: string;
+        }) | null;
+        const audioContext = audioContextRef.current as (AudioContext & {
+            setSinkId?: (sinkId: string) => Promise<void>;
+            sinkId?: string;
+        }) | null;
+        const audioSinkTarget = gainNodeRef.current && audioContext?.setSinkId
+            ? audioContext
+            : audioElement;
+
+        if (!audioSinkTarget?.setSinkId) {
+            persistAudioOutputDeviceId(targetDeviceId);
+            return true;
+        }
+
+        const normalizedTargetDeviceId = targetDeviceId || '';
+        if (audioSinkTarget.sinkId === normalizedTargetDeviceId) {
+            persistAudioOutputDeviceId(targetDeviceId);
+            return true;
+        }
+
+        let attempt = 0;
+        const maxRetryCount = 4;
+        let shouldPauseBeforeSwitch = normalizedTargetDeviceId === 'default' || normalizedTargetDeviceId === 'communications';
+
+        while (attempt <= maxRetryCount) {
+            const wasPlaying = !audioElement.paused && !audioElement.ended;
+            try {
+                if (shouldPauseBeforeSwitch && wasPlaying) {
+                    audioElement.pause();
+                }
+
+                await audioSinkTarget.setSinkId(normalizedTargetDeviceId);
+                persistAudioOutputDeviceId(targetDeviceId);
+
+                if (shouldPauseBeforeSwitch && wasPlaying) {
+                    try {
+                        await audioElement.play();
+                    } catch (resumeError) {
+                        console.warn('[App] Audio output switched but playback did not resume automatically', {
+                            resumeError,
+                            targetDeviceId: normalizedTargetDeviceId,
+                            audioSrc,
+                        });
+                    }
+                }
+
+                return true;
+            } catch (error) {
+                const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+                if (isAbortError && attempt < maxRetryCount) {
+                    if (wasPlaying && audioElement.paused) {
+                        try {
+                            await audioElement.play();
+                        } catch {
+                            // Ignore resume failures during retry path; a later successful switch will attempt again.
+                        }
+                    }
+                    attempt += 1;
+                    shouldPauseBeforeSwitch = true;
+                    await new Promise(resolve => window.setTimeout(resolve, 180));
+                    continue;
+                }
+
+                console.warn('[App] Failed to apply audio output device', {
+                    error,
+                    targetDeviceId: normalizedTargetDeviceId,
+                    sinkTarget: audioSinkTarget === audioContext ? 'audio-context' : 'audio-element',
+                });
+
+                if (wasPlaying && audioElement.paused) {
+                    try {
+                        await audioElement.play();
+                    } catch {
+                        // Ignore resume failures on final error; user will see the status message.
+                    }
+                }
+
+                if (reportError) {
+                    setStatusMsg({
+                        type: 'error',
+                        text: '切换播放设备失败',
+                    });
+                }
+                return false;
+            }
+        }
+
+        return false;
+    }, [persistAudioOutputDeviceId]);
+
+    useEffect(() => {
+        const audioElement = audioRef.current as HTMLAudioElement | null;
+
+        if (!audioElement) {
+            return;
+        }
+
+        let isDisposed = false;
+        const handleAudioDeviceRetry = () => {
+            if (isDisposed) {
+                return;
+            }
+            void applyAudioOutputDevice(audioOutputDeviceId, false);
+        };
+
+        audioElement.addEventListener('loadedmetadata', handleAudioDeviceRetry);
+        audioElement.addEventListener('canplay', handleAudioDeviceRetry);
+        void applyAudioOutputDevice(audioOutputDeviceId, false);
+        return () => {
+            isDisposed = true;
+            audioElement.removeEventListener('loadedmetadata', handleAudioDeviceRetry);
+            audioElement.removeEventListener('canplay', handleAudioDeviceRetry);
+        };
+    }, [applyAudioOutputDevice, audioOutputDeviceId, audioSrc]);
+
+    const handleAudioOutputDeviceChange = useCallback(async (deviceId: string) => (
+        await applyAudioOutputDevice(deviceId, true)
+    ), [applyAudioOutputDevice]);
 
     const handlePreviewVolume = useCallback((val: number) => {
         pendingVolumePreviewRef.current = val;
@@ -1027,6 +1155,8 @@ export default function App() {
         nowPlayingConnectionStatus,
         queueAddBehavior,
         handleSetQueueAddBehavior,
+        audioOutputDeviceId,
+        handleAudioOutputDeviceChange,
         staticMode,
         disableHomeDynamicBackground,
         hidePlayerProgressBar,
@@ -1120,6 +1250,7 @@ export default function App() {
         handleSetLyricsFontStyle,
         handleSetPartitaTuning,
         handleSetQueueAddBehavior,
+        handleAudioOutputDeviceChange,
         handleSetVisualizerMode,
         handleSongThemeAutoSwitchChange,
         handleToggleDisableHomeDynamicBackground,
@@ -1166,6 +1297,7 @@ export default function App() {
         playerState,
         playSong,
         queueAddBehavior,
+        audioOutputDeviceId,
         refreshUserData,
         saveCustomDualTheme,
         setFocusedFavoriteAlbumIndex,
@@ -1185,6 +1317,7 @@ export default function App() {
         themeParkSeedTheme,
         user,
         visualizerMode,
+        handleAudioOutputDeviceChange,
     ]);
     const playerPanelModel = useMemo(() => buildPlayerPanelModel({
         isPanelOpen,

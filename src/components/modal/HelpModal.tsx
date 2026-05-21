@@ -12,6 +12,8 @@ import ThemePark from './ThemePark';
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
+import { CustomSelect } from '../shared/CustomSelect';
+
 
 interface HelpModalProps {
     onClose: () => void;
@@ -83,7 +85,22 @@ interface HelpModalProps {
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
     queueAddBehavior: QueueAddBehavior;
     onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
+    audioOutputDeviceId: string;
+    onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
 }
+
+interface AudioOutputDeviceOption {
+    deviceId: string;
+    label: string;
+}
+
+interface MediaDevicesWithAudioOutput extends MediaDevices {
+    selectAudioOutput?: (options?: { deviceId?: string; }) => Promise<{ deviceId: string; label?: string; }>;
+}
+
+const stopMediaStream = (stream: MediaStream | null) => {
+    stream?.getTracks().forEach(track => track.stop());
+};
 
 const HelpModal: React.FC<HelpModalProps> = ({
     onClose,
@@ -155,6 +172,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
     nowPlayingConnectionStatus = 'disabled',
     queueAddBehavior,
     onQueueAddBehaviorChange,
+    audioOutputDeviceId,
+    onAudioOutputDeviceChange,
 }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
@@ -162,6 +181,10 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [showThemePark, setShowThemePark] = useState(false);
     const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
     const [showPlaybackSettings, setShowPlaybackSettings] = useState(false);
+    const [audioOutputDevices, setAudioOutputDevices] = useState<AudioOutputDeviceOption[]>([]);
+    const [isAudioOutputDevicesLoading, setIsAudioOutputDevicesLoading] = useState(false);
+    const [audioOutputDevicesError, setAudioOutputDevicesError] = useState<string | null>(null);
+    const [isSelectingAudioOutput, setIsSelectingAudioOutput] = useState(false);
     const [showIntegrationSettings, setShowIntegrationSettings] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
     const [showDesktopSettings, setShowDesktopSettings] = useState(false);
@@ -203,6 +226,83 @@ const HelpModal: React.FC<HelpModalProps> = ({
     const [stageActionStatus, setStageActionStatus] = useState<'idle' | 'regenerating'>('idle');
     const configuredAiProvider = isElectron ? electronSettings.AI_PROVIDER : import.meta.env.VITE_AI_PROVIDER;
     const aiServiceLabel = configuredAiProvider === 'openai' ? 'OpenAI Compatible' : 'Google Gemini';
+    const mediaDevicesWithAudioOutput = navigator.mediaDevices as MediaDevicesWithAudioOutput | undefined;
+    const supportsAudioOutputSelection = typeof window !== 'undefined'
+        && typeof navigator !== 'undefined'
+        && typeof navigator.mediaDevices?.enumerateDevices === 'function'
+        && 'setSinkId' in HTMLMediaElement.prototype;
+
+    const loadAudioOutputDevices = async () => {
+        if (!supportsAudioOutputSelection) {
+            setAudioOutputDevices([]);
+            setAudioOutputDevicesError(t('options.audioOutputUnsupported') || '当前环境不支持切换播放设备。');
+            return;
+        }
+
+        setIsAudioOutputDevicesLoading(true);
+        setAudioOutputDevicesError(null);
+
+        let permissionProbeStream: MediaStream | null = null;
+
+        try {
+            let devices = await navigator.mediaDevices.enumerateDevices();
+            const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+            const hasMissingLabels = audioOutputs.some(device => !device.label?.trim());
+
+            if (hasMissingLabels && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                try {
+                    permissionProbeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    devices = await navigator.mediaDevices.enumerateDevices();
+                } catch (permissionError) {
+                    console.warn('[HelpModal] Audio permission probe failed', permissionError);
+                }
+            }
+
+            const outputs = devices
+                .filter(device => device.kind === 'audiooutput')
+                .map((device, index) => ({
+                    deviceId: device.deviceId,
+                    label: device.label || `${t('options.audioOutputUnnamed') || '播放设备'} ${index + 1}`,
+                }));
+            setAudioOutputDevices(outputs);
+        } catch (error) {
+            console.error('[HelpModal] Failed to enumerate audio output devices', error);
+            setAudioOutputDevicesError(t('options.audioOutputLoadFailed') || '读取播放设备失败。');
+        } finally {
+            stopMediaStream(permissionProbeStream);
+            setIsAudioOutputDevicesLoading(false);
+        }
+    };
+
+    const handleSelectAudioOutputDevice = async (deviceId: string) => {
+        setAudioOutputDevicesError(null);
+
+        if (!deviceId) {
+            await onAudioOutputDeviceChange('');
+            return;
+        }
+
+        if (!mediaDevicesWithAudioOutput?.selectAudioOutput) {
+            await onAudioOutputDeviceChange(deviceId);
+            return;
+        }
+
+        setIsSelectingAudioOutput(true);
+        try {
+            const selected = await mediaDevicesWithAudioOutput.selectAudioOutput({ deviceId });
+            const applied = await onAudioOutputDeviceChange(selected.deviceId);
+            if (applied) {
+                await loadAudioOutputDevices();
+            } else {
+                setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
+            }
+        } catch (error) {
+            console.error('[HelpModal] Failed to select audio output device', error);
+            setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
+        } finally {
+            setIsSelectingAudioOutput(false);
+        }
+    };
 
     useEffect(() => {
         if ((window as any).electron) {
@@ -243,6 +343,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
             // Seeing the settings panel should never fail the panel itself.
         });
     }, [updateStatus?.availableVersion, updateStatus?.updateSeen]);
+
+    useEffect(() => {
+        if (!showPlaybackSettings) {
+            return;
+        }
+
+        void loadAudioOutputDevices();
+    }, [showPlaybackSettings]);
 
     const copyText = async (text: string) => {
         if (navigator.clipboard?.writeText && window.isSecureContext) {
@@ -928,7 +1036,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     播放控制
                                                 </div>
                                                 <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    播放队列，行为
+                                                    播放队列，行为，音频
                                                 </div>
                                             </div>
                                         </div>
@@ -1974,47 +2082,123 @@ const HelpModal: React.FC<HelpModalProps> = ({
                 isOpen: showPlaybackSettings,
                 onClose: () => setShowPlaybackSettings(false),
                 title: '播放控制',
-                description: '播放队列，行为',
+                description: '播放队列，行为，音频输出等设置。',
                 children: (
-                    <section>
-                        <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                            <PlayCircle size={14} /> 播放队列
-                        </h3>
-                        <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
-                            <div className="space-y-1">
-                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                    加入队列的默认位置
+                    <div className="space-y-5">
+                        <section>
+                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                <PlayCircle size={14} /> 播放队列
+                            </h3>
+                            <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                                <div className="space-y-1">
+                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                        加入队列的默认位置
+                                    </div>
+                                    <div className="text-[11px] opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                        加入播放队列按钮的默认行为。
+                                    </div>
                                 </div>
-                                <div className="text-[11px] opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                    加入播放队列按钮的默认行为。
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        { value: 'append', label: '追加到末尾', desc: '加入到播放队列的末尾。' },
+                                        { value: 'next', label: '追加到下一首', desc: '加入当前播放歌曲后面。' },
+                                    ] as Array<{ value: QueueAddBehavior; label: string; desc: string }>).map((option) => {
+                                        const selected = queueAddBehavior === option.value;
+                                        return (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => onQueueAddBehaviorChange(option.value)}
+                                                className="rounded-xl border px-3 py-3 text-left transition-colors"
+                                                style={getAccentOptionStyle(selected)}
+                                            >
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {option.label}
+                                                </div>
+                                                <div className="mt-1 text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                    {option.desc}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {([
-                                    { value: 'append', label: '追加到末尾', desc: '加入到播放队列的末尾。' },
-                                    { value: 'next', label: '追加到下一首', desc: '加入当前播放歌曲后面。' },
-                                ] as Array<{ value: QueueAddBehavior; label: string; desc: string }>).map((option) => {
-                                    const selected = queueAddBehavior === option.value;
-                                    return (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={() => onQueueAddBehaviorChange(option.value)}
-                                            className="rounded-xl border px-3 py-3 text-left transition-colors"
-                                            style={getAccentOptionStyle(selected)}
-                                        >
-                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                {option.label}
+                        </section>
+
+                        <section>
+                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                <Monitor size={14} /> {t('options.audioOutputSettings') || '播放设备'}
+                            </h3>
+                            <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                            {t('options.audioOutputDevice') || '当前播放声卡'}
+                                        </div>
+                                        <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.audioOutputDeviceDesc') || '切换当前播放器的音频输出设备。Electron 桌面版优先支持，浏览器环境在支持 setSinkId 时也可使用。'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => void loadAudioOutputDevices()}
+                                        disabled={!supportsAudioOutputSelection || isAudioOutputDevicesLoading || isSelectingAudioOutput}
+                                        className={`shrink-0 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition-colors ${utilityGhostButtonClass} disabled:cursor-not-allowed disabled:opacity-45`}
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        <RefreshCw size={13} className={isAudioOutputDevicesLoading ? 'animate-spin' : ''} />
+                                        <span>{t('options.audioOutputRefresh') || '刷新'}</span>
+                                    </button>
+                                </div>
+
+                                {!supportsAudioOutputSelection ? (
+                                    <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('options.audioOutputUnsupported') || '当前环境不支持切换播放设备。'}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <CustomSelect
+                                            value={audioOutputDeviceId}
+                                            onChange={(val) => {
+                                                void handleSelectAudioOutputDevice(val);
+                                            }}
+                                            options={[
+                                                { value: '', label: t('options.audioOutputDefault') || '系统默认' },
+                                                ...audioOutputDevices.map((device, index) => ({
+                                                    value: device.deviceId,
+                                                    label: device.label || `${t('options.audioOutputUnnamed') || '播放设备'} ${index + 1}`,
+                                                })),
+                                            ]}
+                                            disabled={isAudioOutputDevicesLoading || isSelectingAudioOutput}
+                                            isDaylight={isDaylight}
+                                            theme={theme}
+                                        />
+
+
+                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {isSelectingAudioOutput
+                                                ? (t('options.audioOutputSelecting') || '正在切换播放设备...')
+                                                : isAudioOutputDevicesLoading
+                                                    ? (t('options.audioOutputLoading') || '正在读取播放设备...')
+                                                    : (t('options.audioOutputDefaultDesc') || '跟随操作系统当前默认输出设备。')}
+                                        </div>
+
+                                        {audioOutputDevicesError && (
+                                            <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                                {audioOutputDevicesError}
                                             </div>
-                                            <div className="mt-1 text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                {option.desc}
+                                        )}
+
+                                        {!isAudioOutputDevicesLoading && audioOutputDevices.length === 0 && !audioOutputDevicesError && (
+                                            <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.audioOutputEmpty') || '没有检测到可切换的播放设备。'}
                                             </div>
-                                        </button>
-                                    );
-                                })}
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    </section>
+                        </section>
+                    </div>
                 ),
             })}
             {renderSettingsSubview({

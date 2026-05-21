@@ -272,11 +272,26 @@ function isClipboardWritePermission(permission) {
   return permission === 'clipboard-sanitized-write';
 }
 
-function isAllowedMainWindowPermission(permission) {
+function isSpeakerSelectionPermission(permission) {
+  return permission === 'speaker-selection';
+}
+
+function isAudioMediaPermission(permission, details) {
+  if (permission !== 'media') {
+    return false;
+  }
+
+  const mediaType = details?.mediaType;
+  return mediaType === 'audio' || mediaType === 'unknown' || typeof mediaType === 'undefined';
+}
+
+function isAllowedMainWindowPermission(permission, details) {
   return (
     isFileSystemPermission(permission) ||
     isFontAccessPermission(permission) ||
     isClipboardWritePermission(permission) ||
+    isSpeakerSelectionPermission(permission) ||
+    isAudioMediaPermission(permission, details) ||
     permission === 'unknown'
   );
 }
@@ -332,7 +347,7 @@ function setupFileSystemAccessPermissionHandlers() {
 
   ses.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
     const trustedMainWindow = isTrustedMainWindowRequest(webContents, requestingOrigin, details);
-    const allowedPermission = isAllowedMainWindowPermission(permission);
+    const allowedPermission = isAllowedMainWindowPermission(permission, details);
 
     if (!trustedMainWindow || !allowedPermission) {
       return false;
@@ -343,7 +358,7 @@ function setupFileSystemAccessPermissionHandlers() {
 
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const trustedMainWindow = isTrustedMainWindowRequest(webContents, details?.requestingUrl, details);
-    const allowedPermission = isAllowedMainWindowPermission(permission);
+    const allowedPermission = isAllowedMainWindowPermission(permission, details);
 
     if (!trustedMainWindow || !allowedPermission) {
       return callback(false);

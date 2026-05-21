@@ -203,6 +203,8 @@ const readStoredQueueAddBehavior = (): QueueAddBehavior => {
     return saved === 'next' ? 'next' : 'append';
 };
 
+const readStoredAudioOutputDeviceId = (): string => localStorage.getItem('audio_output_device_id') ?? '';
+
 export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [audioQuality, setAudioQuality] = useState<AudioQuality>(() => {
         const saved = localStorage.getItem('default_audio_quality');
@@ -241,6 +243,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [showOpenPanelCloseButton, setShowOpenPanelCloseButton] = useState(() => getStoredBoolean('show_open_panel_close_button', true));
     const [enableNowPlayingStage, setEnableNowPlayingStage] = useState(() => getStoredBoolean('enable_now_playing_stage', false));
     const [queueAddBehavior, setQueueAddBehavior] = useState<QueueAddBehavior>(readStoredQueueAddBehavior);
+    const [audioOutputDeviceId, setAudioOutputDeviceId] = useState<string>(readStoredAudioOutputDeviceId);
     const [volume, setVolume] = useState(() => {
         const saved = localStorage.getItem('player_volume');
         return saved !== null ? parseFloat(saved) : 1.0;
@@ -608,6 +611,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         });
     }, [setStatusMsg]);
 
+    const handleSetAudioOutputDeviceId = useCallback((deviceId: string) => {
+        setAudioOutputDeviceId(deviceId);
+        if (deviceId) {
+            localStorage.setItem('audio_output_device_id', deviceId);
+        } else {
+            localStorage.removeItem('audio_output_device_id');
+        }
+    }, []);
+
     const handleSetVolume = useCallback((val: number) => {
         setVolume(val);
         localStorage.setItem('player_volume', String(val));
@@ -659,6 +671,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         showOpenPanelCloseButton,
         enableNowPlayingStage,
         queueAddBehavior,
+        audioOutputDeviceId,
         loopMode,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
@@ -687,6 +700,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleOpenPanelCloseButton,
         handleToggleNowPlayingStage,
         handleSetQueueAddBehavior,
+        handleSetAudioOutputDeviceId,
         volume,
         isMuted,
         handleSetVolume,

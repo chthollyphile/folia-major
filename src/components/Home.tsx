@@ -137,6 +137,8 @@ interface HomeProps {
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
     queueAddBehavior: QueueAddBehavior;
     onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
+    audioOutputDeviceId: string;
+    onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     pendingOpenSettings?: boolean;
     onPendingOpenSettingsHandled?: () => void;
 }
@@ -246,6 +248,8 @@ const Home: React.FC<HomeProps> = ({
     nowPlayingConnectionStatus = 'disabled',
     queueAddBehavior,
     onQueueAddBehaviorChange,
+    audioOutputDeviceId,
+    onAudioOutputDeviceChange,
     pendingOpenSettings = false,
     onPendingOpenSettingsHandled,
 }) => {
@@ -1049,6 +1053,8 @@ const Home: React.FC<HomeProps> = ({
                                 nowPlayingConnectionStatus={nowPlayingConnectionStatus}
                                 queueAddBehavior={queueAddBehavior}
                                 onQueueAddBehaviorChange={onQueueAddBehaviorChange}
+                                audioOutputDeviceId={audioOutputDeviceId}
+                                onAudioOutputDeviceChange={onAudioOutputDeviceChange}
                             />
                         )
                     }

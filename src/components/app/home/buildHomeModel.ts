@@ -104,6 +104,8 @@ type BuildHomeModelParams = {
     handleImportCappellaCustomEmojiPack: LegacyHomeProps['onImportCappellaCustomEmojiPack'];
     handleClearCappellaCustomEmojiPack: LegacyHomeProps['onClearCappellaCustomEmojiPack'];
     isLoadingCappellaCustomEmojiPack: LegacyHomeProps['isLoadingCappellaCustomEmojiPack'];
+    audioOutputDeviceId: LegacyHomeProps['audioOutputDeviceId'];
+    handleAudioOutputDeviceChange: LegacyHomeProps['onAudioOutputDeviceChange'];
     lyricsFontStyle: LegacyHomeProps['lyricsFontStyle'];
     lyricsFontScale: LegacyHomeProps['lyricsFontScale'];
     lyricsCustomFontFamily: LegacyHomeProps['lyricsCustomFontFamily'];
@@ -213,6 +215,8 @@ export const buildHomeModel = ({
     handleImportCappellaCustomEmojiPack,
     handleClearCappellaCustomEmojiPack,
     isLoadingCappellaCustomEmojiPack,
+    audioOutputDeviceId,
+    handleAudioOutputDeviceChange,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -360,6 +364,8 @@ export const buildHomeModel = ({
             onImportCappellaCustomEmojiPack: handleImportCappellaCustomEmojiPack,
             onClearCappellaCustomEmojiPack: handleClearCappellaCustomEmojiPack,
             isLoadingCappellaCustomEmojiPack,
+            audioOutputDeviceId,
+            onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
             lyricsFontStyle,
             lyricsFontScale,
             lyricsCustomFontFamily,
