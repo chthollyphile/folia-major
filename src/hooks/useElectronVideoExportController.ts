@@ -286,6 +286,22 @@ export const useElectronVideoExportController = ({
         return false;
     }, [startExport, stopActiveExport]);
 
+    // Automatically reset export status back to 'idle' after completion (3s) or error (4s)
+    useEffect(() => {
+        if (exportState.status === 'done') {
+            const timer = window.setTimeout(() => {
+                setExportState(prev => prev.status === 'done' ? idleVideoExportState() : prev);
+            }, 3000);
+            return () => window.clearTimeout(timer);
+        }
+        if (exportState.status === 'error') {
+            const timer = window.setTimeout(() => {
+                setExportState(prev => prev.status === 'error' ? idleVideoExportState() : prev);
+            }, 4000);
+            return () => window.clearTimeout(timer);
+        }
+    }, [exportState.status]);
+
     useEffect(() => () => {
         stopActiveExport(true);
     }, [stopActiveExport]);

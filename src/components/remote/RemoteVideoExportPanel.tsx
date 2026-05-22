@@ -109,11 +109,36 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
             {exportState.status === 'error' && exportState.error && (
                 <div className="text-[10px] text-red-400 truncate -mt-1">{exportState.error}</div>
             )}
+            {exportState.status === 'countdown' && (
+                <div className="text-[10px] text-blue-400 font-semibold flex items-center gap-1.5 animate-pulse -mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    即将开始录制 ({exportState.countdown}s)...
+                </div>
+            )}
+            {exportState.status === 'preparing' && (
+                <div className="text-[10px] text-amber-400 font-semibold flex items-center gap-1.5 animate-pulse -mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    正在准备录制环境...
+                </div>
+            )}
+            {exportState.status === 'recording' && (
+                <div className="text-[10px] text-red-500 font-semibold flex items-center gap-1.5 -mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                    视频录制中 ({Math.round(exportState.progress * 100)}%)
+                </div>
+            )}
+            {exportState.status === 'finalizing' && (
+                <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1.5 animate-pulse -mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    正在保存视频...
+                </div>
+            )}
 
             <div className="flex gap-2">
                 {exportBusy ? (
                     <>
                         <button
+                            key="btn-stop"
                             type="button"
                             disabled={exportState.status !== 'recording'}
                             onClick={() => sendCommand({ type: 'stop-export' })}
@@ -123,6 +148,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                             停止并保存
                         </button>
                         <button
+                            key="btn-cancel"
                             type="button"
                             onClick={() => sendCommand({ type: 'cancel-export' })}
                             className="h-8 rounded-xl bg-white/10 px-4 text-[12px] font-bold text-white transition hover:bg-white/15"
@@ -132,6 +158,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                     </>
                 ) : (
                     <button
+                        key="btn-start"
                         type="button"
                         disabled={primaryDisabled}
                         onClick={() => sendCommand({ type: 'start-export', preset: selectedPreset as VideoExportPreset, startMode })}

@@ -81,6 +81,14 @@ const RemoteControlApp: React.FC = () => {
     const title = snapshot.title || 'Folia';
     const artist = snapshot.artist || (snapshot.hasTrack ? 'Unknown artist' : 'No active track');
     const exportState = snapshot.exportState ?? idleVideoExportState();
+
+    const lastStatusRef = React.useRef(exportState.status);
+    useEffect(() => {
+        if (exportState.status !== 'idle' && lastStatusRef.current === 'idle') {
+            setExportPanelOpen(true);
+        }
+        lastStatusRef.current = exportState.status;
+    }, [exportState.status]);
     
     const coverStyle = useMemo<React.CSSProperties>(() => ({
         backgroundImage: snapshot.coverUrl ? `url(${snapshot.coverUrl})` : undefined,
@@ -143,10 +151,26 @@ const RemoteControlApp: React.FC = () => {
                                     <ChevronLeft size={24} strokeWidth={2.5} />
                                 </button>
                             )}
+                            <AnimatePresence mode="popLayout">
+                                {exportState.status === 'countdown' && (
+                                    <motion.div
+                                        key={`countdown-${exportState.countdown}`}
+                                        initial={{ opacity: 0, scale: 0.3 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 1.8 }}
+                                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                                        className="absolute inset-0 flex items-center justify-center bg-zinc-950/80 rounded-xl backdrop-blur-[2px] z-30"
+                                    >
+                                        <span className="text-4xl font-black text-white tracking-tighter tabular-nums drop-shadow-[0_0_12px_rgba(255,255,255,0.45)]">
+                                            {exportState.countdown}
+                                        </span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Right Column: Track details & controls (Playback or Export) */}
-                        <div className="flex flex-col justify-between h-[112px] min-w-0">
+                        <div className="flex flex-col justify-between min-h-[112px] min-w-0">
                             {/* Static Title & Artist */}
                             <div className="min-w-0 pr-6">
                                 <div className="truncate text-[15px] font-bold leading-5 tracking-[-0.01em]">{title}</div>
@@ -154,7 +178,7 @@ const RemoteControlApp: React.FC = () => {
                             </div>
 
                             {/* Dynamic Panel with Framer Motion transitions */}
-                            <div className="relative h-[70px] w-full">
+                            <div className="relative min-h-[70px] w-full">
                                 <AnimatePresence mode="wait">
                                     {!exportPanelOpen ? (
                                         <motion.div
@@ -163,7 +187,7 @@ const RemoteControlApp: React.FC = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -5 }}
                                             transition={{ duration: 0.15 }}
-                                            className="absolute inset-0 flex flex-col justify-between"
+                                            className="w-full flex flex-col justify-between h-[70px]"
                                         >
                                             {/* Progress Slider */}
                                             <div className="w-full">
@@ -233,7 +257,11 @@ const RemoteControlApp: React.FC = () => {
                                                     title="Video export"
                                                     disabled={!snapshot.hasTrack}
                                                     onClick={() => setExportPanelOpen(true)}
-                                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                        exportState.status === 'recording'
+                                                            ? 'bg-red-500/25 text-red-400 animate-pulse border border-red-500/30'
+                                                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                    }`}
                                                 >
                                                     <Video size={16} strokeWidth={2} />
                                                 </button>
@@ -246,7 +274,7 @@ const RemoteControlApp: React.FC = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -5 }}
                                             transition={{ duration: 0.15 }}
-                                            className="absolute inset-0"
+                                            className="w-full flex flex-col"
                                         >
                                             <RemoteVideoExportPanel
                                                 exportState={exportState}
