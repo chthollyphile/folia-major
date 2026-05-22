@@ -31,6 +31,7 @@ import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
+import { useElectronVideoExportController } from './hooks/useElectronVideoExportController';
 import { useMediaSessionBridge } from './hooks/useMediaSessionBridge';
 import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
 import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
@@ -907,12 +908,31 @@ export default function App() {
         isNowPlayingControlDisabledRef,
     });
 
+    const {
+        exportState,
+        handleExportCommand,
+    } = useElectronVideoExportController({
+        isElectronWindow,
+        audioRef,
+        currentTime,
+        duration,
+        currentSong,
+        setIsPlayerChromeHidden,
+        setIsPanelOpen,
+        navigateToPlayer,
+        pausePlayback,
+        resumePlayback,
+    });
+
     useElectronPlaybackBridge({
         isElectronWindow,
         setIsTitlebarRevealed,
         isNowPlayingControlDisabledRef,
         audioRef,
+        currentTime,
+        duration,
         currentSong,
+        cachedCoverUrl,
         playerState,
         playQueue,
         effectiveLoopMode,
@@ -924,6 +944,8 @@ export default function App() {
         mediaSessionNextRef,
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
+        exportState,
+        onRemoteExportCommand: handleExportCommand,
         onExternalPlayRequest: handleStageExternalPlayRequest,
     });
 

@@ -7,6 +7,7 @@ import ReactDOM from 'react-dom/client';
 import './i18n/config';
 import './index.css';
 import App from './App';
+import RemoteControlApp from './components/remote/RemoteControlApp';
 
 
 const rootElement = document.getElementById('root');
@@ -17,6 +18,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    {new URLSearchParams(window.location.search).get('remote') === '1' ? <RemoteControlApp /> : <App />}
   </React.StrictMode>
 );

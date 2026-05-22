@@ -36,6 +36,26 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('thumbar-action', listener);
         return () => ipcRenderer.removeListener('thumbar-action', listener);
     },
+    openRemoteControl: () => ipcRenderer.invoke('remote-control-open'),
+    closeRemoteControl: () => ipcRenderer.invoke('remote-control-close'),
+    publishRemoteControlSnapshot: (snapshot) => ipcRenderer.invoke('remote-control-publish-snapshot', snapshot),
+    getRemoteControlSnapshot: () => ipcRenderer.invoke('remote-control-get-snapshot'),
+    sendRemoteControlCommand: (command) => ipcRenderer.invoke('remote-control-send-command', command),
+    onRemoteControlCommand: (callback) => {
+        const listener = (_event, command) => callback(command);
+        ipcRenderer.on('remote-control-command', listener);
+        return () => ipcRenderer.removeListener('remote-control-command', listener);
+    },
+    onRemoteControlSnapshot: (callback) => {
+        const listener = (_event, snapshot) => callback(snapshot);
+        ipcRenderer.on('remote-control-snapshot', listener);
+        return () => ipcRenderer.removeListener('remote-control-snapshot', listener);
+    },
+    chooseVideoExportPath: (defaultName) => ipcRenderer.invoke('video-export-choose-path', defaultName),
+    getMainWindowCaptureSource: () => ipcRenderer.invoke('video-export-get-main-window-source'),
+    prepareVideoExportWindow: (size) => ipcRenderer.invoke('video-export-prepare-window', size),
+    restoreVideoExportWindow: () => ipcRenderer.invoke('video-export-restore-window'),
+    writeVideoExportFile: (filePath, data) => ipcRenderer.invoke('video-export-write-file', filePath, data),
     getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),

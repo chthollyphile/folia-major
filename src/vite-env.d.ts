@@ -32,6 +32,72 @@ declare global {
 
   type ElectronTaskbarControlAction = 'previous' | 'play-pause' | 'next';
 
+  type ElectronRemoteControlCommand =
+    | { type: 'play-pause' }
+    | { type: 'previous' }
+    | { type: 'next' }
+    | { type: 'seek'; time: number }
+    | { type: 'open-export' }
+    | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode }
+    | { type: 'stop-export' }
+    | { type: 'cancel-export' };
+
+  type ElectronVideoExportStatus =
+    | 'idle'
+    | 'preparing'
+    | 'countdown'
+    | 'recording'
+    | 'finalizing'
+    | 'done'
+    | 'error';
+
+  type ElectronVideoExportStartMode = 'from-start' | 'current';
+
+  interface ElectronVideoExportPreset {
+    id: string;
+    label: string;
+    width: number;
+    height: number;
+    orientation: 'landscape' | 'portrait';
+  }
+
+  interface ElectronVideoExportState {
+    status: ElectronVideoExportStatus;
+    presetId: string | null;
+    progress: number;
+    elapsed: number;
+    duration: number;
+    countdown: number | null;
+    filePath: string | null;
+    error: string | null;
+  }
+
+  interface ElectronWindowCaptureSource {
+    id: string;
+    name: string;
+  }
+
+  interface ElectronSaveDialogResult {
+    canceled: boolean;
+    filePath: string | null;
+  }
+
+  interface ElectronRemoteControlSnapshot {
+    hasTrack: boolean;
+    title: string | null;
+    artist: string | null;
+    coverUrl: string | null;
+    currentTime: number;
+    duration: number;
+    playerState: string;
+    canGoPrevious: boolean;
+    canGoNext: boolean;
+    controlsDisabled: boolean;
+    isStageActive: boolean;
+    exportState: ElectronVideoExportState;
+    updatedAt: number;
+  }
+
   type ElectronUpdateStatusValue =
     | 'disabled'
     | 'idle'
@@ -215,6 +281,18 @@ declare global {
       isWindowMaximized: () => Promise<boolean>;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
+      openRemoteControl: () => Promise<boolean>;
+      closeRemoteControl: () => Promise<boolean>;
+      publishRemoteControlSnapshot: (snapshot: ElectronRemoteControlSnapshot) => Promise<boolean>;
+      getRemoteControlSnapshot: () => Promise<ElectronRemoteControlSnapshot | null>;
+      sendRemoteControlCommand: (command: ElectronRemoteControlCommand) => Promise<boolean>;
+      onRemoteControlCommand: (callback: (command: ElectronRemoteControlCommand) => void) => () => void;
+      onRemoteControlSnapshot: (callback: (snapshot: ElectronRemoteControlSnapshot) => void) => () => void;
+      chooseVideoExportPath: (defaultName?: string) => Promise<ElectronSaveDialogResult>;
+      getMainWindowCaptureSource: () => Promise<ElectronWindowCaptureSource | null>;
+      prepareVideoExportWindow: (size: { width: number; height: number }) => Promise<boolean>;
+      restoreVideoExportWindow: () => Promise<boolean>;
+      writeVideoExportFile: (filePath: string, data: ArrayBuffer) => Promise<boolean>;
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;

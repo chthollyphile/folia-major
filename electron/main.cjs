@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
@@ -37,6 +37,9 @@ if (process.platform === 'linux') {
 
 const store = new Store();
 let mainWindow = null;
+let remoteControlWindow = null;
+let latestRemoteControlSnapshot = null;
+let videoExportWindowRestoreState = null;
 const DEFAULT_WINDOW_BOUNDS = {
   width: 1200,
   height: 800,
@@ -53,6 +56,7 @@ const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
 const WINDOWS_APP_USER_MODEL_ID = 'top.izuna.foliamajor';
+const REMOTE_CONTROL_WINDOW_TITLE = 'Folia Remote';
 const APP_ICON_PATH = path.join(__dirname, '../build/icon.png');
 const THUMBAR_ICON_DIR = path.join(__dirname, '../build/thumbar');
 const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
@@ -302,6 +306,15 @@ function isTrustedMainWindowContents(webContents) {
     !mainWindow.isDestroyed() &&
     webContents &&
     webContents.id === mainWindow.webContents.id
+  );
+}
+
+function isTrustedRemoteControlContents(webContents) {
+  return Boolean(
+    remoteControlWindow &&
+    !remoteControlWindow.isDestroyed() &&
+    webContents &&
+    webContents.id === remoteControlWindow.webContents.id
   );
 }
 
@@ -1311,6 +1324,118 @@ async function startApi() {
   }
 }
 
+function isElectronDevRuntime() {
+  return process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development';
+}
+
+function loadAppEntry(win, query = {}) {
+  if (isElectronDevRuntime()) {
+    const url = new URL('http://localhost:3000');
+    Object.entries(query).forEach(([key, value]) => {
+      url.searchParams.set(key, String(value));
+    });
+    win.loadURL(url.toString());
+    return;
+  }
+
+  win.loadFile(path.join(__dirname, '../dist/index.html'), { query });
+}
+
+function sendRemoteControlSnapshot(snapshot) {
+  if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
+    return false;
+  }
+
+  remoteControlWindow.webContents.send('remote-control-snapshot', snapshot);
+  return true;
+}
+
+function createRemoteControlWindow() {
+  if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
+    remoteControlWindow.show();
+    remoteControlWindow.focus();
+    return remoteControlWindow;
+  }
+
+  const win = new BrowserWindow({
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    modal: false,
+    width: 380,
+    height: 420,
+    minWidth: 320,
+    minHeight: 300,
+    frame: false,
+    title: REMOTE_CONTROL_WINDOW_TITLE,
+    name: 'folia-remote',
+    autoHideMenuBar: true,
+    resizable: true,
+    minimizable: true,
+    maximizable: false,
+    alwaysOnTop: false,
+    icon: APP_ICON_PATH,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+    },
+  });
+
+  remoteControlWindow = win;
+  loadAppEntry(win, { remote: '1' });
+
+  win.once('ready-to-show', () => {
+    if (latestRemoteControlSnapshot) {
+      sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+    }
+  });
+
+  win.on('closed', () => {
+    if (remoteControlWindow === win) {
+      remoteControlWindow = null;
+    }
+  });
+
+  return win;
+}
+
+function sanitizeVideoExportSize(size) {
+  const width = Math.round(Number(size?.width));
+  const height = Math.round(Number(size?.height));
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 320 || height < 320) {
+    return null;
+  }
+
+  return {
+    width: Math.min(width, 3840),
+    height: Math.min(height, 3840),
+  };
+}
+
+async function getMainWindowCaptureSource() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return null;
+  }
+
+  const mediaSourceId = typeof mainWindow.getMediaSourceId === 'function'
+    ? mainWindow.getMediaSourceId()
+    : null;
+  const title = mainWindow.getTitle();
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 0, height: 0 },
+  });
+
+  const source =
+    (mediaSourceId && sources.find(item => item.id === mediaSourceId)) ||
+    sources.find(item => item.name === title && item.name !== REMOTE_CONTROL_WINDOW_TITLE) ||
+    sources.find(item => item.name.toLowerCase().includes('folia') && item.name !== REMOTE_CONTROL_WINDOW_TITLE) ||
+    null;
+
+  return source ? { id: source.id, name: source.name } : null;
+}
+
 function createWindow() {
   const { bounds: storedBounds, isMaximized } = getStoredWindowState();
   const windowBounds = ensureWindowBoundsVisible(storedBounds);
@@ -1330,12 +1455,9 @@ function createWindow() {
     }
   });
 
-  // Check custom env var for dev
-  if (process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development') {
-    win.loadURL('http://localhost:3000');
+  loadAppEntry(win);
+  if (isElectronDevRuntime()) {
     win.webContents.openDevTools();
-  } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
   if (isMaximized) {
@@ -1362,6 +1484,9 @@ function createWindow() {
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
+        remoteControlWindow.close();
+      }
     }
   });
 
@@ -1629,6 +1754,161 @@ ipcMain.handle('thumbar-update-buttons', (event, state) => {
     canGoNext: Boolean(state?.canGoNext),
     isPlaying: Boolean(state?.isPlaying),
   });
+});
+
+ipcMain.handle('remote-control-open', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to open the remote control window.');
+  }
+
+  createRemoteControlWindow();
+  return true;
+});
+
+ipcMain.handle('remote-control-close', (event) => {
+  if (!isTrustedRemoteControlContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to close the remote control window.');
+  }
+
+  if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
+    return false;
+  }
+
+  remoteControlWindow.close();
+  return true;
+});
+
+ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to publish remote control state.');
+  }
+
+  latestRemoteControlSnapshot = snapshot || null;
+  if (latestRemoteControlSnapshot) {
+    sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+  }
+  return true;
+});
+
+ipcMain.handle('remote-control-get-snapshot', (event) => {
+  if (!isTrustedRemoteControlContents(event.sender) && !isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read remote control state.');
+  }
+
+  return latestRemoteControlSnapshot;
+});
+
+ipcMain.handle('remote-control-send-command', (event, command) => {
+  if (!isTrustedRemoteControlContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to send a remote control command.');
+  }
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  mainWindow.webContents.send('remote-control-command', command);
+  return true;
+});
+
+ipcMain.handle('video-export-choose-path', async (event, defaultName) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to choose a video export path.');
+  }
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { canceled: true, filePath: null };
+  }
+
+  const safeDefaultName = typeof defaultName === 'string' && defaultName.trim()
+    ? defaultName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    : 'folia-export.webm';
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Save video export',
+    defaultPath: path.join(app.getPath('videos'), safeDefaultName.endsWith('.webm') ? safeDefaultName : `${safeDefaultName}.webm`),
+    filters: [{ name: 'WebM Video', extensions: ['webm'] }],
+  });
+
+  return {
+    canceled: result.canceled || !result.filePath,
+    filePath: result.filePath || null,
+  };
+});
+
+ipcMain.handle('video-export-get-main-window-source', async (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read the main window capture source.');
+  }
+
+  return getMainWindowCaptureSource();
+});
+
+ipcMain.handle('video-export-prepare-window', (event, size) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to resize the main window for export.');
+  }
+
+  const exportSize = sanitizeVideoExportSize(size);
+  if (!mainWindow || mainWindow.isDestroyed() || !exportSize) {
+    return false;
+  }
+
+  if (!videoExportWindowRestoreState) {
+    videoExportWindowRestoreState = {
+      bounds: mainWindow.getBounds(),
+      isMaximized: mainWindow.isMaximized(),
+      isFullScreen: mainWindow.isFullScreen(),
+    };
+  }
+
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+  }
+
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  }
+
+  mainWindow.setContentSize(exportSize.width, exportSize.height, true);
+  mainWindow.center();
+  mainWindow.focus();
+  return true;
+});
+
+ipcMain.handle('video-export-restore-window', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to restore the main window after export.');
+  }
+
+  if (!mainWindow || mainWindow.isDestroyed() || !videoExportWindowRestoreState) {
+    videoExportWindowRestoreState = null;
+    return false;
+  }
+
+  const restoreState = videoExportWindowRestoreState;
+  videoExportWindowRestoreState = null;
+  mainWindow.setBounds(restoreState.bounds, true);
+
+  if (restoreState.isFullScreen) {
+    mainWindow.setFullScreen(true);
+  } else if (restoreState.isMaximized) {
+    mainWindow.maximize();
+  }
+
+  return true;
+});
+
+ipcMain.handle('video-export-write-file', async (event, filePath, data) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to write a video export file.');
+  }
+
+  if (typeof filePath !== 'string' || !filePath) {
+    throw new Error('Missing video export path.');
+  }
+
+  await fsp.writeFile(filePath, Buffer.from(data));
+  return true;
 });
 
 ipcMain.handle('debug-get-rendered-fonts', async (event, selector) => {

@@ -106,6 +106,19 @@ yay -S folia-major-bin
 
 `tar.gz` 包中附带图标与 `.desktop` 模板，可按需手动创建桌面启动项。
 
+### Hyprland / Wayland 遥控窗
+
+桌面端的外部遥控窗会作为主窗口的伴随窗口打开，并使用稳定窗口标题 `Folia Remote`。在 Hyprland 下，如果希望它以悬浮小窗方式出现，可以在 `hyprland.conf` 中添加类似规则：
+
+```ini
+windowrule = float, title:^(Folia Remote)$
+windowrule = size 380 420, title:^(Folia Remote)$
+windowrule = center, title:^(Folia Remote)$
+windowrule = pin, title:^(Folia Remote)$
+```
+
+不同打包方式下窗口 `class` 可能不同；如果规则没有生效，可以用 `hyprctl clients` 查看实际 `class` / `title` 后再调整匹配条件。
+
 ## 部署与开发
 
 ### 后端 API

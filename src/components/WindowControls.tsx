@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy } from 'lucide-react'; 
+import { Copy, Minus, Radio, Square, X } from 'lucide-react';
 
 export default function WindowControls({
     revealed,
@@ -35,6 +35,13 @@ export default function WindowControls({
                 pointerEvents: controlsVisible ? 'auto' : 'none',
             } as React.CSSProperties}
         >
+            <button
+                className={btnClass}
+                title="Remote control"
+                onClick={() => void electron.openRemoteControl?.()}
+            >
+                <Radio size={15} />
+            </button>
             <button className={btnClass} onClick={() => electron.minimizeWindow()}>
                 <Minus size={16} />
             </button>
