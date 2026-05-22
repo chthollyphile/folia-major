@@ -112,7 +112,7 @@ yay -S folia-major-bin
 
 ```ini
 windowrule = float, title:^(Folia Remote)$
-windowrule = size 380 420, title:^(Folia Remote)$
+windowrule = size 520 315, title:^(Folia Remote)$
 windowrule = center, title:^(Folia Remote)$
 windowrule = pin, title:^(Folia Remote)$
 ```

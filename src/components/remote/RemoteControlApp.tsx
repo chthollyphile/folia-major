@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
+import { ChevronLeft, Pause, Play, SkipBack, SkipForward, Video, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
 import RemoteVideoExportPanel from './RemoteVideoExportPanel';
 import type { RemoteControlCommand, RemoteControlSnapshot } from '../../types/remoteControl';
-import { DEFAULT_VIDEO_EXPORT_PRESET_ID, idleVideoExportState } from '../../types/videoExport';
+import { DEFAULT_VIDEO_EXPORT_PRESET_ID, idleVideoExportState, VIDEO_EXPORT_PRESETS } from '../../types/videoExport';
 import type { VideoExportStartMode } from '../../types/videoExport';
 
 // src/components/remote/RemoteControlApp.tsx
@@ -45,6 +46,12 @@ const RemoteControlApp: React.FC = () => {
     const [exportPanelOpen, setExportPanelOpen] = useState(false);
     const [selectedPresetId, setSelectedPresetId] = useState(DEFAULT_VIDEO_EXPORT_PRESET_ID);
     const [startMode, setStartMode] = useState<VideoExportStartMode>('from-start');
+    const [presetSelectorOpen, setPresetSelectorOpen] = useState(false);
+
+    useEffect(() => {
+        document.body.style.backgroundColor = 'transparent';
+        document.documentElement.style.backgroundColor = 'transparent';
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -74,131 +81,251 @@ const RemoteControlApp: React.FC = () => {
     const title = snapshot.title || 'Folia';
     const artist = snapshot.artist || (snapshot.hasTrack ? 'Unknown artist' : 'No active track');
     const exportState = snapshot.exportState ?? idleVideoExportState();
+    
     const coverStyle = useMemo<React.CSSProperties>(() => ({
         backgroundImage: snapshot.coverUrl ? `url(${snapshot.coverUrl})` : undefined,
     }), [snapshot.coverUrl]);
+    
+    const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
+    
+    const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
 
     return (
-        <main className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 text-white">
-            <header
-                className="flex h-8 shrink-0 items-center justify-between border-b border-white/10 px-3"
-                style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-            >
-                <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                    Folia Remote
+        <main
+            className="h-screen w-screen overflow-hidden bg-transparent text-white p-1 select-none"
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+            <div className="relative flex h-full w-full rounded-[20px] border border-white/10 p-4 shadow-2xl items-center justify-center overflow-hidden">
+                {/* Blurry gradient background */}
+                <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+                    {/* Deep dark blue-black base */}
+                    <div className="absolute inset-0 bg-[#060814]" />
+                    {/* Deep blue blurry blob top-left */}
+                    <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-blue-600/20 blur-[40px]" />
+                    {/* Dark indigo/purple blurry blob bottom-right */}
+                    <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full bg-indigo-500/15 blur-[50px]" />
+                    {/* Soft cyan/sky center highlight */}
+                    <div className="absolute top-1/4 right-1/4 w-32 h-32 rounded-full bg-sky-500/10 blur-[30px]" />
                 </div>
+
                 <button
                     type="button"
                     title="Close"
                     onClick={() => void window.electron?.closeRemoteControl?.()}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-white/55 transition hover:bg-white/10 hover:text-white"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="absolute right-2.5 top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full text-white/30 transition hover:bg-white/10 hover:text-white/80"
+                    style={noDragStyle}
                 >
-                    <X size={14} />
+                    <X size={13} />
                 </button>
-            </header>
 
-            <section className="flex min-h-0 flex-1 gap-3 p-4">
-                <div
-                    className="h-20 w-20 shrink-0 rounded-lg bg-zinc-800 bg-cover bg-center shadow-lg"
-                    style={coverStyle}
-                >
-                    {!snapshot.coverUrl && (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-white/45">
-                            F
+                <div className="w-full flex items-center" style={noDragStyle}>
+                    <div className="grid grid-cols-[112px_1fr] gap-4 w-full items-center">
+                        {/* Left Column: Cover Art with Hover Back Overlay */}
+                        <div className="relative h-[112px] w-[112px] shrink-0 overflow-hidden rounded-xl bg-zinc-800 bg-cover bg-center shadow-md border border-white/5 group">
+                            {!snapshot.coverUrl && (
+                                <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/35">
+                                    F
+                                </div>
+                            )}
+                            {snapshot.coverUrl && (
+                                <div
+                                    className="h-full w-full bg-cover bg-center"
+                                    style={coverStyle}
+                                />
+                            )}
+                            {exportPanelOpen && (
+                                <button
+                                    type="button"
+                                    title="Back"
+                                    onClick={() => setExportPanelOpen(false)}
+                                    className="absolute inset-0 flex items-center justify-center bg-zinc-950/65 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl backdrop-blur-sm"
+                                >
+                                    <ChevronLeft size={24} strokeWidth={2.5} />
+                                </button>
+                            )}
                         </div>
+
+                        {/* Right Column: Track details & controls (Playback or Export) */}
+                        <div className="flex flex-col justify-between h-[112px] min-w-0">
+                            {/* Static Title & Artist */}
+                            <div className="min-w-0 pr-6">
+                                <div className="truncate text-[15px] font-bold leading-5 tracking-[-0.01em]">{title}</div>
+                                <div className="truncate text-xs font-medium text-white/40 mt-0.5">{artist}</div>
+                            </div>
+
+                            {/* Dynamic Panel with Framer Motion transitions */}
+                            <div className="relative h-[70px] w-full">
+                                <AnimatePresence mode="wait">
+                                    {!exportPanelOpen ? (
+                                        <motion.div
+                                            key="playback-panel"
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -5 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute inset-0 flex flex-col justify-between"
+                                        >
+                                            {/* Progress Slider */}
+                                            <div className="w-full">
+                                                <input
+                                                    aria-label="Seek"
+                                                    type="range"
+                                                    min={0}
+                                                    max={duration || 1}
+                                                    step={0.1}
+                                                    value={progressValue}
+                                                    disabled={primaryDisabled || duration <= 0}
+                                                    onChange={(event) => setPendingSeek(Number(event.currentTarget.value))}
+                                                    onPointerUp={() => {
+                                                        if (pendingSeek !== null) {
+                                                            sendCommand({ type: 'seek', time: pendingSeek });
+                                                        }
+                                                    }}
+                                                    onKeyUp={(event) => {
+                                                        if (event.key === 'Enter' && pendingSeek !== null) {
+                                                            sendCommand({ type: 'seek', time: pendingSeek });
+                                                        }
+                                                    }}
+                                                    className="h-[3px] w-full appearance-none rounded-full cursor-pointer focus:outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-webkit-slider-runnable-track]:bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{
+                                                        background: `linear-gradient(to right, #ffffff 0%, #ffffff ${progressPercent}%, rgba(255, 255, 255, 0.15) ${progressPercent}%, rgba(255, 255, 255, 0.15) 100%)`
+                                                    }}
+                                                />
+                                                <div className="mt-1 flex justify-between text-[10px] tabular-nums text-white/30">
+                                                    <span>{formatTime(progressValue)}</span>
+                                                    <span>{formatTime(duration)}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Playback Actions */}
+                                            <div className="flex w-full items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        title="Previous"
+                                                        disabled={primaryDisabled || !snapshot.canGoPrevious}
+                                                        onClick={() => sendCommand({ type: 'previous' })}
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                                                    >
+                                                        <SkipBack size={16} strokeWidth={2} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title={isPlaying ? 'Pause' : 'Play'}
+                                                        disabled={primaryDisabled}
+                                                        onClick={() => sendCommand({ type: 'play-pause' })}
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-35"
+                                                    >
+                                                        {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} className="translate-x-0.5" fill="currentColor" />}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title="Next"
+                                                        disabled={primaryDisabled || !snapshot.canGoNext}
+                                                        onClick={() => sendCommand({ type: 'next' })}
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                                                    >
+                                                        <SkipForward size={16} strokeWidth={2} />
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    title="Video export"
+                                                    disabled={!snapshot.hasTrack}
+                                                    onClick={() => setExportPanelOpen(true)}
+                                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                                                >
+                                                    <Video size={16} strokeWidth={2} />
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="export-panel"
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -5 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute inset-0"
+                                        >
+                                            <RemoteVideoExportPanel
+                                                exportState={exportState}
+                                                selectedPresetId={selectedPresetId}
+                                                startMode={startMode}
+                                                primaryDisabled={primaryDisabled}
+                                                onOpenPresetSelector={() => setPresetSelectorOpen(true)}
+                                                onStartModeChange={setStartMode}
+                                                sendCommand={sendCommand}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Root-Level Preset Selector Overlay Modal */}
+                <AnimatePresence>
+                    {presetSelectorOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute inset-0 z-50 flex flex-col p-4 rounded-[20px] shadow-2xl border border-white/10 overflow-hidden"
+                            style={noDragStyle}
+                        >
+                            {/* Blurry gradient background for modal */}
+                            <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+                                {/* Deep dark blue-black base */}
+                                <div className="absolute inset-0 bg-[#060814]/95 backdrop-blur-md" />
+                                {/* Deep blue blurry blob top-left */}
+                                <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-blue-600/20 blur-[40px]" />
+                                {/* Dark indigo/purple blurry blob bottom-right */}
+                                <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full bg-indigo-500/15 blur-[50px]" />
+                            </div>
+                            <div className="flex items-center justify-between mb-2.5">
+                                <span className="text-[13px] font-bold text-white/90">选择导出预设</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setPresetSelectorOpen(false)}
+                                    className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 py-1 flex-1">
+                                {VIDEO_EXPORT_PRESETS.map(preset => {
+                                    const isSelected = preset.id === selectedPresetId;
+                                    return (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={isSelected}
+                                            onClick={() => {
+                                                setSelectedPresetId(preset.id);
+                                                setPresetSelectorOpen(false);
+                                            }}
+                                            className={`flex flex-col items-start justify-center rounded-xl p-2.5 px-3.5 border transition text-left cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-white border-white text-zinc-950 shadow-md font-bold'
+                                                    : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/10 font-medium'
+                                            }`}
+                                        >
+                                            <span className="text-[9px] opacity-60 font-semibold mb-0.5 tracking-wide uppercase">
+                                                {preset.orientation === 'portrait' ? '竖屏 9:16' : '横屏 16:9'}
+                                            </span>
+                                            <span className="text-xs font-semibold">{preset.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
                     )}
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-col justify-between">
-                    <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold leading-5">{title}</div>
-                        <div className="mt-1 truncate text-xs text-white/55">{artist}</div>
-                    </div>
-
-                    <div>
-                        <input
-                            aria-label="Seek"
-                            type="range"
-                            min={0}
-                            max={duration || 1}
-                            step={0.1}
-                            value={progressValue}
-                            disabled={primaryDisabled || duration <= 0}
-                            onChange={(event) => setPendingSeek(Number(event.currentTarget.value))}
-                            onPointerUp={() => {
-                                if (pendingSeek !== null) {
-                                    sendCommand({ type: 'seek', time: pendingSeek });
-                                }
-                            }}
-                            onKeyUp={(event) => {
-                                if (event.key === 'Enter' && pendingSeek !== null) {
-                                    sendCommand({ type: 'seek', time: pendingSeek });
-                                }
-                            }}
-                            className="h-1.5 w-full accent-white disabled:opacity-35"
-                        />
-                        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-white/45">
-                            <span>{formatTime(progressValue)}</span>
-                            <span>{formatTime(duration)}</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {exportPanelOpen && (
-                <RemoteVideoExportPanel
-                    exportState={exportState}
-                    selectedPresetId={selectedPresetId}
-                    startMode={startMode}
-                    primaryDisabled={primaryDisabled}
-                    onSelectPreset={setSelectedPresetId}
-                    onStartModeChange={setStartMode}
-                    sendCommand={sendCommand}
-                />
-            )}
-
-            <section className="flex h-16 items-center justify-between border-t border-white/10 px-4">
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        title="Previous"
-                        disabled={primaryDisabled || !snapshot.canGoPrevious}
-                        onClick={() => sendCommand({ type: 'previous' })}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/8 text-white/75 transition hover:bg-white/14 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                        <SkipBack size={17} />
-                    </button>
-                    <button
-                        type="button"
-                        title={isPlaying ? 'Pause' : 'Play'}
-                        disabled={primaryDisabled}
-                        onClick={() => sendCommand({ type: 'play-pause' })}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-zinc-950 transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                        {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                    </button>
-                    <button
-                        type="button"
-                        title="Next"
-                        disabled={primaryDisabled || !snapshot.canGoNext}
-                        onClick={() => sendCommand({ type: 'next' })}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/8 text-white/75 transition hover:bg-white/14 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                        <SkipForward size={17} />
-                    </button>
-                </div>
-
-                <button
-                    type="button"
-                    title="Video export"
-                    disabled={!snapshot.hasTrack}
-                    onClick={() => setExportPanelOpen(prev => !prev)}
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg transition hover:bg-white/14 disabled:cursor-not-allowed disabled:opacity-35 ${exportPanelOpen ? 'bg-white text-zinc-950' : 'bg-white/8 text-white/75'}`}
-                >
-                    <Download size={16} />
-                </button>
-            </section>
+                </AnimatePresence>
+            </div>
         </main>
     );
 };

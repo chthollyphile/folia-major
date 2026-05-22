@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Square } from 'lucide-react';
+import { ChevronDown, Square } from 'lucide-react';
 import type { RemoteControlCommand } from '../../types/remoteControl';
 import { VIDEO_EXPORT_PRESETS } from '../../types/videoExport';
 import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from '../../types/videoExport';
@@ -11,7 +11,7 @@ type RemoteVideoExportPanelProps = {
     selectedPresetId: string;
     startMode: VideoExportStartMode;
     primaryDisabled: boolean;
-    onSelectPreset: (presetId: string) => void;
+    onOpenPresetSelector: () => void;
     onStartModeChange: (mode: VideoExportStartMode) => void;
     sendCommand: (command: RemoteControlCommand) => void;
 };
@@ -56,77 +56,78 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
     selectedPresetId,
     startMode,
     primaryDisabled,
-    onSelectPreset,
+    onOpenPresetSelector,
     onStartModeChange,
     sendCommand,
 }) => {
     const selectedPreset = VIDEO_EXPORT_PRESETS.find(preset => preset.id === selectedPresetId) ?? VIDEO_EXPORT_PRESETS[1];
     const exportBusy = isExportBusy(exportState.status);
+    const statusLabel = getExportStatusLabel(exportState);
 
     return (
-        <section className="border-t border-white/10 px-4 py-3">
-            <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                    Video Export
-                </div>
-                <div className="text-[11px] tabular-nums text-white/55">{getExportStatusLabel(exportState)}</div>
-            </div>
-
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
-                {VIDEO_EXPORT_PRESETS.map(preset => (
+        <div className="flex flex-col gap-2.5 w-full">
+            {/* Row 1: Segment and Preset Button */}
+            <div className="grid grid-cols-[1fr_1.1fr] gap-2.5">
+                <div className="flex h-8 rounded-xl bg-white/5 p-0.5">
                     <button
-                        key={preset.id}
                         type="button"
                         disabled={exportBusy}
-                        onClick={() => onSelectPreset(preset.id)}
-                        className={`rounded-md px-2 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-40 ${preset.id === selectedPresetId ? 'bg-white text-zinc-950' : 'bg-white/8 text-white/70 hover:bg-white/14'}`}
+                        onClick={() => onStartModeChange('from-start')}
+                        className={`flex-1 flex items-center justify-center rounded-lg text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            startMode === 'from-start' ? 'bg-white text-zinc-950 shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
                     >
-                        {preset.label}
+                        整首歌
                     </button>
-                ))}
-            </div>
+                    <button
+                        type="button"
+                        disabled={exportBusy}
+                        onClick={() => onStartModeChange('current')}
+                        className={`flex-1 flex items-center justify-center rounded-lg text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            startMode === 'current' ? 'bg-white text-zinc-950 shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                    >
+                        从此
+                    </button>
+                </div>
 
-            <div className="mt-2 flex rounded-lg bg-white/8 p-1">
                 <button
                     type="button"
                     disabled={exportBusy}
-                    onClick={() => onStartModeChange('from-start')}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-40 ${startMode === 'from-start' ? 'bg-white text-zinc-950' : 'text-white/65 hover:bg-white/10'}`}
+                    onClick={onOpenPresetSelector}
+                    className="flex h-8 items-center justify-between rounded-xl bg-white/5 px-3 text-[11px] font-bold text-white/90 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 border border-white/5"
                 >
-                    Full song
-                </button>
-                <button
-                    type="button"
-                    disabled={exportBusy}
-                    onClick={() => onStartModeChange('current')}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-40 ${startMode === 'current' ? 'bg-white text-zinc-950' : 'text-white/65 hover:bg-white/10'}`}
-                >
-                    From here
+                    <span className="truncate">
+                        {selectedPreset.orientation === 'portrait' ? '竖屏 ' : '横屏 '}
+                        {selectedPreset.label}
+                    </span>
+                    <ChevronDown size={12} className="shrink-0 ml-1 opacity-60" />
                 </button>
             </div>
 
+            {/* Row 2: Status Error (if any) and Action Buttons */}
             {exportState.status === 'error' && exportState.error && (
-                <div className="mt-2 max-h-8 overflow-hidden text-[11px] text-red-300">{exportState.error}</div>
+                <div className="text-[10px] text-red-400 truncate -mt-1">{exportState.error}</div>
             )}
 
-            <div className="mt-3 flex gap-2">
+            <div className="flex gap-2">
                 {exportBusy ? (
                     <>
                         <button
                             type="button"
                             disabled={exportState.status !== 'recording'}
                             onClick={() => sendCommand({ type: 'stop-export' })}
-                            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-950 transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white px-4 text-[12px] font-bold text-zinc-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                            <Square size={13} />
-                            Stop & Save
+                            <Square size={10} fill="currentColor" />
+                            停止并保存
                         </button>
                         <button
                             type="button"
                             onClick={() => sendCommand({ type: 'cancel-export' })}
-                            className="rounded-lg bg-white/8 px-3 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/14"
+                            className="h-8 rounded-xl bg-white/10 px-4 text-[12px] font-bold text-white transition hover:bg-white/15"
                         >
-                            Cancel
+                            取消
                         </button>
                     </>
                 ) : (
@@ -134,16 +135,14 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                         type="button"
                         disabled={primaryDisabled}
                         onClick={() => sendCommand({ type: 'start-export', preset: selectedPreset as VideoExportPreset, startMode })}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-950 transition hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="h-8 w-full rounded-xl bg-white text-zinc-950 px-4 text-[12px] font-bold transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-35"
                     >
-                        <Download size={14} />
-                        Countdown & Record
+                        {statusLabel === 'Ready' ? '开始录制' : statusLabel}
                     </button>
                 )}
             </div>
-        </section>
+        </div>
     );
 };
 
 export default RemoteVideoExportPanel;
-

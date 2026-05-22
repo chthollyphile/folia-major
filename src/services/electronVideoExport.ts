@@ -82,8 +82,9 @@ export const getMainWindowVideoCaptureStream = async (preset: VideoExportPreset)
     return navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
-            cursor: 'never',
-            displaySurface: 'window',
+            // Chromium's legacy desktop source constraints cannot be mixed with
+            // standard cursor/displaySurface constraints; cursor hiding is handled
+            // by installVideoExportCursorGuard while recording.
             mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: source.id,
