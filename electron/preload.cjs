@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('electron', {
     },
     openRemoteControl: () => ipcRenderer.invoke('remote-control-open'),
     closeRemoteControl: () => ipcRenderer.invoke('remote-control-close'),
+    getRemoteControlAlwaysOnTop: () => ipcRenderer.invoke('remote-control-get-always-on-top'),
+    setRemoteControlAlwaysOnTop: (alwaysOnTop) => ipcRenderer.invoke('remote-control-set-always-on-top', alwaysOnTop),
     publishRemoteControlSnapshot: (snapshot) => ipcRenderer.invoke('remote-control-publish-snapshot', snapshot),
     getRemoteControlSnapshot: () => ipcRenderer.invoke('remote-control-get-snapshot'),
     sendRemoteControlCommand: (command) => ipcRenderer.invoke('remote-control-send-command', command),

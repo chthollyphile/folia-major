@@ -283,6 +283,8 @@ declare global {
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       openRemoteControl: () => Promise<boolean>;
       closeRemoteControl: () => Promise<boolean>;
+      getRemoteControlAlwaysOnTop: () => Promise<boolean>;
+      setRemoteControlAlwaysOnTop: (alwaysOnTop: boolean) => Promise<boolean>;
       publishRemoteControlSnapshot: (snapshot: ElectronRemoteControlSnapshot) => Promise<boolean>;
       getRemoteControlSnapshot: () => Promise<ElectronRemoteControlSnapshot | null>;
       sendRemoteControlCommand: (command: ElectronRemoteControlCommand) => Promise<boolean>;

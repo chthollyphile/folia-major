@@ -39,6 +39,7 @@ const store = new Store();
 let mainWindow = null;
 let remoteControlWindow = null;
 let latestRemoteControlSnapshot = null;
+let remoteControlAlwaysOnTop = false;
 let videoExportWindowRestoreState = null;
 const DEFAULT_WINDOW_BOUNDS = {
   width: 1200,
@@ -1352,6 +1353,7 @@ function sendRemoteControlSnapshot(snapshot) {
 
 function createRemoteControlWindow() {
   if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
+    remoteControlWindow.setAlwaysOnTop(remoteControlAlwaysOnTop, 'screen-saver');
     remoteControlWindow.show();
     remoteControlWindow.focus();
     return remoteControlWindow;
@@ -1374,7 +1376,7 @@ function createRemoteControlWindow() {
     resizable: false,
     minimizable: true,
     maximizable: false,
-    alwaysOnTop: false,
+    alwaysOnTop: remoteControlAlwaysOnTop,
     icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -1781,6 +1783,32 @@ ipcMain.handle('remote-control-close', (event) => {
 
   remoteControlWindow.close();
   return true;
+});
+
+ipcMain.handle('remote-control-get-always-on-top', (event) => {
+  if (!isTrustedRemoteControlContents(event.sender) && !isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read remote control always-on-top state.');
+  }
+
+  if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
+    remoteControlAlwaysOnTop = remoteControlWindow.isAlwaysOnTop();
+  }
+
+  return remoteControlAlwaysOnTop;
+});
+
+ipcMain.handle('remote-control-set-always-on-top', (event, nextAlwaysOnTop) => {
+  if (!isTrustedRemoteControlContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to update remote control always-on-top state.');
+  }
+
+  remoteControlAlwaysOnTop = Boolean(nextAlwaysOnTop);
+
+  if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
+    remoteControlWindow.setAlwaysOnTop(remoteControlAlwaysOnTop, 'screen-saver');
+  }
+
+  return remoteControlAlwaysOnTop;
 });
 
 ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {

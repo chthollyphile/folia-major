@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Pause, Play, SkipBack, SkipForward, Video, X } from 'lucide-react';
+import { ChevronLeft, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
 import RemoteVideoExportPanel from './RemoteVideoExportPanel';
@@ -47,6 +47,8 @@ const RemoteControlApp: React.FC = () => {
     const [selectedPresetId, setSelectedPresetId] = useState(DEFAULT_VIDEO_EXPORT_PRESET_ID);
     const [startMode, setStartMode] = useState<VideoExportStartMode>('from-start');
     const [presetSelectorOpen, setPresetSelectorOpen] = useState(false);
+    const [alwaysOnTop, setAlwaysOnTop] = useState(false);
+    const [windowControlsRevealed, setWindowControlsRevealed] = useState(false);
 
     useEffect(() => {
         document.body.style.backgroundColor = 'transparent';
@@ -59,6 +61,12 @@ const RemoteControlApp: React.FC = () => {
         void window.electron?.getRemoteControlSnapshot?.().then(current => {
             if (mounted && current) {
                 setSnapshot(current as RemoteControlSnapshot);
+            }
+        });
+
+        void window.electron?.getRemoteControlAlwaysOnTop?.().then(nextAlwaysOnTop => {
+            if (mounted) {
+                setAlwaysOnTop(Boolean(nextAlwaysOnTop));
             }
         });
 
@@ -98,10 +106,22 @@ const RemoteControlApp: React.FC = () => {
     
     const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
 
+    const handleToggleAlwaysOnTop = () => {
+        const nextAlwaysOnTop = !alwaysOnTop;
+        setAlwaysOnTop(nextAlwaysOnTop);
+        void window.electron?.setRemoteControlAlwaysOnTop?.(nextAlwaysOnTop).then(actualAlwaysOnTop => {
+            setAlwaysOnTop(Boolean(actualAlwaysOnTop));
+        }).catch(() => {
+            setAlwaysOnTop(!nextAlwaysOnTop);
+        });
+    };
+
     return (
         <main
             className="h-screen w-screen overflow-hidden bg-transparent text-white p-1 select-none"
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+            onMouseEnter={() => setWindowControlsRevealed(true)}
+            onMouseLeave={() => setWindowControlsRevealed(false)}
         >
             <div className="relative flex h-full w-full rounded-[20px] border border-white/10 p-4 shadow-2xl items-center justify-center overflow-hidden">
                 {/* Blurry gradient background */}
@@ -116,15 +136,34 @@ const RemoteControlApp: React.FC = () => {
                     <div className="absolute top-1/4 right-1/4 w-32 h-32 rounded-full bg-sky-500/10 blur-[30px]" />
                 </div>
 
-                <button
-                    type="button"
-                    title="Close"
-                    onClick={() => void window.electron?.closeRemoteControl?.()}
-                    className="absolute right-2.5 top-2.5 z-20 flex h-6 w-6 items-center justify-center rounded-full text-white/30 transition hover:bg-white/10 hover:text-white/80"
+                <div
+                    className={`absolute right-2.5 top-2.5 z-20 flex items-center gap-1 transition duration-200 ${
+                        windowControlsRevealed ? 'opacity-100' : 'opacity-0'
+                    }`}
                     style={noDragStyle}
+                    onFocus={() => setWindowControlsRevealed(true)}
+                    onMouseEnter={() => setWindowControlsRevealed(true)}
                 >
-                    <X size={13} />
-                </button>
+                    <button
+                        type="button"
+                        title={alwaysOnTop ? '取消置顶' : '固定到最前'}
+                        aria-pressed={alwaysOnTop}
+                        tabIndex={windowControlsRevealed ? 0 : -1}
+                        onClick={handleToggleAlwaysOnTop}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-white/30 transition hover:bg-white/10 hover:text-white/80"
+                    >
+                        {alwaysOnTop ? <Pin size={13} /> : <PinOff size={13} />}
+                    </button>
+                    <button
+                        type="button"
+                        title="Close"
+                        tabIndex={windowControlsRevealed ? 0 : -1}
+                        onClick={() => void window.electron?.closeRemoteControl?.()}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-white/30 transition hover:bg-white/10 hover:text-white/80"
+                    >
+                        <X size={13} />
+                    </button>
+                </div>
 
                 <div className="w-full flex items-center" style={noDragStyle}>
                     <div className="grid grid-cols-[112px_1fr] gap-4 w-full items-center">
