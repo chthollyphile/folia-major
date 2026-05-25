@@ -5,9 +5,24 @@ import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { Line, Theme, AudioBands, type TiltColorScheme, type TiltTuning, DEFAULT_TILT_TUNING } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { SentenceLayout } from '../../../utils/lyrics/sentenceLayout';
 import { useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+
+const CHAR_REF_LENGTH = 20;
+const LOG_OFFSET = 4;
+const LINE_THRESHOLDS = [0.45, 1.05, 1.7];
+
+const determineLineCount = (charCount: number, seed: number, splitProbability: number): number => {
+    const normalized = Math.log(charCount + LOG_OFFSET) / Math.log(CHAR_REF_LENGTH + LOG_OFFSET);
+    const jitter = seededRandom(seed, 1) * 0.6 + 0.7;
+    const score = normalized * jitter * splitProbability;
+    if (score < LINE_THRESHOLDS[0]) return 1;
+    if (score < LINE_THRESHOLDS[1]) return 2;
+    if (score < LINE_THRESHOLDS[2]) return 3;
+    return 4;
+};
 
 // src/components/visualizer/tilt/VisualizerTilt.tsx
 // Tilt visualizer: splits lyrics into 1-4 lines with probabilistic layout,
@@ -48,10 +63,7 @@ interface TiltLayout {
     scaleMultiplier: number;
 }
 
-const SEMANTIC_DELIMITERS = /[，。！？、；：""''（）【】…—]+/;
 const REM_PX = 16;
-const NORMAL_BASE_REM = 2.8;
-const TILT_BASE_REM = 3.8;
 const RESPLIT_THRESHOLD = 1.6;
 const SCALE_FLOOR_NORMAL = 0.55;
 const SCALE_FLOOR_TILT = 0.5;
@@ -74,91 +86,27 @@ const seededRandom = (seed: number, offset: number): number => {
     return x - Math.floor(x);
 };
 
-const splitTextSemantic = (text: string, maxParts: number): string[] => {
-    if (text.length <= 4) return [text];
-    const trimmed = text.trim();
-    if (trimmed.length <= 4) return [trimmed];
-
-    const parts = trimmed.split(SEMANTIC_DELIMITERS).filter(s => s.length > 0);
-    if (parts.length <= 1) {
-        const bySpace = trimmed.split(/\s+/).filter(s => s.length > 0);
-        if (bySpace.length > maxParts) {
-            const result: string[] = [];
-            const targetLen = Math.ceil(trimmed.length / maxParts);
-            let current = '';
-            for (const word of bySpace) {
-                if (current.length + word.length >= targetLen && result.length < maxParts - 1 && current.length > 0) {
-                    result.push(current);
-                    current = word;
-                } else {
-                    current += (current.length ? ' ' : '') + word;
-                }
-            }
-            if (current.length) result.push(current);
-            return result.slice(0, maxParts);
-        }
-        return bySpace;
-    }
-
-    if (parts.length >= maxParts) {
-        return parts.slice(0, maxParts);
-    }
-
-    const result: string[] = [];
-    const targetLen = Math.ceil(trimmed.length / maxParts);
-    let current = '';
-    for (const part of parts) {
-        if (current.length + part.length >= targetLen && result.length < maxParts - 1) {
-            if (current.length > 0) result.push(current);
-            current = part;
-        } else {
-            current += (current.length > 0 ? ' ' : '') + part;
-        }
-    }
-    if (current.length > 0) result.push(current);
-
-    if (result.length >= maxParts) return result.slice(0, maxParts);
-
-    const expanded: string[] = [];
-    for (const seg of result) {
-        if (expanded.length >= maxParts - 1) {
-            expanded.push(seg);
-            continue;
-        }
-        const subParts = seg.split(/\s+/).filter(s => s.length > 0);
-        if (subParts.length <= 1 || expanded.length + subParts.length > maxParts) {
-            expanded.push(seg);
-        } else {
-            for (const sp of subParts) {
-                if (expanded.length >= maxParts) break;
-                expanded.push(sp);
-            }
-        }
-    }
-    return expanded.slice(0, maxParts);
-};
-
 const buildTiltLayout = (fullText: string, lineSeed: number, tuning: TiltTuning, theme: Theme, fontScale: number): TiltLayout => {
     const fontStack = resolveThemeFontStack(theme);
-    const normalBasePx = NORMAL_BASE_REM * REM_PX * fontScale;
-    const tiltBasePx = TILT_BASE_REM * REM_PX * fontScale;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const measureMaxPx = Math.max(viewportWidth * 0.06875, 5.625 * REM_PX * fontScale);
+    const normalBasePx = measureMaxPx;
+    const tiltBasePx = measureMaxPx;
     const normalFontSpec = `400 ${normalBasePx}px ${fontStack}`;
     const tiltFontSpec = `300 ${tiltBasePx}px ${fontStack} italic`;
     const availableWidth = getAvailableWidth();
 
-    const splitRoll = seededRandom(lineSeed, 1);
-    let numLines: number;
-    if (splitRoll < tuning.splitProbability * 0.33) {
-        numLines = 4;
-    } else if (splitRoll < tuning.splitProbability * 0.66) {
-        numLines = 3;
-    } else if (splitRoll < tuning.splitProbability) {
-        numLines = 2;
-    } else {
-        numLines = 1;
-    }
+    const charCount = fullText.trim().length;
+    const isEllipsisOnly = /^[\s.…·。]+$/.test(fullText.trim());
+    let mergedSegments: string[];
 
-    const mergedSegments = splitTextSemantic(fullText, numLines);
+    if (isEllipsisOnly) {
+        mergedSegments = [fullText];
+    } else {
+        const numLines = determineLineCount(charCount, lineSeed, tuning.splitProbability);
+        const layoutUnits = SentenceLayout.splitIntoSentences(fullText, numLines);
+        mergedSegments = layoutUnits.map(u => u.text);
+    }
 
     const candidates: number[] = [];
     mergedSegments.forEach((_, i) => {
@@ -196,9 +144,7 @@ const buildTiltLayout = (fullText: string, lineSeed: number, tuning: TiltTuning,
         const last = segs[segs.length - 1];
         if (last.isTilt || last.text.trim().length > 2) return segs;
         const prev = segs[segs.length - 2];
-        const lastWidth = measureAtSize(last.text.trim(), normalBasePx, normalFontSpec);
-        const prevWidth = measureAtSize(prev.text, normalBasePx, normalFontSpec);
-        if (lastWidth < prevWidth) {
+        if (last.text.trim().length * 2 <= prev.text.length) {
             segs[segs.length - 1] = { ...last, isShortLastLine: true };
         }
         return segs;
@@ -210,8 +156,8 @@ const buildTiltLayout = (fullText: string, lineSeed: number, tuning: TiltTuning,
             const totalEstWidth = measureAtSize(fullText, normalBasePx, normalFontSpec);
             const extraSplitsNeeded = Math.min(4, Math.max(segments.length + 1, Math.ceil(totalEstWidth / targetWidth)));
             if (extraSplitsNeeded > segments.length) {
-                const reSplit = splitTextSemantic(fullText, extraSplitsNeeded);
-                const newSegments: TiltSegment[] = reSplit.map(text => ({ text, isTilt: false, isShortLastLine: false }));
+                const reSplitUnits = SentenceLayout.splitIntoSentences(fullText, extraSplitsNeeded);
+                const newSegments: TiltSegment[] = reSplitUnits.map(u => ({ text: u.text, isTilt: false, isShortLastLine: false }));
                 if (newSegments.length > 0) {
                     const resplitTiltRoll = seededRandom(lineSeed, 300);
                     if (resplitTiltRoll < tuning.tiltStyleProbability) {
@@ -258,8 +204,11 @@ const TiltLine: React.FC<{
 }> = ({ segment, theme, fontScale, scaleMultiplier, visible, colorScheme = 'default' }) => {
     const baseFontScale = fontScale * scaleMultiplier;
     const shortLastBoost = segment.isShortLastLine ? 1.18 : 1;
-    const normalFontSize = `clamp(${(1.6 * baseFontScale * shortLastBoost).toFixed(3)}rem, ${(3.5 * baseFontScale * shortLastBoost).toFixed(3)}vw, ${(2.8 * baseFontScale * shortLastBoost).toFixed(3)}rem)`;
-    const tiltFontSize = `clamp(${(2.0 * baseFontScale).toFixed(3)}rem, ${(4.8 * baseFontScale).toFixed(3)}vw, ${(3.8 * baseFontScale).toFixed(3)}rem)`;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const tiltFontPx = Math.min(viewportWidth * 0.06875 * baseFontScale, 5.625 * REM_PX * baseFontScale);
+    const yOffset = tiltFontPx / 6;
+    const normalFontSize = `clamp(${(3.125 * baseFontScale * shortLastBoost).toFixed(3)}rem, ${(6.875 * baseFontScale * shortLastBoost).toFixed(3)}vw, ${(5.625 * baseFontScale * shortLastBoost).toFixed(3)}rem)`;
+    const tiltFontSize = `clamp(${(3.125 * baseFontScale).toFixed(3)}rem, ${(6.875 * baseFontScale).toFixed(3)}vw, ${(5.625 * baseFontScale).toFixed(3)}rem)`;
 
     const getColors = () => {
         switch (colorScheme) {
@@ -330,14 +279,14 @@ const TiltLine: React.FC<{
                         key={ti}
                         initial={{
                             opacity: 0,
-                            y: isSpace ? 0 : yStagger * 20,
+                            y: isSpace ? 0 : yStagger * yOffset * 2,
                         }}
                         animate={visible ? {
                             opacity: 1,
-                            y: isSpace ? 0 : yStagger * 8,
+                            y: isSpace ? 0 : yStagger * yOffset,
                         } : {
                             opacity: 0,
-                            y: isSpace ? 0 : yStagger * 20,
+                            y: isSpace ? 0 : yStagger * yOffset * 2,
                         }}
                         transition={{
                             duration: 0.5,
