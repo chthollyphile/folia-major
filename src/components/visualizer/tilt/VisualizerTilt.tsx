@@ -75,6 +75,120 @@ const getAvailableWidth = (): number => {
 
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
+interface CharTiming {
+    charIndex: number;
+    startTime: number;
+    endTime: number;
+}
+
+const findSegmentWordRange = (segmentText: string, fullText: string, words: Array<{ text: string; startTime: number; endTime: number }>): { startWordIndex: number; endWordIndex: number } => {
+    const segmentStart = fullText.indexOf(segmentText);
+    if (segmentStart === -1) return { startWordIndex: 0, endWordIndex: words.length };
+
+    let charCursor = 0;
+    let startWordIndex = 0;
+    let endWordIndex = words.length;
+
+    for (let wi = 0; wi < words.length; wi++) {
+        const wordEnd = charCursor + words[wi].text.length;
+        if (charCursor <= segmentStart && wordEnd > segmentStart) {
+            startWordIndex = wi;
+        }
+        if (charCursor < segmentStart + segmentText.length && wordEnd >= segmentStart + segmentText.length) {
+            endWordIndex = wi + 1;
+            break;
+        }
+        charCursor = wordEnd;
+    }
+
+    return { startWordIndex, endWordIndex };
+};
+
+const buildCharTimings = (segmentText: string, segmentStartTime: number, segmentEndTime: number, activeLine: Line | null): CharTiming[] => {
+    const graphemes = [...GRAPHEME_SEGMENTER.segment(segmentText)];
+    if (!activeLine || graphemes.length === 0) return [];
+
+    const nonSpaceGraphemes = graphemes.filter(g => !/^\s+$/.test(g.segment));
+    if (nonSpaceGraphemes.length === 0) return [];
+
+    const totalDuration = Math.max(segmentEndTime - segmentStartTime, 0.3);
+    const { startWordIndex, endWordIndex } = findSegmentWordRange(segmentText, activeLine.fullText, activeLine.words);
+    const segmentWords = activeLine.words.slice(startWordIndex, endWordIndex);
+
+    let currentCharIndex = 0;
+    const timings: CharTiming[] = [];
+
+    if (segmentWords.length > 0) {
+        let totalCharsInSegment = 0;
+        for (const word of segmentWords) {
+            totalCharsInSegment += [...GRAPHEME_SEGMENTER.segment(word.text)].filter(g => !/^\s+$/.test(g.segment)).length;
+        }
+
+        if (totalCharsInSegment > 0) {
+            for (let wi = 0; wi < segmentWords.length; wi++) {
+                const word = segmentWords[wi];
+                if (!word) continue;
+
+                const wordGraphemes = [...GRAPHEME_SEGMENTER.segment(word.text)];
+                const wordNonSpaceCount = wordGraphemes.filter(g => !/^\s+$/.test(g.segment)).length;
+
+                if (wordNonSpaceCount === 0) continue;
+
+                const wordDuration = Math.max(word.endTime - word.startTime, 0.05);
+                const charDuration = wordDuration / wordNonSpaceCount;
+
+                for (let ci = 0; ci < wordGraphemes.length; ci++) {
+                    if (currentCharIndex >= nonSpaceGraphemes.length) break;
+
+                    const grapheme = wordGraphemes[ci];
+                    const isSpace = /^\s+$/.test(grapheme.segment);
+
+                    timings.push({
+                        charIndex: currentCharIndex,
+                        startTime: word.startTime + ci * charDuration,
+                        endTime: word.startTime + (ci + 1) * charDuration,
+                    });
+
+                    if (!isSpace) currentCharIndex++;
+                }
+            }
+        }
+    }
+
+    if (timings.length === 0 || timings.length !== nonSpaceGraphemes.length) {
+        const avgCharDuration = totalDuration / nonSpaceGraphemes.length;
+        timings.length = 0;
+        currentCharIndex = 0;
+
+        for (let i = 0; i < graphemes.length; i++) {
+            const isSpace = /^\s+$/.test(graphemes[i].segment);
+            if (isSpace) continue;
+
+            timings.push({
+                charIndex: currentCharIndex,
+                startTime: segmentStartTime + currentCharIndex * avgCharDuration,
+                endTime: segmentStartTime + (currentCharIndex + 1) * avgCharDuration,
+            });
+            currentCharIndex++;
+        }
+    }
+
+    return timings;
+};
+
+const getCharPulseIntensity = (currentTime: number, charTiming: CharTiming): number => {
+    const { startTime, endTime } = charTiming;
+    const duration = Math.max(endTime - startTime, 0.05);
+    const elapsed = currentTime - startTime;
+
+    if (elapsed < 0 || elapsed > duration * 1.5) return 0;
+
+    const progress = Math.min(elapsed / duration, 1);
+    const pulseValue = Math.sin(progress * Math.PI);
+
+    return Math.max(0, Math.min(1, pulseValue));
+};
+
 const measureAtSize = (text: string, pxSize: number, fontSpec: string): number => {
     const prepared = prepareWithSegments(text, fontSpec);
     const layout = layoutWithLines(prepared, 99999, pxSize * 1.4);
@@ -201,7 +315,11 @@ const TiltLine: React.FC<{
     scaleMultiplier: number;
     visible: boolean;
     colorScheme?: TiltColorScheme;
-}> = ({ segment, theme, fontScale, scaleMultiplier, visible, colorScheme = 'default' }) => {
+    currentTime?: MotionValue<number>;
+    segmentStartTime?: number;
+    segmentEndTime?: number;
+    activeLine?: Line | null;
+}> = ({ segment, theme, fontScale, scaleMultiplier, visible, colorScheme = 'default', currentTime, segmentStartTime = 0, segmentEndTime = 0, activeLine = null }) => {
     const baseFontScale = fontScale * scaleMultiplier;
     const shortLastBoost = segment.isShortLastLine ? 1.18 : 1;
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
@@ -225,6 +343,45 @@ const TiltLine: React.FC<{
 
     const colors = getColors();
 
+    const graphemes = [...GRAPHEME_SEGMENTER.segment(segment.text)];
+    let visualIndex = 0;
+
+    const charTimings = useMemo(() => {
+        if (!visible || !activeLine) return [];
+        return buildCharTimings(segment.text, segmentStartTime, segmentEndTime, activeLine);
+    }, [visible, activeLine, segment.text, segmentStartTime, segmentEndTime]);
+
+    const [pulseIntensities, setPulseIntensities] = useState<number[]>(() => new Array(graphemes.length).fill(0));
+
+    const charIndexMap = useMemo(() => {
+        let idx = 0;
+        return graphemes.map((seg) => {
+            const isSpace = /^\s+$/.test(seg.segment);
+            if (!isSpace) idx++;
+            return idx - 1;
+        });
+    }, [graphemes]);
+
+    useMotionValueEvent(currentTime, 'change', (latest) => {
+        if (!charTimings || charTimings.length === 0) {
+            setPulseIntensities(new Array(graphemes.length).fill(0));
+            return;
+        }
+
+        const newIntensities = graphemes.map((seg, ti) => {
+            const isSpace = /^\s+$/.test(seg.segment);
+            if (isSpace) return 0;
+
+            const ci = charIndexMap[ti];
+            const charTiming = charTimings[ci];
+            if (!charTiming) return 0;
+
+            return getCharPulseIntensity(latest, charTiming);
+        });
+
+        setPulseIntensities(newIntensities);
+    });
+
     if (!segment.isTilt) {
         return (
             <motion.div
@@ -242,13 +399,44 @@ const TiltLine: React.FC<{
                     letterSpacing: '0.08em',
                 }}
             >
-                {segment.text}
+                {graphemes.map((seg, ti) => {
+                    const isSpace = /^\s+$/.test(seg.segment);
+                    const ci = visualIndex;
+                    if (!isSpace) visualIndex += 1;
+
+                    const pulseIntensity = pulseIntensities[ti] || 0;
+                    const scaleValue = 1 + pulseIntensity * 0.15;
+
+                    return (
+                        <motion.span
+                            key={ti}
+                            initial={{ opacity: 0, scale: 1 }}
+                            animate={visible ? {
+                                opacity: 1,
+                                scale: scaleValue,
+                            } : {
+                                opacity: 0,
+                                scale: 1,
+                            }}
+                            transition={{
+                                duration: 0.5,
+                                delay: visible && !isSpace ? ci * 0.04 : 0,
+                                ease: [0.25, 0.46, 0.45, 0.94],
+                                scale: {
+                                    duration: 0.15,
+                                    ease: [0.34, 1.56, 0.64, 1],
+                                },
+                            }}
+                            className="inline-block"
+                            style={isSpace ? { minWidth: '0.25em' } : undefined}
+                        >
+                            {isSpace ? '\u00A0' : seg.segment}
+                        </motion.span>
+                    );
+                })}
             </motion.div>
         );
     }
-
-    const graphemes = [...GRAPHEME_SEGMENTER.segment(segment.text)];
-    let visualIndex = 0;
 
     return (
         <motion.div
@@ -274,24 +462,34 @@ const TiltLine: React.FC<{
                 const ci = visualIndex;
                 if (!isSpace) visualIndex += 1;
 
+                const pulseIntensity = pulseIntensities[ti] || 0;
+                const scaleValue = 1 + pulseIntensity * 0.18;
+
                 return (
                     <motion.span
                         key={ti}
                         initial={{
                             opacity: 0,
                             y: isSpace ? 0 : yStagger * yOffset * 2,
+                            scale: 1,
                         }}
                         animate={visible ? {
                             opacity: 1,
                             y: isSpace ? 0 : yStagger * yOffset,
+                            scale: scaleValue,
                         } : {
                             opacity: 0,
                             y: isSpace ? 0 : yStagger * yOffset * 2,
+                            scale: 1,
                         }}
                         transition={{
                             duration: 0.5,
                             delay: visible && !isSpace ? ci * 0.05 : 0,
                             ease: [0.25, 0.46, 0.45, 0.94],
+                            scale: {
+                                duration: 0.15,
+                                ease: [0.34, 1.56, 0.64, 1],
+                            },
                         }}
                         className="inline-block"
                         style={isSpace ? { minWidth: '0.35em' } : undefined}
@@ -413,6 +611,10 @@ const VisualizerTilt: React.FC<VisualizerTiltProps & { staticMode?: boolean; }> 
                                     scaleMultiplier={layout.scaleMultiplier}
                                     visible={si <= visibleSegmentIndex}
                                     colorScheme={tiltTuning?.colorScheme}
+                                    currentTime={currentTime}
+                                    segmentStartTime={segmentTimings?.[si]?.start ?? 0}
+                                    segmentEndTime={segmentTimings?.[si]?.end ?? 0}
+                                    activeLine={activeLine}
                                 />
                             ))}
                         </motion.div>
