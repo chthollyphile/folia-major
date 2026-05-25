@@ -137,19 +137,22 @@ const buildCharTimings = (segmentText: string, segmentStartTime: number, segment
                 const wordDuration = Math.max(word.endTime - word.startTime, 0.05);
                 const charDuration = wordDuration / wordNonSpaceCount;
 
+                let nonSpaceCi = 0;
                 for (let ci = 0; ci < wordGraphemes.length; ci++) {
                     if (currentCharIndex >= nonSpaceGraphemes.length) break;
 
                     const grapheme = wordGraphemes[ci];
                     const isSpace = /^\s+$/.test(grapheme.segment);
+                    if (isSpace) continue;
 
                     timings.push({
                         charIndex: currentCharIndex,
-                        startTime: word.startTime + ci * charDuration,
-                        endTime: word.startTime + (ci + 1) * charDuration,
+                        startTime: word.startTime + nonSpaceCi * charDuration,
+                        endTime: word.startTime + (nonSpaceCi + 1) * charDuration,
                     });
 
-                    if (!isSpace) currentCharIndex++;
+                    currentCharIndex++;
+                    nonSpaceCi++;
                 }
             }
         }
@@ -178,7 +181,8 @@ const buildCharTimings = (segmentText: string, segmentStartTime: number, segment
 
 const getCharPulseIntensity = (currentTime: number, charTiming: CharTiming): number => {
     const { startTime, endTime } = charTiming;
-    const duration = Math.max(endTime - startTime, 0.05);
+    const rawDuration = Math.max(endTime - startTime, 0.05);
+    const duration = Math.min(rawDuration, 0.35);
     const elapsed = currentTime - startTime;
 
     if (elapsed < 0 || elapsed > duration * 1.5) return 0;
@@ -410,25 +414,23 @@ const TiltLine: React.FC<{
                     return (
                         <motion.span
                             key={ti}
-                            initial={{ opacity: 0, scale: 1 }}
+                            initial={{ opacity: 0 }}
                             animate={visible ? {
                                 opacity: 1,
-                                scale: scaleValue,
                             } : {
                                 opacity: 0,
-                                scale: 1,
                             }}
                             transition={{
                                 duration: 0.5,
                                 delay: visible && !isSpace ? ci * 0.04 : 0,
                                 ease: [0.25, 0.46, 0.45, 0.94],
-                                scale: {
-                                    duration: 0.15,
-                                    ease: [0.34, 1.56, 0.64, 1],
-                                },
                             }}
                             className="inline-block"
-                            style={isSpace ? { minWidth: '0.25em' } : undefined}
+                            style={{
+                                transform: `scale(${scaleValue})`,
+                                transition: 'transform 0.06s ease-out',
+                                ...(isSpace ? { minWidth: '0.25em' } : {}),
+                            }}
                         >
                             {isSpace ? '\u00A0' : seg.segment}
                         </motion.span>
@@ -471,30 +473,31 @@ const TiltLine: React.FC<{
                         initial={{
                             opacity: 0,
                             y: isSpace ? 0 : yStagger * yOffset * 2,
-                            scale: 1,
                         }}
                         animate={visible ? {
                             opacity: 1,
                             y: isSpace ? 0 : yStagger * yOffset,
-                            scale: scaleValue,
                         } : {
                             opacity: 0,
                             y: isSpace ? 0 : yStagger * yOffset * 2,
-                            scale: 1,
                         }}
                         transition={{
                             duration: 0.5,
                             delay: visible && !isSpace ? ci * 0.05 : 0,
                             ease: [0.25, 0.46, 0.45, 0.94],
-                            scale: {
-                                duration: 0.15,
-                                ease: [0.34, 1.56, 0.64, 1],
-                            },
                         }}
                         className="inline-block"
                         style={isSpace ? { minWidth: '0.35em' } : undefined}
                     >
-                        {isSpace ? '\u00A0' : seg.segment}
+                        <span
+                            style={{
+                                display: 'inline-block',
+                                transform: `scale(${scaleValue})`,
+                                transition: 'transform 0.06s ease-out',
+                            }}
+                        >
+                            {isSpace ? '\u00A0' : seg.segment}
+                        </span>
                     </motion.span>
                 );
             })}

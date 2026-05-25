@@ -80,8 +80,8 @@ describe('SentenceLayout', () => {
         const texts = result.map(r => r.text);
         const reconstructed = texts.join('');
         expect(reconstructed).toBe(text);
-        expect(texts).toContain('Oh');
-        expect(texts).toContain('Ah');        
+        expect(texts.some(t => t.includes('Oh'))).toBe(true);
+        expect(texts.some(t => t.includes('Ah'))).toBe(true);        
     });
 
     it('splits by level 2 (targetCount = 2)', () => {

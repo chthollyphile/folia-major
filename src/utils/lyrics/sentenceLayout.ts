@@ -77,7 +77,7 @@ class SentenceLayout implements LyricLayoutUnit {
     }
 
     private static splitByPunctuation(text: string): string[] {
-        const allPunctRegex = /[，。；！？、…\.\,\;\!\?]+/g;
+        const allPunctRegex = /[，。；！？、…·\.\,\;\!\?]+/g;
         const matches = [...text.matchAll(allPunctRegex)];
         
         if (matches.length === 0) {
@@ -124,7 +124,7 @@ class SentenceLayout implements LyricLayoutUnit {
             return [text];
         }
 
-        const westernBlockRegex = /[a-zA-Z0-9]+(?:[a-zA-Z0-9'\-]*[a-zA-Z0-9]+)?(?:\s+[a-zA-Z0-9]+(?:[a-zA-Z0-9'\-]*[a-zA-Z0-9]+)?)+[.,;:!?]?\s*/g;
+        const westernBlockRegex = /[a-zA-Z0-9]+(?:[a-zA-Z0-9'\-]*[a-zA-Z0-9]+)?(?:\s+[a-zA-Z0-9]+(?:[a-zA-Z0-9'\-]*[a-zA-Z0-9]+)?)+[.,;:!?。，；：！？]?\s*/g;
         
         SentenceLayout.charCountCache.clear();
 
@@ -200,7 +200,7 @@ class SentenceLayout implements LyricLayoutUnit {
 
     private static splitWesternPhrase(text: string): string[] {
         if (!hasCjkText(text) && text.length > 0) {
-            const splitRegex = /(?<=\w[.,;:!?])(?=\s+\w)/;
+            const splitRegex = /(?<=\w[.,;:!?。，；：！？])(?=\s+\w)/;
             const parts = text.split(splitRegex);
             
             if (parts.length > 1) {
@@ -214,8 +214,11 @@ class SentenceLayout implements LyricLayoutUnit {
     private static splitByBracketsQuotes(text: string): string[] {
         const pairedBrackets: [RegExp, RegExp][] = [
             [/\(/g, /\)/g],
+            [/（/g, /）/g],
             [/\[/g, /]/g],
+            [/［/g, /］/g],
             [/【/g, /】/g],
+            [/｛/g, /｝/g],
             [/「/g, /」/g],
             [/『/g, /』/g],
             [/《/g, /》/g],
