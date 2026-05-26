@@ -52,6 +52,7 @@ const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
+const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
 // Default Theme
 // 午夜墨染
 const DEFAULT_THEME: Theme = {
@@ -99,7 +100,10 @@ export default function App() {
     const [statusMsg, setStatusMsg] = useState<StatusMessage | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
-    const [isPlayerChromeHidden, setIsPlayerChromeHidden] = useState(false);
+    const [isPlayerChromeHidden, setIsPlayerChromeHidden] = useState(() => {
+        const saved = localStorage.getItem(PLAYER_CHROME_HIDDEN_STORAGE_KEY);
+        return saved === 'true';
+    });
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
     const [pendingOpenSettings, setPendingOpenSettings] = useState(false);
 
@@ -1045,6 +1049,10 @@ export default function App() {
         visualizerMode,
     }), [appStyle, currentSong?.id, lyricsCustomFontFamily, lyricsFontStyle, theme, visualizerMode]);
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
+
+    useEffect(() => {
+        localStorage.setItem(PLAYER_CHROME_HIDDEN_STORAGE_KEY, String(isPlayerChromeHidden));
+    }, [isPlayerChromeHidden]);
 
     useEffect(() => {
         const body = document.body;

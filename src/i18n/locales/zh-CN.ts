@@ -243,7 +243,7 @@ export default {
     "hidePlayerTranslationSubtitle": "隐藏底部字幕",
     "hidePlayerRightPanelButton": "隐藏右侧按钮",
     "transparentPlayerBackground": "播放页透明背景",
-    "desktopTrayBehavior": "桌面托盘行为",
+    "desktopTrayBehavior": "桌面窗口行为",
     "desktopTrayBehaviorDesc": "仅桌面端生效。可控制最小化到托盘，以及启动时是否直接进入播放页。",
     "minimizeToTray": "最小化到托盘",
     "openPlayerOnLaunch": "启动后直接进入播放页",

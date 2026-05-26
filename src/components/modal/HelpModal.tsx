@@ -2851,7 +2851,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                         {isElectron && (
                             <section>
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Monitor size={14} /> {t('options.desktopTrayBehavior') || '桌面托盘行为'}
+                                    <Monitor size={14} /> {t('options.desktopTrayBehavior') || '桌面窗口行为'}
                                 </h3>
                                 <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
                                     <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
