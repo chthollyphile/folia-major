@@ -74,6 +74,7 @@ interface HomeProps {
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
     minimizeToTray?: boolean;
+    hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
@@ -82,6 +83,7 @@ interface HomeProps {
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
+    onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
@@ -192,6 +194,7 @@ const Home: React.FC<HomeProps> = ({
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
     minimizeToTray = false,
+    hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
@@ -200,6 +203,7 @@ const Home: React.FC<HomeProps> = ({
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
     onToggleMinimizeToTray,
+    onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
     enableMediaCache = false,
     onToggleMediaCache,
@@ -1007,6 +1011,7 @@ const Home: React.FC<HomeProps> = ({
                                 hidePlayerRightPanelButton={hidePlayerRightPanelButton}
                                 transparentPlayerBackground={transparentPlayerBackground}
                                 minimizeToTray={minimizeToTray}
+                                hideTaskbarIcon={hideTaskbarIcon}
                                 openPlayerOnLaunch={openPlayerOnLaunch}
                                 onToggleStaticMode={onToggleStaticMode}
                                 onToggleDisableHomeDynamicBackground={onToggleDisableHomeDynamicBackground}
@@ -1015,6 +1020,7 @@ const Home: React.FC<HomeProps> = ({
                                 onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
                                 onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
                                 onToggleMinimizeToTray={onToggleMinimizeToTray}
+                                onToggleHideTaskbarIcon={onToggleHideTaskbarIcon}
                                 onToggleOpenPlayerOnLaunch={onToggleOpenPlayerOnLaunch}
                                 enableMediaCache={enableMediaCache}
                                 onToggleMediaCache={onToggleMediaCache}

@@ -25,6 +25,7 @@ interface HelpModalProps {
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
     minimizeToTray?: boolean;
+    hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
@@ -33,6 +34,7 @@ interface HelpModalProps {
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
+    onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
@@ -121,6 +123,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
     minimizeToTray = false,
+    hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
@@ -129,6 +132,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
     onToggleMinimizeToTray,
+    onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
     enableMediaCache = false,
     onToggleMediaCache,
@@ -2845,7 +2849,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                 isOpen: showDesktopSettings,
                 onClose: () => setShowDesktopSettings(false),
                 title: '桌面端设置',
-                description: '更新检查、自动更新和 AI 配置。',
+                description: '桌面窗口行为、更新检查、自动更新和 AI 配置。',
                 children: (
                     <>
                         {isElectron && (
@@ -2855,7 +2859,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                 </h3>
                                 <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
                                     <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
-                                        {t('options.desktopTrayBehaviorDesc') || '仅桌面端生效。可控制最小化到托盘，以及启动时是否直接进入播放页。'}
+                                        {t('options.desktopTrayBehaviorDesc') || '仅桌面端生效。可控制最小化到托盘、隐藏任务栏图标，以及启动时是否直接进入播放页。'}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <button
@@ -2868,6 +2872,18 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 {minimizeToTray ? <Check size={12} /> : null}
                                             </span>
                                             <span>{t('options.minimizeToTray') || '最小化到托盘'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleHideTaskbarIcon?.(!hideTaskbarIcon)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${hideTaskbarIcon ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${hideTaskbarIcon ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {hideTaskbarIcon ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.hideTaskbarIcon') || '隐藏任务栏图标'}</span>
                                         </button>
 
                                         <button
@@ -3176,6 +3192,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     onToggleHidePlayerRightPanelButton?.(false);
                                     onToggleOpenPanelCloseButton(true);
                                     onToggleMinimizeToTray?.(false);
+                                    onToggleHideTaskbarIcon?.(false);
                                     onToggleOpenPlayerOnLaunch?.(false);
                                 }}
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${utilityGhostButtonClass}`}

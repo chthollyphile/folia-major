@@ -8,6 +8,7 @@ import { clearUploadedLyricsFont, restoreUploadedLyricsFont, uploadAndRegisterLy
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
+const HIDE_TASKBAR_ICON_STORAGE_KEY = 'hide_taskbar_icon';
 const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 
 const getStoredBoolean = (key: string, fallback: boolean) => {
@@ -250,6 +251,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
     const [transparentPlayerBackground, setTransparentPlayerBackground] = useState(() => getStoredBoolean('transparent_player_background', false));
     const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, false));
+    const [hideTaskbarIcon, setHideTaskbarIcon] = useState(() => getStoredBoolean(HIDE_TASKBAR_ICON_STORAGE_KEY, false));
     const [openPlayerOnLaunch, setOpenPlayerOnLaunch] = useState(() => getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
@@ -347,6 +349,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                 if (typeof settings?.MINIMIZE_TO_TRAY === 'boolean') {
                     setMinimizeToTray(settings.MINIMIZE_TO_TRAY);
                     localStorage.setItem(MINIMIZE_TO_TRAY_STORAGE_KEY, String(settings.MINIMIZE_TO_TRAY));
+                }
+                if (typeof settings?.HIDE_TASKBAR_ICON === 'boolean') {
+                    setHideTaskbarIcon(settings.HIDE_TASKBAR_ICON);
+                    localStorage.setItem(HIDE_TASKBAR_ICON_STORAGE_KEY, String(settings.HIDE_TASKBAR_ICON));
                 }
             } catch {
                 // Ignore desktop preference sync failures and keep local fallback.
@@ -527,6 +533,18 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '最小化将隐藏到托盘' : '最小化将保留在任务栏',
+        });
+    };
+
+    const handleToggleHideTaskbarIcon = (enable: boolean) => {
+        setHideTaskbarIcon(enable);
+        localStorage.setItem(HIDE_TASKBAR_ICON_STORAGE_KEY, String(enable));
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('HIDE_TASKBAR_ICON', enable);
+        }
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '主窗口任务栏图标已隐藏' : '主窗口任务栏图标已恢复',
         });
     };
 
@@ -855,6 +873,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
         minimizeToTray,
+        hideTaskbarIcon,
         openPlayerOnLaunch,
         enableMediaCache,
         backgroundOpacity,
@@ -885,6 +904,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
         handleToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,

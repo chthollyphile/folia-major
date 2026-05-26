@@ -69,6 +69,7 @@ type BuildHomeModelParams = {
     hidePlayerRightPanelButton?: LegacyHomeProps['hidePlayerRightPanelButton'];
     transparentPlayerBackground?: LegacyHomeProps['transparentPlayerBackground'];
     minimizeToTray?: LegacyHomeProps['minimizeToTray'];
+    hideTaskbarIcon?: LegacyHomeProps['hideTaskbarIcon'];
     openPlayerOnLaunch?: LegacyHomeProps['openPlayerOnLaunch'];
     handleToggleStaticMode?: LegacyHomeProps['onToggleStaticMode'];
     handleToggleDisableHomeDynamicBackground?: LegacyHomeProps['onToggleDisableHomeDynamicBackground'];
@@ -77,6 +78,7 @@ type BuildHomeModelParams = {
     handleToggleHidePlayerRightPanelButton?: LegacyHomeProps['onToggleHidePlayerRightPanelButton'];
     handleToggleTransparentPlayerBackground?: LegacyHomeProps['onToggleTransparentPlayerBackground'];
     handleToggleMinimizeToTray?: LegacyHomeProps['onToggleMinimizeToTray'];
+    handleToggleHideTaskbarIcon?: LegacyHomeProps['onToggleHideTaskbarIcon'];
     handleToggleOpenPlayerOnLaunch?: LegacyHomeProps['onToggleOpenPlayerOnLaunch'];
     enableMediaCache?: LegacyHomeProps['enableMediaCache'];
     handleToggleMediaCache?: LegacyHomeProps['onToggleMediaCache'];
@@ -187,6 +189,7 @@ export const buildHomeModel = ({
     hidePlayerRightPanelButton,
     transparentPlayerBackground,
     minimizeToTray,
+    hideTaskbarIcon,
     openPlayerOnLaunch,
     handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground,
@@ -195,6 +198,7 @@ export const buildHomeModel = ({
     handleToggleHidePlayerRightPanelButton,
     handleToggleTransparentPlayerBackground,
     handleToggleMinimizeToTray,
+    handleToggleHideTaskbarIcon,
     handleToggleOpenPlayerOnLaunch,
     enableMediaCache,
     handleToggleMediaCache,
@@ -343,6 +347,7 @@ export const buildHomeModel = ({
             hidePlayerRightPanelButton,
             transparentPlayerBackground,
             minimizeToTray,
+            hideTaskbarIcon,
             openPlayerOnLaunch,
             onToggleStaticMode: handleToggleStaticMode,
             onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
@@ -351,6 +356,7 @@ export const buildHomeModel = ({
             onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
             onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
             onToggleMinimizeToTray: handleToggleMinimizeToTray,
+            onToggleHideTaskbarIcon: handleToggleHideTaskbarIcon,
             onToggleOpenPlayerOnLaunch: handleToggleOpenPlayerOnLaunch,
             enableMediaCache,
             onToggleMediaCache: handleToggleMediaCache,

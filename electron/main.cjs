@@ -43,6 +43,7 @@ let latestRemoteControlSnapshot = null;
 let remoteControlAlwaysOnTop = false;
 let mainWindowClickThroughEnabled = false;
 let mainWindowClickThroughUnlockHover = false;
+let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
 const DEFAULT_WINDOW_BOUNDS = {
   width: 1200,
@@ -57,6 +58,7 @@ const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
 const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
+const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
@@ -73,6 +75,8 @@ const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
       next: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'next.png')).resize({ width: 16, height: 16, quality: 'best' }),
     }
   : null;
+
+mainWindowSkipTaskbarEnabled = Boolean(store.get(HIDE_TASKBAR_ICON_SETTING_KEY));
 
 const stageApi = createStageApi({
   app,
@@ -284,6 +288,20 @@ function isMinimizeToTrayEnabled() {
   return Boolean(store.get(MINIMIZE_TO_TRAY_SETTING_KEY));
 }
 
+function setMainWindowSkipTaskbarEnabled(enabled) {
+  mainWindowSkipTaskbarEnabled = Boolean(enabled);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setSkipTaskbar(mainWindowSkipTaskbarEnabled);
+  }
+  refreshTrayMenu();
+  return mainWindowSkipTaskbarEnabled;
+}
+
+function persistMainWindowSkipTaskbarEnabled(enabled) {
+  store.set(HIDE_TASKBAR_ICON_SETTING_KEY, Boolean(enabled));
+  return setMainWindowSkipTaskbarEnabled(enabled);
+}
+
 function refreshTrayMenu() {
   if (!appTray) {
     return;
@@ -297,7 +315,7 @@ function refreshTrayMenu() {
       },
     },
     {
-      label: '打开 Remote',
+      label: '打开 遥控窗口',
       click: () => {
         createRemoteControlWindow();
       },
@@ -309,6 +327,15 @@ function refreshTrayMenu() {
       enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
       click: () => {
         setMainWindowClickThroughEnabled(!mainWindowClickThroughEnabled);
+      },
+    },
+    {
+      label: '隐藏任务栏图标',
+      type: 'checkbox',
+      checked: mainWindowSkipTaskbarEnabled,
+      enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
+      click: () => {
+        persistMainWindowSkipTaskbarEnabled(!mainWindowSkipTaskbarEnabled);
       },
     },
     { type: 'separator' },
@@ -1617,6 +1644,7 @@ function createWindow(options = {}) {
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,
+    skipTaskbar: mainWindowSkipTaskbarEnabled,
     show: showImmediately,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -1638,6 +1666,7 @@ function createWindow(options = {}) {
 
   mainWindow = win;
   ensureTray();
+  setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
   applyMainWindowMouseIgnoreState();
   updateWindowThumbarButtons();
   win.on('resize', () => {
@@ -1761,6 +1790,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
         });
       });
     }
+  }
+
+  if (key === HIDE_TASKBAR_ICON_SETTING_KEY) {
+    setMainWindowSkipTaskbarEnabled(value);
   }
 
   if (key === STAGE_MODE_SOURCE_SETTING_KEY) {
