@@ -240,11 +240,13 @@ const buildTiltLayout = (fullText: string, lineSeed: number, tuning: TiltTuning,
 
     let offsetAccum = 0;
     const segments: TiltSegment[] = mergedSegments.map((text, i) => {
+        const trimmed = text.trimStart().trimEnd();
+        const leadingSpaces = text.length - text.trimStart().length;
         const seg = {
-            text,
+            text: trimmed,
             isTilt: i === finalTiltIndex,
             isShortLastLine: false,
-            charOffset: offsetAccum,
+            charOffset: offsetAccum + leadingSpaces,
         };
         offsetAccum += text.length;
         return seg;
@@ -284,7 +286,9 @@ const buildTiltLayout = (fullText: string, lineSeed: number, tuning: TiltTuning,
                 const reSplitUnits = SentenceLayout.splitIntoSentences(fullText, extraSplitsNeeded, lineSeed);
                 let reSplitOffset = 0;
                 const newSegments: TiltSegment[] = reSplitUnits.map(u => {
-                    const seg = { text: u.text, isTilt: false, isShortLastLine: false, charOffset: reSplitOffset };
+                    const trimmed = u.text.trimStart().trimEnd();
+                    const leadingSpaces = u.text.length - u.text.trimStart().length;
+                    const seg = { text: trimmed, isTilt: false, isShortLastLine: false, charOffset: reSplitOffset + leadingSpaces };
                     reSplitOffset += u.text.length;
                     return seg;
                 });
