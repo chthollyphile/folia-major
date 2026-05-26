@@ -25,6 +25,7 @@ interface HelpModalProps {
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
     disableVisualizerVignette?: boolean;
+    disableVisualizerGeometricBackground?: boolean;
     minimizeToTray?: boolean;
     hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
@@ -35,6 +36,7 @@ interface HelpModalProps {
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     onToggleDisableVisualizerVignette?: (disable: boolean) => void;
+    onToggleDisableVisualizerGeometricBackground?: (disable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
     onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
@@ -125,6 +127,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
     disableVisualizerVignette = false,
+    disableVisualizerGeometricBackground = false,
     minimizeToTray = false,
     hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
@@ -135,6 +138,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
     onToggleDisableVisualizerVignette,
+    onToggleDisableVisualizerGeometricBackground,
     onToggleMinimizeToTray,
     onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
@@ -2406,42 +2410,71 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     />
                                 </div>
 
-                                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                            <Monitor size={14} />
-                                            {t('options.transparentPlayerBackground') || '播放页透明背景'}
+                                <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                                <Monitor size={14} />
+                                                {t('options.transparentPlayerBackground') || '播放页透明背景'}
+                                            </div>
+                                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                仅对播放页生效。开启后会切换到透明窗口模式，适合 OBS 浏览器源或抠像叠加场景。
+                                            </div>
                                         </div>
-                                        <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                            仅对播放页生效。开启后会切换到透明窗口模式，适合 OBS 浏览器源或抠像叠加场景。
-                                        </div>
+                                        <button
+                                            onClick={() => onToggleTransparentPlayerBackground?.(!transparentPlayerBackground)}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!transparentPlayerBackground ? toggleOffBackgroundClass : ''}`}
+                                            style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => onToggleTransparentPlayerBackground?.(!transparentPlayerBackground)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!transparentPlayerBackground ? toggleOffBackgroundClass : ''}`}
-                                        style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                    >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
-                                    </button>
-                                </div>
-
-                                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                            <Layers size={14} />
-                                            {t('options.disableVisualizerVignette') || '禁用半透明暗角效果'}
-                                        </div>
-                                        <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.disableVisualizerVignetteDesc') || '仅关闭几何背景自带的边缘暗角，建议配合透明背景使用。'}
-                                        </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            aria-pressed={disableVisualizerVignette}
+                                            onClick={() => onToggleDisableVisualizerVignette?.(!disableVisualizerVignette)}
+                                            className="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all"
+                                            style={{
+                                                borderColor: disableVisualizerVignette ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'rgba(255,255,255,0.08)',
+                                                backgroundColor: disableVisualizerVignette ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+                                                color: 'var(--text-primary)',
+                                            }}
+                                        >
+                                            <span
+                                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                                                style={{
+                                                    borderColor: disableVisualizerVignette ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'rgba(255,255,255,0.24)',
+                                                    backgroundColor: disableVisualizerVignette ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'transparent',
+                                                }}
+                                            >
+                                                {disableVisualizerVignette && <Check size={12} className="text-white" />}
+                                            </span>
+                                            {t('options.disableVisualizerVignette') || '禁用暗角'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-pressed={disableVisualizerGeometricBackground}
+                                            onClick={() => onToggleDisableVisualizerGeometricBackground?.(!disableVisualizerGeometricBackground)}
+                                            className="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all"
+                                            style={{
+                                                borderColor: disableVisualizerGeometricBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'rgba(255,255,255,0.08)',
+                                                backgroundColor: disableVisualizerGeometricBackground ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+                                                color: 'var(--text-primary)',
+                                            }}
+                                        >
+                                            <span
+                                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                                                style={{
+                                                    borderColor: disableVisualizerGeometricBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'rgba(255,255,255,0.24)',
+                                                    backgroundColor: disableVisualizerGeometricBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : 'transparent',
+                                                }}
+                                            >
+                                                {disableVisualizerGeometricBackground && <Check size={12} className="text-white" />}
+                                            </span>
+                                            {t('options.disableVisualizerGeometricBackground') || '隐藏通用几何背景'}
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => onToggleDisableVisualizerVignette?.(!disableVisualizerVignette)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!disableVisualizerVignette ? toggleOffBackgroundClass : ''}`}
-                                        style={{ backgroundColor: disableVisualizerVignette ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                    >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${disableVisualizerVignette ? 'translate-x-6' : 'translate-x-0'}`} />
-                                    </button>
                                 </div>
                             </div>
                         </section>

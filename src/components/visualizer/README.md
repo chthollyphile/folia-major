@@ -48,6 +48,7 @@ interface VisualizerSharedProps {
     staticMode?: boolean;
     backgroundOpacity?: number;
     transparentBackground?: boolean;
+    disableGeometricBackground?: boolean;
     disableVignette?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
@@ -104,6 +105,7 @@ export default VisualizerFoo;
 - `useCoverColorBg`: 是否启用封面取色背景。
 - `backgroundOpacity`: 当启用封面背景时，叠加底色的透明度。
 - `transparentBackground`: 播放页透明背景模式，移除纯色/封面底层但保留可独立控制的 visualizer 图形层。
+- `disableGeometricBackground`: 隐藏 `GeometricBackground` 的通用几何图形和粒子层。
 - `disableVignette`: 关闭 `GeometricBackground` 自带的半透明边缘暗角，不影响几何图形本体。
 - `lyricsFontScale`: 用户字号缩放。新 visualizer 应把它乘进最终字号，而不是忽略。
 - `staticMode`: 静态模式。约定为“禁用重资源背景动画”，不是关闭全部歌词动画。

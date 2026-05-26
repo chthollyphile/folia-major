@@ -7,6 +7,7 @@ import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
+import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { builtinAvatarImages, resolveCappellaAvatarUrl } from './avatarImages';
@@ -14,31 +15,7 @@ import { builtinEmoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
 // Renders parsercore-timed lyrics as a chat-style cappella conversation.
-interface VisualizerCappellaProps {
-    currentTime: MotionValue<number>;
-    currentLineIndex: number;
-    lines: Line[];
-    theme: Theme;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
-    showText?: boolean;
-    songTitle?: string | null;
-    coverUrl?: string | null;
-    useCoverColorBg?: boolean;
-    seed?: string | number;
-    staticMode?: boolean;
-    backgroundOpacity?: number;
-    transparentBackground?: boolean;
-    disableVignette?: boolean;
-    lyricsFontScale?: number;
-    isPlayerChromeHidden?: boolean;
-    hideTranslationSubtitle?: boolean;
-    paused?: boolean;
-    onBack?: () => void;
-    cappellaTuning?: CappellaTuning;
-    cappellaCustomEmojiImages?: CappellaEmojiImage[];
-    isPreviewMode?: boolean;
-}
+type VisualizerCappellaProps = VisualizerSharedProps;
 
 type ChatSide = 'left' | 'right';
 
@@ -1395,31 +1372,25 @@ const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessageRowPr
 
 CappellaMessageRow.displayName = 'CappellaMessageRow';
 
-const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
-    currentTime,
-    currentLineIndex,
-    lines,
-    theme,
-    audioPower,
-    audioBands,
-    showText = true,
-    songTitle,
-    coverUrl,
-    useCoverColorBg = false,
-    seed,
-    staticMode = false,
-    backgroundOpacity = 0.75,
-    transparentBackground = false,
-    disableVignette = false,
-    lyricsFontScale = 1,
-    isPlayerChromeHidden = false,
-    hideTranslationSubtitle = false,
-    paused = false,
-    onBack,
-    cappellaTuning = DEFAULT_CAPPELLA_TUNING,
-    cappellaCustomEmojiImages = [],
-    isPreviewMode = false,
-}) => {
+const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
+    const {
+        currentTime,
+        currentLineIndex,
+        lines,
+        theme,
+        audioPower,
+        audioBands,
+        showText = true,
+        songTitle,
+        coverUrl,
+        seed,
+        lyricsFontScale = 1,
+        isPlayerChromeHidden = false,
+        hideTranslationSubtitle = false,
+        cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+        cappellaCustomEmojiImages = [],
+        isPreviewMode = false,
+    } = props;
     const { t } = useTranslation();
     const [viewportSize, setViewportSize] = useState(() => (
         typeof window === 'undefined'
@@ -1524,15 +1495,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            coverUrl={coverUrl}
-            useCoverColorBg={useCoverColorBg}
-            seed={seed}
-            staticMode={staticMode}
-            backgroundOpacity={backgroundOpacity}
-            transparentBackground={transparentBackground}
-            disableVignette={disableVignette}
-            paused={paused}
-            onBack={onBack}
+            sharedProps={props}
         >
             {showText && (
                 <div className="relative z-10 flex h-full w-full items-start justify-center overflow-visible px-4 pb-36 pt-12 sm:px-8 sm:pb-40 sm:pt-16 lg:px-14 lg:pt-20">

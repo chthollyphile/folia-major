@@ -5,6 +5,7 @@ import { DEFAULT_PARTITA_TUNING, Line, Theme, Word as WordType, AudioBands, type
 import { buildDisplayWordsFromLayoutUnits, buildPostLyricLayoutUnits, type LyricLayoutUnit } from '../../../utils/lyrics/cjkSemanticLayout';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
+import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
@@ -18,27 +19,7 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 // active -> this is where the stagger, highlight, and line energy actually happen.
 // passed -> words fall back into a softer exit state, and the chunk keeps a little bit of structure for the afterimage.
 
-interface VisualizerPartitaProps {
-    currentTime: MotionValue<number>;
-    currentLineIndex: number;
-    lines: Line[];
-    theme: Theme;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
-    showText?: boolean;
-    coverUrl?: string | null;
-    useCoverColorBg?: boolean;
-    seed?: string | number;
-    backgroundOpacity?: number;
-    transparentBackground?: boolean;
-    disableVignette?: boolean;
-    partitaTuning?: PartitaTuning;
-    lyricsFontScale?: number;
-    isPlayerChromeHidden?: boolean;
-    hideTranslationSubtitle?: boolean;
-    paused?: boolean;
-    onBack?: () => void;
-}
+type VisualizerPartitaProps = VisualizerSharedProps;
 
 interface WordLayoutConfig {
     id: string;
@@ -699,28 +680,20 @@ const PartitaChunk: React.FC<{
     );
 };
 
-const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolean; }> = ({
-    currentTime,
-    currentLineIndex,
-    lines,
-    theme,
-    audioPower,
-    audioBands,
-    showText = true,
-    coverUrl,
-    useCoverColorBg = false,
-    seed,
-    staticMode = false,
-    backgroundOpacity = 0.75,
-    transparentBackground = false,
-    disableVignette = false,
-    partitaTuning = DEFAULT_PARTITA_TUNING,
-    lyricsFontScale = 1,
-    isPlayerChromeHidden = false,
-    hideTranslationSubtitle = false,
-    paused = false,
-    onBack,
-}) => {
+const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
+    const {
+        currentTime,
+        currentLineIndex,
+        lines,
+        theme,
+        audioPower,
+        audioBands,
+        showText = true,
+        partitaTuning = DEFAULT_PARTITA_TUNING,
+        lyricsFontScale = 1,
+        isPlayerChromeHidden = false,
+        hideTranslationSubtitle = false,
+    } = props;
     const { t } = useTranslation();
     const [windowHeight, setWindowHeight] = useState(800);
     const resolvedPartitaTuning = useMemo(() => resolvePartitaTuning(partitaTuning), [partitaTuning]);
@@ -953,15 +926,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            coverUrl={coverUrl}
-            useCoverColorBg={useCoverColorBg}
-            seed={seed}
-            staticMode={staticMode}
-            backgroundOpacity={backgroundOpacity}
-            transparentBackground={transparentBackground}
-            disableVignette={disableVignette}
-            paused={paused}
-            onBack={onBack}
+            sharedProps={props}
         >
             <motion.div
                 className="relative z-10 w-full h-[70vh] flex items-center justify-center p-8 pointer-events-none will-change-transform"

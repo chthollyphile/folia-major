@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Line, Theme, Word as WordType, AudioBands } from '../../../types';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { useVisualizerRuntime } from '../runtime';
+import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
@@ -16,26 +17,7 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 // waiting -> word is not live yet, keep it in a lighter pre-entry pose.
 // active -> word is currently singing, drive the main glow/body/ripple here.
 // passed -> word already played, keep a bit of afterglow and drift so the line does not die too abruptly.
-interface VisualizerProps {
-    currentTime: MotionValue<number>;
-    currentLineIndex: number;
-    lines: Line[];
-    theme: Theme;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
-    showText?: boolean;
-    coverUrl?: string | null;
-    useCoverColorBg?: boolean;
-    seed?: string | number; // Added seed for geometric bg
-    backgroundOpacity?: number;
-    transparentBackground?: boolean;
-    disableVignette?: boolean;
-    lyricsFontScale?: number;
-    isPlayerChromeHidden?: boolean;
-    hideTranslationSubtitle?: boolean;
-    paused?: boolean;
-    onBack?: () => void;
-}
+type VisualizerProps = VisualizerSharedProps;
 
 interface WordLayoutConfig {
     id: string;
@@ -252,27 +234,19 @@ const Word: React.FC<{
     );
 };
 
-const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
-    currentTime,
-    currentLineIndex,
-    lines,
-    theme,
-    audioPower,
-    audioBands,
-    showText = true,
-    coverUrl,
-    useCoverColorBg = false,
-    seed,
-    staticMode = false,
-    backgroundOpacity = 0.75,
-    transparentBackground = false,
-    disableVignette = false,
-    lyricsFontScale = 1,
-    isPlayerChromeHidden = false,
-    hideTranslationSubtitle = false,
-    paused = false,
-    onBack
-}) => {
+const Visualizer: React.FC<VisualizerProps> = (props) => {
+    const {
+        currentTime,
+        currentLineIndex,
+        lines,
+        theme,
+        audioPower,
+        audioBands,
+        showText = true,
+        lyricsFontScale = 1,
+        isPlayerChromeHidden = false,
+        hideTranslationSubtitle = false,
+    } = props;
     const { t } = useTranslation();
     const {
         activeLine,
@@ -541,15 +515,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            coverUrl={coverUrl}
-            useCoverColorBg={useCoverColorBg}
-            seed={seed}
-            staticMode={staticMode}
-            backgroundOpacity={backgroundOpacity}
-            transparentBackground={transparentBackground}
-            disableVignette={disableVignette}
-            paused={paused}
-            onBack={onBack}
+            sharedProps={props}
         >
             {/* Main Container */}
             <motion.div

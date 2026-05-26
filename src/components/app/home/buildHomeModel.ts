@@ -69,6 +69,7 @@ type BuildHomeModelParams = {
     hidePlayerRightPanelButton?: LegacyHomeProps['hidePlayerRightPanelButton'];
     transparentPlayerBackground?: LegacyHomeProps['transparentPlayerBackground'];
     disableVisualizerVignette?: LegacyHomeProps['disableVisualizerVignette'];
+    disableVisualizerGeometricBackground?: LegacyHomeProps['disableVisualizerGeometricBackground'];
     minimizeToTray?: LegacyHomeProps['minimizeToTray'];
     hideTaskbarIcon?: LegacyHomeProps['hideTaskbarIcon'];
     openPlayerOnLaunch?: LegacyHomeProps['openPlayerOnLaunch'];
@@ -79,6 +80,7 @@ type BuildHomeModelParams = {
     handleToggleHidePlayerRightPanelButton?: LegacyHomeProps['onToggleHidePlayerRightPanelButton'];
     handleToggleTransparentPlayerBackground?: LegacyHomeProps['onToggleTransparentPlayerBackground'];
     handleToggleDisableVisualizerVignette?: LegacyHomeProps['onToggleDisableVisualizerVignette'];
+    handleToggleDisableVisualizerGeometricBackground?: LegacyHomeProps['onToggleDisableVisualizerGeometricBackground'];
     handleToggleMinimizeToTray?: LegacyHomeProps['onToggleMinimizeToTray'];
     handleToggleHideTaskbarIcon?: LegacyHomeProps['onToggleHideTaskbarIcon'];
     handleToggleOpenPlayerOnLaunch?: LegacyHomeProps['onToggleOpenPlayerOnLaunch'];
@@ -191,6 +193,7 @@ export const buildHomeModel = ({
     hidePlayerRightPanelButton,
     transparentPlayerBackground,
     disableVisualizerVignette,
+    disableVisualizerGeometricBackground,
     minimizeToTray,
     hideTaskbarIcon,
     openPlayerOnLaunch,
@@ -201,6 +204,7 @@ export const buildHomeModel = ({
     handleToggleHidePlayerRightPanelButton,
     handleToggleTransparentPlayerBackground,
     handleToggleDisableVisualizerVignette,
+    handleToggleDisableVisualizerGeometricBackground,
     handleToggleMinimizeToTray,
     handleToggleHideTaskbarIcon,
     handleToggleOpenPlayerOnLaunch,
@@ -351,6 +355,7 @@ export const buildHomeModel = ({
             hidePlayerRightPanelButton,
             transparentPlayerBackground,
             disableVisualizerVignette,
+            disableVisualizerGeometricBackground,
             minimizeToTray,
             hideTaskbarIcon,
             openPlayerOnLaunch,
@@ -361,6 +366,7 @@ export const buildHomeModel = ({
             onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
             onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
             onToggleDisableVisualizerVignette: handleToggleDisableVisualizerVignette,
+            onToggleDisableVisualizerGeometricBackground: handleToggleDisableVisualizerGeometricBackground,
             onToggleMinimizeToTray: handleToggleMinimizeToTray,
             onToggleHideTaskbarIcon: handleToggleHideTaskbarIcon,
             onToggleOpenPlayerOnLaunch: handleToggleOpenPlayerOnLaunch,

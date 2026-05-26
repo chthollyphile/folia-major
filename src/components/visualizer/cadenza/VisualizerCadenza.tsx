@@ -7,6 +7,7 @@ import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTimin
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
+import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 
@@ -19,27 +20,7 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 // waiting -> placements are ready, but keep them dim / offset so the line still feels "not entered".
 // active -> this is the main event, drive beam, glow, emphasis, and body color here.
 // passed -> line already sang, keep some drift and residue so it fades out gracefully instead of snapping away.
-interface VisualizerProps {
-    currentTime: MotionValue<number>;
-    currentLineIndex: number;
-    lines: Line[];
-    theme: Theme;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
-    showText?: boolean;
-    coverUrl?: string | null;
-    useCoverColorBg?: boolean;
-    seed?: string | number;
-    backgroundOpacity?: number;
-    transparentBackground?: boolean;
-    disableVignette?: boolean;
-    cadenzaTuning?: CadenzaTuning;
-    lyricsFontScale?: number;
-    isPlayerChromeHidden?: boolean;
-    hideTranslationSubtitle?: boolean;
-    paused?: boolean;
-    onBack?: () => void;
-}
+type VisualizerProps = VisualizerSharedProps;
 
 interface SegmentMeta {
     graphemeStart: number;
@@ -1280,28 +1261,20 @@ const drawGlowTrailText = (
     });
 };
 
-const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
-    currentTime,
-    currentLineIndex,
-    lines,
-    theme,
-    audioPower,
-    audioBands,
-    showText = true,
-    coverUrl,
-    useCoverColorBg = false,
-    seed,
-    staticMode = false,
-    backgroundOpacity = 0.75,
-    transparentBackground = false,
-    disableVignette = false,
-    cadenzaTuning = DEFAULT_CADENZA_TUNING,
-    lyricsFontScale = 1,
-    isPlayerChromeHidden = false,
-    hideTranslationSubtitle = false,
-    paused = false,
-    onBack,
-}) => {
+const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
+    const {
+        currentTime,
+        currentLineIndex,
+        lines,
+        theme,
+        audioPower,
+        audioBands,
+        showText = true,
+        cadenzaTuning = DEFAULT_CADENZA_TUNING,
+        lyricsFontScale = 1,
+        isPlayerChromeHidden = false,
+        hideTranslationSubtitle = false,
+    } = props;
     const { t } = useTranslation();
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
     const containerRef = useRef<HTMLDivElement>(null);
@@ -1691,15 +1664,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            coverUrl={coverUrl}
-            useCoverColorBg={useCoverColorBg}
-            seed={seed}
-            staticMode={staticMode}
-            backgroundOpacity={backgroundOpacity}
-            transparentBackground={transparentBackground}
-            disableVignette={disableVignette}
-            paused={paused}
-            onBack={onBack}
+            sharedProps={props}
         >
             <div
                 ref={lineLayerRef}

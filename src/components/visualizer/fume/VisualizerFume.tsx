@@ -6,6 +6,7 @@ import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordT
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
+import { type VisualizerSharedProps } from '../definition';
 import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioLevels } from '../FumeBackground';
 import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
@@ -20,27 +21,7 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 // waiting -> line already exists in the article, but the camera may not be on it yet and glyphs can stay unprinted.
 // active -> line becomes the main reading target, camera focuses in, and glyphs print with stronger glow/presence.
 // passed -> line becomes already-read text, keep some paper trace and fade it out with textHoldRatio instead of removing it instantly.
-interface VisualizerProps {
-    currentTime: MotionValue<number>;
-    currentLineIndex: number;
-    lines: Line[];
-    theme: Theme;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
-    showText?: boolean;
-    coverUrl?: string | null;
-    useCoverColorBg?: boolean;
-    seed?: string | number;
-    backgroundOpacity?: number;
-    transparentBackground?: boolean;
-    disableVignette?: boolean;
-    lyricsFontScale?: number;
-    fumeTuning?: FumeTuning;
-    isPlayerChromeHidden?: boolean;
-    hideTranslationSubtitle?: boolean;
-    paused?: boolean;
-    onBack?: () => void;
-}
+type VisualizerProps = VisualizerSharedProps;
 
 interface ViewportSize {
     width: number;
@@ -1851,28 +1832,24 @@ const resolveFocusBlock = (
     return article.chronologicalBlocks[0] ?? null;
 };
 
-const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
-    currentTime,
-    currentLineIndex,
-    lines,
-    theme,
-    audioPower,
-    audioBands,
-    showText = true,
-    coverUrl,
-    useCoverColorBg = false,
-    seed,
-    staticMode = false,
-    backgroundOpacity = 0.75,
-    transparentBackground = false,
-    disableVignette = false,
-    lyricsFontScale = 1,
-    fumeTuning,
-    isPlayerChromeHidden = false,
-    hideTranslationSubtitle = false,
-    paused = false,
-    onBack,
-}) => {
+const VisualizerFume: React.FC<VisualizerProps> = (props) => {
+    const {
+        currentTime,
+        currentLineIndex,
+        lines,
+        theme,
+        audioPower,
+        audioBands,
+        showText = true,
+        seed,
+        staticMode = false,
+        disableGeometricBackground = false,
+        lyricsFontScale = 1,
+        fumeTuning,
+        isPlayerChromeHidden = false,
+        hideTranslationSubtitle = false,
+        paused = false,
+    } = props;
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const currentLineIndexRef = useRef(currentLineIndex);
@@ -2973,16 +2950,10 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            coverUrl={coverUrl}
-            useCoverColorBg={useCoverColorBg}
-            seed={seed}
-            staticMode={staticMode}
-            disableGeometricBackground={resolvedFumeTuning.disableGeometricBackground}
-            backgroundOpacity={backgroundOpacity}
-            transparentBackground={transparentBackground}
-            disableVignette={disableVignette}
-            paused={paused}
-            onBack={onBack}
+            sharedProps={{
+                ...props,
+                disableGeometricBackground: disableGeometricBackground || resolvedFumeTuning.disableGeometricBackground,
+            }}
         >
             <div ref={viewportRef} className="relative z-10 h-full w-full pointer-events-none">
                 {(article || lines.length === 0) && (

@@ -74,6 +74,7 @@ interface HomeProps {
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
     disableVisualizerVignette?: boolean;
+    disableVisualizerGeometricBackground?: boolean;
     minimizeToTray?: boolean;
     hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
@@ -84,6 +85,7 @@ interface HomeProps {
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     onToggleDisableVisualizerVignette?: (disable: boolean) => void;
+    onToggleDisableVisualizerGeometricBackground?: (disable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
     onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
@@ -196,6 +198,7 @@ const Home: React.FC<HomeProps> = ({
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
     disableVisualizerVignette = false,
+    disableVisualizerGeometricBackground = false,
     minimizeToTray = false,
     hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
@@ -206,6 +209,7 @@ const Home: React.FC<HomeProps> = ({
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
     onToggleDisableVisualizerVignette,
+    onToggleDisableVisualizerGeometricBackground,
     onToggleMinimizeToTray,
     onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
@@ -1015,6 +1019,7 @@ const Home: React.FC<HomeProps> = ({
                                 hidePlayerRightPanelButton={hidePlayerRightPanelButton}
                                 transparentPlayerBackground={transparentPlayerBackground}
                                 disableVisualizerVignette={disableVisualizerVignette}
+                                disableVisualizerGeometricBackground={disableVisualizerGeometricBackground}
                                 minimizeToTray={minimizeToTray}
                                 hideTaskbarIcon={hideTaskbarIcon}
                                 openPlayerOnLaunch={openPlayerOnLaunch}
@@ -1025,6 +1030,7 @@ const Home: React.FC<HomeProps> = ({
                                 onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
                                 onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
                                 onToggleDisableVisualizerVignette={onToggleDisableVisualizerVignette}
+                                onToggleDisableVisualizerGeometricBackground={onToggleDisableVisualizerGeometricBackground}
                                 onToggleMinimizeToTray={onToggleMinimizeToTray}
                                 onToggleHideTaskbarIcon={onToggleHideTaskbarIcon}
                                 onToggleOpenPlayerOnLaunch={onToggleOpenPlayerOnLaunch}
