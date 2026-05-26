@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, WandSparkles, X } from 'lucide-react';
+import { ChevronLeft, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, MirrorRectangular, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
 import RemoteVideoExportPanel from './RemoteVideoExportPanel';
@@ -314,7 +314,7 @@ const RemoteControlApp: React.FC = () => {
                                                                 : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                                                         }`}
                                                     >
-                                                        <WandSparkles size={16} strokeWidth={2} />
+                                                        <MirrorRectangular size={16} strokeWidth={2} />
                                                     </button>
                                                     <button
                                                         type="button"
