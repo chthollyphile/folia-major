@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
@@ -38,6 +38,7 @@ if (process.platform === 'linux') {
 const store = new Store();
 let mainWindow = null;
 let remoteControlWindow = null;
+let appTray = null;
 let latestRemoteControlSnapshot = null;
 let remoteControlAlwaysOnTop = false;
 let mainWindowClickThroughEnabled = false;
@@ -55,6 +56,7 @@ const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
 const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
+const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
@@ -248,6 +250,94 @@ function focusMainWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+  refreshTrayMenu();
+}
+
+function isMainWindowVisible() {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized());
+}
+
+function hideMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.hide();
+  refreshTrayMenu();
+  return true;
+}
+
+function toggleMainWindowVisibility() {
+  if (isMainWindowVisible()) {
+    return hideMainWindow();
+  }
+
+  focusMainWindow();
+  return true;
+}
+
+function isMinimizeToTrayEnabled() {
+  return Boolean(store.get(MINIMIZE_TO_TRAY_SETTING_KEY));
+}
+
+function refreshTrayMenu() {
+  if (!appTray) {
+    return;
+  }
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: '显示/隐藏主窗口',
+      click: () => {
+        toggleMainWindowVisibility();
+      },
+    },
+    {
+      label: '打开 Remote',
+      click: () => {
+        createRemoteControlWindow();
+      },
+    },
+    {
+      label: '切换点击穿透',
+      type: 'checkbox',
+      checked: mainWindowClickThroughEnabled,
+      enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
+      click: () => {
+        setMainWindowClickThroughEnabled(!mainWindowClickThroughEnabled);
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  appTray.setContextMenu(menu);
+  appTray.setToolTip('Folia');
+}
+
+function ensureTray() {
+  if (appTray) {
+    refreshTrayMenu();
+    return appTray;
+  }
+
+  appTray = new Tray(APP_ICON_PATH);
+  appTray.on('click', () => {
+    if (!isMainWindowVisible()) {
+      focusMainWindow();
+    }
+  });
+  refreshTrayMenu();
+  return appTray;
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -1370,6 +1460,7 @@ function publishMainWindowClickThroughState() {
   mainWindow.webContents.send('main-window-click-through-changed', {
     enabled: mainWindowClickThroughEnabled,
   });
+  refreshTrayMenu();
   return true;
 }
 
@@ -1393,6 +1484,7 @@ function setMainWindowClickThroughEnabled(enabled) {
   }
 
   applyMainWindowMouseIgnoreState();
+  refreshTrayMenu();
   patchRemoteControlSnapshot({
     mainWindowClickThroughEnabled,
   });
@@ -1545,6 +1637,7 @@ function createWindow(options = {}) {
   }
 
   mainWindow = win;
+  ensureTray();
   applyMainWindowMouseIgnoreState();
   updateWindowThumbarButtons();
   win.on('resize', () => {
@@ -1568,8 +1661,13 @@ function createWindow(options = {}) {
       if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
         remoteControlWindow.close();
       }
+      refreshTrayMenu();
     }
   });
+  win.on('show', refreshTrayMenu);
+  win.on('hide', refreshTrayMenu);
+  win.on('minimize', refreshTrayMenu);
+  win.on('restore', refreshTrayMenu);
 
   return win;
 }
@@ -1612,6 +1710,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('[Stage] Failed to start stage server during app startup', error);
   }
+  ensureTray();
   createWindow();
   focusMainWindow();
   scheduleStartupUpdateCheck();
@@ -1790,7 +1889,12 @@ ipcMain.handle('window-minimize', () => {
     return false;
   }
 
+  if (isMinimizeToTrayEnabled()) {
+    return hideMainWindow();
+  }
+
   mainWindow.minimize();
+  refreshTrayMenu();
   return true;
 });
 

@@ -24,12 +24,16 @@ interface HelpModalProps {
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
+    minimizeToTray?: boolean;
+    openPlayerOnLaunch?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
     onToggleHidePlayerProgressBar?: (enable: boolean) => void;
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
+    onToggleMinimizeToTray?: (enable: boolean) => void;
+    onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
@@ -116,12 +120,16 @@ const HelpModal: React.FC<HelpModalProps> = ({
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
+    minimizeToTray = false,
+    openPlayerOnLaunch = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
     onToggleHidePlayerProgressBar,
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
+    onToggleMinimizeToTray,
+    onToggleOpenPlayerOnLaunch,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -2842,6 +2850,44 @@ const HelpModal: React.FC<HelpModalProps> = ({
                     <>
                         {isElectron && (
                             <section>
+                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                    <Monitor size={14} /> {t('options.desktopTrayBehavior') || '桌面托盘行为'}
+                                </h3>
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                    <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('options.desktopTrayBehaviorDesc') || '仅桌面端生效。可控制最小化到托盘，以及启动时是否直接进入播放页。'}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleMinimizeToTray?.(!minimizeToTray)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${minimizeToTray ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${minimizeToTray ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {minimizeToTray ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.minimizeToTray') || '最小化到托盘'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleOpenPlayerOnLaunch?.(!openPlayerOnLaunch)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${openPlayerOnLaunch ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${openPlayerOnLaunch ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {openPlayerOnLaunch ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.openPlayerOnLaunch') || '启动后直接进入播放页'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {isElectron && (
+                            <section>
                                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center justify-between gap-3" style={{ color: 'var(--text-secondary)' }}>
                                     <span className="flex items-center gap-2">
                                         <RefreshCw size={14} /> {t('options.updateCheck') || "Update Check"}
@@ -3055,14 +3101,14 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                     {t('options.useSystemProxyAIDesc') || "Route strictly AI requests through system proxy."}
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => setElectronSettings({ ...electronSettings, USE_SYSTEM_PROXY_FOR_AI: !electronSettings.USE_SYSTEM_PROXY_FOR_AI })}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: electronSettings.USE_SYSTEM_PROXY_FOR_AI ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
+                                        <button
+                                            onClick={() => setElectronSettings({ ...electronSettings, USE_SYSTEM_PROXY_FOR_AI: !electronSettings.USE_SYSTEM_PROXY_FOR_AI })}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? toggleOffBackgroundClass : ''}`}
+                                            style={{ backgroundColor: electronSettings.USE_SYSTEM_PROXY_FOR_AI ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        </button>
+                                    </div>
 
                                         <div className="flex justify-between items-center pt-3 border-t border-white/10">
                                             <div className="text-[10px] opacity-40 mt-1" style={{ color: 'var(--text-secondary)' }}>
@@ -3129,6 +3175,8 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                     onToggleHidePlayerTranslationSubtitle?.(false);
                                     onToggleHidePlayerRightPanelButton?.(false);
                                     onToggleOpenPanelCloseButton(true);
+                                    onToggleMinimizeToTray?.(false);
+                                    onToggleOpenPlayerOnLaunch?.(false);
                                 }}
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${utilityGhostButtonClass}`}
                                 style={{ color: 'var(--text-primary)' }}

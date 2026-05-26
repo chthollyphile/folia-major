@@ -7,6 +7,8 @@ import { clearUploadedLyricsFont, restoreUploadedLyricsFont, uploadAndRegisterLy
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
+const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
+const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 
 const getStoredBoolean = (key: string, fallback: boolean) => {
     const saved = localStorage.getItem(key);
@@ -247,6 +249,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [hidePlayerTranslationSubtitle, setHidePlayerTranslationSubtitle] = useState(() => getStoredBoolean('hide_player_translation_subtitle', false));
     const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
     const [transparentPlayerBackground, setTransparentPlayerBackground] = useState(() => getStoredBoolean('transparent_player_background', false));
+    const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, false));
+    const [openPlayerOnLaunch, setOpenPlayerOnLaunch] = useState(() => getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
         const saved = localStorage.getItem('background_opacity');
@@ -321,6 +325,35 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         };
 
         void syncTransparentPlayerBackground();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!window.electron?.getSettings) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const syncDesktopPreferences = async () => {
+            try {
+                const settings = await window.electron!.getSettings();
+                if (isCancelled) {
+                    return;
+                }
+
+                if (typeof settings?.MINIMIZE_TO_TRAY === 'boolean') {
+                    setMinimizeToTray(settings.MINIMIZE_TO_TRAY);
+                    localStorage.setItem(MINIMIZE_TO_TRAY_STORAGE_KEY, String(settings.MINIMIZE_TO_TRAY));
+                }
+            } catch {
+                // Ignore desktop preference sync failures and keep local fallback.
+            }
+        };
+
+        void syncDesktopPreferences();
         return () => {
             isCancelled = true;
         };
@@ -482,6 +515,27 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',
+        });
+    };
+
+    const handleToggleMinimizeToTray = (enable: boolean) => {
+        setMinimizeToTray(enable);
+        localStorage.setItem(MINIMIZE_TO_TRAY_STORAGE_KEY, String(enable));
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('MINIMIZE_TO_TRAY', enable);
+        }
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '最小化将隐藏到托盘' : '最小化将保留在任务栏',
+        });
+    };
+
+    const handleToggleOpenPlayerOnLaunch = (enable: boolean) => {
+        setOpenPlayerOnLaunch(enable);
+        localStorage.setItem(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '启动后将直接进入播放页' : '启动后将默认进入首页',
         });
     };
 
@@ -800,6 +854,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
+        minimizeToTray,
+        openPlayerOnLaunch,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -828,6 +884,8 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
+        handleToggleMinimizeToTray,
+        handleToggleOpenPlayerOnLaunch,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,

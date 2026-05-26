@@ -68,12 +68,16 @@ type BuildHomeModelParams = {
     hidePlayerTranslationSubtitle?: LegacyHomeProps['hidePlayerTranslationSubtitle'];
     hidePlayerRightPanelButton?: LegacyHomeProps['hidePlayerRightPanelButton'];
     transparentPlayerBackground?: LegacyHomeProps['transparentPlayerBackground'];
+    minimizeToTray?: LegacyHomeProps['minimizeToTray'];
+    openPlayerOnLaunch?: LegacyHomeProps['openPlayerOnLaunch'];
     handleToggleStaticMode?: LegacyHomeProps['onToggleStaticMode'];
     handleToggleDisableHomeDynamicBackground?: LegacyHomeProps['onToggleDisableHomeDynamicBackground'];
     handleToggleHidePlayerProgressBar?: LegacyHomeProps['onToggleHidePlayerProgressBar'];
     handleToggleHidePlayerTranslationSubtitle?: LegacyHomeProps['onToggleHidePlayerTranslationSubtitle'];
     handleToggleHidePlayerRightPanelButton?: LegacyHomeProps['onToggleHidePlayerRightPanelButton'];
     handleToggleTransparentPlayerBackground?: LegacyHomeProps['onToggleTransparentPlayerBackground'];
+    handleToggleMinimizeToTray?: LegacyHomeProps['onToggleMinimizeToTray'];
+    handleToggleOpenPlayerOnLaunch?: LegacyHomeProps['onToggleOpenPlayerOnLaunch'];
     enableMediaCache?: LegacyHomeProps['enableMediaCache'];
     handleToggleMediaCache?: LegacyHomeProps['onToggleMediaCache'];
     theme: LegacyHomeProps['theme'];
@@ -182,12 +186,16 @@ export const buildHomeModel = ({
     hidePlayerTranslationSubtitle,
     hidePlayerRightPanelButton,
     transparentPlayerBackground,
+    minimizeToTray,
+    openPlayerOnLaunch,
     handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground,
     handleToggleHidePlayerProgressBar,
     handleToggleHidePlayerTranslationSubtitle,
     handleToggleHidePlayerRightPanelButton,
     handleToggleTransparentPlayerBackground,
+    handleToggleMinimizeToTray,
+    handleToggleOpenPlayerOnLaunch,
     enableMediaCache,
     handleToggleMediaCache,
     theme,
@@ -334,12 +342,16 @@ export const buildHomeModel = ({
             hidePlayerTranslationSubtitle,
             hidePlayerRightPanelButton,
             transparentPlayerBackground,
+            minimizeToTray,
+            openPlayerOnLaunch,
             onToggleStaticMode: handleToggleStaticMode,
             onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
             onToggleHidePlayerProgressBar: handleToggleHidePlayerProgressBar,
             onToggleHidePlayerTranslationSubtitle: handleToggleHidePlayerTranslationSubtitle,
             onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
             onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
+            onToggleMinimizeToTray: handleToggleMinimizeToTray,
+            onToggleOpenPlayerOnLaunch: handleToggleOpenPlayerOnLaunch,
             enableMediaCache,
             onToggleMediaCache: handleToggleMediaCache,
             theme,
