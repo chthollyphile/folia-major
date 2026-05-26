@@ -7,6 +7,9 @@ import { clearUploadedLyricsFont, restoreUploadedLyricsFont, uploadAndRegisterLy
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 type AudioQuality = 'exhigh' | 'lossless' | 'hires';
+const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
+const HIDE_TASKBAR_ICON_STORAGE_KEY = 'hide_taskbar_icon';
+const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 
 const getStoredBoolean = (key: string, fallback: boolean) => {
     const saved = localStorage.getItem(key);
@@ -246,6 +249,12 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [hidePlayerProgressBar, setHidePlayerProgressBar] = useState(() => getStoredBoolean('hide_player_progress_bar', false));
     const [hidePlayerTranslationSubtitle, setHidePlayerTranslationSubtitle] = useState(() => getStoredBoolean('hide_player_translation_subtitle', false));
     const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
+    const [transparentPlayerBackground, setTransparentPlayerBackground] = useState(() => getStoredBoolean('transparent_player_background', false));
+    const [disableVisualizerVignette, setDisableVisualizerVignette] = useState(() => getStoredBoolean('disable_visualizer_vignette', false));
+    const [disableVisualizerGeometricBackground, setDisableVisualizerGeometricBackground] = useState(() => getStoredBoolean('disable_visualizer_geometric_background', false));
+    const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, false));
+    const [hideTaskbarIcon, setHideTaskbarIcon] = useState(() => getStoredBoolean(HIDE_TASKBAR_ICON_STORAGE_KEY, false));
+    const [openPlayerOnLaunch, setOpenPlayerOnLaunch] = useState(() => getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
         const saved = localStorage.getItem('background_opacity');
@@ -297,6 +306,66 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             root.style.setProperty('--scrollbar-thumb-hover', '#52525b');
         }
     }, [isDaylight]);
+
+    useEffect(() => {
+        if (!window.electron?.getWindowTransparentMode) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const syncTransparentPlayerBackground = async () => {
+            try {
+                const enabled = await window.electron!.getWindowTransparentMode();
+                if (isCancelled) {
+                    return;
+                }
+
+                setTransparentPlayerBackground(enabled);
+                localStorage.setItem('transparent_player_background', String(enabled));
+            } catch {
+                // Ignore startup sync failures and keep local preference fallback.
+            }
+        };
+
+        void syncTransparentPlayerBackground();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!window.electron?.getSettings) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const syncDesktopPreferences = async () => {
+            try {
+                const settings = await window.electron!.getSettings();
+                if (isCancelled) {
+                    return;
+                }
+
+                if (typeof settings?.MINIMIZE_TO_TRAY === 'boolean') {
+                    setMinimizeToTray(settings.MINIMIZE_TO_TRAY);
+                    localStorage.setItem(MINIMIZE_TO_TRAY_STORAGE_KEY, String(settings.MINIMIZE_TO_TRAY));
+                }
+                if (typeof settings?.HIDE_TASKBAR_ICON === 'boolean') {
+                    setHideTaskbarIcon(settings.HIDE_TASKBAR_ICON);
+                    localStorage.setItem(HIDE_TASKBAR_ICON_STORAGE_KEY, String(settings.HIDE_TASKBAR_ICON));
+                }
+            } catch {
+                // Ignore desktop preference sync failures and keep local fallback.
+            }
+        };
+
+        void syncDesktopPreferences();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         let isCancelled = false;
@@ -442,6 +511,69 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '播放页右侧按钮已隐藏' : '播放页右侧按钮已显示',
+        });
+    };
+
+    const handleToggleTransparentPlayerBackground = (enable: boolean) => {
+        setTransparentPlayerBackground(enable);
+        localStorage.setItem('transparent_player_background', String(enable));
+        if (window.electron?.setWindowTransparentMode) {
+            void window.electron.setWindowTransparentMode(enable);
+        }
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',
+        });
+    };
+
+    const handleToggleDisableVisualizerVignette = (disable: boolean) => {
+        setDisableVisualizerVignette(disable);
+        localStorage.setItem('disable_visualizer_vignette', String(disable));
+        setStatusMsg({
+            type: 'info',
+            text: disable ? '播放页暗角效果已关闭' : '播放页暗角效果已开启',
+        });
+    };
+
+    const handleToggleDisableVisualizerGeometricBackground = (disable: boolean) => {
+        setDisableVisualizerGeometricBackground(disable);
+        localStorage.setItem('disable_visualizer_geometric_background', String(disable));
+        setStatusMsg({
+            type: 'info',
+            text: disable ? '通用几何背景已隐藏' : '通用几何背景已显示',
+        });
+    };
+
+    const handleToggleMinimizeToTray = (enable: boolean) => {
+        setMinimizeToTray(enable);
+        localStorage.setItem(MINIMIZE_TO_TRAY_STORAGE_KEY, String(enable));
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('MINIMIZE_TO_TRAY', enable);
+        }
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '最小化将隐藏到托盘' : '最小化将保留在任务栏',
+        });
+    };
+
+    const handleToggleHideTaskbarIcon = (enable: boolean) => {
+        setHideTaskbarIcon(enable);
+        localStorage.setItem(HIDE_TASKBAR_ICON_STORAGE_KEY, String(enable));
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('HIDE_TASKBAR_ICON', enable);
+        }
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '主窗口任务栏图标已隐藏' : '主窗口任务栏图标已恢复',
+        });
+    };
+
+    const handleToggleOpenPlayerOnLaunch = (enable: boolean) => {
+        setOpenPlayerOnLaunch(enable);
+        localStorage.setItem(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '启动后将直接进入播放页' : '启动后将默认进入首页',
         });
     };
 
@@ -759,6 +891,12 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -786,6 +924,12 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
+        handleToggleDisableVisualizerGeometricBackground,
+        handleToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon,
+        handleToggleOpenPlayerOnLaunch,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,

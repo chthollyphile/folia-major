@@ -4,20 +4,38 @@ import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { AudioBands, Theme } from '../../types';
 import { resolveThemeFontStack } from '../../utils/fontStacks';
+import { type VisualizerSharedProps } from './definition';
 import FluidBackground from './FluidBackground';
 import GeometricBackground from './GeometricBackground';
 
 // Shared outer shell for all visualizers.
 // This is where we keep background layering, font injection, and the hover-only back button
 // so each renderer can stay focused on lyric timing/layout instead of rebuilding the same frame.
+type VisualizerShellSharedProps = Pick<
+    VisualizerSharedProps,
+    | 'coverUrl'
+    | 'useCoverColorBg'
+    | 'seed'
+    | 'backgroundOpacity'
+    | 'transparentBackground'
+    | 'disableGeometricBackground'
+    | 'disableVignette'
+    | 'staticMode'
+    | 'paused'
+    | 'onBack'
+>;
+
 interface VisualizerShellProps {
     theme: Theme;
     audioPower: MotionValue<number>;
     audioBands: AudioBands;
+    sharedProps?: VisualizerShellSharedProps;
     coverUrl?: string | null;
     useCoverColorBg?: boolean;
     seed?: string | number;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
+    disableVignette?: boolean;
     staticMode?: boolean;
     disableGeometricBackground?: boolean;
     paused?: boolean;
@@ -30,10 +48,13 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     theme,
     audioPower,
     audioBands,
+    sharedProps,
     coverUrl,
     useCoverColorBg = false,
     seed,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
+    disableVignette = false,
     staticMode = false,
     disableGeometricBackground = false,
     paused = false,
@@ -43,6 +64,16 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+    const resolvedCoverUrl = sharedProps?.coverUrl ?? coverUrl;
+    const resolvedUseCoverColorBg = sharedProps?.useCoverColorBg ?? useCoverColorBg;
+    const resolvedSeed = sharedProps?.seed ?? seed;
+    const resolvedBackgroundOpacity = sharedProps?.backgroundOpacity ?? backgroundOpacity;
+    const resolvedTransparentBackground = sharedProps?.transparentBackground ?? transparentBackground;
+    const resolvedDisableGeometricBackground = sharedProps?.disableGeometricBackground ?? disableGeometricBackground;
+    const resolvedDisableVignette = sharedProps?.disableVignette ?? disableVignette;
+    const resolvedStaticMode = sharedProps?.staticMode ?? staticMode;
+    const resolvedPaused = sharedProps?.paused ?? paused;
+    const resolvedOnBack = sharedProps?.onBack ?? onBack;
 
     // Keep the tailwind font utility roughly aligned with the theme category,
     // but still let the real resolved font stack win through inline style.
@@ -74,7 +105,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 }
             }}
         >
-            {onBack && (
+            {resolvedOnBack && (
                 <motion.button
                     type="button"
                     aria-label={t('ui.backToHome')}
@@ -87,7 +118,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     onClick={(event) => {
                         event.stopPropagation();
-                        onBack();
+                        resolvedOnBack();
                     }}
                     className="absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
                     style={{ pointerEvents: showBackButton ? 'auto' : 'none' }}
@@ -98,7 +129,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 
             <AnimatePresence>
                 {/* Cover-color background is optional because some modes already have a strong built-in background identity. */}
-                {useCoverColorBg && (
+                {!resolvedTransparentBackground && resolvedUseCoverColorBg && (
                     <motion.div
                         key="fluid-bg"
                         initial={{ opacity: 0 }}
@@ -107,27 +138,31 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                         transition={{ duration: 1 }}
                         className="absolute inset-0 z-0"
                     >
-                        <FluidBackground coverUrl={coverUrl} theme={theme} />
+                        <FluidBackground coverUrl={resolvedCoverUrl} theme={theme} />
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            <div
-                className="absolute inset-0 z-0 transition-all duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
-            />
+            {!resolvedTransparentBackground && (
+                <div
+                    className="absolute inset-0 z-0 transition-all duration-1000"
+                    style={{ backgroundColor: theme.backgroundColor, opacity: resolvedUseCoverColorBg ? resolvedBackgroundOpacity : 1 }}
+                />
+            )}
 
             {/* staticMode here means "kill the heavier ambient motion layer",
-                not "freeze the entire lyric renderer". */}
-            {!staticMode && (
+                not "freeze the entire lyric renderer". Transparent background only removes
+                the solid/fluid backing, so the geometric layer can still render. */}
+            {!resolvedStaticMode && (
                 <div className="absolute inset-0 z-0">
                     <GeometricBackground
                         theme={theme}
                         audioPower={audioPower}
                         audioBands={audioBands}
-                        seed={seed}
-                        hideShapes={disableGeometricBackground}
-                        paused={paused}
+                        seed={resolvedSeed}
+                        hideShapes={resolvedDisableGeometricBackground}
+                        disableVignette={resolvedDisableVignette}
+                        paused={resolvedPaused}
                     />
                 </div>
             )}

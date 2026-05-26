@@ -72,11 +72,23 @@ interface HomeProps {
     hidePlayerProgressBar?: boolean;
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
+    transparentPlayerBackground?: boolean;
+    disableVisualizerVignette?: boolean;
+    disableVisualizerGeometricBackground?: boolean;
+    minimizeToTray?: boolean;
+    hideTaskbarIcon?: boolean;
+    openPlayerOnLaunch?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
     onToggleHidePlayerProgressBar?: (enable: boolean) => void;
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
+    onToggleTransparentPlayerBackground?: (enable: boolean) => void;
+    onToggleDisableVisualizerVignette?: (disable: boolean) => void;
+    onToggleDisableVisualizerGeometricBackground?: (disable: boolean) => void;
+    onToggleMinimizeToTray?: (enable: boolean) => void;
+    onToggleHideTaskbarIcon?: (enable: boolean) => void;
+    onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme: Theme;
@@ -184,11 +196,23 @@ const Home: React.FC<HomeProps> = ({
     hidePlayerProgressBar = false,
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
+    transparentPlayerBackground = false,
+    disableVisualizerVignette = false,
+    disableVisualizerGeometricBackground = false,
+    minimizeToTray = false,
+    hideTaskbarIcon = false,
+    openPlayerOnLaunch = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
     onToggleHidePlayerProgressBar,
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
+    onToggleTransparentPlayerBackground,
+    onToggleDisableVisualizerVignette,
+    onToggleDisableVisualizerGeometricBackground,
+    onToggleMinimizeToTray,
+    onToggleHideTaskbarIcon,
+    onToggleOpenPlayerOnLaunch,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -993,11 +1017,23 @@ const Home: React.FC<HomeProps> = ({
                                 hidePlayerProgressBar={hidePlayerProgressBar}
                                 hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
                                 hidePlayerRightPanelButton={hidePlayerRightPanelButton}
+                                transparentPlayerBackground={transparentPlayerBackground}
+                                disableVisualizerVignette={disableVisualizerVignette}
+                                disableVisualizerGeometricBackground={disableVisualizerGeometricBackground}
+                                minimizeToTray={minimizeToTray}
+                                hideTaskbarIcon={hideTaskbarIcon}
+                                openPlayerOnLaunch={openPlayerOnLaunch}
                                 onToggleStaticMode={onToggleStaticMode}
                                 onToggleDisableHomeDynamicBackground={onToggleDisableHomeDynamicBackground}
                                 onToggleHidePlayerProgressBar={onToggleHidePlayerProgressBar}
                                 onToggleHidePlayerTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
                                 onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
+                                onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
+                                onToggleDisableVisualizerVignette={onToggleDisableVisualizerVignette}
+                                onToggleDisableVisualizerGeometricBackground={onToggleDisableVisualizerGeometricBackground}
+                                onToggleMinimizeToTray={onToggleMinimizeToTray}
+                                onToggleHideTaskbarIcon={onToggleHideTaskbarIcon}
+                                onToggleOpenPlayerOnLaunch={onToggleOpenPlayerOnLaunch}
                                 enableMediaCache={enableMediaCache}
                                 onToggleMediaCache={onToggleMediaCache}
                                 theme={theme}

@@ -52,6 +52,7 @@ const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
+const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
 // Default Theme
 // 午夜墨染
 const DEFAULT_THEME: Theme = {
@@ -81,6 +82,9 @@ export default function App() {
     const isDev = import.meta.env.DEV;
     const isElectronWindow = Boolean((window as typeof window & { electron?: unknown }).electron);
     const [isTitlebarRevealed, setIsTitlebarRevealed] = useState(false);
+    const [showTransparentWindowBorder, setShowTransparentWindowBorder] = useState(false);
+    const [isMainWindowClickThroughEnabled, setIsMainWindowClickThroughEnabled] = useState(false);
+    const [isClickThroughUnlockHotspotActive, setIsClickThroughUnlockHotspotActive] = useState(false);
 
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
@@ -96,7 +100,10 @@ export default function App() {
     const [statusMsg, setStatusMsg] = useState<StatusMessage | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const [panelTab, setPanelTab] = useState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi'>('cover');
-    const [isPlayerChromeHidden, setIsPlayerChromeHidden] = useState(false);
+    const [isPlayerChromeHidden, setIsPlayerChromeHidden] = useState(() => {
+        const saved = localStorage.getItem(PLAYER_CHROME_HIDDEN_STORAGE_KEY);
+        return saved === 'true';
+    });
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
     const [pendingOpenSettings, setPendingOpenSettings] = useState(false);
 
@@ -176,6 +183,12 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -202,6 +215,12 @@ export default function App() {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
+        handleToggleDisableVisualizerGeometricBackground,
+        handleToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon,
+        handleToggleOpenPlayerOnLaunch,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,
@@ -931,6 +950,12 @@ export default function App() {
     useElectronPlaybackBridge({
         isElectronWindow,
         setIsTitlebarRevealed,
+        isPlayerChromeHidden,
+        setIsPlayerChromeHidden,
+        showTransparentWindowBorder,
+        setShowTransparentWindowBorder,
+        transparentPlayerBackground,
+        mainWindowClickThroughEnabled: isMainWindowClickThroughEnabled,
         isNowPlayingControlDisabledRef,
         audioRef,
         currentTime,
@@ -1011,13 +1036,16 @@ export default function App() {
         syncStageLyricsClock,
     });
 
+    const usesCustomWindowChrome = isElectronWindow;
+    const shouldUseTransparentAppBackground = currentView === 'player' && transparentPlayerBackground;
     const appStyle = useMemo(() => buildAppStyle({
         bgMode,
         isDaylight,
         theme,
         daylightTheme: DAYLIGHT_THEME,
         defaultTheme: DEFAULT_THEME,
-    }), [bgMode, isDaylight, theme]);
+        transparentBackground: shouldUseTransparentAppBackground,
+    }), [bgMode, isDaylight, shouldUseTransparentAppBackground, theme]);
     const { visualizerTheme, visualizerGeometrySeed } = useMemo(() => buildVisualizerTheme({
         appStyle,
         theme,
@@ -1027,6 +1055,100 @@ export default function App() {
         visualizerMode,
     }), [appStyle, currentSong?.id, lyricsCustomFontFamily, lyricsFontStyle, theme, visualizerMode]);
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
+
+    useEffect(() => {
+        localStorage.setItem(PLAYER_CHROME_HIDDEN_STORAGE_KEY, String(isPlayerChromeHidden));
+    }, [isPlayerChromeHidden]);
+
+    useEffect(() => {
+        const body = document.body;
+        const html = document.documentElement;
+        const previousBodyBackgroundColor = body.style.backgroundColor;
+        const previousHtmlBackgroundColor = html.style.backgroundColor;
+        const shouldUseTransparentDocumentBackground = isElectronWindow && transparentPlayerBackground;
+
+        if (shouldUseTransparentDocumentBackground) {
+            body.style.backgroundColor = 'transparent';
+            html.style.backgroundColor = 'transparent';
+        } else {
+            body.style.backgroundColor = '';
+            html.style.backgroundColor = '';
+        }
+
+        return () => {
+            body.style.backgroundColor = previousBodyBackgroundColor;
+            html.style.backgroundColor = previousHtmlBackgroundColor;
+        };
+    }, [isElectronWindow, transparentPlayerBackground]);
+
+    useEffect(() => {
+        if (!isElectronWindow || !window.electron?.getMainWindowClickThroughEnabled || !window.electron?.onMainWindowClickThroughChanged) {
+            setIsMainWindowClickThroughEnabled(false);
+            return;
+        }
+
+        let mounted = true;
+
+        void window.electron.getMainWindowClickThroughEnabled().then((enabled) => {
+            if (mounted) {
+                setIsMainWindowClickThroughEnabled(Boolean(enabled));
+            }
+        }).catch(() => {
+            if (mounted) {
+                setIsMainWindowClickThroughEnabled(false);
+            }
+        });
+
+        const unsubscribe = window.electron.onMainWindowClickThroughChanged((state) => {
+            setIsMainWindowClickThroughEnabled(Boolean(state?.enabled));
+        });
+
+        return () => {
+            mounted = false;
+            unsubscribe?.();
+        };
+    }, [isElectronWindow]);
+
+    useEffect(() => {
+        if (!isElectronWindow || !isMainWindowClickThroughEnabled || !window.electron?.setMainWindowClickThroughUnlockHover) {
+            setIsClickThroughUnlockHotspotActive(false);
+            void window.electron?.setMainWindowClickThroughUnlockHover?.(false);
+            return;
+        }
+
+        const unlockHotspotWidth = 260;
+        const unlockHotspotHeight = 56;
+
+        const syncUnlockHotspot = (active: boolean) => {
+            setIsClickThroughUnlockHotspotActive(prev => (prev === active ? prev : active));
+            void window.electron!.setMainWindowClickThroughUnlockHover(active);
+        };
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const withinHotspot = event.clientY <= unlockHotspotHeight && event.clientX >= window.innerWidth - unlockHotspotWidth;
+            setIsClickThroughUnlockHotspotActive(prev => {
+                if (prev === withinHotspot) {
+                    return prev;
+                }
+
+                void window.electron!.setMainWindowClickThroughUnlockHover(withinHotspot);
+                return withinHotspot;
+            });
+        };
+
+        const handleMouseLeave = () => {
+            syncUnlockHotspot(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseleave', handleMouseLeave);
+            syncUnlockHotspot(false);
+        };
+    }, [isElectronWindow, isMainWindowClickThroughEnabled]);
     const {
         isPlayerView,
         shouldPauseVisualizerBackground,
@@ -1188,11 +1310,23 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
         handleToggleStaticMode,
         handleToggleDisableHomeDynamicBackground,
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
+        handleToggleDisableVisualizerGeometricBackground,
+        handleToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon,
+        handleToggleOpenPlayerOnLaunch,
         enableMediaCache,
         handleToggleMediaCache,
         theme,
@@ -1252,6 +1386,8 @@ export default function App() {
         clearStagePlaybackSession,
         cloudPlaylist,
         currentSong,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
         disableHomeDynamicBackground,
         enableMediaCache,
         enableNowPlayingStage,
@@ -1285,6 +1421,12 @@ export default function App() {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerRightPanelButton,
         handleToggleHidePlayerTranslationSubtitle,
+        handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
+        handleToggleDisableVisualizerGeometricBackground,
+        handleToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon,
+        handleToggleOpenPlayerOnLaunch,
         handleToggleMediaCache,
         handleToggleNowPlayingStage,
         handleToggleOpenPanelCloseButton,
@@ -1293,6 +1435,10 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
+        transparentPlayerBackground,
         isCustomThemePreferred,
         isDaylight,
         isLoadingCappellaCustomEmojiPack,
@@ -1343,9 +1489,13 @@ export default function App() {
         staticMode,
         theme,
         themeParkSeedTheme,
+        transparentPlayerBackground,
         user,
         visualizerMode,
         handleAudioOutputDeviceChange,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
     ]);
     const playerPanelModel = useMemo(() => buildPlayerPanelModel({
         isPanelOpen,
@@ -1637,8 +1787,16 @@ export default function App() {
         <AppShell
             appStyle={appStyle}
             isElectronWindow={isElectronWindow}
+            usesCustomWindowChrome={usesCustomWindowChrome}
+            useCustomWindowRadius={isElectronWindow && transparentPlayerBackground}
+            showTransparentWindowBorder={showTransparentWindowBorder}
             isPlayerView={isPlayerView}
             isTitlebarRevealed={isTitlebarRevealed}
+            showClickThroughUnlockButton={isMainWindowClickThroughEnabled && isClickThroughUnlockHotspotActive}
+            onDisableMainWindowClickThrough={() => {
+                setIsClickThroughUnlockHotspotActive(false);
+                void window.electron?.setMainWindowClickThroughEnabled?.(false);
+            }}
             audioElement={<audio
                 ref={audioRef}
                 src={audioSrc || undefined}
@@ -1785,6 +1943,9 @@ export default function App() {
                     staticMode={staticMode}
                     paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
+                    transparentBackground={currentView === 'player' && transparentPlayerBackground}
+                    disableGeometricBackground={disableVisualizerGeometricBackground}
+                    disableVignette={disableVisualizerVignette}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
                     hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}

@@ -67,11 +67,23 @@ type BuildHomeModelParams = {
     hidePlayerProgressBar?: LegacyHomeProps['hidePlayerProgressBar'];
     hidePlayerTranslationSubtitle?: LegacyHomeProps['hidePlayerTranslationSubtitle'];
     hidePlayerRightPanelButton?: LegacyHomeProps['hidePlayerRightPanelButton'];
+    transparentPlayerBackground?: LegacyHomeProps['transparentPlayerBackground'];
+    disableVisualizerVignette?: LegacyHomeProps['disableVisualizerVignette'];
+    disableVisualizerGeometricBackground?: LegacyHomeProps['disableVisualizerGeometricBackground'];
+    minimizeToTray?: LegacyHomeProps['minimizeToTray'];
+    hideTaskbarIcon?: LegacyHomeProps['hideTaskbarIcon'];
+    openPlayerOnLaunch?: LegacyHomeProps['openPlayerOnLaunch'];
     handleToggleStaticMode?: LegacyHomeProps['onToggleStaticMode'];
     handleToggleDisableHomeDynamicBackground?: LegacyHomeProps['onToggleDisableHomeDynamicBackground'];
     handleToggleHidePlayerProgressBar?: LegacyHomeProps['onToggleHidePlayerProgressBar'];
     handleToggleHidePlayerTranslationSubtitle?: LegacyHomeProps['onToggleHidePlayerTranslationSubtitle'];
     handleToggleHidePlayerRightPanelButton?: LegacyHomeProps['onToggleHidePlayerRightPanelButton'];
+    handleToggleTransparentPlayerBackground?: LegacyHomeProps['onToggleTransparentPlayerBackground'];
+    handleToggleDisableVisualizerVignette?: LegacyHomeProps['onToggleDisableVisualizerVignette'];
+    handleToggleDisableVisualizerGeometricBackground?: LegacyHomeProps['onToggleDisableVisualizerGeometricBackground'];
+    handleToggleMinimizeToTray?: LegacyHomeProps['onToggleMinimizeToTray'];
+    handleToggleHideTaskbarIcon?: LegacyHomeProps['onToggleHideTaskbarIcon'];
+    handleToggleOpenPlayerOnLaunch?: LegacyHomeProps['onToggleOpenPlayerOnLaunch'];
     enableMediaCache?: LegacyHomeProps['enableMediaCache'];
     handleToggleMediaCache?: LegacyHomeProps['onToggleMediaCache'];
     theme: LegacyHomeProps['theme'];
@@ -179,11 +191,23 @@ export const buildHomeModel = ({
     hidePlayerProgressBar,
     hidePlayerTranslationSubtitle,
     hidePlayerRightPanelButton,
+    transparentPlayerBackground,
+    disableVisualizerVignette,
+    disableVisualizerGeometricBackground,
+    minimizeToTray,
+    hideTaskbarIcon,
+    openPlayerOnLaunch,
     handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground,
     handleToggleHidePlayerProgressBar,
     handleToggleHidePlayerTranslationSubtitle,
     handleToggleHidePlayerRightPanelButton,
+    handleToggleTransparentPlayerBackground,
+    handleToggleDisableVisualizerVignette,
+    handleToggleDisableVisualizerGeometricBackground,
+    handleToggleMinimizeToTray,
+    handleToggleHideTaskbarIcon,
+    handleToggleOpenPlayerOnLaunch,
     enableMediaCache,
     handleToggleMediaCache,
     theme,
@@ -329,11 +353,23 @@ export const buildHomeModel = ({
             hidePlayerProgressBar,
             hidePlayerTranslationSubtitle,
             hidePlayerRightPanelButton,
+            transparentPlayerBackground,
+            disableVisualizerVignette,
+            disableVisualizerGeometricBackground,
+            minimizeToTray,
+            hideTaskbarIcon,
+            openPlayerOnLaunch,
             onToggleStaticMode: handleToggleStaticMode,
             onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
             onToggleHidePlayerProgressBar: handleToggleHidePlayerProgressBar,
             onToggleHidePlayerTranslationSubtitle: handleToggleHidePlayerTranslationSubtitle,
             onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
+            onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
+            onToggleDisableVisualizerVignette: handleToggleDisableVisualizerVignette,
+            onToggleDisableVisualizerGeometricBackground: handleToggleDisableVisualizerGeometricBackground,
+            onToggleMinimizeToTray: handleToggleMinimizeToTray,
+            onToggleHideTaskbarIcon: handleToggleHideTaskbarIcon,
+            onToggleOpenPlayerOnLaunch: handleToggleOpenPlayerOnLaunch,
             enableMediaCache,
             onToggleMediaCache: handleToggleMediaCache,
             theme,

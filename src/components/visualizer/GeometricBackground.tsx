@@ -9,6 +9,7 @@ interface GeometricBackgroundProps {
   audioBands?: AudioBands;
   seed?: string | number;
   hideShapes?: boolean;
+  disableVignette?: boolean;
   paused?: boolean;
 }
 
@@ -86,11 +87,13 @@ const getShapeBaseStyle = (shape: BackgroundShape, theme: Theme) => {
   };
 };
 
-const GradientOverlay = () => (
-  <div
-    className="absolute inset-0 pointer-events-none"
-    style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
-  />
+const VignetteOverlay: React.FC<{ disabled?: boolean }> = ({ disabled = false }) => (
+  disabled ? null : (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{ background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%)' }}
+    />
+  )
 );
 
 const StaticGeometricScene: React.FC<{
@@ -98,7 +101,8 @@ const StaticGeometricScene: React.FC<{
   shapes: BackgroundShape[];
   particles: BackgroundParticle[];
   hideShapes: boolean;
-}> = ({ theme, shapes, particles, hideShapes }) => (
+  disableVignette: boolean;
+}> = ({ theme, shapes, particles, hideShapes, disableVignette }) => (
   <div className="absolute inset-0">
     {!hideShapes && (
       <>
@@ -156,7 +160,7 @@ const StaticGeometricScene: React.FC<{
       </>
     )}
 
-    <GradientOverlay />
+    <VignetteOverlay disabled={disableVignette} />
   </div>
 );
 
@@ -167,7 +171,8 @@ const AnimatedGeometricScene: React.FC<{
   shapes: BackgroundShape[];
   particles: BackgroundParticle[];
   hideShapes: boolean;
-}> = ({ theme, audioPower, audioBands, shapes, particles, hideShapes }) => {
+  disableVignette: boolean;
+}> = ({ theme, audioPower, audioBands, shapes, particles, hideShapes, disableVignette }) => {
   const useBandScale = (value: MotionValue<number> | undefined) => {
     const source = value || audioPower;
     const spring = useSpring(source, { stiffness: 300, damping: 30 }) as unknown as MotionValue<number>;
@@ -279,7 +284,7 @@ const AnimatedGeometricScene: React.FC<{
         </>
       )}
 
-      <GradientOverlay />
+      <VignetteOverlay disabled={disableVignette} />
     </div>
   );
 };
@@ -290,6 +295,7 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
   audioBands,
   seed,
   hideShapes = false,
+  disableVignette = false,
   paused = false,
 }) => {
   const shapes = useMemo<BackgroundShape[]>(() => {
@@ -349,6 +355,7 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
           shapes={shapes}
           particles={particles}
           hideShapes={hideShapes}
+          disableVignette={disableVignette}
         />
       ) : (
         <AnimatedGeometricScene
@@ -358,6 +365,7 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
           shapes={shapes}
           particles={particles}
           hideShapes={hideShapes}
+          disableVignette={disableVignette}
         />
       )}
     </motion.div>
@@ -383,6 +391,7 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo((prop
   if (prevProps.seed !== nextProps.seed) return false;
   if (prevProps.audioPower !== nextProps.audioPower) return false;
   if (prevProps.hideShapes !== nextProps.hideShapes) return false;
+  if (prevProps.disableVignette !== nextProps.disableVignette) return false;
   if (prevProps.paused !== nextProps.paused) return false;
 
   const previousBands = prevProps.audioBands;

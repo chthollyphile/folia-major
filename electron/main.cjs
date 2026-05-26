@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray } = require('electron');
 const path = require('path');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
@@ -38,8 +38,12 @@ if (process.platform === 'linux') {
 const store = new Store();
 let mainWindow = null;
 let remoteControlWindow = null;
+let appTray = null;
 let latestRemoteControlSnapshot = null;
 let remoteControlAlwaysOnTop = false;
+let mainWindowClickThroughEnabled = false;
+let mainWindowClickThroughUnlockHover = false;
+let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
 const DEFAULT_WINDOW_BOUNDS = {
   width: 1200,
@@ -53,6 +57,9 @@ const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
 const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
+const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
+const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
+const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
@@ -68,6 +75,8 @@ const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
       next: nativeImage.createFromPath(path.join(THUMBAR_ICON_DIR, 'next.png')).resize({ width: 16, height: 16, quality: 'best' }),
     }
   : null;
+
+mainWindowSkipTaskbarEnabled = Boolean(store.get(HIDE_TASKBAR_ICON_SETTING_KEY));
 
 const stageApi = createStageApi({
   app,
@@ -245,6 +254,117 @@ function focusMainWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+  refreshTrayMenu();
+}
+
+function isMainWindowVisible() {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized());
+}
+
+function hideMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.hide();
+  refreshTrayMenu();
+  return true;
+}
+
+function toggleMainWindowVisibility() {
+  if (isMainWindowVisible()) {
+    return hideMainWindow();
+  }
+
+  focusMainWindow();
+  return true;
+}
+
+function isMinimizeToTrayEnabled() {
+  return Boolean(store.get(MINIMIZE_TO_TRAY_SETTING_KEY));
+}
+
+function setMainWindowSkipTaskbarEnabled(enabled) {
+  mainWindowSkipTaskbarEnabled = Boolean(enabled);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setSkipTaskbar(mainWindowSkipTaskbarEnabled);
+  }
+  refreshTrayMenu();
+  return mainWindowSkipTaskbarEnabled;
+}
+
+function persistMainWindowSkipTaskbarEnabled(enabled) {
+  store.set(HIDE_TASKBAR_ICON_SETTING_KEY, Boolean(enabled));
+  return setMainWindowSkipTaskbarEnabled(enabled);
+}
+
+function refreshTrayMenu() {
+  if (!appTray) {
+    return;
+  }
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: '显示/隐藏主窗口',
+      click: () => {
+        toggleMainWindowVisibility();
+      },
+    },
+    {
+      label: '打开 遥控窗口',
+      click: () => {
+        createRemoteControlWindow();
+      },
+    },
+    {
+      label: '切换点击穿透',
+      type: 'checkbox',
+      checked: mainWindowClickThroughEnabled,
+      enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
+      click: () => {
+        setMainWindowClickThroughEnabled(!mainWindowClickThroughEnabled);
+      },
+    },
+    {
+      label: '隐藏任务栏图标',
+      type: 'checkbox',
+      checked: mainWindowSkipTaskbarEnabled,
+      enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
+      click: () => {
+        persistMainWindowSkipTaskbarEnabled(!mainWindowSkipTaskbarEnabled);
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  appTray.setContextMenu(menu);
+  appTray.setToolTip('Folia');
+}
+
+function ensureTray() {
+  if (appTray) {
+    refreshTrayMenu();
+    return appTray;
+  }
+
+  appTray = new Tray(APP_ICON_PATH);
+  appTray.on('click', () => {
+    if (!isMainWindowVisible()) {
+      focusMainWindow();
+    }
+  });
+  refreshTrayMenu();
+  return appTray;
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -1342,6 +1462,73 @@ function loadAppEntry(win, query = {}) {
   win.loadFile(path.join(__dirname, '../dist/index.html'), { query });
 }
 
+function isTransparentPlayerBackgroundEnabled() {
+  return Boolean(store.get(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY));
+}
+
+function patchRemoteControlSnapshot(patch) {
+  if (!latestRemoteControlSnapshot) {
+    return;
+  }
+
+  latestRemoteControlSnapshot = {
+    ...latestRemoteControlSnapshot,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+  sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+}
+
+function publishMainWindowClickThroughState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  mainWindow.webContents.send('main-window-click-through-changed', {
+    enabled: mainWindowClickThroughEnabled,
+  });
+  refreshTrayMenu();
+  return true;
+}
+
+function applyMainWindowMouseIgnoreState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  mainWindow.setIgnoreMouseEvents(
+    mainWindowClickThroughEnabled && !mainWindowClickThroughUnlockHover,
+    { forward: true }
+  );
+  publishMainWindowClickThroughState();
+  return true;
+}
+
+function setMainWindowClickThroughEnabled(enabled) {
+  mainWindowClickThroughEnabled = Boolean(enabled);
+  if (!mainWindowClickThroughEnabled) {
+    mainWindowClickThroughUnlockHover = false;
+  }
+
+  applyMainWindowMouseIgnoreState();
+  refreshTrayMenu();
+  patchRemoteControlSnapshot({
+    mainWindowClickThroughEnabled,
+  });
+  return mainWindowClickThroughEnabled;
+}
+
+function setMainWindowClickThroughUnlockHover(active) {
+  const nextActive = Boolean(active) && mainWindowClickThroughEnabled;
+  if (mainWindowClickThroughUnlockHover === nextActive) {
+    return mainWindowClickThroughUnlockHover;
+  }
+
+  mainWindowClickThroughUnlockHover = nextActive;
+  applyMainWindowMouseIgnoreState();
+  return mainWindowClickThroughUnlockHover;
+}
+
 function sendRemoteControlSnapshot(snapshot) {
   if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
     return false;
@@ -1442,17 +1629,23 @@ async function getMainWindowCaptureSource() {
   return source ? { id: source.id, name: source.name } : null;
 }
 
-function createWindow() {
+function createWindow(options = {}) {
+  const { showImmediately = true } = options;
   const { bounds: storedBounds, isMaximized } = getStoredWindowState();
   const windowBounds = ensureWindowBoundsVisible(storedBounds);
+  const useTransparentWindow = isTransparentPlayerBackgroundEnabled();
   const win = new BrowserWindow({
     ...windowBounds,
     minWidth: 350,
     minHeight: 100,
     frame: false,
+    transparent: useTransparentWindow,
+    backgroundColor: useTransparentWindow ? '#00000000' : '#09090b',
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,
+    skipTaskbar: mainWindowSkipTaskbarEnabled,
+    show: showImmediately,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -1472,6 +1665,9 @@ function createWindow() {
   }
 
   mainWindow = win;
+  ensureTray();
+  setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
+  applyMainWindowMouseIgnoreState();
   updateWindowThumbarButtons();
   win.on('resize', () => {
     saveWindowState(win);
@@ -1494,10 +1690,40 @@ function createWindow() {
       if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
         remoteControlWindow.close();
       }
+      refreshTrayMenu();
     }
   });
+  win.on('show', refreshTrayMenu);
+  win.on('hide', refreshTrayMenu);
+  win.on('minimize', refreshTrayMenu);
+  win.on('restore', refreshTrayMenu);
 
   return win;
+}
+
+function recreateMainWindowWithTransparencyMode(enabled) {
+  store.set(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, Boolean(enabled));
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    const createdWindow = createWindow();
+    focusMainWindow();
+    return createdWindow;
+  }
+
+  const previousWindow = mainWindow;
+  saveWindowState(previousWindow);
+  mainWindow = null;
+
+  const nextWindow = createWindow({ showImmediately: false });
+  nextWindow.once('ready-to-show', () => {
+    nextWindow.show();
+    if (!previousWindow.isDestroyed()) {
+      previousWindow.destroy();
+    }
+    focusMainWindow();
+  });
+
+  return nextWindow;
 }
 
 app.whenReady().then(async () => {
@@ -1513,6 +1739,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('[Stage] Failed to start stage server during app startup', error);
   }
+  ensureTray();
   createWindow();
   focusMainWindow();
   scheduleStartupUpdateCheck();
@@ -1563,6 +1790,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
         });
       });
     }
+  }
+
+  if (key === HIDE_TASKBAR_ICON_SETTING_KEY) {
+    setMainWindowSkipTaskbarEnabled(value);
   }
 
   if (key === STAGE_MODE_SOURCE_SETTING_KEY) {
@@ -1691,7 +1922,12 @@ ipcMain.handle('window-minimize', () => {
     return false;
   }
 
+  if (isMinimizeToTrayEnabled()) {
+    return hideMainWindow();
+  }
+
   mainWindow.minimize();
+  refreshTrayMenu();
   return true;
 });
 
@@ -1724,6 +1960,53 @@ ipcMain.handle('window-is-maximized', () => {
   }
 
   return mainWindow.isMaximized();
+});
+
+ipcMain.handle('window-get-transparent-mode', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return isTransparentPlayerBackgroundEnabled();
+});
+
+ipcMain.handle('window-set-transparent-mode', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  patchRemoteControlSnapshot({
+    transparentModeEnabled: Boolean(enabled),
+    mainWindowClickThroughEnabled: false,
+  });
+  mainWindowClickThroughEnabled = false;
+  mainWindowClickThroughUnlockHover = false;
+  recreateMainWindowWithTransparencyMode(Boolean(enabled));
+  return true;
+});
+
+ipcMain.handle('window-get-click-through', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return mainWindowClickThroughEnabled;
+});
+
+ipcMain.handle('window-set-click-through', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return setMainWindowClickThroughEnabled(enabled);
+});
+
+ipcMain.handle('window-set-click-through-unlock-hover', (event, active) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return setMainWindowClickThroughUnlockHover(active);
 });
 
 ipcMain.handle('stage-get-status', () => {
@@ -1816,7 +2099,12 @@ ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {
     throw new Error('Untrusted renderer attempted to publish remote control state.');
   }
 
-  latestRemoteControlSnapshot = snapshot || null;
+  latestRemoteControlSnapshot = snapshot
+    ? {
+        ...snapshot,
+        mainWindowClickThroughEnabled,
+      }
+    : null;
   if (latestRemoteControlSnapshot) {
     sendRemoteControlSnapshot(latestRemoteControlSnapshot);
   }
@@ -1834,6 +2122,33 @@ ipcMain.handle('remote-control-get-snapshot', (event) => {
 ipcMain.handle('remote-control-send-command', (event, command) => {
   if (!isTrustedRemoteControlContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to send a remote control command.');
+  }
+
+  if (command?.type === 'set-main-window-click-through') {
+    return setMainWindowClickThroughEnabled(Boolean(command.enabled));
+  }
+
+  if (command?.type === 'set-transparent-mode-enabled') {
+    const nextEnabled = Boolean(command.enabled);
+    patchRemoteControlSnapshot({
+      transparentModeEnabled: nextEnabled,
+      mainWindowClickThroughEnabled: false,
+    });
+    mainWindowClickThroughEnabled = false;
+    mainWindowClickThroughUnlockHover = false;
+    recreateMainWindowWithTransparencyMode(nextEnabled);
+    return true;
+  }
+
+  if (command?.type === 'disable-transparent-mode') {
+    patchRemoteControlSnapshot({
+      transparentModeEnabled: false,
+      mainWindowClickThroughEnabled: false,
+    });
+    mainWindowClickThroughEnabled = false;
+    mainWindowClickThroughUnlockHover = false;
+    recreateMainWindowWithTransparencyMode(false);
+    return true;
   }
 
   if (!mainWindow || mainWindow.isDestroyed()) {

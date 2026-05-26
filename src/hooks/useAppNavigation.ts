@@ -36,6 +36,7 @@ type OverlayDisplayState = {
 };
 
 const LAST_APP_VIEW_KEY = 'last_app_view';
+const OPEN_PLAYER_ON_LAUNCH_KEY = 'open_player_on_launch';
 const NAV_DEBUG_ENABLED = false;
 
 const buildHistoryState = (
@@ -139,6 +140,45 @@ export function useAppNavigation() {
         console.groupEnd();
     };
 
+    const getStartupView = (): ViewState => (
+        localStorage.getItem(OPEN_PLAYER_ON_LAUNCH_KEY) === 'true'
+            ? 'player'
+            : 'home'
+    );
+
+    const initializeNavigationState = () => {
+        const initialView = getStartupView();
+        localStorage.setItem(LAST_APP_VIEW_KEY, initialView);
+        window.history.replaceState(
+            buildHistoryState(initialView, [], null, null),
+            '',
+            initialView === 'player' ? '#player' : (window.location.pathname + window.location.search)
+        );
+        setCurrentView(initialView);
+        setOverlayStack([]);
+        setOverlayView(null);
+        setOverlayOriginView(null);
+        setPendingNavidromeSelection(null);
+        setLocalMusicState(prev => ({
+            ...prev,
+            activeRow: 0,
+            selectedGroup: null,
+            detailStack: [],
+            detailOriginView: null,
+        }));
+        useSearchNavigationStore.getState().hideSearchOverlay();
+        logNavigation('initializeNavigationState', {
+            view: initialView,
+            overlays: [],
+            overlayView: null,
+            overlayOriginView: null,
+            search: null,
+            replace: true,
+            hash: initialView === 'player' ? '#player' : (window.location.pathname + window.location.search),
+            historyState: buildHistoryState(initialView, [], null, null),
+        });
+    };
+
     const resetToHomeState = (options?: { clearContext?: boolean; }) => {
         const clearContext = options?.clearContext ?? true;
         localStorage.setItem(LAST_APP_VIEW_KEY, 'home');
@@ -175,7 +215,7 @@ export function useAppNavigation() {
     };
 
     useEffect(() => {
-        resetToHomeState();
+        initializeNavigationState();
 
         const handlePopState = (event: PopStateEvent) => {
             const state = event.state as NavigationHistoryState | null;
@@ -184,7 +224,7 @@ export function useAppNavigation() {
                 logNavigation('popstate:null-state', {
                     historyState: state,
                 });
-                resetToHomeState();
+                initializeNavigationState();
                 return;
             }
 

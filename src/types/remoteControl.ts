@@ -8,6 +8,11 @@ export type RemoteControlCommand =
     | { type: 'previous' }
     | { type: 'next' }
     | { type: 'seek'; time: number }
+    | { type: 'set-main-window-border-visible'; visible: boolean }
+    | { type: 'set-main-window-click-through'; enabled: boolean }
+    | { type: 'set-transparent-mode-enabled'; enabled: boolean }
+    | { type: 'disable-transparent-mode' }
+    | { type: 'set-player-chrome-hidden'; hidden: boolean }
     | { type: 'open-export' }
     | { type: 'start-export'; preset: VideoExportPreset; startMode: VideoExportStartMode }
     | { type: 'stop-export' }
@@ -25,6 +30,10 @@ export interface RemoteControlSnapshot {
     canGoNext: boolean;
     controlsDisabled: boolean;
     isStageActive: boolean;
+    transparentModeEnabled: boolean;
+    mainWindowClickThroughEnabled: boolean;
+    mainWindowBorderVisible: boolean;
+    playerChromeHidden: boolean;
     exportState: VideoExportState;
     updatedAt: number;
 }
