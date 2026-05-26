@@ -1510,7 +1510,8 @@ async function getMainWindowCaptureSource() {
   return source ? { id: source.id, name: source.name } : null;
 }
 
-function createWindow() {
+function createWindow(options = {}) {
+  const { showImmediately = true } = options;
   const { bounds: storedBounds, isMaximized } = getStoredWindowState();
   const windowBounds = ensureWindowBoundsVisible(storedBounds);
   const useTransparentWindow = isTransparentPlayerBackgroundEnabled();
@@ -1524,6 +1525,7 @@ function createWindow() {
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,
+    show: showImmediately,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -1585,8 +1587,9 @@ function recreateMainWindowWithTransparencyMode(enabled) {
   saveWindowState(previousWindow);
   mainWindow = null;
 
-  const nextWindow = createWindow();
+  const nextWindow = createWindow({ showImmediately: false });
   nextWindow.once('ready-to-show', () => {
+    nextWindow.show();
     if (!previousWindow.isDestroyed()) {
       previousWindow.destroy();
     }
