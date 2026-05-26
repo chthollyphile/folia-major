@@ -90,7 +90,10 @@ const AppShell: React.FC<AppShellProps> = ({
                     <div className="relative h-full">
                         <TitlebarDragZone active={usesCustomWindowChrome} />
                         {showClickThroughUnlockButton && (
-                            <div className="pointer-events-auto absolute top-1 right-24 z-20">
+                            <div
+                                className="pointer-events-auto absolute top-1 right-[180px] z-20"
+                                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                            >
                                 <button
                                     type="button"
                                     aria-label="Disable click-through"

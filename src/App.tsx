@@ -1047,7 +1047,7 @@ export default function App() {
         const html = document.documentElement;
         const previousBodyBackgroundColor = body.style.backgroundColor;
         const previousHtmlBackgroundColor = html.style.backgroundColor;
-        const shouldUseTransparentDocumentBackground = shouldUseTransparentAppBackground;
+        const shouldUseTransparentDocumentBackground = isElectronWindow && transparentPlayerBackground;
 
         if (shouldUseTransparentDocumentBackground) {
             body.style.backgroundColor = 'transparent';
@@ -1061,7 +1061,7 @@ export default function App() {
             body.style.backgroundColor = previousBodyBackgroundColor;
             html.style.backgroundColor = previousHtmlBackgroundColor;
         };
-    }, [shouldUseTransparentAppBackground]);
+    }, [isElectronWindow, transparentPlayerBackground]);
 
     useEffect(() => {
         if (!isElectronWindow || !window.electron?.getMainWindowClickThroughEnabled || !window.electron?.onMainWindowClickThroughChanged) {
@@ -1098,7 +1098,7 @@ export default function App() {
             return;
         }
 
-        const unlockHotspotWidth = 168;
+        const unlockHotspotWidth = 260;
         const unlockHotspotHeight = 56;
 
         const syncUnlockHotspot = (active: boolean) => {
