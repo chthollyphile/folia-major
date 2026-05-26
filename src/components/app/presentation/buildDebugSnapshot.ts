@@ -79,6 +79,27 @@ export const buildDebugSnapshot = ({
         };
     };
 
+    const toRawLineSnapshot = (line: LyricData['lines'][number] | null) => {
+        if (!line) {
+            return null;
+        }
+
+        return {
+            startTime: line.startTime,
+            endTime: line.endTime,
+            fullText: line.fullText,
+            translation: line.translation ?? null,
+            isChorus: line.isChorus ?? false,
+            chorusEffect: line.chorusEffect ?? null,
+            renderHints: line.renderHints ?? null,
+            words: line.words.map(word => ({
+                text: word.text,
+                startTime: word.startTime,
+                endTime: word.endTime,
+            })),
+        };
+    };
+
     return {
         shortcutLabel,
         songKey: currentSong ? `${resolveDebugSongSource(currentSong)}:${currentSong.id}` : null,
@@ -98,5 +119,7 @@ export const buildDebugSnapshot = ({
         nowPlaying: nowPlayingDebug,
         activeLine: toLineSnapshot(debugActiveLine),
         nextLine: toLineSnapshot(debugNextLine),
+        rawActiveLine: toRawLineSnapshot(debugActiveLine),
+        rawNextLine: toRawLineSnapshot(debugNextLine),
     };
 };

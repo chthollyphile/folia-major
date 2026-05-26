@@ -14,6 +14,23 @@ export interface DevDebugLineSnapshot {
     wordRevealMode: string | null;
 }
 
+interface DevDebugRawWordSnapshot {
+    text: string;
+    startTime: number;
+    endTime: number;
+}
+
+interface DevDebugRawLineSnapshot {
+    startTime: number;
+    endTime: number;
+    fullText: string;
+    translation: string | null;
+    isChorus: boolean;
+    chorusEffect: string | null;
+    renderHints: Record<string, unknown> | null;
+    words: DevDebugRawWordSnapshot[];
+}
+
 export interface DevDebugSnapshot {
     shortcutLabel: string;
     songKey?: string | null;
@@ -49,6 +66,8 @@ export interface DevDebugSnapshot {
     } | null;
     activeLine: DevDebugLineSnapshot | null;
     nextLine: DevDebugLineSnapshot | null;
+    rawActiveLine: DevDebugRawLineSnapshot | null;
+    rawNextLine: DevDebugRawLineSnapshot | null;
 }
 
 interface DevDebugOverlayProps {
@@ -136,6 +155,44 @@ const DebugRow: React.FC<{ label: string; value: string; }> = ({ label, value })
             <dt className="text-[10px] uppercase tracking-[0.16em] opacity-60">{label}</dt>
             <dd className="text-[11px] font-medium text-right break-words">{value}</dd>
         </>
+    );
+};
+
+const DebugMetricTable: React.FC<{
+    title?: string;
+    rows: Array<{ label: string; value: string; }>;
+    isDaylight: boolean;
+}> = ({ title, rows, isDaylight }) => {
+    const cellClass = isDaylight
+        ? 'border-black/10 bg-white/40'
+        : 'border-white/10 bg-white/[0.03]';
+
+    return (
+        <div className={`overflow-hidden rounded-lg border text-[10px] ${isDaylight ? 'border-black/10' : 'border-white/10'}`}>
+            {title ? (
+                <div className={`border-b px-2 py-1 text-[9px] uppercase tracking-[0.14em] opacity-60 ${isDaylight ? 'border-black/10 bg-black/[0.03]' : 'border-white/10 bg-white/[0.02]'}`}>
+                    {title}
+                </div>
+            ) : null}
+            <table className="w-full border-collapse">
+                <tbody>
+                    {rows.map((row, index) => (
+                        <tr key={row.label}>
+                            <th
+                                className={`w-[4.75rem] border-b px-2 py-1 text-left font-medium uppercase tracking-[0.12em] opacity-65 ${cellClass} ${index === rows.length - 1 ? 'border-b-0' : ''}`}
+                            >
+                                {row.label}
+                            </th>
+                            <td
+                                className={`border-b px-2 py-1 font-medium ${cellClass} ${index === rows.length - 1 ? 'border-b-0' : ''}`}
+                            >
+                                {row.value}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 };
 
@@ -285,16 +342,66 @@ const DebugLineBlock: React.FC<{ label: string; line: DevDebugLineSnapshot | nul
                     {line.translation}
                 </div>
             ) : null}
-            <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[10px]">
-                <DebugRow label="words" value={line.wordCount === null ? 'N/A' : String(line.wordCount)} />
-                <DebugRow label="start" value={formatSeconds(line.startTime)} />
-                <DebugRow label="end" value={formatSeconds(line.endTime)} />
-                <DebugRow label="renderEnd" value={formatSeconds(line.renderEndTime)} />
-                <DebugRow label="raw" value={formatSeconds(line.rawDuration)} />
-                <DebugRow label="timing" value={line.timingClass ?? 'N/A'} />
-                <DebugRow label="transition" value={line.lineTransitionMode ?? 'N/A'} />
-                <DebugRow label="reveal" value={line.wordRevealMode ?? 'N/A'} />
-            </dl>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <DebugMetricTable
+                    title="Scale"
+                    isDaylight={isDaylight}
+                    rows={[
+                        { label: 'words', value: line.wordCount === null ? 'N/A' : String(line.wordCount) },
+                        { label: 'raw', value: formatSeconds(line.rawDuration) },
+                    ]}
+                />
+                <DebugMetricTable
+                    title="Window"
+                    isDaylight={isDaylight}
+                    rows={[
+                        { label: 'start', value: formatSeconds(line.startTime) },
+                        { label: 'end', value: formatSeconds(line.endTime) },
+                        { label: 'renderEnd', value: formatSeconds(line.renderEndTime) },
+                    ]}
+                />
+                <DebugMetricTable
+                    title="Profile"
+                    isDaylight={isDaylight}
+                    rows={[
+                        { label: 'timing', value: line.timingClass ?? 'N/A' },
+                        { label: 'transition', value: line.lineTransitionMode ?? 'N/A' },
+                    ]}
+                />
+                <DebugMetricTable
+                    title="Reveal"
+                    isDaylight={isDaylight}
+                    rows={[
+                        { label: 'mode', value: line.wordRevealMode ?? 'N/A' },
+                    ]}
+                />
+            </div>
+        </section>
+    );
+};
+
+const RawLinePayloadBlock: React.FC<{
+    label: string;
+    line: DevDebugRawLineSnapshot | null;
+    isDaylight: boolean;
+}> = ({ label, line, isDaylight }) => {
+    const blockClass = isDaylight
+        ? 'border-black/10 bg-black/[0.04]'
+        : 'border-white/10 bg-black/15';
+    const codeClass = isDaylight
+        ? 'border-black/10 bg-white/45 text-zinc-900'
+        : 'border-white/10 bg-black/25 text-zinc-100';
+
+    return (
+        <section className={`rounded-xl border px-3 py-2 ${blockClass}`}>
+            <div className="text-[10px] uppercase tracking-[0.16em] opacity-60">{label}</div>
+            {line ? (
+                <pre className={`mt-2 overflow-x-auto rounded-lg border px-2.5 py-2 text-[10px] leading-4 ${codeClass}`}>
+                    {JSON.stringify(line, null, 2)}
+                </pre>
+            ) : (
+                <div className="mt-1 text-[11px] font-medium">N/A</div>
+            )}
         </section>
     );
 };
@@ -452,7 +559,7 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
     const chartBarClass = isDaylight ? 'bg-emerald-600/75' : 'bg-emerald-400/80';
 
     return (
-        <aside className="pointer-events-none fixed top-4 right-4 z-[65] w-[min(34rem,calc(100vw-2rem))]">
+        <aside className="pointer-events-none fixed top-4 right-4 z-[55] w-[min(34rem,calc(100vw-2rem))]">
             <div
                 className={`pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain rounded-2xl backdrop-blur-2xl px-4 py-3 font-mono ${shellClass}`}
             >
@@ -613,6 +720,16 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                             isDaylight={isDaylight}
                             currentTime={liveCurrentTime}
                             nextLineStartTime={null}
+                        />
+                        <RawLinePayloadBlock
+                            label="Raw Current Line Payload"
+                            line={snapshot.rawActiveLine}
+                            isDaylight={isDaylight}
+                        />
+                        <RawLinePayloadBlock
+                            label="Raw Next Line Payload"
+                            line={snapshot.rawNextLine}
+                            isDaylight={isDaylight}
                         />
                     </div>
                 )}
