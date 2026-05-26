@@ -40,6 +40,8 @@ let mainWindow = null;
 let remoteControlWindow = null;
 let latestRemoteControlSnapshot = null;
 let remoteControlAlwaysOnTop = false;
+let mainWindowClickThroughEnabled = false;
+let mainWindowClickThroughUnlockHover = false;
 let videoExportWindowRestoreState = null;
 const DEFAULT_WINDOW_BOUNDS = {
   width: 1200,
@@ -1347,6 +1349,67 @@ function isTransparentPlayerBackgroundEnabled() {
   return Boolean(store.get(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY));
 }
 
+function patchRemoteControlSnapshot(patch) {
+  if (!latestRemoteControlSnapshot) {
+    return;
+  }
+
+  latestRemoteControlSnapshot = {
+    ...latestRemoteControlSnapshot,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+  sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+}
+
+function publishMainWindowClickThroughState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  mainWindow.webContents.send('main-window-click-through-changed', {
+    enabled: mainWindowClickThroughEnabled,
+  });
+  return true;
+}
+
+function applyMainWindowMouseIgnoreState() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  mainWindow.setIgnoreMouseEvents(
+    mainWindowClickThroughEnabled && !mainWindowClickThroughUnlockHover,
+    { forward: true }
+  );
+  publishMainWindowClickThroughState();
+  return true;
+}
+
+function setMainWindowClickThroughEnabled(enabled) {
+  mainWindowClickThroughEnabled = Boolean(enabled);
+  if (!mainWindowClickThroughEnabled) {
+    mainWindowClickThroughUnlockHover = false;
+  }
+
+  applyMainWindowMouseIgnoreState();
+  patchRemoteControlSnapshot({
+    mainWindowClickThroughEnabled,
+  });
+  return mainWindowClickThroughEnabled;
+}
+
+function setMainWindowClickThroughUnlockHover(active) {
+  const nextActive = Boolean(active) && mainWindowClickThroughEnabled;
+  if (mainWindowClickThroughUnlockHover === nextActive) {
+    return mainWindowClickThroughUnlockHover;
+  }
+
+  mainWindowClickThroughUnlockHover = nextActive;
+  applyMainWindowMouseIgnoreState();
+  return mainWindowClickThroughUnlockHover;
+}
+
 function sendRemoteControlSnapshot(snapshot) {
   if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
     return false;
@@ -1480,6 +1543,7 @@ function createWindow() {
   }
 
   mainWindow = win;
+  applyMainWindowMouseIgnoreState();
   updateWindowThumbarButtons();
   win.on('resize', () => {
     saveWindowState(win);
@@ -1771,8 +1835,38 @@ ipcMain.handle('window-set-transparent-mode', (event, enabled) => {
     return false;
   }
 
+  patchRemoteControlSnapshot({
+    transparentModeEnabled: Boolean(enabled),
+    mainWindowClickThroughEnabled: false,
+  });
+  mainWindowClickThroughEnabled = false;
+  mainWindowClickThroughUnlockHover = false;
   recreateMainWindowWithTransparencyMode(Boolean(enabled));
   return true;
+});
+
+ipcMain.handle('window-get-click-through', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return mainWindowClickThroughEnabled;
+});
+
+ipcMain.handle('window-set-click-through', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return setMainWindowClickThroughEnabled(enabled);
+});
+
+ipcMain.handle('window-set-click-through-unlock-hover', (event, active) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return setMainWindowClickThroughUnlockHover(active);
 });
 
 ipcMain.handle('stage-get-status', () => {
@@ -1865,7 +1959,12 @@ ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {
     throw new Error('Untrusted renderer attempted to publish remote control state.');
   }
 
-  latestRemoteControlSnapshot = snapshot || null;
+  latestRemoteControlSnapshot = snapshot
+    ? {
+        ...snapshot,
+        mainWindowClickThroughEnabled,
+      }
+    : null;
   if (latestRemoteControlSnapshot) {
     sendRemoteControlSnapshot(latestRemoteControlSnapshot);
   }
@@ -1883,6 +1982,33 @@ ipcMain.handle('remote-control-get-snapshot', (event) => {
 ipcMain.handle('remote-control-send-command', (event, command) => {
   if (!isTrustedRemoteControlContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to send a remote control command.');
+  }
+
+  if (command?.type === 'set-main-window-click-through') {
+    return setMainWindowClickThroughEnabled(Boolean(command.enabled));
+  }
+
+  if (command?.type === 'set-transparent-mode-enabled') {
+    const nextEnabled = Boolean(command.enabled);
+    patchRemoteControlSnapshot({
+      transparentModeEnabled: nextEnabled,
+      mainWindowClickThroughEnabled: false,
+    });
+    mainWindowClickThroughEnabled = false;
+    mainWindowClickThroughUnlockHover = false;
+    recreateMainWindowWithTransparencyMode(nextEnabled);
+    return true;
+  }
+
+  if (command?.type === 'disable-transparent-mode') {
+    patchRemoteControlSnapshot({
+      transparentModeEnabled: false,
+      mainWindowClickThroughEnabled: false,
+    });
+    mainWindowClickThroughEnabled = false;
+    mainWindowClickThroughUnlockHover = false;
+    recreateMainWindowWithTransparencyMode(false);
+    return true;
   }
 
   if (!mainWindow || mainWindow.isDestroyed()) {

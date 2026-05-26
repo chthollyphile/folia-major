@@ -2389,6 +2389,25 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         className={rangeInputClass}
                                     />
                                 </div>
+
+                                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Monitor size={14} />
+                                            {t('options.transparentPlayerBackground') || '播放页透明背景'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                            仅对播放页生效。开启后会切换到透明窗口模式，适合 OBS 浏览器源或抠像叠加场景。
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => onToggleTransparentPlayerBackground?.(!transparentPlayerBackground)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!transparentPlayerBackground ? toggleOffBackgroundClass : ''}`}
+                                        style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
                             </div>
                         </section>
                     </>
@@ -3212,17 +3231,6 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                             <span>{t('options.hidePlayerRightPanelButton') || '隐藏播放页右侧按钮'}</span>
                                         </button>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => onToggleTransparentPlayerBackground?.(!transparentPlayerBackground)}
-                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${transparentPlayerBackground ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${transparentPlayerBackground ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
-                                                {transparentPlayerBackground ? <Check size={12} /> : null}
-                                            </span>
-                                            <span>{t('options.transparentPlayerBackground') || '播放页透明背景'}</span>
-                                        </button>
                                     </div>
                                 </div>
                                 <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Lock } from 'lucide-react';
 import TitlebarDragZone from '../TitlebarDragZone';
 import WindowControls from '../WindowControls';
 
@@ -9,8 +10,11 @@ type AppShellProps = {
     isElectronWindow: boolean;
     usesCustomWindowChrome: boolean;
     useCustomWindowRadius: boolean;
+    showTransparentWindowBorder: boolean;
     isPlayerView: boolean;
     isTitlebarRevealed: boolean;
+    showClickThroughUnlockButton: boolean;
+    onDisableMainWindowClickThrough: () => void;
     audioElement: React.ReactNode;
     children: React.ReactNode;
 };
@@ -20,8 +24,11 @@ const AppShell: React.FC<AppShellProps> = ({
     isElectronWindow,
     usesCustomWindowChrome,
     useCustomWindowRadius,
+    showTransparentWindowBorder,
     isPlayerView,
     isTitlebarRevealed,
+    showClickThroughUnlockButton,
+    onDisableMainWindowClickThrough,
     audioElement,
     children,
 }) => {
@@ -65,6 +72,7 @@ const AppShell: React.FC<AppShellProps> = ({
             style={{
                 ...appStyle,
                 borderRadius: shouldApplyWindowRadius ? '18px' : undefined,
+                boxShadow: showTransparentWindowBorder ? 'inset 0 0 0 1px rgba(255,255,255,0.24)' : undefined,
             }}
         >
             {usesCustomWindowChrome && (
@@ -81,6 +89,19 @@ const AppShell: React.FC<AppShellProps> = ({
                     )}
                     <div className="relative h-full">
                         <TitlebarDragZone active={usesCustomWindowChrome} />
+                        {showClickThroughUnlockButton && (
+                            <div className="pointer-events-auto absolute top-1 right-24 z-20">
+                                <button
+                                    type="button"
+                                    aria-label="Disable click-through"
+                                    title="解除点击穿透"
+                                    onClick={onDisableMainWindowClickThrough}
+                                    className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-300/35 bg-black/55 text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-black/70"
+                                >
+                                    <Lock size={14} />
+                                </button>
+                            </div>
+                        )}
                         <div className="pointer-events-auto absolute top-0 right-0 z-10 h-full">
                             <WindowControls revealed={isTitlebarRevealed} />
                         </div>

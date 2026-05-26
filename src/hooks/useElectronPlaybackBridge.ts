@@ -11,6 +11,12 @@ import type { VideoExportState } from '../types/videoExport';
 type UseElectronPlaybackBridgeOptions = {
     isElectronWindow: boolean;
     setIsTitlebarRevealed: React.Dispatch<React.SetStateAction<boolean>>;
+    isPlayerChromeHidden: boolean;
+    setIsPlayerChromeHidden: React.Dispatch<React.SetStateAction<boolean>>;
+    showTransparentWindowBorder: boolean;
+    setShowTransparentWindowBorder: React.Dispatch<React.SetStateAction<boolean>>;
+    transparentPlayerBackground: boolean;
+    mainWindowClickThroughEnabled: boolean;
     isNowPlayingControlDisabledRef: RefObject<boolean>;
     audioRef: RefObject<HTMLAudioElement | null>;
     currentTime: MotionValue<number>;
@@ -36,6 +42,12 @@ type UseElectronPlaybackBridgeOptions = {
 export const useElectronPlaybackBridge = ({
     isElectronWindow,
     setIsTitlebarRevealed,
+    isPlayerChromeHidden,
+    setIsPlayerChromeHidden,
+    showTransparentWindowBorder,
+    setShowTransparentWindowBorder,
+    transparentPlayerBackground,
+    mainWindowClickThroughEnabled,
     isNowPlayingControlDisabledRef,
     audioRef,
     currentTime,
@@ -79,6 +91,10 @@ export const useElectronPlaybackBridge = ({
             canGoNext,
             controlsDisabled: isNowPlayingControlDisabledRef.current || !hasActiveTrack,
             isStageActive: isNowPlayingStageActive,
+            transparentModeEnabled: transparentPlayerBackground,
+            mainWindowClickThroughEnabled,
+            mainWindowBorderVisible: showTransparentWindowBorder,
+            playerChromeHidden: isPlayerChromeHidden,
             exportState,
             updatedAt: Date.now(),
         };
@@ -173,7 +189,7 @@ export const useElectronPlaybackBridge = ({
         const intervalId = window.setInterval(publish, 500);
         return () => window.clearInterval(intervalId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cachedCoverUrl, currentSong, duration, effectiveLoopMode, exportState, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
+    }, [cachedCoverUrl, currentSong, duration, effectiveLoopMode, exportState, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, mainWindowClickThroughEnabled, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground]);
 
     useEffect(() => {
         if (!window.electron?.onRemoteControlCommand) {
@@ -182,6 +198,16 @@ export const useElectronPlaybackBridge = ({
 
         const runCommand = (command: RemoteControlCommand) => {
             if (onRemoteExportCommand?.(command)) {
+                return;
+            }
+
+            if (command.type === 'set-main-window-border-visible') {
+                setShowTransparentWindowBorder(command.visible);
+                return;
+            }
+
+            if (command.type === 'set-player-chrome-hidden') {
+                setIsPlayerChromeHidden(command.hidden);
                 return;
             }
 
@@ -227,7 +253,7 @@ export const useElectronPlaybackBridge = ({
 
         return window.electron.onRemoteControlCommand(runCommand);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [audioRef, currentTime, duration, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, onRemoteExportCommand, taskbarHasTrackRef, taskbarPlayerStateRef]);
+    }, [audioRef, currentTime, duration, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, onRemoteExportCommand, setIsPlayerChromeHidden, setShowTransparentWindowBorder, taskbarHasTrackRef, taskbarPlayerStateRef]);
 
     useEffect(() => {
         if (!window.electron?.onStageExternalPlayRequest || !onExternalPlayRequest) {

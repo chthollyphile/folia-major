@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, X } from 'lucide-react';
+import { ChevronLeft, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, WandSparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
 import RemoteVideoExportPanel from './RemoteVideoExportPanel';
@@ -36,14 +36,20 @@ const emptySnapshot: RemoteControlSnapshot = {
     canGoNext: false,
     controlsDisabled: true,
     isStageActive: false,
+    transparentModeEnabled: false,
+    mainWindowClickThroughEnabled: false,
+    mainWindowBorderVisible: false,
+    playerChromeHidden: false,
     exportState: idleVideoExportState(),
     updatedAt: 0,
 };
 
+type RemotePanelMode = 'playback' | 'export' | 'transparent-controls';
+
 const RemoteControlApp: React.FC = () => {
     const [snapshot, setSnapshot] = useState<RemoteControlSnapshot>(emptySnapshot);
     const [pendingSeek, setPendingSeek] = useState<number | null>(null);
-    const [exportPanelOpen, setExportPanelOpen] = useState(false);
+    const [activePanel, setActivePanel] = useState<RemotePanelMode>('playback');
     const [selectedPresetId, setSelectedPresetId] = useState(DEFAULT_VIDEO_EXPORT_PRESET_ID);
     const [startMode, setStartMode] = useState<VideoExportStartMode>('from-start');
     const [presetSelectorOpen, setPresetSelectorOpen] = useState(false);
@@ -93,7 +99,7 @@ const RemoteControlApp: React.FC = () => {
     const lastStatusRef = React.useRef(exportState.status);
     useEffect(() => {
         if (exportState.status !== 'idle' && lastStatusRef.current === 'idle') {
-            setExportPanelOpen(true);
+            setActivePanel('export');
         }
         lastStatusRef.current = exportState.status;
     }, [exportState.status]);
@@ -180,11 +186,14 @@ const RemoteControlApp: React.FC = () => {
                                     style={coverStyle}
                                 />
                             )}
-                            {exportPanelOpen && (
+                            {activePanel !== 'playback' && (
                                 <button
                                     type="button"
                                     title="Back"
-                                    onClick={() => setExportPanelOpen(false)}
+                                    onClick={() => {
+                                        setActivePanel('playback');
+                                        setPresetSelectorOpen(false);
+                                    }}
                                     className="absolute inset-0 flex items-center justify-center bg-zinc-950/65 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl backdrop-blur-sm"
                                 >
                                     <ChevronLeft size={24} strokeWidth={2.5} />
@@ -219,7 +228,7 @@ const RemoteControlApp: React.FC = () => {
                             {/* Dynamic Panel with Framer Motion transitions */}
                             <div className="relative min-h-[70px] w-full">
                                 <AnimatePresence mode="wait">
-                                    {!exportPanelOpen ? (
+                                    {activePanel === 'playback' ? (
                                         <motion.div
                                             key="playback-panel"
                                             initial={{ opacity: 0, y: 5 }}
@@ -291,22 +300,41 @@ const RemoteControlApp: React.FC = () => {
                                                         <SkipForward size={16} strokeWidth={2} />
                                                     </button>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    title="Video export"
-                                                    disabled={!snapshot.hasTrack}
-                                                    onClick={() => setExportPanelOpen(true)}
-                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                                        exportState.status === 'recording'
-                                                            ? 'bg-red-500/25 text-red-400 animate-pulse border border-red-500/30'
-                                                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                                >
-                                                    <Video size={16} strokeWidth={2} />
-                                                </button>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        title="Transparent controls"
+                                                        onClick={() => {
+                                                            setPresetSelectorOpen(false);
+                                                            setActivePanel('transparent-controls');
+                                                        }}
+                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                                                            activePanel === 'transparent-controls'
+                                                                ? 'bg-white text-zinc-950'
+                                                                : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <WandSparkles size={16} strokeWidth={2} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title="Video export"
+                                                        disabled={!snapshot.hasTrack}
+                                                        onClick={() => setActivePanel('export')}
+                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                            exportState.status === 'recording'
+                                                                ? 'bg-red-500/25 text-red-400 animate-pulse border border-red-500/30'
+                                                                : activePanel === 'export'
+                                                                    ? 'bg-white text-zinc-950'
+                                                                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <Video size={16} strokeWidth={2} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </motion.div>
-                                    ) : (
+                                    ) : activePanel === 'export' ? (
                                         <motion.div
                                             key="export-panel"
                                             initial={{ opacity: 0, y: 5 }}
@@ -324,6 +352,79 @@ const RemoteControlApp: React.FC = () => {
                                                 onStartModeChange={setStartMode}
                                                 sendCommand={sendCommand}
                                             />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="transparent-controls-panel"
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -5 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="w-full flex flex-col gap-2.5"
+                                        >
+                                            {/* Row 1: Regular/Transparent mode segment control and Player Chrome visibility */}
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <div className="flex h-8 rounded-xl bg-white/5 p-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => sendCommand({ type: 'set-transparent-mode-enabled', enabled: false })}
+                                                        className={`flex-1 flex items-center justify-center rounded-lg text-[11px] font-bold transition ${
+                                                            !snapshot.transparentModeEnabled ? 'bg-white text-zinc-950 shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        常规
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => sendCommand({ type: 'set-transparent-mode-enabled', enabled: true })}
+                                                        className={`flex-1 flex items-center justify-center rounded-lg text-[11px] font-bold transition ${
+                                                            snapshot.transparentModeEnabled ? 'bg-white text-zinc-950 shadow-sm' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        透明
+                                                    </button>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => sendCommand({ type: 'set-player-chrome-hidden', hidden: !snapshot.playerChromeHidden })}
+                                                    className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-bold transition border border-white/5 ${
+                                                        snapshot.playerChromeHidden
+                                                            ? 'bg-white text-zinc-950 shadow-sm'
+                                                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {snapshot.playerChromeHidden ? '显示 UI' : '隐藏 UI'}
+                                                </button>
+                                            </div>
+
+                                            {/* Row 2: Main window border and Click-through controls */}
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => sendCommand({ type: 'set-main-window-border-visible', visible: !snapshot.mainWindowBorderVisible })}
+                                                    className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-bold transition border border-white/5 ${
+                                                        snapshot.mainWindowBorderVisible
+                                                            ? 'bg-white text-zinc-950 shadow-sm'
+                                                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {snapshot.mainWindowBorderVisible ? '隐藏边框' : '显示边框'}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    disabled={!snapshot.transparentModeEnabled}
+                                                    onClick={() => sendCommand({ type: 'set-main-window-click-through', enabled: !snapshot.mainWindowClickThroughEnabled })}
+                                                    className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-bold transition border border-white/5 disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                        snapshot.mainWindowClickThroughEnabled
+                                                            ? 'bg-white text-zinc-950 shadow-sm'
+                                                            : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {snapshot.mainWindowClickThroughEnabled ? '关闭穿透' : '点击穿透'}
+                                                </button>
+                                            </div>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>

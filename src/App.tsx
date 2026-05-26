@@ -81,6 +81,9 @@ export default function App() {
     const isDev = import.meta.env.DEV;
     const isElectronWindow = Boolean((window as typeof window & { electron?: unknown }).electron);
     const [isTitlebarRevealed, setIsTitlebarRevealed] = useState(false);
+    const [showTransparentWindowBorder, setShowTransparentWindowBorder] = useState(false);
+    const [isMainWindowClickThroughEnabled, setIsMainWindowClickThroughEnabled] = useState(false);
+    const [isClickThroughUnlockHotspotActive, setIsClickThroughUnlockHotspotActive] = useState(false);
 
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
@@ -933,6 +936,12 @@ export default function App() {
     useElectronPlaybackBridge({
         isElectronWindow,
         setIsTitlebarRevealed,
+        isPlayerChromeHidden,
+        setIsPlayerChromeHidden,
+        showTransparentWindowBorder,
+        setShowTransparentWindowBorder,
+        transparentPlayerBackground,
+        mainWindowClickThroughEnabled: isMainWindowClickThroughEnabled,
         isNowPlayingControlDisabledRef,
         audioRef,
         currentTime,
@@ -1053,6 +1062,75 @@ export default function App() {
             html.style.backgroundColor = previousHtmlBackgroundColor;
         };
     }, [shouldUseTransparentAppBackground]);
+
+    useEffect(() => {
+        if (!isElectronWindow || !window.electron?.getMainWindowClickThroughEnabled || !window.electron?.onMainWindowClickThroughChanged) {
+            setIsMainWindowClickThroughEnabled(false);
+            return;
+        }
+
+        let mounted = true;
+
+        void window.electron.getMainWindowClickThroughEnabled().then((enabled) => {
+            if (mounted) {
+                setIsMainWindowClickThroughEnabled(Boolean(enabled));
+            }
+        }).catch(() => {
+            if (mounted) {
+                setIsMainWindowClickThroughEnabled(false);
+            }
+        });
+
+        const unsubscribe = window.electron.onMainWindowClickThroughChanged((state) => {
+            setIsMainWindowClickThroughEnabled(Boolean(state?.enabled));
+        });
+
+        return () => {
+            mounted = false;
+            unsubscribe?.();
+        };
+    }, [isElectronWindow]);
+
+    useEffect(() => {
+        if (!isElectronWindow || !isMainWindowClickThroughEnabled || !window.electron?.setMainWindowClickThroughUnlockHover) {
+            setIsClickThroughUnlockHotspotActive(false);
+            void window.electron?.setMainWindowClickThroughUnlockHover?.(false);
+            return;
+        }
+
+        const unlockHotspotWidth = 168;
+        const unlockHotspotHeight = 56;
+
+        const syncUnlockHotspot = (active: boolean) => {
+            setIsClickThroughUnlockHotspotActive(prev => (prev === active ? prev : active));
+            void window.electron!.setMainWindowClickThroughUnlockHover(active);
+        };
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const withinHotspot = event.clientY <= unlockHotspotHeight && event.clientX >= window.innerWidth - unlockHotspotWidth;
+            setIsClickThroughUnlockHotspotActive(prev => {
+                if (prev === withinHotspot) {
+                    return prev;
+                }
+
+                void window.electron!.setMainWindowClickThroughUnlockHover(withinHotspot);
+                return withinHotspot;
+            });
+        };
+
+        const handleMouseLeave = () => {
+            syncUnlockHotspot(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseleave', handleMouseLeave);
+            syncUnlockHotspot(false);
+        };
+    }, [isElectronWindow, isMainWindowClickThroughEnabled]);
     const {
         isPlayerView,
         shouldPauseVisualizerBackground,
@@ -1670,8 +1748,14 @@ export default function App() {
             isElectronWindow={isElectronWindow}
             usesCustomWindowChrome={usesCustomWindowChrome}
             useCustomWindowRadius={isElectronWindow && transparentPlayerBackground}
+            showTransparentWindowBorder={showTransparentWindowBorder}
             isPlayerView={isPlayerView}
             isTitlebarRevealed={isTitlebarRevealed}
+            showClickThroughUnlockButton={isMainWindowClickThroughEnabled && isClickThroughUnlockHotspotActive}
+            onDisableMainWindowClickThrough={() => {
+                setIsClickThroughUnlockHotspotActive(false);
+                void window.electron?.setMainWindowClickThroughEnabled?.(false);
+            }}
             audioElement={<audio
                 ref={audioRef}
                 src={audioSrc || undefined}
