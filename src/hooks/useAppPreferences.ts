@@ -250,6 +250,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [hidePlayerTranslationSubtitle, setHidePlayerTranslationSubtitle] = useState(() => getStoredBoolean('hide_player_translation_subtitle', false));
     const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
     const [transparentPlayerBackground, setTransparentPlayerBackground] = useState(() => getStoredBoolean('transparent_player_background', false));
+    const [disableVisualizerVignette, setDisableVisualizerVignette] = useState(() => getStoredBoolean('disable_visualizer_vignette', false));
     const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, false));
     const [hideTaskbarIcon, setHideTaskbarIcon] = useState(() => getStoredBoolean(HIDE_TASKBAR_ICON_STORAGE_KEY, false));
     const [openPlayerOnLaunch, setOpenPlayerOnLaunch] = useState(() => getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false));
@@ -521,6 +522,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',
+        });
+    };
+
+    const handleToggleDisableVisualizerVignette = (disable: boolean) => {
+        setDisableVisualizerVignette(disable);
+        localStorage.setItem('disable_visualizer_vignette', String(disable));
+        setStatusMsg({
+            type: 'info',
+            text: disable ? '播放页暗角效果已关闭' : '播放页暗角效果已开启',
         });
     };
 
@@ -872,6 +882,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
+        disableVisualizerVignette,
         minimizeToTray,
         hideTaskbarIcon,
         openPlayerOnLaunch,
@@ -903,6 +914,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
         handleToggleMinimizeToTray,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,

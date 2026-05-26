@@ -243,6 +243,8 @@ export default {
     "hidePlayerTranslationSubtitle": "Hide player bottom subtitle",
     "hidePlayerRightPanelButton": "Hide player right-side button",
     "transparentPlayerBackground": "Transparent player background",
+    "disableVisualizerVignette": "Disable translucent vignette",
+    "disableVisualizerVignetteDesc": "Only removes the geometric background edge vignette. Transparent background and geometric shapes stay separate.",
     "desktopTrayBehavior": "Desktop tray behavior",
     "desktopTrayBehaviorDesc": "Desktop only. Control minimize-to-tray, whether the taskbar icon stays hidden, and whether launch opens directly on the player page.",
     "minimizeToTray": "Minimize to tray",

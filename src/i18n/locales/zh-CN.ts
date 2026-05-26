@@ -243,6 +243,8 @@ export default {
     "hidePlayerTranslationSubtitle": "隐藏底部字幕",
     "hidePlayerRightPanelButton": "隐藏右侧按钮",
     "transparentPlayerBackground": "播放页透明背景",
+    "disableVisualizerVignette": "禁用半透明暗角效果",
+    "disableVisualizerVignetteDesc": "关闭几何背景自带的边缘暗角，建议配合透明背景使用。",
     "desktopTrayBehavior": "桌面窗口行为",
     "desktopTrayBehaviorDesc": "仅桌面端生效。可控制最小化到托盘、隐藏任务栏图标，以及启动时是否直接进入播放页。",
     "minimizeToTray": "最小化到托盘",

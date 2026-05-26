@@ -73,6 +73,7 @@ interface HomeProps {
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
+    disableVisualizerVignette?: boolean;
     minimizeToTray?: boolean;
     hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
@@ -82,6 +83,7 @@ interface HomeProps {
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
+    onToggleDisableVisualizerVignette?: (disable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
     onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
@@ -193,6 +195,7 @@ const Home: React.FC<HomeProps> = ({
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
+    disableVisualizerVignette = false,
     minimizeToTray = false,
     hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
@@ -202,6 +205,7 @@ const Home: React.FC<HomeProps> = ({
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
+    onToggleDisableVisualizerVignette,
     onToggleMinimizeToTray,
     onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
@@ -1010,6 +1014,7 @@ const Home: React.FC<HomeProps> = ({
                                 hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
                                 hidePlayerRightPanelButton={hidePlayerRightPanelButton}
                                 transparentPlayerBackground={transparentPlayerBackground}
+                                disableVisualizerVignette={disableVisualizerVignette}
                                 minimizeToTray={minimizeToTray}
                                 hideTaskbarIcon={hideTaskbarIcon}
                                 openPlayerOnLaunch={openPlayerOnLaunch}
@@ -1019,6 +1024,7 @@ const Home: React.FC<HomeProps> = ({
                                 onToggleHidePlayerTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
                                 onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
                                 onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
+                                onToggleDisableVisualizerVignette={onToggleDisableVisualizerVignette}
                                 onToggleMinimizeToTray={onToggleMinimizeToTray}
                                 onToggleHideTaskbarIcon={onToggleHideTaskbarIcon}
                                 onToggleOpenPlayerOnLaunch={onToggleOpenPlayerOnLaunch}

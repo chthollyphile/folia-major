@@ -31,6 +31,7 @@ export interface VisualizerSharedProps {
     staticMode?: boolean;
     backgroundOpacity?: number;
     transparentBackground?: boolean;
+    disableVignette?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;

@@ -24,6 +24,7 @@ interface HelpModalProps {
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
     transparentPlayerBackground?: boolean;
+    disableVisualizerVignette?: boolean;
     minimizeToTray?: boolean;
     hideTaskbarIcon?: boolean;
     openPlayerOnLaunch?: boolean;
@@ -33,6 +34,7 @@ interface HelpModalProps {
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
     onToggleTransparentPlayerBackground?: (enable: boolean) => void;
+    onToggleDisableVisualizerVignette?: (disable: boolean) => void;
     onToggleMinimizeToTray?: (enable: boolean) => void;
     onToggleHideTaskbarIcon?: (enable: boolean) => void;
     onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
@@ -122,6 +124,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
     transparentPlayerBackground = false,
+    disableVisualizerVignette = false,
     minimizeToTray = false,
     hideTaskbarIcon = false,
     openPlayerOnLaunch = false,
@@ -131,6 +134,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
     onToggleTransparentPlayerBackground,
+    onToggleDisableVisualizerVignette,
     onToggleMinimizeToTray,
     onToggleHideTaskbarIcon,
     onToggleOpenPlayerOnLaunch,
@@ -2418,6 +2422,25 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                         style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                     >
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+
+                                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Layers size={14} />
+                                            {t('options.disableVisualizerVignette') || '禁用半透明暗角效果'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.disableVisualizerVignetteDesc') || '仅关闭几何背景自带的边缘暗角，建议配合透明背景使用。'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => onToggleDisableVisualizerVignette?.(!disableVisualizerVignette)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!disableVisualizerVignette ? toggleOffBackgroundClass : ''}`}
+                                        style={{ backgroundColor: disableVisualizerVignette ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${disableVisualizerVignette ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
                             </div>

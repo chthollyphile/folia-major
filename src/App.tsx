@@ -184,6 +184,7 @@ export default function App() {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
+        disableVisualizerVignette,
         minimizeToTray,
         hideTaskbarIcon,
         openPlayerOnLaunch,
@@ -214,6 +215,7 @@ export default function App() {
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
         handleToggleMinimizeToTray,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
@@ -1307,6 +1309,7 @@ export default function App() {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
+        disableVisualizerVignette,
         minimizeToTray,
         hideTaskbarIcon,
         openPlayerOnLaunch,
@@ -1316,6 +1319,7 @@ export default function App() {
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
         handleToggleMinimizeToTray,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
@@ -1378,6 +1382,7 @@ export default function App() {
         clearStagePlaybackSession,
         cloudPlaylist,
         currentSong,
+        disableVisualizerVignette,
         disableHomeDynamicBackground,
         enableMediaCache,
         enableNowPlayingStage,
@@ -1412,6 +1417,7 @@ export default function App() {
         handleToggleHidePlayerRightPanelButton,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette,
         handleToggleMinimizeToTray,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
@@ -1932,6 +1938,7 @@ export default function App() {
                     paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
                     transparentBackground={currentView === 'player' && transparentPlayerBackground}
+                    disableVignette={disableVisualizerVignette}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
                     hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}

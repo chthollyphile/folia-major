@@ -19,6 +19,7 @@ interface VisualizerShellProps {
     seed?: string | number;
     backgroundOpacity?: number;
     transparentBackground?: boolean;
+    disableVignette?: boolean;
     staticMode?: boolean;
     disableGeometricBackground?: boolean;
     paused?: boolean;
@@ -36,6 +37,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     seed,
     backgroundOpacity = 0.75,
     transparentBackground = false,
+    disableVignette = false,
     staticMode = false,
     disableGeometricBackground = false,
     paused = false,
@@ -122,8 +124,9 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
             )}
 
             {/* staticMode here means "kill the heavier ambient motion layer",
-                not "freeze the entire lyric renderer". */}
-            {!transparentBackground && !staticMode && (
+                not "freeze the entire lyric renderer". Transparent background only removes
+                the solid/fluid backing, so the geometric layer can still render. */}
+            {!staticMode && (
                 <div className="absolute inset-0 z-0">
                     <GeometricBackground
                         theme={theme}
@@ -131,6 +134,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                         audioBands={audioBands}
                         seed={seed}
                         hideShapes={disableGeometricBackground}
+                        disableVignette={disableVignette}
                         paused={paused}
                     />
                 </div>

@@ -29,6 +29,7 @@ interface VisualizerProps {
     seed?: string | number; // Added seed for geometric bg
     backgroundOpacity?: number;
     transparentBackground?: boolean;
+    disableVignette?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
@@ -265,6 +266,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     transparentBackground = false,
+    disableVignette = false,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
     hideTranslationSubtitle = false,
@@ -545,6 +547,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
             transparentBackground={transparentBackground}
+            disableVignette={disableVignette}
             paused={paused}
             onBack={onBack}
         >
