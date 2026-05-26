@@ -18,6 +18,7 @@ interface VisualizerShellProps {
     useCoverColorBg?: boolean;
     seed?: string | number;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     staticMode?: boolean;
     disableGeometricBackground?: boolean;
     paused?: boolean;
@@ -34,6 +35,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     useCoverColorBg = false,
     seed,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     staticMode = false,
     disableGeometricBackground = false,
     paused = false,
@@ -98,7 +100,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 
             <AnimatePresence>
                 {/* Cover-color background is optional because some modes already have a strong built-in background identity. */}
-                {useCoverColorBg && (
+                {!transparentBackground && useCoverColorBg && (
                     <motion.div
                         key="fluid-bg"
                         initial={{ opacity: 0 }}
@@ -112,14 +114,16 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 )}
             </AnimatePresence>
 
-            <div
-                className="absolute inset-0 z-0 transition-all duration-1000"
-                style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
-            />
+            {!transparentBackground && (
+                <div
+                    className="absolute inset-0 z-0 transition-all duration-1000"
+                    style={{ backgroundColor: theme.backgroundColor, opacity: useCoverColorBg ? backgroundOpacity : 1 }}
+                />
+            )}
 
             {/* staticMode here means "kill the heavier ambient motion layer",
                 not "freeze the entire lyric renderer". */}
-            {!staticMode && (
+            {!transparentBackground && !staticMode && (
                 <div className="absolute inset-0 z-0">
                     <GeometricBackground
                         theme={theme}

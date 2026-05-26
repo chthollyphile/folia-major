@@ -176,6 +176,7 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -202,6 +203,7 @@ export default function App() {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,
@@ -1011,13 +1013,15 @@ export default function App() {
         syncStageLyricsClock,
     });
 
+    const shouldUseTransparentAppBackground = currentView === 'player' && transparentPlayerBackground;
     const appStyle = useMemo(() => buildAppStyle({
         bgMode,
         isDaylight,
         theme,
         daylightTheme: DAYLIGHT_THEME,
         defaultTheme: DEFAULT_THEME,
-    }), [bgMode, isDaylight, theme]);
+        transparentBackground: shouldUseTransparentAppBackground,
+    }), [bgMode, isDaylight, shouldUseTransparentAppBackground, theme]);
     const { visualizerTheme, visualizerGeometrySeed } = useMemo(() => buildVisualizerTheme({
         appStyle,
         theme,
@@ -1027,6 +1031,26 @@ export default function App() {
         visualizerMode,
     }), [appStyle, currentSong?.id, lyricsCustomFontFamily, lyricsFontStyle, theme, visualizerMode]);
     const isNowPlayingControlDisabled = isNowPlayingStageActive;
+
+    useEffect(() => {
+        const body = document.body;
+        const html = document.documentElement;
+        const previousBodyBackgroundColor = body.style.backgroundColor;
+        const previousHtmlBackgroundColor = html.style.backgroundColor;
+
+        if (shouldUseTransparentAppBackground) {
+            body.style.backgroundColor = 'transparent';
+            html.style.backgroundColor = 'transparent';
+        } else {
+            body.style.backgroundColor = '';
+            html.style.backgroundColor = '';
+        }
+
+        return () => {
+            body.style.backgroundColor = previousBodyBackgroundColor;
+            html.style.backgroundColor = previousHtmlBackgroundColor;
+        };
+    }, [shouldUseTransparentAppBackground]);
     const {
         isPlayerView,
         shouldPauseVisualizerBackground,
@@ -1188,11 +1212,13 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
         handleToggleStaticMode,
         handleToggleDisableHomeDynamicBackground,
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
         enableMediaCache,
         handleToggleMediaCache,
         theme,
@@ -1285,6 +1311,7 @@ export default function App() {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerRightPanelButton,
         handleToggleHidePlayerTranslationSubtitle,
+        handleToggleTransparentPlayerBackground,
         handleToggleMediaCache,
         handleToggleNowPlayingStage,
         handleToggleOpenPanelCloseButton,
@@ -1293,6 +1320,7 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle,
+        transparentPlayerBackground,
         isCustomThemePreferred,
         isDaylight,
         isLoadingCappellaCustomEmojiPack,
@@ -1343,6 +1371,7 @@ export default function App() {
         staticMode,
         theme,
         themeParkSeedTheme,
+        transparentPlayerBackground,
         user,
         visualizerMode,
         handleAudioOutputDeviceChange,
@@ -1785,6 +1814,7 @@ export default function App() {
                     staticMode={staticMode}
                     paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
+                    transparentBackground={currentView === 'player' && transparentPlayerBackground}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}
                     hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}

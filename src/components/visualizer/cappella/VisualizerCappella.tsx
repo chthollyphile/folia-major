@@ -28,6 +28,7 @@ interface VisualizerCappellaProps {
     seed?: string | number;
     staticMode?: boolean;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
@@ -1407,6 +1408,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
     seed,
     staticMode = false,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
     hideTranslationSubtitle = false,
@@ -1525,6 +1527,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = ({
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            transparentBackground={transparentBackground}
             paused={paused}
             onBack={onBack}
         >

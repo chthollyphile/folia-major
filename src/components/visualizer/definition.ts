@@ -30,6 +30,7 @@ export interface VisualizerSharedProps {
     seed?: string | number;
     staticMode?: boolean;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;

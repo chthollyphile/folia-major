@@ -1450,6 +1450,8 @@ function createWindow() {
     minWidth: 350,
     minHeight: 100,
     frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,

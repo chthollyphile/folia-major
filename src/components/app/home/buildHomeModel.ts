@@ -67,11 +67,13 @@ type BuildHomeModelParams = {
     hidePlayerProgressBar?: LegacyHomeProps['hidePlayerProgressBar'];
     hidePlayerTranslationSubtitle?: LegacyHomeProps['hidePlayerTranslationSubtitle'];
     hidePlayerRightPanelButton?: LegacyHomeProps['hidePlayerRightPanelButton'];
+    transparentPlayerBackground?: LegacyHomeProps['transparentPlayerBackground'];
     handleToggleStaticMode?: LegacyHomeProps['onToggleStaticMode'];
     handleToggleDisableHomeDynamicBackground?: LegacyHomeProps['onToggleDisableHomeDynamicBackground'];
     handleToggleHidePlayerProgressBar?: LegacyHomeProps['onToggleHidePlayerProgressBar'];
     handleToggleHidePlayerTranslationSubtitle?: LegacyHomeProps['onToggleHidePlayerTranslationSubtitle'];
     handleToggleHidePlayerRightPanelButton?: LegacyHomeProps['onToggleHidePlayerRightPanelButton'];
+    handleToggleTransparentPlayerBackground?: LegacyHomeProps['onToggleTransparentPlayerBackground'];
     enableMediaCache?: LegacyHomeProps['enableMediaCache'];
     handleToggleMediaCache?: LegacyHomeProps['onToggleMediaCache'];
     theme: LegacyHomeProps['theme'];
@@ -179,11 +181,13 @@ export const buildHomeModel = ({
     hidePlayerProgressBar,
     hidePlayerTranslationSubtitle,
     hidePlayerRightPanelButton,
+    transparentPlayerBackground,
     handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground,
     handleToggleHidePlayerProgressBar,
     handleToggleHidePlayerTranslationSubtitle,
     handleToggleHidePlayerRightPanelButton,
+    handleToggleTransparentPlayerBackground,
     enableMediaCache,
     handleToggleMediaCache,
     theme,
@@ -329,11 +333,13 @@ export const buildHomeModel = ({
             hidePlayerProgressBar,
             hidePlayerTranslationSubtitle,
             hidePlayerRightPanelButton,
+            transparentPlayerBackground,
             onToggleStaticMode: handleToggleStaticMode,
             onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
             onToggleHidePlayerProgressBar: handleToggleHidePlayerProgressBar,
             onToggleHidePlayerTranslationSubtitle: handleToggleHidePlayerTranslationSubtitle,
             onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
+            onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
             enableMediaCache,
             onToggleMediaCache: handleToggleMediaCache,
             theme,

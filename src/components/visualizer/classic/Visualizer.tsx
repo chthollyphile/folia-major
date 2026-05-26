@@ -28,6 +28,7 @@ interface VisualizerProps {
     useCoverColorBg?: boolean;
     seed?: string | number; // Added seed for geometric bg
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
@@ -263,6 +264,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     seed,
     staticMode = false,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
     hideTranslationSubtitle = false,
@@ -542,6 +544,7 @@ const Visualizer: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            transparentBackground={transparentBackground}
             paused={paused}
             onBack={onBack}
         >

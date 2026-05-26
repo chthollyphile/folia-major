@@ -242,6 +242,7 @@ export default {
     "hidePlayerProgressBar": "隐藏底部控制条",
     "hidePlayerTranslationSubtitle": "隐藏底部字幕",
     "hidePlayerRightPanelButton": "隐藏右侧按钮",
+    "transparentPlayerBackground": "播放页透明背景",
     "showOpenPanelCloseButton": "显示信息卡片关闭按钮",
     "showOpenPanelCloseButtonDesc": "歌曲信息卡片打开后，显示右下角浮动关闭按钮。",
     "showOpenPanelCloseButtonDescSub": "移动端可能仍然更需要这个按钮。",

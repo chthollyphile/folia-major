@@ -23,11 +23,13 @@ interface HelpModalProps {
     hidePlayerProgressBar?: boolean;
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
+    transparentPlayerBackground?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
     onToggleHidePlayerProgressBar?: (enable: boolean) => void;
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
+    onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
@@ -113,11 +115,13 @@ const HelpModal: React.FC<HelpModalProps> = ({
     hidePlayerProgressBar = false,
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
+    transparentPlayerBackground = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
     onToggleHidePlayerProgressBar,
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
+    onToggleTransparentPlayerBackground,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -3206,6 +3210,18 @@ const HelpModal: React.FC<HelpModalProps> = ({
                                                 {hidePlayerRightPanelButton ? <Check size={12} /> : null}
                                             </span>
                                             <span>{t('options.hidePlayerRightPanelButton') || '隐藏播放页右侧按钮'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onToggleTransparentPlayerBackground?.(!transparentPlayerBackground)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${transparentPlayerBackground ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${transparentPlayerBackground ? 'border-white/30 bg-white/15' : 'border-white/20 bg-transparent'}`}>
+                                                {transparentPlayerBackground ? <Check size={12} /> : null}
+                                            </span>
+                                            <span>{t('options.transparentPlayerBackground') || '播放页透明背景'}</span>
                                         </button>
                                     </div>
                                 </div>

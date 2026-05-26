@@ -246,6 +246,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const [hidePlayerProgressBar, setHidePlayerProgressBar] = useState(() => getStoredBoolean('hide_player_progress_bar', false));
     const [hidePlayerTranslationSubtitle, setHidePlayerTranslationSubtitle] = useState(() => getStoredBoolean('hide_player_translation_subtitle', false));
     const [hidePlayerRightPanelButton, setHidePlayerRightPanelButton] = useState(() => getStoredBoolean('hide_player_right_panel_button', false));
+    const [transparentPlayerBackground, setTransparentPlayerBackground] = useState(() => getStoredBoolean('transparent_player_background', false));
     const [enableMediaCache, setEnableMediaCache] = useState(() => getStoredBoolean('enable_media_cache', false));
     const [backgroundOpacity, setBackgroundOpacity] = useState(() => {
         const saved = localStorage.getItem('background_opacity');
@@ -442,6 +443,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         setStatusMsg({
             type: 'info',
             text: enable ? '播放页右侧按钮已隐藏' : '播放页右侧按钮已显示',
+        });
+    };
+
+    const handleToggleTransparentPlayerBackground = (enable: boolean) => {
+        setTransparentPlayerBackground(enable);
+        localStorage.setItem('transparent_player_background', String(enable));
+        setStatusMsg({
+            type: 'info',
+            text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',
         });
     };
 
@@ -759,6 +769,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
+        transparentPlayerBackground,
         enableMediaCache,
         backgroundOpacity,
         isDaylight,
@@ -786,6 +797,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,

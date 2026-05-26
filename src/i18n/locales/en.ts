@@ -242,6 +242,7 @@ export default {
     "hidePlayerProgressBar": "Hide player bottom control bar",
     "hidePlayerTranslationSubtitle": "Hide player bottom subtitle",
     "hidePlayerRightPanelButton": "Hide player right-side button",
+    "transparentPlayerBackground": "Transparent player background",
     "showOpenPanelCloseButton": "Show panel close button",
     "showOpenPanelCloseButtonDesc": "Keep the floating close button visible after the song info card opens.",
     "showOpenPanelCloseButtonDescSub": "Turn this off for cleaner screen recordings. Mobile users may still prefer leaving it on.",

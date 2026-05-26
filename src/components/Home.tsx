@@ -72,11 +72,13 @@ interface HomeProps {
     hidePlayerProgressBar?: boolean;
     hidePlayerTranslationSubtitle?: boolean;
     hidePlayerRightPanelButton?: boolean;
+    transparentPlayerBackground?: boolean;
     onToggleStaticMode?: (enable: boolean) => void;
     onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
     onToggleHidePlayerProgressBar?: (enable: boolean) => void;
     onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
     onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
+    onToggleTransparentPlayerBackground?: (enable: boolean) => void;
     enableMediaCache?: boolean;
     onToggleMediaCache?: (enable: boolean) => void;
     theme: Theme;
@@ -184,11 +186,13 @@ const Home: React.FC<HomeProps> = ({
     hidePlayerProgressBar = false,
     hidePlayerTranslationSubtitle = false,
     hidePlayerRightPanelButton = false,
+    transparentPlayerBackground = false,
     onToggleStaticMode,
     onToggleDisableHomeDynamicBackground,
     onToggleHidePlayerProgressBar,
     onToggleHidePlayerTranslationSubtitle,
     onToggleHidePlayerRightPanelButton,
+    onToggleTransparentPlayerBackground,
     enableMediaCache = false,
     onToggleMediaCache,
     theme,
@@ -993,11 +997,13 @@ const Home: React.FC<HomeProps> = ({
                                 hidePlayerProgressBar={hidePlayerProgressBar}
                                 hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
                                 hidePlayerRightPanelButton={hidePlayerRightPanelButton}
+                                transparentPlayerBackground={transparentPlayerBackground}
                                 onToggleStaticMode={onToggleStaticMode}
                                 onToggleDisableHomeDynamicBackground={onToggleDisableHomeDynamicBackground}
                                 onToggleHidePlayerProgressBar={onToggleHidePlayerProgressBar}
                                 onToggleHidePlayerTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
                                 onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
+                                onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
                                 enableMediaCache={enableMediaCache}
                                 onToggleMediaCache={onToggleMediaCache}
                                 theme={theme}

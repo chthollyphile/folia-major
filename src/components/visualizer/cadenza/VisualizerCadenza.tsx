@@ -31,6 +31,7 @@ interface VisualizerProps {
     useCoverColorBg?: boolean;
     seed?: string | number;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     cadenzaTuning?: CadenzaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
@@ -1291,6 +1292,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
     seed,
     staticMode = false,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
@@ -1692,6 +1694,7 @@ const VisualizerCadenza: React.FC<VisualizerProps & { staticMode?: boolean; }> =
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            transparentBackground={transparentBackground}
             paused={paused}
             onBack={onBack}
         >

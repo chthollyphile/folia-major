@@ -10,19 +10,21 @@ export const buildAppStyle = ({
     theme,
     daylightTheme,
     defaultTheme,
+    transparentBackground = false,
 }: {
     bgMode: string;
     isDaylight: boolean;
     theme: Theme;
     daylightTheme: Theme;
     defaultTheme: Theme;
+    transparentBackground?: boolean;
 }) => {
     return {
         '--bg-color': bgMode === 'default' ? (isDaylight ? daylightTheme.backgroundColor : defaultTheme.backgroundColor) : theme.backgroundColor,
         '--text-primary': theme.primaryColor,
         '--text-secondary': theme.secondaryColor,
         '--text-accent': theme.accentColor,
-        backgroundColor: 'var(--bg-color)',
+        backgroundColor: transparentBackground ? 'transparent' : 'var(--bg-color)',
         color: 'var(--text-primary)',
     } as CSSProperties;
 };

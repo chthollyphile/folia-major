@@ -30,6 +30,7 @@ interface VisualizerPartitaProps {
     useCoverColorBg?: boolean;
     seed?: string | number;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     partitaTuning?: PartitaTuning;
     lyricsFontScale?: number;
     isPlayerChromeHidden?: boolean;
@@ -710,6 +711,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
     seed,
     staticMode = false,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     lyricsFontScale = 1,
     isPlayerChromeHidden = false,
@@ -954,6 +956,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps & { staticMode?: boolea
             seed={seed}
             staticMode={staticMode}
             backgroundOpacity={backgroundOpacity}
+            transparentBackground={transparentBackground}
             paused={paused}
             onBack={onBack}
         >

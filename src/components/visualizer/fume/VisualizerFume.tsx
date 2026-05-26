@@ -32,6 +32,7 @@ interface VisualizerProps {
     useCoverColorBg?: boolean;
     seed?: string | number;
     backgroundOpacity?: number;
+    transparentBackground?: boolean;
     lyricsFontScale?: number;
     fumeTuning?: FumeTuning;
     isPlayerChromeHidden?: boolean;
@@ -1862,6 +1863,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
     seed,
     staticMode = false,
     backgroundOpacity = 0.75,
+    transparentBackground = false,
     lyricsFontScale = 1,
     fumeTuning,
     isPlayerChromeHidden = false,
@@ -2975,6 +2977,7 @@ const VisualizerFume: React.FC<VisualizerProps & { staticMode?: boolean; }> = ({
             staticMode={staticMode}
             disableGeometricBackground={resolvedFumeTuning.disableGeometricBackground}
             backgroundOpacity={backgroundOpacity}
+            transparentBackground={transparentBackground}
             paused={paused}
             onBack={onBack}
         >
