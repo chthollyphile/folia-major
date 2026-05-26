@@ -1013,6 +1013,7 @@ export default function App() {
         syncStageLyricsClock,
     });
 
+    const usesCustomWindowChrome = isElectronWindow;
     const shouldUseTransparentAppBackground = currentView === 'player' && transparentPlayerBackground;
     const appStyle = useMemo(() => buildAppStyle({
         bgMode,
@@ -1037,8 +1038,9 @@ export default function App() {
         const html = document.documentElement;
         const previousBodyBackgroundColor = body.style.backgroundColor;
         const previousHtmlBackgroundColor = html.style.backgroundColor;
+        const shouldUseTransparentDocumentBackground = shouldUseTransparentAppBackground;
 
-        if (shouldUseTransparentAppBackground) {
+        if (shouldUseTransparentDocumentBackground) {
             body.style.backgroundColor = 'transparent';
             html.style.backgroundColor = 'transparent';
         } else {
@@ -1666,6 +1668,8 @@ export default function App() {
         <AppShell
             appStyle={appStyle}
             isElectronWindow={isElectronWindow}
+            usesCustomWindowChrome={usesCustomWindowChrome}
+            useCustomWindowRadius={isElectronWindow && transparentPlayerBackground}
             isPlayerView={isPlayerView}
             isTitlebarRevealed={isTitlebarRevealed}
             audioElement={<audio

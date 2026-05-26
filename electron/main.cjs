@@ -53,6 +53,7 @@ const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
 const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
+const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const DEFAULT_STAGE_API_PORT = 32107;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
@@ -1342,6 +1343,10 @@ function loadAppEntry(win, query = {}) {
   win.loadFile(path.join(__dirname, '../dist/index.html'), { query });
 }
 
+function isTransparentPlayerBackgroundEnabled() {
+  return Boolean(store.get(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY));
+}
+
 function sendRemoteControlSnapshot(snapshot) {
   if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
     return false;
@@ -1445,13 +1450,14 @@ async function getMainWindowCaptureSource() {
 function createWindow() {
   const { bounds: storedBounds, isMaximized } = getStoredWindowState();
   const windowBounds = ensureWindowBoundsVisible(storedBounds);
+  const useTransparentWindow = isTransparentPlayerBackgroundEnabled();
   const win = new BrowserWindow({
     ...windowBounds,
     minWidth: 350,
     minHeight: 100,
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
+    transparent: useTransparentWindow,
+    backgroundColor: useTransparentWindow ? '#00000000' : '#09090b',
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,
@@ -1500,6 +1506,30 @@ function createWindow() {
   });
 
   return win;
+}
+
+function recreateMainWindowWithTransparencyMode(enabled) {
+  store.set(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, Boolean(enabled));
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    const createdWindow = createWindow();
+    focusMainWindow();
+    return createdWindow;
+  }
+
+  const previousWindow = mainWindow;
+  saveWindowState(previousWindow);
+  mainWindow = null;
+
+  const nextWindow = createWindow();
+  nextWindow.once('ready-to-show', () => {
+    if (!previousWindow.isDestroyed()) {
+      previousWindow.destroy();
+    }
+    focusMainWindow();
+  });
+
+  return nextWindow;
 }
 
 app.whenReady().then(async () => {
@@ -1726,6 +1756,23 @@ ipcMain.handle('window-is-maximized', () => {
   }
 
   return mainWindow.isMaximized();
+});
+
+ipcMain.handle('window-get-transparent-mode', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  return isTransparentPlayerBackgroundEnabled();
+});
+
+ipcMain.handle('window-set-transparent-mode', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+
+  recreateMainWindowWithTransparencyMode(Boolean(enabled));
+  return true;
 });
 
 ipcMain.handle('stage-get-status', () => {

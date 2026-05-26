@@ -279,6 +279,8 @@ declare global {
       toggleMaximizeWindow: () => Promise<boolean>;
       closeWindow: () => Promise<boolean>;
       isWindowMaximized: () => Promise<boolean>;
+      getWindowTransparentMode: () => Promise<boolean>;
+      setWindowTransparentMode: (enabled: boolean) => Promise<boolean>;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       openRemoteControl: () => Promise<boolean>;

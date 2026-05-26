@@ -300,6 +300,33 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [isDaylight]);
 
     useEffect(() => {
+        if (!window.electron?.getWindowTransparentMode) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const syncTransparentPlayerBackground = async () => {
+            try {
+                const enabled = await window.electron!.getWindowTransparentMode();
+                if (isCancelled) {
+                    return;
+                }
+
+                setTransparentPlayerBackground(enabled);
+                localStorage.setItem('transparent_player_background', String(enabled));
+            } catch {
+                // Ignore startup sync failures and keep local preference fallback.
+            }
+        };
+
+        void syncTransparentPlayerBackground();
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         let isCancelled = false;
 
         const loadCustomEmojiPack = async () => {
@@ -449,6 +476,9 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const handleToggleTransparentPlayerBackground = (enable: boolean) => {
         setTransparentPlayerBackground(enable);
         localStorage.setItem('transparent_player_background', String(enable));
+        if (window.electron?.setWindowTransparentMode) {
+            void window.electron.setWindowTransparentMode(enable);
+        }
         setStatusMsg({
             type: 'info',
             text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',

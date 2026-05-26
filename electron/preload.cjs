@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('electron', {
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     closeWindow: () => ipcRenderer.invoke('window-close'),
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    getWindowTransparentMode: () => ipcRenderer.invoke('window-get-transparent-mode'),
+    setWindowTransparentMode: (enabled) => ipcRenderer.invoke('window-set-transparent-mode', enabled),
     updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
     onTaskbarControl: (callback) => {
         const listener = (_event, action) => callback(action);
