@@ -2,6 +2,7 @@ import type React from 'react';
 import type LyricMatchModal from '../../modal/LyricMatchModal';
 import type NaviLyricMatchModal from '../../modal/NaviLyricMatchModal';
 import type UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
+import type SettingsModal from '../../modal/SettingsModal';
 import type { StatusMessage, SongResult, LocalSong } from '../../../types';
 
 // src/components/app/dialogs/buildAppDialogsModel.ts
@@ -9,6 +10,7 @@ import type { StatusMessage, SongResult, LocalSong } from '../../../types';
 type LyricMatchDialogProps = React.ComponentProps<typeof LyricMatchModal>;
 type NaviLyricMatchDialogProps = React.ComponentProps<typeof NaviLyricMatchModal>;
 type UnavailableReplacementDialogProps = React.ComponentProps<typeof UnavailableReplacementDialog>;
+type SettingsDialogProps = React.ComponentProps<typeof SettingsModal>;
 
 type AppStatusToast = StatusMessage & {
     isDaylight: boolean;
@@ -20,6 +22,7 @@ export type AppDialogsModel = {
     lyricMatchDialog?: LyricMatchDialogProps | null;
     naviLyricMatchDialog?: NaviLyricMatchDialogProps | null;
     unavailableReplacementDialog?: UnavailableReplacementDialogProps | null;
+    settingsDialog?: SettingsDialogProps | null;
 };
 
 type BuildAppDialogsModelParams = {
@@ -39,6 +42,7 @@ type BuildAppDialogsModelParams = {
     } | null;
     setPendingUnavailableReplacement: React.Dispatch<React.SetStateAction<any>>;
     handleUnavailableReplacementConfirm: () => Promise<void>;
+    settingsDialog?: SettingsDialogProps | null;
 };
 
 // Builds the centralized dialog model for toast, lyric matching, and unavailable-song replacement.
@@ -55,6 +59,7 @@ export const buildAppDialogsModel = ({
     pendingUnavailableReplacement,
     setPendingUnavailableReplacement,
     handleUnavailableReplacementConfirm,
+    settingsDialog = null,
 }: BuildAppDialogsModelParams): AppDialogsModel => ({
     statusToast: statusMsg
         ? {
@@ -88,4 +93,5 @@ export const buildAppDialogsModel = ({
         onClose: () => setPendingUnavailableReplacement(null),
         onConfirm: handleUnavailableReplacementConfirm,
     },
+    settingsDialog,
 });

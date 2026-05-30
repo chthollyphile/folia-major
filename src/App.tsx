@@ -8,6 +8,7 @@ import Home from './components/app/Home';
 import PlayerPanel from './components/app/PlayerPanel';
 import AppDialogs from './components/app/dialogs/AppDialogs';
 import { createCopySongInfoSuccessHandler } from './components/app/dialogs/createCopySongInfoSuccessHandler';
+import { buildSettingsDialogModel, type SettingsModalState } from './components/app/dialogs/buildSettingsDialogModel';
 import AppOverlays from './components/app/overlays/AppOverlays';
 import { buildAppDialogsModel } from './components/app/dialogs/buildAppDialogsModel';
 import { buildHomeModel } from './components/app/home/buildHomeModel';
@@ -28,6 +29,7 @@ import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayer
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
 import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode } from './types';
 import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
+import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useAppPreferences } from './hooks/useAppPreferences';
@@ -106,7 +108,11 @@ export default function App() {
         return saved === 'true';
     });
     const [isDevDebugOverlayVisible, setIsDevDebugOverlayVisible] = useState(false);
-    const [pendingOpenSettings, setPendingOpenSettings] = useState(false);
+    const [settingsModalState, setSettingsModalState] = useState<SettingsModalState>({
+        isOpen: false,
+        initialTab: 'help',
+    });
+    const [navidromeEnabled, setNavidromeEnabledState] = useState(isNavidromeEnabled());
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -170,6 +176,18 @@ export default function App() {
     // Navigation Persistence State (Lifted from Home/LocalMusicView)
     const homeViewTab = useSearchNavigationStore(state => state.homeViewTab);
     const setHomeViewTab = useSearchNavigationStore(state => state.setHomeViewTab);
+    const openSettings = useCallback((initialTab: SettingsModalState['initialTab'] = 'help') => {
+        setSettingsModalState({ isOpen: true, initialTab });
+    }, []);
+    const closeSettings = useCallback(() => {
+        setSettingsModalState(prev => ({ ...prev, isOpen: false }));
+    }, []);
+    const handleToggleNavidromeEnabled = useCallback((enabled: boolean) => {
+        setNavidromeEnabledState(enabled);
+        if (!enabled && homeViewTab === 'navidrome') {
+            setHomeViewTab('local');
+        }
+    }, [homeViewTab, setHomeViewTab]);
 
     // Preferences and Theme
     // Manages user preferences for audio quality, theme settings, 
@@ -1194,6 +1212,7 @@ export default function App() {
         isNowPlayingControlDisabled,
         stageActiveEntryKind,
     ]);
+    const isSettingsModalOpen = settingsModalState.isOpen;
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const nowPlayingDebugSnapshot = useMemo(() => (
         stageSource === 'now-playing'
@@ -1284,8 +1303,7 @@ export default function App() {
         setFocusedFavoriteAlbumIndex,
         focusedRadioIndex,
         setFocusedRadioIndex,
-        pendingOpenSettings,
-        setPendingOpenSettings,
+        openSettings,
         navigateToSearch,
         openLocalAlbumByName,
         openLocalArtistByName,
@@ -1390,6 +1408,7 @@ export default function App() {
         loadCurrentSongLyricPreview,
         handleSaveLyricFilterPattern,
         handleToggleOpenPanelCloseButton,
+        navidromeEnabled,
     }), [
         activePlaybackContext,
         addNavidromeSongsToQueue,
@@ -1479,12 +1498,12 @@ export default function App() {
         onPlayLocalSong,
         onPlayNavidromeSong,
         onRefreshLocalSongs,
+        openSettings,
         openLocalAlbumByName,
         openLocalArtistByName,
         openStagePlayer,
         partitaTuning,
         pendingNavidromeSelection,
-        pendingOpenSettings,
         playlists,
         playerState,
         playSong,
@@ -1498,7 +1517,6 @@ export default function App() {
         setLocalMusicState,
         setNavidromeFocusedAlbumIndex,
         setPendingNavidromeSelection,
-        setPendingOpenSettings,
         setStageStatus,
         showOpenPanelCloseButton,
         songThemeAutoSwitchEnabled,
@@ -1511,6 +1529,7 @@ export default function App() {
         user,
         visualizerMode,
         handleAudioOutputDeviceChange,
+        navidromeEnabled,
         minimizeToTray,
         hideTaskbarIcon,
         openPlayerOnLaunch,
@@ -1564,7 +1583,7 @@ export default function App() {
         hideToggleButton: isPlayerChromeHidden || shouldHidePlayerRightPanelButton,
         activePlaybackContext,
         isNowPlayingControlDisabled,
-        setPendingOpenSettings,
+        openSettings,
         playQueue,
         playSong,
         queueScrollRef,
@@ -1594,7 +1613,6 @@ export default function App() {
         handleToggleCoverColorBg,
         isDaylight,
         handleToggleDaylight: toggleDaylightMode,
-        navigateToHomeForSettings: navigateToHome,
     }), [
         activePlaybackContext,
         addCurrentSongToLocalPlaylist,
@@ -1640,6 +1658,7 @@ export default function App() {
         localPlaylists,
         lyrics,
         navigateToHome,
+        openSettings,
         openCurrentLocalAlbum,
         openCurrentLocalArtist,
         openCurrentNavidromeAlbum,
@@ -1655,7 +1674,6 @@ export default function App() {
         setAudioQuality,
         setIsPanelOpen,
         setPanelTab,
-        setPendingOpenSettings,
         setTheme,
         showOpenPanelCloseButton,
         shuffleQueue,
@@ -1765,6 +1783,222 @@ export default function App() {
         topOverlay,
         user?.userId,
     ]);
+    const settingsDialog = useMemo(() => buildSettingsDialogModel({
+        state: settingsModalState,
+        onClose: closeSettings,
+        staticMode,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
+        transparentPlayerBackground,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
+        onToggleStaticMode: handleToggleStaticMode,
+        onToggleDisableHomeDynamicBackground: handleToggleDisableHomeDynamicBackground,
+        onToggleHidePlayerProgressBar: handleToggleHidePlayerProgressBar,
+        onToggleHidePlayerTranslationSubtitle: handleToggleHidePlayerTranslationSubtitle,
+        onToggleHidePlayerRightPanelButton: handleToggleHidePlayerRightPanelButton,
+        onToggleTransparentPlayerBackground: handleToggleTransparentPlayerBackground,
+        onToggleDisableVisualizerVignette: handleToggleDisableVisualizerVignette,
+        onToggleDisableVisualizerGeometricBackground: handleToggleDisableVisualizerGeometricBackground,
+        onToggleMinimizeToTray: handleToggleMinimizeToTray,
+        onToggleHideTaskbarIcon: handleToggleHideTaskbarIcon,
+        onToggleOpenPlayerOnLaunch: handleToggleOpenPlayerOnLaunch,
+        enableMediaCache,
+        onToggleMediaCache: handleToggleMediaCache,
+        theme,
+        backgroundOpacity,
+        setBackgroundOpacity: handleSetBackgroundOpacity,
+        bgMode,
+        onApplyDefaultTheme: applyDefaultTheme,
+        hasCustomTheme,
+        themeParkInitialTheme: themeParkSeedTheme,
+        isCustomThemePreferred,
+        songThemeAutoSwitchEnabled,
+        onSaveCustomTheme: saveCustomDualTheme,
+        onApplyCustomTheme: applyCustomTheme,
+        onToggleCustomThemePreferred: handleCustomThemePreferenceChange,
+        onToggleSongThemeAutoSwitch: handleSongThemeAutoSwitchChange,
+        isDaylight,
+        onToggleNavidrome: handleToggleNavidromeEnabled,
+        visualizerMode,
+        cadenzaTuning,
+        partitaTuning,
+        fumeTuning,
+        cappellaTuning,
+        tiltTuning,
+        cappellaCustomEmojiImages,
+        onVisualizerModeChange: handleSetVisualizerMode,
+        onPartitaTuningChange: handleSetPartitaTuning,
+        onResetPartitaTuning: handleResetPartitaTuning,
+        onFumeTuningChange: handleSetFumeTuning,
+        onResetFumeTuning: handleResetFumeTuning,
+        onCappellaTuningChange: handleSetCappellaTuning,
+        onResetCappellaTuning: handleResetCappellaTuning,
+        onTiltTuningChange: handleSetTiltTuning,
+        onResetTiltTuning: handleResetTiltTuning,
+        onImportCappellaCustomEmojiPack: handleImportCustomCappellaEmojiPack,
+        onClearCappellaCustomEmojiPack: handleClearCustomCappellaEmojiPack,
+        isLoadingCappellaCustomEmojiPack,
+        lyricsFontStyle,
+        lyricsFontScale,
+        lyricsCustomFontFamily,
+        lyricsCustomFontLabel,
+        lyricFilterPattern,
+        currentSongTitle: currentSong?.name || null,
+        showOpenPanelCloseButton,
+        onLyricsFontStyleChange: handleSetLyricsFontStyle,
+        onLyricsFontScaleChange: handleSetLyricsFontScale,
+        onLyricsCustomFontChange: handleSetLyricsCustomFont,
+        onLyricsCustomFontUpload: handleUploadLyricsCustomFont,
+        loadLyricFilterPreview: loadCurrentSongLyricPreview,
+        onSaveLyricFilterPattern: handleSaveLyricFilterPattern,
+        onToggleOpenPanelCloseButton: handleToggleOpenPanelCloseButton,
+        stageStatus,
+        onToggleStageMode: async (enabled) => {
+            const nextStatus = await window.electron?.setStageEnabled(enabled);
+            if (nextStatus) {
+                setStageStatus(nextStatus);
+                if (!enabled && activePlaybackContext === 'stage') {
+                    leaveStagePlayback();
+                }
+                if (!enabled) {
+                    clearStagePlaybackSession();
+                    await clearPersistedStagePlaybackCache();
+                }
+            }
+        },
+        stageSource,
+        onStageSourceChange: async (source) => {
+            const nextStatus = await window.electron?.setStageModeSource(source);
+            if (nextStatus) {
+                setStageStatus(nextStatus);
+            }
+        },
+        onRegenerateStageToken: async () => {
+            const nextStatus = await window.electron?.regenerateStageToken();
+            if (nextStatus) {
+                setStageStatus(nextStatus);
+                if (activePlaybackContext === 'stage') {
+                    await loadStageSessionIntoPlayback(null);
+                }
+            }
+        },
+        onClearStageState: async () => {
+            const nextStatus = await window.electron?.clearStageState();
+            if (nextStatus) {
+                setStageStatus(nextStatus);
+                if (activePlaybackContext === 'stage') {
+                    await loadStageSessionIntoPlayback(null);
+                }
+            }
+        },
+        enableNowPlayingStage,
+        onToggleNowPlayingStage: async (enabled) => {
+            handleToggleNowPlayingStage(enabled);
+            if (!enabled && activePlaybackContext === 'stage') {
+                leaveStagePlayback();
+            }
+        },
+        nowPlayingConnectionStatus,
+        queueAddBehavior,
+        onQueueAddBehaviorChange: handleSetQueueAddBehavior,
+        audioOutputDeviceId,
+        onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
+    }), [
+        activePlaybackContext,
+        applyCustomTheme,
+        applyDefaultTheme,
+        audioOutputDeviceId,
+        backgroundOpacity,
+        bgMode,
+        cadenzaTuning,
+        cappellaCustomEmojiImages,
+        cappellaTuning,
+        clearPersistedStagePlaybackCache,
+        clearStagePlaybackSession,
+        closeSettings,
+        currentSong?.name,
+        disableHomeDynamicBackground,
+        disableVisualizerGeometricBackground,
+        disableVisualizerVignette,
+        enableMediaCache,
+        enableNowPlayingStage,
+        fumeTuning,
+        handleAudioOutputDeviceChange,
+        handleClearCustomCappellaEmojiPack,
+        handleCustomThemePreferenceChange,
+        handleImportCustomCappellaEmojiPack,
+        handleResetCappellaTuning,
+        handleResetFumeTuning,
+        handleResetPartitaTuning,
+        handleResetTiltTuning,
+        handleSaveLyricFilterPattern,
+        handleSetBackgroundOpacity,
+        handleSetCappellaTuning,
+        handleSetFumeTuning,
+        handleSetLyricsCustomFont,
+        handleSetLyricsFontScale,
+        handleSetLyricsFontStyle,
+        handleSetPartitaTuning,
+        handleSetQueueAddBehavior,
+        handleSetTiltTuning,
+        handleSetVisualizerMode,
+        handleSongThemeAutoSwitchChange,
+        handleToggleDisableHomeDynamicBackground,
+        handleToggleDisableVisualizerGeometricBackground,
+        handleToggleDisableVisualizerVignette,
+        handleToggleHidePlayerProgressBar,
+        handleToggleHidePlayerRightPanelButton,
+        handleToggleHidePlayerTranslationSubtitle,
+        handleToggleHideTaskbarIcon,
+        handleToggleMediaCache,
+        handleToggleMinimizeToTray,
+        handleToggleNavidromeEnabled,
+        handleToggleNowPlayingStage,
+        handleToggleOpenPanelCloseButton,
+        handleToggleOpenPlayerOnLaunch,
+        handleToggleStaticMode,
+        handleToggleTransparentPlayerBackground,
+        handleUploadLyricsCustomFont,
+        hasCustomTheme,
+        hidePlayerProgressBar,
+        hidePlayerRightPanelButton,
+        hidePlayerTranslationSubtitle,
+        hideTaskbarIcon,
+        isCustomThemePreferred,
+        isDaylight,
+        isLoadingCappellaCustomEmojiPack,
+        leaveStagePlayback,
+        loadCurrentSongLyricPreview,
+        loadStageSessionIntoPlayback,
+        lyricFilterPattern,
+        lyricsCustomFontFamily,
+        lyricsCustomFontLabel,
+        lyricsFontScale,
+        lyricsFontStyle,
+        minimizeToTray,
+        nowPlayingConnectionStatus,
+        openPlayerOnLaunch,
+        partitaTuning,
+        queueAddBehavior,
+        saveCustomDualTheme,
+        settingsModalState,
+        showOpenPanelCloseButton,
+        songThemeAutoSwitchEnabled,
+        stageSource,
+        stageStatus,
+        staticMode,
+        theme,
+        themeParkSeedTheme,
+        tiltTuning,
+        transparentPlayerBackground,
+        visualizerMode,
+    ]);
     const appDialogsModel = useMemo(() => buildAppDialogsModel({
         statusMsg,
         isDaylight,
@@ -1778,6 +2012,7 @@ export default function App() {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         handleUnavailableReplacementConfirm,
+        settingsDialog,
     }), [
         currentSong,
         handleLyricMatchComplete,
@@ -1788,6 +2023,7 @@ export default function App() {
         setPendingUnavailableReplacement,
         setShowLyricMatchModal,
         setShowNaviLyricMatchModal,
+        settingsDialog,
         showLyricMatchModal,
         showNaviLyricMatchModal,
         statusMsg,
@@ -1964,13 +2200,13 @@ export default function App() {
                     audioBands={audioBands}
                     songTitle={currentSong?.name}
                     coverUrl={getCoverUrl()}
-                    showText={currentView === 'player'}
+                    showText={currentView === 'player' && !isSettingsModalOpen}
                     useCoverColorBg={useCoverColorBg}
                     seed={visualizerGeometrySeed}
                     staticMode={staticMode}
                     paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
-                    transparentBackground={currentView === 'player' && transparentPlayerBackground}
+                    transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
                     disableGeometricBackground={disableVisualizerGeometricBackground}
                     disableVignette={disableVisualizerVignette}
                     lyricsFontScale={lyricsFontScale}

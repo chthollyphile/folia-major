@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import LyricMatchModal from '../../modal/LyricMatchModal';
 import NaviLyricMatchModal from '../../modal/NaviLyricMatchModal';
 import UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
+import SettingsModal from '../../modal/SettingsModal';
 import type { AppDialogsModel } from './buildAppDialogsModel';
 
 // Centralized app-level dialog and toast renderer for the player shell.
@@ -12,7 +13,7 @@ type AppDialogsProps = {
 };
 
 const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
-    const { statusToast, lyricMatchDialog, naviLyricMatchDialog, unavailableReplacementDialog } = model;
+    const { statusToast, lyricMatchDialog, naviLyricMatchDialog, unavailableReplacementDialog, settingsDialog } = model;
 
     return (
         <>
@@ -56,6 +57,7 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
             {lyricMatchDialog && <LyricMatchModal {...lyricMatchDialog} />}
             {naviLyricMatchDialog && <NaviLyricMatchModal {...naviLyricMatchDialog} />}
             {unavailableReplacementDialog && <UnavailableReplacementDialog {...unavailableReplacementDialog} />}
+            {settingsDialog && <SettingsModal {...settingsDialog} />}
         </>
     );
 };

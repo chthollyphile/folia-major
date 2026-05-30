@@ -59,7 +59,7 @@ type BuildPlayerPanelModelParams = {
     hideToggleButton: boolean;
     activePlaybackContext: 'main' | 'stage';
     isNowPlayingControlDisabled: boolean;
-    setPendingOpenSettings: React.Dispatch<React.SetStateAction<boolean>>;
+    openSettings: (initialTab: 'help' | 'options') => void;
     playQueue: LegacyUnifiedPanelProps['queue']['playQueue'];
     playSong: LegacyUnifiedPanelProps['queue']['onPlaySong'];
     queueScrollRef: RefObject<HTMLDivElement | null>;
@@ -89,7 +89,6 @@ type BuildPlayerPanelModelParams = {
     handleToggleCoverColorBg: LegacyUnifiedPanelProps['account']['onToggleCoverColorBg'];
     isDaylight: LegacyUnifiedPanelProps['account']['isDaylight'];
     handleToggleDaylight: () => void;
-    navigateToHomeForSettings: () => void;
 };
 
 // Builds the player panel model from raw app state and actions so App.tsx no longer assembles nested props inline.
@@ -142,7 +141,7 @@ export const buildPlayerPanelModel = ({
     hideToggleButton,
     activePlaybackContext,
     isNowPlayingControlDisabled,
-    setPendingOpenSettings,
+    openSettings,
     playQueue,
     playSong,
     queueScrollRef,
@@ -172,7 +171,6 @@ export const buildPlayerPanelModel = ({
     handleToggleCoverColorBg,
     isDaylight,
     handleToggleDaylight,
-    navigateToHomeForSettings,
 }: BuildPlayerPanelModelParams): PlayerPanelViewModel => ({
     legacyProps: {
         playback: {
@@ -225,8 +223,7 @@ export const buildPlayerPanelModel = ({
             isStageContext: activePlaybackContext === 'stage',
             playbackControlsDisabled: isNowPlayingControlDisabled,
             onOpenSettings: () => {
-                setPendingOpenSettings(true);
-                navigateToHomeForSettings();
+                openSettings('options');
             },
         },
         queue: {

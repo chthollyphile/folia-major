@@ -4,11 +4,9 @@ import { Search, User, Loader2, ChevronRight, Settings , ChevronDown } from 'luc
 import { neteaseApi } from '../services/netease';
 import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type LyricData, type PartitaTuning, type QueueAddBehavior, type StoredCustomLyricsFont, type TiltTuning, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
-import { isNavidromeEnabled } from '../services/navidromeService';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import LocalMusicView from './LocalMusicView';
 import NavidromeMusicView from './navidrome/NavidromeMusicView';
-import HelpModal from './modal/HelpModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import Carousel3D from './Carousel3D';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
@@ -155,8 +153,8 @@ interface HomeProps {
     onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
     audioOutputDeviceId: string;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
-    pendingOpenSettings?: boolean;
-    onPendingOpenSettingsHandled?: () => void;
+    onOpenSettings?: (initialTab?: 'help' | 'options') => void;
+    navidromeEnabled?: boolean;
 }
 
 const Home: React.FC<HomeProps> = ({
@@ -282,8 +280,8 @@ const Home: React.FC<HomeProps> = ({
     onQueueAddBehaviorChange,
     audioOutputDeviceId,
     onAudioOutputDeviceChange,
-    pendingOpenSettings = false,
-    onPendingOpenSettingsHandled,
+    onOpenSettings,
+    navidromeEnabled = false,
 }) => {
     const { t } = useTranslation();
     const {
@@ -322,20 +320,8 @@ const Home: React.FC<HomeProps> = ({
     const navPillInactiveText = isDaylight ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white';
     // UI State
     const [showLoginModal, setShowLoginModal] = useState(false);
-    const [showHelpModal, setShowHelpModal] = useState(false);
-    const helpModalInitialTabRef = useRef<'help' | 'options'>('help');
-
-    // 当从播放器视图导航回来时，自动打开设置弹窗并跳到选项页
-    useEffect(() => {
-        if (pendingOpenSettings) {
-            helpModalInitialTabRef.current = 'options';
-            setShowHelpModal(true);
-            onPendingOpenSettingsHandled?.();
-        }
-    }, [pendingOpenSettings]);
 
     const [updateStatus, setUpdateStatus] = useState<ElectronUpdateStatus | null>(null);
-    const [navidromeEnabled, setNavidromeEnabled] = useState(isNavidromeEnabled());
     const [scanProgress, setScanProgress] = useState<{
         active: boolean;
         folderName: string;
@@ -353,13 +339,6 @@ const Home: React.FC<HomeProps> = ({
         { key: 'local', label: t('localMusic.folder') },
         ...(navidromeEnabled ? [{ key: 'navidrome' as HomeViewTab, label: t('navidrome.title') || 'Navidrome' }] : []),
     ];
-
-    const handleToggleNavidrome = (enabled: boolean) => {
-        setNavidromeEnabled(enabled);
-        if (!enabled && viewTab === 'navidrome') {
-            setHomeViewTab('local');
-        }
-    };
 
     useEffect(() => {
         if (!window.electron?.getUpdateStatus) {
@@ -626,7 +605,7 @@ const Home: React.FC<HomeProps> = ({
                                     Folia
                                 </h1>
                                 <button
-                                    onClick={() => { helpModalInitialTabRef.current = 'help'; setShowHelpModal(true); }}
+                                    onClick={() => onOpenSettings?.('help')}
                                     className="relative p-2 rounded-full hover:bg-white/10 opacity-40 hover:opacity-100 transition-all ml-4"
                                     title="Help & About"
                                 >
@@ -949,7 +928,7 @@ const Home: React.FC<HomeProps> = ({
                                         <NavidromeMusicView
                                             onPlaySong={onPlayNavidromeSong || (() => { })}
                                             onAddSongsToQueue={onAddNavidromeSongsToQueue}
-                                            onOpenSettings={() => { helpModalInitialTabRef.current = 'help'; setShowHelpModal(true); }}
+                                            onOpenSettings={() => onOpenSettings?.('help')}
                                             onMatchSong={onMatchNavidromeSong}
                                             theme={theme}
                                             isDaylight={isDaylight}
@@ -1010,103 +989,6 @@ const Home: React.FC<HomeProps> = ({
                             </div>
                         )
                     }
-
-                    {/* Help Modal */}
-                    <AnimatePresence>
-                    {
-                        showHelpModal && (
-                            <HelpModal
-                                onClose={() => setShowHelpModal(false)}
-                                initialTab={helpModalInitialTabRef.current}
-                                staticMode={staticMode}
-                                disableHomeDynamicBackground={disableHomeDynamicBackground}
-                                hidePlayerProgressBar={hidePlayerProgressBar}
-                                hidePlayerTranslationSubtitle={hidePlayerTranslationSubtitle}
-                                hidePlayerRightPanelButton={hidePlayerRightPanelButton}
-                                transparentPlayerBackground={transparentPlayerBackground}
-                                disableVisualizerVignette={disableVisualizerVignette}
-                                disableVisualizerGeometricBackground={disableVisualizerGeometricBackground}
-                                minimizeToTray={minimizeToTray}
-                                hideTaskbarIcon={hideTaskbarIcon}
-                                openPlayerOnLaunch={openPlayerOnLaunch}
-                                onToggleStaticMode={onToggleStaticMode}
-                                onToggleDisableHomeDynamicBackground={onToggleDisableHomeDynamicBackground}
-                                onToggleHidePlayerProgressBar={onToggleHidePlayerProgressBar}
-                                onToggleHidePlayerTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
-                                onToggleHidePlayerRightPanelButton={onToggleHidePlayerRightPanelButton}
-                                onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
-                                onToggleDisableVisualizerVignette={onToggleDisableVisualizerVignette}
-                                onToggleDisableVisualizerGeometricBackground={onToggleDisableVisualizerGeometricBackground}
-                                onToggleMinimizeToTray={onToggleMinimizeToTray}
-                                onToggleHideTaskbarIcon={onToggleHideTaskbarIcon}
-                                onToggleOpenPlayerOnLaunch={onToggleOpenPlayerOnLaunch}
-                                enableMediaCache={enableMediaCache}
-                                onToggleMediaCache={onToggleMediaCache}
-                                theme={theme}
-                                backgroundOpacity={backgroundOpacity}
-                                setBackgroundOpacity={setBackgroundOpacity}
-                                bgMode={bgMode}
-                                onApplyDefaultTheme={onApplyDefaultTheme}
-                                hasCustomTheme={hasCustomTheme}
-                                themeParkInitialTheme={themeParkInitialTheme}
-                                isCustomThemePreferred={isCustomThemePreferred}
-                                songThemeAutoSwitchEnabled={songThemeAutoSwitchEnabled}
-                                onSaveCustomTheme={onSaveCustomTheme}
-                                onApplyCustomTheme={onApplyCustomTheme}
-                                onToggleCustomThemePreferred={onToggleCustomThemePreferred}
-                                onToggleSongThemeAutoSwitch={onToggleSongThemeAutoSwitch}
-                                isDaylight={isDaylight}
-                                onToggleNavidrome={handleToggleNavidrome}
-                                visualizerMode={visualizerMode}
-                                cadenzaTuning={cadenzaTuning}
-                                partitaTuning={partitaTuning}
-                                fumeTuning={fumeTuning}
-                                cappellaTuning={cappellaTuning}
-                                tiltTuning={tiltTuning}
-                                cappellaCustomEmojiImages={cappellaCustomEmojiImages}
-                                onVisualizerModeChange={onVisualizerModeChange}
-                                onPartitaTuningChange={onPartitaTuningChange}
-                                onResetPartitaTuning={onResetPartitaTuning}
-                                onFumeTuningChange={onFumeTuningChange}
-                                onResetFumeTuning={onResetFumeTuning}
-                                onCappellaTuningChange={onCappellaTuningChange}
-                                onResetCappellaTuning={onResetCappellaTuning}
-                                onTiltTuningChange={onTiltTuningChange}
-                                onResetTiltTuning={onResetTiltTuning}
-                                onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
-                                onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
-                                isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
-                                lyricsFontStyle={lyricsFontStyle}
-                                lyricsFontScale={lyricsFontScale}
-                                lyricsCustomFontFamily={lyricsCustomFontFamily}
-                                lyricsCustomFontLabel={lyricsCustomFontLabel}
-                                lyricFilterPattern={lyricFilterPattern}
-                                currentSongTitle={currentSongTitle}
-                                showOpenPanelCloseButton={showOpenPanelCloseButton}
-                                onLyricsFontStyleChange={onLyricsFontStyleChange}
-                                onLyricsFontScaleChange={onLyricsFontScaleChange}
-                                onLyricsCustomFontChange={onLyricsCustomFontChange}
-                                onLyricsCustomFontUpload={onLyricsCustomFontUpload}
-                                loadLyricFilterPreview={loadLyricFilterPreview}
-                                onSaveLyricFilterPattern={onSaveLyricFilterPattern}
-                                onToggleOpenPanelCloseButton={onToggleOpenPanelCloseButton}
-                                stageStatus={stageStatus}
-                                onToggleStageMode={onToggleStageMode}
-                                stageSource={stageSource}
-                                onStageSourceChange={onStageSourceChange}
-                                onRegenerateStageToken={onRegenerateStageToken}
-                                onClearStageState={onClearStageState}
-                                enableNowPlayingStage={enableNowPlayingStage}
-                                onToggleNowPlayingStage={onToggleNowPlayingStage}
-                                nowPlayingConnectionStatus={nowPlayingConnectionStatus}
-                                queueAddBehavior={queueAddBehavior}
-                                onQueueAddBehaviorChange={onQueueAddBehaviorChange}
-                                audioOutputDeviceId={audioOutputDeviceId}
-                                onAudioOutputDeviceChange={onAudioOutputDeviceChange}
-                            />
-                        )
-                    }
-                    </AnimatePresence>
 
                     {/* User Avatar - Back to Player */}
                     {

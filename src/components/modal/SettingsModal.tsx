@@ -15,7 +15,7 @@ import type { LyricData } from '../../types';
 import { CustomSelect } from '../shared/CustomSelect';
 
 
-interface HelpModalProps {
+interface SettingsModalProps {
     onClose: () => void;
     initialTab?: 'help' | 'options';
     staticMode?: boolean;
@@ -120,7 +120,7 @@ const stopMediaStream = (stream: MediaStream | null) => {
     stream?.getTracks().forEach(track => track.stop());
 };
 
-const HelpModal: React.FC<HelpModalProps> = ({
+const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
     initialTab = 'help',
     staticMode = false,
@@ -288,7 +288,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                     permissionProbeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     devices = await navigator.mediaDevices.enumerateDevices();
                 } catch (permissionError) {
-                    console.warn('[HelpModal] Audio permission probe failed', permissionError);
+                    console.warn('[SettingsModal] Audio permission probe failed', permissionError);
                 }
             }
 
@@ -300,7 +300,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                 }));
             setAudioOutputDevices(outputs);
         } catch (error) {
-            console.error('[HelpModal] Failed to enumerate audio output devices', error);
+            console.error('[SettingsModal] Failed to enumerate audio output devices', error);
             setAudioOutputDevicesError(t('options.audioOutputLoadFailed') || '读取播放设备失败。');
         } finally {
             stopMediaStream(permissionProbeStream);
@@ -331,7 +331,7 @@ const HelpModal: React.FC<HelpModalProps> = ({
                 setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
             }
         } catch (error) {
-            console.error('[HelpModal] Failed to select audio output device', error);
+            console.error('[SettingsModal] Failed to select audio output device', error);
             setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
         } finally {
             setIsSelectingAudioOutput(false);
@@ -3548,4 +3548,4 @@ const DiscIcon = ({ size, className }: { size: number, className?: string; }) =>
     </svg>
 );
 
-export default HelpModal;
+export default SettingsModal;

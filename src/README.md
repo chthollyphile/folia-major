@@ -85,7 +85,7 @@ src/
 
 - `components/modal/*`
   各类弹窗，尤其是：
-  `HelpModal.tsx` 既是帮助弹窗，也是设置中心。
+  `SettingsModal.tsx` 是全局设置中心，也承载帮助说明。
 
 - `components/visualizer/*`
   歌词可视化层。
@@ -199,7 +199,7 @@ src/
 ## 6. Project-Specific Notes
 
 - 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
-- `HelpModal.tsx` 是设置中心，不只是帮助说明。
+- `SettingsModal.tsx` 是设置中心，不只是帮助说明。
 - `PlayerPanel.tsx` 是当前 app-level 面板入口，`UnifiedPanel.tsx` 是 legacy 实现；不要重新把面板逻辑塞回单个大组件。
 - 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/*` 下与功能相邻的 `build*.ts` / `create*.ts`。
 - 本地音乐导入是增量快照式，不是单次全量扫描。

@@ -28,8 +28,7 @@ type BuildHomeModelParams = {
     setFocusedFavoriteAlbumIndex?: LegacyHomeProps['setFocusedFavoriteAlbumIndex'];
     focusedRadioIndex?: LegacyHomeProps['focusedRadioIndex'];
     setFocusedRadioIndex?: LegacyHomeProps['setFocusedRadioIndex'];
-    pendingOpenSettings?: LegacyHomeProps['pendingOpenSettings'];
-    setPendingOpenSettings: React.Dispatch<React.SetStateAction<boolean>>;
+    openSettings: NonNullable<LegacyHomeProps['onOpenSettings']>;
     navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean }) => void;
     openLocalAlbumByName?: LegacyHomeProps['onSelectLocalAlbum'];
     openLocalArtistByName?: LegacyHomeProps['onSelectLocalArtist'];
@@ -134,6 +133,7 @@ type BuildHomeModelParams = {
     loadCurrentSongLyricPreview: LegacyHomeProps['loadLyricFilterPreview'];
     handleSaveLyricFilterPattern: LegacyHomeProps['onSaveLyricFilterPattern'];
     handleToggleOpenPanelCloseButton: LegacyHomeProps['onToggleOpenPanelCloseButton'];
+    navidromeEnabled: LegacyHomeProps['navidromeEnabled'];
 };
 
 // Builds the full Home model from raw app dependencies so App.tsx no longer assembles nested props inline.
@@ -155,8 +155,7 @@ export const buildHomeModel = ({
     setFocusedFavoriteAlbumIndex,
     focusedRadioIndex,
     setFocusedRadioIndex,
-    pendingOpenSettings,
-    setPendingOpenSettings,
+    openSettings,
     navigateToSearch,
     openLocalAlbumByName,
     openLocalArtistByName,
@@ -261,6 +260,7 @@ export const buildHomeModel = ({
     loadCurrentSongLyricPreview,
     handleSaveLyricFilterPattern,
     handleToggleOpenPanelCloseButton,
+    navidromeEnabled,
 }: BuildHomeModelParams): HomeViewModel => {
     return {
         legacyProps: {
@@ -281,8 +281,7 @@ export const buildHomeModel = ({
             setFocusedFavoriteAlbumIndex,
             focusedRadioIndex,
             setFocusedRadioIndex,
-            pendingOpenSettings,
-            onPendingOpenSettingsHandled: () => setPendingOpenSettings(false),
+            onOpenSettings: openSettings,
             onSearchCommitted: (query, sourceTab, replace = false) => {
                 navigateToSearch({ query, sourceTab, replace });
             },
@@ -427,6 +426,7 @@ export const buildHomeModel = ({
             loadLyricFilterPreview: loadCurrentSongLyricPreview,
             onSaveLyricFilterPattern: handleSaveLyricFilterPattern,
             onToggleOpenPanelCloseButton: handleToggleOpenPanelCloseButton,
+            navidromeEnabled,
         },
     };
 };

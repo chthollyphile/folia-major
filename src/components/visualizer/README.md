@@ -570,7 +570,7 @@ resetSettings: props => {
 
 优先把专属控制拆到模式相邻文件，再由 entry 的 `renderSettingsPanel` 挂回预览面板，避免继续在 `VisPlayground.tsx` 里堆模式分支。
 
-#### `src/components/modal/HelpModal.tsx`
+#### `src/components/modal/SettingsModal.tsx`
 
 如果设置面板需要打开预览器，通常这里还要：
 
@@ -587,7 +587,7 @@ resetSettings: props => {
 
 #### `src/components/app/Home.tsx` / `src/components/Home.tsx`
 
-如果 `HelpModal` 的 props 发生变化，通常需要先检查 app-level `Home.tsx` 包装层，再同步到 legacy `Home.tsx` 实现。
+如果 `SettingsModal` 的 props 发生变化，通常需要先检查 app-level dialogs 包装层，再同步全局设置入口。
 
 #### 文案文件
 
