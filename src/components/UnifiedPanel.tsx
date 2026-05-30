@@ -199,7 +199,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onToggleDaylight,
     } = account;
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
-    const hideActionLayerTimeoutRef = React.useRef<number | null>(null);
     const [isCoverActionsVisible, setIsCoverActionsVisible] = React.useState(false);
     const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = React.useState(false);
     const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = React.useState(false);
@@ -317,30 +316,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onOpenSettings?.();
     };
 
-    const clearHideActionLayerTimeout = () => {
-        if (hideActionLayerTimeoutRef.current !== null) {
-            window.clearTimeout(hideActionLayerTimeoutRef.current);
-            hideActionLayerTimeoutRef.current = null;
-        }
-    };
-
-    const showCoverActions = () => {
-        clearHideActionLayerTimeout();
-        setIsCoverActionsVisible(true);
-    };
-
-    const hideCoverActions = (delay = 0) => {
-        clearHideActionLayerTimeout();
-        if (delay > 0) {
-            hideActionLayerTimeoutRef.current = window.setTimeout(() => {
-                setIsCoverActionsVisible(false);
-                hideActionLayerTimeoutRef.current = null;
-            }, delay);
-            return;
-        }
-        setIsCoverActionsVisible(false);
-    };
-
     React.useEffect(() => {
         if (!isOpen) {
             setIsCoverActionsVisible(false);
@@ -360,7 +335,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     }, [canAddCurrentSongToPlaylist]);
 
     React.useEffect(() => {
-        if (!isCoverActionsVisible) {
+        if (supportsHover || !isCoverActionsVisible) {
             return undefined;
         }
 
@@ -371,17 +346,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             }
 
             if (!coverAreaRef.current?.contains(target)) {
-                hideCoverActions();
+                setIsCoverActionsVisible(false);
             }
         };
 
         document.addEventListener('pointerdown', handlePointerDown);
         return () => document.removeEventListener('pointerdown', handlePointerDown);
-    }, [isCoverActionsVisible]);
-
-    React.useEffect(() => () => {
-        clearHideActionLayerTimeout();
-    }, []);
+    }, [isCoverActionsVisible, supportsHover]);
 
     return (
         <div
@@ -402,16 +373,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                 {/* Top: Cover Art */}
                                 <div
                                     ref={coverAreaRef}
-                                    onMouseEnter={() => {
-                                        if (supportsHover) {
-                                            showCoverActions();
-                                        }
-                                    }}
-                                    onMouseLeave={() => {
-                                        if (supportsHover) {
-                                            hideCoverActions(120);
-                                        }
-                                    }}
                                     onClick={(event) => {
                                         event.stopPropagation();
                                         if (!supportsHover) {
@@ -425,104 +386,74 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     ) : (
                                         <Disc size={40} className="text-white/20" />
                                     )}
-                                    <AnimatePresence>
-                                        {isCoverActionsVisible && (
-                                            <>
-                                                <motion.div
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    exit={{ opacity: 0 }}
-                                                    className="absolute inset-0 pointer-events-none"
-                                                >
-                                                    <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
-                                                </motion.div>
 
-                                                {/* 左上角：打开设置 */}
-                                                {onOpenSettings && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0, x: -12, y: -12 }}
-                                                        animate={{ opacity: 1, x: 0, y: 0 }}
-                                                        exit={{ opacity: 0, x: -10, y: -10 }}
-                                                        transition={{ duration: 0.18, ease: 'easeOut' }}
-                                                        className="absolute left-3 top-3 pointer-events-auto"
-                                                        onMouseEnter={() => clearHideActionLayerTimeout()}
-                                                        onMouseLeave={() => {
-                                                            if (supportsHover) {
-                                                                hideCoverActions(120);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                handleOpenSettings();
-                                                            }}
-                                                            className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                                            title={t('ui.options') || '设置'}
-                                                        >
-                                                            <Settings size={18} />
-                                                        </button>
-                                                    </motion.div>
-                                                )}
+                                    <div className={`absolute inset-0 pointer-events-none transition-opacity duration-200 ${
+                                        supportsHover
+                                            ? 'opacity-0 group-hover:opacity-100'
+                                            : (isCoverActionsVisible ? 'opacity-100' : 'opacity-0')
+                                    }`}>
+                                        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                                    </div>
 
-                                                <motion.div
-                                                    initial={{ opacity: 0, x: -12, y: 12 }}
-                                                    animate={{ opacity: 1, x: 0, y: 0 }}
-                                                    exit={{ opacity: 0, x: -10, y: 10 }}
-                                                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                                                    className="absolute left-3 bottom-3 pointer-events-auto"
-                                                    onMouseEnter={() => clearHideActionLayerTimeout()}
-                                                    onMouseLeave={() => {
-                                                        if (supportsHover) {
-                                                            hideCoverActions(120);
-                                                        }
-                                                    }}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            handleNavigateHome();
-                                                        }}
-                                                        className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                                        title={t('ui.backToHome') || '返回主页'}
-                                                    >
-                                                        <HomeIcon size={18} />
-                                                    </button>
-                                                </motion.div>
+                                    {/* 左上角：打开设置 */}
+                                    {onOpenSettings && (
+                                        <div className={`absolute left-3 top-3 pointer-events-auto transition-all duration-200 ${
+                                            supportsHover
+                                                ? 'opacity-0 group-hover:opacity-100 -translate-x-3 -translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                                : `${isCoverActionsVisible ? 'opacity-100 translate-x-0 translate-y-0' : 'opacity-0 -translate-x-3 -translate-y-3'}`
+                                        }`}>
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleOpenSettings();
+                                                }}
+                                                className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
+                                                title={t('ui.options') || '设置'}
+                                            >
+                                                <Settings size={18} />
+                                            </button>
+                                        </div>
+                                    )}
 
-                                                {canAddCurrentSongToPlaylist && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0, x: 12, y: 12 }}
-                                                        animate={{ opacity: 1, x: 0, y: 0 }}
-                                                        exit={{ opacity: 0, x: 10, y: 10 }}
-                                                        transition={{ duration: 0.18, ease: 'easeOut' }}
-                                                        className="absolute right-3 bottom-3 pointer-events-auto"
-                                                        onMouseEnter={() => clearHideActionLayerTimeout()}
-                                                        onMouseLeave={() => {
-                                                            if (supportsHover) {
-                                                                hideCoverActions(120);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                setIsCoverActionsVisible(false);
-                                                                setIsPlaylistPickerOpen(true);
-                                                            }}
-                                                            className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                                            title={t('localMusic.addToPlaylist') || '添加到歌单'}
-                                                        >
-                                                            <Star size={18} />
-                                                        </button>
-                                                    </motion.div>
-                                                )}
-                                            </>
-                                        )}
-                                    </AnimatePresence>
+                                    <div className={`absolute left-3 bottom-3 pointer-events-auto transition-all duration-200 ${
+                                        supportsHover
+                                            ? 'opacity-0 group-hover:opacity-100 -translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                            : `${isCoverActionsVisible ? 'opacity-100 translate-x-0 translate-y-0' : 'opacity-0 -translate-x-3 translate-y-3'}`
+                                    }`}>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleNavigateHome();
+                                            }}
+                                            className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
+                                            title={t('ui.backToHome') || '返回主页'}
+                                        >
+                                            <HomeIcon size={18} />
+                                        </button>
+                                    </div>
+
+                                    {canAddCurrentSongToPlaylist && (
+                                        <div className={`absolute right-3 bottom-3 pointer-events-auto transition-all duration-200 ${
+                                            supportsHover
+                                                ? 'opacity-0 group-hover:opacity-100 translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                                : `${isCoverActionsVisible ? 'opacity-100 translate-x-0 translate-y-0' : 'opacity-0 translate-x-3 translate-y-3'}`
+                                        }`}>
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setIsCoverActionsVisible(false);
+                                                    setIsPlaylistPickerOpen(true);
+                                                }}
+                                                className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
+                                                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                                            >
+                                                <Star size={18} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Tab Switcher */}
