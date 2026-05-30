@@ -1859,51 +1859,15 @@ export default function App() {
         onSaveLyricFilterPattern: handleSaveLyricFilterPattern,
         onToggleOpenPanelCloseButton: handleToggleOpenPanelCloseButton,
         stageStatus,
-        onToggleStageMode: async (enabled) => {
-            const nextStatus = await window.electron?.setStageEnabled(enabled);
-            if (nextStatus) {
-                setStageStatus(nextStatus);
-                if (!enabled && activePlaybackContext === 'stage') {
-                    leaveStagePlayback();
-                }
-                if (!enabled) {
-                    clearStagePlaybackSession();
-                    await clearPersistedStagePlaybackCache();
-                }
-            }
-        },
         stageSource,
-        onStageSourceChange: async (source) => {
-            const nextStatus = await window.electron?.setStageModeSource(source);
-            if (nextStatus) {
-                setStageStatus(nextStatus);
-            }
-        },
-        onRegenerateStageToken: async () => {
-            const nextStatus = await window.electron?.regenerateStageToken();
-            if (nextStatus) {
-                setStageStatus(nextStatus);
-                if (activePlaybackContext === 'stage') {
-                    await loadStageSessionIntoPlayback(null);
-                }
-            }
-        },
-        onClearStageState: async () => {
-            const nextStatus = await window.electron?.clearStageState();
-            if (nextStatus) {
-                setStageStatus(nextStatus);
-                if (activePlaybackContext === 'stage') {
-                    await loadStageSessionIntoPlayback(null);
-                }
-            }
-        },
+        activePlaybackContext,
+        setStageStatus,
+        leaveStagePlayback,
+        clearStagePlaybackSession,
+        clearPersistedStagePlaybackCache,
+        loadStageSessionIntoPlayback,
         enableNowPlayingStage,
-        onToggleNowPlayingStage: async (enabled) => {
-            handleToggleNowPlayingStage(enabled);
-            if (!enabled && activePlaybackContext === 'stage') {
-                leaveStagePlayback();
-            }
-        },
+        onToggleNowPlayingStage: handleToggleNowPlayingStage,
         nowPlayingConnectionStatus,
         queueAddBehavior,
         onQueueAddBehaviorChange: handleSetQueueAddBehavior,
