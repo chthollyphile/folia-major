@@ -41,6 +41,7 @@ const CoverTab: React.FC<CoverTabProps> = ({
         ? [copyTitleLine, neteaseSongId ? `https://music.163.com/#/song?id=${neteaseSongId}` : ''].filter(Boolean).join('\n')
         : '';
     const canCopySongInfo = Boolean(copyPayload);
+    const neteaseSongUrl = neteaseSongId ? `https://music.163.com/#/song?id=${neteaseSongId}` : '';
 
     const copyText = async (text: string) => {
         if (navigator.clipboard?.writeText && window.isSecureContext) {
@@ -64,8 +65,27 @@ const CoverTab: React.FC<CoverTabProps> = ({
         }
     };
 
-    // Copies the current song summary and an optional Netease link from the unified playback model.
-    const handleSongTitleClick = () => {
+    const openNeteaseSongPage = () => {
+        if (!neteaseSongUrl) {
+            return;
+        }
+
+        const openSongPage = window.electron?.openExternalUrl
+            ? window.electron.openExternalUrl(neteaseSongUrl)
+            : Promise.resolve(Boolean(window.open(neteaseSongUrl, '_blank', 'noopener,noreferrer')));
+
+        void openSongPage.catch((error) => {
+            console.error('Failed to open Netease song page:', error);
+        });
+    };
+
+    // Normal click copies song info; Ctrl+click opens the matched Netease song page when available.
+    const handleSongTitleClick = (event: React.MouseEvent<HTMLHeadingElement>) => {
+        if (event.ctrlKey && neteaseSongUrl) {
+            openNeteaseSongPage();
+            return;
+        }
+
         if (!copyPayload) {
             return;
         }
