@@ -13,38 +13,14 @@ import LyricFilterSettingsModal from './LyricFilterSettingsModal';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { CustomSelect } from '../shared/CustomSelect';
+import { selectSettingsUiSnapshot, useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { useShallow } from 'zustand/react/shallow';
 
 
 interface SettingsModalProps {
     onClose: () => void;
     initialTab?: 'help' | 'options';
-    staticMode?: boolean;
-    disableHomeDynamicBackground?: boolean;
-    hidePlayerProgressBar?: boolean;
-    hidePlayerTranslationSubtitle?: boolean;
-    hidePlayerRightPanelButton?: boolean;
-    transparentPlayerBackground?: boolean;
-    disableVisualizerVignette?: boolean;
-    disableVisualizerGeometricBackground?: boolean;
-    minimizeToTray?: boolean;
-    hideTaskbarIcon?: boolean;
-    openPlayerOnLaunch?: boolean;
-    onToggleStaticMode?: (enable: boolean) => void;
-    onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
-    onToggleHidePlayerProgressBar?: (enable: boolean) => void;
-    onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
-    onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
-    onToggleTransparentPlayerBackground?: (enable: boolean) => void;
-    onToggleDisableVisualizerVignette?: (disable: boolean) => void;
-    onToggleDisableVisualizerGeometricBackground?: (disable: boolean) => void;
-    onToggleMinimizeToTray?: (enable: boolean) => void;
-    onToggleHideTaskbarIcon?: (enable: boolean) => void;
-    onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
-    enableMediaCache?: boolean;
-    onToggleMediaCache?: (enable: boolean) => void;
     theme?: Theme;
-    backgroundOpacity?: number;
-    setBackgroundOpacity?: (opacity: number) => void;
     bgMode: ThemeMode;
     onApplyDefaultTheme: () => void;
     hasCustomTheme: boolean;
@@ -55,53 +31,18 @@ interface SettingsModalProps {
     onApplyCustomTheme: () => void;
     onToggleCustomThemePreferred: (enabled: boolean) => void;
     onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
-    isDaylight: boolean;
     onToggleNavidrome?: (enabled: boolean) => void;
-    visualizerMode?: VisualizerMode;
-    cadenzaTuning?: CadenzaTuning;
-    partitaTuning?: PartitaTuning;
-    fumeTuning?: FumeTuning;
-    cappellaTuning?: CappellaTuning;
-    tiltTuning?: TiltTuning;
-    cappellaCustomEmojiImages?: CappellaEmojiImage[];
-    onVisualizerModeChange?: (mode: VisualizerMode) => void;
-    onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
-    onResetPartitaTuning?: () => void;
-    onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
-    onResetFumeTuning?: () => void;
-    onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
-    onResetCappellaTuning?: () => void;
-    onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
-    onResetTiltTuning?: () => void;
-    onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
-    onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
-    isLoadingCappellaCustomEmojiPack?: boolean;
-    lyricsFontStyle: Theme['fontStyle'];
-    lyricsFontScale: number;
-    lyricsCustomFontFamily: string | null;
-    lyricsCustomFontLabel: string | null;
-    lyricFilterPattern: string;
-    showOpenPanelCloseButton: boolean;
-    onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
-    onLyricsFontScaleChange: (fontScale: number) => void;
-    onLyricsCustomFontChange: (font: StoredCustomLyricsFont | null) => void;
-    onLyricsCustomFontUpload: (file: File) => Promise<{ ok: boolean; error?: string; }>;
     loadLyricFilterPreview: () => Promise<LyricData | null>;
     currentSongTitle?: string | null;
     onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
-    onToggleOpenPanelCloseButton: (enable: boolean) => void;
     stageStatus?: StageStatus | null;
     stageSource?: StageSource | null;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
     onClearStageState?: () => Promise<void> | void;
-    enableNowPlayingStage?: boolean;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
-    queueAddBehavior: QueueAddBehavior;
-    onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
-    audioOutputDeviceId: string;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
 }
 
@@ -123,33 +64,7 @@ const stopMediaStream = (stream: MediaStream | null) => {
 const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
     initialTab = 'help',
-    staticMode = false,
-    disableHomeDynamicBackground = false,
-    hidePlayerProgressBar = false,
-    hidePlayerTranslationSubtitle = false,
-    hidePlayerRightPanelButton = false,
-    transparentPlayerBackground = false,
-    disableVisualizerVignette = false,
-    disableVisualizerGeometricBackground = false,
-    minimizeToTray = false,
-    hideTaskbarIcon = false,
-    openPlayerOnLaunch = false,
-    onToggleStaticMode,
-    onToggleDisableHomeDynamicBackground,
-    onToggleHidePlayerProgressBar,
-    onToggleHidePlayerTranslationSubtitle,
-    onToggleHidePlayerRightPanelButton,
-    onToggleTransparentPlayerBackground,
-    onToggleDisableVisualizerVignette,
-    onToggleDisableVisualizerGeometricBackground,
-    onToggleMinimizeToTray,
-    onToggleHideTaskbarIcon,
-    onToggleOpenPlayerOnLaunch,
-    enableMediaCache = false,
-    onToggleMediaCache,
     theme,
-    backgroundOpacity = 0.75,
-    setBackgroundOpacity,
     bgMode,
     onApplyDefaultTheme,
     hasCustomTheme,
@@ -160,56 +75,85 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onApplyCustomTheme,
     onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
-    isDaylight,
     onToggleNavidrome,
-    visualizerMode = 'classic',
-    cadenzaTuning,
-    partitaTuning,
-    fumeTuning,
-    cappellaTuning,
-    tiltTuning,
-    cappellaCustomEmojiImages,
-    onVisualizerModeChange,
-    onPartitaTuningChange,
-    onResetPartitaTuning,
-    onFumeTuningChange,
-    onResetFumeTuning,
-    onCappellaTuningChange,
-    onResetCappellaTuning,
-    onTiltTuningChange,
-    onResetTiltTuning,
-    onImportCappellaCustomEmojiPack,
-    onClearCappellaCustomEmojiPack,
-    isLoadingCappellaCustomEmojiPack = false,
-    lyricsFontStyle,
-    lyricsFontScale,
-    lyricsCustomFontFamily,
-    lyricsCustomFontLabel,
-    lyricFilterPattern,
-    showOpenPanelCloseButton,
-    onLyricsFontStyleChange,
-    onLyricsFontScaleChange,
-    onLyricsCustomFontChange,
-    onLyricsCustomFontUpload,
     loadLyricFilterPreview,
     currentSongTitle,
     onSaveLyricFilterPattern,
-    onToggleOpenPanelCloseButton,
     stageStatus = null,
     stageSource = null,
     onToggleStageMode,
     onStageSourceChange,
     onRegenerateStageToken,
     onClearStageState,
-    enableNowPlayingStage = false,
     onToggleNowPlayingStage,
     nowPlayingConnectionStatus = 'disabled',
-    queueAddBehavior,
-    onQueueAddBehaviorChange,
-    audioOutputDeviceId,
     onAudioOutputDeviceChange,
 }) => {
     const { t } = useTranslation();
+    const {
+        staticMode,
+        disableHomeDynamicBackground,
+        hidePlayerProgressBar,
+        hidePlayerTranslationSubtitle,
+        hidePlayerRightPanelButton,
+        transparentPlayerBackground,
+        disableVisualizerVignette,
+        disableVisualizerGeometricBackground,
+        minimizeToTray,
+        hideTaskbarIcon,
+        openPlayerOnLaunch,
+        enableMediaCache,
+        backgroundOpacity,
+        isDaylight,
+        visualizerMode,
+        cadenzaTuning,
+        partitaTuning,
+        fumeTuning,
+        cappellaTuning,
+        tiltTuning,
+        cappellaCustomEmojiImages,
+        isLoadingCappellaCustomEmojiPack,
+        lyricsFontStyle,
+        lyricsFontScale,
+        lyricsCustomFontFamily,
+        lyricsCustomFontLabel,
+        lyricFilterPattern,
+        showOpenPanelCloseButton,
+        enableNowPlayingStage,
+        queueAddBehavior,
+        audioOutputDeviceId,
+        handleToggleStaticMode: onToggleStaticMode,
+        handleToggleDisableHomeDynamicBackground: onToggleDisableHomeDynamicBackground,
+        handleToggleHidePlayerProgressBar: onToggleHidePlayerProgressBar,
+        handleToggleHidePlayerTranslationSubtitle: onToggleHidePlayerTranslationSubtitle,
+        handleToggleHidePlayerRightPanelButton: onToggleHidePlayerRightPanelButton,
+        handleToggleTransparentPlayerBackground: onToggleTransparentPlayerBackground,
+        handleToggleDisableVisualizerVignette: onToggleDisableVisualizerVignette,
+        handleToggleDisableVisualizerGeometricBackground: onToggleDisableVisualizerGeometricBackground,
+        handleToggleMinimizeToTray: onToggleMinimizeToTray,
+        handleToggleHideTaskbarIcon: onToggleHideTaskbarIcon,
+        handleToggleOpenPlayerOnLaunch: onToggleOpenPlayerOnLaunch,
+        handleToggleMediaCache: onToggleMediaCache,
+        handleSetBackgroundOpacity: setBackgroundOpacity,
+        handleSetVisualizerMode: onVisualizerModeChange,
+        handleSetPartitaTuning: onPartitaTuningChange,
+        handleResetPartitaTuning: onResetPartitaTuning,
+        handleSetFumeTuning: onFumeTuningChange,
+        handleResetFumeTuning: onResetFumeTuning,
+        handleSetCappellaTuning: onCappellaTuningChange,
+        handleResetCappellaTuning: onResetCappellaTuning,
+        handleSetTiltTuning: onTiltTuningChange,
+        handleResetTiltTuning: onResetTiltTuning,
+        handleImportCustomCappellaEmojiPack: onImportCappellaCustomEmojiPack,
+        handleClearCustomCappellaEmojiPack: onClearCappellaCustomEmojiPack,
+        handleSetLyricsFontStyle: onLyricsFontStyleChange,
+        handleSetLyricsFontScale: onLyricsFontScaleChange,
+        handleSetLyricsCustomFont: onLyricsCustomFontChange,
+        handleUploadLyricsCustomFont: onLyricsCustomFontUpload,
+        handleToggleOpenPanelCloseButton: onToggleOpenPanelCloseButton,
+        handleSetQueueAddBehavior: onQueueAddBehaviorChange,
+    } = useSettingsUiStore(useShallow(selectSettingsUiSnapshot));
+    const setIsSubSettingsViewOpen = useSettingsUiStore(state => state.setIsSubSettingsViewOpen);
     const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
@@ -760,6 +704,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         event.stopPropagation();
         onCloseOverlay();
     };
+    const isSubSettingsViewOpen = showVisPlayground
+        || showThemePark
+        || showAppearanceSettings
+        || showPlaybackSettings
+        || showIntegrationSettings
+        || showStorageSettings
+        || showDesktopSettings
+        || showLabSettings
+        || showLyricFilterSettings;
+
+    useEffect(() => {
+        setIsSubSettingsViewOpen(isSubSettingsViewOpen);
+
+        return () => {
+            setIsSubSettingsViewOpen(false);
+        };
+    }, [isSubSettingsViewOpen, setIsSubSettingsViewOpen]);
+
     const visualizerModeOptions = VISUALIZER_REGISTRY.map(entry => ({
         mode: entry.mode,
         label: getVisualizerModeLabel(entry.mode, t),

@@ -47,6 +47,7 @@ import { useSessionRestoreController } from './hooks/useSessionRestoreController
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
+import { useSettingsUiStore } from './stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
@@ -112,7 +113,8 @@ export default function App() {
         isOpen: false,
         initialTab: 'help',
     });
-    const [navidromeEnabled, setNavidromeEnabledState] = useState(isNavidromeEnabled());
+    const [navidromeEnabled, setNavidromeEnabledState] = useState(() => isNavidromeEnabled());
+    const isSettingsSubviewOpen = useSettingsUiStore(state => state.isSubSettingsViewOpen);
 
     // Player State
     const [playerState, setPlayerState] = useState<PlayerState>(PlayerState.IDLE);
@@ -1333,83 +1335,7 @@ export default function App() {
         clearStagePlaybackSession,
         clearPersistedStagePlaybackCache,
         loadStageSessionIntoPlayback,
-        enableNowPlayingStage,
-        handleToggleNowPlayingStage,
-        nowPlayingConnectionStatus,
-        queueAddBehavior,
-        handleSetQueueAddBehavior,
-        audioOutputDeviceId,
-        handleAudioOutputDeviceChange,
-        staticMode,
-        disableHomeDynamicBackground,
-        hidePlayerProgressBar,
-        hidePlayerTranslationSubtitle,
-        hidePlayerRightPanelButton,
-        transparentPlayerBackground,
-        disableVisualizerVignette,
-        disableVisualizerGeometricBackground,
-        minimizeToTray,
-        hideTaskbarIcon,
-        openPlayerOnLaunch,
-        handleToggleStaticMode,
-        handleToggleDisableHomeDynamicBackground,
-        handleToggleHidePlayerProgressBar,
-        handleToggleHidePlayerTranslationSubtitle,
-        handleToggleHidePlayerRightPanelButton,
-        handleToggleTransparentPlayerBackground,
-        handleToggleDisableVisualizerVignette,
-        handleToggleDisableVisualizerGeometricBackground,
-        handleToggleMinimizeToTray,
-        handleToggleHideTaskbarIcon,
-        handleToggleOpenPlayerOnLaunch,
-        enableMediaCache,
-        handleToggleMediaCache,
         theme,
-        backgroundOpacity,
-        handleSetBackgroundOpacity,
-        bgMode,
-        applyDefaultTheme,
-        hasCustomTheme,
-        getThemeParkSeedTheme: themeParkSeedTheme,
-        isCustomThemePreferred,
-        songThemeAutoSwitchEnabled,
-        saveCustomDualTheme,
-        applyCustomTheme,
-        handleCustomThemePreferenceChange,
-        handleSongThemeAutoSwitchChange,
-        isDaylight,
-        visualizerMode,
-        cadenzaTuning,
-        partitaTuning,
-        fumeTuning,
-        cappellaTuning,
-        tiltTuning,
-        cappellaCustomEmojiImages,
-        handleSetVisualizerMode,
-        handleSetPartitaTuning,
-        handleResetPartitaTuning,
-        handleSetFumeTuning,
-        handleResetFumeTuning,
-        handleSetCappellaTuning,
-        handleResetCappellaTuning,
-        handleSetTiltTuning,
-        handleResetTiltTuning,
-        handleImportCappellaCustomEmojiPack: handleImportCustomCappellaEmojiPack,
-        handleClearCappellaCustomEmojiPack: handleClearCustomCappellaEmojiPack,
-        isLoadingCappellaCustomEmojiPack,
-        lyricsFontStyle,
-        lyricsFontScale,
-        lyricsCustomFontFamily,
-        lyricsCustomFontLabel,
-        lyricFilterPattern,
-        showOpenPanelCloseButton,
-        handleSetLyricsFontStyle,
-        handleSetLyricsFontScale,
-        handleSetLyricsCustomFont,
-        handleUploadLyricsCustomFont,
-        loadCurrentSongLyricPreview,
-        handleSaveLyricFilterPattern,
-        handleToggleOpenPanelCloseButton,
         navidromeEnabled,
     }), [
         activePlaybackContext,
@@ -1788,7 +1714,6 @@ export default function App() {
     const settingsDialog = useMemo(() => buildSettingsDialogModel({
         state: settingsModalState,
         onClose: closeSettings,
-        preferences: appPreferences,
         themeController,
         themeParkInitialTheme: themeParkSeedTheme,
         onToggleNavidrome: handleToggleNavidromeEnabled,
@@ -1803,10 +1728,10 @@ export default function App() {
         clearStagePlaybackSession,
         clearPersistedStagePlaybackCache,
         loadStageSessionIntoPlayback,
+        nowPlayingConnectionStatus,
         onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
     }), [
         activePlaybackContext,
-        appPreferences,
         clearPersistedStagePlaybackCache,
         clearStagePlaybackSession,
         closeSettings,
@@ -1817,6 +1742,7 @@ export default function App() {
         leaveStagePlayback,
         loadCurrentSongLyricPreview,
         loadStageSessionIntoPlayback,
+        nowPlayingConnectionStatus,
         settingsModalState,
         stageSource,
         stageStatus,
@@ -2031,7 +1957,7 @@ export default function App() {
                     paused={shouldPauseVisualizerBackground}
                     backgroundOpacity={backgroundOpacity}
                     transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
-                    disableGeometricBackground={disableVisualizerGeometricBackground}
+                    disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
                     disableVignette={disableVisualizerVignette}
                     lyricsFontScale={lyricsFontScale}
                     isPlayerChromeHidden={isPlayerChromeHidden}

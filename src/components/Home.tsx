@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, ChevronRight, Settings , ChevronDown } from 'lucide-react';
 import { neteaseApi } from '../services/netease';
-import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, Theme, LocalLibraryGroup, LocalPlaylist, DualTheme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type LyricData, type PartitaTuning, type QueueAddBehavior, type StoredCustomLyricsFont, type TiltTuning, type VisualizerMode, type StageStatus, type StageSource, type NowPlayingConnectionStatus } from '../types';
+import { HomeViewTab, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, LocalLibraryGroup, LocalPlaylist, type StageStatus, type StageSource, type Theme } from '../types';
 import { NavidromeSong, NavidromeViewSelection } from '../types/navidrome';
 import { LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import LocalMusicView from './LocalMusicView';
@@ -10,6 +10,7 @@ import NavidromeMusicView from './navidrome/NavidromeMusicView';
 import { motion, AnimatePresence } from 'framer-motion';
 import Carousel3D from './Carousel3D';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 
 interface HomeProps {
@@ -65,77 +66,6 @@ interface HomeProps {
     setNavidromeFocusedAlbumIndex?: (index: number) => void;
     pendingNavidromeSelection?: NavidromeViewSelection | null;
     onPendingNavidromeSelectionHandled?: () => void;
-    staticMode?: boolean;
-    disableHomeDynamicBackground?: boolean;
-    hidePlayerProgressBar?: boolean;
-    hidePlayerTranslationSubtitle?: boolean;
-    hidePlayerRightPanelButton?: boolean;
-    transparentPlayerBackground?: boolean;
-    disableVisualizerVignette?: boolean;
-    disableVisualizerGeometricBackground?: boolean;
-    minimizeToTray?: boolean;
-    hideTaskbarIcon?: boolean;
-    openPlayerOnLaunch?: boolean;
-    onToggleStaticMode?: (enable: boolean) => void;
-    onToggleDisableHomeDynamicBackground?: (disable: boolean) => void;
-    onToggleHidePlayerProgressBar?: (enable: boolean) => void;
-    onToggleHidePlayerTranslationSubtitle?: (enable: boolean) => void;
-    onToggleHidePlayerRightPanelButton?: (enable: boolean) => void;
-    onToggleTransparentPlayerBackground?: (enable: boolean) => void;
-    onToggleDisableVisualizerVignette?: (disable: boolean) => void;
-    onToggleDisableVisualizerGeometricBackground?: (disable: boolean) => void;
-    onToggleMinimizeToTray?: (enable: boolean) => void;
-    onToggleHideTaskbarIcon?: (enable: boolean) => void;
-    onToggleOpenPlayerOnLaunch?: (enable: boolean) => void;
-    enableMediaCache?: boolean;
-    onToggleMediaCache?: (enable: boolean) => void;
-    theme: Theme;
-    backgroundOpacity: number;
-    setBackgroundOpacity: (opacity: number) => void;
-    bgMode: ThemeMode;
-    onApplyDefaultTheme: () => void;
-    hasCustomTheme: boolean;
-    themeParkInitialTheme: DualTheme;
-    isCustomThemePreferred: boolean;
-    songThemeAutoSwitchEnabled: boolean;
-    onSaveCustomTheme: (dualTheme: DualTheme) => void;
-    onApplyCustomTheme: () => void;
-    onToggleCustomThemePreferred: (enabled: boolean) => void;
-    onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
-    isDaylight: boolean;
-    visualizerMode: VisualizerMode;
-    cadenzaTuning: CadenzaTuning;
-    partitaTuning: PartitaTuning;
-    fumeTuning: FumeTuning;
-    cappellaTuning: CappellaTuning;
-    tiltTuning: TiltTuning;
-    cappellaCustomEmojiImages: CappellaEmojiImage[];
-    onVisualizerModeChange: (mode: VisualizerMode) => void;
-    onPartitaTuningChange: (patch: Partial<PartitaTuning>) => void;
-    onResetPartitaTuning: () => void;
-    onFumeTuningChange: (patch: Partial<FumeTuning>) => void;
-    onResetFumeTuning: () => void;
-    onCappellaTuningChange: (patch: Partial<CappellaTuning>) => void;
-    onResetCappellaTuning: () => void;
-    onTiltTuningChange: (patch: Partial<TiltTuning>) => void;
-    onResetTiltTuning: () => void;
-    onImportCappellaCustomEmojiPack: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
-    onClearCappellaCustomEmojiPack: () => Promise<void> | void;
-    isLoadingCappellaCustomEmojiPack: boolean;
-    lyricsFontStyle: Theme['fontStyle'];
-    lyricsFontScale: number;
-    lyricsCustomFontFamily: string | null;
-    lyricsCustomFontLabel: string | null;
-    lyricFilterPattern: string;
-    currentSongTitle?: string | null;
-    showOpenPanelCloseButton: boolean;
-    onLyricsFontStyleChange: (fontStyle: Theme['fontStyle']) => void;
-    onLyricsFontScaleChange: (fontScale: number) => void;
-    onLyricsCustomFontChange: (font: StoredCustomLyricsFont | null) => void;
-    onLyricsCustomFontUpload: (file: File) => Promise<{ ok: boolean; error?: string; }>;
-    loadLyricFilterPreview: () => Promise<LyricData | null>;
-    onSaveLyricFilterPattern: (pattern: string) => Promise<void> | void;
-    onToggleOpenPanelCloseButton: (enable: boolean) => void;
     onSearchCommitted: (query: string, sourceTab: HomeViewTab, replace?: boolean) => void;
     stageEnabled?: boolean;
     stageSource?: StageSource | null;
@@ -146,13 +76,7 @@ interface HomeProps {
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
     onClearStageState?: () => Promise<void> | void;
-    enableNowPlayingStage?: boolean;
-    onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
-    nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
-    queueAddBehavior: QueueAddBehavior;
-    onQueueAddBehaviorChange: (behavior: QueueAddBehavior) => void;
-    audioOutputDeviceId: string;
-    onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
+    theme: Theme;
     onOpenSettings?: (initialTab?: 'help' | 'options') => void;
     navidromeEnabled?: boolean;
 }
@@ -192,77 +116,6 @@ const Home: React.FC<HomeProps> = ({
     setNavidromeFocusedAlbumIndex,
     pendingNavidromeSelection = null,
     onPendingNavidromeSelectionHandled,
-    staticMode = false,
-    disableHomeDynamicBackground = false,
-    hidePlayerProgressBar = false,
-    hidePlayerTranslationSubtitle = false,
-    hidePlayerRightPanelButton = false,
-    transparentPlayerBackground = false,
-    disableVisualizerVignette = false,
-    disableVisualizerGeometricBackground = false,
-    minimizeToTray = false,
-    hideTaskbarIcon = false,
-    openPlayerOnLaunch = false,
-    onToggleStaticMode,
-    onToggleDisableHomeDynamicBackground,
-    onToggleHidePlayerProgressBar,
-    onToggleHidePlayerTranslationSubtitle,
-    onToggleHidePlayerRightPanelButton,
-    onToggleTransparentPlayerBackground,
-    onToggleDisableVisualizerVignette,
-    onToggleDisableVisualizerGeometricBackground,
-    onToggleMinimizeToTray,
-    onToggleHideTaskbarIcon,
-    onToggleOpenPlayerOnLaunch,
-    enableMediaCache = false,
-    onToggleMediaCache,
-    theme,
-    backgroundOpacity,
-    setBackgroundOpacity,
-    bgMode,
-    onApplyDefaultTheme,
-    hasCustomTheme,
-    themeParkInitialTheme,
-    isCustomThemePreferred,
-    songThemeAutoSwitchEnabled,
-    onSaveCustomTheme,
-    onApplyCustomTheme,
-    onToggleCustomThemePreferred,
-    onToggleSongThemeAutoSwitch,
-    isDaylight,
-    visualizerMode,
-    cadenzaTuning,
-    partitaTuning,
-    fumeTuning,
-    cappellaTuning,
-    tiltTuning,
-    cappellaCustomEmojiImages,
-    onVisualizerModeChange,
-    onPartitaTuningChange,
-    onResetPartitaTuning,
-    onFumeTuningChange,
-    onResetFumeTuning,
-    onCappellaTuningChange,
-    onResetCappellaTuning,
-    onTiltTuningChange,
-    onResetTiltTuning,
-    onImportCappellaCustomEmojiPack,
-    onClearCappellaCustomEmojiPack,
-    isLoadingCappellaCustomEmojiPack,
-    lyricsFontStyle,
-    lyricsFontScale,
-    lyricsCustomFontFamily,
-    lyricsCustomFontLabel,
-    lyricFilterPattern,
-    currentSongTitle,
-    showOpenPanelCloseButton,
-    onLyricsFontStyleChange,
-    onLyricsFontScaleChange,
-    onLyricsCustomFontChange,
-    onLyricsCustomFontUpload,
-    loadLyricFilterPreview,
-    onSaveLyricFilterPattern,
-    onToggleOpenPanelCloseButton,
     onSearchCommitted,
     stageEnabled = false,
     stageSource = null,
@@ -273,17 +126,12 @@ const Home: React.FC<HomeProps> = ({
     onStageSourceChange,
     onRegenerateStageToken,
     onClearStageState,
-    enableNowPlayingStage = false,
-    onToggleNowPlayingStage,
-    nowPlayingConnectionStatus = 'disabled',
-    queueAddBehavior,
-    onQueueAddBehaviorChange,
-    audioOutputDeviceId,
-    onAudioOutputDeviceChange,
+    theme,
     onOpenSettings,
     navidromeEnabled = false,
 }) => {
     const { t } = useTranslation();
+    const isDaylight = useSettingsUiStore(state => state.isDaylight);
     const {
         homeViewTab,
         setHomeViewTab,

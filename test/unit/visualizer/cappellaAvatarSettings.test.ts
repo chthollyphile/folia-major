@@ -25,7 +25,7 @@ describe('Cappella avatar tuning', () => {
     it('falls back to cover for an invalid stored avatar source', () => {
         expect(resolveStoredCappellaTuning({
             avatarSource: 'missing-source',
-        } as Partial<CappellaTuning>).avatarSource).toBe('cover');
+        } as unknown as Partial<CappellaTuning>).avatarSource).toBe('cover');
     });
 });
 
