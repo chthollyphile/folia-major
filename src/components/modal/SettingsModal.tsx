@@ -697,13 +697,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/82' : 'bg-zinc-900/95';
+    const subviewPanelBg = isDaylight ? 'bg-zinc-200' : 'bg-zinc-900';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
     const textColor = isDaylight ? 'text-zinc-800' : 'text-zinc-100';
     const successTextColor = isDaylight ? 'text-green-600' : 'text-green-400';
     const successBgColor = isDaylight ? 'bg-green-500/10' : 'bg-green-500/20';
     const errorTextColor = isDaylight ? 'text-red-600' : 'text-red-400';
     const errorBgColor = isDaylight ? 'bg-red-500/10' : 'bg-red-500/10';
-    const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
+    const overlayBackground = isDaylight ? 'rgba(0,0,0,0.32)' : 'rgba(0,0,0,0.5)';
     const toggleOffBackgroundClass = isDaylight ? 'bg-zinc-300/90' : 'bg-white/10';
     const accentOutlineColor = theme?.accentColor || (isDaylight ? '#44403c' : '#f4f4f5');
     const settingsCardClass = isDaylight
@@ -749,6 +750,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         initial: { opacity: 0, x: 18 },
         animate: { opacity: 1, x: 0 },
         exit: { opacity: 0, x: -18 },
+    };
+    // Close only the active overlay layer when its own backdrop is clicked.
+    const handleBackdropClose = (event: React.MouseEvent<HTMLDivElement>, onCloseOverlay: () => void) => {
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+
+        event.stopPropagation();
+        onCloseOverlay();
     };
     const visualizerModeOptions = VISUALIZER_REGISTRY.map(entry => ({
         mode: entry.mode,
@@ -803,14 +813,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={shellTransition}
-                    className="fixed inset-0 backdrop-blur-xl px-3 pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+                    className="fixed inset-0 backdrop-blur-xl p-3 sm:p-5"
                     style={{ backgroundColor: overlayBackground, zIndex }}
-                    onClick={handleClose}
+                    onClick={(event) => handleBackdropClose(event, handleClose)}
                 >
                     <motion.div
                         {...panelMotion}
                         transition={shellTransition}
-                        className={`mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
+                        className={`mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${subviewPanelBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
@@ -894,12 +904,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             exit={{ opacity: 0 }}
             transition={shellTransition}
             data-folia-keyboard-window="true"
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+            className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-xl px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+            style={{ backgroundColor: overlayBackground }}
+            onClick={(event) => handleBackdropClose(event, onClose)}
         >
             <motion.div
                 {...panelMotion}
                 transition={shellTransition}
                 className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl overflow-hidden flex flex-col max-h-[85vh]`}
+                onClick={(event) => event.stopPropagation()}
             >
                 <button
                     onClick={onClose}
@@ -3326,14 +3339,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={shellTransition}
-                    className="fixed inset-0 z-[136] backdrop-blur-xl px-3 pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+                    className="fixed inset-0 z-[136] backdrop-blur-xl p-3 sm:p-5"
                     style={{ backgroundColor: overlayBackground }}
                     onClick={() => setShowLabSettings(false)}
                 >
                     <motion.div
                         {...panelMotion}
                         transition={shellTransition}
-                        className={`mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
+                        className={`mx-auto flex h-full max-w-3xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${subviewPanelBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">

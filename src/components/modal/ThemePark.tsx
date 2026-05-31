@@ -426,7 +426,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed inset-0 z-[140] backdrop-blur-xl px-3 pt-3 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(5rem+env(safe-area-inset-bottom))]"
+            className="fixed inset-0 z-[140] backdrop-blur-xl p-3 sm:p-5"
             style={{ backgroundColor: overlayBackground }}
             onClick={onClose}
         >

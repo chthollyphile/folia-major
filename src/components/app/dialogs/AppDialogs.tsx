@@ -24,7 +24,7 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
                         initial={{ opacity: 0, y: -20, x: '-50%' }}
                         animate={{ opacity: 1, y: 30, x: '-50%' }}
                         exit={{ opacity: 0, y: -20, x: '-50%' }}
-                        className={`absolute top-0 left-1/2 z-[70] px-6 py-3 backdrop-blur-md rounded-full font-medium text-sm shadow-xl flex items-center gap-3 ${statusToast.onAction || statusToast.onCancel ? 'pointer-events-auto' : 'pointer-events-none'} ${statusToast.isDaylight ? 'bg-white/70 text-zinc-800 border border-black/5' : 'bg-white/10 text-white'}`}
+                        className={`fixed top-0 left-1/2 z-[180] px-6 py-3 backdrop-blur-md rounded-full font-medium text-sm shadow-xl flex items-center gap-3 ${statusToast.onAction || statusToast.onCancel ? 'pointer-events-auto' : 'pointer-events-none'} ${statusToast.isDaylight ? 'bg-white/70 text-zinc-800 border border-black/5' : 'bg-white/10 text-white'}`}
                     >
                         {statusToast.type === 'error'
                             ? <AlertCircle size={18} className={statusToast.isDaylight ? 'text-red-500' : 'text-red-400'} />
@@ -57,7 +57,9 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
             {lyricMatchDialog && <LyricMatchModal {...lyricMatchDialog} />}
             {naviLyricMatchDialog && <NaviLyricMatchModal {...naviLyricMatchDialog} />}
             {unavailableReplacementDialog && <UnavailableReplacementDialog {...unavailableReplacementDialog} />}
-            {settingsDialog && <SettingsModal {...settingsDialog} />}
+            <AnimatePresence>
+                {settingsDialog && <SettingsModal {...settingsDialog} />}
+            </AnimatePresence>
         </>
     );
 };

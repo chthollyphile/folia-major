@@ -109,7 +109,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={shellTransition}
-                    className="fixed inset-0 z-[140] backdrop-blur-xl px-3 pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+                    className="fixed inset-0 z-[140] backdrop-blur-xl p-3 sm:p-5"
                     style={{ backgroundColor: overlayBackground }}
                     onClick={onClose}
                 >
