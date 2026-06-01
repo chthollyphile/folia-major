@@ -132,10 +132,7 @@ export const isNodeVisibleInLayer = (
         return false;
     }
 
-    const layerNodeIds = new Set(complex.nodes
-        .filter(item => item.role === LAYER_NODE_ROLES[layer])
-        .map(item => item.id));
-    return complex.edges.some(edge => edge.source === node.id && layerNodeIds.has(edge.target));
+    return true;
 };
 
 export const toLayerFlowNodes = (

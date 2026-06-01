@@ -108,6 +108,9 @@ describe('visEditor flow model', () => {
         const lyricsNodeIds = toLayerFlowNodes(complex, 'lyrics').map(node => node.id);
         const overlayNodeIds = toLayerFlowNodes(complex, 'overlay').map(node => node.id);
 
+        expect(backgroundNodeIds).toContain('input-song');
+        expect(lyricsNodeIds).toContain('input-song');
+        expect(overlayNodeIds).toContain('input-song');
         expect(backgroundNodeIds).toContain('bg-geometric');
         expect(backgroundNodeIds).not.toContain('main-classic');
         expect(lyricsNodeIds).toContain('main-classic');

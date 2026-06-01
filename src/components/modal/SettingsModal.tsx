@@ -8,6 +8,7 @@ import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPass
 import { NavidromeConfig } from '../../types/navidrome';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel } from '../visualizer/registry';
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
+import ThemePark from './ThemePark';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { CustomSelect } from '../shared/CustomSelect';
@@ -71,6 +72,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     themeParkInitialTheme,
     isCustomThemePreferred,
     songThemeAutoSwitchEnabled,
+    onSaveCustomTheme,
     onApplyCustomTheme,
     onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
@@ -105,6 +107,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         backgroundOpacity,
         isDaylight,
         visualizerMode,
+        cadenzaTuning,
+        partitaTuning,
+        fumeTuning,
+        cappellaTuning,
+        cappellaCustomEmojiImages,
+        lyricsFontStyle,
+        lyricsFontScale,
+        lyricsCustomFontFamily,
         lyricFilterPattern,
         showOpenPanelCloseButton,
         enableNowPlayingStage,
@@ -130,6 +140,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const setIsSubSettingsViewOpen = useSettingsUiStore(state => state.setIsSubSettingsViewOpen);
     const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
     const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
+    const [showThemePark, setShowThemePark] = useState(false);
     const [showPlaybackSettings, setShowPlaybackSettings] = useState(false);
     const [audioOutputDevices, setAudioOutputDevices] = useState<AudioOutputDeviceOption[]>([]);
     const [isAudioOutputDevicesLoading, setIsAudioOutputDevicesLoading] = useState(false);
@@ -2106,6 +2117,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <span className="text-xs opacity-80" style={{ color: 'var(--text-primary)' }}>{t('options.customTheme') || "Custom"}</span>
                                         </button>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowThemePark(true)}
+                                        className={`w-full p-3 rounded-xl border transition-colors text-left ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-8 h-8 rounded-full border shrink-0" style={{ background: `linear-gradient(135deg, ${themeParkInitialTheme.light.primaryColor}, ${themeParkInitialTheme.dark.accentColor})`, borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.15)' }} />
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.themePark') || '自定义主题'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 truncate" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.themeParkDesc') || '编辑亮色和暗色模式的四组主题颜色。'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                        </div>
+                                    </button>
                                     <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${settingsCardClass}`}>
                                         <div className="space-y-1">
                                             <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -3273,6 +3304,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClose={() => setShowLyricFilterSettings(false)}
                 onSave={onSaveLyricFilterPattern}
             />
+            <AnimatePresence>
+                {showThemePark ? (
+                    <ThemePark
+                        initialTheme={themeParkInitialTheme}
+                        isDaylight={isDaylight}
+                        visualizerMode={visualizerMode}
+                        staticMode={staticMode}
+                        backgroundOpacity={backgroundOpacity}
+                        cadenzaTuning={cadenzaTuning}
+                        partitaTuning={partitaTuning}
+                        fumeTuning={fumeTuning}
+                        cappellaTuning={cappellaTuning}
+                        cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                        lyricsFontStyle={lyricsFontStyle}
+                        lyricsFontScale={lyricsFontScale}
+                        lyricsCustomFontFamily={lyricsCustomFontFamily}
+                        onClose={() => setShowThemePark(false)}
+                        onSaveTheme={onSaveCustomTheme}
+                    />
+                ) : null}
+            </AnimatePresence>
         </motion.div>
     );
 };
