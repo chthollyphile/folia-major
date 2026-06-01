@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import type { VisualizerSharedProps } from './definition';
 import type { VisualizerBgNode, VisualizerComplexV1, VisualizerMainNode, VisualizerOverlayNode } from './complex';
 import { getOrderedComplexNodes } from './complex';
+import { resolveVisualizerNodeProps } from './complexRuntime';
 import FluidBackground from './FluidBackground';
 import GeometricBackground from './GeometricBackground';
 import VisualizerRenderer from './VisualizerRenderer';
@@ -102,15 +103,29 @@ const renderMainNode = (node: VisualizerMainNode, props: VisualizerSharedProps) 
 const renderOverlayNode = (
     node: VisualizerOverlayNode,
     props: VisualizerSharedProps,
-    runtime: ReturnType<typeof useVisualizerRuntime>,
 ) => {
     if (node.kind !== 'subtitle') {
         return null;
     }
 
+    return <VisualizerOverlayLayer key={node.id} node={node} props={props} />;
+};
+
+const VisualizerOverlayLayer = ({
+    node,
+    props,
+}: {
+    node: VisualizerOverlayNode;
+    props: VisualizerSharedProps;
+}) => {
+    const runtime = useVisualizerRuntime({
+        lines: props.lines,
+        currentLineIndex: props.currentLineIndex,
+        currentTime: props.currentTime,
+    });
+
     return (
         <VisualizerSubtitleOverlay
-            key={node.id}
             showText={Boolean(props.showText)}
             activeLine={runtime.activeLine}
             recentCompletedLine={runtime.recentCompletedLine}
@@ -129,11 +144,6 @@ const VisualizerComplexRenderer: React.FC<VisualizerComplexRendererProps> = ({ c
     const backgroundNodes = getOrderedComplexNodes(complex, 'visualizerBg', complex.output.bgNodeIds);
     const mainNodes = getOrderedComplexNodes(complex, 'visualizerMain', complex.output.mainNodeIds);
     const overlayNodes = getOrderedComplexNodes(complex, 'visualizerOverlay', complex.output.overlayNodeIds);
-    const runtime = useVisualizerRuntime({
-        lines: props.lines,
-        currentLineIndex: props.currentLineIndex,
-        currentTime: props.currentTime,
-    });
 
     return (
         <div
@@ -141,11 +151,11 @@ const VisualizerComplexRenderer: React.FC<VisualizerComplexRendererProps> = ({ c
             style={{ backgroundColor: props.transparentBackground ? 'transparent' : props.theme.backgroundColor }}
         >
             <AnimatePresence>
-                {backgroundNodes.map(node => renderBackgroundNode(node, props))}
+                {backgroundNodes.map(node => renderBackgroundNode(node, resolveVisualizerNodeProps(complex, node, props)))}
             </AnimatePresence>
 
             {mainNodes.length > 0
-                ? mainNodes.map(node => renderMainNode(node, props))
+                ? mainNodes.map(node => renderMainNode(node, resolveVisualizerNodeProps(complex, node, props)))
                 : (
                     <VisualizerRenderer
                         {...props}
@@ -153,7 +163,7 @@ const VisualizerComplexRenderer: React.FC<VisualizerComplexRendererProps> = ({ c
                     />
                 )}
 
-            {overlayNodes.map(node => renderOverlayNode(node, props, runtime))}
+            {overlayNodes.map(node => renderOverlayNode(node, resolveVisualizerNodeProps(complex, node, props)))}
         </div>
     );
 };

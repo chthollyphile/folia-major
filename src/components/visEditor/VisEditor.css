@@ -287,8 +287,9 @@
 }
 
 .vis-editor-node {
+    position: relative;
     min-width: 10.8rem;
-    max-width: 12.2rem;
+    max-width: 14.2rem;
     border: 1px solid rgba(141, 163, 215, 0.23);
     border-radius: 0.72rem;
     padding: 0.75rem;
@@ -390,12 +391,60 @@
     line-height: 1.35;
 }
 
+.vis-editor-node__ports {
+    display: grid;
+    gap: 0.28rem;
+    margin-top: 0.68rem;
+}
+
+.vis-editor-node__port {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem;
+    align-items: center;
+    border: 1px solid rgba(122, 154, 214, 0.12);
+    border-radius: 0.42rem;
+    padding: 0.26rem 0.38rem;
+    color: rgba(232, 239, 255, 0.72);
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.66rem;
+}
+
+.vis-editor-node__port span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vis-editor-node__port em {
+    color: rgba(182, 204, 255, 0.42);
+    font-size: 0.58rem;
+    font-style: normal;
+}
+
+.vis-editor-node__port--target {
+    padding-left: 0.62rem;
+}
+
+.vis-editor-node__port--source {
+    padding-right: 0.62rem;
+}
+
 .vis-editor .react-flow__handle {
     width: 0.75rem;
     height: 0.75rem;
     border: 2px solid rgba(255, 255, 255, 0.86);
     background: var(--vis-editor-blue);
     box-shadow: 0 0 16px rgba(92, 141, 255, 0.65);
+}
+
+.vis-editor-node__port .react-flow__handle-left {
+    left: -0.38rem;
+}
+
+.vis-editor-node__port .react-flow__handle-right {
+    right: -0.38rem;
 }
 
 .vis-editor .react-flow__controls,
@@ -569,6 +618,37 @@
     min-width: 0;
     overflow: hidden;
     color: var(--vis-editor-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vis-editor-port-bindings {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0 1rem 1rem;
+}
+
+.vis-editor-port-binding {
+    display: grid;
+    grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+    border: 1px solid rgba(119, 150, 209, 0.12);
+    border-radius: 0.55rem;
+    padding: 0.45rem 0.55rem;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.74rem;
+}
+
+.vis-editor-port-binding span {
+    color: var(--vis-editor-muted);
+}
+
+.vis-editor-port-binding strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--vis-editor-text);
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
 }

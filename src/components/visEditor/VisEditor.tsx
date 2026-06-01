@@ -28,15 +28,18 @@ import {
     layoutComplexNodes,
     reconnectFlowEdge,
     removeComplexEdge,
-    toFlowEdges,
-    toFlowNodes,
+    isNodeVisibleInLayer,
+    toLayerFlowEdges,
+    toLayerFlowNodes,
     updateComplexNodePosition,
     type AddComplexNodeRequest,
+    type VisEditorLayerView,
     type VisFlowEdge,
     type VisFlowNode,
 } from './flowModel';
 import { buildNodePaletteGroups } from './nodePalette';
 import type { VisEditorProps } from './types';
+import { canConnectPorts } from '../visualizer/portRegistry';
 
 // Full-screen visualizer complex editor composed from a graph canvas, preview, and inspector.
 const nodeTypes: NodeTypes = {
@@ -77,19 +80,29 @@ const VisEditorInner = ({
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(complex.nodes[0]?.id ?? null);
     const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-    const [activeLayer, setActiveLayer] = useState<'background' | 'lyrics' | 'overlay'>('lyrics');
+    const [activeLayer, setActiveLayer] = useState<VisEditorLayerView>('lyrics');
     const [zoomPercent, setZoomPercent] = useState(100);
-    const [flowNodes, setFlowNodes] = useState<VisFlowNode[]>(() => toFlowNodes(complex));
-    const edges = useMemo(() => toFlowEdges(complex), [complex]);
-    const paletteGroups = useMemo(() => buildNodePaletteGroups(), []);
+    const [flowNodes, setFlowNodes] = useState<VisFlowNode[]>(() => toLayerFlowNodes(complex, activeLayer));
+    const edges = useMemo(() => toLayerFlowEdges(complex, activeLayer), [activeLayer, complex]);
+    const paletteGroups = useMemo(() => buildNodePaletteGroups(activeLayer), [activeLayer]);
+    const visibleNodeIds = useMemo(() => new Set(flowNodes.map(node => node.id)), [flowNodes]);
 
     useEffect(() => {
         if (isDraggingNodeRef.current) {
             return;
         }
 
-        setFlowNodes(toFlowNodes(complex));
-    }, [complex]);
+        setFlowNodes(toLayerFlowNodes(complex, activeLayer));
+    }, [activeLayer, complex]);
+
+    useEffect(() => {
+        if (selectedNodeId && !isNodeVisibleInLayer(complex, selectedNodeId, activeLayer)) {
+            setSelectedNodeId(flowNodes[0]?.id ?? null);
+        }
+        if (selectedEdgeId && !edges.some(edge => edge.id === selectedEdgeId)) {
+            setSelectedEdgeId(null);
+        }
+    }, [activeLayer, complex, edges, flowNodes, selectedEdgeId, selectedNodeId]);
 
     const onNodesChange = useCallback((changes: NodeChange<VisFlowNode>[]) => {
         setFlowNodes(current => applyNodeChanges(changes, current));
@@ -135,6 +148,15 @@ const VisEditorInner = ({
         setContextMenu(null);
         onChange(connectFlowNodes(complex, connection));
     }, [complex, onChange]);
+
+    const isValidConnection = useCallback((connection: Edge | Connection) => (
+        canConnectPorts(
+            complex.nodes.find(node => node.id === connection.source),
+            connection.sourceHandle,
+            complex.nodes.find(node => node.id === connection.target),
+            connection.targetHandle,
+        )
+    ), [complex.nodes]);
 
     const onReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
         setContextMenu(null);
@@ -190,6 +212,12 @@ const VisEditorInner = ({
         onChange(layoutComplexNodes(complex));
     }, [complex, onChange]);
 
+    const switchLayer = useCallback((layer: VisEditorLayerView) => {
+        setActiveLayer(layer);
+        setContextMenu(null);
+        setSelectedEdgeId(null);
+    }, []);
+
     const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
         if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
             event.preventDefault();
@@ -236,9 +264,9 @@ const VisEditorInner = ({
                             <div>
                                 <div className="vis-editor-panel-title">视觉流程</div>
                                 <div className="vis-editor-layer-tabs" aria-label="流程层级">
-                                    <button type="button" className={activeLayer === 'background' ? 'is-active' : ''} onClick={() => setActiveLayer('background')}>背景层</button>
-                                    <button type="button" className={activeLayer === 'lyrics' ? 'is-active' : ''} onClick={() => setActiveLayer('lyrics')}>歌词层</button>
-                                    <button type="button" className={activeLayer === 'overlay' ? 'is-active' : ''} onClick={() => setActiveLayer('overlay')}>装饰层</button>
+                                    <button type="button" className={activeLayer === 'background' ? 'is-active' : ''} onClick={() => switchLayer('background')}>背景层</button>
+                                    <button type="button" className={activeLayer === 'lyrics' ? 'is-active' : ''} onClick={() => switchLayer('lyrics')}>歌词层</button>
+                                    <button type="button" className={activeLayer === 'overlay' ? 'is-active' : ''} onClick={() => switchLayer('overlay')}>装饰层</button>
                                 </div>
                             </div>
                             <FlowToolbar
@@ -259,9 +287,13 @@ const VisEditorInner = ({
                                 onNodeDragStop={onNodeDragStop}
                                 onEdgesChange={onEdgesChange}
                                 onConnect={onConnect}
+                                isValidConnection={isValidConnection}
                                 onReconnect={onReconnect}
                                 edgesReconnectable
                                 onNodeClick={(_, node) => {
+                                    if (!visibleNodeIds.has(node.id)) {
+                                        return;
+                                    }
                                     setSelectedNodeId(node.id);
                                     setSelectedEdgeId(null);
                                     setContextMenu(null);

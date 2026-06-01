@@ -10,6 +10,7 @@ import type {
     VisualizerNodeRole,
 } from '../visualizer/complex';
 import type { VisualizerMode } from '../../types';
+import { canConnectPorts, getNodeSourcePorts, getNodeTargetPorts, getPortLabel } from '../visualizer/portRegistry';
 
 // Converts the persisted complex schema to and from React Flow's transient graph model.
 export interface FlowNodeData extends Record<string, unknown> {
@@ -20,11 +21,14 @@ export interface FlowNodeData extends Record<string, unknown> {
     opacity?: number;
     mode?: string;
     summary: string[];
+    sourcePorts: ReturnType<typeof getNodeSourcePorts>;
+    targetPorts: ReturnType<typeof getNodeTargetPorts>;
 }
 
 export type VisFlowNodeType = 'inputNode' | 'backgroundNode' | 'mainRendererNode' | 'overlayNode' | 'outputNode';
 export type VisFlowNode = Node<FlowNodeData, VisFlowNodeType>;
 export type VisFlowEdge = Edge;
+export type VisEditorLayerView = 'background' | 'lyrics' | 'overlay';
 
 export type AddComplexNodeRequest =
     | { role: 'input'; kind: VisualizerInputKind; label: string; position?: { x: number; y: number; }; }
@@ -87,6 +91,8 @@ export const toFlowNodes = (complex: VisualizerComplexV1): VisFlowNode[] =>
             opacity: 'config' in node ? node.config.opacity : undefined,
             mode: node.role === 'visualizerMain' ? node.config.mode : undefined,
             summary: summarizeNode(node),
+            sourcePorts: getNodeSourcePorts(node),
+            targetPorts: getNodeTargetPorts(node),
         },
     }));
 
@@ -94,10 +100,59 @@ export const toFlowEdges = (complex: VisualizerComplexV1): VisFlowEdge[] =>
     complex.edges.map(edge => ({
         id: edge.id,
         source: edge.source,
+        sourceHandle: edge.sourceHandle,
         target: edge.target,
+        targetHandle: edge.targetHandle,
         animated: true,
         selectable: true,
+        label: `${getPortLabel(complex.nodes.find(node => node.id === edge.source), edge.sourceHandle, 'source')} → ${getPortLabel(complex.nodes.find(node => node.id === edge.target), edge.targetHandle, 'target')}`,
     }));
+
+const LAYER_NODE_ROLES: Record<VisEditorLayerView, VisualizerNodeRole> = {
+    background: 'visualizerBg',
+    lyrics: 'visualizerMain',
+    overlay: 'visualizerOverlay',
+};
+
+export const isNodeVisibleInLayer = (
+    complex: VisualizerComplexV1,
+    nodeId: string,
+    layer: VisEditorLayerView,
+) => {
+    const node = complex.nodes.find(item => item.id === nodeId);
+    if (!node) {
+        return false;
+    }
+
+    if (node.role === 'output' || node.role === LAYER_NODE_ROLES[layer]) {
+        return true;
+    }
+
+    if (node.role !== 'input') {
+        return false;
+    }
+
+    const layerNodeIds = new Set(complex.nodes
+        .filter(item => item.role === LAYER_NODE_ROLES[layer])
+        .map(item => item.id));
+    return complex.edges.some(edge => edge.source === node.id && layerNodeIds.has(edge.target));
+};
+
+export const toLayerFlowNodes = (
+    complex: VisualizerComplexV1,
+    layer: VisEditorLayerView,
+): VisFlowNode[] => toFlowNodes(complex).filter(node => isNodeVisibleInLayer(complex, node.id, layer));
+
+export const toLayerFlowEdges = (
+    complex: VisualizerComplexV1,
+    layer: VisEditorLayerView,
+): VisFlowEdge[] => {
+    const visibleNodeIds = new Set(toLayerFlowNodes(complex, layer).map(node => node.id));
+    return toFlowEdges(complex).filter(edge => (
+        visibleNodeIds.has(edge.source)
+        && visibleNodeIds.has(edge.target)
+    ));
+};
 
 const createEmptyOutput = (): VisualizerComplexV1['output'] => ({
     bgNodeIds: [],
@@ -121,7 +176,7 @@ export const rebuildOutput = (
     const outputNodeIds = new Set(nodes.filter(node => node.role === 'output' && node.enabled).map(node => node.id));
 
     edges.forEach(edge => {
-        if (!outputNodeIds.has(edge.target)) {
+        if (!outputNodeIds.has(edge.target) || edge.targetHandle !== 'output.visualLayer') {
             return;
         }
 
@@ -148,8 +203,14 @@ export const rebuildOutput = (
     return output;
 };
 
-const ensureUniqueEdgeId = (edges: VisualizerComplexEdge[], source: string, target: string) => {
-    const baseId = `${source}-${target}`;
+const ensureUniqueEdgeId = (
+    edges: VisualizerComplexEdge[],
+    source: string,
+    sourceHandle: string,
+    target: string,
+    targetHandle: string,
+) => {
+    const baseId = `${source}-${sourceHandle.replace(/\W+/g, '-')}-${target}-${targetHandle.replace(/\W+/g, '-')}`;
     const usedIds = new Set(edges.map(edge => edge.id));
     if (!usedIds.has(baseId)) {
         return baseId;
@@ -194,7 +255,19 @@ export const applyFlowEdgeChanges = (
     const nodeIds = new Set(complex.nodes.map(node => node.id));
     const edges = flowEdges
         .filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-        .map(edge => ({ id: edge.id, source: edge.source, target: edge.target }));
+        .map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            sourceHandle: edge.sourceHandle ?? '',
+            target: edge.target,
+            targetHandle: edge.targetHandle ?? '',
+        }))
+        .filter(edge => canConnectPorts(
+            complex.nodes.find(node => node.id === edge.source),
+            edge.sourceHandle,
+            complex.nodes.find(node => node.id === edge.target),
+            edge.targetHandle,
+        ));
 
     return {
         ...complex,
@@ -208,7 +281,25 @@ export const reconnectFlowEdge = (
     oldEdge: Edge,
     connection: Connection,
 ) => {
-    if (!connection.source || !connection.target || oldEdge.source === connection.source && oldEdge.target === connection.target) {
+    if (
+        !connection.source
+        || !connection.sourceHandle
+        || !connection.target
+        || !connection.targetHandle
+        || oldEdge.source === connection.source
+            && oldEdge.sourceHandle === connection.sourceHandle
+            && oldEdge.target === connection.target
+            && oldEdge.targetHandle === connection.targetHandle
+    ) {
+        return complex;
+    }
+
+    if (!canConnectPorts(
+        complex.nodes.find(node => node.id === connection.source),
+        connection.sourceHandle,
+        complex.nodes.find(node => node.id === connection.target),
+        connection.targetHandle,
+    )) {
         return complex;
     }
 
@@ -228,24 +319,22 @@ export const connectFlowNodes = (
     complex: VisualizerComplexV1,
     connection: Connection,
 ) => {
-    if (!connection.source || !connection.target || connection.source === connection.target) {
+    if (!connection.source || !connection.sourceHandle || !connection.target || !connection.targetHandle || connection.source === connection.target) {
         return complex;
     }
 
     const sourceNode = complex.nodes.find(node => node.id === connection.source);
     const targetNode = complex.nodes.find(node => node.id === connection.target);
-    const canConnect = sourceNode?.role === 'input'
-        ? targetNode?.role === 'visualizerBg' || targetNode?.role === 'visualizerMain' || targetNode?.role === 'visualizerOverlay'
-        : (
-            sourceNode?.role === 'visualizerBg'
-            || sourceNode?.role === 'visualizerMain'
-            || sourceNode?.role === 'visualizerOverlay'
-        ) && targetNode?.role === 'output';
-    if (!canConnect) {
+    if (!canConnectPorts(sourceNode, connection.sourceHandle, targetNode, connection.targetHandle)) {
         return complex;
     }
 
-    const hasEdge = complex.edges.some(edge => edge.source === connection.source && edge.target === connection.target);
+    const hasEdge = complex.edges.some(edge => (
+        edge.source === connection.source
+        && edge.sourceHandle === connection.sourceHandle
+        && edge.target === connection.target
+        && edge.targetHandle === connection.targetHandle
+    ));
     if (hasEdge) {
         return complex;
     }
@@ -253,9 +342,11 @@ export const connectFlowNodes = (
     const edges = [
         ...complex.edges,
         {
-            id: ensureUniqueEdgeId(complex.edges, connection.source, connection.target),
+            id: ensureUniqueEdgeId(complex.edges, connection.source, connection.sourceHandle, connection.target, connection.targetHandle),
             source: connection.source,
+            sourceHandle: connection.sourceHandle,
             target: connection.target,
+            targetHandle: connection.targetHandle,
         },
     ];
 
@@ -367,9 +458,11 @@ const autoEdgesForNode = (complex: VisualizerComplexV1, node: VisualizerComplexN
     }
 
     return [{
-        id: ensureUniqueEdgeId(complex.edges, node.id, outputNode.id),
+        id: ensureUniqueEdgeId(complex.edges, node.id, 'layer.visual', outputNode.id, 'output.visualLayer'),
         source: node.id,
+        sourceHandle: 'layer.visual',
         target: outputNode.id,
+        targetHandle: 'output.visualLayer',
     }];
 };
 

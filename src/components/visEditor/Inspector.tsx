@@ -1,5 +1,7 @@
 import type { Theme } from '../../types';
 import type { VisualizerComplexNode, VisualizerComplexV1 } from '../visualizer/complex';
+import { getNodeTargetPorts, getPortLabel } from '../visualizer/portRegistry';
+import { rebuildOutput } from './flowModel';
 import { CheckboxField, FieldGroup, RangeField, renderMainModeControls } from './InspectorControls';
 
 // src/components/visEditor/Inspector.tsx
@@ -12,19 +14,13 @@ interface InspectorProps {
     onChange: (complex: VisualizerComplexV1) => void;
 }
 
-const updateOutput = (nodes: VisualizerComplexNode[]) => ({
-    bgNodeIds: nodes.filter(node => node.role === 'visualizerBg' && node.enabled).map(node => node.id),
-    mainNodeIds: nodes.filter(node => node.role === 'visualizerMain' && node.enabled).map(node => node.id),
-    overlayNodeIds: nodes.filter(node => node.role === 'visualizerOverlay' && node.enabled).map(node => node.id),
-});
-
 const updateNode = (
     complex: VisualizerComplexV1,
     nodeId: string,
     updater: (node: VisualizerComplexNode) => VisualizerComplexNode,
 ) => {
     const nodes = complex.nodes.map(node => (node.id === nodeId ? updater(node) : node));
-    return { ...complex, nodes, output: updateOutput(nodes) };
+    return { ...complex, nodes, output: rebuildOutput(nodes, complex.edges) };
 };
 
 const hasOpacityConfig = (node: VisualizerComplexNode): node is Extract<VisualizerComplexNode, { config: { opacity?: number } }> =>
@@ -48,6 +44,7 @@ const getInspectorDescription = (node: VisualizerComplexNode) => {
 
 export const Inspector = ({ complex, selectedNodeId, theme, isDaylight, onChange }: InspectorProps) => {
     const selectedNode = complex.nodes.find(node => node.id === selectedNodeId) ?? null;
+    const nodesById = new Map(complex.nodes.map(node => [node.id, node]));
 
     if (!selectedNode) {
         return (
@@ -83,6 +80,27 @@ export const Inspector = ({ complex, selectedNodeId, theme, isDaylight, onChange
                 <span>类型</span>
                 <strong>{selectedNode.kind}</strong>
             </div>
+
+            {getNodeTargetPorts(selectedNode).length > 0 ? (
+                <FieldGroup title="端口连接">
+                    <div className="vis-editor-port-bindings">
+                        {getNodeTargetPorts(selectedNode).map(port => {
+                            const incoming = complex.edges.find(edge => edge.target === selectedNode.id && edge.targetHandle === port.id);
+                            const sourceNode = incoming ? nodesById.get(incoming.source) : undefined;
+                            return (
+                                <div key={port.id} className="vis-editor-port-binding">
+                                    <span>{port.label}</span>
+                                    <strong>
+                                        {incoming && sourceNode
+                                            ? `${sourceNode.label} / ${getPortLabel(sourceNode, incoming.sourceHandle, 'source')}`
+                                            : '使用默认值'}
+                                    </strong>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </FieldGroup>
+            ) : null}
 
             {hasOpacityConfig(selectedNode) ? (
                 <RangeField

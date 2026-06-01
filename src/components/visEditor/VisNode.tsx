@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Box, Layers, Play, Sparkles, Type } from 'lucide-react';
 import type { FlowNodeData, VisFlowNode } from './flowModel';
+import type { VisualizerPortDefinition } from '../visualizer/portRegistry';
 
 // Shared React Flow node view for all visualizer complex roles.
 const ROLE_LABELS: Record<string, string> = {
@@ -30,6 +31,27 @@ const ROLE_ICONS = {
     output: Play,
 };
 
+const renderPorts = (
+    ports: VisualizerPortDefinition[],
+    type: 'source' | 'target',
+) => ports.map((port, index) => {
+    const top = `${((index + 1) / (ports.length + 1)) * 100}%`;
+    const isSource = type === 'source';
+
+    return (
+        <div key={port.id} className={`vis-editor-node__port vis-editor-node__port--${type}`}>
+            <Handle
+                id={port.id}
+                type={type}
+                position={isSource ? Position.Right : Position.Left}
+                style={{ top }}
+            />
+            <span>{port.label}</span>
+            <em>{port.dataType}</em>
+        </div>
+    );
+});
+
 export const VisNode = ({ data, selected }: NodeProps<VisFlowNode>) => {
     const nodeData = data as FlowNodeData;
     const roleClassName = ROLE_CLASS_NAMES[nodeData.role] ?? 'vis-editor-node--input';
@@ -37,7 +59,6 @@ export const VisNode = ({ data, selected }: NodeProps<VisFlowNode>) => {
 
     return (
         <div className={`vis-editor-node ${roleClassName} ${selected ? 'vis-editor-node--selected' : ''}`}>
-            {acceptsInput(nodeData.role) ? <Handle type="target" position={Position.Left} /> : null}
             <div className="vis-editor-node__head">
                 <div className="vis-editor-node__icon"><Icon size={16} /></div>
                 <div>
@@ -52,7 +73,16 @@ export const VisNode = ({ data, selected }: NodeProps<VisFlowNode>) => {
             <div className="vis-editor-node__summary">
                 {nodeData.summary.slice(0, 3).map(item => <span key={item}>{item}</span>)}
             </div>
-            {emitsOutput(nodeData.role) ? <Handle type="source" position={Position.Right} /> : null}
+            {acceptsInput(nodeData.role) && nodeData.targetPorts.length > 0 ? (
+                <div className="vis-editor-node__ports vis-editor-node__ports--target">
+                    {renderPorts(nodeData.targetPorts, 'target')}
+                </div>
+            ) : null}
+            {emitsOutput(nodeData.role) && nodeData.sourcePorts.length > 0 ? (
+                <div className="vis-editor-node__ports vis-editor-node__ports--source">
+                    {renderPorts(nodeData.sourcePorts, 'source')}
+                </div>
+            ) : null}
         </div>
     );
 };

@@ -48,7 +48,7 @@ describe('visualizer complex', () => {
     it('builds the default output stack', () => {
         const complex = createDefaultVisualizerComplex();
 
-        expect(complex.version).toBe(1);
+        expect(complex.version).toBe(2);
         expect(complex.output.bgNodeIds).toEqual(['bg-solid', 'bg-geometric', 'bg-vignette']);
         expect(complex.output.mainNodeIds).toEqual(['main-classic']);
         expect(complex.output.overlayNodeIds).toEqual(['overlay-subtitle']);
@@ -62,7 +62,7 @@ describe('visualizer complex', () => {
 
     it('normalizes node positions and opacity values', () => {
         const normalized = normalizeVisualizerComplex({
-            version: 1,
+            version: 2,
             nodes: [
                 {
                     id: 'bg',
@@ -75,7 +75,6 @@ describe('visualizer complex', () => {
                 },
             ],
             edges: [],
-            output: { bgNodeIds: ['bg'], mainNodeIds: [], overlayNodeIds: [] },
         });
 
         const node = normalized.nodes[0];
@@ -85,7 +84,7 @@ describe('visualizer complex', () => {
 
     it('normalizes concrete visualizer node parameters', () => {
         const normalized = normalizeVisualizerComplex({
-            version: 1,
+            version: 2,
             nodes: [
                 {
                     id: 'main',
@@ -112,7 +111,6 @@ describe('visualizer complex', () => {
                 },
             ],
             edges: [],
-            output: { bgNodeIds: [], mainNodeIds: ['main'], overlayNodeIds: [] },
         });
 
         const node = normalized.nodes[0];
@@ -127,7 +125,31 @@ describe('visualizer complex', () => {
         writeStoredVisualizerComplex(complex);
 
         const saved = JSON.parse(storage.getItem(VISUALIZER_COMPLEX_STORAGE_KEY) ?? 'null');
-        expect(saved.version).toBe(1);
+        expect(saved.version).toBe(2);
         expect(saved.output.mainNodeIds).toEqual(['main-classic']);
+    });
+
+    it('rejects invalid typed port edges while normalizing', () => {
+        const normalized = normalizeVisualizerComplex({
+            version: 2,
+            nodes: [
+                { id: 'input-theme', role: 'input', kind: 'theme', label: 'Theme', enabled: true, position: { x: 0, y: 0 } },
+                {
+                    id: 'main',
+                    role: 'visualizerMain',
+                    kind: 'mainRenderer',
+                    label: 'Main',
+                    enabled: true,
+                    position: { x: 0, y: 0 },
+                    config: { mode: 'classic', opacity: 1 },
+                },
+            ],
+            edges: [
+                { id: 'ok', source: 'input-theme', sourceHandle: 'theme.accentColor', target: 'main', targetHandle: 'theme.primaryColor' },
+                { id: 'bad', source: 'input-theme', sourceHandle: 'theme.accentColor', target: 'main', targetHandle: 'lyrics.lines' },
+            ],
+        });
+
+        expect(normalized.edges.map(edge => edge.id)).toEqual(['ok']);
     });
 });

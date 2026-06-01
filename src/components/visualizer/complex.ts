@@ -11,6 +11,7 @@ import {
     type TiltTuning,
     type VisualizerMode,
 } from '../../types';
+import { canConnectPorts } from './portRegistry';
 
 // src/components/visualizer/complex.ts
 // Owns the persisted visualizer complex schema and safe localStorage parsing.
@@ -99,11 +100,13 @@ export type VisualizerComplexNode =
 export interface VisualizerComplexEdge {
     id: string;
     source: string;
+    sourceHandle: string;
     target: string;
+    targetHandle: string;
 }
 
-export interface VisualizerComplexV1 {
-    version: 1;
+export interface VisualizerComplexV2 {
+    version: 2;
     nodes: VisualizerComplexNode[];
     edges: VisualizerComplexEdge[];
     output: {
@@ -113,7 +116,9 @@ export interface VisualizerComplexV1 {
     };
 }
 
-export const VISUALIZER_COMPLEX_STORAGE_KEY = 'visualizer_complex_v1';
+export type VisualizerComplexV1 = VisualizerComplexV2;
+
+export const VISUALIZER_COMPLEX_STORAGE_KEY = 'visualizer_complex_v2';
 
 const clampOpacity = (value: unknown, fallback: number) => {
     const parsed = typeof value === 'number' ? value : Number(value);
@@ -204,13 +209,14 @@ const normalizeTiltTuning = (value: unknown): TiltTuning | undefined => {
     };
 };
 
-export const createDefaultVisualizerComplex = (): VisualizerComplexV1 => ({
-    version: 1,
+export const createDefaultVisualizerComplex = (): VisualizerComplexV2 => ({
+    version: 2,
     nodes: [
         { id: 'input-theme', role: 'input', kind: 'theme', label: 'Theme', enabled: true, position: { x: 40, y: 40 } },
         { id: 'input-audio', role: 'input', kind: 'audio', label: 'Audio Bands', enabled: true, position: { x: 40, y: 150 } },
         { id: 'input-lyrics', role: 'input', kind: 'lyrics', label: 'Lyrics', enabled: true, position: { x: 40, y: 260 } },
         { id: 'input-song', role: 'input', kind: 'song', label: 'Song Metadata', enabled: true, position: { x: 40, y: 370 } },
+        { id: 'input-playback', role: 'input', kind: 'playback', label: 'Playback Time', enabled: true, position: { x: 40, y: 480 } },
         {
             id: 'bg-solid',
             role: 'visualizerBg',
@@ -259,17 +265,25 @@ export const createDefaultVisualizerComplex = (): VisualizerComplexV1 => ({
         { id: 'output-player', role: 'output', kind: 'playerOutput', label: 'Player Output', enabled: true, position: { x: 930, y: 210 } },
     ],
     edges: [
-        { id: 'theme-solid', source: 'input-theme', target: 'bg-solid' },
-        { id: 'theme-geometry', source: 'input-theme', target: 'bg-geometric' },
-        { id: 'audio-geometry', source: 'input-audio', target: 'bg-geometric' },
-        { id: 'lyrics-main', source: 'input-lyrics', target: 'main-classic' },
-        { id: 'theme-main', source: 'input-theme', target: 'main-classic' },
-        { id: 'lyrics-subtitle', source: 'input-lyrics', target: 'overlay-subtitle' },
-        { id: 'bg-solid-output', source: 'bg-solid', target: 'output-player' },
-        { id: 'bg-geometric-output', source: 'bg-geometric', target: 'output-player' },
-        { id: 'bg-vignette-output', source: 'bg-vignette', target: 'output-player' },
-        { id: 'main-output', source: 'main-classic', target: 'output-player' },
-        { id: 'subtitle-output', source: 'overlay-subtitle', target: 'output-player' },
+        { id: 'theme-background-solid', source: 'input-theme', sourceHandle: 'theme.backgroundColor', target: 'bg-solid', targetHandle: 'theme.backgroundColor' },
+        { id: 'theme-background-geometry', source: 'input-theme', sourceHandle: 'theme.backgroundColor', target: 'bg-geometric', targetHandle: 'theme.backgroundColor' },
+        { id: 'theme-primary-geometry', source: 'input-theme', sourceHandle: 'theme.primaryColor', target: 'bg-geometric', targetHandle: 'theme.primaryColor' },
+        { id: 'theme-accent-geometry', source: 'input-theme', sourceHandle: 'theme.accentColor', target: 'bg-geometric', targetHandle: 'theme.accentColor' },
+        { id: 'theme-secondary-geometry', source: 'input-theme', sourceHandle: 'theme.secondaryColor', target: 'bg-geometric', targetHandle: 'theme.secondaryColor' },
+        { id: 'audio-power-geometry', source: 'input-audio', sourceHandle: 'audio.power', target: 'bg-geometric', targetHandle: 'audio.power' },
+        { id: 'audio-bands-geometry', source: 'input-audio', sourceHandle: 'audio.bands', target: 'bg-geometric', targetHandle: 'audio.bands' },
+        { id: 'lyrics-lines-main', source: 'input-lyrics', sourceHandle: 'lyrics.lines', target: 'main-classic', targetHandle: 'lyrics.lines' },
+        { id: 'playback-main', source: 'input-playback', sourceHandle: 'playback.currentTime', target: 'main-classic', targetHandle: 'playback.currentTime' },
+        { id: 'theme-primary-main', source: 'input-theme', sourceHandle: 'theme.primaryColor', target: 'main-classic', targetHandle: 'theme.primaryColor' },
+        { id: 'theme-accent-main', source: 'input-theme', sourceHandle: 'theme.accentColor', target: 'main-classic', targetHandle: 'theme.accentColor' },
+        { id: 'theme-secondary-main', source: 'input-theme', sourceHandle: 'theme.secondaryColor', target: 'main-classic', targetHandle: 'theme.secondaryColor' },
+        { id: 'lyrics-translation-subtitle', source: 'input-lyrics', sourceHandle: 'lyrics.translationLines', target: 'overlay-subtitle', targetHandle: 'lyrics.lines' },
+        { id: 'theme-secondary-subtitle', source: 'input-theme', sourceHandle: 'theme.secondaryColor', target: 'overlay-subtitle', targetHandle: 'theme.secondaryColor' },
+        { id: 'bg-solid-output', source: 'bg-solid', sourceHandle: 'layer.visual', target: 'output-player', targetHandle: 'output.visualLayer' },
+        { id: 'bg-geometric-output', source: 'bg-geometric', sourceHandle: 'layer.visual', target: 'output-player', targetHandle: 'output.visualLayer' },
+        { id: 'bg-vignette-output', source: 'bg-vignette', sourceHandle: 'layer.visual', target: 'output-player', targetHandle: 'output.visualLayer' },
+        { id: 'main-output', source: 'main-classic', sourceHandle: 'layer.visual', target: 'output-player', targetHandle: 'output.visualLayer' },
+        { id: 'subtitle-output', source: 'overlay-subtitle', sourceHandle: 'layer.visual', target: 'output-player', targetHandle: 'output.visualLayer' },
     ],
     output: {
         bgNodeIds: ['bg-solid', 'bg-geometric', 'bg-vignette'],
@@ -364,11 +378,24 @@ const normalizeNode = (node: unknown): VisualizerComplexNode | null => {
 };
 
 const normalizeEdge = (edge: unknown): VisualizerComplexEdge | null => {
-    if (!isRecord(edge) || typeof edge.id !== 'string' || typeof edge.source !== 'string' || typeof edge.target !== 'string') {
+    if (
+        !isRecord(edge)
+        || typeof edge.id !== 'string'
+        || typeof edge.source !== 'string'
+        || typeof edge.sourceHandle !== 'string'
+        || typeof edge.target !== 'string'
+        || typeof edge.targetHandle !== 'string'
+    ) {
         return null;
     }
 
-    return { id: edge.id, source: edge.source, target: edge.target };
+    return {
+        id: edge.id,
+        source: edge.source,
+        sourceHandle: edge.sourceHandle,
+        target: edge.target,
+        targetHandle: edge.targetHandle,
+    };
 };
 
 const appendUnique = (ids: string[], id: string) => {
@@ -381,8 +408,8 @@ const appendUnique = (ids: string[], id: string) => {
 const deriveOutputFromEdges = (
     nodes: VisualizerComplexNode[],
     edges: VisualizerComplexEdge[],
-): VisualizerComplexV1['output'] => {
-    const output: VisualizerComplexV1['output'] = {
+): VisualizerComplexV2['output'] => {
+    const output: VisualizerComplexV2['output'] = {
         bgNodeIds: [],
         mainNodeIds: [],
         overlayNodeIds: [],
@@ -391,7 +418,7 @@ const deriveOutputFromEdges = (
     const outputNodeIds = new Set(nodes.filter(node => node.role === 'output' && node.enabled).map(node => node.id));
 
     edges.forEach(edge => {
-        if (!outputNodeIds.has(edge.target)) {
+        if (!outputNodeIds.has(edge.target) || edge.targetHandle !== 'output.visualLayer') {
             return;
         }
 
@@ -418,8 +445,8 @@ const deriveOutputFromEdges = (
     return output;
 };
 
-export const normalizeVisualizerComplex = (value: unknown): VisualizerComplexV1 => {
-    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.nodes)) {
+export const normalizeVisualizerComplex = (value: unknown): VisualizerComplexV2 => {
+    if (!isRecord(value) || value.version !== 2 || !Array.isArray(value.nodes)) {
         return createDefaultVisualizerComplex();
     }
 
@@ -429,19 +456,27 @@ export const normalizeVisualizerComplex = (value: unknown): VisualizerComplexV1 
     }
 
     const nodeIds = new Set(nodes.map(node => node.id));
+    const nodesById = new Map(nodes.map(node => [node.id, node]));
     const edges = Array.isArray(value.edges)
-        ? value.edges.map(normalizeEdge).filter((edge): edge is VisualizerComplexEdge => Boolean(edge && nodeIds.has(edge.source) && nodeIds.has(edge.target)))
+        ? value.edges
+            .map(normalizeEdge)
+            .filter((edge): edge is VisualizerComplexEdge => Boolean(
+                edge
+                && nodeIds.has(edge.source)
+                && nodeIds.has(edge.target)
+                && canConnectPorts(nodesById.get(edge.source), edge.sourceHandle, nodesById.get(edge.target), edge.targetHandle),
+            ))
         : [];
 
     return {
-        version: 1,
+        version: 2,
         nodes,
         edges,
         output: deriveOutputFromEdges(nodes, edges),
     };
 };
 
-export const readStoredVisualizerComplex = (): VisualizerComplexV1 => {
+export const readStoredVisualizerComplex = (): VisualizerComplexV2 => {
     if (typeof window === 'undefined') {
         return createDefaultVisualizerComplex();
     }
@@ -458,7 +493,7 @@ export const readStoredVisualizerComplex = (): VisualizerComplexV1 => {
     }
 };
 
-export const writeStoredVisualizerComplex = (complex: VisualizerComplexV1) => {
+export const writeStoredVisualizerComplex = (complex: VisualizerComplexV2) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(VISUALIZER_COMPLEX_STORAGE_KEY, JSON.stringify(normalizeVisualizerComplex(complex)));
     }
