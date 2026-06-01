@@ -371,6 +371,53 @@ const normalizeEdge = (edge: unknown): VisualizerComplexEdge | null => {
     return { id: edge.id, source: edge.source, target: edge.target };
 };
 
+const appendUnique = (ids: string[], id: string) => {
+    if (!ids.includes(id)) {
+        ids.push(id);
+    }
+};
+
+// Keeps stored output aligned with the persisted graph edges instead of trusting stale UI state.
+const deriveOutputFromEdges = (
+    nodes: VisualizerComplexNode[],
+    edges: VisualizerComplexEdge[],
+): VisualizerComplexV1['output'] => {
+    const output: VisualizerComplexV1['output'] = {
+        bgNodeIds: [],
+        mainNodeIds: [],
+        overlayNodeIds: [],
+    };
+    const nodesById = new Map(nodes.map(node => [node.id, node]));
+    const outputNodeIds = new Set(nodes.filter(node => node.role === 'output' && node.enabled).map(node => node.id));
+
+    edges.forEach(edge => {
+        if (!outputNodeIds.has(edge.target)) {
+            return;
+        }
+
+        const sourceNode = nodesById.get(edge.source);
+        if (!sourceNode?.enabled) {
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerBg') {
+            appendUnique(output.bgNodeIds, sourceNode.id);
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerMain') {
+            appendUnique(output.mainNodeIds, sourceNode.id);
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerOverlay') {
+            appendUnique(output.overlayNodeIds, sourceNode.id);
+        }
+    });
+
+    return output;
+};
+
 export const normalizeVisualizerComplex = (value: unknown): VisualizerComplexV1 => {
     if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.nodes)) {
         return createDefaultVisualizerComplex();
@@ -386,20 +433,11 @@ export const normalizeVisualizerComplex = (value: unknown): VisualizerComplexV1 
         ? value.edges.map(normalizeEdge).filter((edge): edge is VisualizerComplexEdge => Boolean(edge && nodeIds.has(edge.source) && nodeIds.has(edge.target)))
         : [];
 
-    const output = isRecord(value.output) ? value.output : {};
-    const bgNodeIds = Array.isArray(output.bgNodeIds) ? output.bgNodeIds.filter((id): id is string => typeof id === 'string' && nodeIds.has(id)) : [];
-    const mainNodeIds = Array.isArray(output.mainNodeIds) ? output.mainNodeIds.filter((id): id is string => typeof id === 'string' && nodeIds.has(id)) : [];
-    const overlayNodeIds = Array.isArray(output.overlayNodeIds) ? output.overlayNodeIds.filter((id): id is string => typeof id === 'string' && nodeIds.has(id)) : [];
-
     return {
         version: 1,
         nodes,
         edges,
-        output: {
-            bgNodeIds,
-            mainNodeIds,
-            overlayNodeIds,
-        },
+        output: deriveOutputFromEdges(nodes, edges),
     };
 };
 

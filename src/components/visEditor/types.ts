@@ -12,4 +12,6 @@ export interface VisEditorProps {
     onReset?: () => void;
     onBack?: () => void;
     preview?: ReactNode;
+    isPreviewPlaying?: boolean;
+    onTogglePreviewPlayback?: () => void;
 }

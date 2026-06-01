@@ -37,3 +37,4 @@ test/test-song/*
 test/test-ReplayGain
 impl.md
 test-results/
+.codex-remote-attachments

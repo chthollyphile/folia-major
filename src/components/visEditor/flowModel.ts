@@ -19,6 +19,7 @@ export interface FlowNodeData extends Record<string, unknown> {
     enabled: boolean;
     opacity?: number;
     mode?: string;
+    summary: string[];
 }
 
 export type VisFlowNodeType = 'inputNode' | 'backgroundNode' | 'mainRendererNode' | 'overlayNode' | 'outputNode';
@@ -26,10 +27,10 @@ export type VisFlowNode = Node<FlowNodeData, VisFlowNodeType>;
 export type VisFlowEdge = Edge;
 
 export type AddComplexNodeRequest =
-    | { role: 'input'; kind: VisualizerInputKind; label: string; }
-    | { role: 'visualizerBg'; kind: VisualizerBgKind; label: string; }
-    | { role: 'visualizerMain'; mode: VisualizerMode; label: string; }
-    | { role: 'visualizerOverlay'; kind: VisualizerOverlayKind; label: string; };
+    | { role: 'input'; kind: VisualizerInputKind; label: string; position?: { x: number; y: number; }; }
+    | { role: 'visualizerBg'; kind: VisualizerBgKind; label: string; position?: { x: number; y: number; }; }
+    | { role: 'visualizerMain'; mode: VisualizerMode; label: string; position?: { x: number; y: number; }; }
+    | { role: 'visualizerOverlay'; kind: VisualizerOverlayKind; label: string; position?: { x: number; y: number; }; };
 
 export interface AddComplexNodeResult {
     complex: VisualizerComplexV1;
@@ -44,6 +45,35 @@ const NODE_TYPES_BY_ROLE: Record<VisualizerNodeRole, VisFlowNodeType> = {
     output: 'outputNode',
 };
 
+const summarizeNode = (node: VisualizerComplexNode) => {
+    if (node.role === 'input') {
+        return [`类型: ${node.kind}`];
+    }
+
+    if (node.role === 'visualizerBg') {
+        return [
+            `透明度: ${Math.round((node.config.opacity ?? 1) * 100)}%`,
+            node.kind === 'geometric' ? `几何: ${node.config.hideShapes ? '隐藏' : '显示'}` : `类型: ${node.kind}`,
+        ];
+    }
+
+    if (node.role === 'visualizerMain') {
+        return [
+            `模式: ${node.config.mode}`,
+            `字号: ${Math.round((node.config.lyricsFontScale ?? 1) * 100)}%`,
+        ];
+    }
+
+    if (node.role === 'visualizerOverlay') {
+        return [
+            `透明度: ${Math.round((node.config.opacity ?? 0.6) * 100)}%`,
+            `翻译: ${node.config.hideTranslation ? '隐藏' : '显示'}`,
+        ];
+    }
+
+    return ['输出: 播放页'];
+};
+
 export const toFlowNodes = (complex: VisualizerComplexV1): VisFlowNode[] =>
     complex.nodes.map(node => ({
         id: node.id,
@@ -56,6 +86,7 @@ export const toFlowNodes = (complex: VisualizerComplexV1): VisFlowNode[] =>
             enabled: node.enabled,
             opacity: 'config' in node ? node.config.opacity : undefined,
             mode: node.role === 'visualizerMain' ? node.config.mode : undefined,
+            summary: summarizeNode(node),
         },
     }));
 
@@ -68,14 +99,54 @@ export const toFlowEdges = (complex: VisualizerComplexV1): VisFlowEdge[] =>
         selectable: true,
     }));
 
-const outputListForRole = (nodes: VisualizerComplexNode[], role: VisualizerNodeRole) =>
-    nodes.filter(node => node.role === role && node.enabled).map(node => node.id);
-
-export const rebuildOutput = (nodes: VisualizerComplexNode[]) => ({
-    bgNodeIds: outputListForRole(nodes, 'visualizerBg'),
-    mainNodeIds: outputListForRole(nodes, 'visualizerMain'),
-    overlayNodeIds: outputListForRole(nodes, 'visualizerOverlay'),
+const createEmptyOutput = (): VisualizerComplexV1['output'] => ({
+    bgNodeIds: [],
+    mainNodeIds: [],
+    overlayNodeIds: [],
 });
+
+const appendUnique = (ids: string[], id: string) => {
+    if (!ids.includes(id)) {
+        ids.push(id);
+    }
+};
+
+// Derives the actual render stack from visualizer nodes connected to an output node.
+export const rebuildOutput = (
+    nodes: VisualizerComplexNode[],
+    edges: VisualizerComplexEdge[],
+): VisualizerComplexV1['output'] => {
+    const output = createEmptyOutput();
+    const nodesById = new Map(nodes.map(node => [node.id, node]));
+    const outputNodeIds = new Set(nodes.filter(node => node.role === 'output' && node.enabled).map(node => node.id));
+
+    edges.forEach(edge => {
+        if (!outputNodeIds.has(edge.target)) {
+            return;
+        }
+
+        const sourceNode = nodesById.get(edge.source);
+        if (!sourceNode?.enabled) {
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerBg') {
+            appendUnique(output.bgNodeIds, sourceNode.id);
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerMain') {
+            appendUnique(output.mainNodeIds, sourceNode.id);
+            return;
+        }
+
+        if (sourceNode.role === 'visualizerOverlay') {
+            appendUnique(output.overlayNodeIds, sourceNode.id);
+        }
+    });
+
+    return output;
+};
 
 const ensureUniqueEdgeId = (edges: VisualizerComplexEdge[], source: string, target: string) => {
     const baseId = `${source}-${target}`;
@@ -105,11 +176,13 @@ export const applyFlowNodeChanges = (
             position: positionsById.get(node.id) ?? node.position,
         })) as VisualizerComplexNode[];
 
+    const edges = complex.edges.filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+
     return {
         ...complex,
         nodes,
-        edges: complex.edges.filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target)),
-        output: rebuildOutput(nodes),
+        edges,
+        output: rebuildOutput(nodes, edges),
     };
 };
 
@@ -126,6 +199,28 @@ export const applyFlowEdgeChanges = (
     return {
         ...complex,
         edges,
+        output: rebuildOutput(complex.nodes, edges),
+    };
+};
+
+export const reconnectFlowEdge = (
+    complex: VisualizerComplexV1,
+    oldEdge: Edge,
+    connection: Connection,
+) => {
+    if (!connection.source || !connection.target || oldEdge.source === connection.source && oldEdge.target === connection.target) {
+        return complex;
+    }
+
+    const withoutOldEdge = {
+        ...complex,
+        edges: complex.edges.filter(edge => edge.id !== oldEdge.id),
+    };
+    const next = connectFlowNodes(withoutOldEdge, connection);
+
+    return {
+        ...next,
+        output: rebuildOutput(next.nodes, next.edges),
     };
 };
 
@@ -155,16 +250,19 @@ export const connectFlowNodes = (
         return complex;
     }
 
+    const edges = [
+        ...complex.edges,
+        {
+            id: ensureUniqueEdgeId(complex.edges, connection.source, connection.target),
+            source: connection.source,
+            target: connection.target,
+        },
+    ];
+
     return {
         ...complex,
-        edges: [
-            ...complex.edges,
-            {
-                id: ensureUniqueEdgeId(complex.edges, connection.source, connection.target),
-                source: connection.source,
-                target: connection.target,
-            },
-        ],
+        edges,
+        output: rebuildOutput(complex.nodes, edges),
     };
 };
 
@@ -187,7 +285,11 @@ const uniqueNodeId = (nodes: VisualizerComplexNode[], base: string) => {
     return `${base}-${suffix}`;
 };
 
-const nextNodePosition = (nodes: VisualizerComplexNode[], role: VisualizerNodeRole) => {
+const nextNodePosition = (nodes: VisualizerComplexNode[], role: VisualizerNodeRole, requestedPosition?: { x: number; y: number; }) => {
+    if (requestedPosition) {
+        return requestedPosition;
+    }
+
     const sameRoleNodes = nodes.filter(node => node.role === role);
     const index = sameRoleNodes.length;
     const xByRole: Record<VisualizerNodeRole, number> = {
@@ -215,7 +317,7 @@ const createNodeFromRequest = (
             kind: request.kind,
             label: request.label,
             enabled: true,
-            position: nextNodePosition(complex.nodes, 'input'),
+            position: nextNodePosition(complex.nodes, 'input', request.position),
         };
     }
 
@@ -226,7 +328,7 @@ const createNodeFromRequest = (
             kind: request.kind,
             label: request.label,
             enabled: true,
-            position: nextNodePosition(complex.nodes, 'visualizerBg'),
+            position: nextNodePosition(complex.nodes, 'visualizerBg', request.position),
             config: {
                 opacity: request.kind === 'vignette' ? 0.65 : 1,
                 hideShapes: request.kind === 'geometric' ? false : undefined,
@@ -242,7 +344,7 @@ const createNodeFromRequest = (
             kind: 'mainRenderer',
             label: request.label,
             enabled: true,
-            position: nextNodePosition(complex.nodes, 'visualizerMain'),
+            position: nextNodePosition(complex.nodes, 'visualizerMain', request.position),
             config: { mode: request.mode, opacity: 1, lyricsFontScale: 1 },
         };
     }
@@ -253,7 +355,7 @@ const createNodeFromRequest = (
         kind: request.kind,
         label: request.label,
         enabled: true,
-        position: nextNodePosition(complex.nodes, 'visualizerOverlay'),
+        position: nextNodePosition(complex.nodes, 'visualizerOverlay', request.position),
         config: { opacity: 0.6, hideTranslation: false, translationFontSizeRem: 1.1, upcomingFontSizeRem: 0.95 },
     };
 };
@@ -285,7 +387,7 @@ export const addComplexNode = (
             ...complex,
             nodes,
             edges,
-            output: rebuildOutput(nodes),
+            output: rebuildOutput(nodes, edges),
         },
     };
 };
@@ -293,7 +395,54 @@ export const addComplexNode = (
 export const removeComplexEdge = (
     complex: VisualizerComplexV1,
     edgeId: string,
-) => ({
+) => {
+    const edges = complex.edges.filter(edge => edge.id !== edgeId);
+
+    return {
+        ...complex,
+        edges,
+        output: rebuildOutput(complex.nodes, edges),
+    };
+};
+
+export const updateComplexNodePosition = (
+    complex: VisualizerComplexV1,
+    nodeId: string,
+    position: { x: number; y: number; },
+): VisualizerComplexV1 => ({
     ...complex,
-    edges: complex.edges.filter(edge => edge.id !== edgeId),
+    nodes: complex.nodes.map(node => (
+        node.id === nodeId ? { ...node, position } : node
+    )) as VisualizerComplexNode[],
 });
+
+export const layoutComplexNodes = (complex: VisualizerComplexV1): VisualizerComplexV1 => {
+    const roleOrder: Record<VisualizerNodeRole, number> = {
+        input: 0,
+        visualizerBg: 1,
+        visualizerMain: 2,
+        visualizerOverlay: 2,
+        output: 3,
+    };
+    const nextIndexByRole = new Map<VisualizerNodeRole, number>();
+    const xByColumn = [40, 300, 560, 850];
+
+    const nodes = complex.nodes
+        .map(node => {
+            const index = nextIndexByRole.get(node.role) ?? 0;
+            nextIndexByRole.set(node.role, index + 1);
+            return {
+                ...node,
+                position: {
+                    x: xByColumn[roleOrder[node.role]],
+                    y: 42 + index * 126,
+                },
+            };
+        }) as VisualizerComplexNode[];
+
+    return {
+        ...complex,
+        nodes,
+        output: rebuildOutput(nodes, complex.edges),
+    };
+};

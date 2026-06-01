@@ -677,12 +677,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         onCloseOverlay();
     };
     const handleOpenVisualSettings = () => {
-        if (onOpenVisEditor) {
-            onClose();
-            onOpenVisEditor();
-            return;
-        }
-
         setShowAppearanceSettings(true);
     };
     const isSubSettingsViewOpen = showAppearanceSettings
@@ -2048,6 +2042,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <Sparkles size={14} /> {t('options.visualSettings') || "Visual Settings"}
                             </h3>
                             <div className="space-y-4">
+                                {onOpenVisEditor && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowAppearanceSettings(false);
+                                            onClose();
+                                            onOpenVisEditor();
+                                        }}
+                                        className={`w-full p-4 rounded-xl border transition-colors text-left ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 min-w-0">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <Sparkles size={18} />
+                                                </div>
+                                                <div className="space-y-1 min-w-0">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        打开视觉编辑器
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        在独立 visEditor 中调整视觉流程、背景、歌词层和装饰层。
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                        </div>
+                                    </button>
+                                )}
+
                                 <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
