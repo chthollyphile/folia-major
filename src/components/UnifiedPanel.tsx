@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerFrameRate, VisualizerMode } from '../types';
+import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerMode } from '../types';
 import CoverTab from './panelTab/CoverTab';
 import ControlsTab from './panelTab/ControlsTab';
 import QueueTab from './panelTab/QueueTab';
@@ -46,8 +46,6 @@ type UnifiedPanelPlaybackProps = {
     daylightTheme: Theme;
     visualizerMode: VisualizerMode;
     onVisualizerModeChange: (mode: VisualizerMode) => void;
-    visualizerFrameRate: VisualizerFrameRate;
-    onVisualizerFrameRateChange: (frameRate: VisualizerFrameRate) => void;
     onMatchOnline: () => void;
     onUpdateLocalLyrics: (content: string, isTranslation: boolean) => void;
     onChangeLyricsSource: (source: 'local' | 'embedded' | 'online') => void;
@@ -157,8 +155,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         daylightTheme,
         visualizerMode,
         onVisualizerModeChange,
-        visualizerFrameRate,
-        onVisualizerFrameRateChange,
         onMatchOnline,
         onUpdateLocalLyrics,
         onChangeLyricsSource,
@@ -546,8 +542,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             daylightTheme={daylightTheme}
                                             visualizerMode={visualizerMode}
                                             onVisualizerModeChange={onVisualizerModeChange}
-                                            visualizerFrameRate={visualizerFrameRate}
-                                            onVisualizerFrameRateChange={onVisualizerFrameRateChange}
                                             useCoverColorBg={useCoverColorBg}
                                             onToggleCoverColorBg={onToggleCoverColorBg}
                                             isDaylight={isDaylight}

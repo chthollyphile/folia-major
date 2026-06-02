@@ -14,13 +14,15 @@ type FrameRateLimitedRaf = {
     getFrameRate: () => VisualizerFrameRate;
 };
 
-export const VISUALIZER_FRAME_RATE_OPTIONS: VisualizerFrameRate[] = ['auto', 30, 24, 15];
+export const VISUALIZER_FRAME_RATE_OPTIONS: VisualizerFrameRate[] = ['auto', 120, 90, 60, 30, 15];
 export const VISUALIZER_FRAME_RATE_STORAGE_KEY = 'visualizer_frame_rate';
 
 export const isVisualizerFrameRate = (value: unknown): value is VisualizerFrameRate => (
     value === 'auto'
+    || value === 120
+    || value === 90
+    || value === 60
     || value === 30
-    || value === 24
     || value === 15
 );
 

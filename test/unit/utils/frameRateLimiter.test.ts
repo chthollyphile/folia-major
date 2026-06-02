@@ -7,10 +7,12 @@ describe('frameRateLimiter', () => {
     it('parses supported visualizer frame rates', () => {
         expect(parseVisualizerFrameRate(null)).toBe('auto');
         expect(parseVisualizerFrameRate('auto')).toBe('auto');
+        expect(parseVisualizerFrameRate('120')).toBe(120);
+        expect(parseVisualizerFrameRate('90')).toBe(90);
+        expect(parseVisualizerFrameRate('60')).toBe(60);
         expect(parseVisualizerFrameRate('30')).toBe(30);
-        expect(parseVisualizerFrameRate('24')).toBe(24);
         expect(parseVisualizerFrameRate('15')).toBe(15);
-        expect(parseVisualizerFrameRate('60')).toBe('auto');
+        expect(parseVisualizerFrameRate('24')).toBe('auto');
     });
 
     it('skips frames until the target interval has elapsed', () => {

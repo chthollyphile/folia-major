@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Layers, Monitor, PlayCircle, Loader2, Sparkles, Server, Check, AlertCircle, Palette, FolderOpen, Pencil, FlaskConical, ChevronLeft, ChevronRight, RotateCcw, GamepadDirectional, RefreshCw, Download, ExternalLink, Minimize2, EyeOff, Cpu, KeyRound, Globe, ShieldAlert, AppWindow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
-import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type QueueAddBehavior, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
+import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type QueueAddBehavior, type TiltTuning, type StoredCustomLyricsFont, type VisualizerFrameRate, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
 import { NavidromeConfig } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
@@ -14,6 +14,7 @@ import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { CustomSelect } from '../shared/CustomSelect';
 import { selectSettingsUiSnapshot, useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../utils/frameRateLimiter';
 import { useShallow } from 'zustand/react/shallow';
 
 
@@ -107,6 +108,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         backgroundOpacity,
         subtitleOverlayOpacity,
         visualizerOpacity,
+        visualizerFrameRate,
         isDaylight,
         visualizerMode,
         classicTuning,
@@ -142,6 +144,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleSetBackgroundOpacity: setBackgroundOpacity,
         handleSetSubtitleOverlayOpacity: setSubtitleOverlayOpacity,
         handleSetVisualizerOpacity: setVisualizerOpacity,
+        handleSetVisualizerFrameRate: onVisualizerFrameRateChange,
         handleSetVisualizerMode: onVisualizerModeChange,
         handleSetClassicTuning: onClassicTuningChange,
         handleResetClassicTuning: onResetClassicTuning,
@@ -218,6 +221,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         && typeof navigator !== 'undefined'
         && typeof navigator.mediaDevices?.enumerateDevices === 'function'
         && 'setSinkId' in HTMLMediaElement.prototype;
+    const getFrameRateLabel = (frameRate: VisualizerFrameRate) => (
+        frameRate === 'auto' ? (t('options.visualizerFrameRateAuto') || '无限制') : `${frameRate} FPS`
+    );
 
     const loadAudioOutputDevices = async () => {
         if (!supportsAudioOutputSelection) {
@@ -3266,6 +3272,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onToggleMinimizeToTray?.(false);
                                     onToggleHideTaskbarIcon?.(false);
                                     onToggleOpenPlayerOnLaunch?.(false);
+                                    onVisualizerFrameRateChange('auto');
                                 }}
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${utilityGhostButtonClass}`}
                                 style={{ color: 'var(--text-primary)' }}
@@ -3319,6 +3326,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     >
                                         <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${disableHomeDynamicBackground ? 'translate-x-6' : 'translate-x-0'}`} />
                                     </button>
+                                </div>
+
+                                <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Cpu size={14} />
+                                            {t('options.visualizerFrameRate') || '动画帧率'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.visualizerFrameRateDesc') || '限制 requestAnimationFrame 驱动的歌词动画、Motion 动画和 canvas 绘制频率。'}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                        {VISUALIZER_FRAME_RATE_OPTIONS.map((frameRate) => {
+                                            const isActive = frameRate === visualizerFrameRate;
+                                            return (
+                                                <button
+                                                    key={frameRate}
+                                                    type="button"
+                                                    onClick={() => onVisualizerFrameRateChange(frameRate)}
+                                                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${isActive ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
+                                                    style={{
+                                                        color: isActive
+                                                            ? (theme?.primaryColor || 'var(--text-primary)')
+                                                            : 'var(--text-primary)',
+                                                    }}
+                                                >
+                                                    {getFrameRateLabel(frameRate)}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>

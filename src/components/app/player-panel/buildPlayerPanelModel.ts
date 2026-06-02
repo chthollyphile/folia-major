@@ -39,8 +39,6 @@ type BuildPlayerPanelModelParams = {
     daylightTheme: LegacyUnifiedPanelProps['playback']['daylightTheme'];
     visualizerMode: LegacyUnifiedPanelProps['playback']['visualizerMode'];
     handleSetVisualizerMode: LegacyUnifiedPanelProps['playback']['onVisualizerModeChange'];
-    visualizerFrameRate: LegacyUnifiedPanelProps['playback']['visualizerFrameRate'];
-    handleSetVisualizerFrameRate: LegacyUnifiedPanelProps['playback']['onVisualizerFrameRateChange'];
     handleManualMatchOnline: LegacyUnifiedPanelProps['playback']['onMatchOnline'];
     handleUpdateLocalLyrics: LegacyUnifiedPanelProps['playback']['onUpdateLocalLyrics'];
     handleChangeLyricsSource: LegacyUnifiedPanelProps['playback']['onChangeLyricsSource'];
@@ -128,8 +126,6 @@ export const buildPlayerPanelModel = ({
     daylightTheme,
     visualizerMode,
     handleSetVisualizerMode,
-    visualizerFrameRate,
-    handleSetVisualizerFrameRate,
     handleManualMatchOnline,
     handleUpdateLocalLyrics,
     handleChangeLyricsSource,
@@ -216,8 +212,6 @@ export const buildPlayerPanelModel = ({
             daylightTheme,
             visualizerMode,
             onVisualizerModeChange: handleSetVisualizerMode,
-            visualizerFrameRate,
-            onVisualizerFrameRateChange: handleSetVisualizerFrameRate,
             onMatchOnline: handleManualMatchOnline,
             onUpdateLocalLyrics: handleUpdateLocalLyrics,
             onChangeLyricsSource: handleChangeLyricsSource,

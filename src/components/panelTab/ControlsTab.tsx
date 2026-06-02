@@ -2,8 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Theme, ThemeMode, VisualizerFrameRate, VisualizerMode } from '../../types';
-import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../utils/frameRateLimiter';
+import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 
 // Controls tab keeps the visualizer picker local so it can expand into a full-tab overlay
@@ -27,8 +26,6 @@ interface ControlsTabProps {
     daylightTheme: Theme;
     visualizerMode: VisualizerMode;
     onVisualizerModeChange: (mode: VisualizerMode) => void;
-    visualizerFrameRate: VisualizerFrameRate;
-    onVisualizerFrameRateChange: (frameRate: VisualizerFrameRate) => void;
     useCoverColorBg: boolean;
     onToggleCoverColorBg: (enable: boolean) => void;
     isDaylight: boolean;
@@ -59,8 +56,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     daylightTheme,
     visualizerMode,
     onVisualizerModeChange,
-    visualizerFrameRate,
-    onVisualizerFrameRateChange,
     useCoverColorBg,
     onToggleCoverColorBg,
     isDaylight,
@@ -167,10 +162,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
         setIsVisualizerOverlayOpen(false);
     };
 
-    const getFrameRateLabel = (frameRate: VisualizerFrameRate) => (
-        frameRate === 'auto' ? (t('options.visualizerFrameRateAuto') || 'Auto') : `${frameRate} FPS`
-    );
-
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -262,31 +253,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                             >
                                 {t(`animation.${theme.animationIntensity}`)}
                             </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
-                                {t('options.visualizerFrameRate') || 'FPS'}
-                            </label>
-                            <span className="text-[10px] font-bold opacity-60">
-                                {getFrameRateLabel(visualizerFrameRate)}
-                            </span>
-                        </div>
-                        <div className={`grid grid-cols-4 gap-1 ${wellBg} p-1 rounded-xl`}>
-                            {VISUALIZER_FRAME_RATE_OPTIONS.map((frameRate) => {
-                                const isActive = frameRate === visualizerFrameRate;
-                                return (
-                                    <button
-                                        key={frameRate}
-                                        onClick={() => onVisualizerFrameRateChange(frameRate)}
-                                        className={`py-1.5 text-[9px] font-medium rounded-lg transition-all ${isActive ? activeOptionBg : 'opacity-45 hover:opacity-100'}`}
-                                    >
-                                        {getFrameRateLabel(frameRate)}
-                                    </button>
-                                );
-                            })}
                         </div>
                     </div>
 
