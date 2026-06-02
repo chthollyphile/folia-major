@@ -384,6 +384,8 @@ export default {
     "previewTranslation": "译文会优先尝试当前字体，并使用更稳定的中日韩字体回退。",
     "backgroundOpacity": "背景透明度",
     "visualizerOpacity": "整体透明度",
+    "visualizerFrameRate": "动画帧率",
+    "visualizerFrameRateAuto": "自动",
     "themePresets": "配色主题预设",
     "themePresetsDefault": "墨染 / 素白",
     "openThemePark": "打开 Theme Park",

@@ -55,6 +55,7 @@ export type ThemeMode = 'default' | 'ai' | 'custom';
 
 export type BuiltinVisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
 export type VisualizerMode = BuiltinVisualizerMode | (string & {});
+export type VisualizerFrameRate = 'auto' | 30 | 24 | 15;
 
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 

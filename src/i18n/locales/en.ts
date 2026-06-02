@@ -382,6 +382,8 @@ export default {
     "previewTranslation": "Translations try the current font first, then use a safer CJK-friendly fallback stack.",
     "backgroundOpacity": "Background Opacity",
     "visualizerOpacity": "Lyrics Animation Opacity",
+    "visualizerFrameRate": "Visualizer FPS",
+    "visualizerFrameRateAuto": "Auto",
     "themePresets": "Theme Presets",
     "themePresetsDefault": "Default",
     "openThemePark": "Open Theme Park",
