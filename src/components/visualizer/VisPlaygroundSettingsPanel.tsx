@@ -374,65 +374,70 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                 )}
 
                 {activeSection === 'background' && (
-                    <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
-                                <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
-                                    {t('options.previewBackgroundSettings') || '背景设置'}
+                    <>
+                        <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                    <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
+                                        {t('options.previewBackgroundSettings') || '背景设置'}
+                                    </div>
+                                    <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
+                                        {t('options.previewBackgroundSettingsDesc') || '调整播放页背景层、透明窗口和几何氛围。'}
+                                    </div>
                                 </div>
-                                <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
-                                    {t('options.previewBackgroundSettingsDesc') || '调整播放页背景层、透明窗口和几何氛围。'}
-                                </div>
+                                <ResetSectionButton
+                                    label={t('ui.default') || '默认'}
+                                    onClick={onResetBackgroundSettings}
+                                    theme={theme}
+                                />
                             </div>
-                            <ResetSectionButton
-                                label={t('ui.default') || '默认'}
-                                onClick={onResetBackgroundSettings}
+
+                            <ToggleRow
+                                label={t('options.disableVisualizerVignette') || '禁用暗角'}
+                                description={t('options.disableVisualizerVignetteDesc') || '关闭几何背景自带的边缘暗角。'}
+                                checked={disableVisualizerVignette}
+                                onChange={onToggleDisableVisualizerVignette}
+                                theme={theme}
+                            />
+                            <ToggleRow
+                                label={t('options.disableVisualizerGeometricBackground') || '隐藏通用几何背景'}
+                                description={t('options.disableVisualizerGeometricBackgroundDesc') || '隐藏播放页的通用几何背景图形。'}
+                                checked={disableVisualizerGeometricBackground}
+                                onChange={onToggleDisableVisualizerGeometricBackground}
                                 theme={theme}
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
-                                <span>{t('options.backgroundOpacity') || '背景透明度'}</span>
-                                <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
-                                    {Math.round(backgroundOpacity * 100)}%
-                                </span>
+                        <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
+                                    <span>{t('options.backgroundOpacity') || '背景透明度'}</span>
+                                    <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
+                                        {Math.round(backgroundOpacity * 100)}%
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={backgroundOpacity}
+                                    onChange={(event) => onBackgroundOpacityChange?.(parseFloat(event.target.value))}
+                                    onPointerDown={onSliderPointerDown}
+                                    onPointerUp={onSliderCommit}
+                                    className={rangeInputClass}
+                                />
                             </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.05"
-                                value={backgroundOpacity}
-                                onChange={(event) => onBackgroundOpacityChange?.(parseFloat(event.target.value))}
-                                onPointerDown={onSliderPointerDown}
-                                onPointerUp={onSliderCommit}
-                                className={rangeInputClass}
+
+                            <ToggleRow
+                                label={t('theme.addCoverColor') || '添加封面色彩'}
+                                description={t('options.coverColorBackgroundDesc') || '使用当前歌曲封面生成背景色彩。'}
+                                checked={useCoverColorBg}
+                                onChange={onToggleCoverColorBg}
+                                theme={theme}
                             />
                         </div>
-
-                        <ToggleRow
-                            label={t('options.addCoverColor') || '添加封面色彩'}
-                            description={t('options.coverColorBackgroundDesc') || '使用当前歌曲封面生成背景色彩。'}
-                            checked={useCoverColorBg}
-                            onChange={onToggleCoverColorBg}
-                            theme={theme}
-                        />
-                        <ToggleRow
-                            label={t('options.disableVisualizerVignette') || '禁用暗角'}
-                            description={t('options.disableVisualizerVignetteDesc') || '关闭几何背景自带的边缘暗角。'}
-                            checked={disableVisualizerVignette}
-                            onChange={onToggleDisableVisualizerVignette}
-                            theme={theme}
-                        />
-                        <ToggleRow
-                            label={t('options.disableVisualizerGeometricBackground') || '隐藏通用几何背景'}
-                            description={t('options.disableVisualizerGeometricBackgroundDesc') || '隐藏播放页的通用几何背景图形。'}
-                            checked={disableVisualizerGeometricBackground}
-                            onChange={onToggleDisableVisualizerGeometricBackground}
-                            theme={theme}
-                        />
-                    </div>
+                    </>
                 )}
 
                 {activeSection === 'visualizer' && (
