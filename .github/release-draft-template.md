@@ -3,6 +3,7 @@
 - Windows：下载 `.exe` 安装包
 - macOS：下载 `.dmg`
 - Linux：
+  - Arch Linux / Manjaro：通过 AUR 安装 `yay -S folia-major-bin`
   - Debian / Ubuntu：下载 `.deb`
   - Fedora / openSUSE：下载 `.rpm`
   - 其他发行版：下载 `tar.gz`
