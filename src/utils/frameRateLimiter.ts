@@ -14,25 +14,28 @@ type FrameRateLimitedRaf = {
     getFrameRate: () => VisualizerFrameRate;
 };
 
-export const VISUALIZER_FRAME_RATE_OPTIONS: VisualizerFrameRate[] = ['auto', 120, 90, 60, 30, 15];
+type WindowWithVisualizerFrameRateLimiter = Window & {
+    __foliaNativeRequestAnimationFrame?: RequestAnimationFrameFn;
+    __foliaNativeCancelAnimationFrame?: CancelAnimationFrameFn;
+};
+
+export const VISUALIZER_FRAME_RATE_OPTIONS = [120, 90, 60] as const satisfies VisualizerFrameRate[];
 export const VISUALIZER_FRAME_RATE_STORAGE_KEY = 'visualizer_frame_rate';
 
 export const isVisualizerFrameRate = (value: unknown): value is VisualizerFrameRate => (
-    value === 'auto'
+    value === 'off'
     || value === 120
     || value === 90
     || value === 60
-    || value === 30
-    || value === 15
 );
 
 export const parseVisualizerFrameRate = (value: string | null): VisualizerFrameRate => {
-    if (value === 'auto' || value === null) {
-        return 'auto';
+    if (value === 'off' || value === 'auto' || value === null) {
+        return 'off';
     }
 
     const parsed = Number(value);
-    return isVisualizerFrameRate(parsed) ? parsed : 'auto';
+    return isVisualizerFrameRate(parsed) ? parsed : 'off';
 };
 
 // Decides whether a RAF tick should run under the configured FPS cap.
@@ -41,7 +44,7 @@ export const shouldProcessFrameAtRate = (
     lastProcessedTimestampMs: number,
     frameRate: VisualizerFrameRate,
 ) => {
-    if (frameRate === 'auto') {
+    if (frameRate === 'off') {
         return true;
     }
 
@@ -53,7 +56,7 @@ export const shouldProcessFrameAtRate = (
 export const createFrameRateLimitedRaf = (
     nativeRequestAnimationFrame: RequestAnimationFrameFn,
     nativeCancelAnimationFrame: CancelAnimationFrameFn,
-    initialFrameRate: VisualizerFrameRate = 'auto',
+    initialFrameRate: VisualizerFrameRate = 60,
 ): FrameRateLimitedRaf => {
     let frameRate = initialFrameRate;
     let nextHandle = 1;
@@ -116,17 +119,64 @@ export const createFrameRateLimitedRaf = (
 let installedLimiter: FrameRateLimitedRaf | null = null;
 
 export const setGlobalVisualizerFrameRate = (frameRate: VisualizerFrameRate) => {
-    installedLimiter?.setFrameRate(frameRate);
-};
-
-export const installGlobalVisualizerFrameRateLimiter = () => {
-    if (typeof window === 'undefined' || installedLimiter) {
+    if (typeof window === 'undefined') {
         return;
     }
 
-    const nativeRequestAnimationFrame = window.requestAnimationFrame.bind(window);
-    const nativeCancelAnimationFrame = window.cancelAnimationFrame.bind(window);
-    const initialFrameRate = parseVisualizerFrameRate(window.localStorage.getItem(VISUALIZER_FRAME_RATE_STORAGE_KEY));
+    if (frameRate === 'off') {
+        restoreGlobalVisualizerFrameRateLimiter();
+        return;
+    }
+
+    if (!installedLimiter) {
+        installGlobalVisualizerFrameRateLimiter(frameRate);
+        return;
+    }
+
+    installedLimiter.setFrameRate(frameRate);
+};
+
+export const restoreGlobalVisualizerFrameRateLimiter = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const frameWindow = window as WindowWithVisualizerFrameRateLimiter;
+    if (frameWindow.__foliaNativeRequestAnimationFrame) {
+        window.requestAnimationFrame = frameWindow.__foliaNativeRequestAnimationFrame;
+    }
+    if (frameWindow.__foliaNativeCancelAnimationFrame) {
+        window.cancelAnimationFrame = frameWindow.__foliaNativeCancelAnimationFrame;
+    }
+    installedLimiter = null;
+};
+
+export const installGlobalVisualizerFrameRateLimiter = (overrideFrameRate?: VisualizerFrameRate) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const initialFrameRate = overrideFrameRate
+        ?? parseVisualizerFrameRate(window.localStorage.getItem(VISUALIZER_FRAME_RATE_STORAGE_KEY));
+    if (initialFrameRate === 'off') {
+        restoreGlobalVisualizerFrameRateLimiter();
+        return;
+    }
+
+    if (installedLimiter) {
+        installedLimiter.setFrameRate(initialFrameRate);
+        return;
+    }
+
+    const frameWindow = window as WindowWithVisualizerFrameRateLimiter;
+    frameWindow.__foliaNativeRequestAnimationFrame ??= window.requestAnimationFrame;
+    frameWindow.__foliaNativeCancelAnimationFrame ??= window.cancelAnimationFrame;
+    const nativeRequestAnimationFrame: RequestAnimationFrameFn = (callback) => (
+        frameWindow.__foliaNativeRequestAnimationFrame?.call(window, callback) ?? 0
+    );
+    const nativeCancelAnimationFrame: CancelAnimationFrameFn = (handle) => {
+        frameWindow.__foliaNativeCancelAnimationFrame?.call(window, handle);
+    };
     installedLimiter = createFrameRateLimitedRaf(nativeRequestAnimationFrame, nativeCancelAnimationFrame, initialFrameRate);
 
     window.requestAnimationFrame = installedLimiter.requestAnimationFrame;

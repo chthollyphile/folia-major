@@ -106,7 +106,7 @@ const readStoredVisualizerMode = (): VisualizerMode => {
 
 const readStoredVisualizerFrameRate = (): VisualizerFrameRate => {
     if (typeof window === 'undefined') {
-        return 'auto';
+        return 'off';
     }
 
     return parseVisualizerFrameRate(localStorage.getItem(VISUALIZER_FRAME_RATE_STORAGE_KEY));

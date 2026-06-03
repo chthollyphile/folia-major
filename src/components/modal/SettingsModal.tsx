@@ -221,9 +221,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         && typeof navigator !== 'undefined'
         && typeof navigator.mediaDevices?.enumerateDevices === 'function'
         && 'setSinkId' in HTMLMediaElement.prototype;
-    const getFrameRateLabel = (frameRate: VisualizerFrameRate) => (
-        frameRate === 'auto' ? (t('options.visualizerFrameRateAuto') || '无限制') : `${frameRate} FPS`
-    );
+    const isVisualizerFrameRateLimiterEnabled = visualizerFrameRate !== 'off';
+    const selectedVisualizerFrameRate = isVisualizerFrameRateLimiterEnabled ? visualizerFrameRate : 120;
+    const selectedVisualizerFrameRateIndex = VISUALIZER_FRAME_RATE_OPTIONS.indexOf(selectedVisualizerFrameRate);
+    const getFrameRateLabel = (frameRate: VisualizerFrameRate) => `${frameRate} FPS`;
+    const handleToggleVisualizerFrameRateLimiter = () => {
+        onVisualizerFrameRateChange(isVisualizerFrameRateLimiterEnabled ? 'off' : selectedVisualizerFrameRate);
+    };
+    const handleFrameRateSliderChange = (value: string) => {
+        const nextIndex = Math.min(VISUALIZER_FRAME_RATE_OPTIONS.length - 1, Math.max(0, Number(value)));
+        onVisualizerFrameRateChange(VISUALIZER_FRAME_RATE_OPTIONS[nextIndex]);
+    };
 
     const loadAudioOutputDevices = async () => {
         if (!supportsAudioOutputSelection) {
@@ -3272,7 +3280,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     onToggleMinimizeToTray?.(false);
                                     onToggleHideTaskbarIcon?.(false);
                                     onToggleOpenPlayerOnLaunch?.(false);
-                                    onVisualizerFrameRateChange('auto');
+                                    onVisualizerFrameRateChange('off');
                                 }}
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${utilityGhostButtonClass}`}
                                 style={{ color: 'var(--text-primary)' }}
@@ -3328,35 +3336,47 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </button>
                                 </div>
 
-                                <div className={`p-4 rounded-xl border space-y-3 ${settingsCardClass}`}>
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                            <Cpu size={14} />
-                                            {t('options.visualizerFrameRate') || '动画帧率'}
+                                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                                <Cpu size={14} />
+                                                {t('options.visualizerFrameRate') || '动画帧率限制'}
+                                            </div>
+                                            <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.visualizerFrameRateDesc') || '实验性设置：启用后会限制 requestAnimationFrame 驱动的动画帧率，可能导致动画、测量或第三方动画库出现意外问题。'}
+                                            </div>
                                         </div>
-                                        <div className="text-xs opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.visualizerFrameRateDesc') || '限制 requestAnimationFrame 驱动的歌词动画、Motion 动画和 canvas 绘制频率。'}
-                                        </div>
+                                        {renderToggle(isVisualizerFrameRateLimiterEnabled, handleToggleVisualizerFrameRateLimiter)}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                        {VISUALIZER_FRAME_RATE_OPTIONS.map((frameRate) => {
-                                            const isActive = frameRate === visualizerFrameRate;
-                                            return (
-                                                <button
+                                    <div className={`space-y-3 transition-opacity ${isVisualizerFrameRateLimiterEnabled ? 'opacity-100' : 'opacity-45 pointer-events-none'}`}>
+                                        <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                                            <span>{t('options.visualizerFrameRateValue') || '限制档位'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                                {getFrameRateLabel(selectedVisualizerFrameRate)}
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max={VISUALIZER_FRAME_RATE_OPTIONS.length - 1}
+                                            step="1"
+                                            value={Math.max(0, selectedVisualizerFrameRateIndex)}
+                                            onChange={(event) => handleFrameRateSliderChange(event.target.value)}
+                                            className={rangeInputClass}
+                                            aria-label={t('options.visualizerFrameRateValue') || '限制档位'}
+                                            disabled={!isVisualizerFrameRateLimiterEnabled}
+                                        />
+                                        <div className="grid grid-cols-3 text-[11px] font-mono opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                            {VISUALIZER_FRAME_RATE_OPTIONS.map((frameRate, index) => (
+                                                <span
                                                     key={frameRate}
-                                                    type="button"
-                                                    onClick={() => onVisualizerFrameRateChange(frameRate)}
-                                                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${isActive ? 'bg-white/12 border-white/20' : utilityGhostButtonClass}`}
-                                                    style={{
-                                                        color: isActive
-                                                            ? (theme?.primaryColor || 'var(--text-primary)')
-                                                            : 'var(--text-primary)',
-                                                    }}
+                                                    className={index === 1 ? 'text-center' : index === 2 ? 'text-right' : ''}
                                                 >
-                                                    {getFrameRateLabel(frameRate)}
-                                                </button>
-                                            );
-                                        })}
+                                                    {frameRate}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
 
