@@ -225,6 +225,7 @@ export default function App() {
         tiltTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
+        cappellaCustomAvatarImages,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -1996,6 +1997,7 @@ export default function App() {
                     cappellaTuning={cappellaTuning}
                     tiltTuning={tiltTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                    cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                     onBack={navigateToHome}
                 />
             </div>

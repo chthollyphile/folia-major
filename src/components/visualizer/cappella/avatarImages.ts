@@ -17,6 +17,7 @@ interface ResolveCappellaAvatarUrlInput {
     side: CappellaAvatarSide;
     seed?: string | number;
     avatars?: CappellaAvatarImage[];
+    customAvatarImages?: CappellaAvatarImage[];
 }
 
 const avatarModules = import.meta.glob<{ default: string }>(
@@ -83,6 +84,7 @@ export const resolveCappellaAvatarUrl = ({
     side,
     seed,
     avatars = builtinAvatarImages,
+    customAvatarImages,
 }: ResolveCappellaAvatarUrlInput): string | null => {
     if (avatarSource === 'color') {
         return null;
@@ -90,6 +92,10 @@ export const resolveCappellaAvatarUrl = ({
 
     if (avatarSource === 'cover' && coverUrl) {
         return coverUrl;
+    }
+
+    if (avatarSource === 'custom' && customAvatarImages && customAvatarImages.length > 0) {
+        return pickStableBuiltinAvatarImage(customAvatarImages, avatarIndex, side, seed)?.url ?? null;
     }
 
     return pickStableBuiltinAvatarImage(avatars, avatarIndex, side, seed)?.url ?? null;

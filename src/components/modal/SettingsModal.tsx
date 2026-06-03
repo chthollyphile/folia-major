@@ -119,6 +119,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         tiltTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
+        cappellaCustomAvatarImages,
+        isLoadingCappellaCustomAvatarPack,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -158,6 +160,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetTiltTuning: onResetTiltTuning,
         handleImportCustomCappellaEmojiPack: onImportCappellaCustomEmojiPack,
         handleClearCustomCappellaEmojiPack: onClearCappellaCustomEmojiPack,
+        handleImportCustomCappellaAvatar: onImportCappellaCustomAvatar,
+        handleClearCustomCappellaAvatar: onClearCappellaCustomAvatar,
         handleSetLyricsFontStyle: onLyricsFontStyleChange,
         handleSetLyricsFontScale: onLyricsFontScaleChange,
         handleSetLyricsCustomFont: onLyricsCustomFontChange,
@@ -2107,6 +2111,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         cappellaTuning={cappellaTuning}
                         tiltTuning={tiltTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                        cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
                         customFontFamily={lyricsCustomFontFamily}
@@ -2136,6 +2141,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
                         onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
                         isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
+                        onImportCappellaCustomAvatar={onImportCappellaCustomAvatar}
+                        onClearCappellaCustomAvatar={onClearCappellaCustomAvatar}
+                        isLoadingCappellaCustomAvatarPack={isLoadingCappellaCustomAvatarPack}
                         onClose={() => setShowVisPlayground(false)}
                     />
                 )}
@@ -2155,6 +2163,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         fumeTuning={fumeTuning}
                         cappellaTuning={cappellaTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                        cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                         lyricsFontStyle={lyricsFontStyle}
                         lyricsFontScale={lyricsFontScale}
                         lyricsCustomFontFamily={lyricsCustomFontFamily}

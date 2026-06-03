@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
-import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
+import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
+import { buildStoredCappellaAvatar, clearCustomCappellaAvatar, isSupportedCappellaAvatarFile, saveCustomCappellaAvatar } from '../services/cappellaAvatarPack';
 import { clearUploadedLyricsFont, uploadAndRegisterLyricsFont } from '../services/customLyricsFont';
 import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAME_RATE_STORAGE_KEY } from '../utils/frameRateLimiter';
 
@@ -272,7 +273,7 @@ const readStoredFumeTuning = (): FumeTuning => {
 };
 
 const resolveCappellaAvatarSource = (source: CappellaAvatarSource | undefined): CappellaAvatarSource => (
-    source === 'builtin' || source === 'color' || source === 'cover'
+    source === 'builtin' || source === 'color' || source === 'cover' || source === 'custom'
         ? source
         : DEFAULT_CAPPELLA_TUNING.avatarSource
 );
@@ -459,6 +460,9 @@ type SettingsUiState = {
     storedCappellaEmojiPack: StoredCappellaEmojiImage[];
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     isLoadingCappellaCustomEmojiPack: boolean;
+    storedCappellaAvatarPack: StoredCappellaAvatarImage[];
+    cappellaCustomAvatarImages: CappellaAvatarImage[];
+    isLoadingCappellaCustomAvatarPack: boolean;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFont: StoredCustomLyricsFont | null;
@@ -478,6 +482,9 @@ type SettingsUiState = {
     setStoredCappellaEmojiPack: (pack: StoredCappellaEmojiImage[]) => void;
     setCappellaCustomEmojiImages: (images: CappellaEmojiImage[]) => void;
     setIsLoadingCappellaCustomEmojiPack: (loading: boolean) => void;
+    setStoredCappellaAvatarPack: (pack: StoredCappellaAvatarImage[]) => void;
+    setCappellaCustomAvatarImages: (images: CappellaAvatarImage[]) => void;
+    setIsLoadingCappellaCustomAvatarPack: (loading: boolean) => void;
     clearLyricsCustomFontAfterRestoreFailure: (message: StatusMessage) => void;
     ensureBuiltinCappellaEmojiPack: () => void;
     setIsSubSettingsViewOpen: (open: boolean) => void;
@@ -514,6 +521,8 @@ type SettingsUiState = {
     handleResetTiltTuning: () => void;
     handleImportCustomCappellaEmojiPack: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     handleClearCustomCappellaEmojiPack: () => Promise<void>;
+    handleImportCustomCappellaAvatar: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    handleClearCustomCappellaAvatar: () => Promise<void>;
     handleSetLyricsFontStyle: (fontStyle: Theme['fontStyle']) => void;
     handleSetLyricsFontScale: (fontScale: number) => void;
     handleSetLyricsCustomFont: (font: StoredCustomLyricsFont | null) => void;
@@ -563,6 +572,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     storedCappellaEmojiPack: [],
     cappellaCustomEmojiImages: [],
     isLoadingCappellaCustomEmojiPack: true,
+    storedCappellaAvatarPack: [],
+    cappellaCustomAvatarImages: [],
+    isLoadingCappellaCustomAvatarPack: true,
     lyricsFontStyle: readStoredLyricsFontStyle(),
     lyricsFontScale: readStoredLyricsFontScale(),
     lyricsCustomFont: readStoredCustomLyricsFont(),
@@ -601,6 +613,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     setStoredCappellaEmojiPack: (pack) => set({ storedCappellaEmojiPack: pack }),
     setCappellaCustomEmojiImages: (images) => set({ cappellaCustomEmojiImages: images }),
     setIsLoadingCappellaCustomEmojiPack: (loading) => set({ isLoadingCappellaCustomEmojiPack: loading }),
+    setStoredCappellaAvatarPack: (pack) => set({ storedCappellaAvatarPack: pack }),
+    setCappellaCustomAvatarImages: (images) => set({ cappellaCustomAvatarImages: images }),
+    setIsLoadingCappellaCustomAvatarPack: (loading) => set({ isLoadingCappellaCustomAvatarPack: loading }),
     clearLyricsCustomFontAfterRestoreFailure: (message) => {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('lyrics_custom_font');
@@ -910,10 +925,6 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
 
         const storedCappellaEmojiPack = get().storedCappellaEmojiPack;
-        const nextTotal = storedCappellaEmojiPack.length + files.length;
-        if (nextTotal > MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES) {
-            return { ok: false, error: `最多只能上传 ${MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES} 张图片，当前已上传 ${storedCappellaEmojiPack.length} 张。` };
-        }
 
         if (!files.every(isSupportedCappellaEmojiFile)) {
             return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
@@ -944,6 +955,43 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             cappellaTuning: nextTuning,
         });
         notify(get, { type: 'info', text: '自定义群唱表情包已清空' });
+    },
+    handleImportCustomCappellaAvatar: async (files) => {
+        if (files.length === 0) {
+            return { ok: false, error: '请选择图片文件。' };
+        }
+
+        const storedCappellaAvatarPack = get().storedCappellaAvatarPack;
+
+        if (!files.every(isSupportedCappellaAvatarFile)) {
+            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+        }
+
+        const builtPack = buildStoredCappellaAvatar(files);
+        const storedPack = [...storedCappellaAvatarPack, ...builtPack];
+        await saveCustomCappellaAvatar(storedPack);
+        set({ storedCappellaAvatarPack: storedPack });
+        notify(get, {
+            type: 'success',
+            text: `已新增 ${builtPack.length} 张自定义头像，当前共 ${storedPack.length} 张`,
+        });
+
+        return { ok: true };
+    },
+    handleClearCustomCappellaAvatar: async () => {
+        await clearCustomCappellaAvatar();
+        const prev = get().cappellaTuning;
+        const nextTuning = prev.avatarSource === 'custom'
+            ? { ...prev, avatarSource: 'builtin' as const }
+            : prev;
+        if (nextTuning !== prev && typeof window !== 'undefined') {
+            localStorage.setItem('cappella_tuning', JSON.stringify(nextTuning));
+        }
+        set({
+            storedCappellaAvatarPack: [],
+            cappellaTuning: nextTuning,
+        });
+        notify(get, { type: 'info', text: '自定义头像已清空' });
     },
     handleSetLyricsFontStyle: (fontStyle) => {
         if (typeof window !== 'undefined') {
@@ -1116,6 +1164,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     tiltTuning: state.tiltTuning,
     cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
     isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
+    cappellaCustomAvatarImages: state.cappellaCustomAvatarImages,
+    isLoadingCappellaCustomAvatarPack: state.isLoadingCappellaCustomAvatarPack,
     lyricsFontStyle: state.lyricsFontStyle,
     lyricsFontScale: state.lyricsFontScale,
     lyricsCustomFontFamily: state.lyricsCustomFont?.family ?? null,
@@ -1160,6 +1210,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetTiltTuning: state.handleResetTiltTuning,
     handleImportCustomCappellaEmojiPack: state.handleImportCustomCappellaEmojiPack,
     handleClearCustomCappellaEmojiPack: state.handleClearCustomCappellaEmojiPack,
+    handleImportCustomCappellaAvatar: state.handleImportCustomCappellaAvatar,
+    handleClearCustomCappellaAvatar: state.handleClearCustomCappellaAvatar,
     handleSetLyricsFontStyle: state.handleSetLyricsFontStyle,
     handleSetLyricsFontScale: state.handleSetLyricsFontScale,
     handleSetLyricsCustomFont: state.handleSetLyricsCustomFont,

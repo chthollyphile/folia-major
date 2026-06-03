@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Monitor, RotateCcw } from 'lucide-react';
 import {
+    type CappellaAvatarImage,
     type CappellaEmojiImage,
     type CappellaTuning,
     type ClassicTuning,
@@ -81,6 +82,10 @@ interface VisPlaygroundSettingsPanelProps {
     isLoadingCappellaCustomEmojiPack: boolean;
     onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
+    cappellaCustomAvatarImages?: CappellaAvatarImage[];
+    onImportCappellaCustomAvatar?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearCappellaCustomAvatar?: () => Promise<void> | void;
+    isLoadingCappellaCustomAvatarPack?: boolean;
     tiltTuning: TiltTuning;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
     hideTranslationSubtitle: boolean;
@@ -279,6 +284,10 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         isLoadingCappellaCustomEmojiPack,
         onImportCappellaCustomEmojiPack,
         onClearCappellaCustomEmojiPack,
+        cappellaCustomAvatarImages = [],
+        onImportCappellaCustomAvatar,
+        onClearCappellaCustomAvatar,
+        isLoadingCappellaCustomAvatarPack = false,
         tiltTuning,
         onTiltTuningChange,
         hideTranslationSubtitle,
@@ -510,6 +519,11 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             isCappellaCustomEmojiPackLoading: isLoadingCappellaCustomEmojiPack,
                             onImportCappellaCustomEmojiPack,
                             onClearCappellaCustomEmojiPack,
+                            cappellaCustomAvatarImages,
+                            onImportCappellaCustomAvatar,
+                            onClearCappellaCustomAvatar,
+                            hasCappellaCustomAvatar: cappellaCustomAvatarImages.length > 0,
+                            isCappellaCustomAvatarLoading: isLoadingCappellaCustomAvatarPack,
                             tiltTuning,
                             onTiltTuningChange,
                             onSliderPointerDown,

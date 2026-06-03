@@ -2,6 +2,7 @@ import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { StatusMessage } from '../types';
 import { getCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
+import { getCustomCappellaAvatar } from '../services/cappellaAvatarPack';
 import { restoreUploadedLyricsFont } from '../services/customLyricsFont';
 import {
     resolveStoredCappellaTuning,
@@ -22,10 +23,14 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const setStoredCappellaEmojiPack = useSettingsUiStore(state => state.setStoredCappellaEmojiPack);
     const setCappellaCustomEmojiImages = useSettingsUiStore(state => state.setCappellaCustomEmojiImages);
     const setIsLoadingCappellaCustomEmojiPack = useSettingsUiStore(state => state.setIsLoadingCappellaCustomEmojiPack);
+    const setStoredCappellaAvatarPack = useSettingsUiStore(state => state.setStoredCappellaAvatarPack);
+    const setCappellaCustomAvatarImages = useSettingsUiStore(state => state.setCappellaCustomAvatarImages);
+    const setIsLoadingCappellaCustomAvatarPack = useSettingsUiStore(state => state.setIsLoadingCappellaCustomAvatarPack);
     const clearLyricsCustomFontAfterRestoreFailure = useSettingsUiStore(state => state.clearLyricsCustomFontAfterRestoreFailure);
     const ensureBuiltinCappellaEmojiPack = useSettingsUiStore(state => state.ensureBuiltinCappellaEmojiPack);
     const lyricsCustomFont = useSettingsUiStore(state => state.lyricsCustomFont);
     const storedCappellaEmojiPack = useSettingsUiStore(state => state.storedCappellaEmojiPack);
+    const storedCappellaAvatarPack = useSettingsUiStore(state => state.storedCappellaAvatarPack);
     const cappellaEmojiPackSource = useSettingsUiStore(state => state.cappellaTuning.emojiPackSource);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
 
@@ -120,6 +125,28 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setIsLoadingCappellaCustomEmojiPack, setStoredCappellaEmojiPack]);
 
     useEffect(() => {
+        let isCancelled = false;
+
+        const loadCustomAvatarPack = async () => {
+            try {
+                const storedPack = await getCustomCappellaAvatar();
+                if (!isCancelled) {
+                    setStoredCappellaAvatarPack(storedPack);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingCappellaCustomAvatarPack(false);
+                }
+            }
+        };
+
+        void loadCustomAvatarPack();
+        return () => {
+            isCancelled = true;
+        };
+    }, [setIsLoadingCappellaCustomAvatarPack, setStoredCappellaAvatarPack]);
+
+    useEffect(() => {
         if (lyricsCustomFont?.source !== 'uploaded' || !lyricsCustomFont.fontId) {
             return;
         }
@@ -170,6 +197,19 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             nextImages.forEach(image => URL.revokeObjectURL(image.url));
         };
     }, [setCappellaCustomEmojiImages, storedCappellaEmojiPack]);
+
+    useEffect(() => {
+        const nextImages = storedCappellaAvatarPack.map(image => ({
+            id: image.id,
+            name: image.name,
+            url: URL.createObjectURL(image.blob),
+        }));
+        setCappellaCustomAvatarImages(nextImages);
+
+        return () => {
+            nextImages.forEach(image => URL.revokeObjectURL(image.url));
+        };
+    }, [setCappellaCustomAvatarImages, storedCappellaAvatarPack]);
 
     useEffect(() => {
         ensureBuiltinCappellaEmojiPack();

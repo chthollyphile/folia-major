@@ -11,6 +11,7 @@ import {
     DEFAULT_FUME_TUNING,
     DEFAULT_PARTITA_TUNING,
     AudioBands,
+    CappellaAvatarImage,
     CappellaEmojiImage,
     CappellaTuning,
     CadenzaTuning,
@@ -43,6 +44,7 @@ interface ThemeParkProps {
     fumeTuning?: FumeTuning;
     cappellaTuning?: CappellaTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
+    cappellaCustomAvatarImages?: CappellaAvatarImage[];
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily?: string | null;
@@ -93,6 +95,7 @@ const ThemePreviewLayer: React.FC<{
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
     cappellaCustomEmojiImages: CappellaEmojiImage[];
+    cappellaCustomAvatarImages: CappellaAvatarImage[];
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -115,6 +118,7 @@ const ThemePreviewLayer: React.FC<{
     fumeTuning,
     cappellaTuning,
     cappellaCustomEmojiImages,
+    cappellaCustomAvatarImages,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -162,6 +166,7 @@ const ThemePreviewLayer: React.FC<{
                     fumeTuning={fumeTuning}
                     cappellaTuning={cappellaTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                    cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                     seed={getVisualizerScopedSeed(visualizerMode, `theme-park-${mode}`)}
                 />
             </div>
@@ -222,6 +227,7 @@ const DiagonalThemePreview: React.FC<{
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
     cappellaCustomEmojiImages: CappellaEmojiImage[];
+    cappellaCustomAvatarImages: CappellaAvatarImage[];
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -243,6 +249,7 @@ const DiagonalThemePreview: React.FC<{
     fumeTuning,
     cappellaTuning,
     cappellaCustomEmojiImages,
+    cappellaCustomAvatarImages,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -287,6 +294,7 @@ const DiagonalThemePreview: React.FC<{
                 fumeTuning={fumeTuning}
                 cappellaTuning={cappellaTuning}
                 cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -310,6 +318,7 @@ const DiagonalThemePreview: React.FC<{
                 fumeTuning={fumeTuning}
                 cappellaTuning={cappellaTuning}
                 cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                 lyricsFontScale={lyricsFontScale}
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
@@ -336,6 +345,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     fumeTuning = DEFAULT_FUME_TUNING,
     cappellaTuning = DEFAULT_CAPPELLA_TUNING,
     cappellaCustomEmojiImages = [],
+    cappellaCustomAvatarImages = [],
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -519,6 +529,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             fumeTuning={fumeTuning}
                             cappellaTuning={cappellaTuning}
                             cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                            cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

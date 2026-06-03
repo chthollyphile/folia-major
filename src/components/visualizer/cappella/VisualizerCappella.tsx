@@ -10,7 +10,7 @@ import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow }
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
-import { builtinAvatarImages, resolveCappellaAvatarUrl } from './avatarImages';
+import { builtinAvatarImages, type CappellaAvatarImage, resolveCappellaAvatarUrl } from './avatarImages';
 import { builtinEmoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
@@ -1064,6 +1064,7 @@ interface CappellaMessageRowProps {
     maxTextWidth: number;
     metricsCache: React.MutableRefObject<Map<string, PreparedBubbleMetrics>>;
     intensityConfig: CappellaIntensityConfig;
+    customAvatarImages?: CappellaAvatarImage[];
 }
 
 const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessageRowProps>(({
@@ -1078,6 +1079,7 @@ const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessageRowPr
     maxTextWidth,
     metricsCache,
     intensityConfig,
+    customAvatarImages,
 }, ref) => {
     const isRight = message.side === 'right';
     const timedData: CappellaTimedMessage | null = isTimedMessage(message) ? message : null;
@@ -1101,6 +1103,7 @@ const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessageRowPr
         side: message.side,
         seed: avatarSeed,
         avatars: builtinAvatarImages,
+        customAvatarImages,
     });
     const useAvatarGridCrop = cappellaTuning.avatarSource === 'cover' && Boolean(coverUrl);
     const [visibleCharacterCount, setVisibleCharacterCount] = useState(() => (
@@ -1390,6 +1393,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
         hideTranslationSubtitle = false,
         cappellaTuning = DEFAULT_CAPPELLA_TUNING,
         cappellaCustomEmojiImages = [],
+        cappellaCustomAvatarImages = [],
         isPreviewMode = false,
     } = props;
     const { t } = useTranslation();
@@ -1412,7 +1416,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
                 : DEFAULT_CAPPELLA_TUNING.emojiPackSource
         ),
         avatarSource: (
-            cappellaTuning.avatarSource === 'builtin' || cappellaTuning.avatarSource === 'color' || cappellaTuning.avatarSource === 'cover'
+            cappellaTuning.avatarSource === 'builtin' || cappellaTuning.avatarSource === 'color' || cappellaTuning.avatarSource === 'cover' || (cappellaTuning.avatarSource === 'custom' && cappellaCustomAvatarImages.length > 0)
                 ? cappellaTuning.avatarSource
                 : DEFAULT_CAPPELLA_TUNING.avatarSource
         ),
@@ -1422,6 +1426,10 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
             ? cappellaCustomEmojiImages
             : builtinEmoImages,
         [cappellaCustomEmojiImages, resolvedCappellaTuning.emojiPackSource]
+    );
+    const customAvatarImages = useMemo(
+        () => resolvedCappellaTuning.avatarSource === 'custom' ? cappellaCustomAvatarImages : [],
+        [cappellaCustomAvatarImages, resolvedCappellaTuning.avatarSource]
     );
     const messages = useMemo(
         () => buildCappellaMessages(lines, titleText, intensityConfig, resolvedCappellaTuning, activeEmoImages, isPreviewMode),
@@ -1516,6 +1524,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
                                     maxTextWidth={maxTextWidth}
                                     metricsCache={bubbleMetricsCacheRef}
                                     intensityConfig={intensityConfig}
+                                    customAvatarImages={customAvatarImages}
                                 />
                             ))}
                         </AnimatePresence>

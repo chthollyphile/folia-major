@@ -4,7 +4,6 @@ import type { StoredCappellaEmojiImage } from '../types';
 // src/services/cappellaEmojiPack.ts
 // Persists user-provided Cappella emoji packs in IndexedDB as an appendable local asset set.
 const CAPPELLA_CUSTOM_EMOJI_PACK_KEY = 'cappella_custom_emoji_pack';
-const MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES = 5;
 const SUPPORTED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
 
 export const getCustomCappellaEmojiPack = async (): Promise<StoredCappellaEmojiImage[]> => {
@@ -37,5 +36,3 @@ export const buildStoredCappellaEmojiPack = (files: File[]): StoredCappellaEmoji
         mimeType: file.type || 'application/octet-stream',
         blob: file,
     }));
-
-export { MAX_CAPPELLA_CUSTOM_EMOJI_IMAGES };
