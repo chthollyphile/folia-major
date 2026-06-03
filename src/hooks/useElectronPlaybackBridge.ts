@@ -3,7 +3,7 @@ import type React from 'react';
 import type { RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState } from '../types';
-import type { SongResult } from '../types';
+import type { SongResult, LyricData } from '../types';
 import type { RemoteControlCommand, RemoteControlSnapshot } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
 
@@ -37,6 +37,7 @@ type UseElectronPlaybackBridgeOptions = {
     taskbarPlayerStateRef: RefObject<PlayerState>;
     exportState: VideoExportState;
     isDaylight: boolean;
+    lyrics: LyricData | null;
     onRemoteExportCommand?: (command: RemoteControlCommand) => boolean;
     onExternalPlayRequest?: (request: any) => Promise<void>;
 };
@@ -70,6 +71,7 @@ export const useElectronPlaybackBridge = ({
     taskbarPlayerStateRef,
     exportState,
     isDaylight,
+    lyrics,
     onRemoteExportCommand,
     onExternalPlayRequest,
 }: UseElectronPlaybackBridgeOptions) => {
@@ -102,6 +104,7 @@ export const useElectronPlaybackBridge = ({
             playerChromeHidden: isPlayerChromeHidden,
             exportState,
             isDaylight,
+            lyrics,
             updatedAt: Date.now(),
         };
     };
@@ -195,7 +198,7 @@ export const useElectronPlaybackBridge = ({
         const intervalId = window.setInterval(publish, 500);
         return () => window.clearInterval(intervalId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, mainWindowClickThroughEnabled, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground]);
+    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, lyrics, mainWindowClickThroughEnabled, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground]);
 
     useEffect(() => {
         if (!window.electron?.onRemoteControlCommand) {

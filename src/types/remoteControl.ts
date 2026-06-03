@@ -1,4 +1,4 @@
-import type { PlayerState } from '../types';
+import type { PlayerState, LyricData } from '../types';
 import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from './videoExport';
 
 // src/types/remoteControl.ts
@@ -38,6 +38,8 @@ export interface RemoteControlSnapshot {
     playerChromeHidden: boolean;
     exportState: VideoExportState;
     isDaylight?: boolean;
+    lyrics?: LyricData | null;
     updatedAt: number;
 }
+
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { ChevronLeft, Lock, LockOpen, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, MirrorRectangular, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
@@ -6,6 +6,7 @@ import RemoteVideoExportPanel from './RemoteVideoExportPanel';
 import type { RemoteControlCommand, RemoteControlSnapshot } from '../../types/remoteControl';
 import { DEFAULT_VIDEO_EXPORT_PRESET_ID, idleVideoExportState, VIDEO_EXPORT_PRESETS } from '../../types/videoExport';
 import type { VideoExportStartMode } from '../../types/videoExport';
+import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
 
 // src/components/remote/RemoteControlApp.tsx
 // Electron-only companion window for controlling the single real player instance.
@@ -45,6 +46,7 @@ const emptySnapshot: RemoteControlSnapshot = {
     playerChromeHidden: false,
     exportState: idleVideoExportState(),
     isDaylight: false,
+    lyrics: null,
     updatedAt: 0,
 };
 
@@ -59,6 +61,66 @@ const RemoteControlApp: React.FC = () => {
     const [presetSelectorOpen, setPresetSelectorOpen] = useState(false);
     const [alwaysOnTop, setAlwaysOnTop] = useState(false);
     const [windowControlsRevealed, setWindowControlsRevealed] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
+    const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
+    const [interpolatedTime, setInterpolatedTime] = useState(0);
+    const lastSyncRef = useRef({ snapshotTime: 0, localTime: 0 });
+
+    useEffect(() => {
+        lastSyncRef.current = {
+            snapshotTime: snapshot.currentTime,
+            localTime: performance.now(),
+        };
+        setInterpolatedTime(snapshot.currentTime);
+    }, [snapshot.currentTime, snapshot.playerState]);
+
+    useEffect(() => {
+        if (snapshot.playerState !== PlayerState.PLAYING) {
+            return;
+        }
+
+        let frameId: number;
+        const tick = () => {
+            const elapsed = (performance.now() - lastSyncRef.current.localTime) / 1000;
+            const nextTime = Math.min(snapshot.duration, lastSyncRef.current.snapshotTime + elapsed);
+            setInterpolatedTime(nextTime);
+            frameId = requestAnimationFrame(tick);
+        };
+
+        frameId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frameId);
+    }, [snapshot.playerState, snapshot.duration]);
+
+    useEffect(() => {
+        if (isHovered) {
+            setShowLyricsOverlay(false);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setShowLyricsOverlay(true);
+        }, 1200);
+
+        return () => clearTimeout(timer);
+    }, [isHovered]);
+
+    const currentLyricInfo = useMemo(() => {
+        let currentLine = null;
+        let nextLine = null;
+        if (snapshot.lyrics && snapshot.lyrics.lines.length > 0) {
+            const index = findLatestActiveLineIndex(snapshot.lyrics.lines, interpolatedTime);
+            if (index !== -1) {
+                currentLine = snapshot.lyrics.lines[index];
+                nextLine = snapshot.lyrics.lines[index + 1] || null;
+            } else {
+                const upcomingIndex = snapshot.lyrics.lines.findIndex(line => line.startTime > interpolatedTime);
+                if (upcomingIndex !== -1) {
+                    nextLine = snapshot.lyrics.lines[upcomingIndex];
+                }
+            }
+        }
+        return { currentLine, nextLine };
+    }, [snapshot.lyrics, interpolatedTime]);
 
     useEffect(() => {
         document.body.style.backgroundColor = 'transparent';
@@ -103,6 +165,9 @@ const RemoteControlApp: React.FC = () => {
     const exportState = snapshot.exportState ?? idleVideoExportState();
     const isDaylight = Boolean(snapshot.isDaylight);
 
+    const baseColor = isDaylight ? 'rgba(0, 0, 0, 0.35)' : 'rgba(255, 255, 255, 0.35)';
+    const activeColor = isDaylight ? '#1c1917' : '#ffffff';
+
     const lastStatusRef = React.useRef(exportState.status);
     useEffect(() => {
         if (exportState.status !== 'idle' && lastStatusRef.current === 'idle') {
@@ -135,8 +200,14 @@ const RemoteControlApp: React.FC = () => {
                 isDaylight ? 'text-zinc-900' : 'text-white'
             }`}
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-            onMouseEnter={() => setWindowControlsRevealed(true)}
-            onMouseLeave={() => setWindowControlsRevealed(false)}
+            onMouseEnter={() => {
+                setWindowControlsRevealed(true);
+                setIsHovered(true);
+            }}
+            onMouseLeave={() => {
+                setWindowControlsRevealed(false);
+                setIsHovered(false);
+            }}
         >
             <div className={`relative flex h-full w-full rounded-[20px] border p-4 items-center justify-center overflow-hidden transition-colors duration-300 ${
                 isDaylight ? 'border-black/10' : 'border-white/10'
@@ -173,8 +244,14 @@ const RemoteControlApp: React.FC = () => {
                         windowControlsRevealed ? 'opacity-100' : 'opacity-0'
                     }`}
                     style={noDragStyle}
-                    onFocus={() => setWindowControlsRevealed(true)}
-                    onMouseEnter={() => setWindowControlsRevealed(true)}
+                    onFocus={() => {
+                        setWindowControlsRevealed(true);
+                        setIsHovered(true);
+                    }}
+                    onMouseEnter={() => {
+                        setWindowControlsRevealed(true);
+                        setIsHovered(true);
+                    }}
                 >
                     <button
                         type="button"
@@ -328,77 +405,154 @@ const RemoteControlApp: React.FC = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Playback Actions */}
-                                            <div className="flex w-full items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        title="Previous"
-                                                        disabled={primaryDisabled || !snapshot.canGoPrevious}
-                                                        onClick={() => sendCommand({ type: 'previous' })}
-                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                                            isDaylight
-                                                                ? 'bg-black/5 text-black/60 hover:bg-black/10 hover:text-black'
-                                                                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                                                        }`}
-                                                    >
-                                                        <SkipBack size={16} strokeWidth={2} />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        title={isPlaying ? 'Pause' : 'Play'}
-                                                        disabled={primaryDisabled}
-                                                        onClick={() => sendCommand({ type: 'play-pause' })}
-                                                        className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                                            isDaylight
-                                                                ? 'bg-zinc-900 text-white hover:bg-zinc-800'
-                                                                : 'bg-white text-zinc-950 hover:bg-white/90'
-                                                        }`}
-                                                    >
-                                                        {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} className="translate-x-0.5" fill="currentColor" />}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        title="Next"
-                                                        disabled={primaryDisabled || !snapshot.canGoNext}
-                                                        onClick={() => sendCommand({ type: 'next' })}
-                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                                            isDaylight
-                                                                ? 'bg-black/5 text-black/60 hover:bg-black/10 hover:text-black'
-                                                                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                                                        }`}
-                                                    >
-                                                        <SkipForward size={16} strokeWidth={2} />
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        title="Transparent controls"
-                                                        onClick={() => {
-                                                            setPresetSelectorOpen(false);
-                                                            setActivePanel('transparent-controls');
-                                                        }}
-                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
-                                                            isDaylight ? 'bg-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
-                                                        }`}
-                                                    >
-                                                        <MirrorRectangular size={16} strokeWidth={2} />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        title="Video export"
-                                                        disabled={!snapshot.hasTrack}
-                                                        onClick={() => setActivePanel('export')}
-                                                        className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
-                                                            exportState.status === 'recording'
-                                                                ? (isDaylight ? 'bg-red-500/20 text-red-600 animate-pulse border border-red-500/25' : 'bg-red-500/25 text-red-400 animate-pulse border border-red-500/30')
-                                                                : (isDaylight ? 'bg-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white')
-                                                        }`}
-                                                    >
-                                                        <Video size={16} strokeWidth={2} />
-                                                    </button>
-                                                </div>
+                                            {/* Playback Actions or Lyrics Overlay */}
+                                            <div className="h-9 w-full relative" style={noDragStyle}>
+                                                <AnimatePresence mode="wait">
+                                                    {!showLyricsOverlay ? (
+                                                        <motion.div
+                                                            key="controls"
+                                                            initial={{ opacity: 0, y: 8 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: -8 }}
+                                                            transition={{ duration: 0.15 }}
+                                                            className="absolute inset-x-0 bottom-0 top-0 flex w-full items-center justify-between"
+                                                        >
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    title="Previous"
+                                                                    disabled={primaryDisabled || !snapshot.canGoPrevious}
+                                                                    onClick={() => sendCommand({ type: 'previous' })}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                                        isDaylight
+                                                                            ? 'bg-black/5 text-black/60 hover:bg-black/10 hover:text-black'
+                                                                            : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    <SkipBack size={16} strokeWidth={2} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title={isPlaying ? 'Pause' : 'Play'}
+                                                                    disabled={primaryDisabled}
+                                                                    onClick={() => sendCommand({ type: 'play-pause' })}
+                                                                    className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                                        isDaylight
+                                                                            ? 'bg-zinc-900 text-white hover:bg-zinc-800'
+                                                                            : 'bg-white text-zinc-950 hover:bg-white/90'
+                                                                    }`}
+                                                                >
+                                                                    {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} className="translate-x-0.5" fill="currentColor" />}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Next"
+                                                                    disabled={primaryDisabled || !snapshot.canGoNext}
+                                                                    onClick={() => sendCommand({ type: 'next' })}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                                        isDaylight
+                                                                            ? 'bg-black/5 text-black/60 hover:bg-black/10 hover:text-black'
+                                                                            : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    <SkipForward size={16} strokeWidth={2} />
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    title="Transparent controls"
+                                                                    onClick={() => {
+                                                                        setPresetSelectorOpen(false);
+                                                                        setActivePanel('transparent-controls');
+                                                                    }}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                                                                        isDaylight ? 'bg-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    <MirrorRectangular size={16} strokeWidth={2} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Video export"
+                                                                    disabled={!snapshot.hasTrack}
+                                                                    onClick={() => setActivePanel('export')}
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${
+                                                                        exportState.status === 'recording'
+                                                                            ? (isDaylight ? 'bg-red-500/20 text-red-600 animate-pulse border border-red-500/25' : 'bg-red-500/25 text-red-400 animate-pulse border border-red-500/30')
+                                                                            : (isDaylight ? 'bg-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white')
+                                                                    }`}
+                                                                >
+                                                                    <Video size={16} strokeWidth={2} />
+                                                                </button>
+                                                            </div>
+                                                        </motion.div>
+                                                    ) : (
+                                                        <motion.div
+                                                            key="lyrics"
+                                                            initial={{ opacity: 0, y: 8 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: -8 }}
+                                                            transition={{ duration: 0.15 }}
+                                                            className="absolute inset-x-0 bottom-0 top-0 flex flex-col justify-center min-w-0"
+                                                        >
+                                                            <div className="truncate text-xs font-bold leading-tight select-none">
+                                                                {currentLyricInfo.currentLine ? (
+                                                                    currentLyricInfo.currentLine.words && currentLyricInfo.currentLine.words.length > 0 ? (
+                                                                        currentLyricInfo.currentLine.words.map((word, idx) => {
+                                                                            const progress = word.endTime > word.startTime
+                                                                                ? Math.max(0, Math.min(100, ((interpolatedTime - word.startTime) / (word.endTime - word.startTime)) * 100))
+                                                                                : (interpolatedTime >= word.startTime ? 100 : 0);
+                                                                            return (
+                                                                                <span
+                                                                                    key={idx}
+                                                                                    style={{
+                                                                                        backgroundImage: `linear-gradient(to right, ${activeColor} ${progress}%, ${baseColor} ${progress}%)`,
+                                                                                        WebkitBackgroundClip: 'text',
+                                                                                        WebkitTextFillColor: 'transparent',
+                                                                                        display: 'inline-block',
+                                                                                        marginRight: '0.25em',
+                                                                                    }}
+                                                                                >
+                                                                                    {word.text}
+                                                                                </span>
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                        <span
+                                                                            style={{
+                                                                                backgroundImage: `linear-gradient(to right, ${activeColor} ${
+                                                                                    currentLyricInfo.currentLine.endTime > currentLyricInfo.currentLine.startTime
+                                                                                        ? Math.max(0, Math.min(100, ((interpolatedTime - currentLyricInfo.currentLine.startTime) / (currentLyricInfo.currentLine.endTime - currentLyricInfo.currentLine.startTime)) * 100))
+                                                                                        : (interpolatedTime >= currentLyricInfo.currentLine.startTime ? 100 : 0)
+                                                                                }%, ${baseColor} ${
+                                                                                    currentLyricInfo.currentLine.endTime > currentLyricInfo.currentLine.startTime
+                                                                                        ? Math.max(0, Math.min(100, ((interpolatedTime - currentLyricInfo.currentLine.startTime) / (currentLyricInfo.currentLine.endTime - currentLyricInfo.currentLine.startTime)) * 100))
+                                                                                        : (interpolatedTime >= currentLyricInfo.currentLine.startTime ? 100 : 0)
+                                                                                }%)`,
+                                                                                WebkitBackgroundClip: 'text',
+                                                                                WebkitTextFillColor: 'transparent',
+                                                                                display: 'inline-block',
+                                                                            }}
+                                                                        >
+                                                                            {currentLyricInfo.currentLine.fullText}
+                                                                        </span>
+                                                                    )
+                                                                ) : (
+                                                                    <span style={{ color: baseColor }}>
+                                                                        {snapshot.hasTrack ? '无歌词' : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div 
+                                                                className="truncate text-[10px] font-medium leading-none mt-1"
+                                                                style={{ color: baseColor }}
+                                                            >
+                                                                {currentLyricInfo.nextLine ? currentLyricInfo.nextLine.fullText : ''}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
                                         </motion.div>
                                     ) : activePanel === 'export' ? (

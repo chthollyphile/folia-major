@@ -107,6 +107,7 @@ declare global {
     playerChromeHidden: boolean;
     exportState: ElectronVideoExportState;
     isDaylight?: boolean;
+    lyrics?: import('./types').LyricData | null;
     updatedAt: number;
   }
 

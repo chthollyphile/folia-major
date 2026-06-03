@@ -1013,6 +1013,7 @@ export default function App() {
         taskbarPlayerStateRef,
         exportState,
         isDaylight,
+        lyrics,
         onRemoteExportCommand: handleExportCommand,
         onExternalPlayRequest: handleStageExternalPlayRequest,
     });
