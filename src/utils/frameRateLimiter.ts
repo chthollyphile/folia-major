@@ -19,8 +19,9 @@ type WindowWithVisualizerFrameRateLimiter = Window & {
     __foliaNativeCancelAnimationFrame?: CancelAnimationFrameFn;
 };
 
-export const VISUALIZER_FRAME_RATE_OPTIONS = [120, 90, 60] as const satisfies VisualizerFrameRate[];
+export const VISUALIZER_FRAME_RATE_OPTIONS = [60, 90, 120] as const satisfies VisualizerFrameRate[];
 export const VISUALIZER_FRAME_RATE_STORAGE_KEY = 'visualizer_frame_rate';
+const FRAME_INTERVAL_TOLERANCE_MS = 1;
 
 export const isVisualizerFrameRate = (value: unknown): value is VisualizerFrameRate => (
     value === 'off'
@@ -48,8 +49,15 @@ export const shouldProcessFrameAtRate = (
         return true;
     }
 
-    const intervalMs = 1000 / frameRate;
+    const intervalMs = 1000 / frameRate - FRAME_INTERVAL_TOLERANCE_MS;
     return lastProcessedTimestampMs === 0 || timestampMs - lastProcessedTimestampMs >= intervalMs;
+};
+
+const reportAnimationFrameCallbackError = (error: unknown) => {
+    console.error('Error in requestAnimationFrame callback:', error);
+    setTimeout(() => {
+        throw error;
+    }, 0);
 };
 
 // Creates a shared RAF queue so every callback scheduled for an allowed frame flushes together.
@@ -85,7 +93,11 @@ export const createFrameRateLimitedRaf = (
         callbacks.clear();
 
         for (const [, callback] of frameCallbacks) {
-            callback(timestamp);
+            try {
+                callback(timestamp);
+            } catch (error) {
+                reportAnimationFrameCallbackError(error);
+            }
         }
 
         scheduleNativeFrame();
