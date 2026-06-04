@@ -77,10 +77,15 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         breathingFloatMultiplier: clampClassicBreathingFloatMultiplier(
             classicTuning.breathingFloatMultiplier ?? DEFAULT_CLASSIC_TUNING.breathingFloatMultiplier,
         ),
+        useLegacyLayout: classicTuning.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
     };
     const wordRotationOptions: PresetOption<boolean>[] = useMemo(() => ([
         { value: true, label: t('options.classicWordRotationOn') || '启用' },
         { value: false, label: t('options.classicWordRotationOff') || '关闭' },
+    ]), [t]);
+    const legacyLayoutOptions: PresetOption<boolean>[] = useMemo(() => ([
+        { value: false, label: t('options.classicLegacyLayoutOff') || '自适应(推荐)' },
+        { value: true, label: t('options.classicLegacyLayoutOn') || '旧版(重叠)' },
     ]), [t]);
 
     return (
@@ -102,6 +107,15 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 value={resolvedClassicTuning.enableWordRotation}
                 options={wordRotationOptions}
                 onChange={(enabled) => onClassicTuningChange?.({ enableWordRotation: enabled })}
+                isDaylight={isDaylight}
+                theme={theme}
+            />
+
+            <PresetGroup
+                label={t('options.classicLegacyLayout') || '排版模式'}
+                value={resolvedClassicTuning.useLegacyLayout || false}
+                options={legacyLayoutOptions}
+                onChange={(enabled) => onClassicTuningChange?.({ useLegacyLayout: enabled })}
                 isDaylight={isDaylight}
                 theme={theme}
             />

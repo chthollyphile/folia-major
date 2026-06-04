@@ -214,11 +214,13 @@ export interface NowPlayingLyricPayload {
 export interface ClassicTuning {
   enableWordRotation: boolean;
   breathingFloatMultiplier: number;
+  useLegacyLayout?: boolean;
 }
 
 export const DEFAULT_CLASSIC_TUNING: ClassicTuning = {
   enableWordRotation: true,
   breathingFloatMultiplier: 1,
+  useLegacyLayout: false,
 };
 
 export interface CadenzaTuning {

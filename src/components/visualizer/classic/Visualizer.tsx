@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_CLASSIC_TUNING, Line, Theme, Word as WordType, AudioBands, type ClassicTuning } from '../../../types';
@@ -7,6 +7,8 @@ import { useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { buildPostLyricLayoutUnits, buildDisplayWordsFromLayoutUnits } from '../../../utils/lyrics/cjkSemanticLayout';
+import { resolveThemeFontStack } from '../../../utils/fontStacks';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -51,6 +53,7 @@ const resolveClassicTuning = (tuning?: ClassicTuning): ClassicTuning => ({
     breathingFloatMultiplier: clampClassicBreathingFloatMultiplier(
         tuning?.breathingFloatMultiplier ?? DEFAULT_CLASSIC_TUNING.breathingFloatMultiplier,
     ),
+    useLegacyLayout: tuning?.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
 });
 
 // Helper to determine if text contains CJK characters
@@ -131,6 +134,26 @@ const getClassicLineContainerMotion = (renderProfile: ClassicLineRenderProfile |
         animate: { opacity: 1, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none' } },
         exit: { opacity: 0, scale: 1.1, filter: 'blur(20px)', transition: { duration: 0.3 } },
     };
+};
+
+let classicMeasureCanvas: HTMLCanvasElement | null = null;
+
+/**
+ * Measures the width of a given word text using a 2D canvas context.
+ */
+const measureWordWidth = (text: string, pxSize: number, fontStack: string): number => {
+    if (typeof document === 'undefined') {
+        return text.length * pxSize * 0.65;
+    }
+    if (!classicMeasureCanvas) {
+        classicMeasureCanvas = document.createElement('canvas');
+    }
+    const context = classicMeasureCanvas.getContext('2d');
+    if (!context) {
+        return text.length * pxSize * 0.65;
+    }
+    context.font = `700 ${pxSize}px ${fontStack}`;
+    return context.measureText(text).width;
 };
 
 const Word: React.FC<{
@@ -274,6 +297,27 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
     const activeWordRenderProfile = activeLineRenderProfile ?? (activeLine ? resolveClassicLineRenderProfile(activeLine) : null);
     const activeLineContainerMotion = getClassicLineContainerMotion(activeLineRenderProfile);
 
+    const [viewportWidth, setViewportWidth] = useState(() => (
+        typeof window === 'undefined' ? 1200 : window.innerWidth
+    ));
+
+    useEffect(() => {
+        const handleResize = () => {
+            setViewportWidth(window.innerWidth);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const displayWords = useMemo(() => {
+        if (!activeLine) return [];
+        if (resolvedClassicTuning.useLegacyLayout) {
+            return activeLine.words;
+        }
+        const layoutUnits = buildPostLyricLayoutUnits(activeLine, { semantic: true, sticky: true });
+        return buildDisplayWordsFromLayoutUnits(layoutUnits);
+    }, [activeLine, resolvedClassicTuning.useLegacyLayout]);
+
     const mainFontSize = `clamp(${(2.25 * lyricsFontScale).toFixed(3)}rem, ${(6 * lyricsFontScale).toFixed(3)}vw, ${(4.5 * lyricsFontScale).toFixed(3)}rem)`;
     const emptyFontSize = `clamp(${(1.5 * lyricsFontScale).toFixed(3)}rem, ${(3.5 * lyricsFontScale).toFixed(3)}vw, ${(2.25 * lyricsFontScale).toFixed(3)}rem)`;
     const translationFontSize = `clamp(${(1.125 * lyricsFontScale).toFixed(3)}rem, ${(2.6 * lyricsFontScale).toFixed(3)}vw, ${(1.25 * lyricsFontScale).toFixed(3)}rem)`;
@@ -309,7 +353,21 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
 
         // Word layouts stay deterministic for a given line.
         // That is important because time should change the animation state, not the base geometry.
-        const wordConfigs: WordLayoutConfig[] = activeLine.words.map((w, i) => {
+        const fontStack = resolveThemeFontStack(theme);
+        const getPixelFontSize = (fontScale: number, width: number): number => {
+            const rem = 16;
+            const minPx = 2.25 * fontScale * rem;
+            const valPx = (6 * fontScale * width) / 100;
+            const maxPx = 4.5 * fontScale * rem;
+            return Math.max(minPx, Math.min(valPx, maxPx));
+        };
+        const pxFontSize = getPixelFontSize(lyricsFontScale, viewportWidth);
+        const wordWidths = displayWords.map(w => measureWordWidth(w.text, pxFontSize, fontStack));
+
+        const baseSpread = isChaotic ? 60 : isCalm ? 0 : 20;
+        const baseRotate = isChaotic ? 30 : isCalm ? 0 : 5;
+
+        const wordConfigs: WordLayoutConfig[] = displayWords.map((w, i) => {
             const wordSeed = seed + i;
 
             // Tiny deterministic RNG so every word gets its own reproducible offsets.
@@ -331,23 +389,58 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                 };
             }
 
-            const baseSpread = isChaotic ? 60 : isCalm ? 0 : 20;
-            const baseRotate = isChaotic ? 30 : isCalm ? 0 : 5;
-            // visualizer config
+            const wordConfigScale = isChaotic ? 0.8 + random(4) * 0.6 : 1.1 + random(4) * 0.2;
+            const xVal = (random(1) - 0.5) * baseSpread * 2;
+            const yVal = (random(2) - 0.5) * baseSpread * 2;
+
+            let marginRight = isChaotic ? `${random(5) * 1.5}rem` : '0.8rem';
+
+            if (!resolvedClassicTuning.useLegacyLayout) {
+                // Calculate precise margin right to avoid visual overlap during scaling and translation
+                const w_i = wordWidths[i] ?? 0;
+                const s_i = wordConfigScale * 1.4; // active scale max multiplier
+
+                let w_next = 0;
+                let s_next = 1.0;
+                let x_next = 0;
+
+                if (i + 1 < displayWords.length) {
+                    const nextSeed = seed + (i + 1);
+                    const nextRandom = (offset: number) => {
+                        const x = Math.sin(nextSeed + offset) * 10000;
+                        return x - Math.floor(x);
+                    };
+                    const nextConfigScale = isChaotic ? 0.8 + nextRandom(4) * 0.6 : 1.1 + nextRandom(4) * 0.2;
+                    s_next = nextConfigScale * 1.4;
+                    x_next = (nextRandom(1) - 0.5) * baseSpread * 2;
+                    w_next = wordWidths[i + 1] ?? 0;
+                }
+
+                const gap = 0.12 * pxFontSize;
+                const halfOverflow_i = w_i * (s_i - 1) / 2;
+                const halfOverflow_next = w_next * (s_next - 1) / 2;
+                const xOffsetDiff = xVal - x_next;
+
+                const calculatedMargin = halfOverflow_i + halfOverflow_next + xOffsetDiff + gap;
+                const minMargin = isChaotic ? 0.2 * pxFontSize : 0.25 * pxFontSize;
+                const finalMargin = Math.max(minMargin, calculatedMargin);
+                marginRight = `${finalMargin.toFixed(1)}px`;
+            }
+
             return {
                 id: `${w.text}-${i}-${seed}`,
-                x: (random(1) - 0.5) * baseSpread * 2,
-                y: (random(2) - 0.5) * baseSpread * 2,
+                x: xVal,
+                y: yVal,
                 rotate: resolvedClassicTuning.enableWordRotation ? (random(3) - 0.5) * baseRotate * 2 : 0,
-                scale: isChaotic ? 0.8 + random(4) * 0.6 : 1.1 + random(4) * 0.2,
-                marginRight: isChaotic ? `${random(5) * 1.5}rem` : '0.8rem',
+                scale: wordConfigScale,
+                marginRight,
                 alignSelf: isChaotic && random(6) > 0.7 ? (random(7) > 0.5 ? 'flex-start' : 'flex-end') : 'auto',
                 passedRotate: resolvedClassicTuning.enableWordRotation ? (random(8) - 0.5) * 45 : 0
             };
         });
 
         return { wordConfigs, lineConfig };
-    }, [activeLine, resolvedClassicTuning.enableWordRotation, theme.animationIntensity]);
+    }, [activeLine, displayWords, resolvedClassicTuning.enableWordRotation, resolvedClassicTuning.useLegacyLayout, theme, lyricsFontScale, viewportWidth]);
 
     // Container motion is the "body" of each word.
     // waiting/active/passed all reuse the same layout config but interpret it differently.
@@ -551,7 +644,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                             className={`flex flex-wrap w-full max-w-6xl content-center ${lineConfig.justifyContent} ${lineConfig.alignItems}`}
                             style={{ perspective: `${lineConfig.perspective}px`, minHeight: '300px' }}
                         >
-                            {activeLine.words.map((word, idx) => {
+                            {displayWords.map((word, idx) => {
                                 const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto', passedRotate: 0 };
 
                                 let activeColor = theme.accentColor;

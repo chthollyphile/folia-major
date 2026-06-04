@@ -137,6 +137,7 @@ const readStoredClassicTuning = (): ClassicTuning => {
                 parsed.breathingFloatMultiplier ?? DEFAULT_CLASSIC_TUNING.breathingFloatMultiplier,
                 DEFAULT_CLASSIC_TUNING.breathingFloatMultiplier,
             ),
+            useLegacyLayout: parsed.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
         };
     } catch {
         return DEFAULT_CLASSIC_TUNING;
@@ -798,6 +799,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
                 patch.breathingFloatMultiplier ?? prev.breathingFloatMultiplier,
                 prev.breathingFloatMultiplier,
             ),
+            useLegacyLayout: patch.useLegacyLayout ?? prev.useLegacyLayout,
         };
         if (typeof window !== 'undefined') {
             localStorage.setItem('classic_tuning', JSON.stringify(next));
