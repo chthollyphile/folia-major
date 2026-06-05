@@ -311,6 +311,7 @@ export default {
     "hidePlayerTranslationSubtitle": "Hide player bottom subtitle",
     "hidePlayerRightPanelButton": "Hide player right-side button",
     "transparentPlayerBackground": "Transparent player background",
+    "transparentPlayerBackgroundDesc": "Only applies on the player page. When enabled, Folia switches to transparent window mode for OBS browser sources or chroma key overlays.",
     "disableVisualizerVignette": "Disable vignette",
     "disableVisualizerVignetteDesc": "Only removes the geometric background edge vignette. Transparent background and geometric shapes stay separate.",
     "disableVisualizerGeometricBackground": "Hide common geometric background",

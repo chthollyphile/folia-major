@@ -311,6 +311,7 @@ export default {
     "hidePlayerTranslationSubtitle": "隐藏底部字幕",
     "hidePlayerRightPanelButton": "隐藏右侧按钮",
     "transparentPlayerBackground": "播放页透明背景",
+    "transparentPlayerBackgroundDesc": "仅对播放页生效。开启后会切换到透明窗口模式，适合 OBS 浏览器源或抠像叠加场景。",
     "disableVisualizerVignette": "禁用暗角",
     "disableVisualizerVignetteDesc": "关闭几何背景自带的边缘暗角，建议配合透明背景使用。",
     "disableVisualizerGeometricBackground": "隐藏通用几何背景",

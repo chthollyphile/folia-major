@@ -127,8 +127,12 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
     }, [isSearchOpen, scrollTop, searchResults]);
 
     useEffect(() => {
+        if (!isSearchOpen) {
+            return;
+        }
+
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && isSearchOpen) {
+            if (event.key === 'Escape') {
                 event.preventDefault();
                 onClose();
             }
