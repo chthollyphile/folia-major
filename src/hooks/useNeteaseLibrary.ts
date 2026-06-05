@@ -13,6 +13,41 @@ const formatBytes = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+const isAuthExpiredResponse = (response: any): boolean => {
+    const code = Number(response?.code ?? response?.data?.code);
+    return code === 301 || code === 401 || code === 403;
+};
+
+// Confirms the cached cookie can still access account-only Netease endpoints.
+const getVerifiedLoginSession = async (): Promise<{ profile: NeteaseUser; cookie?: string } | null> => {
+    const loginResponse = await neteaseApi.getLoginStatus();
+    const loginProfile = loginResponse?.data?.profile;
+    if (!loginProfile || isAuthExpiredResponse(loginResponse)) {
+        return null;
+    }
+
+    const accountResponse = await neteaseApi.getUserAccount();
+    if (isAuthExpiredResponse(accountResponse)) {
+        return null;
+    }
+
+    const accountProfile = accountResponse?.profile;
+    const accountId = Number(accountResponse?.account?.id ?? accountProfile?.userId ?? 0);
+    const loginUserId = Number(loginProfile.userId ?? 0);
+
+    if (!accountProfile || !accountId || !loginUserId || accountId !== loginUserId) {
+        return null;
+    }
+
+    return {
+        profile: {
+            ...loginProfile,
+            ...accountProfile,
+        },
+        cookie: typeof loginResponse.cookie === 'string' ? loginResponse.cookie : undefined,
+    };
+};
+
 const getAllUserPlaylists = async (uid: number): Promise<NeteasePlaylist[]> => {
     const allPlaylists: NeteasePlaylist[] = [];
     let offset = 0;
@@ -21,6 +56,9 @@ const getAllUserPlaylists = async (uid: number): Promise<NeteasePlaylist[]> => {
 
     while (hasMore) {
         const response = await neteaseApi.getUserPlaylists(uid, limit, offset);
+        if (isAuthExpiredResponse(response)) {
+            throw new Error('NETEASE_AUTH_EXPIRED');
+        }
         if (response.playlist && response.playlist.length > 0) {
             allPlaylists.push(...response.playlist);
             hasMore = response.playlist.length === limit;
@@ -76,6 +114,7 @@ export function useNeteaseLibrary({
     const [cacheSize, setCacheSize] = useState<string>('0 B');
     const [isUserDataReady, setIsUserDataReady] = useState(false);
     const lastCheckTimeRef = useRef<number>(0);
+    const lastRefreshAuthExpiredRef = useRef(false);
 
     const clearAuthState = useCallback(async () => {
         localStorage.removeItem('netease_cookie');
@@ -110,13 +149,14 @@ export function useNeteaseLibrary({
     }, []);
 
     const refreshUserData = useCallback(async (uid?: number) => {
+        lastRefreshAuthExpiredRef.current = false;
         try {
-            const response = await neteaseApi.getLoginStatus();
-            if (response.data && response.data.profile) {
-                const profile = response.data.profile;
+            const session = await getVerifiedLoginSession();
+            if (session) {
+                const { profile } = session;
                 setUser(profile);
                 await saveToCache('user_profile', profile);
-                if (response.cookie) localStorage.setItem('netease_cookie', response.cookie);
+                if (session.cookie) localStorage.setItem('netease_cookie', session.cookie);
 
                 const targetUid = uid || profile.userId;
                 const allPlaylists = await getAllUserPlaylists(targetUid);
@@ -147,9 +187,14 @@ export function useNeteaseLibrary({
                 return true;
             }
 
+            lastRefreshAuthExpiredRef.current = true;
             await clearAuthState();
         } catch (error) {
-            console.log('Not logged in or offline');
+            console.log('Not logged in, session expired, or offline');
+            if (error instanceof Error && error.message === 'NETEASE_AUTH_EXPIRED') {
+                lastRefreshAuthExpiredRef.current = true;
+                await clearAuthState();
+            }
         }
         return false;
     }, [clearAuthState]);
@@ -188,9 +233,20 @@ export function useNeteaseLibrary({
         if (!user) return;
 
         try {
-            const newPlaylists = await getAllUserPlaylists(user.userId);
+            const session = await getVerifiedLoginSession();
+            if (!session) {
+                await clearAuthState();
+                return;
+            }
+
+            const profile = session.profile;
+            setUser(profile);
+            await saveToCache('user_profile', profile);
+            if (session.cookie) localStorage.setItem('netease_cookie', session.cookie);
+
+            const newPlaylists = await getAllUserPlaylists(profile.userId);
             if (!newPlaylists || newPlaylists.length === 0) return;
-            const nextCloudPlaylist = await getUserCloudPlaylist(user);
+            const nextCloudPlaylist = await getUserCloudPlaylist(profile);
 
             const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
 
@@ -266,7 +322,7 @@ export function useNeteaseLibrary({
 
             if (likedSongsPlaylistChanged && newPlaylists.length > 0) {
                 try {
-                    const likeRes = await neteaseApi.getLikedSongs(user.userId);
+                    const likeRes = await neteaseApi.getLikedSongs(profile.userId);
                     if (likeRes.ids) {
                         setLikedSongIds(new Set(likeRes.ids));
                         await saveToCache('user_liked_songs', likeRes.ids);
@@ -277,8 +333,11 @@ export function useNeteaseLibrary({
             }
         } catch (error) {
             console.error('[PlaylistSync] Failed to check playlists', error);
+            if (error instanceof Error && error.message === 'NETEASE_AUTH_EXPIRED') {
+                await clearAuthState();
+            }
         }
-    }, [user]);
+    }, [clearAuthState, user]);
 
     const handleClearCache = useCallback(async () => {
         const preserveKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'user_cloud_playlist', 'last_song', 'last_queue', 'last_theme'];
@@ -310,11 +369,25 @@ export function useNeteaseLibrary({
         if (!user) return;
 
         setIsSyncing(true);
+        console.info('[NeteaseSync] Sync data requested', { userId: user.userId });
         try {
-            await refreshUserData(user.userId);
+            const synced = await refreshUserData(user.userId);
+            if (!synced) {
+                console.info('[NeteaseSync] Sync data skipped because login is expired or unavailable', {
+                    userId: user.userId,
+                    authExpired: lastRefreshAuthExpiredRef.current,
+                });
+                setStatusMsg({
+                    type: 'error',
+                    text: lastRefreshAuthExpiredRef.current ? t('status.loginExpired') : t('status.syncFailed'),
+                });
+                return;
+            }
             updateCacheSize();
+            console.info('[NeteaseSync] Sync data completed', { userId: user.userId });
             setStatusMsg({ type: 'success', text: t('status.dataSynced') });
         } catch (error) {
+            console.warn('[NeteaseSync] Sync data failed', error);
             setStatusMsg({ type: 'error', text: t('status.syncFailed') });
         } finally {
             setIsSyncing(false);

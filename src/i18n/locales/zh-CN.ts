@@ -25,6 +25,7 @@ export default {
     "cacheCleared": "缓存已清除",
     "dataSynced": "数据同步成功",
     "syncFailed": "同步失败",
+    "loginExpired": "登录状态已失效，请重新登录",
     "loggedOut": "已退出登录",
     "clickToPlay": "点击播放开始",
     "liked": "已添加到喜欢的音乐",

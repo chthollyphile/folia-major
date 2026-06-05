@@ -25,6 +25,7 @@ export default {
     "cacheCleared": "Cache cleared",
     "dataSynced": "Data synced successfully",
     "syncFailed": "Sync failed",
+    "loginExpired": "Login expired. Please sign in again",
     "loggedOut": "Logged out",
     "clickToPlay": "Click play to start",
     "liked": "Added to Liked Songs",
