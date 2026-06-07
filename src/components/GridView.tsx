@@ -98,12 +98,40 @@ const PolaroidCard = React.memo<{
             ? getSongUnavailableTagText(item.rawTrack, t('status.songUnavailableTag'))
             : '';
 
+        const textLength = useMemo(() => {
+            let len = 0;
+            if (typeof item.name === 'string') {
+                len += item.name.length;
+            }
+            if (item.subtitle) {
+                len += item.subtitle.length;
+            }
+            if (item.description) {
+                len += item.description.length;
+            }
+            if (mode === 'tracks' && item.rawTrack) {
+                const albumName = item.rawTrack.al?.name || item.rawTrack.album?.name || '';
+                len += albumName.length;
+            }
+            return len;
+        }, [item.name, item.subtitle, item.description, item.rawTrack, mode]);
+
+        const scaleFactor = useMemo(() => {
+            if (textLength > 100) return 1.18;
+            if (textLength > 65) return 1.12;
+            if (textLength > 35) return 1.06;
+            return 1.0;
+        }, [textLength]);
+
+        const dynamicWidth = cardWidth * scaleFactor;
+        const dynamicHeight = cardHeight * scaleFactor;
+
         return (
             <div
                 className="rounded-xl p-3 flex flex-col items-center border backdrop-blur-md transition-shadow duration-300 shadow-lg hover:shadow-2xl theme-polaroid-card"
                 style={{
-                    width: cardWidth,
-                    minHeight: cardHeight,
+                    width: dynamicWidth,
+                    minHeight: dynamicHeight,
                     height: 'auto',
                 }}
                 onClick={(e) => {
@@ -189,12 +217,12 @@ const PolaroidCard = React.memo<{
                 <div className="w-full flex-1 flex flex-col justify-between pt-3 text-left min-w-0">
                     <div className="space-y-1 mb-2">
                         {/* Index + Title */}
-                        <div className="text-s font-bold tracking-tight opacity-90 max-w-full line-clamp-2 whitespace-normal break-words">
+                        <div className="text-s font-bold tracking-tight opacity-90 max-w-full line-clamp-4 whitespace-normal break-words">
                             {item.subtitle ? `${item.subtitle}. ` : ''}{item.name}
                         </div>
                         {/* Clickable Artists */}
                         {item.description && (
-                            <div className="text-[10px] opacity-55 max-w-full font-medium line-clamp-1 whitespace-normal break-words">
+                            <div className="text-[10px] opacity-55 max-w-full font-medium line-clamp-3 whitespace-normal break-words">
                                 {mode === 'tracks' && onSelectArtist && item.rawTrack?.ar ? (
                                     <span className="flex gap-1 flex-wrap">
                                         {item.rawTrack.ar.map((artist, idx) => (
@@ -230,7 +258,7 @@ const PolaroidCard = React.memo<{
                                                 onSelectAlbum(alId);
                                             }
                                         }}
-                                        className="text-[9px] opacity-35 font-mono line-clamp-1 whitespace-normal break-words max-w-full hover:underline hover:opacity-85 cursor-pointer"
+                                        className="text-[9px] opacity-35 font-mono line-clamp-2 whitespace-normal break-words max-w-full hover:underline hover:opacity-85 cursor-pointer"
                                     >
                                         {item.rawTrack.al?.name || item.rawTrack.album?.name || ''}
                                     </span>
@@ -290,6 +318,8 @@ const PolaroidCard = React.memo<{
             prev.item.id === next.item.id &&
             prev.item.name === next.item.name &&
             prev.item.coverUrl === next.item.coverUrl &&
+            prev.item.subtitle === next.item.subtitle &&
+            prev.item.description === next.item.description &&
             prev.isDaylight === next.isDaylight &&
             prev.theme === next.theme &&
             prev.mode === next.mode &&
