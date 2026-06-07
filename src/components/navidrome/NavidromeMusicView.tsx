@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Settings2, Loader2, RefreshCw, User, ListMusic } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Carousel3D from '../Carousel3D';
-import { Grid3DSlider } from '../folia-grid/Grid3DSlider';
 import NavidromeAlbumView from './NavidromeAlbumView';
 import NavidromeCollectionView from './NavidromeCollectionView';
 import NavidromeArtistView from './NavidromeArtistView';
@@ -20,11 +19,6 @@ import {
 import { navidromeApi, getNavidromeConfig } from '../../services/navidromeService';
 import { Theme } from '../../types';
 import { createCoverPlaceholder, pickRandomSongCoverUrl } from '../../utils/coverPlaceholders';
-import {
-    createNavidromeGridViewCollection,
-    GridViewCollectionDescriptor,
-    NavidromeGridViewCollectionType,
-} from '../app/home/gridViewCollectionAdapters';
 
 interface NavidromeMusicViewProps {
     onPlaySong: (song: NavidromeSong, queue?: NavidromeSong[]) => void;
@@ -38,8 +32,6 @@ interface NavidromeMusicViewProps {
     externalSelection?: NavidromeViewSelection | null;
     onExternalSelectionHandled?: () => void;
     hasFloatingPlayer?: boolean;
-    layoutStyle?: 'carousel' | 'grid3d';
-    onOpenGridView?: (collection: GridViewCollectionDescriptor) => void;
 }
 
 type NaviSection = 'albums' | 'playlists' | 'artists';
@@ -62,8 +54,6 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
     externalSelection = null,
     onExternalSelectionHandled,
     hasFloatingPlayer = false,
-    layoutStyle = 'carousel',
-    onOpenGridView,
 }) => {
     const { t } = useTranslation();
 
@@ -574,47 +564,17 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                             </button>
                         </div>
                         <div className="w-full flex-[0_1_clamp(460px,46vh,760px)] min-h-0 max-h-[clamp(460px,46vh,760px)]">
-                            {layoutStyle === 'grid3d' ? (
-                                <Grid3DSlider
-                                    items={currentItems}
-                                    onSelect={(item) => {
-                                        if (!onOpenGridView) {
-                                            currentSelect(item as any);
-                                            return;
-                                        }
-
-                                        const descriptorType: NavidromeGridViewCollectionType = section === 'albums'
-                                            ? 'album'
-                                            : section === 'artists'
-                                                ? 'artist'
-                                                : item.id === '__navi_random__'
-                                                    ? 'random'
-                                                    : item.id === '__navi_favorites__'
-                                                        ? 'favorites'
-                                                        : 'playlist';
-
-                                        onOpenGridView(createNavidromeGridViewCollection(item, descriptorType));
-                                    }}
-                                    isLoading={isLoading}
-                                    emptyMessage={currentEmptyMessage}
-                                    focusedIndex={currentFocusedIndex}
-                                    onFocusedIndexChange={currentFocusedSetter ?? (() => { })}
-                                    isDaylight={isDaylight}
-                                    hasFloatingPlayer={hasFloatingPlayer}
-                                />
-                            ) : (
-                                <Carousel3D
-                                    items={currentItems}
-                                    onSelect={currentSelect}
-                                    isLoading={isLoading}
-                                    emptyMessage={currentEmptyMessage}
-                                    initialFocusedIndex={currentFocusedIndex}
-                                    onFocusedIndexChange={currentFocusedSetter}
-                                    isDaylight={isDaylight}
-                                    compactLayout
-                                    hasFloatingPlayer={hasFloatingPlayer}
-                                />
-                            )}
+                            <Carousel3D
+                                items={currentItems}
+                                onSelect={currentSelect}
+                                isLoading={isLoading}
+                                emptyMessage={currentEmptyMessage}
+                                initialFocusedIndex={currentFocusedIndex}
+                                onFocusedIndexChange={currentFocusedSetter}
+                                isDaylight={isDaylight}
+                                compactLayout
+                                hasFloatingPlayer={hasFloatingPlayer}
+                            />
                         </div>
                     </motion.div>
                 </AnimatePresence>

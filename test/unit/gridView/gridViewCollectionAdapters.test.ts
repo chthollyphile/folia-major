@@ -89,7 +89,10 @@ describe('gridViewCollectionAdapters', () => {
             name: 'Navi Item',
             type: 'album',
         });
-        expect(createNavidromeGridViewCollection(baseItem, 'playlist').type).toBe('playlist');
+        expect(createNavidromeGridViewCollection({ ...baseItem, editable: true }, 'playlist')).toMatchObject({
+            type: 'playlist',
+            editable: true,
+        });
         expect(createNavidromeGridViewCollection(baseItem, 'artist').type).toBe('artist');
         expect(createNavidromeGridViewCollection(baseItem, 'random').type).toBe('random');
         expect(createNavidromeGridViewCollection(baseItem, 'favorites').type).toBe('favorites');

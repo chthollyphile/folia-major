@@ -9,8 +9,6 @@ import LocalPlaylistView from './local/LocalPlaylistView';
 import Carousel3D from './Carousel3D';
 import LocalArtistView from './local/LocalArtistView';
 import { deleteLocalPlaylist, updateLocalPlaylist } from '../services/localPlaylistService';
-import { Grid3DSlider } from './folia-grid/Grid3DSlider';
-import { createLocalGridViewCollection, GridViewCollectionDescriptor } from './app/home/gridViewCollectionAdapters';
 
 interface LocalMusicViewProps {
     localSongs: LocalSong[];
@@ -38,8 +36,6 @@ interface LocalMusicViewProps {
     theme: any;
     isDaylight: boolean;
     hasFloatingPlayer?: boolean;
-    layoutStyle?: 'carousel' | 'grid3d';
-    onOpenGridView?: (collection: GridViewCollectionDescriptor) => void;
 }
 
 /**
@@ -84,8 +80,6 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     theme,
     isDaylight,
     hasFloatingPlayer = false,
-    layoutStyle = 'carousel',
-    onOpenGridView,
 }) => {
     const { t } = useTranslation();
     const allSongsLabel = t('localMusic.allSongs');
@@ -690,43 +684,16 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                     )}
                                 </div>
                                 <div className="w-full flex-[0_1_clamp(460px,46vh,760px)] min-h-0 max-h-[clamp(460px,46vh,760px)]">
-                                    {layoutStyle === 'grid3d' ? (
-                                        <Grid3DSlider
-                                            items={activeSection.items.map(item => ({
-                                                id: item.id,
-                                                name: item.name,
-                                                coverUrl: item.coverUrl,
-                                                description: item.description,
-                                                trackCount: item.trackCount,
-                                                type: item.type,
-                                            }))}
-                                            focusedIndex={activeSection.focusedIndex}
-                                            onFocusedIndexChange={activeSection.onFocusedIndexChange ?? (() => { })}
-                                            onSelect={(_, index) => {
-                                                const group = activeSection.items[index];
-                                                if (!group) return;
-                                                if (onOpenGridView) {
-                                                    onOpenGridView(createLocalGridViewCollection(group));
-                                                    return;
-                                                }
-                                                setSelectedGroup(group);
-                                            }}
-                                            emptyMessage={activeSection.emptyMessage}
-                                            isDaylight={isDaylight}
-                                            hasFloatingPlayer={hasFloatingPlayer}
-                                        />
-                                    ) : (
-                                        <Carousel3D
-                                            items={activeSection.items}
-                                            onSelect={(item) => setSelectedGroup(item)}
-                                            emptyMessage={activeSection.emptyMessage}
-                                            initialFocusedIndex={activeSection.focusedIndex}
-                                            onFocusedIndexChange={activeSection.onFocusedIndexChange}
-                                            isDaylight={isDaylight}
-                                            compactLayout
-                                            hasFloatingPlayer={hasFloatingPlayer}
-                                        />
-                                    )}
+                                    <Carousel3D
+                                        items={activeSection.items}
+                                        onSelect={(item) => setSelectedGroup(item)}
+                                        emptyMessage={activeSection.emptyMessage}
+                                        initialFocusedIndex={activeSection.focusedIndex}
+                                        onFocusedIndexChange={activeSection.onFocusedIndexChange}
+                                        isDaylight={isDaylight}
+                                        compactLayout
+                                        hasFloatingPlayer={hasFloatingPlayer}
+                                    />
                                 </div>
                             </motion.div>
                         </AnimatePresence>

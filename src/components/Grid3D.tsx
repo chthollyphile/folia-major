@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, User, Loader2, Settings, Map as MapIcon, ChevronRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, User, Loader2, Settings, ChevronRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SongResult, NeteaseUser, NeteasePlaylist, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, PlayerState } from '../types';
 import { neteaseApi, isSongMarkedUnavailable } from '../services/netease';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
-import LocalMusicView from './LocalMusicView';
-import NavidromeMusicView from './navidrome/NavidromeMusicView';
-import GridMap from './GridMap';
+import LocalGrid3DView from './app/home/LocalGrid3DView';
+import NavidromeGrid3DView from './app/home/NavidromeGrid3DView';
 import { formatSongName } from '../utils/songNameFormatter';
-import { Grid3DSlider } from './folia-grid/Grid3DSlider';
+import DesktopGrid3DSurface from './folia-grid/DesktopGrid3DSurface';
 import { createNeteaseGridViewCollection } from './app/home/gridViewCollectionAdapters';
+import { importFolder } from '../services/localMusicService';
 
 // src/components/Grid3D.tsx
 // Glassmorphic interactive desktop home view replacing the legacy 3D carousel.
@@ -85,19 +85,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         playlists,
         cloudPlaylist = null,
         currentTrack,
-        onSelectLocalAlbum,
-        onSelectLocalArtist,
         localSongs,
         localPlaylists,
         onRefreshLocalSongs,
-        onPlayLocalSong,
-        onAddLocalSongToQueue,
         localMusicState,
         setLocalMusicState,
-        onMatchSong,
-        onPlayNavidromeSong,
-        onAddNavidromeSongsToQueue,
-        onMatchNavidromeSong,
         navidromeFocusedAlbumIndex = 0,
         setNavidromeFocusedAlbumIndex,
         pendingNavidromeSelection = null,
@@ -130,15 +122,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const isNeteaseTab = homeViewTab === 'playlist' || homeViewTab === 'albums' || homeViewTab === 'radio';
 
     const [focusedIndex, setFocusedIndex] = useState(0);
+    const [isLocalImporting, setIsLocalImporting] = useState(false);
 
     // Reset focused index when switching tabs.
     useEffect(() => {
         setFocusedIndex(0);
     }, [homeViewTab]);
-
-
-
-    const [showCollectionGrid, setShowCollectionGrid] = useState(false);
 
     // Login QR State
     const [showLoginModal, setShowLoginModal] = useState(false);
@@ -354,6 +343,23 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         onOpenGridView?.(createNeteaseGridViewCollection(collection));
     };
 
+    const handleFolderImport = async () => {
+        if (isLocalImporting) return;
+
+        setIsLocalImporting(true);
+        try {
+            const importedSongs = await importFolder();
+            if (importedSongs.length > 0) {
+                onRefreshLocalSongs();
+            }
+        } catch (error) {
+            console.error('[Grid3D] Failed to import local folder:', error);
+            alert(t('localMusic.importNotSupported'));
+        } finally {
+            setIsLocalImporting(false);
+        }
+    };
+
     // Search committed callback
     const handleSearch = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -480,83 +486,32 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         </button>
                     </div>
                 ) : isNeteaseTab ? (
-                    <div className="w-full flex-1 flex flex-col justify-center relative min-h-0">
-
-                        {/* Map Button (GridView Launcher) */}
-                        {!isLoading && (
-                            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-                                <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setShowCollectionGrid(true)}
-                                    className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-semibold shadow-lg backdrop-blur-md transition-all border border-white/10"
-                                    style={{
-                                        backgroundColor: isDaylight ? 'rgba(255,255,255,0.7)' : 'rgba(25,25,25,0.7)',
-                                        color: 'var(--text-primary)'
-                                    }}
-                                >
-                                    <MapIcon size={14} />
-                                    <span>{t('home.allAlbums') || '全部'}</span>
-                                </motion.button>
-                            </div>
-                        )}
-
-                        <Grid3DSlider
-                            items={currentDesktopItems}
-                            focusedIndex={focusedIndex}
-                            onFocusedIndexChange={setFocusedIndex}
-                            onSelect={handleSelectCollectionCard}
-                            isInteractive={!showCollectionGrid}
-                            isLoading={isLoading}
-                            emptyMessage={t('home.loadingLibrary')}
-                            isDaylight={isDaylight}
-                            hasFloatingPlayer={Boolean(currentTrack)}
-                        />
-
-                    </div>
+                    <DesktopGrid3DSurface
+                        title={
+                            homeViewTab === 'playlist'
+                                ? t('home.playlists')
+                                : homeViewTab === 'albums'
+                                    ? t('home.albums')
+                                    : t('home.radio')
+                        }
+                        mapButtonLabel={t('home.allAlbums') || '全部'}
+                        items={currentDesktopItems}
+                        focusedIndex={focusedIndex}
+                        onFocusedIndexChange={setFocusedIndex}
+                        onSelect={handleSelectCollectionCard}
+                        isLoading={isLoading}
+                        emptyMessage={t('home.loadingLibrary')}
+                        theme={theme}
+                        isDaylight={isDaylight}
+                        hasFloatingPlayer={Boolean(currentTrack)}
+                    />
                 ) : homeViewTab === 'local' ? (
                     <div className="w-full h-full flex-1">
-                        <LocalMusicView
+                        <LocalGrid3DView
                             localSongs={localSongs}
                             localPlaylists={localPlaylists}
-                            onRefresh={onRefreshLocalSongs}
-                            onPlaySong={onPlayLocalSong}
-                            onAddToQueue={onAddLocalSongToQueue}
                             activeRow={localMusicState.activeRow}
                             setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
-                            selectedGroup={localMusicState.selectedGroup}
-                            setSelectedGroup={(group) => setLocalMusicState(prev => ({
-                                ...prev,
-                                selectedGroup: group,
-                                detailStack: group ? prev.detailStack : [],
-                                detailOriginView: group ? prev.detailOriginView : null,
-                            }))}
-                            onBackFromDetail={() => {
-                                if (localMusicState.detailStack.length > 0) {
-                                    setLocalMusicState(prev => {
-                                        const nextStack = prev.detailStack.slice(0, -1);
-                                        return {
-                                            ...prev,
-                                            selectedGroup: nextStack[nextStack.length - 1] ?? null,
-                                            detailStack: nextStack,
-                                        };
-                                    });
-                                    return;
-                                }
-
-                                const shouldReturnToPlayer = localMusicState.detailOriginView === 'player';
-                                setLocalMusicState(prev => ({
-                                    ...prev,
-                                    selectedGroup: null,
-                                    detailStack: [],
-                                    detailOriginView: null,
-                                }));
-
-                                if (shouldReturnToPlayer) {
-                                    onBackToPlayer();
-                                }
-                            }}
-                            onMatchSong={onMatchSong}
                             focusedFolderIndex={localMusicState.focusedFolderIndex}
                             setFocusedFolderIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedFolderIndex: index }))}
                             focusedAlbumIndex={localMusicState.focusedAlbumIndex}
@@ -565,65 +520,31 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             setFocusedArtistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedArtistIndex: index }))}
                             focusedPlaylistIndex={localMusicState.focusedPlaylistIndex}
                             setFocusedPlaylistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
-                            onSelectArtistGroup={onSelectLocalArtist}
-                            onSelectAlbumGroup={onSelectLocalAlbum}
+                            onImportFolder={handleFolderImport}
+                            importButtonDisabled={isLocalImporting}
+                            isImporting={isLocalImporting}
                             theme={theme}
                             isDaylight={isDaylight}
                             hasFloatingPlayer={Boolean(currentTrack)}
-                            layoutStyle="grid3d"
                             onOpenGridView={onOpenGridView}
                         />
                     </div>
                 ) : (
                     <div className="w-full h-full flex-1">
-                        <NavidromeMusicView
-                            onPlaySong={onPlayNavidromeSong || (() => { })}
-                            onAddSongsToQueue={onAddNavidromeSongsToQueue}
-                            onOpenSettings={() => onOpenSettings?.('help')}
-                            onMatchSong={onMatchNavidromeSong}
+                        <NavidromeGrid3DView
                             theme={theme}
                             isDaylight={isDaylight}
                             focusedAlbumIndex={navidromeFocusedAlbumIndex}
-                            setFocusedAlbumIndex={setNavidromeFocusedAlbumIndex}
+                            setFocusedAlbumIndex={setNavidromeFocusedAlbumIndex ?? (() => { })}
                             externalSelection={pendingNavidromeSelection}
                             hasFloatingPlayer={Boolean(currentTrack)}
                             onExternalSelectionHandled={onPendingNavidromeSelectionHandled}
-                            layoutStyle="grid3d"
+                            onOpenSettings={() => onOpenSettings?.('help')}
                             onOpenGridView={onOpenGridView}
                         />
                     </div>
                 )}
             </div>
-
-            {/* Collection Grid View (All Items GridMap) */}
-            <AnimatePresence>
-                {showCollectionGrid && (
-                    <GridMap
-                        title={
-                            homeViewTab === 'playlist'
-                                ? t('home.playlists')
-                                : homeViewTab === 'albums'
-                                    ? t('home.albums')
-                                    : t('home.radio')
-                        }
-                        items={currentDesktopItems.map(item => ({
-                            id: item.id,
-                            name: item.name,
-                            coverUrl: item.coverUrl,
-                            description: item.description,
-                            summary: item.summary,
-                            rawCollection: item
-                        }))}
-                        onBack={() => setShowCollectionGrid(false)}
-                        onSelectCollection={(col, idx) => {
-                            setShowCollectionGrid(false);
-                            setFocusedIndex(idx);
-                        }}
-                        theme={theme}
-                        isDaylight={isDaylight}
-                    />
-                )}
-            </AnimatePresence>
 
             {/* Login Modal */}
             {showLoginModal && (

@@ -1,11 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import LegacyHome from '../../Home';
-import GridView from '../../GridView';
+import GridView, { GridViewSourceActions } from '../../GridView';
 import { useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { SongResult, UnifiedSong } from '../../../types';
+import { deleteFolderSongs, resyncFolder } from '../../../services/localMusicService';
+import { deleteLocalPlaylist, removeSongsFromLocalPlaylist, updateLocalPlaylist } from '../../../services/localPlaylistService';
+import { getNavidromeConfig, navidromeApi } from '../../../services/navidromeService';
 import {
     GridViewCollectionDescriptor,
     isLocalGridViewCollection,
@@ -40,6 +43,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
     const [selectedCollection, setSelectedCollection] = useState<GridViewCollectionDescriptor | null>(null);
     const [externalTracks, setExternalTracks] = useState<SongResult[] | undefined>(undefined);
     const [externalTracksLoading, setExternalTracksLoading] = useState(false);
+    const [navidromePlaylistItems, setNavidromePlaylistItems] = useState<Array<{ id: string | number; name: string; description?: string; }>>([]);
 
     useEffect(() => {
         if (selectedCollection) return;
@@ -77,6 +81,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         if (!selectedCollection) {
             setExternalTracks(undefined);
             setExternalTracksLoading(false);
+            setNavidromePlaylistItems([]);
             return;
         }
 
@@ -119,6 +124,27 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         };
     }, [legacyProps.localSongs, selectedCollection]);
 
+    const refreshNavidromePlaylists = useCallback(async () => {
+        const config = getNavidromeConfig();
+        if (!config) {
+            setNavidromePlaylistItems([]);
+            return;
+        }
+
+        const playlists = await navidromeApi.getPlaylists(config);
+        setNavidromePlaylistItems(playlists.map(playlist => ({
+            id: playlist.id,
+            name: playlist.name,
+            description: playlist.owner,
+        })));
+    }, []);
+
+    useEffect(() => {
+        if (selectedCollection && isNavidromeGridViewCollection(selectedCollection)) {
+            void refreshNavidromePlaylists();
+        }
+    }, [refreshNavidromePlaylists, selectedCollection]);
+
     const handleSelectTrack = useCallback((track: SongResult, queue: SongResult[]) => {
         const unifiedTrack = track as UnifiedSong;
         if (unifiedTrack.isNavidrome) {
@@ -145,6 +171,86 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         legacyProps.onAddSongToQueue?.(track);
     }, [legacyProps]);
 
+    const sourceActions = useMemo<GridViewSourceActions>(() => ({
+        local: {
+            onRefresh: legacyProps.onRefreshLocalSongs,
+            onResyncFolder: async (collection) => {
+                const importedSongs = await resyncFolder(collection.name);
+                if (importedSongs !== null) {
+                    legacyProps.onRefreshLocalSongs();
+                }
+            },
+            onDeleteFolder: async (collection) => {
+                await deleteFolderSongs(collection.name);
+                legacyProps.onRefreshLocalSongs();
+            },
+            onRenamePlaylist: async (playlistId, name) => {
+                await updateLocalPlaylist(playlistId, playlist => ({
+                    ...playlist,
+                    name: name.trim(),
+                }));
+                legacyProps.onRefreshLocalSongs();
+            },
+            onDeletePlaylist: async (playlistId) => {
+                await deleteLocalPlaylist(playlistId);
+                legacyProps.onRefreshLocalSongs();
+            },
+            onRemovePlaylistSongs: async (playlistId, songIds) => {
+                await removeSongsFromLocalPlaylist(playlistId, songIds);
+                legacyProps.onRefreshLocalSongs();
+            },
+        },
+        navidrome: {
+            availablePlaylists: navidromePlaylistItems,
+            onAddToPlaylist: async (playlistId, songs) => {
+                const config = getNavidromeConfig();
+                if (!config) return;
+
+                await navidromeApi.updatePlaylist(config, String(playlistId), {
+                    songIdsToAdd: songs
+                        .map(song => (song as UnifiedSong).navidromeData?.id)
+                        .filter((id): id is string => Boolean(id)),
+                });
+                await refreshNavidromePlaylists();
+            },
+            onCreatePlaylist: async (name, songs) => {
+                const config = getNavidromeConfig();
+                if (!config) return;
+
+                await navidromeApi.createPlaylist(
+                    config,
+                    name,
+                    songs
+                        .map(song => (song as UnifiedSong).navidromeData?.id)
+                        .filter((id): id is string => Boolean(id))
+                );
+                await refreshNavidromePlaylists();
+            },
+            onRenamePlaylist: async (playlistId, name) => {
+                const config = getNavidromeConfig();
+                if (!config) return;
+
+                await navidromeApi.updatePlaylist(config, playlistId, { name });
+                await refreshNavidromePlaylists();
+            },
+            onDeletePlaylist: async (playlistId) => {
+                const config = getNavidromeConfig();
+                if (!config) return;
+
+                await navidromeApi.deletePlaylist(config, playlistId);
+                await refreshNavidromePlaylists();
+            },
+            onRemovePlaylistSongs: async (playlistId, songIndexes) => {
+                const config = getNavidromeConfig();
+                if (!config) return;
+
+                await navidromeApi.updatePlaylist(config, playlistId, {
+                    songIndexesToRemove: songIndexes,
+                });
+            },
+        },
+    }), [legacyProps, navidromePlaylistItems, refreshNavidromePlaylists]);
+
     return (
         <>
             {children(openGridView)}
@@ -166,6 +272,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                         onPlaylistMutated={legacyProps.onRefreshUser}
                         externalTracks={externalTracks}
                         externalTracksLoading={externalTracksLoading}
+                        sourceActions={sourceActions}
                         theme={legacyProps.theme}
                         isDaylight={isDaylight}
                     />

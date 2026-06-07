@@ -1,6 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Disc, Play, Plus, Loader2, Heart, ListPlus, Pencil, Search, X } from 'lucide-react';
+import { ChevronLeft, Disc, Play, Plus, Loader2, Heart, ListPlus, Pencil, Search, X, RefreshCw, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { isSongMarkedUnavailable, getSongUnavailableTagText, neteaseApi } from '../services/netease';
@@ -9,6 +9,27 @@ import { formatSongName } from '../utils/songNameFormatter';
 import { colorWithAlpha } from './visualizer/colorMix';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
+import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
+import TextInputDialog from './shared/TextInputDialog';
+
+export interface GridViewSourceActions {
+    local?: {
+        onRefresh?: () => Promise<void> | void;
+        onResyncFolder?: (collection: any) => Promise<void> | void;
+        onDeleteFolder?: (collection: any) => Promise<void> | void;
+        onRenamePlaylist?: (playlistId: string, name: string) => Promise<void> | void;
+        onDeletePlaylist?: (playlistId: string) => Promise<void> | void;
+        onRemovePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
+    };
+    navidrome?: {
+        availablePlaylists?: Array<{ id: string | number; name: string; description?: string; }>;
+        onAddToPlaylist?: (playlistId: string | number, songs: SongResult[]) => Promise<void> | void;
+        onCreatePlaylist?: (name: string, songs: SongResult[]) => Promise<void> | void;
+        onRenamePlaylist?: (playlistId: string, name: string) => Promise<void> | void;
+        onDeletePlaylist?: (playlistId: string) => Promise<void> | void;
+        onRemovePlaylistSongs?: (playlistId: string, songIndexes: number[]) => Promise<void> | void;
+    };
+}
 
 interface GridItem {
     id: string | number;
@@ -18,6 +39,7 @@ interface GridItem {
     subtitle?: string;
     description?: string;
     rawTrack?: SongResult;
+    rawTrackIndex?: number;
     rawCollection?: any;
 }
 
@@ -44,6 +66,7 @@ interface GridViewProps {
     onPlaylistMutated?: () => Promise<void> | void;
     externalTracks?: SongResult[];
     externalTracksLoading?: boolean;
+    sourceActions?: GridViewSourceActions;
 }
 
 type StoredGridViewNavigationState = {
@@ -374,7 +397,8 @@ export const GridView: React.FC<GridViewProps> = ({
     currentUserId,
     onPlaylistMutated,
     externalTracks,
-    externalTracksLoading = false
+    externalTracksLoading = false,
+    sourceActions,
 }) => {
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -513,18 +537,42 @@ export const GridView: React.FC<GridViewProps> = ({
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [offset, setOffset] = useState(0);
-    const displayTracks = externalTracks ?? tracks;
+    const [removedExternalTrackKeys, setRemovedExternalTrackKeys] = useState<Set<string>>(() => new Set());
+    const baseDisplayTracks = externalTracks ?? tracks;
+    const displayTracks = baseDisplayTracks.filter((track, index) => (
+        !removedExternalTrackKeys.has(`${track.id}-${index}`) && !removedExternalTrackKeys.has(String(track.id))
+    ));
     const usesExternalTracks = externalTracks !== undefined;
     const [isEditMode, setIsEditMode] = useState(false);
+    const [editableTitle, setEditableTitle] = useState(title);
+    const [isSourceActionPending, setIsSourceActionPending] = useState(false);
+    const [isPlaylistPickerOpen, setIsPlaylistPickerOpen] = useState(false);
+    const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
     const [showCutInPanel, setShowCutInPanel] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
     const [draftSearchQuery, setDraftSearchQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const deferredSearchQuery = useDeferredValue(searchQuery);
 
+    const collectionSource = collection?.source as string | undefined;
+    const isLocalCollection = collectionSource === 'local';
+    const isNavidromeCollection = collectionSource === 'navidrome';
+    const isLocalFolderCollection = isLocalCollection && collection?.type === 'folder' && !collection?.isVirtual;
+    const isLocalPlaylistCollection = isLocalCollection && collection?.type === 'playlist' && Boolean(collection?.playlistId) && !collection?.isVirtual;
+    const isNavidromePlaylistCollection = isNavidromeCollection && collection?.type === 'playlist' && Boolean(collection?.editable);
+    const canAddNavidromeToPlaylist = isNavidromeCollection
+        && collection?.type !== 'playlist'
+        && Boolean(sourceActions?.navidrome?.onAddToPlaylist || sourceActions?.navidrome?.onCreatePlaylist);
+
     useEffect(() => {
         focusedIndexRef.current = focusedIndex;
     }, [focusedIndex]);
+
+    useEffect(() => {
+        setEditableTitle(title);
+        setIsEditMode(false);
+        setRemovedExternalTrackKeys(new Set());
+    }, [collection?.id, title]);
 
     useEffect(() => {
         hasRestoredNavigationRef.current = false;
@@ -579,6 +627,85 @@ export const GridView: React.FC<GridViewProps> = ({
     }, [draftSearchQuery.length, showSearchPanel]);
 
     const playableTracks = useMemo(() => displayTracks.filter(track => !isSongMarkedUnavailable(track)), [displayTracks]);
+    const handleSourceEditToggle = useCallback(async () => {
+        if (!collection) return;
+
+        if (!isEditMode) {
+            setEditableTitle(collection.name || title);
+            setIsEditMode(true);
+            return;
+        }
+
+        const nextTitle = editableTitle.trim();
+        setIsSourceActionPending(true);
+        try {
+            if (nextTitle && nextTitle !== collection.name) {
+                if (isLocalPlaylistCollection && collection.playlistId) {
+                    await sourceActions?.local?.onRenamePlaylist?.(collection.playlistId, nextTitle);
+                } else if (isNavidromePlaylistCollection) {
+                    await sourceActions?.navidrome?.onRenamePlaylist?.(String(collection.id), nextTitle);
+                }
+                collection.name = nextTitle;
+            }
+            setIsEditMode(false);
+        } finally {
+            setIsSourceActionPending(false);
+        }
+    }, [
+        collection,
+        editableTitle,
+        isEditMode,
+        isLocalPlaylistCollection,
+        isNavidromePlaylistCollection,
+        sourceActions,
+        title,
+    ]);
+
+    const handleDeleteSourceCollection = useCallback(async () => {
+        if (!collection) return;
+
+        setIsSourceActionPending(true);
+        try {
+            if (isLocalFolderCollection) {
+                await sourceActions?.local?.onDeleteFolder?.(collection);
+            } else if (isLocalPlaylistCollection && collection.playlistId) {
+                await sourceActions?.local?.onDeletePlaylist?.(collection.playlistId);
+            } else if (isNavidromePlaylistCollection) {
+                await sourceActions?.navidrome?.onDeletePlaylist?.(String(collection.id));
+            }
+            onBack();
+        } finally {
+            setIsSourceActionPending(false);
+        }
+    }, [
+        collection,
+        isLocalFolderCollection,
+        isLocalPlaylistCollection,
+        isNavidromePlaylistCollection,
+        onBack,
+        sourceActions,
+    ]);
+
+    const handleResyncLocalFolder = useCallback(async () => {
+        if (!collection || !isLocalFolderCollection) return;
+
+        setIsSourceActionPending(true);
+        try {
+            await sourceActions?.local?.onResyncFolder?.(collection);
+        } finally {
+            setIsSourceActionPending(false);
+        }
+    }, [collection, isLocalFolderCollection, sourceActions]);
+
+    const handleAddNavidromeCollectionToPlaylist = useCallback(async (playlistId: string | number) => {
+        await sourceActions?.navidrome?.onAddToPlaylist?.(playlistId, playableTracks);
+    }, [playableTracks, sourceActions]);
+
+    const handleCreateNavidromePlaylist = useCallback(async (name: string) => {
+        await sourceActions?.navidrome?.onCreatePlaylist?.(name, playableTracks);
+        setIsCreatePlaylistOpen(false);
+    }, [playableTracks, sourceActions]);
+
     const CACHE_SCHEMA_VERSION = 3;
 
     const isCloudDrive = collection ? (collection.specialType === 'cloud' || Number(collection.id) === -100) : false;
@@ -743,11 +870,27 @@ export const GridView: React.FC<GridViewProps> = ({
         }
     }, [collection?.id, mode, usesExternalTracks]);
 
-    const canEditPlaylist = !usesExternalTracks && collection && collection.specialType !== 'cloud' && Boolean(currentUserId && collection.creator?.userId === currentUserId);
+    const canEditNeteasePlaylist = !usesExternalTracks && collection && collection.specialType !== 'cloud' && Boolean(currentUserId && collection.creator?.userId === currentUserId);
+    const canEditPlaylist = Boolean(canEditNeteasePlaylist || isLocalPlaylistCollection || isNavidromePlaylistCollection);
 
-    const handleRemoveTrack = useCallback(async (trackId: number) => {
+    const handleRemoveTrack = useCallback(async (track: SongResult, trackIndex: number) => {
         if (!collection) return;
         try {
+            if (isLocalPlaylistCollection && collection.playlistId && sourceActions?.local?.onRemovePlaylistSongs) {
+                const localSongId = (track as any).localData?.id || String(track.id);
+                await sourceActions.local.onRemovePlaylistSongs(collection.playlistId, [localSongId]);
+                setRemovedExternalTrackKeys(prev => new Set(prev).add(String(track.id)).add(`${track.id}-${trackIndex}`));
+                await sourceActions.local.onRefresh?.();
+                return;
+            }
+
+            if (isNavidromePlaylistCollection && sourceActions?.navidrome?.onRemovePlaylistSongs) {
+                await sourceActions.navidrome.onRemovePlaylistSongs(String(collection.id), [trackIndex]);
+                setRemovedExternalTrackKeys(prev => new Set(prev).add(`${track.id}-${trackIndex}`));
+                return;
+            }
+
+            const trackId = Number(track.id);
             const isLiked = collection.isLiked || collection.name === '我喜欢的音乐' || collection.specialType === 'liked';
             if (isLiked) {
                 await neteaseApi.likeSong(trackId, false);
@@ -762,7 +905,15 @@ export const GridView: React.FC<GridViewProps> = ({
         } catch (error) {
             console.error('Failed to remove track in GridView', error);
         }
-    }, [collection, tracks, CACHE_KEY, onPlaylistMutated]);
+    }, [
+        CACHE_KEY,
+        collection,
+        isLocalPlaylistCollection,
+        isNavidromePlaylistCollection,
+        onPlaylistMutated,
+        sourceActions,
+        tracks,
+    ]);
 
     // Build the grid spiral coordinates mapping using responsive spacing
     const allGridItems = useMemo((): GridItem[] => {
@@ -780,7 +931,8 @@ export const GridView: React.FC<GridViewProps> = ({
             coverUrl: track.al?.picUrl || track.album?.picUrl,
             subtitle: String(idx + 1).padStart(2, '0'),
             description: track.ar?.map(a => a.name).join(', '),
-            rawTrack: track
+            rawTrack: track,
+            rawTrackIndex: idx,
         }));
     }, [mode, items, displayTracks]);
 
@@ -1062,7 +1214,7 @@ export const GridView: React.FC<GridViewProps> = ({
                         cardHeight={layoutConfig.cardHeight}
                         isEditMode={isEditMode}
                         onRemoveTrack={() => {
-                            if (item.rawTrack) handleRemoveTrack(item.rawTrack.id);
+                            if (item.rawTrack) handleRemoveTrack(item.rawTrack, item.rawTrackIndex ?? idx);
                         }}
                         onSelectArtist={onSelectArtist}
                         onSelectAlbum={onSelectAlbum}
@@ -1483,7 +1635,23 @@ export const GridView: React.FC<GridViewProps> = ({
                             {/* Title & Creator */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 text-left min-w-0">
                                 <div>
-                                    <h3 className="text-xl font-bold line-clamp-2 leading-snug">{collection.name}</h3>
+                                    {(isLocalPlaylistCollection || isNavidromePlaylistCollection) && isEditMode ? (
+                                        <input
+                                            value={editableTitle}
+                                            onChange={(event) => setEditableTitle(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.preventDefault();
+                                                    void handleSourceEditToggle();
+                                                }
+                                            }}
+                                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xl font-bold outline-none transition-colors focus:border-sky-400"
+                                            style={{ color: 'var(--text-primary)' }}
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <h3 className="text-xl font-bold line-clamp-2 leading-snug">{collection.name}</h3>
+                                    )}
                                     {collection.creator && (
                                         <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
                                             <div className="w-5 h-5 rounded-full overflow-hidden">
@@ -1522,7 +1690,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                     style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                 >
                                     <Play size={14} fill="currentColor" />
-                                    播放全部
+                                    {t('playlist.playAll')}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -1534,15 +1702,54 @@ export const GridView: React.FC<GridViewProps> = ({
                                     className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                 >
                                     <ListPlus size={14} />
-                                    加入队列
+                                    {t('navidrome.addToQueue') || '加入播放队列'}
                                 </button>
+                                {canAddNavidromeToPlaylist && (
+                                    <button
+                                        onClick={() => setIsPlaylistPickerOpen(true)}
+                                        disabled={playableTracks.length === 0 || isSourceActionPending}
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                                    >
+                                        <Plus size={14} />
+                                        {t('localMusic.addToPlaylist') || '添加到歌单'}
+                                    </button>
+                                )}
+                                {isLocalFolderCollection && sourceActions?.local?.onResyncFolder && (
+                                    <button
+                                        onClick={() => void handleResyncLocalFolder()}
+                                        disabled={isSourceActionPending}
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                                    >
+                                        {isSourceActionPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                        {t('localMusic.reimport')}
+                                    </button>
+                                )}
                                 {canEditPlaylist && (
                                     <button
-                                        onClick={() => setIsEditMode(prev => !prev)}
+                                        onClick={() => {
+                                            if (canEditNeteasePlaylist) {
+                                                setIsEditMode(prev => !prev);
+                                                return;
+                                            }
+                                            void handleSourceEditToggle();
+                                        }}
+                                        disabled={isSourceActionPending}
                                         className={`w-full py-2.5 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isEditMode ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900'}`}
                                     >
-                                        <Pencil size={14} />
-                                        {isEditMode ? '完成编辑' : '编辑歌单'}
+                                        {isSourceActionPending ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
+                                        {isEditMode ? t('localMusic.finishEditing') : t('localMusic.editPlaylist')}
+                                    </button>
+                                )}
+                                {(isLocalFolderCollection || isLocalPlaylistCollection || isNavidromePlaylistCollection) && (
+                                    <button
+                                        onClick={() => void handleDeleteSourceCollection()}
+                                        disabled={isSourceActionPending}
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-red-500/10 text-red-500 border border-red-500/25 hover:bg-red-500/20 disabled:opacity-40"
+                                    >
+                                        {isSourceActionPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                        {isLocalFolderCollection
+                                            ? t('localMusic.delete')
+                                            : t('localMusic.deletePlaylist')}
                                     </button>
                                 )}
                             </div>
@@ -1550,6 +1757,30 @@ export const GridView: React.FC<GridViewProps> = ({
                     )}
                 </AnimatePresence>
             </div>
+            <PlaylistSelectionDialog
+                isOpen={isPlaylistPickerOpen}
+                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                playlists={sourceActions?.navidrome?.availablePlaylists || []}
+                onClose={() => setIsPlaylistPickerOpen(false)}
+                onSelect={(playlistId) => {
+                    void handleAddNavidromeCollectionToPlaylist(playlistId);
+                    setIsPlaylistPickerOpen(false);
+                }}
+                onCreate={() => setIsCreatePlaylistOpen(true)}
+                createLabel={t('localMusic.createPlaylist') || '新建歌单'}
+                isDaylight={isDaylight}
+            />
+            <TextInputDialog
+                isOpen={isCreatePlaylistOpen}
+                title={t('localMusic.createPlaylist') || '新建歌单'}
+                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                confirmLabel={t('localMusic.createPlaylist') || '新建歌单'}
+                onClose={() => setIsCreatePlaylistOpen(false)}
+                onConfirm={(name) => {
+                    void handleCreateNavidromePlaylist(name);
+                }}
+                isDaylight={isDaylight}
+            />
         </motion.div>
     );
 };

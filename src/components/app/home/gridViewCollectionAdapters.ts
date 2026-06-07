@@ -35,6 +35,7 @@ export interface NavidromeGridViewCollectionDescriptor extends BaseGridViewColle
     source: 'navidrome';
     type: NavidromeGridViewCollectionType;
     id: string;
+    editable?: boolean;
 }
 
 export type GridViewCollectionDescriptor =
@@ -83,6 +84,7 @@ export const createNavidromeGridViewCollection = (
     coverUrl: item.coverUrl,
     description: item.description,
     trackCount: item.trackCount,
+    editable: Boolean((item as { editable?: boolean }).editable),
 });
 
 // Rebuilds a local GridView queue from descriptor ids while preserving descriptor order.
