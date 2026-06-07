@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Settings, LayoutGrid, Disc, Map as MapIcon, ArrowLeft, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -163,7 +163,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         if (slidingTimeoutRef.current) clearTimeout(slidingTimeoutRef.current);
         slidingTimeoutRef.current = setTimeout(() => {
             setIsSliding(false);
-        }, 800);
+        }, 300);
     };
 
     /**
@@ -476,6 +476,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const isProgrammaticScrollRef = useRef(false);
     const programmaticTargetLeftRef = useRef<number | null>(null);
     const programmaticScrollTimeoutRef = useRef<any>(null);
+    const lastKeyboardNavTimeRef = useRef<number>(0);
 
     const focusedIndexRef = useRef(focusedIndex);
     useEffect(() => {
@@ -486,6 +487,65 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     useEffect(() => {
         currentDesktopItemsRef.current = currentDesktopItems;
     }, [currentDesktopItems]);
+
+    // Center programmatic scrolling on a specific index card
+    const scrollToIndex = useCallback((idx: number) => {
+        if (idx < 0 || idx >= currentDesktopItems.length) return;
+        setFocusedIndex(idx);
+        const container = scrollContainerRef.current;
+        if (container) {
+            const flexWrapper = container.firstElementChild;
+            const cardElement = flexWrapper?.children[idx] as HTMLElement;
+            if (cardElement) {
+                const targetScrollLeft = cardElement.offsetLeft + cardElement.offsetWidth / 2 - container.clientWidth / 2;
+
+                isProgrammaticScrollRef.current = true;
+                programmaticTargetLeftRef.current = targetScrollLeft;
+                if (programmaticScrollTimeoutRef.current) clearTimeout(programmaticScrollTimeoutRef.current);
+                programmaticScrollTimeoutRef.current = setTimeout(() => {
+                    isProgrammaticScrollRef.current = false;
+                    programmaticTargetLeftRef.current = null;
+                }, 600);
+
+                container.scrollTo({
+                    left: targetScrollLeft,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }, [currentDesktopItems]);
+
+    // Keyboard arrow key navigation to jump to adjacent cards
+    useEffect(() => {
+        if (!isNeteaseTab || showCollectionGrid) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (
+                e.target instanceof HTMLInputElement ||
+                e.target instanceof HTMLTextAreaElement ||
+                (e.target instanceof HTMLElement && e.target.isContentEditable)
+            ) {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const now = performance.now();
+                if (now - lastKeyboardNavTimeRef.current < 200) return;
+                lastKeyboardNavTimeRef.current = now;
+                scrollToIndex(focusedIndex - 1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const now = performance.now();
+                if (now - lastKeyboardNavTimeRef.current < 200) return;
+                lastKeyboardNavTimeRef.current = now;
+                scrollToIndex(focusedIndex + 1);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [focusedIndex, scrollToIndex, isNeteaseTab, showCollectionGrid]);
 
     // Wheel-to-horizontal scroll with momentum — direct + inertia on stop
     const wheelIdleTimerRef = useRef<any>(null);
@@ -567,7 +627,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         <div className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto backdrop-blur-sm`}>
 
             {/* Main Header Container (Fades out when sliding/interacting) */}
-            <div className={`transition-opacity duration-500 ease-in-out z-20 ${isSliding ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`transition-opacity duration-300 ease-in-out z-20 ${isSliding ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto p-4 md:p-8 gap-y-4 md:gap-y-0">
                     {/* Left title and settings */}
                     <div className="flex items-center justify-start">
@@ -688,34 +748,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         <div
                                             key={item.id}
                                             className="shrink-0 cursor-pointer pointer-events-auto select-none"
-                                            style={{ willChange: 'transform, opacity' }}
                                             onClick={() => {
                                                 if (dragDistanceRef.current < 8) {
                                                     if (isFocused) {
                                                         handleSelectCollectionCard(item);
                                                     } else {
-                                                        setFocusedIndex(idx);
-                                                        const container = scrollContainerRef.current;
-                                                        if (container) {
-                                                            const flexWrapper = container.firstElementChild;
-                                                            const cardElement = flexWrapper?.children[idx] as HTMLElement;
-                                                            if (cardElement) {
-                                                                const targetScrollLeft = cardElement.offsetLeft + cardElement.offsetWidth / 2 - container.clientWidth / 2;
-
-                                                                isProgrammaticScrollRef.current = true;
-                                                                programmaticTargetLeftRef.current = targetScrollLeft;
-                                                                if (programmaticScrollTimeoutRef.current) clearTimeout(programmaticScrollTimeoutRef.current);
-                                                                programmaticScrollTimeoutRef.current = setTimeout(() => {
-                                                                    isProgrammaticScrollRef.current = false;
-                                                                    programmaticTargetLeftRef.current = null;
-                                                                }, 600);
-
-                                                                container.scrollTo({
-                                                                    left: targetScrollLeft,
-                                                                    behavior: 'smooth'
-                                                                });
-                                                            }
-                                                        }
+                                                        scrollToIndex(idx);
                                                     }
                                                 }
                                             }}
@@ -754,9 +792,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                                         <h3 className="font-bold text-sm truncate max-w-full tracking-tight">
                                                             {item.name}
                                                         </h3>
-                                                        <p className="text-xs opacity-50 truncate max-w-full mt-1 font-medium">
-                                                            {item.description}
-                                                        </p>
+                                                        {((item.type !== 'playlist' && item.description) || !compactDescription(item.summary)) && (
+                                                            <p className="text-xs opacity-50 truncate max-w-full mt-1 font-medium">
+                                                                {item.type !== 'playlist' && item.description ? item.description : '\u00A0'}
+                                                            </p>
+                                                        )}
                                                         {compactDescription(item.summary) && (
                                                             <p className="text-[10px] leading-snug opacity-45 mt-2 line-clamp-2">
                                                                 {compactDescription(item.summary)}
