@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetBackgroundCropMode, type MonetBackgroundSource } from '../../../types';
+import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetBackgroundCropMode, type MonetBackgroundLayout, type MonetBackgroundSource } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
 import { type VisualizerSettingsPanelProps } from '../definition';
 
@@ -87,6 +87,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             monetTuning.backgroundOverlayOpacity ?? DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
         ),
         backgroundCropMode: monetTuning.backgroundCropMode ?? DEFAULT_MONET_TUNING.backgroundCropMode,
+        backgroundLayout: monetTuning.backgroundLayout ?? DEFAULT_MONET_TUNING.backgroundLayout,
         audioStyle: monetTuning.audioStyle ?? DEFAULT_MONET_TUNING.audioStyle,
         coverPaneRatio: clampCoverPaneRatio(monetTuning.coverPaneRatio ?? DEFAULT_MONET_TUNING.coverPaneRatio),
         lyricsFocusScale: clampLyricsFocusScale(monetTuning.lyricsFocusScale ?? DEFAULT_MONET_TUNING.lyricsFocusScale),
@@ -104,6 +105,10 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { value: 'cover', label: t('options.monetCropCover') || '铺满' },
         { value: 'focus-cover', label: t('options.monetCropFocusCover') || '聚焦' },
         { value: 'full-artwork', label: t('options.monetCropFullArtwork') || '完整画面' },
+    ]), [t]);
+    const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
+        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
+        { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },
     ]), [t]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,6 +202,15 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 value={resolvedTuning.backgroundCropMode}
                 options={cropModeOptions}
                 onChange={(value) => onMonetTuningChange?.({ backgroundCropMode: value })}
+                isDaylight={isDaylight}
+                theme={theme}
+            />
+
+            <PresetGroup
+                label={t('options.monetBackgroundLayout') || '布局模式'}
+                value={resolvedTuning.backgroundLayout}
+                options={layoutOptions}
+                onChange={(value) => onMonetTuningChange?.({ backgroundLayout: value })}
                 isDaylight={isDaylight}
                 theme={theme}
             />

@@ -120,14 +120,8 @@ export const buildMonetBackgroundDataUrl = async ({
     context.fillStyle = theme.backgroundColor;
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    context.save();
-    context.filter = `blur(${Math.max(0, tuning.backgroundBlurPx)}px) saturate(1.12) brightness(0.96)`;
+    context.filter = `blur(${Math.max(0, tuning.backgroundBlurPx)}px) saturate(1.06)`;
     drawCoverCropped(context, image, canvas.width, canvas.height, tuning.backgroundCropMode);
-    context.restore();
-
-    context.globalAlpha = tuning.backgroundCropMode === 'full-artwork' ? 0.78 : 0.28;
-    drawCoverCropped(context, image, canvas.width, canvas.height, tuning.backgroundCropMode);
-    context.globalAlpha = 1;
 
     paintMonetOverlay(context, canvas.width, canvas.height, theme, tuning);
 

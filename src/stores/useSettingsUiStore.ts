@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type MonetBackgroundCropMode, type MonetBackgroundImage, type MonetBackgroundSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type MonetBackgroundCropMode, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
@@ -351,6 +351,12 @@ const resolveMonetBackgroundCropMode = (value: MonetBackgroundCropMode | undefin
         : DEFAULT_MONET_TUNING.backgroundCropMode
 );
 
+const resolveMonetBackgroundLayout = (value: MonetBackgroundLayout | undefined): MonetBackgroundLayout => (
+    value === 'full-overlay' || value === 'half-pane-gradient'
+        ? value
+        : DEFAULT_MONET_TUNING.backgroundLayout
+);
+
 const clampMonetBackgroundBlur = (value: number, fallback: number) => {
     if (!Number.isFinite(value)) {
         return fallback;
@@ -394,6 +400,7 @@ export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning>): MonetTun
         DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
     ),
     backgroundCropMode: resolveMonetBackgroundCropMode(parsed.backgroundCropMode),
+    backgroundLayout: resolveMonetBackgroundLayout(parsed.backgroundLayout),
     audioStyle: parsed.audioStyle === 'line' ? 'line' : DEFAULT_MONET_TUNING.audioStyle,
     coverPaneRatio: clampMonetCoverPaneRatio(
         parsed.coverPaneRatio ?? DEFAULT_MONET_TUNING.coverPaneRatio,

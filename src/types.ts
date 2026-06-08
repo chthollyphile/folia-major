@@ -308,6 +308,7 @@ export const DEFAULT_TILT_TUNING: TiltTuning = {
 
 export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type MonetBackgroundCropMode = 'cover' | 'focus-cover' | 'full-artwork';
+export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetAudioStyle = 'bar' | 'line';
 
 export interface MonetTuning {
@@ -315,6 +316,7 @@ export interface MonetTuning {
   backgroundBlurPx: number;
   backgroundOverlayOpacity: number;
   backgroundCropMode: MonetBackgroundCropMode;
+  backgroundLayout: MonetBackgroundLayout;
   audioStyle: MonetAudioStyle;
   coverPaneRatio: number;
   lyricsFocusScale: number;
@@ -325,6 +327,7 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   backgroundBlurPx: 80,
   backgroundOverlayOpacity: 0.42,
   backgroundCropMode: 'focus-cover',
+  backgroundLayout: 'half-pane-gradient',
   audioStyle: 'bar',
   coverPaneRatio: 0.5,
   lyricsFocusScale: 1.08,

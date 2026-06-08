@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MONET_TUNING, type Line } from '@/types';
+import { DEFAULT_MONET_TUNING, type Line, type MonetBackgroundLayout } from '@/types';
 import { getMonetBackgroundCacheKey } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { resolveStoredMonetTuning } from '@/stores/useSettingsUiStore';
@@ -13,6 +13,7 @@ describe('Monet tuning and lyric helpers', () => {
             backgroundBlurPx: 999,
             backgroundOverlayOpacity: -2,
             backgroundCropMode: 'full-artwork',
+            backgroundLayout: 'full-overlay',
             audioStyle: 'line',
             coverPaneRatio: 0.9,
             lyricsFocusScale: 4,
@@ -21,10 +22,14 @@ describe('Monet tuning and lyric helpers', () => {
             backgroundBlurPx: 120,
             backgroundOverlayOpacity: 0,
             backgroundCropMode: 'full-artwork',
+            backgroundLayout: 'full-overlay',
             audioStyle: 'line',
             coverPaneRatio: 0.68,
             lyricsFocusScale: 1.3,
         });
+
+        expect(resolveStoredMonetTuning({ backgroundLayout: 'bogus' as MonetBackgroundLayout }))
+            .toEqual(expect.objectContaining({ backgroundLayout: DEFAULT_MONET_TUNING.backgroundLayout }));
 
         expect(resolveStoredMonetTuning({})).toEqual(DEFAULT_MONET_TUNING);
     });
@@ -94,5 +99,17 @@ describe('Monet tuning and lyric helpers', () => {
 
         expect(first).not.toBe(second);
         expect(second).not.toBe(third);
+
+        const layoutBase = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-b',
+            theme,
+            tuning: DEFAULT_MONET_TUNING,
+        });
+        const layoutChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-b',
+            theme,
+            tuning: { ...DEFAULT_MONET_TUNING, backgroundLayout: 'full-overlay' },
+        });
+        expect(layoutBase).not.toBe(layoutChanged);
     });
 });
