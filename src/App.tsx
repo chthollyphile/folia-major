@@ -497,6 +497,26 @@ export default function App() {
     );
 
     const coverUrl = getCoverUrl();
+    const currentSongArtist = useMemo(() => {
+        if (!currentSong) {
+            return null;
+        }
+        const joinedArtists = currentSong.ar?.map(artist => artist.name).filter(Boolean).join(', ');
+        if (joinedArtists) {
+            return joinedArtists;
+        }
+        const fallbackArtists = currentSong.artists?.map(artist => artist.name).filter(Boolean).join(', ');
+        if (fallbackArtists) {
+            return fallbackArtists;
+        }
+        return currentSong.localData?.matchedArtists || currentSong.localData?.artist || null;
+    }, [currentSong]);
+    const currentSongAlbum = useMemo(() => {
+        if (!currentSong) {
+            return null;
+        }
+        return currentSong.al?.name || currentSong.album?.name || currentSong.localData?.matchedAlbumName || currentSong.localData?.album || null;
+    }, [currentSong]);
 
     // Theme Controller
     // manages current theme, daylight mode, and related actions like generating AI themes 
@@ -2228,6 +2248,8 @@ export default function App() {
                     audioPower={audioPower}
                     audioBands={audioBands}
                     songTitle={currentSong?.name}
+                    songArtist={currentSongArtist}
+                    songAlbum={currentSongAlbum}
                     coverUrl={getCoverUrl()}
                     showText={currentView === 'player' && !isSettingsModalOpen}
                     useCoverColorBg={useCoverColorBg}

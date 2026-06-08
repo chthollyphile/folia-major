@@ -543,6 +543,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         audioBands,
         showText = true,
         songTitle,
+        songArtist,
+        songAlbum,
         coverUrl,
         staticMode = false,
         transparentBackground = false,
@@ -570,7 +572,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     );
     const leftBasis = `${Math.round((1 - monetTuning.coverPaneRatio) * 100)}%`;
     const coverShadow = `0 28px 60px ${colorWithAlpha(theme.backgroundColor, 0.38)}`;
-    const sourceLabel = theme.provider || theme.name || 'Monet';
+    const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
+    const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
     const lyricTrackItems = [
         lyricContext.previousLine ? { line: lyricContext.previousLine, kind: 'previous' as const } : null,
         lyricContext.activeLine ? { line: lyricContext.activeLine, kind: 'active' as const } : null,
@@ -602,14 +605,14 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
             />
 
             <div className="relative z-10 flex h-full w-full flex-col overflow-hidden px-5 py-5 sm:px-8 sm:py-6 lg:px-14 lg:py-8">
-                <div className="grid min-h-0 flex-1 gap-5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.74fr)] lg:items-center">
+                <div className="grid min-h-0 flex-1 gap-5 overflow-visible lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.74fr)] lg:items-center">
                     <div className="flex min-h-0 flex-col overflow-hidden" style={{ minWidth: leftBasis }}>
                         <div className="space-y-1.5">
                             <div
                                 className="text-[clamp(1rem,1.8vw,1.8rem)] italic tracking-[-0.04em]"
                                 style={{ color: colorWithAlpha(theme.primaryColor, 0.96) }}
                             >
-                                {sourceLabel}
+                                {primaryMetaLabel}
                             </div>
                             <div
                                 className="h-14 w-px rounded-full"
@@ -633,7 +636,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     className="text-sm uppercase tracking-[0.26em]"
                                     style={{ color: colorWithAlpha(theme.secondaryColor, 0.84) }}
                                 >
-                                    {theme.name}
+                                    {secondaryMetaLabel}
                                 </div>
                             </div>
 
@@ -691,7 +694,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 color: colorWithAlpha(theme.primaryColor, 0.9),
                             }}>
                                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
-                                <span className="text-xs uppercase tracking-[0.28em]">{sourceLabel}</span>
+                                <span className="text-xs uppercase tracking-[0.28em]">{secondaryMetaLabel}</span>
                             </div>
 
                             <div className="h-16 w-full max-w-[720px] overflow-hidden rounded-full border px-3 py-2 backdrop-blur-md" style={{
@@ -710,9 +713,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-center lg:justify-end">
+                    <div className="flex items-center justify-center overflow-visible px-3 lg:justify-end lg:pr-8 xl:pr-12">
                         <div
-                            className="relative w-full max-w-[380px] overflow-hidden rounded-[2rem] border p-1.5 backdrop-blur-sm"
+                            className="relative w-full max-w-[380px] rounded-[2rem] border p-1.5 backdrop-blur-sm"
                             style={{
                                 borderColor: colorWithAlpha(theme.primaryColor, 0.12),
                                 backgroundColor: colorWithAlpha(theme.backgroundColor, 0.08),
@@ -720,7 +723,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                             }}
                         >
                             <div
-                                className="aspect-[0.74] w-full rounded-[1.6rem] bg-cover bg-center"
+                                className="aspect-[0.74] w-full overflow-hidden rounded-[1.6rem] bg-cover bg-center"
                                 style={{
                                     backgroundImage: coverUrl ? `url(${coverUrl})` : undefined,
                                     backgroundColor: colorWithAlpha(theme.primaryColor, 0.08),

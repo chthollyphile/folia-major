@@ -30,6 +30,8 @@ export interface VisualizerSharedProps {
     audioBands: AudioBands;
     showText?: boolean;
     songTitle?: string | null;
+    songArtist?: string | null;
+    songAlbum?: string | null;
     coverUrl?: string | null;
     useCoverColorBg?: boolean;
     seed?: string | number;
