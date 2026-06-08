@@ -292,6 +292,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const mid = useMotionValue(0.12);
     const vocal = useMotionValue(0.2);
     const treble = useMotionValue(0.1);
+    const spectrum = useMotionValue(new Uint8Array(64));
     const [currentLineIndex, setCurrentLineIndex] = useState(() => findPreviewPlaceholderLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, 0));
     const [isFontPickerOpen, setIsFontPickerOpen] = useState(false);
     const [isLoadingSystemFonts, setIsLoadingSystemFonts] = useState(false);
@@ -322,7 +323,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         mid,
         vocal,
         treble,
-    }), [bass, lowMid, mid, treble, vocal]);
+        spectrum,
+    }), [bass, lowMid, mid, spectrum, treble, vocal]);
 
     const normalizedFontScale = clampFontScale(draftFontScale);
     const builtinFontOptions: PresetOption<Theme['fontStyle']>[] = useMemo(() => ([
@@ -404,12 +406,25 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             vocal.set(wave(3.4, 0.0038, 0.16, 0.22));
             treble.set(wave(4.2, 0.0046, 0.08, 0.14));
 
+            const nextSpectrum = new Uint8Array(64);
+            for (let index = 0; index < nextSpectrum.length; index += 1) {
+                const normalizedIndex = index / Math.max(1, nextSpectrum.length - 1);
+                const lowShape = Math.exp(-normalizedIndex * 2.4);
+                const harmonic =
+                    Math.sin(now * 0.0027 + normalizedIndex * Math.PI * 3.4) * 0.18 +
+                    Math.sin(now * 0.0052 + normalizedIndex * Math.PI * 11.5) * 0.08;
+                const shimmer = Math.sin(now * 0.0018 + normalizedIndex * Math.PI * 1.2) * 0.12;
+                const amplitude = Math.max(0, Math.min(1, lowShape * 0.8 + 0.08 + harmonic + shimmer));
+                nextSpectrum[index] = Math.round(amplitude * 255);
+            }
+            spectrum.set(nextSpectrum);
+
             frameId = window.requestAnimationFrame(tick);
         };
 
         frameId = window.requestAnimationFrame(tick);
         return () => window.cancelAnimationFrame(frameId);
-    }, [audioPower, bass, currentTime, lowMid, mid, treble, visualizerMode, vocal]);
+    }, [audioPower, bass, currentTime, lowMid, mid, spectrum, treble, visualizerMode, vocal]);
 
     useMotionValueEvent(currentTime, 'change', latest => {
         const nextIndex = findPreviewPlaceholderLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, latest);

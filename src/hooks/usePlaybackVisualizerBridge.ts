@@ -19,6 +19,7 @@ type UsePlaybackVisualizerBridgeParams = {
         mid: MotionValue<number>;
         vocal: MotionValue<number>;
         treble: MotionValue<number>;
+        spectrum?: MotionValue<Uint8Array>;
     };
     currentTime: MotionValue<number>;
     lyrics: LyricData | null;
@@ -76,6 +77,7 @@ export function usePlaybackVisualizerBridge({
             const bufferLength = analyserRef.current.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyserRef.current.getByteFrequencyData(dataArray);
+            audioBands.spectrum?.set(dataArray);
 
             const getEnergy = (minHz: number, maxHz: number): number => {
                 const start = Math.floor(minHz / 21.5);
@@ -114,6 +116,7 @@ export function usePlaybackVisualizerBridge({
             audioBands.mid.set(breath);
             audioBands.vocal.set(breath);
             audioBands.treble.set(breath);
+            audioBands.spectrum?.set(new Uint8Array(0));
         }
 
         if (isActuallyPlaying && audioElement) {

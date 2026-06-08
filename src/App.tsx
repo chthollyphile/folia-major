@@ -145,13 +145,15 @@ export default function App() {
     const mid = useMotionValue(0);
     const vocal = useMotionValue(0);
     const treble = useMotionValue(0);
+    const spectrum = useMotionValue(new Uint8Array(0));
     const audioBands = useMemo(() => ({
         bass,
         lowMid,
         mid,
         vocal,
         treble,
-    }), [bass, lowMid, mid, vocal, treble]);
+        spectrum,
+    }), [bass, lowMid, mid, spectrum, treble, vocal]);
 
     // Refs
     const audioRef = useRef<HTMLAudioElement>(null);
