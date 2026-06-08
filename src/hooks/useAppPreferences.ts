@@ -258,10 +258,6 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setMonetBackgroundImage, storedMonetBackgroundImage]);
 
     useEffect(() => {
-        ensureBuiltinCappellaEmojiPack();
-    }, [cappellaEmojiPackSource, ensureBuiltinCappellaEmojiPack, storedCappellaEmojiPack.length]);
-
-    useEffect(() => {
         if (storedMonetBackgroundImage || monetTuning.backgroundSource !== 'uploaded-global') {
             return;
         }
