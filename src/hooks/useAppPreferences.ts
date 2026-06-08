@@ -33,12 +33,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const setIsLoadingMonetBackgroundImage = useSettingsUiStore(state => state.setIsLoadingMonetBackgroundImage);
     const handleSetMonetTuning = useSettingsUiStore(state => state.handleSetMonetTuning);
     const clearLyricsCustomFontAfterRestoreFailure = useSettingsUiStore(state => state.clearLyricsCustomFontAfterRestoreFailure);
-    const ensureBuiltinCappellaEmojiPack = useSettingsUiStore(state => state.ensureBuiltinCappellaEmojiPack);
     const lyricsCustomFont = useSettingsUiStore(state => state.lyricsCustomFont);
     const storedCappellaEmojiPack = useSettingsUiStore(state => state.storedCappellaEmojiPack);
     const storedCappellaAvatarPack = useSettingsUiStore(state => state.storedCappellaAvatarPack);
     const storedMonetBackgroundImage = useSettingsUiStore(state => state.storedMonetBackgroundImage);
-    const cappellaEmojiPackSource = useSettingsUiStore(state => state.cappellaTuning.emojiPackSource);
     const monetTuning = useSettingsUiStore(state => state.monetTuning);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
 

@@ -1513,7 +1513,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
                 ? cappellaTuning.avatarSource
                 : DEFAULT_CAPPELLA_TUNING.avatarSource
         ),
-    }), [cappellaCustomEmojiImages.length, cappellaTuning.avatarSource, cappellaTuning.emojiPackSource, cappellaTuning.showEmoMessages]);
+    }), [cappellaCustomEmojiImages.length, cappellaCustomAvatarImages.length, cappellaTuning.avatarSource, cappellaTuning.emojiPackSource, cappellaTuning.showEmoMessages]);
     const activeEmoImages = useMemo(
         () => resolvedCappellaTuning.emojiPackSource === 'custom' && cappellaCustomEmojiImages.length > 0
             ? cappellaCustomEmojiImages
