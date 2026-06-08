@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { motion, motionValue, useTransform, type MotionValue } from 'framer-motion';
+import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
 import type { Theme } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
@@ -39,7 +39,6 @@ interface FloatingParticle {
 
 interface MonetFloatingDecorProps {
     theme: Theme;
-    audioPower?: MotionValue<number>;
     staticMode?: boolean;
 }
 
@@ -53,7 +52,7 @@ const buildParticles = (availableIcons: string[]): FloatingParticle[] =>
             id: i,
             x: ((i * 127 + 43) % 80) + 10,
             y: ((i * 211 + 17) % 80) + 5,
-            size: 18 + ((i * 53) % 26),
+            size: 46 + ((i * 53) % 40),
             rotation: (i * 97) % 360,
             duration: 20 + ((i * 71) % 20),
             delay: ((i * 41) % 80) / 10,
@@ -67,12 +66,9 @@ const buildParticles = (availableIcons: string[]): FloatingParticle[] =>
 
 const MonetFloatingDecor: React.FC<MonetFloatingDecorProps> = ({
     theme,
-    audioPower,
     staticMode = false,
 }) => {
     const availableIcons = theme.lyricsIcons ?? [];
-    const idleAudioPower = useMemo(() => motionValue(0), []);
-    const power = audioPower ?? idleAudioPower;
 
     const particles = useMemo(
         () => buildParticles(availableIcons),
@@ -81,14 +77,6 @@ const MonetFloatingDecor: React.FC<MonetFloatingDecorProps> = ({
     );
 
     const petalColor = colorWithAlpha(theme.secondaryColor, 0.55);
-    const audioLift = useTransform(power, latest => {
-        const normalized = Math.max(0, Math.min(1, latest / 255));
-        return normalized * 8;
-    });
-    const audioScale = useTransform(power, latest => {
-        const normalized = Math.max(0, Math.min(1, latest / 255));
-        return 1 + normalized * 0.08;
-    });
 
     /** Resolves the visual element for a single particle. */
     const renderParticleContent = (p: FloatingParticle) => {
@@ -130,30 +118,22 @@ const MonetFloatingDecor: React.FC<MonetFloatingDecorProps> = ({
                 <motion.div
                     key={p.id}
                     className="absolute"
-                    style={{ left: `${p.x}%`, top: `${p.y}%`, scale: audioScale }}
+                    style={{ left: `${p.x}%`, top: `${p.y}%` }}
                     animate={{
-                        y: p.reverse ? [-20, 30, -20] : [20, -30, 20],
-                        x: p.reverse ? [10, -15, 10] : [-10, 15, -10],
-                        rotate: [p.rotation, p.rotation + (p.reverse ? -180 : 180)],
-                        opacity: [0, p.opacity * 2.5, p.opacity, p.opacity * 2, 0],
+                        y: p.reverse ? [-40, 60, -20, 40, -40] : [40, -60, 20, -40, 40],
+                        x: p.reverse ? [15, -25, 10, -20, 15] : [-15, 25, -10, 20, -15],
+                        rotate: [p.rotation, p.rotation + (p.reverse ? -120 : 120), p.rotation + (p.reverse ? -60 : 60), p.rotation + (p.reverse ? -180 : 180), p.rotation],
+                        opacity: [p.opacity * 0.6, p.opacity * 1.2, p.opacity, p.opacity * 1.3, p.opacity * 0.7],
                     }}
                     whileInView={undefined}
                     transition={{
                         duration: p.duration,
                         repeat: Infinity,
-                        ease: 'linear',
+                        ease: 'easeInOut',
                         delay: p.delay,
-                        opacity: {
-                            duration: p.duration,
-                            repeat: Infinity,
-                            ease: 'easeInOut',
-                            delay: p.delay,
-                        },
                     }}
                 >
-                    <motion.div style={{ y: audioLift }}>
-                        {renderParticleContent(p)}
-                    </motion.div>
+                    {renderParticleContent(p)}
                 </motion.div>
             ))}
         </div>

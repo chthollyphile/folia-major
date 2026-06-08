@@ -525,7 +525,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
             />
 
             {/* Floating decorative particles (theme icons or sakura petals) */}
-            <MonetFloatingDecor theme={theme} audioPower={audioPower} staticMode={staticMode} />
+            <MonetFloatingDecor theme={theme} staticMode={staticMode} />
 
             <div className="relative z-10 flex h-full w-full flex-row items-center overflow-hidden">
                 {/* ── Left panel: metadata + 4-line lyrics ── */}
