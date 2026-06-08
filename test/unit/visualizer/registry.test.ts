@@ -17,6 +17,7 @@ describe('visualizer registry', () => {
             'partita',
             'fume',
             'tilt',
+            'monet',
             'cappella',
         ]);
     });

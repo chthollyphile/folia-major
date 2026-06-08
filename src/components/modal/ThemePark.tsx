@@ -9,6 +9,7 @@ import {
     DEFAULT_CAPPELLA_TUNING,
     DEFAULT_CLASSIC_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_MONET_TUNING,
     DEFAULT_PARTITA_TUNING,
     AudioBands,
     CappellaAvatarImage,
@@ -18,6 +19,8 @@ import {
     ClassicTuning,
     DualTheme,
     FumeTuning,
+    MonetBackgroundImage,
+    MonetTuning,
     PartitaTuning,
     Theme,
     VisualizerMode,
@@ -43,8 +46,10 @@ interface ThemeParkProps {
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
     cappellaTuning?: CappellaTuning;
+    monetTuning?: MonetTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
+    monetBackgroundImage?: MonetBackgroundImage | null;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily?: string | null;
@@ -94,8 +99,10 @@ const ThemePreviewLayer: React.FC<{
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
+    monetTuning: MonetTuning;
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     cappellaCustomAvatarImages: CappellaAvatarImage[];
+    monetBackgroundImage?: MonetBackgroundImage | null;
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -117,8 +124,10 @@ const ThemePreviewLayer: React.FC<{
     partitaTuning,
     fumeTuning,
     cappellaTuning,
+    monetTuning,
     cappellaCustomEmojiImages,
     cappellaCustomAvatarImages,
+    monetBackgroundImage,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -165,8 +174,10 @@ const ThemePreviewLayer: React.FC<{
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
                         cappellaTuning={cappellaTuning}
+                        monetTuning={monetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                        monetBackgroundImage={monetBackgroundImage}
                         seed={getVisualizerScopedSeed(visualizerMode, `theme-park-${mode}`)}
                     />
                 </div>
@@ -344,8 +355,10 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
     cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+    monetTuning = DEFAULT_MONET_TUNING,
     cappellaCustomEmojiImages = [],
     cappellaCustomAvatarImages = [],
+    monetBackgroundImage = null,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -542,8 +555,10 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             partitaTuning={partitaTuning}
                             fumeTuning={fumeTuning}
                             cappellaTuning={cappellaTuning}
+                            monetTuning={monetTuning}
                             cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                             cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                            monetBackgroundImage={monetBackgroundImage}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

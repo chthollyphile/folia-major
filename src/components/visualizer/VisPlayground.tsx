@@ -9,6 +9,7 @@ import {
     DEFAULT_CAPPELLA_TUNING,
     DEFAULT_CLASSIC_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_MONET_TUNING,
     DEFAULT_PARTITA_TUNING,
     DEFAULT_TILT_TUNING,
     type AudioBands,
@@ -18,6 +19,8 @@ import {
     type CadenzaTuning,
     type ClassicTuning,
     type FumeTuning,
+    type MonetBackgroundImage,
+    type MonetTuning,
     type PartitaTuning,
     type StoredCustomLyricsFont,
     type Theme,
@@ -56,8 +59,10 @@ interface VisPlaygroundProps {
     fumeTuning?: FumeTuning;
     cappellaTuning?: CappellaTuning;
     tiltTuning?: TiltTuning;
+    monetTuning?: MonetTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
+    monetBackgroundImage?: MonetBackgroundImage | null;
     fontStyle: Theme['fontStyle'];
     fontScale: number;
     customFontFamily: string | null;
@@ -84,6 +89,11 @@ interface VisPlaygroundProps {
     onResetCappellaTuning?: () => void;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
     onResetTiltTuning?: () => void;
+    onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
+    onResetMonetTuning?: () => void;
+    onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearMonetBackgroundImage?: () => Promise<void> | void;
+    isLoadingMonetBackgroundImage?: boolean;
     onImportCappellaCustomEmojiPack?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     onClearCappellaCustomEmojiPack?: () => Promise<void> | void;
     isLoadingCappellaCustomEmojiPack?: boolean;
@@ -231,8 +241,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     fumeTuning = DEFAULT_FUME_TUNING,
     cappellaTuning = DEFAULT_CAPPELLA_TUNING,
     tiltTuning = DEFAULT_TILT_TUNING,
+    monetTuning = DEFAULT_MONET_TUNING,
     cappellaCustomEmojiImages = [],
     cappellaCustomAvatarImages = [],
+    monetBackgroundImage = null,
     fontStyle,
     fontScale,
     customFontFamily,
@@ -259,6 +271,11 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     onResetCappellaTuning,
     onTiltTuningChange,
     onResetTiltTuning,
+    onMonetTuningChange,
+    onResetMonetTuning,
+    onUploadMonetBackgroundImage,
+    onClearMonetBackgroundImage,
+    isLoadingMonetBackgroundImage = false,
     onImportCappellaCustomEmojiPack,
     onClearCappellaCustomEmojiPack,
     isLoadingCappellaCustomEmojiPack = false,
@@ -291,6 +308,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [draftPartitaTuning, setDraftPartitaTuning] = useState<PartitaTuning>(partitaTuning);
     const [draftFumeTuning, setDraftFumeTuning] = useState<FumeTuning>(fumeTuning);
     const [draftTiltTuning, setDraftTiltTuning] = useState<TiltTuning>(tiltTuning);
+    const [draftMonetTuning, setDraftMonetTuning] = useState<MonetTuning>(monetTuning);
     const [activeEditSection, setActiveEditSection] = useState<VisPlaygroundEditSection>('common');
     const fontListRef = React.useRef<HTMLDivElement>(null);
     const fontVirtualListRef = useListRef(null);
@@ -365,6 +383,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => { setDraftPartitaTuning(partitaTuning); }, [partitaTuning]);
     useEffect(() => { setDraftFumeTuning(fumeTuning); }, [fumeTuning]);
     useEffect(() => { setDraftTiltTuning(tiltTuning); }, [tiltTuning]);
+    useEffect(() => { setDraftMonetTuning(monetTuning); }, [monetTuning]);
 
     useEffect(() => {
         let frameId = 0;
@@ -424,6 +443,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             resetFumeTuning: onResetFumeTuning,
             resetCappellaTuning: onResetCappellaTuning,
             resetTiltTuning: onResetTiltTuning,
+            resetMonetTuning: onResetMonetTuning,
             setDraftFumeTuning,
         });
     };
@@ -653,6 +673,16 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         }
     };
 
+    const handleMonetTuningDraft = (patch: Partial<MonetTuning>) => {
+        const next = { ...draftMonetTuning, ...patch };
+        setDraftMonetTuning(next);
+        if (!isDraggingSlider.current) {
+            onMonetTuningChange?.(patch);
+        } else {
+            pendingCommitRef.current = () => onMonetTuningChange?.(patch);
+        }
+    };
+
     const handleResetBackgroundSettings = () => {
         setDraftBackgroundOpacity(0.75);
         onBackgroundOpacityChange?.(0.75);
@@ -764,8 +794,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 fumeTuning={resolvedFumeTuning}
                                 cappellaTuning={cappellaTuning}
                                 tiltTuning={draftTiltTuning}
+                                monetTuning={draftMonetTuning}
                                 cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                                 cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                                monetBackgroundImage={monetBackgroundImage}
                                 seed={getVisualizerScopedSeed(visualizerMode, 'vis-playground')}
                             />
                         </div>
@@ -825,6 +857,13 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                         isLoadingCappellaCustomAvatarPack={isLoadingCappellaCustomAvatarPack}
                         tiltTuning={draftTiltTuning}
                         onTiltTuningChange={handleTiltTuningDraft}
+                        monetTuning={draftMonetTuning}
+                        onMonetTuningChange={handleMonetTuningDraft}
+                        onResetMonetTuning={onResetMonetTuning}
+                        monetBackgroundImage={monetBackgroundImage}
+                        onUploadMonetBackgroundImage={onUploadMonetBackgroundImage}
+                        onClearMonetBackgroundImage={onClearMonetBackgroundImage}
+                        isLoadingMonetBackgroundImage={isLoadingMonetBackgroundImage}
                         hideTranslationSubtitle={hideTranslationSubtitle}
                         onToggleHideTranslationSubtitle={onToggleHideTranslationSubtitle}
                         subtitleOverlayOpacity={draftSubtitleOverlayOpacity}

@@ -111,10 +111,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         fumeTuning,
         cappellaTuning,
         tiltTuning,
+        monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
         cappellaCustomAvatarImages,
         isLoadingCappellaCustomAvatarPack,
+        monetBackgroundImage,
+        isLoadingMonetBackgroundImage,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -149,6 +152,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetCappellaTuning: onResetCappellaTuning,
         handleSetTiltTuning: onTiltTuningChange,
         handleResetTiltTuning: onResetTiltTuning,
+        handleSetMonetTuning: onMonetTuningChange,
+        handleResetMonetTuning: onResetMonetTuning,
+        handleUploadMonetBackgroundImage: onUploadMonetBackgroundImage,
+        handleClearMonetBackgroundImage: onClearMonetBackgroundImage,
         handleImportCustomCappellaEmojiPack: onImportCappellaCustomEmojiPack,
         handleClearCustomCappellaEmojiPack: onClearCappellaCustomEmojiPack,
         handleImportCustomCappellaAvatar: onImportCappellaCustomAvatar,
@@ -1965,8 +1972,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         fumeTuning={fumeTuning}
                         cappellaTuning={cappellaTuning}
                         tiltTuning={tiltTuning}
+                        monetTuning={monetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                        monetBackgroundImage={monetBackgroundImage}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
                         customFontFamily={lyricsCustomFontFamily}
@@ -1993,6 +2002,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onResetCappellaTuning={onResetCappellaTuning}
                         onTiltTuningChange={onTiltTuningChange}
                         onResetTiltTuning={onResetTiltTuning}
+                        onMonetTuningChange={onMonetTuningChange}
+                        onResetMonetTuning={onResetMonetTuning}
+                        onUploadMonetBackgroundImage={onUploadMonetBackgroundImage}
+                        onClearMonetBackgroundImage={onClearMonetBackgroundImage}
+                        isLoadingMonetBackgroundImage={isLoadingMonetBackgroundImage}
                         onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
                         onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
                         isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
@@ -2017,8 +2031,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
                         cappellaTuning={cappellaTuning}
+                        monetTuning={monetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                        monetBackgroundImage={monetBackgroundImage}
                         lyricsFontStyle={lyricsFontStyle}
                         lyricsFontScale={lyricsFontScale}
                         lyricsCustomFontFamily={lyricsCustomFontFamily}

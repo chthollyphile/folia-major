@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type MonetBackgroundCropMode, type MonetBackgroundImage, type MonetBackgroundSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type Theme, type TiltTuning, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 import { buildStoredCappellaAvatar, clearCustomCappellaAvatar, isSupportedCappellaAvatarFile, saveCustomCappellaAvatar } from '../services/cappellaAvatarPack';
 import { clearUploadedLyricsFont, uploadAndRegisterLyricsFont } from '../services/customLyricsFont';
+import { buildStoredMonetBackgroundImage, clearMonetBackgroundImage, isSupportedMonetBackgroundFile, saveMonetBackgroundImage } from '../services/monetBackgroundImage';
 import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAME_RATE_STORAGE_KEY } from '../utils/frameRateLimiter';
 
 // src/stores/useSettingsUiStore.ts
@@ -340,6 +341,86 @@ const readStoredTiltTuning = (): TiltTuning => {
     }
 };
 
+const resolveMonetBackgroundSource = (value: MonetBackgroundSource | undefined): MonetBackgroundSource => (
+    value === 'uploaded-global' ? 'uploaded-global' : DEFAULT_MONET_TUNING.backgroundSource
+);
+
+const resolveMonetBackgroundCropMode = (value: MonetBackgroundCropMode | undefined): MonetBackgroundCropMode => (
+    value === 'cover' || value === 'focus-cover' || value === 'full-artwork'
+        ? value
+        : DEFAULT_MONET_TUNING.backgroundCropMode
+);
+
+const clampMonetBackgroundBlur = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(120, Math.max(0, value));
+};
+
+const clampUnitInterval = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, value));
+};
+
+const clampMonetCoverPaneRatio = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(0.68, Math.max(0.32, value));
+};
+
+const clampMonetLyricsFocusScale = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1.3, Math.max(1, value));
+};
+
+export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning>): MonetTuning => ({
+    backgroundSource: resolveMonetBackgroundSource(parsed.backgroundSource),
+    backgroundBlurPx: clampMonetBackgroundBlur(
+        parsed.backgroundBlurPx ?? DEFAULT_MONET_TUNING.backgroundBlurPx,
+        DEFAULT_MONET_TUNING.backgroundBlurPx,
+    ),
+    backgroundOverlayOpacity: clampUnitInterval(
+        parsed.backgroundOverlayOpacity ?? DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
+        DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
+    ),
+    backgroundCropMode: resolveMonetBackgroundCropMode(parsed.backgroundCropMode),
+    audioStyle: parsed.audioStyle === 'line' ? 'line' : DEFAULT_MONET_TUNING.audioStyle,
+    coverPaneRatio: clampMonetCoverPaneRatio(
+        parsed.coverPaneRatio ?? DEFAULT_MONET_TUNING.coverPaneRatio,
+        DEFAULT_MONET_TUNING.coverPaneRatio,
+    ),
+    lyricsFocusScale: clampMonetLyricsFocusScale(
+        parsed.lyricsFocusScale ?? DEFAULT_MONET_TUNING.lyricsFocusScale,
+        DEFAULT_MONET_TUNING.lyricsFocusScale,
+    ),
+});
+
+const readStoredMonetTuning = (): MonetTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_MONET_TUNING;
+    }
+
+    const saved = localStorage.getItem('monet_tuning');
+    if (!saved) return DEFAULT_MONET_TUNING;
+
+    try {
+        const parsed = JSON.parse(saved) as Partial<MonetTuning>;
+        return resolveStoredMonetTuning(parsed);
+    } catch {
+        return DEFAULT_MONET_TUNING;
+    }
+};
+
 const readStoredLyricsFontStyle = (): Theme['fontStyle'] => {
     if (typeof window === 'undefined') {
         return 'sans';
@@ -500,12 +581,16 @@ type SettingsUiState = {
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
     tiltTuning: TiltTuning;
+    monetTuning: MonetTuning;
     storedCappellaEmojiPack: StoredCappellaEmojiImage[];
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     isLoadingCappellaCustomEmojiPack: boolean;
     storedCappellaAvatarPack: StoredCappellaAvatarImage[];
     cappellaCustomAvatarImages: CappellaAvatarImage[];
     isLoadingCappellaCustomAvatarPack: boolean;
+    storedMonetBackgroundImage: StoredMonetBackgroundImage | null;
+    monetBackgroundImage: MonetBackgroundImage | null;
+    isLoadingMonetBackgroundImage: boolean;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFont: StoredCustomLyricsFont | null;
@@ -533,6 +618,9 @@ type SettingsUiState = {
     setStoredCappellaAvatarPack: (pack: StoredCappellaAvatarImage[]) => void;
     setCappellaCustomAvatarImages: (images: CappellaAvatarImage[]) => void;
     setIsLoadingCappellaCustomAvatarPack: (loading: boolean) => void;
+    setStoredMonetBackgroundImage: (image: StoredMonetBackgroundImage | null) => void;
+    setMonetBackgroundImage: (image: MonetBackgroundImage | null) => void;
+    setIsLoadingMonetBackgroundImage: (loading: boolean) => void;
     clearLyricsCustomFontAfterRestoreFailure: (message: StatusMessage) => void;
     ensureBuiltinCappellaEmojiPack: () => void;
     setIsSubSettingsViewOpen: (open: boolean) => void;
@@ -569,6 +657,10 @@ type SettingsUiState = {
     handleResetCappellaTuning: () => void;
     handleSetTiltTuning: (patch: Partial<TiltTuning>) => void;
     handleResetTiltTuning: () => void;
+    handleSetMonetTuning: (patch: Partial<MonetTuning>) => void;
+    handleResetMonetTuning: () => void;
+    handleUploadMonetBackgroundImage: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    handleClearMonetBackgroundImage: () => Promise<void>;
     handleImportCustomCappellaEmojiPack: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     handleClearCustomCappellaEmojiPack: () => Promise<void>;
     handleImportCustomCappellaAvatar: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
@@ -621,12 +713,16 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     fumeTuning: readStoredFumeTuning(),
     cappellaTuning: readStoredCappellaTuning(),
     tiltTuning: readStoredTiltTuning(),
+    monetTuning: readStoredMonetTuning(),
     storedCappellaEmojiPack: [],
     cappellaCustomEmojiImages: [],
     isLoadingCappellaCustomEmojiPack: true,
     storedCappellaAvatarPack: [],
     cappellaCustomAvatarImages: [],
     isLoadingCappellaCustomAvatarPack: true,
+    storedMonetBackgroundImage: null,
+    monetBackgroundImage: null,
+    isLoadingMonetBackgroundImage: true,
     lyricsFontStyle: readStoredLyricsFontStyle(),
     lyricsFontScale: readStoredLyricsFontScale(),
     lyricsCustomFont: readStoredCustomLyricsFont(),
@@ -677,6 +773,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     setStoredCappellaAvatarPack: (pack) => set({ storedCappellaAvatarPack: pack }),
     setCappellaCustomAvatarImages: (images) => set({ cappellaCustomAvatarImages: images }),
     setIsLoadingCappellaCustomAvatarPack: (loading) => set({ isLoadingCappellaCustomAvatarPack: loading }),
+    setStoredMonetBackgroundImage: (image) => set({ storedMonetBackgroundImage: image }),
+    setMonetBackgroundImage: (image) => set({ monetBackgroundImage: image }),
+    setIsLoadingMonetBackgroundImage: (loading) => set({ isLoadingMonetBackgroundImage: loading }),
     clearLyricsCustomFontAfterRestoreFailure: (message) => {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('lyrics_custom_font');
@@ -998,6 +1097,56 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ tiltTuning: DEFAULT_TILT_TUNING });
         notify(get, { type: 'info', text: '倾诉参数已重置' });
     },
+    handleSetMonetTuning: (patch) => {
+        const prev = get().monetTuning;
+        const next = resolveStoredMonetTuning({
+            ...prev,
+            ...patch,
+        });
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('monet_tuning', JSON.stringify(next));
+        }
+        set({ monetTuning: next });
+    },
+    handleResetMonetTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('monet_tuning', JSON.stringify(DEFAULT_MONET_TUNING));
+        }
+        set({ monetTuning: DEFAULT_MONET_TUNING });
+        notify(get, { type: 'info', text: '莫奈参数已重置' });
+    },
+    handleUploadMonetBackgroundImage: async (files) => {
+        const file = files[0];
+        if (!file) {
+            return { ok: false, error: '请选择图片文件。' };
+        }
+
+        if (!isSupportedMonetBackgroundFile(file)) {
+            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+        }
+
+        const image = buildStoredMonetBackgroundImage(file);
+        await saveMonetBackgroundImage(image);
+        set({ storedMonetBackgroundImage: image });
+        notify(get, { type: 'success', text: 'Monet 背景图已更新' });
+        return { ok: true };
+    },
+    handleClearMonetBackgroundImage: async () => {
+        await clearMonetBackgroundImage();
+        const prev = get().monetTuning;
+        const nextTuning = prev.backgroundSource === 'uploaded-global'
+            ? { ...prev, backgroundSource: 'cover-derived' as const }
+            : prev;
+        if (nextTuning !== prev && typeof window !== 'undefined') {
+            localStorage.setItem('monet_tuning', JSON.stringify(nextTuning));
+        }
+        set({
+            storedMonetBackgroundImage: null,
+            monetBackgroundImage: null,
+            monetTuning: nextTuning,
+        });
+        notify(get, { type: 'info', text: 'Monet 背景图已清空' });
+    },
     handleImportCustomCappellaEmojiPack: async (files) => {
         if (files.length === 0) {
             return { ok: false, error: '请选择图片文件。' };
@@ -1267,10 +1416,13 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     fumeTuning: state.fumeTuning,
     cappellaTuning: state.cappellaTuning,
     tiltTuning: state.tiltTuning,
+    monetTuning: state.monetTuning,
     cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
     isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
     cappellaCustomAvatarImages: state.cappellaCustomAvatarImages,
     isLoadingCappellaCustomAvatarPack: state.isLoadingCappellaCustomAvatarPack,
+    monetBackgroundImage: state.monetBackgroundImage,
+    isLoadingMonetBackgroundImage: state.isLoadingMonetBackgroundImage,
     lyricsFontStyle: state.lyricsFontStyle,
     lyricsFontScale: state.lyricsFontScale,
     lyricsCustomFontFamily: state.lyricsCustomFont?.family ?? null,
@@ -1313,6 +1465,10 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetCappellaTuning: state.handleResetCappellaTuning,
     handleSetTiltTuning: state.handleSetTiltTuning,
     handleResetTiltTuning: state.handleResetTiltTuning,
+    handleSetMonetTuning: state.handleSetMonetTuning,
+    handleResetMonetTuning: state.handleResetMonetTuning,
+    handleUploadMonetBackgroundImage: state.handleUploadMonetBackgroundImage,
+    handleClearMonetBackgroundImage: state.handleClearMonetBackgroundImage,
     handleImportCustomCappellaEmojiPack: state.handleImportCustomCappellaEmojiPack,
     handleClearCustomCappellaEmojiPack: state.handleClearCustomCappellaEmojiPack,
     handleImportCustomCappellaAvatar: state.handleImportCustomCappellaAvatar,

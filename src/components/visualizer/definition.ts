@@ -9,6 +9,8 @@ import {
     type ClassicTuning,
     type FumeTuning,
     type Line,
+    type MonetBackgroundImage,
+    type MonetTuning,
     type PartitaTuning,
     type Theme,
     type TiltTuning,
@@ -17,7 +19,7 @@ import {
 
 // src/components/visualizer/definition.ts
 // Shared contracts for discoverable visualizer modes.
-export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'cappella' | 'tilt';
+export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'cappella' | 'tilt' | 'monet';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -52,6 +54,8 @@ export interface VisualizerSharedProps {
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
     tiltTuning?: TiltTuning;
+    monetTuning?: MonetTuning;
+    monetBackgroundImage?: MonetBackgroundImage | null;
 }
 
 export interface VisualizerSettingsPanelProps {
@@ -81,6 +85,12 @@ export interface VisualizerSettingsPanelProps {
     isCappellaCustomAvatarLoading?: boolean;
     tiltTuning?: TiltTuning;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
+    monetTuning?: MonetTuning;
+    onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
+    monetBackgroundImage?: MonetBackgroundImage | null;
+    onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearMonetBackgroundImage?: () => Promise<void> | void;
+    isLoadingMonetBackgroundImage?: boolean;
     /** Mark slider drag start so onChange only updates draft. */
     onSliderPointerDown?: () => void;
     /** Commit draft values to persistent store on slider release. */
@@ -93,6 +103,7 @@ export interface VisualizerSettingsResetProps {
     resetFumeTuning?: () => void;
     resetCappellaTuning?: () => void;
     resetTiltTuning?: () => void;
+    resetMonetTuning?: () => void;
     setDraftFumeTuning?: (tuning: FumeTuning) => void;
 }
 

@@ -229,9 +229,11 @@ export default function App() {
         fumeTuning,
         cappellaTuning,
         tiltTuning,
+        monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
         cappellaCustomAvatarImages,
+        monetBackgroundImage,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -2247,8 +2249,10 @@ export default function App() {
                     fumeTuning={fumeTuning}
                     cappellaTuning={cappellaTuning}
                     tiltTuning={tiltTuning}
+                    monetTuning={monetTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                     cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                    monetBackgroundImage={monetBackgroundImage}
                     onBack={navigateToHome}
                 />
             </div>

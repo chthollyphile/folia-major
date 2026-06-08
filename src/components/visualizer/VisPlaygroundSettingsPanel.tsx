@@ -6,6 +6,8 @@ import {
     type CappellaTuning,
     type ClassicTuning,
     type FumeTuning,
+    type MonetBackgroundImage,
+    type MonetTuning,
     type PartitaTuning,
     type Theme,
     type TiltTuning,
@@ -88,6 +90,13 @@ interface VisPlaygroundSettingsPanelProps {
     isLoadingCappellaCustomAvatarPack?: boolean;
     tiltTuning: TiltTuning;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
+    monetTuning: MonetTuning;
+    onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
+    onResetMonetTuning?: () => void;
+    monetBackgroundImage?: MonetBackgroundImage | null;
+    onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearMonetBackgroundImage?: () => Promise<void> | void;
+    isLoadingMonetBackgroundImage?: boolean;
     hideTranslationSubtitle: boolean;
     onToggleHideTranslationSubtitle?: (hidden: boolean) => void;
     subtitleOverlayOpacity: number;
@@ -290,6 +299,12 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         isLoadingCappellaCustomAvatarPack = false,
         tiltTuning,
         onTiltTuningChange,
+        monetTuning,
+        onMonetTuningChange,
+        monetBackgroundImage,
+        onUploadMonetBackgroundImage,
+        onClearMonetBackgroundImage,
+        isLoadingMonetBackgroundImage,
         hideTranslationSubtitle,
         onToggleHideTranslationSubtitle,
         subtitleOverlayOpacity,
@@ -526,6 +541,12 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             isCappellaCustomAvatarLoading: isLoadingCappellaCustomAvatarPack,
                             tiltTuning,
                             onTiltTuningChange,
+                            monetTuning,
+                            onMonetTuningChange,
+                            monetBackgroundImage,
+                            onUploadMonetBackgroundImage,
+                            onClearMonetBackgroundImage,
+                            isLoadingMonetBackgroundImage,
                             onSliderPointerDown,
                             onSliderCommit,
                         })}

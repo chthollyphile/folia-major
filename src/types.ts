@@ -53,7 +53,7 @@ export interface DualTheme {
 
 export type ThemeMode = 'default' | 'ai' | 'custom';
 
-export type BuiltinVisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume';
+export type BuiltinVisualizerMode = 'classic' | 'cadenza' | 'partita' | 'fume' | 'monet';
 export type VisualizerMode = BuiltinVisualizerMode | (string & {});
 export type VisualizerFrameRate = 'off' | 120 | 90 | 60;
 
@@ -306,6 +306,30 @@ export const DEFAULT_TILT_TUNING: TiltTuning = {
   colorScheme: 'default',
 };
 
+export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
+export type MonetBackgroundCropMode = 'cover' | 'focus-cover' | 'full-artwork';
+export type MonetAudioStyle = 'bar' | 'line';
+
+export interface MonetTuning {
+  backgroundSource: MonetBackgroundSource;
+  backgroundBlurPx: number;
+  backgroundOverlayOpacity: number;
+  backgroundCropMode: MonetBackgroundCropMode;
+  audioStyle: MonetAudioStyle;
+  coverPaneRatio: number;
+  lyricsFocusScale: number;
+}
+
+export const DEFAULT_MONET_TUNING: MonetTuning = {
+  backgroundSource: 'cover-derived',
+  backgroundBlurPx: 80,
+  backgroundOverlayOpacity: 0.42,
+  backgroundCropMode: 'focus-cover',
+  audioStyle: 'bar',
+  coverPaneRatio: 0.5,
+  lyricsFocusScale: 1.08,
+};
+
 export interface StoredCappellaEmojiImage {
   id: string;
   name: string;
@@ -327,6 +351,19 @@ export interface StoredCappellaAvatarImage {
 }
 
 export interface CappellaAvatarImage {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface StoredMonetBackgroundImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  blob: Blob;
+}
+
+export interface MonetBackgroundImage {
   id: string;
   name: string;
   url: string;

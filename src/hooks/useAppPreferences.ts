@@ -3,8 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import type { StatusMessage } from '../types';
 import { getCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 import { getCustomCappellaAvatar } from '../services/cappellaAvatarPack';
+import { getMonetBackgroundImage } from '../services/monetBackgroundImage';
 import { restoreUploadedLyricsFont } from '../services/customLyricsFont';
 import {
+    resolveStoredMonetTuning,
     resolveStoredCappellaTuning,
     resolveStoredCustomLyricsFont,
     selectSettingsUiSnapshot,
@@ -26,12 +28,18 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const setStoredCappellaAvatarPack = useSettingsUiStore(state => state.setStoredCappellaAvatarPack);
     const setCappellaCustomAvatarImages = useSettingsUiStore(state => state.setCappellaCustomAvatarImages);
     const setIsLoadingCappellaCustomAvatarPack = useSettingsUiStore(state => state.setIsLoadingCappellaCustomAvatarPack);
+    const setStoredMonetBackgroundImage = useSettingsUiStore(state => state.setStoredMonetBackgroundImage);
+    const setMonetBackgroundImage = useSettingsUiStore(state => state.setMonetBackgroundImage);
+    const setIsLoadingMonetBackgroundImage = useSettingsUiStore(state => state.setIsLoadingMonetBackgroundImage);
+    const handleSetMonetTuning = useSettingsUiStore(state => state.handleSetMonetTuning);
     const clearLyricsCustomFontAfterRestoreFailure = useSettingsUiStore(state => state.clearLyricsCustomFontAfterRestoreFailure);
     const ensureBuiltinCappellaEmojiPack = useSettingsUiStore(state => state.ensureBuiltinCappellaEmojiPack);
     const lyricsCustomFont = useSettingsUiStore(state => state.lyricsCustomFont);
     const storedCappellaEmojiPack = useSettingsUiStore(state => state.storedCappellaEmojiPack);
     const storedCappellaAvatarPack = useSettingsUiStore(state => state.storedCappellaAvatarPack);
+    const storedMonetBackgroundImage = useSettingsUiStore(state => state.storedMonetBackgroundImage);
     const cappellaEmojiPackSource = useSettingsUiStore(state => state.cappellaTuning.emojiPackSource);
+    const monetTuning = useSettingsUiStore(state => state.monetTuning);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
 
     useEffect(() => {
@@ -147,6 +155,28 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setIsLoadingCappellaCustomAvatarPack, setStoredCappellaAvatarPack]);
 
     useEffect(() => {
+        let isCancelled = false;
+
+        const loadMonetBackgroundImage = async () => {
+            try {
+                const storedImage = await getMonetBackgroundImage();
+                if (!isCancelled) {
+                    setStoredMonetBackgroundImage(storedImage);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingMonetBackgroundImage(false);
+                }
+            }
+        };
+
+        void loadMonetBackgroundImage();
+        return () => {
+            isCancelled = true;
+        };
+    }, [setIsLoadingMonetBackgroundImage, setStoredMonetBackgroundImage]);
+
+    useEffect(() => {
         if (lyricsCustomFont?.source !== 'uploaded' || !lyricsCustomFont.fontId) {
             return;
         }
@@ -212,8 +242,37 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setCappellaCustomAvatarImages, storedCappellaAvatarPack]);
 
     useEffect(() => {
+        if (!storedMonetBackgroundImage?.blob) {
+            setMonetBackgroundImage(null);
+            return;
+        }
+
+        const nextImage = {
+            id: storedMonetBackgroundImage.id,
+            name: storedMonetBackgroundImage.name,
+            url: URL.createObjectURL(storedMonetBackgroundImage.blob),
+        };
+        setMonetBackgroundImage(nextImage);
+
+        return () => {
+            URL.revokeObjectURL(nextImage.url);
+        };
+    }, [setMonetBackgroundImage, storedMonetBackgroundImage]);
+
+    useEffect(() => {
         ensureBuiltinCappellaEmojiPack();
     }, [cappellaEmojiPackSource, ensureBuiltinCappellaEmojiPack, storedCappellaEmojiPack.length]);
+
+    useEffect(() => {
+        if (storedMonetBackgroundImage || monetTuning.backgroundSource !== 'uploaded-global') {
+            return;
+        }
+
+        handleSetMonetTuning(resolveStoredMonetTuning({
+            ...monetTuning,
+            backgroundSource: 'cover-derived',
+        }));
+    }, [handleSetMonetTuning, monetTuning, storedMonetBackgroundImage]);
 
     return preferences;
 }
