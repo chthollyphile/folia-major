@@ -549,7 +549,11 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
     const visibleLines = useMemo(() => {
         if (!displayActiveLine) return [];
-        const baseIdx = currentLineIndex;
+        // When between sentences (index -1), centre on the last completed line
+        const baseIdx = currentLineIndex >= 0
+            ? currentLineIndex
+            : lines.findIndex(l => l === displayActiveLine);
+        if (baseIdx < 0) return [displayActiveLine];
         const result: Line[] = [];
         for (let offset = -WINDOW; offset <= WINDOW; offset++) {
             const line = lines[baseIdx + offset];
