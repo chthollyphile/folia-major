@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
-import { motion, useTransform, type MotionValue } from 'framer-motion';
+import { AnimatePresence, motion, useTransform, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
     DEFAULT_MONET_TUNING,
@@ -626,14 +626,18 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                         <div className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden">
                             {visibleLines.length > 0 ? (
                                 <div className="flex flex-col gap-1">
+                                    <AnimatePresence initial={false} mode="popLayout">
                                     {visibleLines.map(line => {
                                         const isActive = line === displayActiveLine;
                                         const targetFontPx = isActive ? lyricFontPx : nextFontPx;
                                         return (
                                             <motion.div
                                                 key={line.startTime}
-                                                animate={{ fontSize: targetFontPx }}
-                                                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                                                layout="position"
+                                                initial={{ opacity: 0, y: 22, scale: 0.98 }}
+                                                animate={{ fontSize: targetFontPx, opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -18, scale: 0.965, transition: { duration: 0.24, ease: 'easeIn' } }}
+                                                transition={{ duration: 0.32, ease: 'easeOut' }}
                                                 style={{ fontSize: targetFontPx }}
                                             >
                                                 <MonetTimedTokenSpan
@@ -669,6 +673,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                             </motion.div>
                                         );
                                     })}
+                                    </AnimatePresence>
                                 </div>
                             ) : (
                                 <div
