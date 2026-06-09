@@ -290,9 +290,7 @@ const MonetTimedTokenSpan: React.FC<{
     wordColors?: { word: string; color: string; }[];
 }> = ({ line, currentTime, isActive, accentColor, baseColor, fontPx, fontWeight, fontStack, wordColors }) => {
     const rootRef = useRef<HTMLSpanElement | null>(null);
-    const [availableWidth, setAvailableWidth] = useState(0);
     const [measuredFontPx, setMeasuredFontPx] = useState(fontPx);
-    const [measuredLineHeightPx, setMeasuredLineHeightPx] = useState(fontPx * 1.08);
     const fontSpec = useMemo(
         () => `${fontWeight} ${measuredFontPx}px ${fontStack}`,
         [fontStack, fontWeight, measuredFontPx],
@@ -303,169 +301,128 @@ const MonetTimedTokenSpan: React.FC<{
             return;
         }
 
-        const updateWidth = () => {
-            const nextWidth = Math.max(Math.floor(node.clientWidth), 0);
-            setAvailableWidth(current => (current === nextWidth ? current : nextWidth));
+        const updateFont = () => {
             setMeasuredFontPx(fontPx);
-            const computedStyle = window.getComputedStyle(node);
-            const parsedLineHeight = Number.parseFloat(computedStyle.lineHeight);
-            const nextLineHeightPx = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontPx * 1.08;
-            setMeasuredLineHeightPx(current => (Math.abs(current - nextLineHeightPx) < 0.25 ? current : nextLineHeightPx));
         };
 
-        updateWidth();
+        updateFont();
 
         if (typeof ResizeObserver === 'undefined') {
             return;
         }
 
         const observer = new ResizeObserver(() => {
-            updateWidth();
+            updateFont();
         });
         observer.observe(node);
         return () => observer.disconnect();
     }, [fontPx]);
-    const timedRanges = useMemo(() => buildTimedGraphemeRanges(line), [line]);
-    const wrappedLines = useMemo(
-        () => buildWrappedLyricLines(line.fullText, fontSpec, measuredLineHeightPx, availableWidth),
-        [availableWidth, fontSpec, line.fullText, measuredLineHeightPx],
-    );
-    const absoluteProgress = useTransform(currentTime, latest => {
-        if (!isActive) {
-            return 0;
-        }
-        const firstRange = timedRanges[0];
-        if (!firstRange || latest <= firstRange.startTime) {
-            return 0;
-        }
-        for (const range of timedRanges) {
-            if (latest <= range.endTime) {
-                if (latest <= range.startTime) {
-                    return range.startIndex;
-                }
-                const rangeLength = Math.max(range.endIndex - range.startIndex, 1);
-                const progress = (latest - range.startTime) / Math.max(0.001, range.endTime - range.startTime);
-                return range.startIndex + rangeLength * progress;
-            }
-        }
-        const lastRange = timedRanges[timedRanges.length - 1];
-        return lastRange?.endIndex ?? 0;
-    });
-    const fallbackFillWidth = useTransform(absoluteProgress, latest => {
-        const graphemeOffsets = measureGraphemeOffsets(line.fullText, measuredFontPx, fontSpec);
-        const wholeIndex = Math.floor(latest);
-        const fractional = latest - wholeIndex;
-        const startWidth = graphemeOffsets[Math.max(0, Math.min(wholeIndex, graphemeOffsets.length - 1))] ?? 0;
-        const endWidth = graphemeOffsets[Math.max(0, Math.min(wholeIndex + 1, graphemeOffsets.length - 1))] ?? startWidth;
-        return startWidth + (endWidth - startWidth) * fractional;
-    });
 
-    // Per-word dynamic accent color from dual-theme wordColors
-    const resolvedAccentColor = useTransform(currentTime, latest => {
-        if (!wordColors?.length) return accentColor;
-        const word = line.words.find(w => latest >= w.startTime && latest <= w.endTime);
-        if (!word) return accentColor;
-        return resolveWordColor(word.text, wordColors) ?? accentColor;
-    });
-    const fillGradient = useTransform(resolvedAccentColor, color =>
-        `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`,
-    );
+    const tokens = useMemo(() => buildMonetDisplayTokens(line), [line]);
 
     return (
         <span ref={rootRef} className="block w-full min-w-0 max-w-full align-top overflow-visible whitespace-pre-wrap break-words">
-            {wrappedLines.length > 0 ? (
-                wrappedLines.map(wrappedLine => (
-                    <MonetMeasuredLyricLine
-                        key={`${wrappedLine.startIndex}-${wrappedLine.endIndex}-${wrappedLine.text}`}
-                        wrappedLine={wrappedLine}
-                        absoluteProgress={absoluteProgress}
-                        accentColor={resolvedAccentColor}
+            {tokens.map(token => {
+                const isTimed = token.startTime !== null
+                    && token.endTime !== null
+                    && !token.key.includes('-static-')
+                    && !token.key.includes('-tail');
+
+                return isTimed && token.startTime !== null && token.endTime !== null ? (
+                    <MonetWordSweep
+                        key={token.key}
+                        text={token.text}
+                        startTime={token.startTime}
+                        endTime={token.endTime}
+                        currentTime={currentTime}
+                        isLineActive={isActive}
+                        defaultAccentColor={accentColor}
                         baseColor={baseColor}
                         fontPx={measuredFontPx}
-                        isActive={isActive}
+                        fontSpec={fontSpec}
+                        wordColors={wordColors}
                     />
-                ))
-            ) : (
-                <span className="relative block whitespace-pre-wrap break-words" style={{ color: baseColor }}>
-                    {line.fullText}
-                    {isActive ? (
-                        <motion.span
-                            aria-hidden
-                            className="pointer-events-none absolute inset-0 block whitespace-pre-wrap break-words"
-                            style={{
-                                width: fallbackFillWidth,
-                                overflow: 'hidden',
-                                textShadow: 'none',
-                            }}
-                        >
-                            <motion.span
-                                className="block whitespace-pre-wrap break-words"
-                                style={{
-                                    color: 'transparent',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundImage: fillGradient,
-                                    WebkitBackgroundClip: 'text',
-                                    backgroundClip: 'text',
-                                }}
-                            >
-                                {line.fullText}
-                            </motion.span>
-                        </motion.span>
-                    ) : null}
-                </span>
-            )}
+                ) : (
+                    <span key={token.key} style={{ color: baseColor }}>
+                        {token.text}
+                    </span>
+                );
+            })}
         </span>
     );
 };
 
-const MonetMeasuredLyricLine: React.FC<{
-    wrappedLine: MonetWrappedLyricLine;
-    absoluteProgress: MotionValue<number>;
-    accentColor: MotionValue<string>;
+/** Per-word sweep overlay: each word independently sweeps character-by-character in its own resolved color and stays colored after completion. */
+const MonetWordSweep: React.FC<{
+    text: string;
+    startTime: number;
+    endTime: number;
+    currentTime: MotionValue<number>;
+    isLineActive: boolean;
+    defaultAccentColor: string;
     baseColor: string;
     fontPx: number;
-    isActive: boolean;
-}> = ({ wrappedLine, absoluteProgress, accentColor, baseColor, fontPx, isActive }) => {
-    const localFillWidth = useTransform(absoluteProgress, latest => {
-        if (!isActive) {
-            return 0;
-        }
+    fontSpec: string;
+    wordColors?: { word: string; color: string; }[];
+}> = ({ text, startTime, endTime, currentTime, isLineActive, defaultAccentColor, baseColor, fontPx, fontSpec, wordColors }) => {
+    const wordColor = useMemo(() => {
+        if (!wordColors?.length) return defaultAccentColor;
+        return resolveWordColor(text, wordColors) ?? defaultAccentColor;
+    }, [text, wordColors, defaultAccentColor]);
 
-        if (latest <= wrappedLine.startIndex) {
-            return 0;
-        }
-        if (latest >= wrappedLine.endIndex) {
-            return wrappedLine.width;
-        }
+    const graphemeOffsets = useMemo(
+        () => measureGraphemeOffsets(text, fontPx, fontSpec),
+        [text, fontPx, fontSpec],
+    );
 
-        const localIndex = latest - wrappedLine.startIndex;
-        const wholeIndex = Math.floor(localIndex);
-        const fractional = localIndex - wholeIndex;
-        const startWidth = wrappedLine.graphemeOffsets[Math.max(0, Math.min(wholeIndex, wrappedLine.graphemeOffsets.length - 1))] ?? 0;
-        const endWidth = wrappedLine.graphemeOffsets[Math.max(0, Math.min(wholeIndex + 1, wrappedLine.graphemeOffsets.length - 1))] ?? startWidth;
-        return startWidth + (endWidth - startWidth) * fractional;
+    const wordProgress = useTransform(currentTime, latest => {
+        if (!isLineActive || latest <= startTime) return 0;
+        if (latest >= endTime) return 1;
+        return (latest - startTime) / Math.max(0.001, endTime - startTime);
     });
-    const localMaskImage = useTransform(localFillWidth, latest => {
+
+    const fillWidth = useTransform(wordProgress, progress => {
+        if (progress <= 0) return 0;
+        if (progress >= 1) return graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
+        const graphemeCount = graphemeOffsets.length - 1;
+        const floatIndex = progress * graphemeCount;
+        const wholeIndex = Math.floor(floatIndex);
+        const fractional = floatIndex - wholeIndex;
+        const startW = graphemeOffsets[Math.min(wholeIndex, graphemeOffsets.length - 1)] ?? 0;
+        const endW = graphemeOffsets[Math.min(wholeIndex + 1, graphemeOffsets.length - 1)] ?? startW;
+        return startW + (endW - startW) * fractional;
+    });
+
+    const maskImage = useTransform(fillWidth, latest => {
         const edgeSoftness = Math.max(Math.min(fontPx * 0.18, 8), 3);
         const solidEnd = Math.max(latest - edgeSoftness, 0);
         const featherStart = Math.max(latest - edgeSoftness * 0.55, 0);
         const featherEnd = Math.max(latest, 0);
         return `linear-gradient(90deg, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${solidEnd}px, rgba(0, 0, 0, 0.92) ${featherStart}px, rgba(0, 0, 0, 0) ${featherEnd}px, rgba(0, 0, 0, 0) 100%)`;
     });
-    const fillGradient = useTransform(accentColor, color => 
-        `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`,
+
+    const fillGradient = useMemo(
+        () => `linear-gradient(90deg, ${wordColor} 0%, ${colorWithAlpha(wordColor, 0.92)} 68%, ${colorWithAlpha(wordColor, 0.72)} 100%)`,
+        [wordColor],
+    );
+
+    const isWordComplete = useTransform(wordProgress, p => p >= 1);
+    const resolvedBaseColor = useTransform(isWordComplete, complete =>
+        isLineActive && complete ? wordColor : baseColor,
     );
 
     return (
-        <span className="relative block whitespace-pre-wrap break-words" style={{ color: baseColor }}>
-            {wrappedLine.text}
-            {isActive ? (
+        <span className="relative inline-block whitespace-pre-wrap break-words">
+            <motion.span style={{ color: resolvedBaseColor }}>
+                {text}
+            </motion.span>
+            {isLineActive ? (
                 <motion.span
                     aria-hidden
                     className="pointer-events-none absolute inset-0 block whitespace-pre-wrap break-words"
                     style={{
-                        WebkitMaskImage: localMaskImage,
-                        maskImage: localMaskImage,
+                        WebkitMaskImage: maskImage,
+                        maskImage: maskImage,
                         WebkitMaskSize: '100% 100%',
                         maskSize: '100% 100%',
                         WebkitMaskRepeat: 'no-repeat',
@@ -483,7 +440,7 @@ const MonetMeasuredLyricLine: React.FC<{
                             backgroundClip: 'text',
                         }}
                     >
-                        {wrappedLine.text}
+                        {text}
                     </motion.span>
                 </motion.span>
             ) : null}
