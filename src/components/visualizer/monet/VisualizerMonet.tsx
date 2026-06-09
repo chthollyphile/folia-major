@@ -7,6 +7,7 @@ import {
     type Line,
     type MonetBackgroundImage,
     type MonetTuning,
+    type Theme,
 } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
 import { type VisualizerSharedProps } from '../definition';
@@ -44,6 +45,22 @@ const graphemeSegmenter = typeof Intl !== 'undefined'
 const resolveClampFontPx = (minRem: number, preferredVw: number, maxRem: number): number => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : VIEWPORT_WIDTH_FALLBACK_PX;
     return Math.min(maxRem * ROOT_FONT_PX, Math.max(minRem * ROOT_FONT_PX, viewportWidth * (preferredVw / 100)));
+};
+
+const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
+const isCJK = (text: string) => CJK_REGEX.test(text);
+
+const resolveWordColor = (wordText: string, wordColors: { word: string; color: string; }[]): string | null => {
+    if (!wordColors.length) return null;
+    const clean = wordText.trim();
+    const matched = wordColors.find(entry => {
+        const target = entry.word;
+        if (isCJK(clean)) return target.includes(clean);
+        const targetWords = target.split(/\s+/).map(t => t.toLowerCase().replace(/[^\w]/g, ''));
+        const normalized = clean.toLowerCase().replace(/[^\w]/g, '');
+        return targetWords.includes(normalized);
+    });
+    return matched?.color ?? null;
 };
 
 /** Measures text width with pretext so lyric highlight progress follows the rendered line instead of raw token count. */
@@ -270,7 +287,8 @@ const MonetTimedTokenSpan: React.FC<{
     fontPx: number;
     fontWeight: number;
     fontStack: string;
-}> = ({ line, currentTime, isActive, accentColor, baseColor, fontPx, fontWeight, fontStack }) => {
+    wordColors?: { word: string; color: string; }[];
+}> = ({ line, currentTime, isActive, accentColor, baseColor, fontPx, fontWeight, fontStack, wordColors }) => {
     const rootRef = useRef<HTMLSpanElement | null>(null);
     const [availableWidth, setAvailableWidth] = useState(0);
     const [measuredFontPx, setMeasuredFontPx] = useState(fontPx);
@@ -342,6 +360,17 @@ const MonetTimedTokenSpan: React.FC<{
         return startWidth + (endWidth - startWidth) * fractional;
     });
 
+    // Per-word dynamic accent color from dual-theme wordColors
+    const resolvedAccentColor = useTransform(currentTime, latest => {
+        if (!wordColors?.length) return accentColor;
+        const word = line.words.find(w => latest >= w.startTime && latest <= w.endTime);
+        if (!word) return accentColor;
+        return resolveWordColor(word.text, wordColors) ?? accentColor;
+    });
+    const fillGradient = useTransform(resolvedAccentColor, color =>
+        `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`,
+    );
+
     return (
         <span ref={rootRef} className="block w-full min-w-0 max-w-full align-top overflow-visible whitespace-pre-wrap break-words">
             {wrappedLines.length > 0 ? (
@@ -350,7 +379,7 @@ const MonetTimedTokenSpan: React.FC<{
                         key={`${wrappedLine.startIndex}-${wrappedLine.endIndex}-${wrappedLine.text}`}
                         wrappedLine={wrappedLine}
                         absoluteProgress={absoluteProgress}
-                        accentColor={accentColor}
+                        accentColor={resolvedAccentColor}
                         baseColor={baseColor}
                         fontPx={measuredFontPx}
                         isActive={isActive}
@@ -369,18 +398,18 @@ const MonetTimedTokenSpan: React.FC<{
                                 textShadow: 'none',
                             }}
                         >
-                            <span
+                            <motion.span
                                 className="block whitespace-pre-wrap break-words"
                                 style={{
                                     color: 'transparent',
                                     WebkitTextFillColor: 'transparent',
-                                    backgroundImage: `linear-gradient(90deg, ${accentColor} 0%, ${colorWithAlpha(accentColor, 0.92)} 68%, ${colorWithAlpha(accentColor, 0.72)} 100%)`,
+                                    backgroundImage: fillGradient,
                                     WebkitBackgroundClip: 'text',
                                     backgroundClip: 'text',
                                 }}
                             >
                                 {line.fullText}
-                            </span>
+                            </motion.span>
                         </motion.span>
                     ) : null}
                 </span>
@@ -392,7 +421,7 @@ const MonetTimedTokenSpan: React.FC<{
 const MonetMeasuredLyricLine: React.FC<{
     wrappedLine: MonetWrappedLyricLine;
     absoluteProgress: MotionValue<number>;
-    accentColor: string;
+    accentColor: MotionValue<string>;
     baseColor: string;
     fontPx: number;
     isActive: boolean;
@@ -423,6 +452,9 @@ const MonetMeasuredLyricLine: React.FC<{
         const featherEnd = Math.max(latest, 0);
         return `linear-gradient(90deg, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${solidEnd}px, rgba(0, 0, 0, 0.92) ${featherStart}px, rgba(0, 0, 0, 0) ${featherEnd}px, rgba(0, 0, 0, 0) 100%)`;
     });
+    const fillGradient = useTransform(accentColor, color => 
+        `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`,
+    );
 
     return (
         <span className="relative block whitespace-pre-wrap break-words" style={{ color: baseColor }}>
@@ -441,18 +473,18 @@ const MonetMeasuredLyricLine: React.FC<{
                         textShadow: 'none',
                     }}
                 >
-                    <span
+                    <motion.span
                         className="block whitespace-pre-wrap break-words"
                         style={{
                             color: 'transparent',
                             WebkitTextFillColor: 'transparent',
-                            backgroundImage: `linear-gradient(90deg, ${accentColor} 0%, ${colorWithAlpha(accentColor, 0.92)} 68%, ${colorWithAlpha(accentColor, 0.72)} 100%)`,
+                            backgroundImage: fillGradient,
                             WebkitBackgroundClip: 'text',
                             backgroundClip: 'text',
                         }}
                     >
                         {wrappedLine.text}
-                    </span>
+                    </motion.span>
                 </motion.span>
             ) : null}
         </span>
@@ -609,6 +641,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                     fontPx={targetFontPx}
                                                     fontWeight={isActive ? 600 : 400}
                                                     fontStack={lyricFontStack}
+                                                    wordColors={theme.wordColors}
                                                 />
                                                 {line.translation ? (
                                                     <motion.div
