@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
-import { AnimatePresence, motion, useTransform, type MotionValue } from 'framer-motion';
+import { motion, useTransform, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
     DEFAULT_MONET_TUNING,
@@ -288,11 +288,10 @@ const MonetTimedTokenSpan: React.FC<{
         const updateWidth = () => {
             const nextWidth = Math.max(Math.floor(node.clientWidth), 0);
             setAvailableWidth(current => (current === nextWidth ? current : nextWidth));
+            setMeasuredFontPx(fontPx);
             const computedStyle = window.getComputedStyle(node);
-            const nextFontPx = Number.parseFloat(computedStyle.fontSize) || fontPx;
             const parsedLineHeight = Number.parseFloat(computedStyle.lineHeight);
-            const nextLineHeightPx = Number.isFinite(parsedLineHeight) ? parsedLineHeight : nextFontPx * 1.08;
-            setMeasuredFontPx(current => (Math.abs(current - nextFontPx) < 0.25 ? current : nextFontPx));
+            const nextLineHeightPx = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontPx * 1.08;
             setMeasuredLineHeightPx(current => (Math.abs(current - nextLineHeightPx) < 0.25 ? current : nextLineHeightPx));
         };
 
@@ -367,12 +366,14 @@ const MonetTimedTokenSpan: React.FC<{
                             style={{
                                 width: fallbackFillWidth,
                                 overflow: 'hidden',
+                                textShadow: 'none',
                             }}
                         >
                             <span
                                 className="block whitespace-pre-wrap break-words"
                                 style={{
                                     color: 'transparent',
+                                    WebkitTextFillColor: 'transparent',
                                     backgroundImage: `linear-gradient(90deg, ${accentColor} 0%, ${colorWithAlpha(accentColor, 0.92)} 68%, ${colorWithAlpha(accentColor, 0.72)} 100%)`,
                                     WebkitBackgroundClip: 'text',
                                     backgroundClip: 'text',
@@ -433,14 +434,18 @@ const MonetMeasuredLyricLine: React.FC<{
                     style={{
                         WebkitMaskImage: localMaskImage,
                         maskImage: localMaskImage,
+                        WebkitMaskSize: '100% 100%',
+                        maskSize: '100% 100%',
                         WebkitMaskRepeat: 'no-repeat',
                         maskRepeat: 'no-repeat',
+                        textShadow: 'none',
                     }}
                 >
                     <span
                         className="block whitespace-pre-wrap break-words"
                         style={{
                             color: 'transparent',
+                            WebkitTextFillColor: 'transparent',
                             backgroundImage: `linear-gradient(90deg, ${accentColor} 0%, ${colorWithAlpha(accentColor, 0.92)} 68%, ${colorWithAlpha(accentColor, 0.72)} 100%)`,
                             WebkitBackgroundClip: 'text',
                             backgroundClip: 'text',
@@ -502,9 +507,25 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         2.75 * activeSizeMultiplier,
         2.28 * activeSizeMultiplier,
     );
+    const nextFontPx = resolveClampFontPx(1.08, 2, 1.48);
 
     const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
     const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
+
+    // ── 5-line window for seamless scroll-list transition ──
+    const WINDOW = 2; // lines before/after active
+
+    const visibleLines = useMemo(() => {
+        if (!displayActiveLine) return [];
+        const baseIdx = currentLineIndex;
+        const result: Line[] = [];
+        for (let offset = -WINDOW; offset <= WINDOW; offset++) {
+            const line = lines[baseIdx + offset];
+            if (line) result.push(line);
+        }
+        return result;
+    }, [lines, currentLineIndex, displayActiveLine]);
+
     return (
         <VisualizerShell
             theme={theme}
@@ -564,112 +585,66 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                         </div>
                     </div>
 
-                    {/* ── 4-line lyrics block ── */}
+                    {/* ── Lyrics scroll-list ── */}
                     {showText ? (
                         <div className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden">
-                            {/* Active line group (line 1 + line 2) */}
-                            <div className="grid h-full grid-rows-[minmax(0,1.45fr)_minmax(0,0.72fr)] gap-4">
-                                <div className="min-h-0 overflow-hidden">
-                                    <AnimatePresence mode="wait">
-                                        {displayActiveLine ? (
+                            {visibleLines.length > 0 ? (
+                                <div className="flex flex-col gap-1">
+                                    {visibleLines.map(line => {
+                                        const isActive = line === displayActiveLine;
+                                        const targetFontPx = isActive ? lyricFontPx : nextFontPx;
+                                        return (
                                             <motion.div
-                                                key={`active-${displayActiveLine.startTime}`}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                transition={{ duration: 0.32, ease: 'easeOut' }}
-                                                className="space-y-1.5"
+                                                key={line.startTime}
+                                                animate={{ fontSize: targetFontPx }}
+                                                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                                                style={{ fontSize: targetFontPx }}
                                             >
-                                                <div
-                                                    className="font-semibold tracking-[-0.02em] leading-[1.08] whitespace-pre-wrap break-words overflow-visible"
-                                                    style={{
-                                                        fontSize: `clamp(${(1.34 * activeSizeMultiplier).toFixed(3)}rem, ${(2.75 * activeSizeMultiplier).toFixed(3)}vw, ${(2.28 * activeSizeMultiplier).toFixed(3)}rem)`,
-                                                        textShadow: `0 12px 28px ${colorWithAlpha(theme.backgroundColor, 0.32)}`,
-                                                    }}
-                                                >
-                                                    <MonetTimedTokenSpan
-                                                        line={displayActiveLine}
-                                                        currentTime={currentTime}
-                                                        isActive={!!activeLine}
-                                                        accentColor={colorWithAlpha(theme.primaryColor, 0.98)}
-                                                        baseColor={colorWithAlpha(theme.primaryColor, 0.34)}
-                                                        fontPx={lyricFontPx}
-                                                        fontWeight={600}
-                                                        fontStack={lyricFontStack}
-                                                    />
-                                                </div>
-                                                {displayActiveLine.translation ? (
-                                                    <div
-                                                        className="whitespace-pre-wrap break-words leading-[1.25]"
+                                                <MonetTimedTokenSpan
+                                                    line={line}
+                                                    currentTime={currentTime}
+                                                    isActive={isActive}
+                                                    accentColor={colorWithAlpha(theme.primaryColor, 0.98)}
+                                                    baseColor={isActive ? colorWithAlpha(theme.primaryColor, 0.34) : colorWithAlpha(theme.primaryColor, 0.42)}
+                                                    fontPx={targetFontPx}
+                                                    fontWeight={isActive ? 600 : 400}
+                                                    fontStack={lyricFontStack}
+                                                />
+                                                {line.translation ? (
+                                                    <motion.div
+                                                        className="whitespace-pre-wrap break-words"
+                                                        animate={{
+                                                            fontSize: isActive ? resolveClampFontPx(0.94, 1.28, 1.14) : resolveClampFontPx(0.84, 1.1, 0.96),
+                                                            color: isActive ? colorWithAlpha(theme.primaryColor, 0.68) : colorWithAlpha(theme.primaryColor, 0.3),
+                                                            paddingLeft: isActive ? '0.12rem' : '0.08rem',
+                                                        }}
+                                                        transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
                                                         style={{
-                                                            color: colorWithAlpha(theme.primaryColor, 0.68),
-                                                            fontSize: 'clamp(0.94rem, 1.28vw, 1.14rem)',
-                                                            paddingLeft: '0.12rem',
+                                                            color: isActive ? colorWithAlpha(theme.primaryColor, 0.68) : colorWithAlpha(theme.primaryColor, 0.3),
+                                                            fontSize: isActive ? resolveClampFontPx(0.94, 1.28, 1.14) : resolveClampFontPx(0.84, 1.1, 0.96),
+                                                            lineHeight: '1.25',
+                                                            paddingLeft: isActive ? '0.12rem' : '0.08rem',
                                                         }}
                                                     >
-                                                        {displayActiveLine.translation}
-                                                    </div>
+                                                        {line.translation}
+                                                    </motion.div>
                                                 ) : null}
                                             </motion.div>
-                                        ) : (
-                                            <motion.div
-                                                key="monet-waiting"
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 0.72 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.32 }}
-                                            >
-                                                <div
-                                                    className="font-semibold tracking-[-0.03em]"
-                                                    style={{
-                                                        color: theme.primaryColor,
-                                                        fontSize: 'clamp(1.8rem, 4.2vw, 3.2rem)',
-                                                    }}
-                                                >
-                                                    {t('ui.waitingForMusic') || 'Waiting for music'}
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
+                                        );
+                                    })}
                                 </div>
-
-                                <div className="min-h-0 overflow-hidden">
-                                    <AnimatePresence mode="wait">
-                                        {nextLine ? (
-                                            <motion.div
-                                                key={`next-${nextLine.startTime}`}
-                                                initial={{ opacity: 0, y: 6 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.28, ease: 'easeOut' }}
-                                                className="space-y-1"
-                                            >
-                                                <div
-                                                    className="whitespace-pre-wrap break-words leading-[1.12]"
-                                                    style={{
-                                                        color: colorWithAlpha(theme.primaryColor, 0.42),
-                                                        fontSize: 'clamp(1.08rem, 2vw, 1.48rem)',
-                                                    }}
-                                                >
-                                                    {nextLine.fullText}
-                                                </div>
-                                                {nextLine.translation ? (
-                                                    <div
-                                                        className="whitespace-pre-wrap break-words leading-[1.25]"
-                                                        style={{
-                                                            color: colorWithAlpha(theme.primaryColor, 0.3),
-                                                            fontSize: 'clamp(0.84rem, 1.1vw, 0.96rem)',
-                                                            paddingLeft: '0.08rem',
-                                                        }}
-                                                    >
-                                                        {nextLine.translation}
-                                                    </div>
-                                                ) : null}
-                                            </motion.div>
-                                        ) : null}
-                                    </AnimatePresence>
+                            ) : (
+                                <div
+                                    className="font-semibold tracking-[-0.03em]"
+                                    style={{
+                                        color: theme.primaryColor,
+                                        fontSize: 'clamp(1.8rem, 4.2vw, 3.2rem)',
+                                        opacity: 0.72,
+                                    }}
+                                >
+                                    {t('ui.waitingForMusic') || 'Waiting for music'}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     ) : (
                         <div className="h-[clamp(220px,32vh,320px)]" />
