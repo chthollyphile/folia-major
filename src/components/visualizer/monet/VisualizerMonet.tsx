@@ -692,6 +692,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                 </div>
 
                 {/* ── Right panel: cover card ── */}
+                {showText ? (
                 <div
                     className="flex min-w-0 items-center justify-center overflow-visible px-3 pr-5 sm:pr-8 lg:justify-end lg:pr-10 xl:pr-12"
                     style={{ flex: '0 0 clamp(220px, 28vw, 430px)' }}
@@ -724,6 +725,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                         </div>
                     </div>
                 </div>
+                ) : null}
             </div>
 
             {/* ── Bottom-left audio spectrum (absolute) ── */}
