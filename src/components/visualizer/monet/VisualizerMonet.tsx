@@ -9,7 +9,7 @@ import {
     type MonetTuning,
     type Theme,
 } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../colorMix';
 import { type VisualizerSharedProps } from '../definition';
 import { useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
@@ -381,6 +381,12 @@ const MonetWordSweep: React.FC<{
         return (latest - startTime) / Math.max(0.001, endTime - startTime);
     });
 
+    const glowProgress = useTransform(currentTime, latest => {
+        if (latest <= startTime) return 0;
+        const wordDuration = Math.max(0.001, endTime - startTime);
+        return (latest - startTime) / wordDuration;
+    });
+
     const fillWidth = useTransform(wordProgress, progress => {
         if (progress <= 0) return 0;
         if (progress >= 1) return graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
@@ -394,26 +400,43 @@ const MonetWordSweep: React.FC<{
     });
 
     const maskImage = useTransform(fillWidth, latest => {
-        const edgeSoftness = Math.max(Math.min(fontPx * 0.18, 8), 3);
+        const edgeSoftness = Math.max(Math.min(fontPx * 0.45, 16), 6);
         const solidEnd = Math.max(latest - edgeSoftness, 0);
         const featherStart = Math.max(latest - edgeSoftness * 0.55, 0);
         const featherEnd = Math.max(latest, 0);
         return `linear-gradient(90deg, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${solidEnd}px, rgba(0, 0, 0, 0.92) ${featherStart}px, rgba(0, 0, 0, 0) ${featherEnd}px, rgba(0, 0, 0, 0) 100%)`;
     });
 
-    const fillGradient = useMemo(
-        () => `linear-gradient(90deg, ${wordColor} 0%, ${colorWithAlpha(wordColor, 0.92)} 68%, ${colorWithAlpha(wordColor, 0.72)} 100%)`,
-        [wordColor],
-    );
+    const fillGradient = useTransform(wordProgress, progress => {
+        const color = mixColors(baseColor, wordColor, Math.min(progress, 1));
+        return `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`;
+    });
 
     const isWordComplete = useTransform(wordProgress, p => p >= 1);
     const resolvedBaseColor = useTransform(isWordComplete, complete =>
         isLineActive && complete ? wordColor : baseColor,
     );
 
+    const glowShadow = useTransform(glowProgress, p => {
+        if (p <= 0) return 'none';
+        const lifespan = 6.0;
+        let intensity: number;
+        if (p <= 1) {
+            intensity = p;
+        } else if (p <= lifespan) {
+            intensity = Math.max(0, 1 - (p - 1) / (lifespan - 1));
+        } else {
+            return 'none';
+        }
+        const r1 = Math.round(fontPx * 0.15);
+        const r2 = Math.round(fontPx * 0.35);
+        const glowColor = mixColors(baseColor, wordColor, Math.min(p, 1), intensity * 0.88);
+        return `0 0 ${r1}px ${glowColor}, 0 0 ${r2}px ${glowColor}`;
+    });
+
     return (
         <span className="relative inline-block whitespace-pre-wrap break-words">
-            <motion.span style={{ color: resolvedBaseColor }}>
+            <motion.span style={{ color: resolvedBaseColor, textShadow: glowShadow }}>
                 {text}
             </motion.span>
             {isLineActive ? (
@@ -504,17 +527,17 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     // ── 5-line window for seamless scroll-list transition ──
     const WINDOW = 2; // lines before/after active
 
-    const visibleLines = useMemo(() => {
+    const visibleLineEntries = useMemo((): { line: Line; offset: number }[] => {
         if (!displayActiveLine) return [];
         // When between sentences (index -1), centre on the last completed line
         const baseIdx = currentLineIndex >= 0
             ? currentLineIndex
             : lines.findIndex(l => l === displayActiveLine);
-        if (baseIdx < 0) return [displayActiveLine];
-        const result: Line[] = [];
+        if (baseIdx < 0) return [{ line: displayActiveLine, offset: 0 }];
+        const result: { line: Line; offset: number }[] = [];
         for (let offset = -WINDOW; offset <= WINDOW; offset++) {
             const line = lines[baseIdx + offset];
-            if (line) result.push(line);
+            if (line) result.push({ line, offset });
         }
         return result;
     }, [lines, currentLineIndex, displayActiveLine]);
@@ -581,21 +604,34 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                     {/* ── Lyrics scroll-list ── */}
                     {showText ? (
                         <div className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden">
-                            {visibleLines.length > 0 ? (
-                                <div className="flex flex-col gap-1">
+                            {visibleLineEntries.length > 0 ? (
+                                <div className="flex flex-col gap-3">
                                     <AnimatePresence initial={false} mode="popLayout">
-                                    {visibleLines.map(line => {
-                                        const isActive = line === displayActiveLine;
-                                        const targetFontPx = isActive ? lyricFontPx : nextFontPx;
+                                    {visibleLineEntries.map(({ line, offset }) => {
+                                        const isActive = offset === 0;
+                                        const isNext = offset === 1;
+                                        const blurZone = isActive
+                                            ? 0
+                                            : isNext
+                                                ? 0.4
+                                                : Math.max(1, Math.abs(offset) - (offset > 0 ? 1 : 0));
+                                        const blurPx = blurZone * 1.8;
+                                        const fontScale = isActive
+                                            ? 1
+                                            : isNext
+                                                ? 1
+                                                : Math.pow(0.86, blurZone);
+                                        const targetFontPx = isActive ? lyricFontPx : nextFontPx * fontScale;
+                                        const lineFilter = `blur(${blurPx}px)`;
                                         return (
                                             <motion.div
                                                 key={line.startTime}
                                                 layout="position"
-                                                initial={{ opacity: 0, y: 22, scale: 0.98 }}
-                                                animate={{ fontSize: targetFontPx, opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: -18, scale: 0.965, transition: { duration: 0.24, ease: 'easeIn' } }}
+                                                initial={{ opacity: 0, y: 22, scale: 0.98, filter: 'blur(3px)' }}
+                                                animate={{ fontSize: targetFontPx, opacity: 1, y: 0, scale: 1, filter: lineFilter }}
+                                                exit={{ opacity: 0, y: -16, scale: 0.97, filter: 'blur(3px)', transition: { duration: 0.16, ease: 'easeIn' } }}
                                                 transition={{ duration: 0.32, ease: 'easeOut' }}
-                                                style={{ fontSize: targetFontPx }}
+                                                style={{ fontSize: targetFontPx, filter: lineFilter }}
                                             >
                                                 <MonetTimedTokenSpan
                                                     line={line}
@@ -608,7 +644,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                     fontStack={lyricFontStack}
                                                     wordColors={theme.wordColors}
                                                 />
-                                                {line.translation ? (
+                                                {isActive && line.translation ? (
                                                     <motion.div
                                                         className="whitespace-pre-wrap break-words"
                                                         animate={{
