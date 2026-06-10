@@ -62,6 +62,7 @@ const clampMonetBackgroundBlur = (value: number) => Math.min(120, Math.max(0, va
 const clampUnitInterval = (value: number) => Math.min(1, Math.max(0, value));
 const clampCoverPaneRatio = (value: number) => Math.min(0.68, Math.max(0.32, value));
 const clampLyricsFocusScale = (value: number) => Math.min(1.3, Math.max(1, value));
+const clampFontScale = (value: number) => Math.min(1.5, Math.max(0.7, value));
 
 export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     t,
@@ -91,6 +92,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         audioStyle: monetTuning.audioStyle ?? DEFAULT_MONET_TUNING.audioStyle,
         coverPaneRatio: clampCoverPaneRatio(monetTuning.coverPaneRatio ?? DEFAULT_MONET_TUNING.coverPaneRatio),
         lyricsFocusScale: clampLyricsFocusScale(monetTuning.lyricsFocusScale ?? DEFAULT_MONET_TUNING.lyricsFocusScale),
+        fontScale: clampFontScale(monetTuning.fontScale ?? DEFAULT_MONET_TUNING.fontScale),
     };
 
     const backgroundSourceOptions = useMemo<PresetOption<MonetBackgroundSource>[]>(() => ([
@@ -298,6 +300,26 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     step="0.01"
                     value={resolvedTuning.lyricsFocusScale}
                     onChange={(event) => onMonetTuningChange?.({ lyricsFocusScale: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.monetFontScale') || '字体缩放'}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {resolvedTuning.fontScale.toFixed(2)}x
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0.7"
+                    max="1.5"
+                    step="0.05"
+                    value={resolvedTuning.fontScale}
+                    onChange={(event) => onMonetTuningChange?.({ fontScale: parseFloat(event.target.value) })}
                     onPointerDown={onSliderPointerDown}
                     onPointerUp={onSliderCommit}
                     className={rangeInputClass}

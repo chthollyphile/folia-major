@@ -322,7 +322,10 @@ const MonetTimedTokenSpan: React.FC<{
     const tokens = useMemo(() => buildMonetDisplayTokens(line), [line]);
 
     return (
-        <span ref={rootRef} className="block w-full min-w-0 max-w-full align-top overflow-visible whitespace-pre-wrap break-words">
+        <span ref={rootRef} className={isActive
+            ? 'block w-full min-w-0 max-w-full align-top overflow-visible whitespace-pre-wrap break-words'
+            : 'block w-full min-w-0 max-w-full align-top overflow-hidden whitespace-nowrap text-ellipsis'
+        }>
             {tokens.map(token => {
                 const isTimed = token.startTime !== null
                     && token.endTime !== null
@@ -514,12 +517,13 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
     const lyricFontStack = useMemo(() => resolveThemeFontStack(theme), [theme]);
     const activeSizeMultiplier = 1 + Math.max(monetTuning.lyricsFocusScale - 1, 0) * 0.35;
+    const fontScale = monetTuning.fontScale;
     const lyricFontPx = resolveClampFontPx(
         1.34 * activeSizeMultiplier,
         2.75 * activeSizeMultiplier,
         2.28 * activeSizeMultiplier,
-    );
-    const nextFontPx = resolveClampFontPx(1.08, 2, 1.48);
+    ) * fontScale;
+    const nextFontPx = resolveClampFontPx(1.08, 2, 1.48) * fontScale;
 
     const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
     const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
@@ -604,7 +608,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                     {/* ── Lyrics scroll-list ── */}
                     {showText ? (
                         <div
-                            className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden"
+                            className="h-[clamp(260px,42vh,400px)] max-w-[720px] overflow-hidden"
                             style={{
                                 WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
                                 maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
@@ -628,28 +632,40 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 ? 1
                                                 : Math.pow(0.86, blurZone);
                                         const targetFontPx = isActive ? lyricFontPx : nextFontPx * fontScale;
+                                        const needsStableLayout = isActive || isNext;
+                                        const layoutFontPx = needsStableLayout ? lyricFontPx : targetFontPx;
+                                        const fontSizeScale = needsStableLayout ? targetFontPx / lyricFontPx : 1;
                                         const lineFilter = `blur(${blurPx}px)`;
                                         return (
                                             <motion.div
                                                 key={line.startTime}
                                                 layout="position"
                                                 initial={{ opacity: 0, y: 22, scale: 0.98, filter: 'blur(3px)' }}
-                                                animate={{ fontSize: targetFontPx, opacity: 1, y: 0, scale: 1, filter: lineFilter }}
+                                                animate={{ opacity: 1, y: 0, scale: 1, filter: lineFilter }}
                                                 exit={{ opacity: 0, y: -16, scale: 0.97, filter: 'blur(3px)', transition: { duration: 0.16, ease: 'easeIn' } }}
                                                 transition={{ duration: 0.32, ease: 'easeOut' }}
-                                                style={{ fontSize: targetFontPx, filter: lineFilter }}
+                                                style={{ filter: lineFilter }}
                                             >
-                                                <MonetTimedTokenSpan
-                                                    line={line}
-                                                    currentTime={currentTime}
-                                                    isActive={isActive}
-                                                    accentColor={colorWithAlpha(theme.primaryColor, 0.98)}
-                                                    baseColor={isActive ? colorWithAlpha(theme.primaryColor, 0.34) : colorWithAlpha(theme.primaryColor, 0.42)}
-                                                    fontPx={targetFontPx}
-                                                    fontWeight={isActive ? 600 : 400}
-                                                    fontStack={lyricFontStack}
-                                                    wordColors={theme.wordColors}
-                                                />
+                                                <motion.span
+                                                    animate={{ scale: fontSizeScale }}
+                                                    style={{
+                                                        display: 'inline-block',
+                                                        fontSize: layoutFontPx,
+                                                        transformOrigin: 'top left',
+                                                    }}
+                                                >
+                                                    <MonetTimedTokenSpan
+                                                        line={line}
+                                                        currentTime={currentTime}
+                                                        isActive={isActive}
+                                                        accentColor={colorWithAlpha(theme.primaryColor, 0.98)}
+                                                        baseColor={isActive ? colorWithAlpha(theme.primaryColor, 0.34) : colorWithAlpha(theme.primaryColor, 0.42)}
+                                                        fontPx={layoutFontPx}
+                                                        fontWeight={isActive ? 600 : 400}
+                                                        fontStack={lyricFontStack}
+                                                        wordColors={theme.wordColors}
+                                                    />
+                                                </motion.span>
                                                 {isActive && line.translation ? (
                                                     <motion.div
                                                         className="whitespace-pre-wrap break-words"

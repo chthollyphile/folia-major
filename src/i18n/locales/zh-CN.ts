@@ -542,6 +542,7 @@ export default {
     "monetAudioStyleLine": "线条",
     "monetCoverPaneRatio": "封面区比例",
     "monetLyricsFocusScale": "主歌词强调",
+    "monetFontScale": "字体缩放",
   },
   "localMusic": {
     "foldersAndPlaylists": "文件夹",

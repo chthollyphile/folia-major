@@ -17,6 +17,7 @@ describe('Monet tuning and lyric helpers', () => {
             audioStyle: 'line',
             coverPaneRatio: 0.9,
             lyricsFocusScale: 4,
+            fontScale: 3,
         })).toEqual({
             backgroundSource: 'uploaded-global',
             backgroundBlurPx: 120,
@@ -26,6 +27,7 @@ describe('Monet tuning and lyric helpers', () => {
             audioStyle: 'line',
             coverPaneRatio: 0.68,
             lyricsFocusScale: 1.3,
+            fontScale: 1.5,
         });
 
         expect(resolveStoredMonetTuning({ backgroundLayout: 'bogus' as MonetBackgroundLayout }))

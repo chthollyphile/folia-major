@@ -538,7 +538,8 @@ export default {
     "monetAudioStyleBar": "Bars",
     "monetAudioStyleLine": "Line",
     "monetCoverPaneRatio": "Cover Pane Ratio",
-    "monetLyricsFocusScale": "Lyrics Focus Scale"
+    "monetLyricsFocusScale": "Lyrics Focus Scale",
+    "monetFontScale": "Font Size Scale"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

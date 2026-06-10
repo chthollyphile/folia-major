@@ -320,6 +320,7 @@ export interface MonetTuning {
   audioStyle: MonetAudioStyle;
   coverPaneRatio: number;
   lyricsFocusScale: number;
+  fontScale: number;
 }
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {
@@ -331,6 +332,7 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   audioStyle: 'bar',
   coverPaneRatio: 0.5,
   lyricsFocusScale: 1.08,
+  fontScale: 1.0,
 };
 
 export interface StoredCappellaEmojiImage {

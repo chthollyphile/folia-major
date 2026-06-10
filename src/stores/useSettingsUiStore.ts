@@ -389,6 +389,14 @@ const clampMonetLyricsFocusScale = (value: number, fallback: number) => {
     return Math.min(1.3, Math.max(1, value));
 };
 
+const clampMonetFontScale = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+
+    return Math.min(1.5, Math.max(0.7, value));
+};
+
 export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning>): MonetTuning => ({
     backgroundSource: resolveMonetBackgroundSource(parsed.backgroundSource),
     backgroundBlurPx: clampMonetBackgroundBlur(
@@ -409,6 +417,10 @@ export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning>): MonetTun
     lyricsFocusScale: clampMonetLyricsFocusScale(
         parsed.lyricsFocusScale ?? DEFAULT_MONET_TUNING.lyricsFocusScale,
         DEFAULT_MONET_TUNING.lyricsFocusScale,
+    ),
+    fontScale: clampMonetFontScale(
+        parsed.fontScale ?? DEFAULT_MONET_TUNING.fontScale,
+        DEFAULT_MONET_TUNING.fontScale,
     ),
 });
 
