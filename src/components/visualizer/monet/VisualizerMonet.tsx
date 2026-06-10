@@ -47,27 +47,19 @@ const resolveClampFontPx = (minRem: number, preferredVw: number, maxRem: number)
     return Math.min(maxRem * ROOT_FONT_PX, Math.max(minRem * ROOT_FONT_PX, viewportWidth * (preferredVw / 100)));
 };
 
-const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
-const isCJK = (text: string) => CJK_REGEX.test(text);
-
-const resolveWordColor = (wordText: string, wordColors: { word: string; color: string; }[]): string | null => {
-    if (!wordColors.length) return null;
-    const clean = wordText.trim();
-    const matched = wordColors.find(entry => {
-        const target = entry.word;
-        if (isCJK(clean)) return target.includes(clean);
-        const targetWords = target.split(/\s+/).map(t => t.toLowerCase().replace(/[^\w]/g, ''));
-        const normalized = clean.toLowerCase().replace(/[^\w]/g, '');
-        return targetWords.includes(normalized);
-    });
-    return matched?.color ?? null;
-};
-
 /** Measures text width with pretext so lyric highlight progress follows the rendered line instead of raw token count. */
 const measureTextWidthAtPx = (text: string, fontPx: number, fontSpec: string): number => {
     const prepared = prepareWithSegments(text || ' ', fontSpec);
     const layout = layoutWithLines(prepared, 99999, fontPx * 1.2);
     return layout.lines[0]?.width ?? Math.max(text.length, 1) * fontPx * 0.6;
+};
+
+/** Measures the number of wrapped lines for a text block at a given width using pretext. */
+const measureLineCount = (text: string, fontPx: number, fontSpec: string, maxWidthPx: number): number => {
+    const prepared = prepareWithSegments(text || ' ', fontSpec);
+    const lineHeight = fontPx * 1.2;
+    const layout = layoutWithLines(prepared, maxWidthPx, lineHeight);
+    return Math.max(layout.lines.length, 1);
 };
 
 const splitGraphemes = (text: string): string[] => {
@@ -287,10 +279,10 @@ const MonetTimedTokenSpan: React.FC<{
     fontPx: number;
     fontWeight: number;
     fontStack: string;
-    wordColors?: { word: string; color: string; }[];
-}> = ({ line, currentTime, isActive, accentColor, baseColor, fontPx, fontWeight, fontStack, wordColors }) => {
+}> = ({ line, currentTime, isActive, accentColor, baseColor, fontPx, fontWeight, fontStack }) => {
     const rootRef = useRef<HTMLSpanElement | null>(null);
     const [measuredFontPx, setMeasuredFontPx] = useState(fontPx);
+    const [containerWidth, setContainerWidth] = useState(0);
     const fontSpec = useMemo(
         () => `${fontWeight} ${measuredFontPx}px ${fontStack}`,
         [fontStack, fontWeight, measuredFontPx],
@@ -304,8 +296,14 @@ const MonetTimedTokenSpan: React.FC<{
         const updateFont = () => {
             setMeasuredFontPx(fontPx);
         };
+        const updateWidth = () => {
+            if (node.parentElement) {
+                setContainerWidth(node.parentElement.clientWidth);
+            }
+        };
 
         updateFont();
+        updateWidth();
 
         if (typeof ResizeObserver === 'undefined') {
             return;
@@ -313,6 +311,7 @@ const MonetTimedTokenSpan: React.FC<{
 
         const observer = new ResizeObserver(() => {
             updateFont();
+            updateWidth();
         });
         observer.observe(node);
         return () => observer.disconnect();
@@ -321,11 +320,22 @@ const MonetTimedTokenSpan: React.FC<{
     const lineRenderEndTime = useMemo(() => getLineRenderEndTime(line), [line]);
     const tokens = useMemo(() => buildMonetDisplayTokens(line), [line]);
 
+    const lineHeightPx = fontPx * 1.2;
+    const fullText = line.fullText || '';
+    const lineCount = useMemo(
+        () => (isActive ? measureLineCount(fullText, measuredFontPx, fontSpec, Math.max(containerWidth, 1)) : 1),
+        [isActive, fullText, measuredFontPx, fontSpec, containerWidth],
+    );
+
     return (
-        <span ref={rootRef} className={isActive
-            ? 'block w-full min-w-0 max-w-full align-top overflow-visible whitespace-pre-wrap break-words'
-            : 'block w-full min-w-0 max-w-full align-top overflow-hidden whitespace-nowrap text-ellipsis'
-        }>
+        <span ref={rootRef} className="block w-full min-w-0 max-w-full align-top whitespace-pre-wrap break-words"
+            style={{
+                maxHeight: isActive ? `${lineHeightPx * lineCount}px` : `${lineHeightPx}px`,
+                overflow: isActive ? 'visible' : 'hidden',
+                lineHeight: `${lineHeightPx}px`,
+                transition: 'max-height 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+            }}
+        >
             {tokens.map(token => {
                 const isTimed = token.startTime !== null
                     && token.endTime !== null
@@ -345,7 +355,6 @@ const MonetTimedTokenSpan: React.FC<{
                         baseColor={baseColor}
                         fontPx={measuredFontPx}
                         fontSpec={fontSpec}
-                        wordColors={wordColors}
                     />
                 ) : (
                     <span key={token.key} style={{ color: baseColor }}>
@@ -369,13 +378,7 @@ const MonetWordSweep: React.FC<{
     baseColor: string;
     fontPx: number;
     fontSpec: string;
-    wordColors?: { word: string; color: string; }[];
-}> = ({ text, startTime, endTime, lineRenderEndTime, currentTime, isLineActive, defaultAccentColor, baseColor, fontPx, fontSpec, wordColors }) => {
-    const wordColor = useMemo(() => {
-        if (!wordColors?.length) return defaultAccentColor;
-        return resolveWordColor(text, wordColors) ?? defaultAccentColor;
-    }, [text, wordColors, defaultAccentColor]);
-
+}> = ({ text, startTime, endTime, lineRenderEndTime, currentTime, isLineActive, defaultAccentColor, baseColor, fontPx, fontSpec }) => {
     const graphemeOffsets = useMemo(
         () => measureGraphemeOffsets(text, fontPx, fontSpec),
         [text, fontPx, fontSpec],
@@ -408,13 +411,13 @@ const MonetWordSweep: React.FC<{
     });
 
     const fillGradient = useTransform(wordProgress, progress => {
-        const color = mixColors(baseColor, wordColor, Math.min(progress, 1));
+        const color = mixColors(baseColor, defaultAccentColor, Math.min(progress, 1));
         return `linear-gradient(90deg, ${color} 0%, ${colorWithAlpha(color, 0.92)} 68%, ${colorWithAlpha(color, 0.72)} 100%)`;
     });
 
     const isWordComplete = useTransform(wordProgress, p => p >= 1);
     const resolvedBaseColor = useTransform(isWordComplete, complete =>
-        isLineActive && complete ? wordColor : baseColor,
+        isLineActive && complete ? defaultAccentColor : baseColor,
     );
 
     const glowShadow = useTransform(currentTime, latest => {
@@ -433,7 +436,7 @@ const MonetWordSweep: React.FC<{
 
         const r1 = Math.round(fontPx * 0.15);
         const r2 = Math.round(fontPx * 0.35);
-        const glowColor = mixColors(baseColor, wordColor, Math.min(intensity, 1), intensity * 0.88);
+        const glowColor = mixColors(baseColor, defaultAccentColor, Math.min(intensity, 1), intensity * 0.88);
         return `0 0 ${r1}px ${glowColor}, 0 0 ${r2}px ${glowColor}`;
     });
 
@@ -528,8 +531,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
     const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
 
-    // ── 5-line window for seamless scroll-list transition ──
-    const WINDOW = 2; // lines before/after active
+    // ── 4-line window: 1 before active, 2 after ──
+    const WINDOW_BEFORE = 1;
+    const WINDOW_AFTER = 2;
 
     const visibleLineEntries = useMemo((): { line: Line; offset: number }[] => {
         if (!displayActiveLine) return [];
@@ -539,7 +543,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
             : lines.findIndex(l => l === displayActiveLine);
         if (baseIdx < 0) return [{ line: displayActiveLine, offset: 0 }];
         const result: { line: Line; offset: number }[] = [];
-        for (let offset = -WINDOW; offset <= WINDOW; offset++) {
+        for (let offset = -WINDOW_BEFORE; offset <= WINDOW_AFTER; offset++) {
             const line = lines[baseIdx + offset];
             if (line) result.push({ line, offset });
         }
@@ -632,7 +636,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 ? 1
                                                 : Math.pow(0.86, blurZone);
                                         const targetFontPx = isActive ? lyricFontPx : nextFontPx * fontScale;
-                                        const needsStableLayout = isActive || isNext;
+                                        const needsStableLayout = isActive || isNext || offset === -1;
                                         const layoutFontPx = needsStableLayout ? lyricFontPx : targetFontPx;
                                         const fontSizeScale = needsStableLayout ? targetFontPx / lyricFontPx : 1;
                                         const lineFilter = `blur(${blurPx}px)`;
@@ -644,10 +648,16 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 animate={{ opacity: 1, y: 0, scale: 1, filter: lineFilter }}
                                                 exit={{ opacity: 0, y: -16, scale: 0.97, filter: 'blur(3px)', transition: { duration: 0.16, ease: 'easeIn' } }}
                                                 transition={{ duration: 0.32, ease: 'easeOut' }}
-                                                style={{ filter: lineFilter }}
+                                                style={{
+                                                    filter: lineFilter,
+                                                    marginBottom: offset === -1 ? '-8px' : '0px',
+                                                    transition: 'margin-bottom 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+                                                }}
                                             >
                                                 <motion.span
                                                     animate={{ scale: fontSizeScale }}
+                                                    className={offset === -1 ? '!leading-[1.1]' : undefined}
+                                                    transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
                                                     style={{
                                                         display: 'inline-block',
                                                         fontSize: layoutFontPx,
@@ -663,28 +673,29 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                         fontPx={layoutFontPx}
                                                         fontWeight={isActive ? 600 : 400}
                                                         fontStack={lyricFontStack}
-                                                        wordColors={theme.wordColors}
                                                     />
                                                 </motion.span>
-                                                {isActive && line.translation ? (
-                                                    <motion.div
+                                                <div
+                                                    style={{
+                                                        maxHeight: isActive && line.translation ? '200px' : '0px',
+                                                        opacity: isActive && line.translation ? 1 : 0,
+                                                        marginTop: isActive && line.translation ? '4px' : '0px',
+                                                        overflow: 'hidden',
+                                                        transition: 'max-height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s cubic-bezier(0.32, 0.72, 0, 1), margin-top 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+                                                    }}
+                                                >
+                                                    <div
                                                         className="whitespace-pre-wrap break-words"
-                                                        animate={{
-                                                            fontSize: isActive ? resolveClampFontPx(0.94, 1.28, 1.14) : resolveClampFontPx(0.84, 1.1, 0.96),
-                                                            color: isActive ? colorWithAlpha(theme.primaryColor, 0.68) : colorWithAlpha(theme.primaryColor, 0.3),
-                                                            paddingLeft: isActive ? '0.12rem' : '0.08rem',
-                                                        }}
-                                                        transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
                                                         style={{
-                                                            color: isActive ? colorWithAlpha(theme.primaryColor, 0.68) : colorWithAlpha(theme.primaryColor, 0.3),
-                                                            fontSize: isActive ? resolveClampFontPx(0.94, 1.28, 1.14) : resolveClampFontPx(0.84, 1.1, 0.96),
+                                                            color: colorWithAlpha(theme.primaryColor, 0.68),
+                                                            fontSize: resolveClampFontPx(0.94, 1.28, 1.14),
                                                             lineHeight: '1.25',
-                                                            paddingLeft: isActive ? '0.12rem' : '0.08rem',
+                                                            paddingLeft: '0.12rem',
                                                         }}
                                                     >
                                                         {line.translation}
-                                                    </motion.div>
-                                                ) : null}
+                                                    </div>
+                                                </div>
                                             </motion.div>
                                         );
                                     })}
