@@ -603,7 +603,13 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
                     {/* ── Lyrics scroll-list ── */}
                     {showText ? (
-                        <div className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden">
+                        <div
+                            className="h-[clamp(220px,32vh,320px)] max-w-[720px] overflow-hidden"
+                            style={{
+                                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                                maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                            }}
+                        >
                             {visibleLineEntries.length > 0 ? (
                                 <div className="flex flex-col gap-3">
                                     <AnimatePresence initial={false} mode="popLayout">
