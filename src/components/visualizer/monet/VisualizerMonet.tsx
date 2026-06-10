@@ -619,9 +619,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                             }}
                         >
                             {visibleLineEntries.length > 0 ? (
-                                <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-0">
                                     <AnimatePresence initial={false} mode="popLayout">
-                                    {visibleLineEntries.map(({ line, offset }) => {
+                                    {visibleLineEntries.flatMap(({ line, offset }) => {
                                         const isActive = offset === 0;
                                         const isNext = offset === 1;
                                         const blurZone = isActive
@@ -639,8 +639,14 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                         const needsStableLayout = isActive || isNext || offset === -1;
                                         const layoutFontPx = needsStableLayout ? lyricFontPx : targetFontPx;
                                         const fontSizeScale = needsStableLayout ? targetFontPx / lyricFontPx : 1;
+                                        const lineHeightEstimate = layoutFontPx * 1.2;
+                                        const wastePx = lineHeightEstimate * (1 - fontSizeScale);
+                                        const BASE_GAP = 12;
+                                        const marginBottom = Math.max(0, BASE_GAP - wastePx);
                                         const lineFilter = `blur(${blurPx}px)`;
-                                        return (
+
+                                        const elements: React.ReactNode[] = [];
+                                        elements.push(
                                             <motion.div
                                                 key={line.startTime}
                                                 layout="position"
@@ -650,7 +656,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 transition={{ duration: 0.32, ease: 'easeOut' }}
                                                 style={{
                                                     filter: lineFilter,
-                                                    marginBottom: offset === -1 ? '-8px' : '0px',
+                                                    marginBottom: `${marginBottom}px`,
                                                     transition: 'margin-bottom 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
                                                 }}
                                             >
@@ -675,14 +681,17 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                         fontStack={lyricFontStack}
                                                     />
                                                 </motion.span>
-                                                <div
-                                                    style={{
-                                                        maxHeight: isActive && line.translation ? '200px' : '0px',
-                                                        opacity: isActive && line.translation ? 1 : 0,
-                                                        marginTop: isActive && line.translation ? '4px' : '0px',
-                                                        overflow: 'hidden',
-                                                        transition: 'max-height 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s cubic-bezier(0.32, 0.72, 0, 1), margin-top 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
-                                                    }}
+                                            </motion.div>,
+                                        );
+
+                                        if (isActive && line.translation) {
+                                            elements.push(
+                                                <motion.div
+                                                    key={`${line.startTime}-translation`}
+                                                    initial={{ opacity: 0, marginBottom: '0px' }}
+                                                    animate={{ opacity: 1, marginBottom: '12px' }}
+                                                    exit={{ opacity: 0, marginBottom: '0px' }}
+                                                    transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
                                                 >
                                                     <div
                                                         className="whitespace-pre-wrap break-words"
@@ -695,9 +704,11 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                     >
                                                         {line.translation}
                                                     </div>
-                                                </div>
-                                            </motion.div>
-                                        );
+                                                </motion.div>,
+                                            );
+                                        }
+
+                                        return elements;
                                     })}
                                     </AnimatePresence>
                                 </div>
