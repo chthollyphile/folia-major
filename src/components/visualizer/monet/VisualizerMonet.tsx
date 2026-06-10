@@ -318,6 +318,7 @@ const MonetTimedTokenSpan: React.FC<{
         return () => observer.disconnect();
     }, [fontPx]);
 
+    const lineRenderEndTime = useMemo(() => getLineRenderEndTime(line), [line]);
     const tokens = useMemo(() => buildMonetDisplayTokens(line), [line]);
 
     return (
@@ -334,6 +335,7 @@ const MonetTimedTokenSpan: React.FC<{
                         text={token.text}
                         startTime={token.startTime}
                         endTime={token.endTime}
+                        lineRenderEndTime={lineRenderEndTime}
                         currentTime={currentTime}
                         isLineActive={isActive}
                         defaultAccentColor={accentColor}
@@ -357,6 +359,7 @@ const MonetWordSweep: React.FC<{
     text: string;
     startTime: number;
     endTime: number;
+    lineRenderEndTime: number;
     currentTime: MotionValue<number>;
     isLineActive: boolean;
     defaultAccentColor: string;
@@ -364,7 +367,7 @@ const MonetWordSweep: React.FC<{
     fontPx: number;
     fontSpec: string;
     wordColors?: { word: string; color: string; }[];
-}> = ({ text, startTime, endTime, currentTime, isLineActive, defaultAccentColor, baseColor, fontPx, fontSpec, wordColors }) => {
+}> = ({ text, startTime, endTime, lineRenderEndTime, currentTime, isLineActive, defaultAccentColor, baseColor, fontPx, fontSpec, wordColors }) => {
     const wordColor = useMemo(() => {
         if (!wordColors?.length) return defaultAccentColor;
         return resolveWordColor(text, wordColors) ?? defaultAccentColor;
@@ -379,12 +382,6 @@ const MonetWordSweep: React.FC<{
         if (!isLineActive || latest <= startTime) return 0;
         if (latest >= endTime) return 1;
         return (latest - startTime) / Math.max(0.001, endTime - startTime);
-    });
-
-    const glowProgress = useTransform(currentTime, latest => {
-        if (latest <= startTime) return 0;
-        const wordDuration = Math.max(0.001, endTime - startTime);
-        return (latest - startTime) / wordDuration;
     });
 
     const fillWidth = useTransform(wordProgress, progress => {
@@ -417,20 +414,23 @@ const MonetWordSweep: React.FC<{
         isLineActive && complete ? wordColor : baseColor,
     );
 
-    const glowShadow = useTransform(glowProgress, p => {
-        if (p <= 0) return 'none';
-        const lifespan = 6.0;
+    const glowShadow = useTransform(currentTime, latest => {
+        if (latest <= startTime) return 'none';
+
+        const wordDuration = Math.max(0.001, endTime - startTime);
         let intensity: number;
-        if (p <= 1) {
-            intensity = p;
-        } else if (p <= lifespan) {
-            intensity = Math.max(0, 1 - (p - 1) / (lifespan - 1));
+        if (latest <= endTime) {
+            intensity = (latest - startTime) / wordDuration;
         } else {
-            return 'none';
+            const decayDuration = Math.max(0.001, lineRenderEndTime - endTime);
+            intensity = Math.max(0, 1 - (latest - endTime) / decayDuration);
         }
+
+        if (intensity <= 0) return 'none';
+
         const r1 = Math.round(fontPx * 0.15);
         const r2 = Math.round(fontPx * 0.35);
-        const glowColor = mixColors(baseColor, wordColor, Math.min(p, 1), intensity * 0.88);
+        const glowColor = mixColors(baseColor, wordColor, Math.min(intensity, 1), intensity * 0.88);
         return `0 0 ${r1}px ${glowColor}, 0 0 ${r2}px ${glowColor}`;
     });
 
