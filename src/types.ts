@@ -35,6 +35,7 @@ export interface Theme {
   wordColors?: { word: string; color: string; }[];
   lyricsIcons?: string[];
   provider?: string;
+  description?: string;
 }
 
 export type CustomLyricsFontSource = 'system' | 'uploaded';

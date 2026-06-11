@@ -79,8 +79,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     const inactiveFontPx = resolveClampFontPx(1.08, 2, 1.48) * fontScale;
     const translationFontPx = resolveClampFontPx(0.94, 1.28, 1.14) * fontScale;
 
-    const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
-    const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
+    const primaryMetaLabel = songArtist?.trim() || 'Monet';
+    const secondaryMetaLabel = songAlbum?.trim() || 'Monet';
+    const capsuleLabel = theme.description?.trim() || theme.name?.trim() || 'Monet';
     const portraitUrl = monetTuning.portraitSource === 'custom'
         ? monetPortraitImage?.url ?? coverUrl
         : coverUrl ?? monetPortraitImage?.url;
@@ -153,7 +154,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     }}
                                 >
                                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
-                                    <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{secondaryMetaLabel}</span>
+                                    <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{capsuleLabel}</span>
                                 </div>
                             </div>
                         </div>
