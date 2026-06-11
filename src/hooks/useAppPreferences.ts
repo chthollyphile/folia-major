@@ -4,16 +4,19 @@ import type { StatusMessage } from '../types';
 import { getCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 import { getCustomCappellaAvatar } from '../services/cappellaAvatarPack';
 import { getMonetBackgroundImage } from '../services/monetBackgroundImage';
+import { getMonetPortraitImage } from '../services/monetPortraitImage';
 import { restoreUploadedLyricsFont } from '../services/customLyricsFont';
 import {
+    resolveStoredMonetBackgroundTuning,
     resolveStoredMonetTuning,
     resolveStoredCappellaTuning,
     resolveStoredCustomLyricsFont,
+    resolveVisualizerBackgroundMode,
     selectSettingsUiSnapshot,
     useSettingsUiStore,
 } from '../stores/useSettingsUiStore';
 
-export { resolveStoredCappellaTuning, resolveStoredCustomLyricsFont };
+export { resolveStoredCappellaTuning, resolveStoredCustomLyricsFont, resolveStoredMonetBackgroundTuning, resolveVisualizerBackgroundMode };
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 
@@ -31,12 +34,18 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const setStoredMonetBackgroundImage = useSettingsUiStore(state => state.setStoredMonetBackgroundImage);
     const setMonetBackgroundImage = useSettingsUiStore(state => state.setMonetBackgroundImage);
     const setIsLoadingMonetBackgroundImage = useSettingsUiStore(state => state.setIsLoadingMonetBackgroundImage);
+    const setStoredMonetPortraitImage = useSettingsUiStore(state => state.setStoredMonetPortraitImage);
+    const setMonetPortraitImage = useSettingsUiStore(state => state.setMonetPortraitImage);
+    const setIsLoadingMonetPortraitImage = useSettingsUiStore(state => state.setIsLoadingMonetPortraitImage);
     const handleSetMonetTuning = useSettingsUiStore(state => state.handleSetMonetTuning);
+    const handleSetMonetBackgroundTuning = useSettingsUiStore(state => state.handleSetMonetBackgroundTuning);
     const clearLyricsCustomFontAfterRestoreFailure = useSettingsUiStore(state => state.clearLyricsCustomFontAfterRestoreFailure);
     const lyricsCustomFont = useSettingsUiStore(state => state.lyricsCustomFont);
     const storedCappellaEmojiPack = useSettingsUiStore(state => state.storedCappellaEmojiPack);
     const storedCappellaAvatarPack = useSettingsUiStore(state => state.storedCappellaAvatarPack);
     const storedMonetBackgroundImage = useSettingsUiStore(state => state.storedMonetBackgroundImage);
+    const storedMonetPortraitImage = useSettingsUiStore(state => state.storedMonetPortraitImage);
+    const monetBackgroundTuning = useSettingsUiStore(state => state.monetBackgroundTuning);
     const monetTuning = useSettingsUiStore(state => state.monetTuning);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
 
@@ -175,6 +184,28 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setIsLoadingMonetBackgroundImage, setStoredMonetBackgroundImage]);
 
     useEffect(() => {
+        let isCancelled = false;
+
+        const loadMonetPortraitImage = async () => {
+            try {
+                const storedImage = await getMonetPortraitImage();
+                if (!isCancelled) {
+                    setStoredMonetPortraitImage(storedImage);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingMonetPortraitImage(false);
+                }
+            }
+        };
+
+        void loadMonetPortraitImage();
+        return () => {
+            isCancelled = true;
+        };
+    }, [setIsLoadingMonetPortraitImage, setStoredMonetPortraitImage]);
+
+    useEffect(() => {
         if (lyricsCustomFont?.source !== 'uploaded' || !lyricsCustomFont.fontId) {
             return;
         }
@@ -258,15 +289,44 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setMonetBackgroundImage, storedMonetBackgroundImage]);
 
     useEffect(() => {
-        if (storedMonetBackgroundImage || monetTuning.backgroundSource !== 'uploaded-global') {
+        if (!storedMonetPortraitImage?.blob) {
+            setMonetPortraitImage(null);
+            return;
+        }
+
+        const nextImage = {
+            id: storedMonetPortraitImage.id,
+            name: storedMonetPortraitImage.name,
+            url: URL.createObjectURL(storedMonetPortraitImage.blob),
+        };
+        setMonetPortraitImage(nextImage);
+
+        return () => {
+            URL.revokeObjectURL(nextImage.url);
+        };
+    }, [setMonetPortraitImage, storedMonetPortraitImage]);
+
+    useEffect(() => {
+        if (storedMonetBackgroundImage || monetBackgroundTuning.backgroundSource !== 'uploaded-global') {
+            return;
+        }
+
+        handleSetMonetBackgroundTuning(resolveStoredMonetBackgroundTuning({
+            ...monetBackgroundTuning,
+            backgroundSource: 'cover-derived',
+        }));
+    }, [handleSetMonetBackgroundTuning, monetBackgroundTuning, storedMonetBackgroundImage]);
+
+    useEffect(() => {
+        if (storedMonetPortraitImage || monetTuning.portraitSource !== 'custom') {
             return;
         }
 
         handleSetMonetTuning(resolveStoredMonetTuning({
             ...monetTuning,
-            backgroundSource: 'cover-derived',
+            portraitSource: 'cover',
         }));
-    }, [handleSetMonetTuning, monetTuning, storedMonetBackgroundImage]);
+    }, [handleSetMonetTuning, monetTuning, storedMonetPortraitImage]);
 
     return preferences;
 }

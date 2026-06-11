@@ -1,19 +1,24 @@
 import React, { useMemo } from 'react';
 import { Monitor, RotateCcw } from 'lucide-react';
 import {
+    DEFAULT_MONET_BACKGROUND_TUNING,
     type CappellaAvatarImage,
     type CappellaEmojiImage,
     type CappellaTuning,
     type ClassicTuning,
     type FumeTuning,
     type MonetBackgroundImage,
+    type MonetBackgroundTuning,
+    type MonetPortraitImage,
     type MonetTuning,
     type PartitaTuning,
     type Theme,
     type TiltTuning,
+    type VisualizerBackgroundMode,
     type VisualizerMode,
 } from '../../types';
 import { colorWithAlpha } from './colorMix';
+import { MonetBackgroundSettingsCard } from './MonetBackgroundSettingsCard';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEntry } from './registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
 
@@ -64,6 +69,8 @@ interface VisPlaygroundSettingsPanelProps {
     onToggleDisableVisualizerVignette?: (disabled: boolean) => void;
     disableVisualizerGeometricBackground: boolean;
     onToggleDisableVisualizerGeometricBackground?: (disabled: boolean) => void;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    onVisualizerBackgroundModeChange?: (mode: VisualizerBackgroundMode) => void;
     onResetBackgroundSettings?: () => void;
     fontStyleValue: Theme['fontStyle'] | 'custom';
     fontStyleOptions: PresetOption<Theme['fontStyle'] | 'custom'>[];
@@ -90,6 +97,8 @@ interface VisPlaygroundSettingsPanelProps {
     isLoadingCappellaCustomAvatarPack?: boolean;
     tiltTuning: TiltTuning;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
+    monetBackgroundTuning?: MonetBackgroundTuning;
+    onMonetBackgroundTuningChange?: (patch: Partial<MonetBackgroundTuning>) => void;
     monetTuning: MonetTuning;
     onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
     onResetMonetTuning?: () => void;
@@ -97,6 +106,10 @@ interface VisPlaygroundSettingsPanelProps {
     onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     onClearMonetBackgroundImage?: () => Promise<void> | void;
     isLoadingMonetBackgroundImage?: boolean;
+    monetPortraitImage?: MonetPortraitImage | null;
+    onUploadMonetPortraitImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearMonetPortraitImage?: () => Promise<void> | void;
+    isLoadingMonetPortraitImage?: boolean;
     hideTranslationSubtitle: boolean;
     onToggleHideTranslationSubtitle?: (hidden: boolean) => void;
     subtitleOverlayOpacity: number;
@@ -273,6 +286,8 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         onToggleDisableVisualizerVignette,
         disableVisualizerGeometricBackground,
         onToggleDisableVisualizerGeometricBackground,
+        visualizerBackgroundMode,
+        onVisualizerBackgroundModeChange,
         onResetBackgroundSettings,
         fontStyleValue,
         fontStyleOptions,
@@ -299,12 +314,18 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         isLoadingCappellaCustomAvatarPack = false,
         tiltTuning,
         onTiltTuningChange,
+        monetBackgroundTuning = DEFAULT_MONET_BACKGROUND_TUNING,
+        onMonetBackgroundTuningChange,
         monetTuning,
         onMonetTuningChange,
         monetBackgroundImage,
         onUploadMonetBackgroundImage,
         onClearMonetBackgroundImage,
         isLoadingMonetBackgroundImage,
+        monetPortraitImage,
+        onUploadMonetPortraitImage,
+        onClearMonetPortraitImage,
+        isLoadingMonetPortraitImage,
         hideTranslationSubtitle,
         onToggleHideTranslationSubtitle,
         subtitleOverlayOpacity,
@@ -320,6 +341,11 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
             value: entry.mode,
         }))
     ), [t]);
+    const resolvedBackgroundMode: VisualizerBackgroundMode = visualizerBackgroundMode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
+    const backgroundModeOptions = useMemo<PresetOption<VisualizerBackgroundMode>[]>(() => ([
+        { value: 'common', label: t('options.visualizerBackgroundModeCommon') || '通用' },
+        { value: 'monet', label: t('options.visualizerBackgroundModeMonet') || '莫奈' },
+    ]), [t]);
 
     return (
         <div className="min-h-0 flex flex-col gap-4">
@@ -430,58 +456,89 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 />
                             </div>
 
-                            <ToggleRow
-                                label={t('options.disableVisualizerVignette') || '禁用暗角'}
-                                description={t('options.disableVisualizerVignetteDesc') || '关闭几何背景自带的边缘暗角。'}
-                                checked={disableVisualizerVignette}
-                                onChange={onToggleDisableVisualizerVignette}
-                                theme={theme}
-                            />
-                            <ToggleRow
-                                label={t('options.disableVisualizerGeometricBackground') || '隐藏通用几何背景'}
-                                description={t('options.disableVisualizerGeometricBackgroundDesc') || '隐藏播放页的通用几何背景图形。'}
-                                checked={disableVisualizerGeometricBackground}
-                                onChange={onToggleDisableVisualizerGeometricBackground}
+                            <PresetGroup
+                                label={t('options.visualizerBackgroundMode') || '背景类型'}
+                                value={resolvedBackgroundMode}
+                                options={backgroundModeOptions}
+                                onChange={(mode) => onVisualizerBackgroundModeChange?.(mode)}
+                                isDaylight={isDaylight}
                                 theme={theme}
                             />
                         </div>
 
-                        <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
-                            <div className="space-y-2">
-                                    <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
-                                        {t('options.previewCoverBackgroundSettings') || '封面背景'}
-                                    </div>
-                                    <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
-                                        {t('options.previewCoverBackgroundSettingsDesc') || '将歌曲封面色彩叠加到背景中'}
-                                    </div>
-                                    
-                                <ToggleRow
-                                    label={t('theme.addCoverColor') || '添加封面色彩'}
-                                    description={t('options.coverColorBackgroundDesc') || '使用当前歌曲封面生成背景色彩。'}
-                                    checked={useCoverColorBg}
-                                    onChange={onToggleCoverColorBg}
-                                    theme={theme}
-                                />
-
-                                <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
-                                    <span>{t('options.previewCoverBackgroundOpacity') || '叠层透明度'}</span>
-                                    <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
-                                        {Math.round(backgroundOpacity * 100)}%
-                                    </span>
+                        {resolvedBackgroundMode === 'common' ? (
+                            <>
+                                <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
+                                    <ToggleRow
+                                        label={t('options.disableVisualizerVignette') || '禁用暗角'}
+                                        description={t('options.disableVisualizerVignetteDesc') || '关闭几何背景自带的边缘暗角。'}
+                                        checked={disableVisualizerVignette}
+                                        onChange={onToggleDisableVisualizerVignette}
+                                        theme={theme}
+                                    />
+                                    <ToggleRow
+                                        label={t('options.disableVisualizerGeometricBackground') || '隐藏通用几何背景'}
+                                        description={t('options.disableVisualizerGeometricBackgroundDesc') || '隐藏播放页的通用几何背景图形。'}
+                                        checked={disableVisualizerGeometricBackground}
+                                        onChange={onToggleDisableVisualizerGeometricBackground}
+                                        theme={theme}
+                                    />
                                 </div>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.05"
-                                    value={backgroundOpacity}
-                                    onChange={(event) => onBackgroundOpacityChange?.(parseFloat(event.target.value))}
-                                    onPointerDown={onSliderPointerDown}
-                                    onPointerUp={onSliderCommit}
-                                    className={rangeInputClass}
+
+                                <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
+                                    <div className="space-y-2">
+                                            <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
+                                                {t('options.previewCoverBackgroundSettings') || '封面背景'}
+                                            </div>
+                                            <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
+                                                {t('options.previewCoverBackgroundSettingsDesc') || '将歌曲封面色彩叠加到背景中'}
+                                            </div>
+
+                                        <ToggleRow
+                                            label={t('theme.addCoverColor') || '添加封面色彩'}
+                                            description={t('options.coverColorBackgroundDesc') || '使用当前歌曲封面生成背景色彩。'}
+                                            checked={useCoverColorBg}
+                                            onChange={onToggleCoverColorBg}
+                                            theme={theme}
+                                        />
+
+                                        <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
+                                            <span>{t('options.previewCoverBackgroundOpacity') || '叠层透明度'}</span>
+                                            <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
+                                                {Math.round(backgroundOpacity * 100)}%
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={backgroundOpacity}
+                                            onChange={(event) => onBackgroundOpacityChange?.(parseFloat(event.target.value))}
+                                            onPointerDown={onSliderPointerDown}
+                                            onPointerUp={onSliderCommit}
+                                            className={rangeInputClass}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <MonetBackgroundSettingsCard
+                                t={t}
+                                isDaylight={isDaylight}
+                                theme={theme}
+                                controlCardBg={controlCardBg}
+                                rangeInputClass={rangeInputClass}
+                                tuning={monetBackgroundTuning}
+                                onTuningChange={onMonetBackgroundTuningChange}
+                                monetBackgroundImage={monetBackgroundImage}
+                                onUploadMonetBackgroundImage={onUploadMonetBackgroundImage}
+                                onClearMonetBackgroundImage={onClearMonetBackgroundImage}
+                                isLoadingMonetBackgroundImage={isLoadingMonetBackgroundImage}
+                                onSliderPointerDown={onSliderPointerDown}
+                                onSliderCommit={onSliderCommit}
                                 />
-                            </div>
-                        </div>
+                        )}
                     </>
                 )}
 
@@ -543,10 +600,10 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             onTiltTuningChange,
                             monetTuning,
                             onMonetTuningChange,
-                            monetBackgroundImage,
-                            onUploadMonetBackgroundImage,
-                            onClearMonetBackgroundImage,
-                            isLoadingMonetBackgroundImage,
+                            monetPortraitImage,
+                            onUploadMonetPortraitImage,
+                            onClearMonetPortraitImage,
+                            isLoadingMonetPortraitImage,
                             onSliderPointerDown,
                             onSliderCommit,
                         })}

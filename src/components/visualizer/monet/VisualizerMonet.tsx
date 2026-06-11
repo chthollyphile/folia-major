@@ -7,7 +7,6 @@ import { useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
-import MonetBackground from './MonetBackground';
 import AudioOverlay from './AudioOverlay';
 import MonetFloatingDecor from './MonetFloatingDecor';
 import MonetLyricsRail from './MonetLyricsRail';
@@ -34,10 +33,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         songAlbum,
         coverUrl,
         staticMode = false,
-        transparentBackground = false,
         isPreviewMode = false,
         monetTuning = DEFAULT_MONET_TUNING,
-        monetBackgroundImage = null,
+        monetPortraitImage = null,
     } = props;
     const { t } = useTranslation();
 
@@ -83,26 +81,17 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
     const primaryMetaLabel = songArtist?.trim() || songAlbum?.trim() || songTitle?.trim() || 'Monet';
     const secondaryMetaLabel = songAlbum?.trim() || songArtist?.trim() || theme.name || 'Monet';
+    const portraitUrl = monetTuning.portraitSource === 'custom'
+        ? monetPortraitImage?.url ?? coverUrl
+        : coverUrl ?? monetPortraitImage?.url;
 
     return (
         <VisualizerShell
             theme={theme}
             audioPower={audioPower}
             audioBands={audioBands}
-            sharedProps={{
-                ...props,
-                transparentBackground: true,
-                staticMode: true,
-            }}
+            sharedProps={props}
         >
-            <MonetBackground
-                coverUrl={coverUrl}
-                monetBackgroundImage={monetBackgroundImage}
-                theme={theme}
-                tuning={monetTuning}
-                transparentBackground={transparentBackground}
-            />
-
             <MonetFloatingDecor theme={theme} staticMode={staticMode} />
 
             <div className="relative z-10 flex h-full w-full flex-row items-center overflow-hidden">
@@ -195,7 +184,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 <div
                                     className="aspect-[0.74] w-full overflow-hidden rounded-[2rem] bg-cover bg-center"
                                     style={{
-                                        backgroundImage: coverUrl ? `url(${coverUrl})` : undefined,
+                                        backgroundImage: portraitUrl ? `url(${portraitUrl})` : undefined,
                                         backgroundColor: colorWithAlpha(theme.primaryColor, 0.08),
                                     }}
                                 />

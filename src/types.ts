@@ -308,9 +308,12 @@ export const DEFAULT_TILT_TUNING: TiltTuning = {
 
 export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
+export type MonetBackgroundWashColorMode = 'theme' | 'custom';
 export type MonetAudioStyle = 'bar' | 'line';
+export type MonetPortraitSource = 'cover' | 'custom';
+export type VisualizerBackgroundMode = 'common' | 'monet';
 
-export interface MonetTuning {
+export interface MonetBackgroundTuning {
   backgroundSource: MonetBackgroundSource;
   backgroundLayout: MonetBackgroundLayout;
   backgroundBlurPx: number;
@@ -318,12 +321,19 @@ export interface MonetTuning {
   backgroundGrayscale: number;
   backgroundSaturation: number;
   backgroundWash: number;
+  backgroundHalfPaneOffsetX: number;
+  backgroundWashColorMode: MonetBackgroundWashColorMode;
+  backgroundWashCustomColor: string;
+}
+
+export interface MonetTuning {
   keywordColoringEnabled: boolean;
   audioStyle: MonetAudioStyle;
   fontScale: number;
+  portraitSource: MonetPortraitSource;
 }
 
-export const DEFAULT_MONET_TUNING: MonetTuning = {
+export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
   backgroundSource: 'cover-derived',
   backgroundLayout: 'half-pane-gradient',
   backgroundBlurPx: 80,
@@ -331,9 +341,16 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   backgroundGrayscale: 0,
   backgroundSaturation: 1.05,
   backgroundWash: 0.16,
+  backgroundHalfPaneOffsetX: 0,
+  backgroundWashColorMode: 'theme',
+  backgroundWashCustomColor: '#8fb7ff',
+};
+
+export const DEFAULT_MONET_TUNING: MonetTuning = {
   keywordColoringEnabled: true,
   audioStyle: 'bar',
   fontScale: 1.0,
+  portraitSource: 'cover',
 };
 
 export interface StoredCappellaEmojiImage {
@@ -370,6 +387,19 @@ export interface StoredMonetBackgroundImage {
 }
 
 export interface MonetBackgroundImage {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface StoredMonetPortraitImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  blob: Blob;
+}
+
+export interface MonetPortraitImage {
   id: string;
   name: string;
   url: string;

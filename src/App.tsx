@@ -223,6 +223,7 @@ export default function App() {
         backgroundOpacity,
         subtitleOverlayOpacity,
         visualizerOpacity,
+        visualizerBackgroundMode,
         isDaylight,
         visualizerMode,
         classicTuning,
@@ -231,11 +232,13 @@ export default function App() {
         fumeTuning,
         cappellaTuning,
         tiltTuning,
+        monetBackgroundTuning,
         monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
         cappellaCustomAvatarImages,
         monetBackgroundImage,
+        monetPortraitImage,
         lyricsFontStyle,
         lyricsFontScale,
         lyricsCustomFontFamily,
@@ -2263,6 +2266,7 @@ export default function App() {
                     transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
                     disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
                     disableVignette={disableVisualizerVignette}
+                    visualizerBackgroundMode={visualizerBackgroundMode}
                     lyricsFontScale={lyricsFontScale}
                     subtitleOverlayOpacity={subtitleOverlayOpacity}
                     isPlayerChromeHidden={isPlayerChromeHidden}
@@ -2273,10 +2277,12 @@ export default function App() {
                     fumeTuning={fumeTuning}
                     cappellaTuning={cappellaTuning}
                     tiltTuning={tiltTuning}
+                    monetBackgroundTuning={monetBackgroundTuning}
                     monetTuning={monetTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                     cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                     monetBackgroundImage={monetBackgroundImage}
+                    monetPortraitImage={monetPortraitImage}
                     onBack={navigateToHome}
                 />
             </div>

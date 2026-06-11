@@ -10,10 +10,13 @@ import {
     type FumeTuning,
     type Line,
     type MonetBackgroundImage,
+    type MonetBackgroundTuning,
+    type MonetPortraitImage,
     type MonetTuning,
     type PartitaTuning,
     type Theme,
     type TiltTuning,
+    type VisualizerBackgroundMode,
     type VisualizerMode,
 } from '../../types';
 
@@ -43,6 +46,8 @@ export interface VisualizerSharedProps {
     disableVignette?: boolean;
     lyricsFontScale?: number;
     subtitleOverlayOpacity?: number;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    resolvedVisualizerBackgroundMode?: VisualizerBackgroundMode;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
     paused?: boolean;
@@ -56,8 +61,10 @@ export interface VisualizerSharedProps {
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
     tiltTuning?: TiltTuning;
+    monetBackgroundTuning?: MonetBackgroundTuning;
     monetTuning?: MonetTuning;
     monetBackgroundImage?: MonetBackgroundImage | null;
+    monetPortraitImage?: MonetPortraitImage | null;
 }
 
 export interface VisualizerSettingsPanelProps {
@@ -90,9 +97,15 @@ export interface VisualizerSettingsPanelProps {
     monetTuning?: MonetTuning;
     onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
     monetBackgroundImage?: MonetBackgroundImage | null;
+    monetBackgroundTuning?: MonetBackgroundTuning;
+    onMonetBackgroundTuningChange?: (patch: Partial<MonetBackgroundTuning>) => void;
     onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     onClearMonetBackgroundImage?: () => Promise<void> | void;
     isLoadingMonetBackgroundImage?: boolean;
+    monetPortraitImage?: MonetPortraitImage | null;
+    onUploadMonetPortraitImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
+    onClearMonetPortraitImage?: () => Promise<void> | void;
+    isLoadingMonetPortraitImage?: boolean;
     /** Mark slider drag start so onChange only updates draft. */
     onSliderPointerDown?: () => void;
     /** Commit draft values to persistent store on slider release. */

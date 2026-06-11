@@ -8,6 +8,9 @@ interface VisualizerRendererProps extends VisualizerSharedProps {
 }
 
 const VisualizerRenderer: React.FC<VisualizerRendererProps> = ({ mode, ...props }) =>
-    getVisualizerRegistryEntry(mode).render(props);
+    getVisualizerRegistryEntry(mode).render({
+        ...props,
+        resolvedVisualizerBackgroundMode: props.visualizerBackgroundMode ?? (mode === 'monet' ? 'monet' : 'common'),
+    });
 
 export default VisualizerRenderer;

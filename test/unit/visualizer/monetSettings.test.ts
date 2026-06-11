@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
+import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
-import { resolveStoredMonetTuning } from '@/stores/useSettingsUiStore';
+import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
 
 // test/unit/visualizer/monetSettings.test.ts
-// Locks the Monet tuning normalization and the aligned lyric-pair contract.
+// Locks Monet tuning normalization, background cache keys, and lyric helper contracts.
 describe('Monet tuning and lyric helpers', () => {
-    it('normalizes persisted Monet tuning values', () => {
-        expect(resolveStoredMonetTuning({
+    it('normalizes persisted Monet background tuning values from legacy storage', () => {
+        expect(resolveStoredMonetBackgroundTuning({
             backgroundSource: 'uploaded-global',
             backgroundBlurPx: 999,
             backgroundOverlayOpacity: -2,
@@ -19,11 +19,11 @@ describe('Monet tuning and lyric helpers', () => {
             backgroundGrayscale: -1,
             backgroundSaturation: 9,
             backgroundWash: 2,
-            keywordColoringEnabled: false,
-            audioStyle: 'line',
+            backgroundHalfPaneOffsetX: 99,
+            backgroundWashColorMode: 'custom',
+            backgroundWashCustomColor: 'AABBCC',
             coverPaneRatio: 0.9,
             lyricsFocusScale: 4,
-            fontScale: 3,
         })).toEqual({
             backgroundSource: 'uploaded-global',
             backgroundLayout: 'full-overlay',
@@ -32,18 +32,54 @@ describe('Monet tuning and lyric helpers', () => {
             backgroundGrayscale: 0,
             backgroundSaturation: 2,
             backgroundWash: 1,
+            backgroundHalfPaneOffsetX: 40,
+            backgroundWashColorMode: 'custom',
+            backgroundWashCustomColor: '#aabbcc',
+        });
+
+        expect(resolveStoredMonetBackgroundTuning({
+            backgroundCropMode: 'full-artwork',
+            coverPaneRatio: 0.9,
+            lyricsFocusScale: 4,
+            backgroundHalfPaneOffsetX: -99,
+            backgroundWashColorMode: 'bad' as never,
+            backgroundWashCustomColor: 'nope',
+        })).toEqual({
+            ...DEFAULT_MONET_BACKGROUND_TUNING,
+            backgroundHalfPaneOffsetX: -40,
+        });
+
+        expect(resolveStoredMonetBackgroundTuning({})).toEqual(DEFAULT_MONET_BACKGROUND_TUNING);
+    });
+
+    it('normalizes persisted Monet lyric and portrait tuning values', () => {
+        expect(resolveStoredMonetTuning({
+            keywordColoringEnabled: false,
+            audioStyle: 'line',
+            fontScale: 3,
+            portraitSource: 'custom',
+        })).toEqual({
             keywordColoringEnabled: false,
             audioStyle: 'line',
             fontScale: 1.5,
+            portraitSource: 'custom',
         });
 
         expect(resolveStoredMonetTuning({
             backgroundCropMode: 'full-artwork',
             coverPaneRatio: 0.9,
             lyricsFocusScale: 4,
+            portraitSource: 'bad' as never,
         })).toEqual(DEFAULT_MONET_TUNING);
 
         expect(resolveStoredMonetTuning({})).toEqual(DEFAULT_MONET_TUNING);
+    });
+
+    it('resolves automatic visualizer background mode', () => {
+        expect(resolveVisualizerBackgroundMode(null, 'monet')).toBe('monet');
+        expect(resolveVisualizerBackgroundMode(null, 'classic')).toBe('common');
+        expect(resolveVisualizerBackgroundMode('common', 'monet')).toBe('common');
+        expect(resolveVisualizerBackgroundMode('monet', 'classic')).toBe('monet');
     });
 
     it('builds stable display tokens without dropping spaces or punctuation', () => {
@@ -145,48 +181,51 @@ describe('Monet tuning and lyric helpers', () => {
         const first = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: DEFAULT_MONET_TUNING,
+            tuning: DEFAULT_MONET_BACKGROUND_TUNING,
         });
         const second = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundBlurPx: DEFAULT_MONET_TUNING.backgroundBlurPx + 1 },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundBlurPx: DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx + 1 },
         });
         const third = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             monetBackgroundImage: { id: 'uploaded-1', name: 'bg', url: 'blob:test' },
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundSource: 'uploaded-global' },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundSource: 'uploaded-global' },
         });
         const overlayChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundOverlayOpacity: DEFAULT_MONET_TUNING.backgroundOverlayOpacity + 0.02 },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundOverlayOpacity: DEFAULT_MONET_BACKGROUND_TUNING.backgroundOverlayOpacity + 0.02 },
         });
         const grayscaleChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundGrayscale: 0.2 },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundGrayscale: 0.2 },
         });
         const saturationChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundSaturation: 1.4 },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundSaturation: 1.4 },
         });
         const washChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundWash: 0.6 },
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundWash: 0.6 },
+        });
+        const washColorChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: { ...DEFAULT_MONET_BACKGROUND_TUNING, backgroundWashColorMode: 'custom', backgroundWashCustomColor: '#aabbcc' },
         });
         const nonBackgroundChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-a',
             theme,
             tuning: {
-                ...DEFAULT_MONET_TUNING,
+                ...DEFAULT_MONET_BACKGROUND_TUNING,
                 backgroundLayout: 'full-overlay',
-                audioStyle: 'line',
-                fontScale: 1.25,
-                keywordColoringEnabled: false,
+                backgroundHalfPaneOffsetX: 20,
             },
         });
 
@@ -196,21 +235,23 @@ describe('Monet tuning and lyric helpers', () => {
         expect(first).not.toBe(grayscaleChanged);
         expect(first).not.toBe(saturationChanged);
         expect(first).not.toBe(washChanged);
+        expect(first).not.toBe(washColorChanged);
         expect(first).toBe(nonBackgroundChanged);
 
         const layoutBase = getMonetBackgroundCacheKey({
             coverUrl: 'cover-b',
             theme,
-            tuning: DEFAULT_MONET_TUNING,
+            tuning: DEFAULT_MONET_BACKGROUND_TUNING,
         });
         const layoutChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-b',
             theme,
             tuning: {
-                ...DEFAULT_MONET_TUNING,
+                ...DEFAULT_MONET_BACKGROUND_TUNING,
                 backgroundLayout: 'full-overlay',
+                backgroundHalfPaneOffsetX: 24,
                 backgroundCropMode: 'full-artwork',
-            } as typeof DEFAULT_MONET_TUNING & { backgroundCropMode: string; },
+            } as typeof DEFAULT_MONET_BACKGROUND_TUNING & { backgroundCropMode: string; },
         });
         expect(layoutBase).toBe(layoutChanged);
     });

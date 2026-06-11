@@ -1,29 +1,41 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_MONET_BACKGROUND_TUNING, type MonetBackgroundImage, type MonetBackgroundTuning, type Theme } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
-import type { MonetBackgroundImage, MonetTuning, Theme } from '../../../types';
-import { getMonetBackgroundCacheKey, resolveMonetBackgroundDataUrl } from './monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, resolveMonetBackgroundDataUrl } from '../monet/monetBackgroundPipeline';
 
-// src/components/visualizer/monet/MonetBackground.tsx
-// Resolves the static poster-like background for Monet and keeps all heavy image work off the animation path.
-interface MonetBackgroundProps {
+// src/components/visualizer/backgrounds/MonetBackgroundLayer.tsx
+// Shared shell-level Monet image background with debounced bitmap post-processing.
+interface MonetBackgroundLayerProps {
     coverUrl?: string | null;
     monetBackgroundImage?: MonetBackgroundImage | null;
     theme: Theme;
-    tuning: MonetTuning;
+    tuning?: MonetBackgroundTuning;
     transparentBackground?: boolean;
 }
 
-const MonetBackground: React.FC<MonetBackgroundProps> = ({
+const PIPELINE_DEBOUNCE_MS = 180;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const resolveSourceUrl = (
+    coverUrl: string | null | undefined,
+    monetBackgroundImage: MonetBackgroundImage | null | undefined,
+    tuning: MonetBackgroundTuning,
+) => (
+    tuning.backgroundSource === 'uploaded-global'
+        ? monetBackgroundImage?.url ?? coverUrl ?? null
+        : coverUrl ?? monetBackgroundImage?.url ?? null
+);
+
+const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
     coverUrl,
     monetBackgroundImage,
     theme,
-    tuning,
+    tuning = DEFAULT_MONET_BACKGROUND_TUNING,
     transparentBackground = false,
 }) => {
     const [pipelineUrl, setPipelineUrl] = useState<string | null>(null);
-    const sourceUrl = tuning.backgroundSource === 'uploaded-global'
-        ? monetBackgroundImage?.url ?? coverUrl ?? null
-        : coverUrl ?? monetBackgroundImage?.url ?? null;
+    const sourceUrl = resolveSourceUrl(coverUrl, monetBackgroundImage, tuning);
 
     const fallbackGradient = useMemo(
         () => `linear-gradient(135deg, ${colorWithAlpha(theme.accentColor, 0.22)}, ${colorWithAlpha(theme.backgroundColor, 0.96)} 50%, ${colorWithAlpha(theme.primaryColor, 0.18)})`,
@@ -45,6 +57,8 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
 
     useEffect(() => {
         let cancelled = false;
+        let timeoutId: number | undefined;
+
         if (!sourceUrl || transparentBackground) {
             setPipelineUrl(null);
             return () => {
@@ -52,19 +66,24 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
             };
         }
 
-        void resolveMonetBackgroundDataUrl({
-            coverUrl,
-            monetBackgroundImage,
-            theme,
-            tuning,
-        }).then(url => {
-            if (!cancelled) {
-                setPipelineUrl(current => (current === url ? current : url));
-            }
-        });
+        timeoutId = window.setTimeout(() => {
+            void resolveMonetBackgroundDataUrl({
+                coverUrl,
+                monetBackgroundImage,
+                theme,
+                tuning,
+            }).then(url => {
+                if (!cancelled) {
+                    setPipelineUrl(current => (current === url ? current : url));
+                }
+            });
+        }, PIPELINE_DEBOUNCE_MS);
 
         return () => {
             cancelled = true;
+            if (timeoutId !== undefined) {
+                window.clearTimeout(timeoutId);
+            }
         };
     }, [backgroundCacheKey, sourceUrl, transparentBackground]);
 
@@ -80,7 +99,7 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
 
     if (tuning.backgroundLayout === 'full-overlay') {
         return (
-            <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute inset-0 z-0 overflow-hidden">
                 <div
                     className="absolute inset-0"
                     style={{
@@ -98,10 +117,11 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
         );
     }
 
-    const imageOpacity = 0.3 + Math.min(Math.max(tuning.backgroundOverlayOpacity, 0), 1) * 0.16;
+    const imageOpacity = 0.3 + clamp(tuning.backgroundOverlayOpacity, 0, 1) * 0.16;
+    const imagePositionX = clamp(50 + tuning.backgroundHalfPaneOffsetX, 10, 90);
 
     return (
-        <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 z-0 overflow-hidden">
             <div
                 className="absolute inset-0"
                 style={{
@@ -116,7 +136,7 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
                         backgroundImage: resolvedBackgroundImage,
                         backgroundRepeat: 'no-repeat',
                         backgroundSize: 'cover',
-                        backgroundPosition: 'center left',
+                        backgroundPosition: `${imagePositionX}% center`,
                         opacity: imageOpacity,
                         WebkitMaskImage: 'linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.46) 74%, rgba(0,0,0,0) 100%)',
                         maskImage: 'linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.46) 74%, rgba(0,0,0,0) 100%)',
@@ -145,4 +165,4 @@ const MonetBackground: React.FC<MonetBackgroundProps> = ({
     );
 };
 
-export default MonetBackground;
+export default MonetBackgroundLayer;

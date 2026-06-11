@@ -9,6 +9,7 @@ import {
     DEFAULT_CAPPELLA_TUNING,
     DEFAULT_CLASSIC_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
     DEFAULT_PARTITA_TUNING,
     AudioBands,
@@ -20,10 +21,13 @@ import {
     DualTheme,
     FumeTuning,
     MonetBackgroundImage,
+    MonetBackgroundTuning,
+    MonetPortraitImage,
     MonetTuning,
     PartitaTuning,
     Theme,
     VisualizerMode,
+    VisualizerBackgroundMode,
 } from '../../types';
 import {
     findPreviewPlaceholderLineIndex,
@@ -41,15 +45,18 @@ interface ThemeParkProps {
     staticMode?: boolean;
     backgroundOpacity?: number;
     visualizerOpacity?: number;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
     classicTuning?: ClassicTuning;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
     cappellaTuning?: CappellaTuning;
+    monetBackgroundTuning?: MonetBackgroundTuning;
     monetTuning?: MonetTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
     monetBackgroundImage?: MonetBackgroundImage | null;
+    monetPortraitImage?: MonetPortraitImage | null;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFontFamily?: string | null;
@@ -94,15 +101,18 @@ const ThemePreviewLayer: React.FC<{
     staticMode: boolean;
     backgroundOpacity: number;
     visualizerOpacity: number;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
     classicTuning: ClassicTuning;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
+    monetBackgroundTuning: MonetBackgroundTuning;
     monetTuning: MonetTuning;
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     cappellaCustomAvatarImages: CappellaAvatarImage[];
     monetBackgroundImage?: MonetBackgroundImage | null;
+    monetPortraitImage?: MonetPortraitImage | null;
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -119,15 +129,18 @@ const ThemePreviewLayer: React.FC<{
     staticMode,
     backgroundOpacity,
     visualizerOpacity,
+    visualizerBackgroundMode,
     classicTuning,
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
     cappellaTuning,
+    monetBackgroundTuning,
     monetTuning,
     cappellaCustomEmojiImages,
     cappellaCustomAvatarImages,
     monetBackgroundImage,
+    monetPortraitImage,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -167,6 +180,7 @@ const ThemePreviewLayer: React.FC<{
                         isPreviewMode
                         backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
+                        visualizerBackgroundMode={visualizerBackgroundMode}
                         coverUrl={VIS_PLAYGROUND_PREVIEW_COVER_URL}
                         lyricsFontScale={lyricsFontScale}
                         classicTuning={classicTuning}
@@ -174,10 +188,12 @@ const ThemePreviewLayer: React.FC<{
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
                         cappellaTuning={cappellaTuning}
+                        monetBackgroundTuning={monetBackgroundTuning}
                         monetTuning={monetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                         monetBackgroundImage={monetBackgroundImage}
+                        monetPortraitImage={monetPortraitImage}
                         seed={getVisualizerScopedSeed(visualizerMode, `theme-park-${mode}`)}
                     />
                 </div>
@@ -232,13 +248,18 @@ const DiagonalThemePreview: React.FC<{
     staticMode: boolean;
     backgroundOpacity: number;
     visualizerOpacity: number;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
     classicTuning: ClassicTuning;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
     cappellaTuning: CappellaTuning;
+    monetBackgroundTuning: MonetBackgroundTuning;
+    monetTuning: MonetTuning;
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     cappellaCustomAvatarImages: CappellaAvatarImage[];
+    monetBackgroundImage?: MonetBackgroundImage | null;
+    monetPortraitImage?: MonetPortraitImage | null;
     lyricsFontScale: number;
     currentTime: ReturnType<typeof useMotionValue<number>>;
     currentLineIndex: number;
@@ -254,13 +275,18 @@ const DiagonalThemePreview: React.FC<{
     staticMode,
     backgroundOpacity,
     visualizerOpacity,
+    visualizerBackgroundMode,
     classicTuning,
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
     cappellaTuning,
+    monetBackgroundTuning,
+    monetTuning,
     cappellaCustomEmojiImages,
     cappellaCustomAvatarImages,
+    monetBackgroundImage,
+    monetPortraitImage,
     lyricsFontScale,
     currentTime,
     currentLineIndex,
@@ -299,13 +325,18 @@ const DiagonalThemePreview: React.FC<{
                     staticMode={staticMode}
                     backgroundOpacity={backgroundOpacity}
                     visualizerOpacity={visualizerOpacity}
+                    visualizerBackgroundMode={visualizerBackgroundMode}
                     classicTuning={classicTuning}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
                     cappellaTuning={cappellaTuning}
+                    monetBackgroundTuning={monetBackgroundTuning}
+                    monetTuning={monetTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                     cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                    monetBackgroundImage={monetBackgroundImage}
+                    monetPortraitImage={monetPortraitImage}
                     lyricsFontScale={lyricsFontScale}
                     currentTime={currentTime}
                     currentLineIndex={currentLineIndex}
@@ -323,13 +354,18 @@ const DiagonalThemePreview: React.FC<{
                     staticMode={staticMode}
                     backgroundOpacity={backgroundOpacity}
                     visualizerOpacity={visualizerOpacity}
+                    visualizerBackgroundMode={visualizerBackgroundMode}
                     classicTuning={classicTuning}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
                     fumeTuning={fumeTuning}
                     cappellaTuning={cappellaTuning}
+                    monetBackgroundTuning={monetBackgroundTuning}
+                    monetTuning={monetTuning}
                     cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                     cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                    monetBackgroundImage={monetBackgroundImage}
+                    monetPortraitImage={monetPortraitImage}
                     lyricsFontScale={lyricsFontScale}
                     currentTime={currentTime}
                     currentLineIndex={currentLineIndex}
@@ -350,15 +386,18 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     staticMode = false,
     backgroundOpacity = 0.75,
     visualizerOpacity = 1,
+    visualizerBackgroundMode = null,
     classicTuning = DEFAULT_CLASSIC_TUNING,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
     cappellaTuning = DEFAULT_CAPPELLA_TUNING,
+    monetBackgroundTuning = DEFAULT_MONET_BACKGROUND_TUNING,
     monetTuning = DEFAULT_MONET_TUNING,
     cappellaCustomEmojiImages = [],
     cappellaCustomAvatarImages = [],
     monetBackgroundImage = null,
+    monetPortraitImage = null,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsCustomFontFamily,
@@ -550,15 +589,18 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             staticMode={staticMode}
                             backgroundOpacity={backgroundOpacity}
                             visualizerOpacity={visualizerOpacity}
+                            visualizerBackgroundMode={visualizerBackgroundMode}
                             classicTuning={classicTuning}
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
                             fumeTuning={fumeTuning}
                             cappellaTuning={cappellaTuning}
+                            monetBackgroundTuning={monetBackgroundTuning}
                             monetTuning={monetTuning}
                             cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                             cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                             monetBackgroundImage={monetBackgroundImage}
+                            monetPortraitImage={monetPortraitImage}
                             lyricsFontScale={lyricsFontScale}
                             currentTime={currentTime}
                             currentLineIndex={currentLineIndex}

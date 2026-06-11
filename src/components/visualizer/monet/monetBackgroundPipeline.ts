@@ -1,5 +1,5 @@
 import { colorWithAlpha, parseColorChannels } from '../colorMix';
-import type { MonetBackgroundImage, MonetTuning, Theme } from '../../../types';
+import type { MonetBackgroundImage, MonetBackgroundTuning, Theme } from '../../../types';
 
 // src/components/visualizer/monet/monetBackgroundPipeline.ts
 // Builds and caches the static Monet poster background so the visualizer only recomputes when inputs change.
@@ -11,7 +11,7 @@ interface BuildMonetBackgroundOptions {
     coverUrl?: string | null;
     monetBackgroundImage?: MonetBackgroundImage | null;
     theme: Theme;
-    tuning: MonetTuning;
+    tuning: MonetBackgroundTuning;
 }
 
 interface RgbChannels {
@@ -119,6 +119,8 @@ const applyBackgroundPostProcessing = (
     const background = resolveThemeChannel(theme.backgroundColor, FALLBACK_DARK);
     const accent = resolveThemeChannel(theme.accentColor, background);
     const primary = resolveThemeChannel(theme.primaryColor, FALLBACK_LIGHT);
+    const customWash = resolveThemeChannel(tuning.backgroundWashCustomColor, accent);
+    const washAccent = tuning.backgroundWashColorMode === 'custom' ? customWash : accent;
 
     for (let index = 0; index < data.length; index += 4) {
         let r = data[index];
@@ -144,7 +146,7 @@ const applyBackgroundPostProcessing = (
         }
 
         if (wash > 0) {
-            const washColor = resolveWashColor(clamp(luminance / 255, 0, 1), background, accent, primary);
+            const washColor = resolveWashColor(clamp(luminance / 255, 0, 1), background, washAccent, primary);
             r = mix(r, washColor.r, wash);
             g = mix(g, washColor.g, wash);
             b = mix(b, washColor.b, wash);
@@ -213,6 +215,8 @@ export const getMonetBackgroundCacheKey = ({
         backgroundGrayscale: tuning.backgroundGrayscale,
         backgroundSaturation: tuning.backgroundSaturation,
         backgroundWash: tuning.backgroundWash,
+        backgroundWashColorMode: tuning.backgroundWashColorMode,
+        backgroundWashCustomColor: tuning.backgroundWashCustomColor,
     },
 });
 
