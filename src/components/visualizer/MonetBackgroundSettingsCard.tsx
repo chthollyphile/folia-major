@@ -192,8 +192,8 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
         },
     ]), [isLoadingMonetBackgroundImage, monetBackgroundImage, t]);
     const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
-        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
         { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },
+        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
     ]), [t]);
     const washModeOptions = useMemo<PresetOption<MonetBackgroundWashColorMode>[]>(() => ([
         { value: 'theme', label: t('options.monetBackgroundWashTheme') || '主题色' },

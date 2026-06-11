@@ -2104,6 +2104,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onToggleCustomThemePreferred={onToggleCustomThemePreferred}
                         onToggleSongThemeAutoSwitch={onToggleSongThemeAutoSwitch}
                         onToggleTransparentPlayerBackground={onToggleTransparentPlayerBackground}
+                        onSaveCustomTheme={onSaveCustomTheme}
                         settingsCardClass={settingsCardClass}
                         songThemeAutoSwitchEnabled={songThemeAutoSwitchEnabled}
                         theme={theme}

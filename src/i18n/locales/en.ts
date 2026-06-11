@@ -49,6 +49,7 @@ export default {
     "queueShuffled": "Queue shuffled",
     "queueUpdated": "Added to queue",
     "copiedSongInfo": "Copied song info",
+    "copied": "Copied",
   },
   "commandPalette": {
     "placeholder": "Type a command or search...",
@@ -564,7 +565,14 @@ export default {
     "monetGroupBackgroundSource": "Background Source",
     "monetGroupLayoutPosition": "Layout & Position",
     "monetGroupFiltersPostProcessing": "Filters & Post-processing",
-    "monetGroupColorTintWash": "Color Tint & Wash"
+    "monetGroupColorTintWash": "Color Tint & Wash",
+    "importExportTitle": "Backup & Import",
+    "importExportDesc": "Import or export custom themes and visual settings using standard JSON or Folia-specific shortcodes.",
+    "importPlaceholder": "Paste backup text here, or enter standard JSON directly...",
+    "importBtn": "Import Config",
+    "exportBtn": "Copy Current Config",
+    "importSuccess": "Configuration imported successfully!",
+    "importFailed": "Import failed, please check the format.",
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

@@ -172,7 +172,7 @@ const ThemePreviewLayer: React.FC<{
                         currentLineIndex={currentLineIndex}
                         lines={VIS_PLAYGROUND_PREVIEW_LINES}
                         theme={theme}
-                        isDaylight={isDaylight}
+                        isDaylight={isLight}
                         audioPower={audioPower}
                         audioBands={audioBands}
                         songTitle="Cappella Preview"

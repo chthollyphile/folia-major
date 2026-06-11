@@ -49,6 +49,7 @@ export default {
     "queueShuffled": "播放队列已打乱",
     "queueUpdated": "已添加到播放队列",
     "copiedSongInfo": "已复制歌曲信息",
+    "copied": "已复制",
   },
   "commandPalette": {
     "placeholder": "输入命令或搜索内容...",
@@ -568,6 +569,13 @@ export default {
     "monetGroupLayoutPosition": "布局与对齐",
     "monetGroupFiltersPostProcessing": "视觉增强与滤镜",
     "monetGroupColorTintWash": "叠色与水洗",
+    "importExportTitle": "备份与导入",
+    "importExportDesc": "通过标准 JSON 或 Folia 专属压缩码导入/导出自定义配色与视觉设置。",
+    "importPlaceholder": "在此处粘贴备份文本，或直接输入标准 JSON...",
+    "importBtn": "导入配置",
+    "exportBtn": "复制当前配置",
+    "importSuccess": "配置导入成功！",
+    "importFailed": "配置导入失败，请检查格式是否正确。",
   },
   "localMusic": {
     "foldersAndPlaylists": "文件夹",
