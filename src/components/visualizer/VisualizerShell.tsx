@@ -15,6 +15,7 @@ import MonetBackgroundLayer from './backgrounds/MonetBackgroundLayer';
 type VisualizerShellSharedProps = Pick<
     VisualizerSharedProps,
     | 'coverUrl'
+    | 'isDaylight'
     | 'useCoverColorBg'
     | 'seed'
     | 'backgroundOpacity'
@@ -72,6 +73,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
     const resolvedCoverUrl = sharedProps?.coverUrl ?? coverUrl;
+    const resolvedIsDaylight = sharedProps?.isDaylight ?? false;
     const resolvedUseCoverColorBg = sharedProps?.useCoverColorBg ?? useCoverColorBg;
     const resolvedSeed = sharedProps?.seed ?? seed;
     const resolvedBackgroundOpacity = sharedProps?.backgroundOpacity ?? backgroundOpacity;
@@ -169,6 +171,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                     coverUrl={resolvedCoverUrl}
                     monetBackgroundImage={resolvedMonetBackgroundImage}
                     theme={theme}
+                    isDaylight={resolvedIsDaylight}
                     tuning={resolvedMonetBackgroundTuning}
                     transparentBackground={resolvedTransparentBackground}
                 />

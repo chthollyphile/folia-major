@@ -157,9 +157,9 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         {
             value: 'custom',
             label: t('options.monetPortraitSourceCustom') || '自定义图片',
-            disabled: !monetPortraitImage,
+            disabled: !monetPortraitImage && !isLoadingMonetPortraitImage,
         },
-    ]), [monetPortraitImage, t]);
+    ]), [isLoadingMonetPortraitImage, monetPortraitImage, t]);
     const audioStyleOptions = useMemo<PresetOption<MonetAudioStyle>[]>(() => ([
         { value: 'bar', label: t('options.monetAudioStyleBar') || '柱状' },
         { value: 'line', label: t('options.monetAudioStyleLine') || '线条' },

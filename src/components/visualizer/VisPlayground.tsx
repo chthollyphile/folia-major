@@ -826,6 +826,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 currentLineIndex={currentLineIndex}
                                 lines={VIS_PLAYGROUND_PREVIEW_LINES}
                                 theme={previewTheme}
+                                isDaylight={isDaylight}
                                 audioPower={audioPower}
                                 audioBands={audioBands}
                                 songTitle="Cappella Preview"

@@ -188,9 +188,9 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
         {
             value: 'uploaded-global',
             label: t('options.monetBackgroundSourceUploaded') || '自定义图片',
-            disabled: !monetBackgroundImage,
+            disabled: !monetBackgroundImage && !isLoadingMonetBackgroundImage,
         },
-    ]), [monetBackgroundImage, t]);
+    ]), [isLoadingMonetBackgroundImage, monetBackgroundImage, t]);
     const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
         { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
         { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },

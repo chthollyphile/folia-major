@@ -9,6 +9,7 @@ interface MonetBackgroundLayerProps {
     coverUrl?: string | null;
     monetBackgroundImage?: MonetBackgroundImage | null;
     theme: Theme;
+    isDaylight?: boolean;
     tuning?: MonetBackgroundTuning;
     transparentBackground?: boolean;
 }
@@ -31,6 +32,7 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
     coverUrl,
     monetBackgroundImage,
     theme,
+    isDaylight = false,
     tuning = DEFAULT_MONET_BACKGROUND_TUNING,
     transparentBackground = false,
 }) => {
@@ -117,7 +119,8 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
         );
     }
 
-    const imageOpacity = 0.3 + clamp(tuning.backgroundOverlayOpacity, 0, 1) * 0.16;
+    const baseImageOpacity = isDaylight ? 0.7 : 0.3;
+    const imageOpacity = baseImageOpacity + clamp(tuning.backgroundOverlayOpacity, 0, 1) * 0.16;
     const imagePositionX = clamp(50 + tuning.backgroundHalfPaneOffsetX, 10, 90);
 
     return (

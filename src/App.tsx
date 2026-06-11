@@ -2250,6 +2250,7 @@ export default function App() {
                     currentLineIndex={currentLineIndex}
                     lines={lyrics?.lines || []}
                     theme={visualizerTheme}
+                    isDaylight={isDaylight}
                     audioPower={audioPower}
                     audioBands={audioBands}
                     songTitle={currentSong?.name}

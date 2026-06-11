@@ -336,7 +336,7 @@ export interface MonetTuning {
 export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
   backgroundSource: 'cover-derived',
   backgroundLayout: 'half-pane-gradient',
-  backgroundBlurPx: 60,
+  backgroundBlurPx: 2,
   backgroundOverlayOpacity: 0.42,
   backgroundGrayscale: 0,
   backgroundSaturation: 1.05,

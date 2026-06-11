@@ -29,6 +29,7 @@ export interface VisualizerSharedProps {
     currentLineIndex: number;
     lines: Line[];
     theme: Theme;
+    isDaylight?: boolean;
     audioPower: MotionValue<number>;
     audioBands: AudioBands;
     showText?: boolean;

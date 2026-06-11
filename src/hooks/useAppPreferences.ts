@@ -44,7 +44,9 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     const storedCappellaEmojiPack = useSettingsUiStore(state => state.storedCappellaEmojiPack);
     const storedCappellaAvatarPack = useSettingsUiStore(state => state.storedCappellaAvatarPack);
     const storedMonetBackgroundImage = useSettingsUiStore(state => state.storedMonetBackgroundImage);
+    const isLoadingMonetBackgroundImage = useSettingsUiStore(state => state.isLoadingMonetBackgroundImage);
     const storedMonetPortraitImage = useSettingsUiStore(state => state.storedMonetPortraitImage);
+    const isLoadingMonetPortraitImage = useSettingsUiStore(state => state.isLoadingMonetPortraitImage);
     const monetBackgroundTuning = useSettingsUiStore(state => state.monetBackgroundTuning);
     const monetTuning = useSettingsUiStore(state => state.monetTuning);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
@@ -307,7 +309,11 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setMonetPortraitImage, storedMonetPortraitImage]);
 
     useEffect(() => {
-        if (storedMonetBackgroundImage || monetBackgroundTuning.backgroundSource !== 'uploaded-global') {
+        if (
+            isLoadingMonetBackgroundImage
+            || storedMonetBackgroundImage
+            || monetBackgroundTuning.backgroundSource !== 'uploaded-global'
+        ) {
             return;
         }
 
@@ -315,10 +321,14 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             ...monetBackgroundTuning,
             backgroundSource: 'cover-derived',
         }));
-    }, [handleSetMonetBackgroundTuning, monetBackgroundTuning, storedMonetBackgroundImage]);
+    }, [handleSetMonetBackgroundTuning, isLoadingMonetBackgroundImage, monetBackgroundTuning, storedMonetBackgroundImage]);
 
     useEffect(() => {
-        if (storedMonetPortraitImage || monetTuning.portraitSource !== 'custom') {
+        if (
+            isLoadingMonetPortraitImage
+            || storedMonetPortraitImage
+            || monetTuning.portraitSource !== 'custom'
+        ) {
             return;
         }
 
@@ -326,7 +336,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             ...monetTuning,
             portraitSource: 'cover',
         }));
-    }, [handleSetMonetTuning, monetTuning, storedMonetPortraitImage]);
+    }, [handleSetMonetTuning, isLoadingMonetPortraitImage, monetTuning, storedMonetPortraitImage]);
 
     return preferences;
 }
