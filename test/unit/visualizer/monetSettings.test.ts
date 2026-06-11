@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
-import { getMonetBackgroundCacheKey } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, resolveWashColor } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
@@ -9,6 +9,19 @@ import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveVi
 // test/unit/visualizer/monetSettings.test.ts
 // Locks Monet tuning normalization, background cache keys, and lyric helper contracts.
 describe('Monet tuning and lyric helpers', () => {
+    it('keeps bright wash targets bright in daylight themes instead of pulling them toward dark text color', () => {
+        const washColor = resolveWashColor(
+            0.95,
+            { r: 245, g: 245, b: 244 },
+            { r: 234, g: 88, b: 12 },
+            { r: 28, g: 25, b: 23 },
+        );
+
+        expect(washColor.r).toBeGreaterThan(220);
+        expect(washColor.g).toBeGreaterThan(190);
+        expect(washColor.b).toBeGreaterThan(170);
+    });
+
     it('normalizes persisted Monet background tuning values from legacy storage', () => {
         expect(resolveStoredMonetBackgroundTuning({
             backgroundSource: 'uploaded-global',

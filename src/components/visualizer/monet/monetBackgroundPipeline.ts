@@ -27,6 +27,18 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 const luminanceOf = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
+export const resolveWashEndpoints = (
+    background: RgbChannels,
+    primary: RgbChannels,
+) => {
+    const backgroundLuminance = luminanceOf(background.r, background.g, background.b);
+    const primaryLuminance = luminanceOf(primary.r, primary.g, primary.b);
+
+    return backgroundLuminance <= primaryLuminance
+        ? { shadow: background, highlight: primary }
+        : { shadow: primary, highlight: background };
+};
+
 const resolveSourceUrl = ({
     coverUrl,
     monetBackgroundImage,
@@ -76,26 +88,27 @@ const resolveThemeChannel = (color: string, fallback: RgbChannels): RgbChannels 
         : fallback;
 };
 
-const resolveWashColor = (
+export const resolveWashColor = (
     normalizedLuminance: number,
     background: RgbChannels,
     accent: RgbChannels,
     primary: RgbChannels,
 ): RgbChannels => {
+    const { shadow, highlight } = resolveWashEndpoints(background, primary);
     if (normalizedLuminance <= 0.55) {
         const amount = normalizedLuminance / 0.55;
         return {
-            r: mix(background.r, accent.r, amount),
-            g: mix(background.g, accent.g, amount),
-            b: mix(background.b, accent.b, amount),
+            r: mix(shadow.r, accent.r, amount),
+            g: mix(shadow.g, accent.g, amount),
+            b: mix(shadow.b, accent.b, amount),
         };
     }
 
     const amount = (normalizedLuminance - 0.55) / 0.45;
     return {
-        r: mix(accent.r, primary.r, amount),
-        g: mix(accent.g, primary.g, amount),
-        b: mix(accent.b, primary.b, amount),
+        r: mix(accent.r, highlight.r, amount),
+        g: mix(accent.g, highlight.g, amount),
+        b: mix(accent.b, highlight.b, amount),
     };
 };
 
