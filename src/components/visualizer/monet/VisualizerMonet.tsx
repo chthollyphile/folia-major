@@ -301,11 +301,12 @@ const MonetTimedTokenSpan: React.FC<{
         }
 
         const updateFont = () => {
-            setMeasuredFontPx(fontPx);
+            setMeasuredFontPx(current => current === fontPx ? current : fontPx);
         };
         const updateWidth = () => {
             if (node.parentElement) {
-                setContainerWidth(node.parentElement.clientWidth);
+                const nextWidth = node.parentElement.clientWidth;
+                setContainerWidth(current => current === nextWidth ? current : nextWidth);
             }
         };
 
@@ -330,12 +331,17 @@ const MonetTimedTokenSpan: React.FC<{
     const lineHeightPx = fontPx * 1.2;
     const fullText = line.fullText || '';
     const lineCount = useMemo(
-        () => (isActive ? measureLineCount(fullText, measuredFontPx, fontSpec, Math.max(containerWidth, 1)) : 1),
-        [isActive, fullText, measuredFontPx, fontSpec, containerWidth],
+        () => (containerWidth > 0 ? measureLineCount(fullText, measuredFontPx, fontSpec, containerWidth) : 1),
+        [fullText, measuredFontPx, fontSpec, containerWidth],
     );
+    const shouldShowEllipsis = !isActive && lineCount > 1;
+    const ellipsisWidthPx = Math.max(measuredFontPx * 2.2, 38);
+    const contentMaskImage = shouldShowEllipsis
+        ? `linear-gradient(90deg, black 0%, black calc(100% - ${ellipsisWidthPx}px), transparent 100%)`
+        : undefined;
 
     return (
-        <span ref={rootRef} className="block w-full min-w-0 max-w-full align-top whitespace-pre-wrap break-words"
+        <span ref={rootRef} className="relative block w-full min-w-0 max-w-full align-top whitespace-pre-wrap break-words"
             style={{
                 maxHeight: isActive ? `${lineHeightPx * lineCount}px` : `${lineHeightPx}px`,
                 overflow: isActive ? 'visible' : 'hidden',
@@ -343,32 +349,60 @@ const MonetTimedTokenSpan: React.FC<{
                 transition: 'max-height 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
             }}
         >
-            {tokens.map(token => {
-                const isTimed = token.startTime !== null
-                    && token.endTime !== null
-                    && !token.key.includes('-static-')
-                    && !token.key.includes('-tail');
+            <span
+                className="block w-full min-w-0 max-w-full whitespace-pre-wrap break-words"
+                style={{
+                    WebkitMaskImage: contentMaskImage,
+                    maskImage: contentMaskImage,
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskSize: '100% 100%',
+                    maskSize: '100% 100%',
+                }}
+            >
+                {tokens.map(token => {
+                    const isTimed = token.startTime !== null
+                        && token.endTime !== null
+                        && !token.key.includes('-static-')
+                        && !token.key.includes('-tail');
 
-                return isTimed && token.startTime !== null && token.endTime !== null ? (
-                    <MonetWordSweep
-                        key={token.key}
-                        text={token.text}
-                        startTime={token.startTime}
-                        endTime={token.endTime}
-                        lineRenderEndTime={lineRenderEndTime}
-                        currentTime={currentTime}
-                        isLineActive={isActive}
-                        defaultAccentColor={accentColor}
-                        baseColor={baseColor}
-                        fontPx={measuredFontPx}
-                        fontSpec={fontSpec}
-                    />
-                ) : (
-                    <span key={token.key} style={{ color: baseColor }}>
-                        {token.text}
-                    </span>
-                );
-            })}
+                    return isTimed && token.startTime !== null && token.endTime !== null ? (
+                        <MonetWordSweep
+                            key={token.key}
+                            text={token.text}
+                            startTime={token.startTime}
+                            endTime={token.endTime}
+                            lineRenderEndTime={lineRenderEndTime}
+                            currentTime={currentTime}
+                            isLineActive={isActive}
+                            defaultAccentColor={accentColor}
+                            baseColor={baseColor}
+                            fontPx={measuredFontPx}
+                            fontSpec={fontSpec}
+                        />
+                    ) : (
+                        <span key={token.key} style={{ color: baseColor }}>
+                            {token.text}
+                        </span>
+                    );
+                })}
+            </span>
+            {shouldShowEllipsis ? (
+                <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-0 top-0 flex items-baseline justify-end"
+                    style={{
+                        width: `${ellipsisWidthPx}px`,
+                        height: `${lineHeightPx}px`,
+                        color: baseColor,
+                        fontSize: `${measuredFontPx}px`,
+                        fontWeight,
+                        lineHeight: `${lineHeightPx}px`,
+                    }}
+                >
+                    ...
+                </span>
+            ) : null}
         </span>
     );
 };
