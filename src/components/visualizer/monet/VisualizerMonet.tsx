@@ -96,41 +96,41 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
             <div className="relative z-10 flex h-full w-full items-center justify-center overflow-hidden">
                 <div className="flex h-full w-full max-w-[1520px] flex-row items-center overflow-hidden">
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center px-5 py-5 sm:px-8 sm:py-6 lg:px-14 lg:py-8">
-                        <div className="mb-3 space-y-1.5">
-                            <div
-                                className="text-[clamp(1rem,1.8vw,1.8rem)] italic"
-                                style={{ color: colorWithAlpha(theme.primaryColor, 0.96), letterSpacing: 0 }}
-                            >
-                                {primaryMetaLabel}
+                    {showText && (
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center px-5 py-5 sm:px-8 sm:py-6 lg:px-14 lg:py-8">
+                            <div className="mb-3 space-y-1.5">
+                                <div
+                                    className="text-[clamp(1rem,1.8vw,1.8rem)] italic"
+                                    style={{ color: colorWithAlpha(theme.primaryColor, 0.96), letterSpacing: 0 }}
+                                >
+                                    {primaryMetaLabel}
+                                </div>
+                                <div
+                                    className="h-14 w-px rounded-full"
+                                    style={{ background: `linear-gradient(180deg, ${colorWithAlpha(theme.primaryColor, 0.72)}, transparent)` }}
+                                />
                             </div>
-                            <div
-                                className="h-14 w-px rounded-full"
-                                style={{ background: `linear-gradient(180deg, ${colorWithAlpha(theme.primaryColor, 0.72)}, transparent)` }}
-                            />
-                        </div>
 
-                        <div className="mb-6 space-y-1">
-                            <div
-                                className="font-semibold leading-[1.06]"
-                                style={{
-                                    color: theme.primaryColor,
-                                    fontSize: 'clamp(1.45rem, 3.3vw, 2.8rem)',
-                                    letterSpacing: 0,
-                                    textShadow: `0 14px 36px ${colorWithAlpha(theme.backgroundColor, 0.28)}`,
-                                }}
-                            >
-                                {songTitle || 'Monet'}
+                            <div className="mb-6 space-y-1">
+                                <div
+                                    className="font-semibold leading-[1.06]"
+                                    style={{
+                                        color: theme.primaryColor,
+                                        fontSize: 'clamp(1.45rem, 3.3vw, 2.8rem)',
+                                        letterSpacing: 0,
+                                        textShadow: `0 14px 36px ${colorWithAlpha(theme.backgroundColor, 0.28)}`,
+                                    }}
+                                >
+                                    {songTitle || 'Monet'}
+                                </div>
+                                <div
+                                    className="text-sm uppercase"
+                                    style={{ color: colorWithAlpha(theme.secondaryColor, 0.84), letterSpacing: 0 }}
+                                >
+                                    {secondaryMetaLabel}
+                                </div>
                             </div>
-                            <div
-                                className="text-sm uppercase"
-                                style={{ color: colorWithAlpha(theme.secondaryColor, 0.84), letterSpacing: 0 }}
-                            >
-                                {secondaryMetaLabel}
-                            </div>
-                        </div>
 
-                        {showText ? (
                             <MonetLyricsRail
                                 entries={visibleLineEntries}
                                 currentTime={currentTime}
@@ -142,24 +142,22 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 keywordColoringEnabled={monetTuning.keywordColoringEnabled}
                                 emptyText={t('ui.waitingForMusic') || 'Waiting for music'}
                             />
-                        ) : (
-                            <div className="h-[clamp(220px,32vh,320px)]" />
-                        )}
 
-                        <div className="mt-auto pt-4">
-                            <div
-                                className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
-                                style={{
-                                    borderColor: colorWithAlpha(theme.primaryColor, 0.16),
-                                    backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
-                                    color: colorWithAlpha(theme.primaryColor, 0.9),
-                                }}
-                            >
-                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
-                                <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{secondaryMetaLabel}</span>
+                            <div className="mt-auto pt-4">
+                                <div
+                                    className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
+                                    style={{
+                                        borderColor: colorWithAlpha(theme.primaryColor, 0.16),
+                                        backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
+                                        color: colorWithAlpha(theme.primaryColor, 0.9),
+                                    }}
+                                >
+                                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                                    <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{secondaryMetaLabel}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {showText ? (
                         <div
@@ -196,19 +194,21 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                 </div>
             </div>
 
-            <div
-                className="absolute bottom-0 left-0 z-20 h-10 overflow-hidden px-5 sm:px-8 lg:px-14"
-                style={{ width: 'min(450px, 55vw)' }}
-            >
-                <AudioOverlay
-                    audioPower={audioPower}
-                    audioBands={audioBands}
-                    theme={theme}
-                    mode={monetTuning.audioStyle}
-                    staticMode={staticMode}
-                    isPreviewMode={isPreviewMode}
-                />
-            </div>
+            {showText && (
+                <div
+                    className="absolute bottom-0 left-0 z-20 h-10 overflow-hidden px-5 sm:px-8 lg:px-14"
+                    style={{ width: 'min(450px, 55vw)' }}
+                >
+                    <AudioOverlay
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        theme={theme}
+                        mode={monetTuning.audioStyle}
+                        staticMode={staticMode}
+                        isPreviewMode={isPreviewMode}
+                    />
+                </div>
+            )}
         </VisualizerShell>
     );
 };
