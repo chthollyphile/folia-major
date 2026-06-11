@@ -42,7 +42,7 @@ const sampleSpectrumProfile = (bands: number[], normalizedIndex: number) => {
     const upperIndex = Math.min(lowerIndex + 1, anchors.length - 1);
     const interpolation = scaledIndex - lowerIndex;
     const lowerValue = anchors[lowerIndex] ?? 0;
-    const upperValue = bands[upperIndex] ?? lowerValue;
+    const upperValue = anchors[upperIndex] ?? lowerValue;
     const interpolated = lowerValue + (upperValue - lowerValue) * interpolation;
 
     // Add a fuller contour so the profile reads like a continuous response curve.
@@ -77,10 +77,18 @@ const sampleRawSpectrumProfile = (rawSpectrum: Uint8Array, normalizedIndex: numb
     }
 
     const averaged = weightTotal > 0 ? weightedSum / weightTotal : 0;
-    const normalized = Math.max(0, Math.min(1, (averaged - 12) / 243));
-    const lowFrequencyCompensation = 0.62 + clampedIndex * 0.52;
+    
+    // Dynamic noise floor based on frequency (higher noise subtraction for lower frequencies)
+    const noiseFloor = 16 + (1 - clampedIndex) * 12;
+    const normalized = Math.max(0, Math.min(1, (averaged - noiseFloor) / (255 - noiseFloor)));
+
+    // Power compression to suppress quiet/humming baseline and increase visual peaks (contrast)
+    const power = 1.8 + (1 - clampedIndex) * 0.4;
+    const processed = Math.pow(normalized, power);
+
+    const lowFrequencyCompensation = 0.52 + clampedIndex * 0.62;
     const presenceLift = 0.92 + Math.sqrt(clampedIndex) * 0.14;
-    return Math.max(0, Math.min(1, normalized * lowFrequencyCompensation * presenceLift));
+    return Math.max(0, Math.min(1, processed * lowFrequencyCompensation * presenceLift));
 };
 
 const drawStaticBars = (context: CanvasRenderingContext2D, width: number, height: number, theme: Theme, mode: MonetAudioStyle) => {
@@ -91,23 +99,54 @@ const drawStaticBars = (context: CanvasRenderingContext2D, width: number, height
     context.lineCap = 'round';
 
     if (mode === 'line') {
-        context.beginPath();
+        const points: { x: number; y: number }[] = [];
         for (let index = 0; index < BAR_COUNT; index += 1) {
             const x = (index / (BAR_COUNT - 1)) * width;
-            const y = height * (0.62 - Math.sin(index * 0.42) * 0.14);
-            if (index === 0) {
-                context.moveTo(x, y);
-            } else {
-                context.lineTo(x, y);
-            }
+            const spectrumIndex = index / (BAR_COUNT - 1);
+            const envelope = Math.sin(spectrumIndex * Math.PI);
+            const val = 0.12 + (Math.sin(index * 0.35) * 0.5 + 0.5) * 0.42;
+            const y = height - (height * val * envelope);
+            points.push({ x, y });
         }
+
+        const drawCurve = (ctx: CanvasRenderingContext2D) => {
+            if (points.length === 0) return;
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < points.length - 1; i++) {
+                const xc = (points[i].x + points[i + 1].x) / 2;
+                const yc = (points[i].y + points[i + 1].y) / 2;
+                ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+            }
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+        };
+
+        // Fill area under the curve
+        context.beginPath();
+        drawCurve(context);
+        context.lineTo(width, height);
+        context.lineTo(0, height);
+        context.closePath();
+        const fillGradient = context.createLinearGradient(0, 0, 0, height);
+        fillGradient.addColorStop(0, colorWithAlpha(theme.primaryColor, 0.24));
+        fillGradient.addColorStop(1, colorWithAlpha(theme.primaryColor, 0.0));
+        context.fillStyle = fillGradient;
+        context.fill();
+
+        // Stroke curve
+        context.beginPath();
+        drawCurve(context);
+        context.strokeStyle = colorWithAlpha(theme.primaryColor, 0.96);
+        context.lineWidth = 2.0;
         context.stroke();
         return;
     }
 
     const gap = width / BAR_COUNT;
     for (let index = 0; index < BAR_COUNT; index += 1) {
-        const barHeight = height * (0.12 + (Math.sin(index * 0.35) * 0.5 + 0.5) * 0.42);
+        const spectrumIndex = index / (BAR_COUNT - 1);
+        const envelope = Math.sin(spectrumIndex * Math.PI);
+        const val = 0.12 + (Math.sin(index * 0.35) * 0.5 + 0.5) * 0.42;
+        const barHeight = height * (0.02 + val * 0.8 * envelope);
         const x = index * gap + gap * 0.14;
         context.fillRect(x, height - barHeight, Math.max(1.35, gap * 0.34), barHeight);
     }
@@ -178,7 +217,7 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
             context.lineCap = 'round';
 
             if (mode === 'line') {
-                context.beginPath();
+                const points: { x: number; y: number }[] = [];
                 for (let index = 0; index < BAR_COUNT; index += 1) {
                     const x = (index / (BAR_COUNT - 1)) * width;
                     const spectrumIndex = index / (BAR_COUNT - 1);
@@ -188,13 +227,41 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
                     const wave =
                         Math.sin(index * 0.24 + performance.now() * 0.004) * 0.08 +
                         Math.sin(index * 0.68 + performance.now() * 0.0028) * 0.05;
-                    const y = height * (0.9 - (energy * 0.12 + band * 0.42 + wave * 0.08));
-                    if (index === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
+                    
+                    const envelope = Math.sin(spectrumIndex * Math.PI);
+                    const amplitude = energy * 0.04 + band * 0.8 + wave * 0.04;
+                    const y = height - Math.max(0, height * amplitude * envelope);
+                    points.push({ x, y });
                 }
+
+                const drawCurve = (ctx: CanvasRenderingContext2D) => {
+                    if (points.length === 0) return;
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 0; i < points.length - 1; i++) {
+                        const xc = (points[i].x + points[i + 1].x) / 2;
+                        const yc = (points[i].y + points[i + 1].y) / 2;
+                        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+                    }
+                    ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+                };
+
+                // Fill area under the curve
+                context.beginPath();
+                drawCurve(context);
+                context.lineTo(width, height);
+                context.lineTo(0, height);
+                context.closePath();
+                const fillGradient = context.createLinearGradient(0, 0, 0, height);
+                fillGradient.addColorStop(0, colorWithAlpha(theme.primaryColor, 0.24));
+                fillGradient.addColorStop(1, colorWithAlpha(theme.primaryColor, 0.0));
+                context.fillStyle = fillGradient;
+                context.fill();
+
+                // Stroke top curve
+                context.beginPath();
+                drawCurve(context);
+                context.strokeStyle = gradient;
+                context.lineWidth = 2.0;
                 context.stroke();
             } else {
                 const gap = width / BAR_COUNT;
@@ -204,7 +271,9 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
                         ? sampleRawSpectrumProfile(rawSpectrum, spectrumIndex)
                         : sampleSpectrumProfile(bands, spectrumIndex);
                     const pulse = Math.sin(index * 0.45 + performance.now() * 0.006) * 0.5 + 0.5;
-                    const barHeight = height * (0.08 + energy * 0.18 + band * 0.34 + pulse * 0.03);
+                    
+                    const envelope = Math.sin(spectrumIndex * Math.PI);
+                    const barHeight = height * (0.02 + (energy * 0.04 + band * 0.82 + pulse * 0.02) * envelope);
                     const x = index * gap + gap * 0.14;
                     context.fillRect(x, height - barHeight, Math.max(1.35, gap * 0.34), barHeight);
                 }
