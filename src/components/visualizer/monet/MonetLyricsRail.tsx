@@ -52,6 +52,8 @@ const MONET_RAIL_WIDTH_FALLBACK_PX = 680;
 const MONET_RAIL_HEIGHT_FALLBACK_PX = 340;
 const MONET_ACTIVE_GAP_PX = 18;
 const MONET_INACTIVE_GAP_PX = 14;
+const MONET_GLOW_RISE_DURATION_SCALE = 1.18;
+const MONET_GLOW_PASS_TAIL_SECONDS = 1.05;
 const MONET_SCROLL_TRANSITION = {
     y: { type: 'spring', stiffness: 142, damping: 28, mass: 0.82 },
     scale: { type: 'spring', stiffness: 150, damping: 30, mass: 0.78 },
@@ -288,6 +290,7 @@ const MonetWordSweep: React.FC<{
     theme,
 }) => {
     const isLineActive = lineStatus === 'active';
+    const canRenderGlow = lineStatus === 'active' || lineStatus === 'passed';
     const wordColor = useMemo(
         () => resolveMonetWordColor(text, theme, defaultAccentColor),
         [defaultAccentColor, text, theme],
@@ -333,19 +336,22 @@ const MonetWordSweep: React.FC<{
     });
 
     const resolvedBaseColor = useTransform(wordStatus, status =>
-        isLineActive && status === 'passed' ? wordColor : baseColor,
+        (isLineActive && status === 'passed') || lineStatus === 'passed' ? wordColor : baseColor,
     );
 
     const glowShadow = useTransform(currentTime, latest => {
-        if (!isLineActive || latest <= startTime) return 'none';
+        if (!canRenderGlow || latest <= startTime) return 'none';
 
         const wordDuration = Math.max(0.001, endTime - startTime);
+        const glowRiseDuration = wordDuration * MONET_GLOW_RISE_DURATION_SCALE;
+        const glowPeakTime = startTime + glowRiseDuration;
+        const glowTailEndTime = Math.max(lineRenderEndTime, endTime + MONET_GLOW_PASS_TAIL_SECONDS);
         let intensity: number;
-        if (latest <= endTime) {
-            intensity = (latest - startTime) / wordDuration;
+        if (latest <= glowPeakTime) {
+            intensity = (latest - startTime) / glowRiseDuration;
         } else {
-            const decayDuration = Math.max(0.001, lineRenderEndTime - endTime);
-            intensity = Math.max(0, 1 - (latest - endTime) / decayDuration);
+            const decayDuration = Math.max(0.18, glowTailEndTime - glowPeakTime);
+            intensity = Math.max(0, 1 - (latest - glowPeakTime) / decayDuration);
         }
 
         if (intensity <= 0) return 'none';
