@@ -144,19 +144,21 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 emptyText={t('ui.waitingForMusic') || 'Waiting for music'}
                             />
 
-                            <div className="mt-auto pt-4">
-                                <div
-                                    className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
-                                    style={{
-                                        borderColor: colorWithAlpha(theme.primaryColor, 0.16),
-                                        backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
-                                        color: colorWithAlpha(theme.primaryColor, 0.9),
-                                    }}
-                                >
-                                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
-                                    <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{capsuleLabel}</span>
+                            {monetTuning.showDescription && (
+                                <div className="mt-auto pt-4">
+                                    <div
+                                        className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
+                                        style={{
+                                            borderColor: colorWithAlpha(theme.primaryColor, 0.16),
+                                            backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
+                                            color: colorWithAlpha(theme.primaryColor, 0.9),
+                                        }}
+                                    >
+                                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                                        <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{capsuleLabel}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
 

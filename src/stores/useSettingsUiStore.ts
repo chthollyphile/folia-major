@@ -474,6 +474,7 @@ type StoredMonetTuningInput = Partial<MonetTuning> & StoredMonetBackgroundTuning
 
 export const resolveStoredMonetTuning = (parsed: StoredMonetTuningInput): MonetTuning => ({
     keywordColoringEnabled: parsed.keywordColoringEnabled ?? DEFAULT_MONET_TUNING.keywordColoringEnabled,
+    showDescription: parsed.showDescription ?? DEFAULT_MONET_TUNING.showDescription,
     audioStyle: parsed.audioStyle === 'line' ? 'line' : DEFAULT_MONET_TUNING.audioStyle,
     fontScale: clampMonetFontScale(
         parsed.fontScale ?? DEFAULT_MONET_TUNING.fontScale,

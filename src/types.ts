@@ -329,6 +329,7 @@ export interface MonetBackgroundTuning {
 
 export interface MonetTuning {
   keywordColoringEnabled: boolean;
+  showDescription: boolean;
   audioStyle: MonetAudioStyle;
   fontScale: number;
   portraitSource: MonetPortraitSource;
@@ -349,6 +350,7 @@ export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {
   keywordColoringEnabled: true,
+  showDescription: true,
   audioStyle: 'bar',
   fontScale: 1.0,
   portraitSource: 'cover',

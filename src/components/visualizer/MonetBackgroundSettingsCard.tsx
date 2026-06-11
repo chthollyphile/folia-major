@@ -228,85 +228,100 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                 </div>
             </div>
 
-            <PresetGroup
-                label={t('options.monetBackgroundSource') || '背景来源'}
-                value={resolvedTuning.backgroundSource}
-                options={sourceOptions}
-                onChange={(value) => onTuningChange?.({ backgroundSource: value })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <div className="space-y-2.5">
-                <SectionLabel theme={theme}>{t('options.monetUploadBackground') || '上传背景图'}</SectionLabel>
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoadingMonetBackgroundImage || !onUploadMonetBackgroundImage}
-                        className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                        style={{
-                            color: theme.primaryColor,
-                            borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                            backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                        }}
-                    >
-                        <ImagePlus size={15} />
-                        <span>{t('options.monetUploadBackground') || '上传背景图'}</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void onClearMonetBackgroundImage?.()}
-                        disabled={!monetBackgroundImage || !onClearMonetBackgroundImage}
-                        className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                        style={{
-                            color: theme.primaryColor,
-                            borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                            backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                        }}
-                    >
-                        <Trash2 size={15} />
-                        <span>{t('options.monetClearBackground') || '清空背景图'}</span>
-                    </button>
+            {/* Section 1: Background Source */}
+            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
+                    {t('options.monetGroupBackgroundSource') || '背景来源'}
                 </div>
-                <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                    {feedback || monetBackgroundImage?.name || '-'}
-                </div>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
-                    className="hidden"
-                    onChange={(event) => void handleFileChange(event)}
+                <PresetGroup
+                    label={t('options.monetBackgroundSource') || '背景来源'}
+                    value={resolvedTuning.backgroundSource}
+                    options={sourceOptions}
+                    onChange={(value) => onTuningChange?.({ backgroundSource: value })}
+                    isDaylight={isDaylight}
+                    theme={theme}
                 />
+
+                <div className="space-y-2.5">
+                    <SectionLabel theme={theme}>{t('options.monetUploadBackground') || '上传背景图'}</SectionLabel>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isLoadingMonetBackgroundImage || !onUploadMonetBackgroundImage}
+                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                            style={{
+                                color: theme.primaryColor,
+                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
+                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
+                            }}
+                        >
+                            <ImagePlus size={15} />
+                            <span>{t('options.monetUploadBackground') || '上传背景图'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void onClearMonetBackgroundImage?.()}
+                            disabled={!monetBackgroundImage || !onClearMonetBackgroundImage}
+                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                            style={{
+                                color: theme.primaryColor,
+                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
+                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
+                            }}
+                        >
+                            <Trash2 size={15} />
+                            <span>{t('options.monetClearBackground') || '清空背景图'}</span>
+                        </button>
+                    </div>
+                    <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                        {feedback || monetBackgroundImage?.name || '-'}
+                    </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
+                        className="hidden"
+                        onChange={(event) => void handleFileChange(event)}
+                    />
+                </div>
             </div>
 
-            <PresetGroup
-                label={t('options.monetBackgroundLayout') || '布局模式'}
-                value={resolvedTuning.backgroundLayout}
-                options={layoutOptions}
-                onChange={(value) => onTuningChange?.({ backgroundLayout: value })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            {resolvedTuning.backgroundLayout === 'half-pane-gradient' && (
-                <SliderControl
-                    label={t('options.monetHalfPaneOffsetX') || '图片水平偏移'}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundHalfPaneOffsetX)}%`}
-                    min={-40}
-                    max={40}
-                    step={2}
-                    value={resolvedTuning.backgroundHalfPaneOffsetX}
-                    onChange={(value) => onTuningChange?.({ backgroundHalfPaneOffsetX: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
+            {/* Section 2: Layout & Position */}
+            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
+                    {t('options.monetGroupLayoutPosition') || '布局与对齐'}
+                </div>
+                <PresetGroup
+                    label={t('options.monetBackgroundLayout') || '布局模式'}
+                    value={resolvedTuning.backgroundLayout}
+                    options={layoutOptions}
+                    onChange={(value) => onTuningChange?.({ backgroundLayout: value })}
+                    isDaylight={isDaylight}
+                    theme={theme}
                 />
-            )}
 
-            <div className="space-y-3">
-                <SectionLabel theme={theme}>{t('options.monetBackgroundPostProcessing') || '背景图片后处理'}</SectionLabel>
+                {resolvedTuning.backgroundLayout === 'half-pane-gradient' && (
+                    <SliderControl
+                        label={t('options.monetHalfPaneOffsetX') || '图片水平偏移'}
+                        valueLabel={`${Math.round(resolvedTuning.backgroundHalfPaneOffsetX)}%`}
+                        min={-40}
+                        max={40}
+                        step={2}
+                        value={resolvedTuning.backgroundHalfPaneOffsetX}
+                        onChange={(value) => onTuningChange?.({ backgroundHalfPaneOffsetX: value })}
+                        rangeInputClass={rangeInputClass}
+                        onSliderPointerDown={onSliderPointerDown}
+                        onSliderCommit={onSliderCommit}
+                    />
+                )}
+            </div>
+
+            {/* Section 3: Filters & Post-processing */}
+            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
+                    {t('options.monetGroupFiltersPostProcessing') || '视觉增强与滤镜'}
+                </div>
                 <SliderControl
                     label={t('options.monetBackgroundBlur') || '背景模糊'}
                     valueLabel={`${Math.round(resolvedTuning.backgroundBlurPx)}px`}
@@ -320,13 +335,13 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderCommit={onSliderCommit}
                 />
                 <SliderControl
-                    label={t('options.monetBackgroundOverlayOpacity') || '主题叠色强度'}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
+                    label={t('options.monetBackgroundSaturation') || '饱和度'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundSaturation * 100)}%`}
                     min={0}
-                    max={1}
-                    step={0.02}
-                    value={resolvedTuning.backgroundOverlayOpacity}
-                    onChange={(value) => onTuningChange?.({ backgroundOverlayOpacity: value })}
+                    max={2}
+                    step={0.05}
+                    value={resolvedTuning.backgroundSaturation}
+                    onChange={(value) => onTuningChange?.({ backgroundSaturation: value })}
                     rangeInputClass={rangeInputClass}
                     onSliderPointerDown={onSliderPointerDown}
                     onSliderCommit={onSliderCommit}
@@ -343,14 +358,21 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderPointerDown={onSliderPointerDown}
                     onSliderCommit={onSliderCommit}
                 />
+            </div>
+
+            {/* Section 4: Color Tint & Wash */}
+            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
+                    {t('options.monetGroupColorTintWash') || '叠色与水洗'}
+                </div>
                 <SliderControl
-                    label={t('options.monetBackgroundSaturation') || '饱和度'}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundSaturation * 100)}%`}
+                    label={t('options.monetBackgroundOverlayOpacity') || '主题叠色强度'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
                     min={0}
-                    max={2}
-                    step={0.05}
-                    value={resolvedTuning.backgroundSaturation}
-                    onChange={(value) => onTuningChange?.({ backgroundSaturation: value })}
+                    max={1}
+                    step={0.02}
+                    value={resolvedTuning.backgroundOverlayOpacity}
+                    onChange={(value) => onTuningChange?.({ backgroundOverlayOpacity: value })}
                     rangeInputClass={rangeInputClass}
                     onSliderPointerDown={onSliderPointerDown}
                     onSliderCommit={onSliderCommit}

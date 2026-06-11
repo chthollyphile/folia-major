@@ -76,6 +76,7 @@ describe('Monet tuning and lyric helpers', () => {
             audioStyle: 'line',
             fontScale: 1.5,
             portraitSource: 'custom',
+            showDescription: true,
         });
 
         expect(resolveStoredMonetTuning({

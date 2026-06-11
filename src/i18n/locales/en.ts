@@ -555,7 +555,12 @@ export default {
     "monetAudioStyle": "Audio Style",
     "monetAudioStyleBar": "Bars",
     "monetAudioStyleLine": "Line",
-    "monetFontScale": "Font Size Scale"
+    "monetFontScale": "Font Size Scale",
+    "monetShowDescription": "Show Song Description",
+    "monetGroupBackgroundSource": "Background Source",
+    "monetGroupLayoutPosition": "Layout & Position",
+    "monetGroupFiltersPostProcessing": "Filters & Post-processing",
+    "monetGroupColorTintWash": "Color Tint & Wash"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",
