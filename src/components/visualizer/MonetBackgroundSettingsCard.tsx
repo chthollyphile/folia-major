@@ -17,6 +17,7 @@ import { colorWithAlpha } from './colorMix';
 interface PresetOption<T> {
     label: string;
     value: T;
+    disabled?: boolean;
 }
 
 interface MonetBackgroundSettingsCardProps {
@@ -78,10 +79,15 @@ const PresetGroup = <T,>({
                     <button
                         key={String(option.value)}
                         type="button"
-                        onClick={() => onChange(option.value)}
-                        className="rounded-full border px-3 py-2 text-sm transition-all"
+                        onClick={() => {
+                            if (!option.disabled) {
+                                onChange(option.value);
+                            }
+                        }}
+                        disabled={option.disabled}
+                        className="rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
                         style={{
-                            color: theme.primaryColor,
+                            color: option.disabled ? colorWithAlpha(theme.secondaryColor, 0.72) : theme.primaryColor,
                             borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
                             backgroundColor: isActive
                                 ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
@@ -167,7 +173,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
     const resolvedTuning = {
         backgroundSource: tuning.backgroundSource ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundSource,
         backgroundLayout: tuning.backgroundLayout ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundLayout,
-        backgroundBlurPx: clampValue(tuning.backgroundBlurPx ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx, 0, 120, DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx),
+        backgroundBlurPx: clampValue(tuning.backgroundBlurPx ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx, 0, 60, DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx),
         backgroundOverlayOpacity: clampValue(tuning.backgroundOverlayOpacity ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundOverlayOpacity, 0, 1, DEFAULT_MONET_BACKGROUND_TUNING.backgroundOverlayOpacity),
         backgroundGrayscale: clampValue(tuning.backgroundGrayscale ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundGrayscale, 0, 1, DEFAULT_MONET_BACKGROUND_TUNING.backgroundGrayscale),
         backgroundSaturation: clampValue(tuning.backgroundSaturation ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundSaturation, 0, 2, DEFAULT_MONET_BACKGROUND_TUNING.backgroundSaturation),
@@ -178,9 +184,13 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
     };
 
     const sourceOptions = useMemo<PresetOption<MonetBackgroundSource>[]>(() => ([
-        { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') || '封面生成' },
-        { value: 'uploaded-global', label: t('options.monetBackgroundSourceUploaded') || '上传图片' },
-    ]), [t]);
+        { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') || '封面' },
+        {
+            value: 'uploaded-global',
+            label: t('options.monetBackgroundSourceUploaded') || '自定义图片',
+            disabled: !monetBackgroundImage,
+        },
+    ]), [monetBackgroundImage, t]);
     const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
         { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
         { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },
@@ -301,7 +311,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     label={t('options.monetBackgroundBlur') || '背景模糊'}
                     valueLabel={`${Math.round(resolvedTuning.backgroundBlurPx)}px`}
                     min={0}
-                    max={120}
+                    max={60}
                     step={2}
                     value={resolvedTuning.backgroundBlurPx}
                     onChange={(value) => onTuningChange?.({ backgroundBlurPx: value })}
@@ -310,7 +320,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderCommit={onSliderCommit}
                 />
                 <SliderControl
-                    label={t('options.monetBackgroundOverlayOpacity') || '叠色强度'}
+                    label={t('options.monetBackgroundOverlayOpacity') || '主题叠色强度'}
                     valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
                     min={0}
                     max={1}

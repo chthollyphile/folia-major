@@ -27,7 +27,7 @@ describe('Monet tuning and lyric helpers', () => {
         })).toEqual({
             backgroundSource: 'uploaded-global',
             backgroundLayout: 'full-overlay',
-            backgroundBlurPx: 120,
+            backgroundBlurPx: 60,
             backgroundOverlayOpacity: 0,
             backgroundGrayscale: 0,
             backgroundSaturation: 2,

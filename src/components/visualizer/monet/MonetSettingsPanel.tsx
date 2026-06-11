@@ -11,6 +11,7 @@ type MonetSettingsTheme = VisualizerSettingsPanelProps['theme'];
 interface PresetOption<T> {
     label: string;
     value: T;
+    disabled?: boolean;
 }
 
 interface PresetGroupProps<T> {
@@ -64,10 +65,15 @@ const PresetGroup = <T,>({
                     <button
                         key={String(option.value)}
                         type="button"
-                        onClick={() => onChange(option.value)}
-                        className="rounded-full border px-3 py-2 text-sm transition-all"
+                        onClick={() => {
+                            if (!option.disabled) {
+                                onChange(option.value);
+                            }
+                        }}
+                        disabled={option.disabled}
+                        className="rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
                         style={{
-                            color: theme.primaryColor,
+                            color: option.disabled ? colorWithAlpha(theme.secondaryColor, 0.72) : theme.primaryColor,
                             borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
                             backgroundColor: isActive
                                 ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
@@ -148,8 +154,12 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     ]), [t]);
     const portraitSourceOptions = useMemo<PresetOption<MonetPortraitSource>[]>(() => ([
         { value: 'cover', label: t('options.monetPortraitSourceCover') || '封面' },
-        { value: 'custom', label: t('options.monetPortraitSourceCustom') || '自定义图片' },
-    ]), [t]);
+        {
+            value: 'custom',
+            label: t('options.monetPortraitSourceCustom') || '自定义图片',
+            disabled: !monetPortraitImage,
+        },
+    ]), [monetPortraitImage, t]);
     const audioStyleOptions = useMemo<PresetOption<MonetAudioStyle>[]>(() => ([
         { value: 'bar', label: t('options.monetAudioStyleBar') || '柱状' },
         { value: 'line', label: t('options.monetAudioStyleLine') || '线条' },

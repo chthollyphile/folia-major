@@ -244,7 +244,7 @@ export const buildMonetBackgroundDataUrl = async ({
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     context.save();
-    context.filter = `blur(${clamp(tuning.backgroundBlurPx, 0, 120)}px)`;
+    context.filter = `blur(${clamp(tuning.backgroundBlurPx, 0, 60)}px)`;
     drawCoverCropped(context, image, canvas.width, canvas.height);
     context.restore();
 

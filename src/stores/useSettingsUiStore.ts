@@ -363,7 +363,7 @@ const clampMonetBackgroundBlur = (value: number, fallback: number) => {
         return fallback;
     }
 
-    return Math.min(120, Math.max(0, value));
+    return Math.min(60, Math.max(0, value));
 };
 
 const clampUnitInterval = (value: number, fallback: number) => {
