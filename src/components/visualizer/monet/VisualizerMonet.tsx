@@ -38,6 +38,13 @@ export interface MonetLyricContext {
 
 const ROOT_FONT_PX = 16;
 const VIEWPORT_WIDTH_FALLBACK_PX = 1280;
+const MONET_LINE_MOTION_DURATION = 0.32;
+
+// Translation fade-in
+// 补偿翻译行与普通歌词之间的动画差异, 伪造一种同步效果
+const MONET_TRANSLATION_FADE_IN_DELAY = 0.1;
+const MONET_TRANSLATION_FADE_IN_DURATION = 0.28;
+const MONET_TRANSLATION_FADE_OUT_DURATION = 0.1;
 const graphemeSegmenter = typeof Intl !== 'undefined'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     : null;
@@ -653,7 +660,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 initial={{ opacity: 0, y: 22, scale: 0.98, filter: 'blur(3px)' }}
                                                 animate={{ opacity: 1, y: 0, scale: 1, filter: lineFilter }}
                                                 exit={{ opacity: 0, y: -16, scale: 0.97, filter: 'blur(3px)', transition: { duration: 0.16, ease: 'easeIn' } }}
-                                                transition={{ duration: 0.32, ease: 'easeOut' }}
+                                                transition={{ duration: MONET_LINE_MOTION_DURATION, ease: 'easeOut' }}
                                                 style={{
                                                     filter: lineFilter,
                                                     marginBottom: `${marginBottom}px`,
@@ -688,10 +695,28 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                             elements.push(
                                                 <motion.div
                                                     key={`${line.startTime}-translation`}
-                                                    initial={{ opacity: 0, marginBottom: '0px' }}
-                                                    animate={{ opacity: 1, marginBottom: '12px' }}
-                                                    exit={{ opacity: 0, marginBottom: '0px' }}
-                                                    transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{
+                                                        opacity: 0,
+                                                        transition: {
+                                                            duration: MONET_TRANSLATION_FADE_OUT_DURATION,
+                                                            ease: 'easeOut',
+                                                        },
+                                                    }}
+                                                    transition={{
+                                                        opacity: {
+                                                            delay: MONET_TRANSLATION_FADE_IN_DELAY,
+                                                            duration: MONET_TRANSLATION_FADE_IN_DURATION,
+                                                            ease: 'easeOut',
+                                                        },
+                                                        y: {
+                                                            delay: MONET_TRANSLATION_FADE_IN_DELAY,
+                                                            duration: MONET_TRANSLATION_FADE_IN_DURATION,
+                                                            ease: 'easeOut',
+                                                        },
+                                                    }}
+                                                    style={{ marginBottom: '12px' }}
                                                 >
                                                     <div
                                                         className="whitespace-pre-wrap break-words"
