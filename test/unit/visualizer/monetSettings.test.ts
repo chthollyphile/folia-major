@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MONET_TUNING, type Line, type MonetBackgroundLayout } from '@/types';
 import { getMonetBackgroundCacheKey } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
+import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
 import { resolveStoredMonetTuning } from '@/stores/useSettingsUiStore';
 
 // test/unit/visualizer/monetSettings.test.ts
@@ -69,6 +70,36 @@ describe('Monet tuning and lyric helpers', () => {
             activeLine: null,
             nextLine: lines[1],
         });
+    });
+
+    it('assigns explicit waiting active passed states for the lyric rail', () => {
+        const lines: Line[] = [
+            { startTime: 0, endTime: 1, fullText: 'A', words: [] },
+            { startTime: 2, endTime: 3, fullText: 'B', words: [] },
+            { startTime: 4, endTime: 5, fullText: 'C', words: [] },
+        ];
+
+        expect(buildMonetVisibleLineEntries({
+            lines,
+            currentLineIndex: 1,
+            activeLine: lines[1],
+            recentCompletedLine: lines[0],
+            upcomingLine: lines[2],
+            currentTime: 2.5,
+            before: 1,
+            after: 1,
+        }).map(entry => entry.status)).toEqual(['passed', 'active', 'waiting']);
+
+        expect(buildMonetVisibleLineEntries({
+            lines,
+            currentLineIndex: -1,
+            activeLine: null,
+            recentCompletedLine: lines[0],
+            upcomingLine: lines[1],
+            currentTime: 1.5,
+            before: 1,
+            after: 1,
+        }).map(entry => entry.status)).toEqual(['passed', 'waiting', 'waiting']);
     });
 
     it('changes the background cache key when source or tuning changes', () => {
