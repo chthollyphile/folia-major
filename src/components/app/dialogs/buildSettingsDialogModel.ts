@@ -128,5 +128,7 @@ export const buildSettingsDialogModel = ({
                 leaveStagePlayback();
             }
         },
+        aiTheme: themeController.aiTheme,
+        customTheme: themeController.customTheme,
     };
 };

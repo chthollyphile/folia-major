@@ -573,6 +573,10 @@ export default {
     "exportBtn": "Copy Current Config",
     "importSuccess": "Configuration imported successfully!",
     "importFailed": "Import failed, please check the format.",
+    "exportThemeLabel": "Include Theme in Export",
+    "exportAiTheme": "AI Theme",
+    "exportCustomTheme": "Custom Theme",
+    "exportNoTheme": "No Theme",
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

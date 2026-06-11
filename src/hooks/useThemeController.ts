@@ -67,9 +67,10 @@ const readStoredCustomPreferred = () => localStorage.getItem(CUSTOM_THEME_PREFER
 const sanitizeCustomTheme = (theme: Theme, fallbackName: string): Theme => ({
     ...theme,
     name: theme.name?.trim() || fallbackName,
-    wordColors: [],
-    lyricsIcons: [],
-    provider: 'Custom',
+    wordColors: theme.wordColors || [],
+    lyricsIcons: theme.lyricsIcons || [],
+    description: theme.description || '',
+    provider: theme.provider || 'Custom',
 });
 
 const sanitizeCustomDualTheme = (dualTheme: DualTheme): DualTheme => ({

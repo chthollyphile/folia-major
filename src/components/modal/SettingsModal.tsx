@@ -50,6 +50,8 @@ interface SettingsModalProps {
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
+    aiTheme?: DualTheme | null;
+    customTheme?: DualTheme | null;
 }
 
 const QUARK_DOWNLOAD_URL = 'https://pan.quark.cn/s/6e4c6fa3bc6f';
@@ -82,6 +84,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onToggleNowPlayingStage,
     nowPlayingConnectionStatus = 'disabled',
     onAudioOutputDeviceChange,
+    aiTheme,
+    customTheme,
 }) => {
     const { t } = useTranslation();
     const {
@@ -2116,6 +2120,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChangeHomeLayoutStyle={onChangeHomeLayoutStyle}
                         grid3dCardStyle={grid3dCardStyle}
                         onChangeGrid3dCardStyle={onChangeGrid3dCardStyle}
+                        aiTheme={aiTheme}
+                        customTheme={customTheme}
                     />
                 ),
             })}

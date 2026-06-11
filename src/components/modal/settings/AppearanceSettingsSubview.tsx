@@ -33,6 +33,8 @@ type AppearanceSettingsSubviewProps = {
     onChangeHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     grid3dCardStyle: 'image' | 'card';
     onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
+    aiTheme?: DualTheme | null;
+    customTheme?: DualTheme | null;
 };
 
 // ==========================================
@@ -63,10 +65,10 @@ export const decompressTheme = (o: any): Theme => ({
     fontStyle: o.tfs || 'sans',
     fontFamily: o.tff,
     animationIntensity: o.ai || 'normal',
-    wordColors: o.wc,
-    lyricsIcons: o.li,
+    wordColors: o.wc || [],
+    lyricsIcons: o.li || [],
     provider: o.pv,
-    description: o.tds,
+    description: o.tds || '',
 });
 
 const compressClassic = (t: any): any => ({
@@ -324,10 +326,28 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     onChangeHomeLayoutStyle,
     grid3dCardStyle,
     onChangeGrid3dCardStyle,
+    aiTheme,
+    customTheme,
 }) => {
     const { t } = useTranslation();
     const [importText, setImportText] = useState('');
     const [copiedType, setCopiedType] = useState<'none' | 'shortcode' | 'json'>('none');
+
+    const [exportThemeType, setExportThemeType] = useState<'custom' | 'ai' | 'none'>(() => {
+        if (bgMode === 'ai' && aiTheme) return 'ai';
+        if (customTheme) return 'custom';
+        return 'none';
+    });
+
+    React.useEffect(() => {
+        if (bgMode === 'ai' && aiTheme) {
+            setExportThemeType('ai');
+        } else if (customTheme) {
+            setExportThemeType('custom');
+        } else {
+            setExportThemeType('none');
+        }
+    }, [aiTheme, customTheme, bgMode]);
 
     // Access ZUSTAND settings store directly for setters & configurations
     const store = useSettingsUiStore(useShallow(state => ({
@@ -377,9 +397,14 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     );
 
     const buildCurrentConfig = () => {
-        const currentCustomTheme = readSavedCustomTheme();
+        let exportTheme: DualTheme | null = null;
+        if (exportThemeType === 'custom') {
+            exportTheme = customTheme || readSavedCustomTheme() || null;
+        } else if (exportThemeType === 'ai') {
+            exportTheme = aiTheme || null;
+        }
         return {
-            theme: currentCustomTheme,
+            theme: exportTheme,
             visualizerMode: store.visualizerMode,
             visualizerBackgroundMode: store.visualizerBackgroundMode,
             backgroundOpacity: store.backgroundOpacity,
@@ -702,7 +727,46 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             {t('options.importExportTitle') || '备份与导入配置'}
                         </div>
                         <div className="text-xs opacity-50 max-w-[400px]" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.importExportDesc') || '通过标准 JSON 或 Folia 专属压缩码导入/导出自定义配色与视觉设置。'}
+                            {t('options.importExportDesc') || '通过标准 JSON 或 folia-theme 文本导入/导出配色主题与歌词动画设置。'}
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                        <div className="text-xs font-semibold opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                            {t('options.exportThemeLabel') || '导出时包含的主题'}
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                            {aiTheme && (
+                                <button
+                                    type="button"
+                                    onClick={() => setExportThemeType('ai')}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5"
+                                    style={getAccentOptionStyle(exportThemeType === 'ai')}
+                                >
+                                    <Palette size={12} className="opacity-70" />
+                                    <span>{t('options.exportAiTheme') || 'AI 主题'}: {aiTheme.light.name || 'AI'}</span>
+                                </button>
+                            )}
+                            {customTheme && (
+                                <button
+                                    type="button"
+                                    onClick={() => setExportThemeType('custom')}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5"
+                                    style={getAccentOptionStyle(exportThemeType === 'custom')}
+                                >
+                                    <Palette size={12} className="opacity-70" />
+                                    <span>{t('options.exportCustomTheme') || '自定义主题'}: {customTheme.light.name || 'Custom'}</span>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setExportThemeType('none')}
+                                className="px-2.5 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5"
+                                style={getAccentOptionStyle(exportThemeType === 'none')}
+                            >
+                                <Settings2 size={12} className="opacity-70" />
+                                <span>{t('options.exportNoTheme') || '不包含主题'}</span>
+                            </button>
                         </div>
                     </div>
 

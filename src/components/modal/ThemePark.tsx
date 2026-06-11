@@ -81,10 +81,11 @@ const COLOR_FIELDS: Array<{ key: EditableColorKey; label: string; description: s
 
 const normalizeTheme = (theme: Theme, fallbackName: string, provider: string): Theme => ({
     ...theme,
-    name: fallbackName,
-    provider,
-    wordColors: [],
-    lyricsIcons: [],
+    name: theme.name?.trim() || fallbackName,
+    provider: theme.provider || provider,
+    wordColors: theme.wordColors || [],
+    lyricsIcons: theme.lyricsIcons || [],
+    description: theme.description || '',
 });
 
 const normalizeDualTheme = (dualTheme: DualTheme): DualTheme => ({

@@ -15,6 +15,9 @@ describe('Visual Settings Import and Export', () => {
                 secondaryColor: '#78716c',
                 fontStyle: 'sans' as const,
                 animationIntensity: 'normal' as const,
+                wordColors: [{ word: 'love', color: '#ff0000' }],
+                lyricsIcons: ['heart'],
+                description: 'A shiny gold theme for daylight playback',
             },
             dark: {
                 name: 'Midnight Gold',
@@ -103,6 +106,16 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
+
+        // Verify custom properties alignment
+        expect(decoded.theme?.light.wordColors).toEqual([{ word: 'love', color: '#ff0000' }]);
+        expect(decoded.theme?.light.lyricsIcons).toEqual(['heart']);
+        expect(decoded.theme?.light.description).toBe('A shiny gold theme for daylight playback');
+
+        // Verify default fallback properties for missing values in dark theme
+        expect(decoded.theme?.dark.wordColors).toEqual([]);
+        expect(decoded.theme?.dark.lyricsIcons).toEqual([]);
+        expect(decoded.theme?.dark.description).toBe('');
     });
 
     it('correctly parses and decompresses raw long-format JSON', () => {
