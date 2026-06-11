@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { motion, useMotionValueEvent } from 'framer-motion';
 import { DEFAULT_MONET_TUNING } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
 import { type VisualizerSharedProps } from '../definition';
@@ -38,6 +39,22 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         monetPortraitImage = null,
     } = props;
     const { t } = useTranslation();
+
+    const [introKey, setIntroKey] = useState(0);
+    const lastTimeRef = useRef(0);
+
+    useMotionValueEvent(currentTime, 'change', (latest) => {
+        const wasAtEnd = lastTimeRef.current > 2.0;
+        const isAtStart = latest < 0.1;
+        if (isAtStart && wasAtEnd) {
+            setIntroKey(prev => prev + 1);
+        }
+        lastTimeRef.current = latest;
+    });
+
+    useEffect(() => {
+        setIntroKey(prev => prev + 1);
+    }, [songTitle, songArtist, coverUrl]);
 
     const {
         activeLine,
@@ -93,26 +110,50 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
             audioBands={audioBands}
             sharedProps={props}
         >
-            <MonetFloatingDecor theme={theme} staticMode={staticMode} />
+            <motion.div
+                key={`decor-${introKey}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 2.2, ease: 'easeOut' }}
+            >
+                <MonetFloatingDecor theme={theme} staticMode={staticMode} />
+            </motion.div>
 
             <div className="relative z-10 flex h-full w-full items-center justify-center overflow-hidden">
                 <div className="flex h-full w-full max-w-[1520px] flex-row items-center overflow-hidden">
                     {showText && (
                         <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center px-5 py-5 sm:px-8 sm:py-6 lg:px-14 lg:py-8">
                             <div className="mb-3 space-y-1.5">
-                                <div
+                                <motion.div
+                                    key={`artist-${introKey}`}
+                                    initial={{ opacity: 0, x: -30, y: -10 }}
+                                    animate={{ opacity: 1, x: 0, y: 0 }}
+                                    transition={{ duration: 1.2, ease: [0.25, 1, 0.5, 1], delay: 0.15 }}
                                     className="text-[clamp(1rem,1.8vw,1.8rem)] italic"
                                     style={{ color: colorWithAlpha(theme.primaryColor, 0.96), letterSpacing: 0 }}
                                 >
                                     {primaryMetaLabel}
-                                </div>
-                                <div
+                                </motion.div>
+                                <motion.div
+                                    key={`line-${introKey}`}
+                                    initial={{ scaleY: 0 }}
+                                    animate={{ scaleY: 1 }}
+                                    transition={{ duration: 1.5, ease: [0.25, 1, 0.5, 1], delay: 0.5 }}
                                     className="h-14 w-px rounded-full"
-                                    style={{ background: `linear-gradient(180deg, ${colorWithAlpha(theme.primaryColor, 0.72)}, transparent)` }}
+                                    style={{ 
+                                        originY: 0,
+                                        background: `linear-gradient(180deg, ${colorWithAlpha(theme.primaryColor, 0.72)}, transparent)` 
+                                    }}
                                 />
                             </div>
 
-                            <div className="mb-6 space-y-1">
+                            <motion.div
+                                key={`title-${introKey}`}
+                                initial={{ opacity: 0, x: -40 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 1.3, ease: [0.25, 1, 0.5, 1], delay: 0.3 }}
+                                className="mb-6 space-y-1"
+                            >
                                 <div
                                     className="font-semibold leading-[1.06]"
                                     style={{
@@ -130,22 +171,35 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 >
                                     {secondaryMetaLabel}
                                 </div>
-                            </div>
+                            </motion.div>
 
-                            <MonetLyricsRail
-                                entries={visibleLineEntries}
-                                currentTime={currentTime}
-                                theme={theme}
-                                lyricFontPx={lyricFontPx}
-                                inactiveFontPx={inactiveFontPx}
-                                translationFontPx={translationFontPx}
-                                fontStack={lyricFontStack}
-                                keywordColoringEnabled={monetTuning.keywordColoringEnabled}
-                                emptyText={t('ui.waitingForMusic') || 'Waiting for music'}
-                            />
+                            <motion.div
+                                key={`rail-${introKey}`}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 1.2, ease: [0.25, 1, 0.5, 1], delay: 0.65 }}
+                            >
+                                <MonetLyricsRail
+                                    entries={visibleLineEntries}
+                                    currentTime={currentTime}
+                                    theme={theme}
+                                    lyricFontPx={lyricFontPx}
+                                    inactiveFontPx={inactiveFontPx}
+                                    translationFontPx={translationFontPx}
+                                    fontStack={lyricFontStack}
+                                    keywordColoringEnabled={monetTuning.keywordColoringEnabled}
+                                    emptyText={t('ui.waitingForMusic') || 'Waiting for music'}
+                                />
+                            </motion.div>
 
                             {monetTuning.showDescription && (
-                                <div className="mt-auto pt-4">
+                                <motion.div
+                                    key={`desc-${introKey}`}
+                                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    transition={{ duration: 1.0, ease: [0.25, 1, 0.5, 1], delay: 0.95 }}
+                                    className="mt-auto pt-4"
+                                >
                                     <div
                                         className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
                                         style={{
@@ -157,13 +211,17 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
                                         <span className="text-xs uppercase" style={{ letterSpacing: 0 }}>{capsuleLabel}</span>
                                     </div>
-                                </div>
+                                </motion.div>
                             )}
                         </div>
                     )}
 
                     {showText ? (
-                        <div
+                        <motion.div
+                            key={`portrait-${introKey}`}
+                            initial={{ opacity: 0, x: 50, scale: 0.95, rotate: 1 }}
+                            animate={{ opacity: 1, x: 0, scale: 1, rotate: 0 }}
+                            transition={{ duration: 1.6, ease: [0.25, 1, 0.5, 1], delay: 0.25 }}
                             className="hidden min-w-0 items-center justify-center overflow-visible px-3 pr-5 sm:pr-8 md:flex lg:justify-end lg:pr-10 xl:pr-12"
                             style={{ flex: '0 0 clamp(220px, 28vw, 430px)' }}
                         >
@@ -192,13 +250,17 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     />
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     ) : null}
                 </div>
             </div>
 
             {showText && (
-                <div
+                <motion.div
+                    key={`audio-${introKey}`}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1.2, ease: [0.25, 1, 0.5, 1], delay: 0.8 }}
                     className="absolute bottom-0 left-0 z-20 h-10 overflow-hidden px-5 sm:px-8 lg:px-14"
                     style={{ width: 'min(450px, 55vw)' }}
                 >
@@ -210,7 +272,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                         staticMode={staticMode}
                         isPreviewMode={isPreviewMode}
                     />
-                </div>
+                </motion.div>
             )}
         </VisualizerShell>
     );
