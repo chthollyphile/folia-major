@@ -72,12 +72,11 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     ]);
 
     const lyricFontStack = useMemo(() => resolveThemeFontStack(theme), [theme]);
-    const activeSizeMultiplier = 1 + Math.max(monetTuning.lyricsFocusScale - 1, 0) * 0.35;
     const fontScale = monetTuning.fontScale;
     const lyricFontPx = resolveClampFontPx(
-        1.34 * activeSizeMultiplier,
-        2.75 * activeSizeMultiplier,
-        2.28 * activeSizeMultiplier,
+        1.34,
+        2.75,
+        2.28,
     ) * fontScale;
     const inactiveFontPx = resolveClampFontPx(1.08, 2, 1.48) * fontScale;
     const translationFontPx = resolveClampFontPx(0.94, 1.28, 1.14) * fontScale;
@@ -150,6 +149,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                             inactiveFontPx={inactiveFontPx}
                             translationFontPx={translationFontPx}
                             fontStack={lyricFontStack}
+                            keywordColoringEnabled={monetTuning.keywordColoringEnabled}
                             emptyText={t('ui.waitingForMusic') || 'Waiting for music'}
                         />
                     ) : (

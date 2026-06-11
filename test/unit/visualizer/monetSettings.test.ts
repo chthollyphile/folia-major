@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MONET_TUNING, type Line, type MonetBackgroundLayout } from '@/types';
+import { DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
 import { resolveStoredMonetTuning } from '@/stores/useSettingsUiStore';
@@ -15,24 +16,32 @@ describe('Monet tuning and lyric helpers', () => {
             backgroundOverlayOpacity: -2,
             backgroundCropMode: 'full-artwork',
             backgroundLayout: 'full-overlay',
+            backgroundGrayscale: -1,
+            backgroundSaturation: 9,
+            backgroundWash: 2,
+            keywordColoringEnabled: false,
             audioStyle: 'line',
             coverPaneRatio: 0.9,
             lyricsFocusScale: 4,
             fontScale: 3,
         })).toEqual({
             backgroundSource: 'uploaded-global',
+            backgroundLayout: 'full-overlay',
             backgroundBlurPx: 120,
             backgroundOverlayOpacity: 0,
-            backgroundCropMode: 'full-artwork',
-            backgroundLayout: 'full-overlay',
+            backgroundGrayscale: 0,
+            backgroundSaturation: 2,
+            backgroundWash: 1,
+            keywordColoringEnabled: false,
             audioStyle: 'line',
-            coverPaneRatio: 0.68,
-            lyricsFocusScale: 1.3,
             fontScale: 1.5,
         });
 
-        expect(resolveStoredMonetTuning({ backgroundLayout: 'bogus' as MonetBackgroundLayout }))
-            .toEqual(expect.objectContaining({ backgroundLayout: DEFAULT_MONET_TUNING.backgroundLayout }));
+        expect(resolveStoredMonetTuning({
+            backgroundCropMode: 'full-artwork',
+            coverPaneRatio: 0.9,
+            lyricsFocusScale: 4,
+        })).toEqual(DEFAULT_MONET_TUNING);
 
         expect(resolveStoredMonetTuning({})).toEqual(DEFAULT_MONET_TUNING);
     });
@@ -102,7 +111,27 @@ describe('Monet tuning and lyric helpers', () => {
         }).map(entry => entry.status)).toEqual(['passed', 'waiting', 'waiting']);
     });
 
-    it('changes the background cache key when source or tuning changes', () => {
+    it('gates Monet keyword coloring through tuning', () => {
+        const theme: Theme = {
+            name: 'Keyword Theme',
+            backgroundColor: '#000000',
+            primaryColor: '#ffffff',
+            accentColor: '#ff99aa',
+            secondaryColor: '#dddddd',
+            fontStyle: 'sans',
+            animationIntensity: 'normal',
+            wordColors: [
+                { word: 'night glow', color: '#ffee88' },
+                { word: '雨', color: '#66ccff' },
+            ],
+        };
+
+        expect(resolveMonetWordColor('night', theme, '#ffffff', true)).toBe('#ffee88');
+        expect(resolveMonetWordColor('雨', theme, '#ffffff', true)).toBe('#66ccff');
+        expect(resolveMonetWordColor('night', theme, '#ffffff', false)).toBe('#ffffff');
+    });
+
+    it('changes the background cache key only when source or background treatment changes', () => {
         const theme = {
             name: 'Test Theme',
             backgroundColor: '#000000',
@@ -129,9 +158,45 @@ describe('Monet tuning and lyric helpers', () => {
             theme,
             tuning: { ...DEFAULT_MONET_TUNING, backgroundSource: 'uploaded-global' },
         });
+        const overlayChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: { ...DEFAULT_MONET_TUNING, backgroundOverlayOpacity: DEFAULT_MONET_TUNING.backgroundOverlayOpacity + 0.02 },
+        });
+        const grayscaleChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: { ...DEFAULT_MONET_TUNING, backgroundGrayscale: 0.2 },
+        });
+        const saturationChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: { ...DEFAULT_MONET_TUNING, backgroundSaturation: 1.4 },
+        });
+        const washChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: { ...DEFAULT_MONET_TUNING, backgroundWash: 0.6 },
+        });
+        const nonBackgroundChanged = getMonetBackgroundCacheKey({
+            coverUrl: 'cover-a',
+            theme,
+            tuning: {
+                ...DEFAULT_MONET_TUNING,
+                backgroundLayout: 'full-overlay',
+                audioStyle: 'line',
+                fontScale: 1.25,
+                keywordColoringEnabled: false,
+            },
+        });
 
         expect(first).not.toBe(second);
         expect(second).not.toBe(third);
+        expect(first).not.toBe(overlayChanged);
+        expect(first).not.toBe(grayscaleChanged);
+        expect(first).not.toBe(saturationChanged);
+        expect(first).not.toBe(washChanged);
+        expect(first).toBe(nonBackgroundChanged);
 
         const layoutBase = getMonetBackgroundCacheKey({
             coverUrl: 'cover-b',
@@ -141,8 +206,12 @@ describe('Monet tuning and lyric helpers', () => {
         const layoutChanged = getMonetBackgroundCacheKey({
             coverUrl: 'cover-b',
             theme,
-            tuning: { ...DEFAULT_MONET_TUNING, backgroundLayout: 'full-overlay' },
+            tuning: {
+                ...DEFAULT_MONET_TUNING,
+                backgroundLayout: 'full-overlay',
+                backgroundCropMode: 'full-artwork',
+            } as typeof DEFAULT_MONET_TUNING & { backgroundCropMode: string; },
         });
-        expect(layoutBase).not.toBe(layoutChanged);
+        expect(layoutBase).toBe(layoutChanged);
     });
 });

@@ -34,7 +34,7 @@ export const colorWithAlpha = (color: string, alpha: number) => {
     return color;
 };
 
-const parseColorChannels = (color: string) => {
+export const parseColorChannels = (color: string) => {
     if (color.startsWith('#')) {
         const hex = color.slice(1);
         const parse = (value: string) => Number.parseInt(value, 16);

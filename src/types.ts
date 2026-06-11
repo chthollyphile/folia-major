@@ -307,31 +307,32 @@ export const DEFAULT_TILT_TUNING: TiltTuning = {
 };
 
 export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
-export type MonetBackgroundCropMode = 'cover' | 'focus-cover' | 'full-artwork';
 export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetAudioStyle = 'bar' | 'line';
 
 export interface MonetTuning {
   backgroundSource: MonetBackgroundSource;
+  backgroundLayout: MonetBackgroundLayout;
   backgroundBlurPx: number;
   backgroundOverlayOpacity: number;
-  backgroundCropMode: MonetBackgroundCropMode;
-  backgroundLayout: MonetBackgroundLayout;
+  backgroundGrayscale: number;
+  backgroundSaturation: number;
+  backgroundWash: number;
+  keywordColoringEnabled: boolean;
   audioStyle: MonetAudioStyle;
-  coverPaneRatio: number;
-  lyricsFocusScale: number;
   fontScale: number;
 }
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {
   backgroundSource: 'cover-derived',
+  backgroundLayout: 'half-pane-gradient',
   backgroundBlurPx: 80,
   backgroundOverlayOpacity: 0.42,
-  backgroundCropMode: 'focus-cover',
-  backgroundLayout: 'half-pane-gradient',
+  backgroundGrayscale: 0,
+  backgroundSaturation: 1.05,
+  backgroundWash: 0.16,
+  keywordColoringEnabled: true,
   audioStyle: 'bar',
-  coverPaneRatio: 0.5,
-  lyricsFocusScale: 1.08,
   fontScale: 1.0,
 };
 

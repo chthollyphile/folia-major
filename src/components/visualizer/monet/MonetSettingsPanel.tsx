@@ -1,11 +1,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetBackgroundCropMode, type MonetBackgroundLayout, type MonetBackgroundSource } from '../../../types';
+import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetBackgroundLayout, type MonetBackgroundSource } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
 import { type VisualizerSettingsPanelProps } from '../definition';
 
 // src/components/visualizer/monet/MonetSettingsPanel.tsx
 // Monet owns its preview controls here so the main playground panel can stay registry-driven instead of growing more mode branches.
+type MonetSettingsTheme = VisualizerSettingsPanelProps['theme'];
+
 interface PresetOption<T> {
     label: string;
     value: T;
@@ -17,8 +19,38 @@ interface PresetGroupProps<T> {
     options: PresetOption<T>[];
     onChange: (value: T) => void;
     isDaylight: boolean;
-    theme: VisualizerSettingsPanelProps['theme'];
+    theme: MonetSettingsTheme;
 }
+
+interface SectionLabelProps {
+    children: React.ReactNode;
+    theme: MonetSettingsTheme;
+}
+
+interface SliderControlProps {
+    label: string;
+    valueLabel: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (value: number) => void;
+    rangeInputClass: string;
+    onSliderPointerDown?: () => void;
+    onSliderCommit?: () => void;
+}
+
+const clampValue = (value: number, min: number, max: number, fallback: number) => (
+    Number.isFinite(value)
+        ? Math.min(max, Math.max(min, value))
+        : fallback
+);
+
+const SectionLabel: React.FC<SectionLabelProps> = ({ children, theme }) => (
+    <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
+        {children}
+    </div>
+);
 
 const PresetGroup = <T,>({
     label,
@@ -29,9 +61,7 @@ const PresetGroup = <T,>({
     theme,
 }: PresetGroupProps<T>) => (
     <div className="space-y-2.5">
-        <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-            {label}
-        </div>
+        <SectionLabel theme={theme}>{label}</SectionLabel>
         <div className="flex flex-wrap gap-2">
             {options.map(option => {
                 const isActive = option.value === value;
@@ -58,11 +88,40 @@ const PresetGroup = <T,>({
     </div>
 );
 
-const clampMonetBackgroundBlur = (value: number) => Math.min(120, Math.max(0, value));
-const clampUnitInterval = (value: number) => Math.min(1, Math.max(0, value));
-const clampCoverPaneRatio = (value: number) => Math.min(0.68, Math.max(0.32, value));
-const clampLyricsFocusScale = (value: number) => Math.min(1.3, Math.max(1, value));
-const clampFontScale = (value: number) => Math.min(1.5, Math.max(0.7, value));
+const SliderControl: React.FC<SliderControlProps> = ({
+    label,
+    valueLabel,
+    value,
+    min,
+    max,
+    step,
+    onChange,
+    rangeInputClass,
+    onSliderPointerDown,
+    onSliderCommit,
+}) => (
+    <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3 text-sm" style={{ color: 'var(--text-primary)' }}>
+            <span>{label}</span>
+            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                {valueLabel}
+            </span>
+        </div>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(event) => onChange(parseFloat(event.target.value))}
+            onPointerDown={onSliderPointerDown}
+            onPointerUp={onSliderCommit}
+            onPointerCancel={onSliderCommit}
+            onBlur={onSliderCommit}
+            className={rangeInputClass}
+        />
+    </div>
+);
 
 export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     t,
@@ -83,34 +142,62 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     const [feedback, setFeedback] = useState<string | null>(null);
     const resolvedTuning = {
         backgroundSource: monetTuning.backgroundSource ?? DEFAULT_MONET_TUNING.backgroundSource,
-        backgroundBlurPx: clampMonetBackgroundBlur(monetTuning.backgroundBlurPx ?? DEFAULT_MONET_TUNING.backgroundBlurPx),
-        backgroundOverlayOpacity: clampUnitInterval(
-            monetTuning.backgroundOverlayOpacity ?? DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
-        ),
-        backgroundCropMode: monetTuning.backgroundCropMode ?? DEFAULT_MONET_TUNING.backgroundCropMode,
         backgroundLayout: monetTuning.backgroundLayout ?? DEFAULT_MONET_TUNING.backgroundLayout,
+        backgroundBlurPx: clampValue(
+            monetTuning.backgroundBlurPx ?? DEFAULT_MONET_TUNING.backgroundBlurPx,
+            0,
+            120,
+            DEFAULT_MONET_TUNING.backgroundBlurPx,
+        ),
+        backgroundOverlayOpacity: clampValue(
+            monetTuning.backgroundOverlayOpacity ?? DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
+            0,
+            1,
+            DEFAULT_MONET_TUNING.backgroundOverlayOpacity,
+        ),
+        backgroundGrayscale: clampValue(
+            monetTuning.backgroundGrayscale ?? DEFAULT_MONET_TUNING.backgroundGrayscale,
+            0,
+            1,
+            DEFAULT_MONET_TUNING.backgroundGrayscale,
+        ),
+        backgroundSaturation: clampValue(
+            monetTuning.backgroundSaturation ?? DEFAULT_MONET_TUNING.backgroundSaturation,
+            0,
+            2,
+            DEFAULT_MONET_TUNING.backgroundSaturation,
+        ),
+        backgroundWash: clampValue(
+            monetTuning.backgroundWash ?? DEFAULT_MONET_TUNING.backgroundWash,
+            0,
+            1,
+            DEFAULT_MONET_TUNING.backgroundWash,
+        ),
+        keywordColoringEnabled: monetTuning.keywordColoringEnabled ?? DEFAULT_MONET_TUNING.keywordColoringEnabled,
         audioStyle: monetTuning.audioStyle ?? DEFAULT_MONET_TUNING.audioStyle,
-        coverPaneRatio: clampCoverPaneRatio(monetTuning.coverPaneRatio ?? DEFAULT_MONET_TUNING.coverPaneRatio),
-        lyricsFocusScale: clampLyricsFocusScale(monetTuning.lyricsFocusScale ?? DEFAULT_MONET_TUNING.lyricsFocusScale),
-        fontScale: clampFontScale(monetTuning.fontScale ?? DEFAULT_MONET_TUNING.fontScale),
+        fontScale: clampValue(
+            monetTuning.fontScale ?? DEFAULT_MONET_TUNING.fontScale,
+            0.7,
+            1.5,
+            DEFAULT_MONET_TUNING.fontScale,
+        ),
     };
 
     const backgroundSourceOptions = useMemo<PresetOption<MonetBackgroundSource>[]>(() => ([
         { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') || '封面生成' },
         { value: 'uploaded-global', label: t('options.monetBackgroundSourceUploaded') || '上传图片' },
     ]), [t]);
-    const audioStyleOptions = useMemo<PresetOption<MonetAudioStyle>[]>(() => ([
-        { value: 'bar', label: t('options.monetAudioStyleBar') || '柱状' },
-        { value: 'line', label: t('options.monetAudioStyleLine') || '线条' },
-    ]), [t]);
-    const cropModeOptions = useMemo<PresetOption<MonetBackgroundCropMode>[]>(() => ([
-        { value: 'cover', label: t('options.monetCropCover') || '铺满' },
-        { value: 'focus-cover', label: t('options.monetCropFocusCover') || '聚焦' },
-        { value: 'full-artwork', label: t('options.monetCropFullArtwork') || '完整画面' },
+    const keywordColoringOptions = useMemo<PresetOption<boolean>[]>(() => ([
+        { value: true, label: t('options.monetKeywordColoringOn') || '启用' },
+        { value: false, label: t('options.monetKeywordColoringOff') || '关闭' },
     ]), [t]);
     const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
         { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
         { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },
+    ]), [t]);
+    const audioStyleOptions = useMemo<PresetOption<MonetAudioStyle>[]>(() => ([
+        { value: 'bar', label: t('options.monetAudioStyleBar') || '柱状' },
+        { value: 'line', label: t('options.monetAudioStyleLine') || '线条' },
     ]), [t]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,7 +227,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     {t('options.monetSettings') || 'Monet 参数'}
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.monetSettingsDesc') || '控制背景资源、舞台裁切和底部频谱样式。'}
+                    {t('options.monetSettingsDesc') || '控制背景资源、图片后处理和底部频谱样式。'}
                 </div>
             </div>
 
@@ -154,14 +241,12 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             />
 
             <div className="space-y-2.5">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-                    {t('options.monetUploadBackground') || '上传背景图'}
-                </div>
-                <div className="flex items-center gap-2">
+                <SectionLabel theme={theme}>{t('options.monetUploadBackground') || '上传背景图'}</SectionLabel>
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoadingMonetBackgroundImage}
+                        disabled={isLoadingMonetBackgroundImage || !onUploadMonetBackgroundImage}
                         className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
                         style={{
                             color: theme.primaryColor,
@@ -175,7 +260,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     <button
                         type="button"
                         onClick={() => void onClearMonetBackgroundImage?.()}
-                        disabled={!monetBackgroundImage}
+                        disabled={!monetBackgroundImage || !onClearMonetBackgroundImage}
                         className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
                         style={{
                             color: theme.primaryColor,
@@ -200,10 +285,10 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.monetBackgroundCropMode') || '背景裁切'}
-                value={resolvedTuning.backgroundCropMode}
-                options={cropModeOptions}
-                onChange={(value) => onMonetTuningChange?.({ backgroundCropMode: value })}
+                label={t('options.monetKeywordColoring') || '关键字着色'}
+                value={resolvedTuning.keywordColoringEnabled}
+                options={keywordColoringOptions}
+                onChange={(value) => onMonetTuningChange?.({ keywordColoringEnabled: value })}
                 isDaylight={isDaylight}
                 theme={theme}
             />
@@ -217,6 +302,70 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 theme={theme}
             />
 
+            <div className="space-y-3">
+                <SectionLabel theme={theme}>{t('options.monetBackgroundPostProcessing') || '背景图片后处理'}</SectionLabel>
+                <SliderControl
+                    label={t('options.monetBackgroundBlur') || '背景模糊'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundBlurPx)}px`}
+                    min={0}
+                    max={120}
+                    step={2}
+                    value={resolvedTuning.backgroundBlurPx}
+                    onChange={(value) => onMonetTuningChange?.({ backgroundBlurPx: value })}
+                    rangeInputClass={rangeInputClass}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+                <SliderControl
+                    label={t('options.monetBackgroundOverlayOpacity') || '叠色强度'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={resolvedTuning.backgroundOverlayOpacity}
+                    onChange={(value) => onMonetTuningChange?.({ backgroundOverlayOpacity: value })}
+                    rangeInputClass={rangeInputClass}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+                <SliderControl
+                    label={t('options.monetBackgroundGrayscale') || '去色'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundGrayscale * 100)}%`}
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={resolvedTuning.backgroundGrayscale}
+                    onChange={(value) => onMonetTuningChange?.({ backgroundGrayscale: value })}
+                    rangeInputClass={rangeInputClass}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+                <SliderControl
+                    label={t('options.monetBackgroundSaturation') || '饱和度'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundSaturation * 100)}%`}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={resolvedTuning.backgroundSaturation}
+                    onChange={(value) => onMonetTuningChange?.({ backgroundSaturation: value })}
+                    rangeInputClass={rangeInputClass}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+                <SliderControl
+                    label={t('options.monetBackgroundWash') || '水洗重着色'}
+                    valueLabel={`${Math.round(resolvedTuning.backgroundWash * 100)}%`}
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={resolvedTuning.backgroundWash}
+                    onChange={(value) => onMonetTuningChange?.({ backgroundWash: value })}
+                    rangeInputClass={rangeInputClass}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+            </div>
+
             <PresetGroup
                 label={t('options.monetAudioStyle') || '频谱样式'}
                 value={resolvedTuning.audioStyle}
@@ -226,105 +375,18 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 theme={theme}
             />
 
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.monetBackgroundBlur') || '背景模糊'}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.backgroundBlurPx)}px
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="120"
-                    step="2"
-                    value={resolvedTuning.backgroundBlurPx}
-                    onChange={(event) => onMonetTuningChange?.({ backgroundBlurPx: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.monetBackgroundOverlayOpacity') || '叠色强度'}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.02"
-                    value={resolvedTuning.backgroundOverlayOpacity}
-                    onChange={(event) => onMonetTuningChange?.({ backgroundOverlayOpacity: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.monetCoverPaneRatio') || '封面区比例'}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.coverPaneRatio * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.32"
-                    max="0.68"
-                    step="0.01"
-                    value={resolvedTuning.coverPaneRatio}
-                    onChange={(event) => onMonetTuningChange?.({ coverPaneRatio: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.monetLyricsFocusScale') || '主歌词强调'}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.lyricsFocusScale.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="1"
-                    max="1.3"
-                    step="0.01"
-                    value={resolvedTuning.lyricsFocusScale}
-                    onChange={(event) => onMonetTuningChange?.({ lyricsFocusScale: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.monetFontScale') || '字体缩放'}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.fontScale.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.7"
-                    max="1.5"
-                    step="0.05"
-                    value={resolvedTuning.fontScale}
-                    onChange={(event) => onMonetTuningChange?.({ fontScale: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
+            <SliderControl
+                label={t('options.monetFontScale') || '字体缩放'}
+                valueLabel={`${resolvedTuning.fontScale.toFixed(2)}x`}
+                min={0.7}
+                max={1.5}
+                step={0.05}
+                value={resolvedTuning.fontScale}
+                onChange={(value) => onMonetTuningChange?.({ fontScale: value })}
+                rangeInputClass={rangeInputClass}
+                onSliderPointerDown={onSliderPointerDown}
+                onSliderCommit={onSliderCommit}
+            />
         </div>
     );
 };

@@ -24,6 +24,7 @@ interface MonetLyricsRailProps {
     inactiveFontPx: number;
     translationFontPx: number;
     fontStack: string;
+    keywordColoringEnabled: boolean;
     emptyText: string;
 }
 
@@ -67,8 +68,13 @@ const isCJK = (text: string) => CJK_REGEX.test(text);
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const resolveMonetWordColor = (wordText: string, theme: Theme, fallbackColor: string): string => {
-    if (!theme.wordColors || theme.wordColors.length === 0) {
+export const resolveMonetWordColor = (
+    wordText: string,
+    theme: Theme,
+    fallbackColor: string,
+    keywordColoringEnabled = true,
+): string => {
+    if (!keywordColoringEnabled || !theme.wordColors || theme.wordColors.length === 0) {
         return fallbackColor;
     }
 
@@ -228,7 +234,8 @@ const MonetTimedTokenSpan: React.FC<{
     accentColor: string;
     fontPx: number;
     fontStack: string;
-}> = ({ entry, currentTime, theme, accentColor, fontPx, fontStack }) => {
+    keywordColoringEnabled: boolean;
+}> = ({ entry, currentTime, theme, accentColor, fontPx, fontStack, keywordColoringEnabled }) => {
     const lineRenderEndTime = useMemo(() => getLineRenderEndTime(entry.line), [entry.line]);
     const tokens = useMemo(() => buildMonetDisplayTokens(entry.line), [entry.line]);
     const fontSpec = useMemo(
@@ -253,6 +260,7 @@ const MonetTimedTokenSpan: React.FC<{
                         fontPx={fontPx}
                         fontSpec={fontSpec}
                         theme={theme}
+                        keywordColoringEnabled={keywordColoringEnabled}
                     />
                 ) : (
                     <span key={token.key} style={{ color: entry.tone.baseColor }}>
@@ -276,6 +284,7 @@ const MonetWordSweep: React.FC<{
     fontPx: number;
     fontSpec: string;
     theme: Theme;
+    keywordColoringEnabled: boolean;
 }> = ({
     text,
     startTime,
@@ -288,12 +297,13 @@ const MonetWordSweep: React.FC<{
     fontPx,
     fontSpec,
     theme,
+    keywordColoringEnabled,
 }) => {
     const isLineActive = lineStatus === 'active';
     const canRenderGlow = lineStatus === 'active' || lineStatus === 'passed';
     const wordColor = useMemo(
-        () => resolveMonetWordColor(text, theme, defaultAccentColor),
-        [defaultAccentColor, text, theme],
+        () => resolveMonetWordColor(text, theme, defaultAccentColor, keywordColoringEnabled),
+        [defaultAccentColor, keywordColoringEnabled, text, theme],
     );
     const graphemeOffsets = useMemo(
         () => measureMonetGraphemeOffsets(text, fontPx, fontSpec),
@@ -406,7 +416,8 @@ const MonetRailLine: React.FC<{
     lyricFontPx: number;
     translationFontPx: number;
     fontStack: string;
-}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack }) => {
+    keywordColoringEnabled: boolean;
+}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack, keywordColoringEnabled }) => {
     const initialOffset = entry.offset >= 0 ? 34 : -34;
     const exitOffset = entry.status === 'passed' || entry.offset < 0 ? -38 : 38;
     const textMask = getLineMask(entry.layout.isTextClipped, Math.max(lyricFontPx * 0.55, 12));
@@ -471,6 +482,7 @@ const MonetRailLine: React.FC<{
                     accentColor={colorWithAlpha(theme.primaryColor, 0.98)}
                     fontPx={lyricFontPx}
                     fontStack={fontStack}
+                    keywordColoringEnabled={keywordColoringEnabled}
                 />
             </div>
             {entry.status === 'active' && entry.line.translation ? (
@@ -513,6 +525,7 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
     inactiveFontPx,
     translationFontPx,
     fontStack,
+    keywordColoringEnabled,
     emptyText,
 }) => {
     const railRef = useRef<HTMLDivElement | null>(null);
@@ -550,6 +563,7 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
                             lyricFontPx={lyricFontPx}
                             translationFontPx={translationFontPx}
                             fontStack={fontStack}
+                            keywordColoringEnabled={keywordColoringEnabled}
                         />
                     ))}
                 </AnimatePresence>
