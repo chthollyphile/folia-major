@@ -1,4 +1,4 @@
-import { PlayerState, type HomeViewTab, type VisualizerMode } from '../../types';
+import { PlayerState, type HomeViewTab, type VisualizerMode, type VisualizerBackgroundMode, type MonetBackgroundTuning } from '../../types';
 import type { PanelTab } from '../UnifiedPanel';
 import type {
     CommandPaletteCommand,
@@ -302,6 +302,43 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createVisualizerCommand('fume', 'Visualizer: Fume', 'Switch to fume visualizer', ['visualizer fume', 'fume', '浮名', 'fuming', 'fm']),
     createVisualizerCommand('cappella', 'Visualizer: Cappella', 'Switch to cappella visualizer', ['visualizer cappella', 'cappella', '群唱', 'qunchang', 'qc']),
     createVisualizerCommand('tilt', 'Visualizer: Tilt', 'Switch to tilt visualizer', ['visualizer tilt', 'tilt', '倾诉', 'qingsu', 'qs']),
+    createVisualizerCommand('monet', 'Visualizer: Monet', 'Switch to Monet visualizer', ['visualizer monet', 'monet', '莫奈', 'monai', 'mn', '切换到可视化：莫奈', '切换到可视化莫奈']),
+
+    {
+        id: 'background-monet-full-overlay',
+        group: 'visualizer',
+        title: 'Background: Monet Full Screen Overlay',
+        description: 'Switch background to Monet full screen overlay layout',
+        keywords: ['monet full screen', 'monet full', 'overlay', '莫奈全屏叠色', '全屏叠色', '莫奈', 'mnqpds', 'qpds', '背景切换到 莫奈: 全屏叠色', '背景切换到莫奈全屏叠色'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('monet');
+            context.setMonetBackgroundTuning({ backgroundLayout: 'full-overlay' });
+            return true;
+        },
+    },
+    {
+        id: 'background-monet-half-gradient',
+        group: 'visualizer',
+        title: 'Background: Monet Half Screen Gradient',
+        description: 'Switch background to Monet half screen gradient layout',
+        keywords: ['monet half screen', 'monet half', 'gradient', '莫奈半屏渐变', '半屏渐变', '莫奈', 'mnbpjb', 'bpjb', '背景切换到 莫奈: 半屏渐变', '背景切换到莫奈半屏渐变'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('monet');
+            context.setMonetBackgroundTuning({ backgroundLayout: 'half-pane-gradient' });
+            return true;
+        },
+    },
+    {
+        id: 'background-common',
+        group: 'visualizer',
+        title: 'Background: Common',
+        description: 'Switch background to general layout',
+        keywords: ['background common', 'background general', 'common', 'general', '通用背景', '通用', 'tybj', 'ty', '背景切换到 通用', '背景切换到通用'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('common');
+            return true;
+        },
+    },
     {
         id: 'settings-toggle-transparent',
         group: 'settings',

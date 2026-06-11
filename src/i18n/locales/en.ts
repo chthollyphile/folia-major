@@ -111,6 +111,10 @@ export default {
       "visualizer-fume": { "title": "Visualizer: Fume", "description": "Switch to fume visualizer" },
       "visualizer-cappella": { "title": "Visualizer: Cappella", "description": "Switch to cappella visualizer" },
       "visualizer-tilt": { "title": "Visualizer: Tilt", "description": "Switch to tilt visualizer" },
+      "visualizer-monet": { "title": "Visualizer: Monet", "description": "Switch to Monet visualizer" },
+      "background-monet-full-overlay": { "title": "Background: Monet Full Screen Overlay", "description": "Switch background to Monet full screen overlay layout" },
+      "background-monet-half-gradient": { "title": "Background: Monet Half Screen Gradient", "description": "Switch background to Monet half screen gradient layout" },
+      "background-common": { "title": "Background: Common", "description": "Switch background to general layout" },
       "settings-toggle-transparent": { "title": "Toggle transparency", "description": "Toggle transparent player background" },
       "settings-toggle-daylight": { "title": "Toggle light/dark", "description": "Toggle theme daylight/midnight mode" }
     }

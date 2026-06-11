@@ -22,6 +22,8 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     handlePrevTrack: vi.fn(),
     shuffleQueue: vi.fn(),
     setVisualizerMode: vi.fn(),
+    setVisualizerBackgroundMode: vi.fn(),
+    setMonetBackgroundTuning: vi.fn(),
     toggleTransparentBackground: vi.fn(),
     toggleDaylightMode: vi.fn(),
     ...overrides,
@@ -224,5 +226,31 @@ describe('command palette registry', () => {
 
     it('limits suggestions to ten commands', () => {
         expect(getCommandPaletteMatches('')).toHaveLength(10);
+    });
+
+    it('matches and executes background and visualizer monet switching commands', () => {
+        const context = createContext();
+
+        const [matchMonet] = getCommandPaletteMatches('切换到可视化：莫奈');
+        expect(matchMonet.command.id).toBe('visualizer-monet');
+        matchMonet.command.execute('', context);
+        expect(context.setVisualizerMode).toHaveBeenCalledWith('monet');
+
+        const [matchFullOverlay] = getCommandPaletteMatches('全屏叠色');
+        expect(matchFullOverlay.command.id).toBe('background-monet-full-overlay');
+        matchFullOverlay.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('monet');
+        expect(context.setMonetBackgroundTuning).toHaveBeenCalledWith({ backgroundLayout: 'full-overlay' });
+
+        const [matchHalfGradient] = getCommandPaletteMatches('半屏渐变');
+        expect(matchHalfGradient.command.id).toBe('background-monet-half-gradient');
+        matchHalfGradient.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('monet');
+        expect(context.setMonetBackgroundTuning).toHaveBeenCalledWith({ backgroundLayout: 'half-pane-gradient' });
+
+        const [matchCommon] = getCommandPaletteMatches('通用背景');
+        expect(matchCommon.command.id).toBe('background-common');
+        matchCommon.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('common');
     });
 });

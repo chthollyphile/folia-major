@@ -111,6 +111,10 @@ export default {
       "visualizer-fume": { "title": "可视化：浮名", "description": "切换到浮名可视化" },
       "visualizer-cappella": { "title": "可视化：群唱", "description": "切换到群唱可视化" },
       "visualizer-tilt": { "title": "可视化：倾诉", "description": "切换到倾诉可视化" },
+      "visualizer-monet": { "title": "切换到可视化：莫奈", "description": "切换到莫奈可视化" },
+      "background-monet-full-overlay": { "title": "背景切换到 莫奈: 全屏叠色", "description": "切换背景到莫奈全屏叠色" },
+      "background-monet-half-gradient": { "title": "背景切换到 莫奈: 半屏渐变", "description": "切换背景到莫奈半屏渐变" },
+      "background-common": { "title": "背景切换到 通用", "description": "切换背景到通用" },
       "settings-toggle-transparent": { "title": "透明化", "description": "切换播放器背景透明度" },
       "settings-toggle-daylight": { "title": "切换明暗", "description": "切换主题日夜模式" }
     }
