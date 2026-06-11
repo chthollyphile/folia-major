@@ -162,7 +162,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
 
                 {showText ? (
                     <div
-                        className="flex min-w-0 items-center justify-center overflow-visible px-3 pr-5 sm:pr-8 lg:justify-end lg:pr-10 xl:pr-12"
+                        className="hidden min-w-0 items-center justify-center overflow-visible px-3 pr-5 sm:pr-8 md:flex lg:justify-end lg:pr-10 xl:pr-12"
                         style={{ flex: '0 0 clamp(220px, 28vw, 430px)' }}
                     >
                         <div className="relative w-full max-w-[clamp(210px,26vw,380px)]">
