@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments, type LayoutLine, type LayoutCursor, type PreparedTextWithSegments } from '@chenglou/pretext';
 import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../../../types';
 import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../../utils/lyrics/renderHints';
+import { createIntlSegmenter, splitIntoGraphemes } from '../../../utils/intlSegmenter';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
@@ -193,16 +194,14 @@ const clearOverlayWordNodes = (overlayNodes: Map<string, OverlayWordNodes>) => {
     overlayNodes.clear();
 };
 
-const graphemeSegmenter = typeof Intl !== 'undefined'
-    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    : null;
+const graphemeSegmenter = createIntlSegmenter('grapheme');
 
 const splitGraphemes = (text: string) => {
     if (!text) return [] as string[];
     if (graphemeSegmenter) {
         return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
     }
-    return Array.from(text);
+    return splitIntoGraphemes(text);
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

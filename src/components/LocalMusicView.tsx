@@ -9,6 +9,7 @@ import LocalPlaylistView from './local/LocalPlaylistView';
 import Carousel3D from './Carousel3D';
 import LocalArtistView from './local/LocalArtistView';
 import { deleteLocalPlaylist, updateLocalPlaylist } from '../services/localPlaylistService';
+import { isCapacitorMobile } from '../platform/runtime';
 
 interface LocalMusicViewProps {
     localSongs: LocalSong[];
@@ -82,6 +83,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
     hasFloatingPlayer = false,
 }) => {
     const { t } = useTranslation();
+    const mobileApp = isCapacitorMobile();
     const allSongsLabel = t('localMusic.allSongs');
     const resolvedAllSongsLabel = allSongsLabel === 'localMusic.allSongs' ? '全部歌曲' : allSongsLabel;
 
@@ -522,7 +524,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 onAddToQueue={onAddToQueue}
                 isFolderView={resolvedSelectedGroup.type === 'folder'}
                 allSongs={localSongs}
-                onResync={resolvedSelectedGroup.type === 'folder' && !resolvedSelectedGroup.isVirtual ? handleResyncFolder : undefined}
+                onResync={!mobileApp && resolvedSelectedGroup.type === 'folder' && !resolvedSelectedGroup.isVirtual ? handleResyncFolder : undefined}
                 onDelete={resolvedSelectedGroup.type === 'folder' && !resolvedSelectedGroup.isVirtual ? handleDeleteFolder : undefined}
                 onMatchSong={onMatchSong}
                 onRefresh={onRefresh}
@@ -561,7 +563,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             emptyMessage: t('localMusic.noFoldersFound'),
             focusedIndex: focusedFolderIndex,
             onFocusedIndexChange: setFocusedFolderIndex,
-            withImport: true,
+            withImport: !mobileApp,
         },
         {
             key: 'albums',
@@ -607,7 +609,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             </div>
 
             {/* Dashboard Content */}
-            {needsPermission && (
+            {needsPermission && !mobileApp && (
                 <div className={`w-fit mx-auto mb-4 p-2 px-4 rounded-full flex items-center gap-6 z-10 shrink-0 backdrop-blur-md shadow-lg ${isDaylight ? 'bg-black/5 border border-black/10 text-zinc-700' : 'bg-white/5 border border-white/10 text-zinc-300'}`}>
                     <div className="flex items-center gap-2">
                         <FolderOpen size={16} className="opacity-70" />
@@ -624,27 +626,33 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
                         <Music size={64} className="mb-4" />
                         <p className="text-lg">{t('localMusic.noLocalMusic')}</p>
-                        <button
-                            onClick={handleFolderImport}
-                            disabled={importButtonDisabled}
-                            className={`px-6 py-3 rounded-lg transition-colors text-sm mt-4 flex items-center gap-2 ${
-                                importButtonDisabled
-                                    ? 'bg-white/5 text-white/50 cursor-not-allowed'
-                                    : 'bg-white/10 hover:bg-white/20'
-                            }`}
-                        >
-                            {isImporting || isScanInProgress ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" />
-                                    {isScanInProgress ? '扫描中' : t('localMusic.importing')}
-                                </>
-                            ) : (
-                                <>
-                                    <FolderOpen size={16} />
-                                    {t('localMusic.importFolder')}
-                                </>
-                            )}
-                        </button>
+                        {mobileApp ? (
+                            <p className="mt-3 max-w-xs text-center text-sm opacity-70">
+                                {t('localMusic.mobileImportUnavailable') || 'Folder import is not available on mobile yet.'}
+                            </p>
+                        ) : (
+                            <button
+                                onClick={handleFolderImport}
+                                disabled={importButtonDisabled}
+                                className={`px-6 py-3 rounded-lg transition-colors text-sm mt-4 flex items-center gap-2 ${
+                                    importButtonDisabled
+                                        ? 'bg-white/5 text-white/50 cursor-not-allowed'
+                                        : 'bg-white/10 hover:bg-white/20'
+                                }`}
+                            >
+                                {isImporting || isScanInProgress ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        {isScanInProgress ? '扫描中' : t('localMusic.importing')}
+                                    </>
+                                ) : (
+                                    <>
+                                        <FolderOpen size={16} />
+                                        {t('localMusic.importFolder')}
+                                    </>
+                                )}
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="w-full h-full min-h-0 relative">

@@ -1,4 +1,5 @@
 import type { LyricLayoutUnit } from './cjkSemanticLayout';
+import { createIntlSegmenter } from '../intlSegmenter';
 
 const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
 const WESTERN_WORD_REGEX = /[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*/;
@@ -428,8 +429,7 @@ class SentenceLayout implements LyricLayoutUnit {
     }
 
     private static secondarySplit(sentences: SentenceLayout[], targetCount: number, timeSeed?: number): SentenceLayout[] {
-        const Segmenter = Intl?.Segmenter;
-        const segmenter = Segmenter ? new Segmenter(undefined, { granularity: 'word' }) : null;
+        const segmenter = createIntlSegmenter('word');
 
         while (sentences.length < targetCount) {
             const candidates = sentences.filter(s => s.text.length > 2);

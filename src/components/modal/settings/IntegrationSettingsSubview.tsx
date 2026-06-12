@@ -14,6 +14,7 @@ export type IntegrationSettingsChrome = {
     errorTextColor: string;
     getAccentOptionStyle: (selected: boolean) => React.CSSProperties;
     isElectron: boolean;
+    isMobileApp: boolean;
     settingsCardClass: string;
     successBgColor: string;
     successTextColor: string;
@@ -81,6 +82,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         errorTextColor,
         getAccentOptionStyle,
         isElectron,
+        isMobileApp,
         settingsCardClass,
         successBgColor,
         successTextColor,
@@ -263,7 +265,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                 </section>
             )}
 
-            {!isElectron && (
+            {!isElectron && !isMobileApp && (
                 <section>
                     <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                         <Server size={14} /> 舞台

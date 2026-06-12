@@ -1,5 +1,6 @@
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import type { Line } from '../../../types';
+import { createIntlSegmenter, splitIntoGraphemes } from '../../../utils/intlSegmenter';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 
 // src/components/visualizer/monet/monetLyricsModel.ts
@@ -75,9 +76,7 @@ const MONET_INACTIVE_TEXT_LINE_LIMIT = 2;
 const MONET_TRANSLATION_LINE_LIMIT = 2;
 const MONET_MIN_MEASURE_WIDTH_PX = 180;
 
-const graphemeSegmenter = typeof Intl !== 'undefined'
-    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    : null;
+const graphemeSegmenter = createIntlSegmenter('grapheme');
 
 export const resolveClampFontPx = (minRem: number, preferredVw: number, maxRem: number): number => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : VIEWPORT_WIDTH_FALLBACK_PX;
@@ -91,7 +90,7 @@ export const splitMonetGraphemes = (text: string): string[] => {
     if (graphemeSegmenter) {
         return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
     }
-    return Array.from(text);
+    return splitIntoGraphemes(text);
 };
 
 const measureTextLineCount = (text: string, fontSpec: string, maxWidthPx: number, lineHeightPx: number): number => {

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Folia</string>
+    <string name="title_activity_main">Folia</string>
+    <string name="package_name">top.izuna.foliamajor</string>
+    <string name="custom_url_scheme">top.izuna.foliamajor</string>
+</resources>

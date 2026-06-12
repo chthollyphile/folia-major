@@ -1,4 +1,5 @@
 import type { Line, Word } from '../../types';
+import { createIntlSegmenter } from '../intlSegmenter';
 
 // src/utils/lyrics/cjkSemanticLayout.ts
 // Builds parser-preserving lyric layout units for visualizer display planning.
@@ -73,13 +74,13 @@ export const createSingleWordLayoutUnits = (words: Word[]): LyricLayoutUnit[] =>
 }));
 
 const getWordSegments = (text: string): WordSegment[] | null => {
-    const Segmenter = Intl?.Segmenter;
-    if (!Segmenter) {
+    const segmenter = createIntlSegmenter('word');
+    if (!segmenter) {
         return null;
     }
 
     try {
-        return Array.from(new Segmenter(undefined, { granularity: 'word' }).segment(text), segment => ({
+        return Array.from(segmenter.segment(text), segment => ({
             segment: segment.segment,
             isWordLike: segment.isWordLike,
         }));

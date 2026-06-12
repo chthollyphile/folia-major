@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
@@ -14,12 +14,14 @@ import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
 import IntegrationSettingsSubview from './settings/IntegrationSettingsSubview';
 import LabSettingsModal from './settings/LabSettingsModal';
+import MobileAiSettingsSubview from './settings/MobileAiSettingsSubview';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
 import StorageSettingsSection from './settings/StorageSettingsSection';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { selectSettingsUiSnapshot, type SettingsSubviewId, useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
+import { getRuntimeEnvironment } from '../../platform/runtime';
 
 
 interface SettingsModalProps {
@@ -183,6 +185,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleSetGrid3dCardStyle: onChangeGrid3dCardStyle,
     } = useSettingsUiStore(useShallow(selectSettingsUiSnapshot));
     const setIsSubSettingsViewOpen = useSettingsUiStore(state => state.setIsSubSettingsViewOpen);
+    const runtimeEnvironment = getRuntimeEnvironment();
+    const isMobileApp = runtimeEnvironment === 'capacitor-mobile';
     const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
@@ -191,6 +195,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showIntegrationSettings, setShowIntegrationSettings] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
     const [showDesktopSettings, setShowDesktopSettings] = useState(false);
+    const [showMobileAiSettings, setShowMobileAiSettings] = useState(false);
     const [showLabSettings, setShowLabSettings] = useState(false);
     const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
@@ -208,6 +213,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowIntegrationSettings(initialSubview === 'integration');
         setShowStorageSettings(initialSubview === 'storage');
         setShowDesktopSettings(initialSubview === 'desktop');
+        setShowMobileAiSettings(initialSubview === 'mobileAi');
         setShowLabSettings(initialSubview === 'lab');
         setShowLyricFilterSettings(initialSubview === 'lyricFilter');
     }, [initialSubview, initialTab]);
@@ -672,6 +678,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         || showIntegrationSettings
         || showStorageSettings
         || showDesktopSettings
+        || showMobileAiSettings
         || showLabSettings
         || showLyricFilterSettings;
 
@@ -687,6 +694,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowIntegrationSettings(false);
         setShowStorageSettings(false);
         setShowDesktopSettings(false);
+        setShowMobileAiSettings(false);
         setShowLabSettings(false);
         setShowLyricFilterSettings(false);
     };
@@ -1149,6 +1157,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                     </div>
                                 </button>
+
+                                {isMobileApp && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMobileAiSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <KeyRound size={18} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.mobileAiSettings') || 'Mobile AI'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.mobileAiSettingsDesc') || 'OpenAI-compatible API key, endpoint, and model for mobile.'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                        </div>
+                                    </button>
+                                )}
 
                                 <button
                                     type="button"
@@ -2165,6 +2198,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             errorTextColor,
                             getAccentOptionStyle,
                             isElectron,
+                            isMobileApp,
                             settingsCardClass,
                             successBgColor,
                             successTextColor,
@@ -2247,7 +2281,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         }}
                     />
                 ),
-            })}<LabSettingsModal
+            })}
+            {renderSettingsSubview({
+                isOpen: showMobileAiSettings,
+                onClose: () => closeSubviewOrModal(() => setShowMobileAiSettings(false)),
+                title: t('options.mobileAiSettings') || 'Mobile AI',
+                description: t('options.mobileAiSettingsDesc') || 'OpenAI-compatible API key, endpoint, and model for mobile.',
+                children: (
+                    <MobileAiSettingsSubview
+                        errorTextColor={errorTextColor}
+                        settingsCardClass={settingsCardClass}
+                        successTextColor={successTextColor}
+                        theme={theme}
+                    />
+                ),
+            })}
+            <LabSettingsModal
                 isOpen={showLabSettings}
                 onClose={() => closeSubviewOrModal(() => setShowLabSettings(false))}
                 onOpenLyricFilterSettings={() => setShowLyricFilterSettings(true)}

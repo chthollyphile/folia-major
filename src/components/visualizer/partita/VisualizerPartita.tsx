@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } f
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_PARTITA_TUNING, Line, Theme, Word as WordType, AudioBands, type PartitaTuning } from '../../../types';
 import { buildDisplayWordsFromLayoutUnits, buildPostLyricLayoutUnits, type LyricLayoutUnit } from '../../../utils/lyrics/cjkSemanticLayout';
+import { createIntlSegmenter, splitIntoGraphemes } from '../../../utils/intlSegmenter';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
@@ -83,15 +84,13 @@ const PARTITA_PREHEAT_WINDOW: VisualizerPreheatWindow = {
 };
 
 const isCJK = (text: string) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
-const graphemeSegmenter = typeof Intl !== 'undefined'
-    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    : null;
+const graphemeSegmenter = createIntlSegmenter('grapheme');
 const splitGraphemes = (text: string) => {
     if (!text) return [] as string[];
     if (graphemeSegmenter) {
         return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
     }
-    return Array.from(text);
+    return splitIntoGraphemes(text);
 };
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clampPartitaStagger = (value: number, fallback: number) => Number.isFinite(value)

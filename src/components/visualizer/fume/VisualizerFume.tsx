@@ -4,6 +4,7 @@ import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, ty
 import { Hourglass } from 'lucide-react';
 import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { createIntlSegmenter, splitIntoGraphemes } from '../../../utils/intlSegmenter';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import { type VisualizerSharedProps } from '../definition';
@@ -177,16 +178,14 @@ interface CameraViewTarget {
     scale: number;
 }
 
-const graphemeSegmenter = typeof Intl !== 'undefined'
-    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    : null;
+const graphemeSegmenter = createIntlSegmenter('grapheme');
 
 const splitGraphemes = (text: string) => {
     if (!text) return [] as string[];
     if (graphemeSegmenter) {
         return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
     }
-    return Array.from(text);
+    return splitIntoGraphemes(text);
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

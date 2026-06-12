@@ -16,7 +16,7 @@ import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAM
 export type StatusSetter = React.Dispatch<React.SetStateAction<StatusMessage | null>>;
 export type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 export type SettingsModalInitialTab = 'help' | 'options';
-export type SettingsSubviewId = 'appearance' | 'playback' | 'integration' | 'storage' | 'desktop' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
+export type SettingsSubviewId = 'appearance' | 'playback' | 'integration' | 'storage' | 'desktop' | 'mobileAi' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
 export type SettingsModalState = {
     isOpen: boolean;
     initialTab: SettingsModalInitialTab;

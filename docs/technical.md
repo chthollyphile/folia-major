@@ -62,6 +62,14 @@ Folia 当前支持以下两类 AI 提供方式：
 
 Gemini 通常更适合当前项目场景，因为 JSON 输出相对稳定。
 
+### Capacitor Mobile
+
+移动端通过 Capacitor 复用同一份 `dist` 前端产物，不拆分第二套前端工程。移动端 AI 只提供 OpenAI 兼容接口配置，用户在手机端本地填写 `API URL`、`Model` 和 `API Key`；其中 API Key 通过 Capacitor 安全存储保存，不进入视觉配置导出、普通设置导出或日志。
+
+如果要使用 Gemini，请填写 Gemini 提供的 OpenAI 兼容接口地址和模型名，而不是使用 Gemini SDK 路径。
+
+移动端第一版不提供桌面端专属能力，包括 Electron 更新、托盘、透明窗、系统代理、Stage API、Now Playing 本地服务，以及依赖 `showDirectoryPicker` / `FileSystemFileHandle` 的本地目录导入。
+
 ### Stage API
 
 Folia 提供了从外部与播放器进行交互的 Stage API，从而可以实现外部程序与播放器的深度集成。可以通过 `npm run stage:client` 启动本地联调台，查看和测试这些接口的功能。
@@ -152,6 +160,11 @@ vercel dev
 | `npm run dev` | 启动 Vite 开发服务器 |
 | `npm run build` | 构建 Web 版本 |
 | `npm run preview` | 预览构建结果 |
+| `npm run cap:sync` | 构建 Web 产物并同步到 Capacitor 平台 |
+| `npm run cap:android` | 构建并运行 Android Capacitor 应用 |
+| `npm run cap:ios` | 构建并运行 iOS Capacitor 应用 |
+| `npm run build:android` | 构建并同步 Android 平台资源 |
+| `npm run build:ios` | 构建并同步 iOS 平台资源 |
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
@@ -162,6 +175,7 @@ vercel dev
 | 需求 | 优先入口 |
 | --- | --- |
 | App 顶层装配、overlay、dialog、播放器面板参数组装 | `src/components/app/*` |
+| Web / Electron / Capacitor 运行时差异 | `src/platform/*` |
 | 设置中心 UI | `src/components/modal/settings/*` |
 | 设置持久化、visualizer tuning、偏好 store | `src/stores/useSettingsUiStore.ts` |
 | 命令面板命令 | `src/components/command-palette/commandRegistry.ts` |
@@ -170,6 +184,7 @@ vercel dev
 | visualizer 模式实现 | `src/components/visualizer/<mode>/*` |
 | 歌词解析和渲染提示 | `src/utils/lyrics/*` |
 | 本地音乐、Navidrome、网易云服务 | `src/services/*` |
+| 移动端 AI 配置与 OpenAI 兼容请求 | `src/services/mobileAiConfig.ts`、`src/services/openaiCompatibleTheme.ts` |
 | 共享类型和默认 tuning | `src/types.ts` |
 
 新增设置时遵守项目 skill：视觉相关设置需要进入外观页的配置导入导出；功能性设置和可执行动作需要注册到 command palette。

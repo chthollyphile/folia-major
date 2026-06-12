@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { Line, Theme, AudioBands, type TiltColorScheme, type TiltTuning, DEFAULT_TILT_TUNING } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { splitIntoGraphemes } from '../../../utils/intlSegmenter';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { SentenceLayout } from '../../../utils/lyrics/sentenceLayout';
 import { type VisualizerSharedProps } from '../definition';
@@ -54,8 +55,6 @@ const getAvailableWidth = (): number => {
     return Math.max(320, window.innerWidth) * 0.85;
 };
 
-const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
 interface CharTiming {
     charIndex: number;
     startTime: number;
@@ -99,7 +98,7 @@ const findSegmentWordRange = (charOffset: number, segmentText: string, fullText:
 };
 
 const buildCharTimings = (charOffset: number, segmentText: string, segmentStartTime: number, segmentEndTime: number, activeLine: Line | null): CharTiming[] => {
-    const graphemes = [...GRAPHEME_SEGMENTER.segment(segmentText)];
+    const graphemes = splitIntoGraphemes(segmentText).map(segment => ({ segment }));
     if (!activeLine || graphemes.length === 0) return [];
 
     const nonSpaceGraphemes = graphemes.filter(g => !/^\s+$/.test(g.segment));
@@ -115,7 +114,7 @@ const buildCharTimings = (charOffset: number, segmentText: string, segmentStartT
     if (segmentWords.length > 0) {
         let totalCharsInSegment = 0;
         for (const word of segmentWords) {
-            totalCharsInSegment += [...GRAPHEME_SEGMENTER.segment(word.text)].filter(g => !/^\s+$/.test(g.segment)).length;
+            totalCharsInSegment += splitIntoGraphemes(word.text).filter(segment => !/^\s+$/.test(segment)).length;
         }
 
         if (totalCharsInSegment > 0) {
@@ -123,7 +122,7 @@ const buildCharTimings = (charOffset: number, segmentText: string, segmentStartT
                 const word = segmentWords[wi];
                 if (!word) continue;
 
-                const wordGraphemes = [...GRAPHEME_SEGMENTER.segment(word.text)];
+                const wordGraphemes = splitIntoGraphemes(word.text).map(segment => ({ segment }));
                 const wordNonSpaceCount = wordGraphemes.filter(g => !/^\s+$/.test(g.segment)).length;
 
                 if (wordNonSpaceCount === 0) continue;
@@ -363,7 +362,7 @@ const TiltLine: React.FC<{
     const colors = getColors();
 
     const graphemes = useMemo(
-        () => [...GRAPHEME_SEGMENTER.segment(segment.text)],
+        () => splitIntoGraphemes(segment.text).map(value => ({ segment: value })),
         [segment.text]
     );
     let visualIndex = 0;

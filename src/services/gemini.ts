@@ -1,5 +1,8 @@
 import { DualTheme } from "../types";
 import { applyStoredAnimationIntensityToDualTheme } from "./themePreferences";
+import { getRuntimeEnvironment } from "../platform/runtime";
+import { getMobileAiConfig, validateMobileAiConfig } from "./mobileAiConfig";
+import { generateOpenAICompatibleTheme } from "./openaiCompatibleTheme";
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) {
@@ -10,7 +13,7 @@ const getErrorMessage = (error: unknown) => {
 
 export const isMissingAiApiKeyError = (error: unknown) => {
   const message = getErrorMessage(error);
-  return /(?:openai_api_key|gemini_api_key|api key)/i.test(message)
+  return /(?:openai_api_key|gemini_api_key|api key|api url|model)/i.test(message)
     && /(?:not configured|missing|configure)/i.test(message);
 };
 
@@ -19,9 +22,24 @@ export const generateThemeFromLyrics = async (
   options?: { isPureMusic?: boolean; songTitle?: string }
 ): Promise<DualTheme> => {
   try {
+    const runtime = getRuntimeEnvironment();
+
     // Check if running in Electron environment
-    if ((window as any).electron && typeof (window as any).electron.generateTheme === 'function') {
+    if (runtime === 'electron' && (window as any).electron && typeof (window as any).electron.generateTheme === 'function') {
       return await (window as any).electron.generateTheme(lyricsText, options);
+    }
+
+    if (runtime === 'capacitor-mobile') {
+      const mobileConfig = await getMobileAiConfig();
+      validateMobileAiConfig(mobileConfig);
+      const dualTheme = await generateOpenAICompatibleTheme({
+        apiKey: mobileConfig.apiKey,
+        apiUrl: mobileConfig.apiUrl,
+        model: mobileConfig.model,
+        lyricsText,
+        ...options,
+      });
+      return applyStoredAnimationIntensityToDualTheme(dualTheme);
     }
 
     const provider = import.meta.env.VITE_AI_PROVIDER;
