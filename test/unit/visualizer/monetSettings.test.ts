@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
-import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, resolveWashColor } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
@@ -270,11 +270,5 @@ describe('Monet tuning and lyric helpers', () => {
             } as typeof DEFAULT_MONET_BACKGROUND_TUNING & { backgroundCropMode: string; },
         });
         expect(layoutBase).toBe(layoutChanged);
-    });
-
-    it('handles canvas filter feature detection without throwing', () => {
-        // Feature detection returns boolean and doesn't crash
-        const supported = checkCanvasFilterSupport();
-        expect(typeof supported).toBe('boolean');
     });
 });

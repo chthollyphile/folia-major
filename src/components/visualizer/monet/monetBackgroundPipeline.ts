@@ -235,51 +235,6 @@ export const getMonetBackgroundCacheKey = ({
     },
 });
 
-let isCanvasFilterSupportedCached: boolean | null = null;
-
-/**
- * Checks if the browser's Canvas 2D context actually supports and applies the filter property.
- * This handles cases like iOS Safari where ctx.filter is defined but silently does nothing.
- */
-export const checkCanvasFilterSupport = (): boolean => {
-    if (isCanvasFilterSupportedCached !== null) {
-        return isCanvasFilterSupportedCached;
-    }
-    if (typeof document === 'undefined') {
-        return false;
-    }
-    try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 2;
-        canvas.height = 2;
-        const ctx = canvas.getContext('2d');
-        if (!ctx || typeof ctx.filter !== 'string') {
-            isCanvasFilterSupportedCached = false;
-            if (import.meta.env.DEV) {
-                console.log('[MonetBackground] Canvas filter support detection: Unsupported (ctx.filter is missing)');
-            }
-            return false;
-        }
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, 2, 2);
-        ctx.filter = 'blur(1px)';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 1, 1);
-        const imgData = ctx.getImageData(1, 1, 1, 1);
-        isCanvasFilterSupportedCached = imgData.data[0] > 0;
-        if (import.meta.env.DEV) {
-            console.log(`[MonetBackground] Canvas filter support detection: ${isCanvasFilterSupportedCached ? 'Supported (native)' : 'Unsupported (CSS blur fallback will be used)'}`);
-        }
-        return isCanvasFilterSupportedCached;
-    } catch (e) {
-        isCanvasFilterSupportedCached = false;
-        if (import.meta.env.DEV) {
-            console.log('[MonetBackground] Canvas filter support detection failed:', e);
-        }
-        return false;
-    }
-};
-
 export const buildMonetBackgroundDataUrl = async ({
     coverUrl,
     monetBackgroundImage,
@@ -304,9 +259,7 @@ export const buildMonetBackgroundDataUrl = async ({
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     context.save();
-    if (checkCanvasFilterSupport()) {
-        context.filter = `blur(${clamp(tuning.backgroundBlurPx, 0, 60)}px)`;
-    }
+    context.filter = `blur(${clamp(tuning.backgroundBlurPx, 0, 60)}px)`;
     drawCoverCropped(context, image, canvas.width, canvas.height);
     context.restore();
 

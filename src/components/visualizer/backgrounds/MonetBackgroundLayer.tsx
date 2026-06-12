@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DEFAULT_MONET_BACKGROUND_TUNING, type MonetBackgroundImage, type MonetBackgroundTuning, type Theme } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
-import { getMonetBackgroundCacheKey, resolveMonetBackgroundDataUrl, checkCanvasFilterSupport } from '../monet/monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, resolveMonetBackgroundDataUrl } from '../monet/monetBackgroundPipeline';
 
 // src/components/visualizer/backgrounds/MonetBackgroundLayer.tsx
 // Shared shell-level Monet image background with debounced bitmap post-processing.
@@ -90,18 +90,6 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
         };
     }, [backgroundCacheKey, sourceUrl, transparentBackground]);
 
-    const isCanvasFilterSupported = useMemo(() => checkCanvasFilterSupport(), []);
-    const blurValue = !isCanvasFilterSupported ? tuning.backgroundBlurPx : 0;
-
-    const blurStyle = useMemo<React.CSSProperties>(() => {
-        if (blurValue <= 0) return {};
-        return {
-            filter: `blur(${blurValue}px)`,
-            WebkitFilter: `blur(${blurValue}px)`,
-            transform: 'scale(1.1) translateZ(0)',
-        };
-    }, [blurValue]);
-
     if (transparentBackground) {
         return null;
     }
@@ -128,7 +116,6 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
                             backgroundImage: resolvedBackgroundImage,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
-                            ...blurStyle,
                         }}
                     />
                 </AnimatePresence>
@@ -155,29 +142,22 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
             />
             <AnimatePresence initial={false}>
                 {pipelineUrl || sourceUrl ? (
-                    <div
-                        className="absolute inset-y-0 left-0 w-[72%] sm:w-[68%] lg:w-[60%] overflow-hidden"
+                    <motion.div
+                        key={pipelineUrl || sourceUrl || 'fallback'}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: imageOpacity }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.8, ease: 'easeInOut' }}
+                        className="absolute inset-y-0 left-0 w-[72%] sm:w-[68%] lg:w-[60%]"
                         style={{
+                            backgroundImage: resolvedBackgroundImage,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundSize: 'cover',
+                            backgroundPosition: `${imagePositionX}% center`,
                             WebkitMaskImage: 'linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.46) 74%, rgba(0,0,0,0) 100%)',
                             maskImage: 'linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.94) 48%, rgba(0,0,0,0.46) 74%, rgba(0,0,0,0) 100%)',
                         }}
-                    >
-                        <motion.div
-                            key={pipelineUrl || sourceUrl || 'fallback'}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: imageOpacity }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.8, ease: 'easeInOut' }}
-                            className="absolute inset-0"
-                            style={{
-                                backgroundImage: resolvedBackgroundImage,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundSize: 'cover',
-                                backgroundPosition: `${imagePositionX}% center`,
-                                ...blurStyle,
-                            }}
-                        />
-                    </div>
+                    />
                 ) : null}
             </AnimatePresence>
             <div
