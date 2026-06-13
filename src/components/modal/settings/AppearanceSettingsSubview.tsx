@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { DualTheme, Theme, ThemeMode, UrlBackgroundItem } from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
+import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
@@ -529,14 +530,17 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 // store update to avoid sequential localStorage writes per item.
                 const existingMap = new Map(store.urlBackgroundList.map(i => [i.id, { ...i }]));
                 for (const item of config.urlBackgroundList) {
-                    if (item && typeof item.id === 'string' && typeof item.url === 'string') {
-                        const existing = existingMap.get(item.id);
-                        existingMap.set(item.id, {
-                            ...(existing ?? { id: item.id }),
-                            url: item.url,
-                            note: item.note,
-                        });
+                    const sanitized = sanitizeUrlBackgroundItem(item);
+                    if (!sanitized) {
+                        continue;
                     }
+
+                    const existing = existingMap.get(sanitized.id);
+                    existingMap.set(sanitized.id, {
+                        ...(existing ?? { id: sanitized.id }),
+                        url: sanitized.url,
+                        note: sanitized.note,
+                    });
                 }
                 mergedUrlList = Array.from(existingMap.values());
                 store.handleSetUrlBackgroundList(mergedUrlList);

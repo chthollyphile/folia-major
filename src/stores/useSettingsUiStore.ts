@@ -9,6 +9,7 @@ import { clearUploadedLyricsFont, uploadAndRegisterLyricsFont } from '../service
 import { buildStoredMonetBackgroundImage, clearMonetBackgroundImage, isSupportedMonetBackgroundFile, saveMonetBackgroundImage } from '../services/monetBackgroundImage';
 import { buildStoredMonetPortraitImage, clearMonetPortraitImage, isSupportedMonetPortraitFile, saveMonetPortraitImage } from '../services/monetPortraitImage';
 import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAME_RATE_STORAGE_KEY } from '../utils/frameRateLimiter';
+import { sanitizeUrlBackgroundItem, sanitizeUrlBackgroundList } from '../utils/urlBackground';
 
 // src/stores/useSettingsUiStore.ts
 // Shared settings state and actions used by App, Home, and SettingsModal.
@@ -432,13 +433,7 @@ const readStoredUrlBackgroundList = (): UrlBackgroundItem[] => {
         if (!saved) return [];
         const parsed = JSON.parse(saved);
         if (!Array.isArray(parsed)) return [];
-        return parsed.filter((item: any): item is UrlBackgroundItem =>
-            item && typeof item.id === 'string' && typeof item.url === 'string'
-        ).map(item => ({
-            id: item.id,
-            url: item.url,
-            note: typeof item.note === 'string' ? item.note : item.url,
-        }));
+        return sanitizeUrlBackgroundList(parsed);
     } catch {
         return [];
     }
@@ -1089,7 +1084,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ visualizerBackgroundMode: null });
     },
     handleAddUrlBackgroundItem: (item) => {
-        const next = [...get().urlBackgroundList, item];
+        const sanitized = sanitizeUrlBackgroundItem(item);
+        if (!sanitized) return;
+        const next = [...get().urlBackgroundList, sanitized];
         if (typeof window !== 'undefined') {
             localStorage.setItem('url_background_list', JSON.stringify(next));
         }
@@ -1097,7 +1094,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     },
     handleUpdateUrlBackgroundItem: (id, patch) => {
         const next = get().urlBackgroundList.map(item =>
-            item.id === id ? { ...item, ...patch } : item
+            item.id === id ? sanitizeUrlBackgroundItem({ ...item, ...patch, id: item.id }) ?? item : item
         );
         if (typeof window !== 'undefined') {
             localStorage.setItem('url_background_list', JSON.stringify(next));
@@ -1135,10 +1132,18 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ urlBackgroundSelectedId: id });
     },
     handleSetUrlBackgroundList: (items) => {
+        const next = sanitizeUrlBackgroundList(items);
+        const selectedId = get().urlBackgroundSelectedId;
+        const nextSelectedId = selectedId && next.some(item => item.id === selectedId) ? selectedId : null;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('url_background_list', JSON.stringify(items));
+            localStorage.setItem('url_background_list', JSON.stringify(next));
+            if (nextSelectedId) {
+                localStorage.setItem('url_background_selected_id', nextSelectedId);
+            } else {
+                localStorage.removeItem('url_background_selected_id');
+            }
         }
-        set({ urlBackgroundList: items });
+        set({ urlBackgroundList: next, urlBackgroundSelectedId: nextSelectedId });
     },
     handleSetVisualizerFrameRate: (frameRate) => {
         if (typeof window !== 'undefined') {

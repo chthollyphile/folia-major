@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Globe, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import type { Theme, UrlBackgroundItem } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
+import { normalizeUrlBackgroundUrl } from '../../../utils/urlBackground';
 
 // src/components/visualizer/backgrounds/UrlBackgroundSettingsCard.tsx
 // Settings card for managing URL background list (add/edit/delete/select).
@@ -20,14 +21,6 @@ interface UrlBackgroundSettingsCardProps {
 }
 
 const generateId = () => `url-bg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-// Prepend https:// when the user omits the protocol,
-// otherwise the iframe interprets bare domains as relative paths.
-const normalizeUrl = (url: string): string => {
-    const trimmed = url.trim();
-    if (!trimmed) return trimmed;
-    return trimmed.includes('://') ? trimmed : `https://${trimmed}`;
-};
 
 const UrlBackgroundSettingsCard: React.FC<UrlBackgroundSettingsCardProps> = ({
     t,
@@ -54,7 +47,7 @@ const UrlBackgroundSettingsCard: React.FC<UrlBackgroundSettingsCardProps> = ({
     }, []);
 
     const handleAdd = useCallback(() => {
-        const trimmedUrl = normalizeUrl(draftUrl);
+        const trimmedUrl = normalizeUrlBackgroundUrl(draftUrl);
         if (!trimmedUrl) return;
         const item: UrlBackgroundItem = {
             id: generateId(),
@@ -74,7 +67,7 @@ const UrlBackgroundSettingsCard: React.FC<UrlBackgroundSettingsCardProps> = ({
 
     const handleSaveEdit = useCallback(() => {
         if (!editingId) return;
-        const trimmedUrl = normalizeUrl(draftUrl);
+        const trimmedUrl = normalizeUrlBackgroundUrl(draftUrl);
         if (!trimmedUrl) return;
         onUpdateUrlBackgroundItem?.(editingId, {
             url: trimmedUrl,

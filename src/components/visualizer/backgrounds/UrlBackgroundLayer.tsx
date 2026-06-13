@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import type { UrlBackgroundItem } from '../../../types';
+import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
 
 // src/components/visualizer/backgrounds/UrlBackgroundLayer.tsx
 // Renders a webpage as background via iframe.
@@ -18,7 +19,7 @@ const UrlBackgroundLayer: React.FC<UrlBackgroundLayerProps> = ({
     urlBackgroundSelectedId = null,
 }) => {
     const selectedItem = useMemo(
-        () => urlBackgroundList.find(item => item.id === urlBackgroundSelectedId) ?? null,
+        () => sanitizeUrlBackgroundItem(urlBackgroundList.find(item => item.id === urlBackgroundSelectedId)),
         [urlBackgroundList, urlBackgroundSelectedId],
     );
 

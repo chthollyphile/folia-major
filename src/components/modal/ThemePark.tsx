@@ -26,6 +26,7 @@ import {
     MonetTuning,
     PartitaTuning,
     Theme,
+    UrlBackgroundItem,
     VisualizerMode,
     VisualizerBackgroundMode,
 } from '../../types';
@@ -46,6 +47,8 @@ interface ThemeParkProps {
     backgroundOpacity?: number;
     visualizerOpacity?: number;
     visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    urlBackgroundList?: UrlBackgroundItem[];
+    urlBackgroundSelectedId?: string | null;
     classicTuning?: ClassicTuning;
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
@@ -103,6 +106,8 @@ const ThemePreviewLayer: React.FC<{
     backgroundOpacity: number;
     visualizerOpacity: number;
     visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    urlBackgroundList: UrlBackgroundItem[];
+    urlBackgroundSelectedId?: string | null;
     classicTuning: ClassicTuning;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
@@ -131,6 +136,8 @@ const ThemePreviewLayer: React.FC<{
     backgroundOpacity,
     visualizerOpacity,
     visualizerBackgroundMode,
+    urlBackgroundList,
+    urlBackgroundSelectedId,
     classicTuning,
     cadenzaTuning,
     partitaTuning,
@@ -183,6 +190,8 @@ const ThemePreviewLayer: React.FC<{
                         backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
                         visualizerBackgroundMode={visualizerBackgroundMode}
+                        urlBackgroundList={urlBackgroundList}
+                        urlBackgroundSelectedId={urlBackgroundSelectedId}
                         coverUrl={VIS_PLAYGROUND_PREVIEW_COVER_URL}
                         lyricsFontScale={lyricsFontScale}
                         classicTuning={classicTuning}
@@ -251,6 +260,8 @@ const DiagonalThemePreview: React.FC<{
     backgroundOpacity: number;
     visualizerOpacity: number;
     visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    urlBackgroundList: UrlBackgroundItem[];
+    urlBackgroundSelectedId?: string | null;
     classicTuning: ClassicTuning;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
@@ -278,6 +289,8 @@ const DiagonalThemePreview: React.FC<{
     backgroundOpacity,
     visualizerOpacity,
     visualizerBackgroundMode,
+    urlBackgroundList,
+    urlBackgroundSelectedId,
     classicTuning,
     cadenzaTuning,
     partitaTuning,
@@ -328,6 +341,8 @@ const DiagonalThemePreview: React.FC<{
                     backgroundOpacity={backgroundOpacity}
                     visualizerOpacity={visualizerOpacity}
                     visualizerBackgroundMode={visualizerBackgroundMode}
+                    urlBackgroundList={urlBackgroundList}
+                    urlBackgroundSelectedId={urlBackgroundSelectedId}
                     classicTuning={classicTuning}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
@@ -357,6 +372,8 @@ const DiagonalThemePreview: React.FC<{
                     backgroundOpacity={backgroundOpacity}
                     visualizerOpacity={visualizerOpacity}
                     visualizerBackgroundMode={visualizerBackgroundMode}
+                    urlBackgroundList={urlBackgroundList}
+                    urlBackgroundSelectedId={urlBackgroundSelectedId}
                     classicTuning={classicTuning}
                     cadenzaTuning={cadenzaTuning}
                     partitaTuning={partitaTuning}
@@ -389,6 +406,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     backgroundOpacity = 0.75,
     visualizerOpacity = 1,
     visualizerBackgroundMode = null,
+    urlBackgroundList = [],
+    urlBackgroundSelectedId = null,
     classicTuning = DEFAULT_CLASSIC_TUNING,
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
@@ -592,6 +611,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             backgroundOpacity={backgroundOpacity}
                             visualizerOpacity={visualizerOpacity}
                             visualizerBackgroundMode={visualizerBackgroundMode}
+                            urlBackgroundList={urlBackgroundList}
+                            urlBackgroundSelectedId={urlBackgroundSelectedId}
                             classicTuning={classicTuning}
                             cadenzaTuning={cadenzaTuning}
                             partitaTuning={partitaTuning}
