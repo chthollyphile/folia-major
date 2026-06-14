@@ -6,6 +6,7 @@ export type UnifiedLyric = LyricData;
 export interface LyricProcessingOptions {
     includeInterludes?: boolean;
     filterPattern?: string | null;
+    songId?: number;
 }
 
 export interface RawEmbeddedLyric {

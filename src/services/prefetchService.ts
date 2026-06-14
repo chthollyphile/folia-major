@@ -195,7 +195,7 @@ const prefetchSong = async (
                     })()
                     : await (async () => {
                         const lyricRes = await neteaseApi.getLyric(songId);
-                        return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes));
+                        return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId });
                     })();
                 data.lyricRaw = {
                     mainLrc: processed.mainLrc,

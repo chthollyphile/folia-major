@@ -155,7 +155,7 @@ export function useLibraryPlaybackController({
         }
 
         const lyricRes = await neteaseApi.getLyric(onlineSong.id);
-        const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes));
+        const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: onlineSong.id });
         return processed.lyrics;
     }, [audioQuality, lyrics, userId]);
 
@@ -626,7 +626,7 @@ export function useLibraryPlaybackController({
                     if (searchRes.result?.songs?.length) {
                         const matchedSong = searchRes.result.songs[0];
                         const lyricRes = await neteaseApi.getLyric(matchedSong.id);
-                        const processed = await processNeteaseLyrics({ type: 'netease', ...lyricRes });
+                        const processed = await processNeteaseLyrics({ type: 'netease', ...lyricRes }, { songId: matchedSong.id });
                         nextLyrics = processed.lyrics;
                         (navidromeSong as NavidromeSong & { matchedIsPureMusic?: boolean }).matchedIsPureMusic = processed.isPureMusic;
                         if (nextLyrics || processed.isPureMusic) {

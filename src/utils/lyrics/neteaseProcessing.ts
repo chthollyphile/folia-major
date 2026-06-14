@@ -1,10 +1,11 @@
 import { LyricData } from '../../types';
-import { applyDetectedChorusEffects } from './chorusEffects';
+import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from './chorusEffects';
 import { detectTimedLyricFormat } from './formatDetection';
 import { resolveLyricProcessingOptions } from './filtering';
 import { hasNeteasePureMusicFlag, isPureMusicLyricText } from './pureMusic';
 import type { LyricProcessingOptions, RawNeteaseLyric } from './types';
 import { parseLyricsAsync } from './workerClient';
+import { neteaseApi } from '../../services/netease';
 
 export interface ExtractedNeteaseLyricPayload {
     mainLrc: string | null;
@@ -56,7 +57,27 @@ export const processNeteaseLyrics = async (
     );
 
     if (lyrics && payload.mainLrc) {
-        lyrics = applyDetectedChorusEffects(lyrics, payload.mainLrc);
+        let chorusApplied = false;
+        if (options.songId) {
+            try {
+                const chorusRes = await neteaseApi.getChorus(options.songId);
+                if (chorusRes && chorusRes.code === 200) {
+                    const ranges = chorusRes.chorus || chorusRes.data || [];
+                    if (Array.isArray(ranges) && ranges.length > 0) {
+                        lyrics = applyNeteaseChorusByTime(lyrics, ranges);
+                        chorusApplied = true;
+                        console.log(`[processNeteaseLyrics] Applied API-based chorus detection for song ${options.songId}`);
+                    }
+                }
+            } catch (error) {
+                console.warn(`[processNeteaseLyrics] Failed to fetch API-based chorus for song ${options.songId}, falling back to text-based detection:`, error);
+            }
+        }
+
+        if (!chorusApplied) {
+            lyrics = applyDetectedChorusEffects(lyrics, payload.mainLrc);
+            console.log(`[processNeteaseLyrics] Applied text-based chorus detection fallback for song ${options.songId ?? 'unknown'}`);
+        }
     }
 
     return {

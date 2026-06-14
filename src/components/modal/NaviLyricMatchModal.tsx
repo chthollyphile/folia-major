@@ -123,10 +123,13 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         try {
             // Always fetch lyrics
             const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-            const processed = await processNeteaseLyrics({
-                type: 'netease',
-                ...lyricRes
-            });
+            const processed = await processNeteaseLyrics(
+                {
+                    type: 'netease',
+                    ...lyricRes
+                },
+                { songId: selectedResult.id }
+            );
             const parsedLyrics: LyricData | null = processed.lyrics;
 
             const matchData: NavidromeMatchData = {

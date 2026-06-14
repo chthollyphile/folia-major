@@ -135,7 +135,7 @@ export async function loadOnlineSongLyrics(
         })()
         : await (async () => {
             const lyricRes = await neteaseApi.getLyric(song.id);
-            return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes));
+            return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: song.id });
         })();
     const parsedLyrics = processed.lyrics;
 

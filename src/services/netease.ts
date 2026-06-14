@@ -652,6 +652,10 @@ export const neteaseApi = {
     return fetchWithCreds(`/lyric/new?id=${id}`);
   },
 
+  getChorus: async (id: number) => {
+    return fetchWithCreds(`/song/chorus?id=${id}`);
+  },
+
   getCloudLyric: async (uid: number, sid: number) => {
     return fetchWithCreds(`/cloud/lyric/get?uid=${uid}&sid=${sid}`);
   },

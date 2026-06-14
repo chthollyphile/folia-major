@@ -173,10 +173,13 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         try {
             // Always fetch lyrics from selected song (we decide whether to save them based on toggle)
             const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-            const processed = await processNeteaseLyrics({
-                type: 'netease',
-                ...lyricRes
-            });
+            const processed = await processNeteaseLyrics(
+                {
+                    type: 'netease',
+                    ...lyricRes
+                },
+                { songId: selectedResult.id }
+            );
             const parsedLyrics: LyricData | null = processed.lyrics;
 
             // Always save the matched song ID for reference

@@ -1278,10 +1278,13 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         // Fetch lyrics (only when NO local lyrics)
         const lyricRes = await neteaseApi.getLyric(matchedSong.id);
-        const processed = await processNeteaseLyrics({
-            type: 'netease',
-            ...lyricRes
-        });
+        const processed = await processNeteaseLyrics(
+            {
+                type: 'netease',
+                ...lyricRes
+            },
+            { songId: matchedSong.id }
+        );
 
         song.matchedSongId = matchedSong.id;
         song.matchedArtists = matchedSong.ar?.map(a => a.name).join(', ');

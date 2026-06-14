@@ -103,7 +103,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         setIsMatching(true);
         try {
             const lyricResponse = await neteaseApi.getLyric(selectedResult.id);
-            const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse));
+            const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: selectedResult.id });
             const previousState = await loadOnlineLyricsState(song);
             const nextState: OnlineLyricsState = {
                 lyricsSource: 'online',

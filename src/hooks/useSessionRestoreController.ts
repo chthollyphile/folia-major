@@ -255,7 +255,7 @@ export function useSessionRestoreController({
                         const lyricRes = isCloudSong(lastSong) && userId
                             ? await neteaseApi.getCloudLyric(userId, lastSong.id)
                             : await neteaseApi.getLyric(lastSong.id);
-                        const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes));
+                        const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: lastSong.id });
 
                         const resolvedLyrics = resolveOnlineLyrics(onlineLyricsState, processed.lyrics);
                         setCurrentSong(prev => prev?.id === lastSong.id ? {
