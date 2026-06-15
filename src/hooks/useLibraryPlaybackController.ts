@@ -898,7 +898,7 @@ export function useLibraryPlaybackController({
         const found = updatedList.find(song => song.id === currentSong.localData?.id);
         if (found) {
             await onPlayLocalSong(found, localSongs);
-            setStatusMsg({ type: 'success', text: 'Match successful' });
+            setStatusMsg({ type: 'success', text: t('status.matchSuccessful') || 'Match successful' });
         }
     }, [currentSong, loadLocalSongs, localSongs, onPlayLocalSong, setStatusMsg]);
 
@@ -909,7 +909,7 @@ export function useLibraryPlaybackController({
                 .map(song => (song as SongResult & { navidromeData?: NavidromeSong; }).navidromeData)
                 .filter((song): song is NavidromeSong => Boolean(song?.isNavidrome));
             await onPlayNavidromeSong((currentSong as SongResult & { navidromeData: NavidromeSong; }).navidromeData, navidromeQueue);
-            setStatusMsg({ type: 'success', text: 'Match successful' });
+            setStatusMsg({ type: 'success', text: t('status.matchSuccessful') || 'Match successful' });
         }
     }, [currentSong, onPlayNavidromeSong, playQueue, setStatusMsg]);
 
@@ -1000,7 +1000,7 @@ export function useLibraryPlaybackController({
         setLyrics(resolved.lyrics);
         setCurrentLineIndex(-1);
         await persistLastPlaybackCache(updatedSong, playQueue);
-        setStatusMsg({ type: 'success', text: 'Match successful' });
+        setStatusMsg({ type: 'success', text: t('status.matchSuccessful') || 'Match successful' });
     }, [currentSong, lyrics, persistLastPlaybackCache, playQueue, resolveOnlineSongLyricsState, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
 
     const handleClearOnlineLyricsState = useCallback(async () => {

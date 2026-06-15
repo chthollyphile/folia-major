@@ -352,7 +352,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                         disabled={!selectedResult || isMatching}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${searchBtnBg} disabled:opacity-50`}
                     >
-                        {isMatching ? t('matching') : t('options.save')}
+                        {isMatching ? t('localMusic.matching') : t('options.save')}
                     </button>
                 </div>
             </div>
