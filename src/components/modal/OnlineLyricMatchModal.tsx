@@ -205,7 +205,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
 
                 <div className="flex-1 flex min-h-0 overflow-hidden">
                     {/* LEFT PANEL */}
-                    <div className={`w-[55%] flex flex-col border-r ${borderColor} p-6 gap-5 min-h-0`}>
+                    <div className={`w-[62%] flex flex-col border-r ${borderColor} p-6 gap-5 min-h-0`}>
                         <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
                             {[
                                 { id: 'netease', label: '网易云音乐' },
@@ -296,54 +296,48 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                         </div>
                     </div>
 
-                    {/* RIGHT PANEL */}
-                    <div className="w-[45%] flex flex-col items-center justify-start px-5 py-6 min-h-0 overflow-hidden">
-                        {/* Upper row: Cover + Indicators on left, Metadata on right */}
-                        <div className="flex items-start gap-5 w-full flex-shrink-0 text-left mb-4">
-                            {/* Left Column: Cover */}
-                            <div className="flex flex-col items-center w-36 flex-shrink-0">
-                                <div className="w-36 h-36 rounded-2xl overflow-hidden bg-zinc-800 shadow-md">
-                                    {selectedResult ? (
-                                        getMatchResultCoverUrl(selectedResult, source) ? (
-                                            <img src={getMatchResultCoverUrl(selectedResult, source) || ''} alt="Cover" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
-                                        )
+                    {/* RIGHT PANEL: Centered-style preview with lower-half LyricPreviewPanel */}
+                    <div className={`w-[38%] flex flex-col items-center justify-between px-6 py-6 border-l ${borderColor} min-h-0 overflow-hidden`}>
+                        {/* Upper section: Cover and Info centered (Scrollable when height is constrained) */}
+                        <div className="flex flex-col items-center justify-start w-full flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                            {/* Cover Image */}
+                            <div className="w-32 h-32 min-h-[64px] rounded-2xl overflow-hidden bg-zinc-800 shadow-md flex-shrink transition-all duration-300">
+                                {selectedResult ? (
+                                    getMatchResultCoverUrl(selectedResult, source) ? (
+                                        <img src={getMatchResultCoverUrl(selectedResult, source) || ''} alt="Cover" className="w-full h-full object-cover" />
                                     ) : (
-                                        song.al?.picUrl || song.album?.picUrl ? (
-                                            <img src={song.al?.picUrl || song.album?.picUrl || ''} alt="Cover" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
-                                        )
-                                    )}
-                                </div>
+                                        <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
+                                    )
+                                ) : (
+                                    song.al?.picUrl || song.album?.picUrl ? (
+                                        <img src={song.al?.picUrl || song.album?.picUrl || ''} alt="Cover" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
+                                    )
+                                )}
                             </div>
 
-                            {/* Right Column: Song Info */}
-                            <div className="flex-1 min-w-0 space-y-3">
-                                <div>
-                                    <h3 className={`text-base font-bold line-clamp-3 leading-snug ${textPrimary}`}>
-                                        {selectedResult ? formatSongName(selectedResult) : song.name}
-                                    </h3>
-                                    
-                                    <div className="space-y-1.5 mt-2.5">
-                                        <div className={`text-sm opacity-75 font-medium line-clamp-2 ${textPrimary}`}>
-                                            {selectedResult
-                                                ? getMatchResultArtists(selectedResult)
-                                                : (song.ar?.map(item => item.name).join(', ') || song.artists?.map(item => item.name).join(', ') || '')}
-                                        </div>
-                                        <div className={`text-xs opacity-60 line-clamp-2 ${textPrimary}`}>
-                                            {selectedResult
-                                                ? getMatchResultAlbumName(selectedResult)
-                                                : (song.al?.name || song.album?.name || '')}
-                                        </div>
-                                    </div>
+                            {/* Song Info (Centered) */}
+                            <div className="w-full space-y-1.5 mt-4 text-center flex-shrink-0">
+                                <h3 className={`text-base font-bold line-clamp-2 leading-snug px-2 ${textPrimary}`}>
+                                    {selectedResult ? formatSongName(selectedResult) : song.name}
+                                </h3>
+                                
+                                <div className={`text-sm opacity-75 font-medium line-clamp-1 ${textPrimary}`}>
+                                    {selectedResult
+                                        ? getMatchResultArtists(selectedResult)
+                                        : (song.ar?.map(item => item.name).join(', ') || song.artists?.map(item => item.name).join(', ') || '')}
+                                </div>
+                                <div className={`text-xs opacity-60 line-clamp-1 ${textPrimary}`}>
+                                    {selectedResult
+                                        ? getMatchResultAlbumName(selectedResult)
+                                        : (song.al?.name || song.album?.name || '')}
                                 </div>
                             </div>
                         </div>
 
                         {/* Lyric Preview Panel */}
-                        <div className="w-full flex-1 min-h-0 flex flex-col">
+                        <div className="w-full h-28 flex-shrink-0 mt-4 flex flex-col">
                             <LyricPreviewPanel selectedResult={selectedResult} source={source} isDaylight={isDaylight} />
                         </div>
                     </div>

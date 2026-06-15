@@ -285,7 +285,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
 
                 <div className="flex-1 flex min-h-0 overflow-hidden">
                     {/* LEFT PANEL */}
-                    <div className={`w-[55%] flex flex-col border-r ${borderColor}`}>
+                    <div className={`w-[62%] flex flex-col border-r ${borderColor}`}>
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
                                 {[
@@ -371,44 +371,38 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                         </div>
                     </div>
 
-                    {/* RIGHT PANEL */}
-                    <div className="w-[45%] flex flex-col items-center justify-start px-5 py-6 min-h-0 overflow-hidden">
-                        {/* Upper row: Cover + Indicators on left, Metadata on right */}
-                        <div className="flex items-start gap-5 w-full flex-shrink-0 text-left mb-4">
-                            {/* Left Column: Cover */}
-                            <div className="flex flex-col items-center w-36 flex-shrink-0">
-                                <div className="w-36 h-36 rounded-2xl overflow-hidden bg-zinc-800 shadow-md">
-                                    {selectedCoverUrl || coverUrl ? (
-                                        <img src={selectedCoverUrl || coverUrl || ''} alt="Cover" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Music size={28} className="opacity-10" />
-                                        </div>
-                                    )}
-                                </div>
+                    {/* RIGHT PANEL: Centered-style preview with lower-half LyricPreviewPanel */}
+                    <div className={`w-[38%] flex flex-col items-center justify-between px-6 py-6 border-l ${borderColor} min-h-0 overflow-hidden`}>
+                        {/* Upper section: Cover and Info centered (Scrollable when height is constrained) */}
+                        <div className="flex flex-col items-center justify-start w-full flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                            {/* Cover Image */}
+                            <div className="w-32 h-32 min-h-[64px] rounded-2xl overflow-hidden bg-zinc-800 shadow-md flex-shrink transition-all duration-300">
+                                {selectedCoverUrl || coverUrl ? (
+                                    <img src={selectedCoverUrl || coverUrl || ''} alt="Cover" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Music size={28} className="opacity-10" />
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Right Column: Song Info */}
-                            <div className="flex-1 min-w-0 space-y-3">
-                                <div>
-                                    <h3 className={`text-base font-bold line-clamp-3 leading-snug ${textPrimary}`}>
-                                        {selectedResult ? formatSongName(selectedResult) : song.name}
-                                    </h3>
-                                    
-                                    <div className="space-y-1.5 mt-2.5">
-                                        <div className={`text-sm opacity-75 font-medium line-clamp-2 ${textPrimary}`}>
-                                            {selectedResult ? selectedArtists : navidromeArtist}
-                                        </div>
-                                        <div className={`text-xs opacity-60 line-clamp-2 ${textPrimary}`}>
-                                            {selectedResult ? selectedAlbum : navidromeAlbum}
-                                        </div>
-                                    </div>
+                            {/* Song Info (Centered) */}
+                            <div className="w-full space-y-1.5 mt-4 text-center flex-shrink-0">
+                                <h3 className={`text-base font-bold line-clamp-2 leading-snug px-2 ${textPrimary}`}>
+                                    {selectedResult ? formatSongName(selectedResult) : song.name}
+                                </h3>
+                                
+                                <div className={`text-sm opacity-75 font-medium line-clamp-1 ${textPrimary}`}>
+                                    {selectedResult ? selectedArtists : navidromeArtist}
+                                </div>
+                                <div className={`text-xs opacity-60 line-clamp-1 ${textPrimary}`}>
+                                    {selectedResult ? selectedAlbum : navidromeAlbum}
                                 </div>
 
                                 {selectedResult && (
-                                    <div className="flex items-center gap-2 pt-1">
-                                        <span className={`text-xs ${textSecondary}`}>匹配状态</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${lyricsSource === 'online' ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300') : (isDaylight ? 'bg-orange-500/10 text-orange-600' : 'bg-orange-500/20 text-orange-300')}`}>
+                                    <div className="flex items-center justify-center gap-2 pt-1">
+                                        <span className={`text-[11px] ${textSecondary}`}>匹配状态</span>
+                                        <span className={`text-[11px] px-2 py-0.5 rounded-full ${lyricsSource === 'online' ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300') : (isDaylight ? 'bg-orange-500/10 text-orange-600' : 'bg-orange-500/20 text-orange-300')}`}>
                                             {lyricsSource === 'online' ? '优先使用在线歌词' : '强制回退服务器歌词'}
                                         </span>
                                     </div>
@@ -417,7 +411,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                         </div>
 
                         {/* Lyric Preview Panel */}
-                        <div className="w-full flex-1 min-h-0 flex flex-col">
+                        <div className="w-full h-28 flex-shrink-0 mt-4 flex flex-col">
                             <LyricPreviewPanel selectedResult={selectedResult} source={source} isDaylight={isDaylight} />
                         </div>
                     </div>
