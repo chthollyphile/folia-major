@@ -658,6 +658,7 @@ function setupCorsBypassHandlers() {
     }
 
     if (isTargetDomain) {
+      removeCorsResponseHeaders(responseHeaders);
       responseHeaders['Access-Control-Allow-Origin'] = ['*'];
       responseHeaders['Access-Control-Allow-Headers'] = ['*'];
       responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS, PUT, DELETE'];
@@ -665,6 +666,19 @@ function setupCorsBypassHandlers() {
 
     callback({ cancel: false, responseHeaders });
   });
+}
+
+function removeCorsResponseHeaders(responseHeaders) {
+  for (const headerName of Object.keys(responseHeaders)) {
+    const normalizedHeaderName = headerName.toLowerCase();
+    if (
+      normalizedHeaderName === 'access-control-allow-origin' ||
+      normalizedHeaderName === 'access-control-allow-headers' ||
+      normalizedHeaderName === 'access-control-allow-methods'
+    ) {
+      delete responseHeaders[headerName];
+    }
+  }
 }
 
 function normalizeDebugSelector(selector) {

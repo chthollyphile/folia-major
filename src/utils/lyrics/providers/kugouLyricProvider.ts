@@ -15,6 +15,54 @@ import type { NeteaseChorusRange } from '../chorusEffects';
 import { buildKugouLyricSearchQuery } from '../searchQuery';
 
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
+type KugouLyricFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'krc';
+
+function hasKrcHeader(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 107 && bytes[1] === 114 && bytes[2] === 99 && bytes[3] === 49;
+}
+
+function decodeUtf8(bytes: Uint8Array): string {
+  return new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
+}
+
+function looksLikeTimedLyric(text: string): boolean {
+  return /\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/.test(text)
+    || /<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/.test(text)
+    || text.trimStart().startsWith('WEBVTT');
+}
+
+// Decodes Kugou download responses that may be encrypted KRC or plain timed lyric text.
+export async function decodeKugouDownloadedLyric(
+  bytes: Uint8Array,
+  contentType: unknown
+): Promise<{ lyricText: string; format: KugouLyricFormat; }> {
+  const isPlainTextContent = String(contentType) === '2';
+
+  if (isPlainTextContent || !hasKrcHeader(bytes)) {
+    const lyricText = decodeUtf8(bytes);
+    return {
+      lyricText,
+      format: detectTimedLyricFormat(lyricText),
+    };
+  }
+
+  try {
+    return {
+      lyricText: await krcDecrypt(bytes),
+      format: 'krc',
+    };
+  } catch (error) {
+    const fallbackText = decodeUtf8(bytes);
+    if (looksLikeTimedLyric(fallbackText)) {
+      console.warn('[Kugou] KRC decrypt failed; using plain lyric fallback:', error);
+      return {
+        lyricText: fallbackText,
+        format: detectTimedLyricFormat(fallbackText),
+      };
+    }
+    throw error;
+  }
+}
 
 /**
  * Calculates parameters signature.
@@ -277,16 +325,7 @@ export async function fetchKugouLyrics(
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    let lyricText = '';
-    let format: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc' | 'krc' = 'lrc';
-
-    if (downloadRes.contenttype === 2) {
-      lyricText = new TextDecoder('utf-8').decode(bytes);
-      format = detectTimedLyricFormat(lyricText);
-    } else {
-      lyricText = await krcDecrypt(bytes);
-      format = 'krc';
-    }
+    const { lyricText, format } = await decodeKugouDownloadedLyric(bytes, downloadRes.contenttype);
 
     const parsed = parseLyricsByFormat(format, lyricText, '');
     if (!parsed) {

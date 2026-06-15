@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { krcDecrypt } from '@/utils/lyrics/providers/krcDecrypt';
+import { decodeKugouDownloadedLyric } from '@/utils/lyrics/providers/kugouLyricProvider';
 import { qrcDecrypt } from '@/utils/lyrics/providers/qrcDecrypt';
 
 // Helper to compress text using CompressionStream
@@ -39,5 +40,13 @@ describe('decryption helpers', () => {
     
     const decrypted = await krcDecrypt(encrypted);
     expect(decrypted).toBe(originalText);
+  });
+
+  it('decodes plain Kugou timed lyrics even when contenttype is not marked as plain text', async () => {
+    const lyricText = '[00:10.00]Plain Kugou lyric';
+    const decoded = await decodeKugouDownloadedLyric(new TextEncoder().encode(lyricText), 1);
+
+    expect(decoded.lyricText).toBe(lyricText);
+    expect(decoded.format).toBe('lrc');
   });
 });
