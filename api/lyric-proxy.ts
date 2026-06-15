@@ -2,14 +2,39 @@ import { URL } from 'url';
 
 // api/lyric-proxy.ts
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+  'Access-Control-Allow-Headers': [
+    'X-CSRF-Token',
+    'X-Requested-With',
+    'Accept',
+    'Accept-Version',
+    'Content-Length',
+    'Content-MD5',
+    'Content-Type',
+    'Date',
+    'X-Api-Version',
+    'KG-Rec',
+    'KG-RC',
+    'KG-CLIENTTIMEMS',
+    'mid',
+    'x-router',
+  ].join(', '),
+};
+
+const IGNORED_FORWARD_HEADERS = ['host', 'connection', 'content-length', 'origin', 'referer'];
+
+function isAllowedLyricProxyHost(hostname: string): boolean {
+  return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
+    hostname === 'kugou.com' || hostname.endsWith('.kugou.com');
+}
+
 export default async function handler(req: any, res: any) {
   // Allow CORS for the proxy
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -25,8 +50,7 @@ export default async function handler(req: any, res: any) {
     const hostname = targetUrl.hostname;
 
     // Security check: only allow proxying to qq.com and kugou.com domains
-    const isAllowed = hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
-                      hostname === 'kugou.com' || hostname.endsWith('.kugou.com');
+    const isAllowed = isAllowedLyricProxyHost(hostname);
 
     if (!isAllowed) {
       return res.status(403).json({ error: 'Forbidden: Domain not allowed' });
@@ -34,9 +58,8 @@ export default async function handler(req: any, res: any) {
 
     // Filter headers to forward
     const headers: Record<string, string> = {};
-    const ignoredHeaders = ['host', 'connection', 'content-length', 'origin', 'referer'];
     for (const key of Object.keys(req.headers)) {
-      if (!ignoredHeaders.includes(key.toLowerCase())) {
+      if (!IGNORED_FORWARD_HEADERS.includes(key.toLowerCase())) {
         headers[key] = req.headers[key] as string;
       }
     }

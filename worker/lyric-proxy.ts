@@ -9,8 +9,27 @@ export async function handleLyricProxy(request: Request): Promise<Response> {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
-    'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version',
+    'Access-Control-Allow-Headers': [
+      'X-CSRF-Token',
+      'X-Requested-With',
+      'Accept',
+      'Accept-Version',
+      'Content-Length',
+      'Content-MD5',
+      'Content-Type',
+      'Date',
+      'X-Api-Version',
+      'KG-Rec',
+      'KG-RC',
+      'KG-CLIENTTIMEMS',
+      'mid',
+      'x-router',
+    ].join(', '),
   };
+  const ignoredForwardHeaders = ['host', 'connection', 'content-length', 'origin', 'referer'];
+  const isAllowedLyricProxyHost = (hostname: string): boolean =>
+    hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
+    hostname === 'kugou.com' || hostname.endsWith('.kugou.com');
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -31,8 +50,7 @@ export async function handleLyricProxy(request: Request): Promise<Response> {
     const hostname = targetUrl.hostname;
 
     // Security check: only allow proxying to qq.com and kugou.com domains
-    const isAllowed = hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
-                      hostname === 'kugou.com' || hostname.endsWith('.kugou.com');
+    const isAllowed = isAllowedLyricProxyHost(hostname);
 
     if (!isAllowed) {
       return new Response(JSON.stringify({ error: 'Forbidden: Domain not allowed' }), {
@@ -43,9 +61,8 @@ export async function handleLyricProxy(request: Request): Promise<Response> {
 
     // Filter headers to forward
     const headers = new Headers();
-    const ignoredHeaders = ['host', 'connection', 'content-length', 'origin', 'referer'];
     request.headers.forEach((value, key) => {
-      if (!ignoredHeaders.includes(key.toLowerCase())) {
+      if (!ignoredForwardHeaders.includes(key.toLowerCase())) {
         headers.set(key, value);
       }
     });
