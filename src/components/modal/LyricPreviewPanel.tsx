@@ -84,6 +84,17 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
 
             if (processed && processed.lyrics) {
                 setLyricData(processed.lyrics);
+            } else if (processed && processed.isPureMusic) {
+                setLyricData({
+                    lines: [
+                        {
+                            startTime: 0,
+                            endTime: 999,
+                            fullText: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词',
+                            words: []
+                        }
+                    ]
+                });
             } else {
                 setError(t('localMusic.noLyricsAvailable'));
             }

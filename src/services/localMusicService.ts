@@ -1227,6 +1227,9 @@ function isTitleMatch(localTitle: string, searchTitle: string): boolean {
 // Match lyrics for a local song using search API
 // If the song has local lyrics, this function will only fetch cover/metadata and skip online lyrics
 export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
+    if (song.matchedIsPureMusic) {
+        return null;
+    }
     try {
         // Build search query from metadata
         const searchQuery = song.artist

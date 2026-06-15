@@ -165,7 +165,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                 };
             }
 
-            if (processed && processed.lyrics) {
+            if (processed && (processed.lyrics || processed.isPureMusic)) {
                 const previousState = await loadOnlineLyricsState(song);
                 const nextState: OnlineLyricsState = {
                     lyricsSource: 'online',

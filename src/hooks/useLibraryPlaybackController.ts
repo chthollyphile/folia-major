@@ -269,7 +269,7 @@ export function useLibraryPlaybackController({
     const handleLocalSongMatch = useCallback(async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong; matchedSongResult: SongResult | null; }> => {
         let updatedLocalSong = localSong;
         let matchedSongResult: SongResult | null = null;
-        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics && !localSong.matchedLyrics;
+        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics && !localSong.matchedLyrics && !localSong.matchedIsPureMusic;
         const needsCoverMatch = !localSong.embeddedCover && !localSong.matchedCoverUrl;
 
         if ((needsLyricsMatch || needsCoverMatch) && !localSong.noAutoMatch) {
@@ -428,7 +428,7 @@ export function useLibraryPlaybackController({
         const preparedLocalSong = await ensureLocalSongEmbeddedCover(localSong);
         Object.assign(localSong, preparedLocalSong);
 
-        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics && !localSong.matchedLyrics;
+        const needsLyricsMatch = !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics && !localSong.matchedLyrics && !localSong.matchedIsPureMusic;
         const needsCoverMatch = !localSong.embeddedCover && !localSong.matchedCoverUrl;
         if ((needsLyricsMatch || needsCoverMatch) && !localSong.noAutoMatch) {
             try {
@@ -631,7 +631,7 @@ export function useLibraryPlaybackController({
             let autoMatchedLyrics: LyricData | null = null;
             let matchedLyricsSource: 'netease' | 'qq' | 'kugou' | undefined;
 
-            if (!nextLyrics && !matchData?.noAutoMatch) {
+            if (!nextLyrics && !matchData?.noAutoMatch && !matchData?.matchedIsPureMusic) {
                 try {
                     if (!showedLoadingToast) {
                         setStatusMsg({ type: 'info', text: t('status.loadingSong') || '加载歌曲中...' });
