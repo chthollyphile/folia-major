@@ -20,6 +20,7 @@ import {
     sourceSupportsCover,
     type LyricMatchSource,
 } from './lyricMatchResultHelpers';
+import { LyricPreviewPanel } from './LyricPreviewPanel';
 
 interface LyricMatchModalProps {
     song: LocalSong;
@@ -347,7 +348,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                 {/* Body: Two-panel layout */}
                 <div className="flex-1 flex min-h-0 overflow-hidden">
                     {/* LEFT PANEL: Search + Results (wider) */}
-                    <div className={`w-[62%] flex flex-col border-r ${borderColor}`}>
+                    <div className={`w-[55%] flex flex-col border-r ${borderColor}`}>
                         {/* Search Bar */}
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
@@ -464,119 +465,122 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                     </div>
 
                     {/* RIGHT PANEL: CoverTab-style preview */}
-                    <div className="w-[38%] flex flex-col items-center justify-center px-5 py-6">
-                        <div className="flex flex-col items-center text-center w-full space-y-4">
-                            {/* Cover Image */}
-                            <div className="w-40 h-40 rounded-2xl overflow-hidden bg-zinc-800 shadow-lg flex-shrink-0">
-                                {previewCoverUrl ? (
-                                    <img
-                                        src={previewCoverUrl}
-                                        alt="Cover"
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Music size={40} className="opacity-10" />
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Indicator Dots / Info note */}
-                            {source === 'kugou' ? (
-                                <div className={`text-xs px-3 py-1.5 rounded-lg border text-center font-medium ${isDaylight ? 'bg-amber-500/5 border-amber-500/10 text-amber-600' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
-                                    {t('localMusic.kugouNoCover')}
+                    <div className="w-[45%] flex flex-col items-center justify-start px-5 py-6 min-h-0 overflow-hidden">
+                        {/* Upper row: Cover + Indicators on left, Metadata on right */}
+                        <div className="flex items-start gap-5 w-full flex-shrink-0 text-left mb-4">
+                            {/* Left Column: Cover + Indicators */}
+                            <div className="flex flex-col items-center w-36 flex-shrink-0 space-y-3">
+                                {/* Cover Image */}
+                                <div className="w-36 h-36 rounded-2xl overflow-hidden bg-zinc-800 shadow-md">
+                                    {previewCoverUrl ? (
+                                        <img
+                                            src={previewCoverUrl}
+                                            alt="Cover"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Music size={28} className="opacity-10" />
+                                        </div>
+                                    )}
                                 </div>
-                            ) : null}
 
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={() => {
-                                        if (sourceSupportsCover(source, selectedResult)) {
-                                            setUseOnlineCover(!useOnlineCover);
-                                        }
-                                    }}
-                                    disabled={!sourceSupportsCover(source, selectedResult)}
-                                    className="flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed"
-                                    title={t('localMusic.coverSource')}
-                                >
-                                    <div className={`w-2 h-2 rounded-full transition-all duration-200 ${useOnlineCover && sourceSupportsCover(source, selectedResult) ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
-                                    <span className={`text-[11px] ${useOnlineCover && sourceSupportsCover(source, selectedResult) ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
-                                        {t('localMusic.coverSource')}
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={() => setUseOnlineMetadata(!useOnlineMetadata)}
-                                    className="flex items-center gap-1.5 group"
-                                    title={t('localMusic.metadataSource')}
-                                >
-                                    <div className={`w-2 h-2 rounded-full transition-all duration-200 ${useOnlineMetadata ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
-                                    <span className={`text-[11px] ${useOnlineMetadata ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
-                                        {t('localMusic.metadataSource')}
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={() => setLyricsSource(lyricsSource === 'online' ? undefined : 'online')}
-                                    className="flex items-center gap-1.5 group"
-                                    title={t('localMusic.lyricsSource')}
-                                >
-                                    <div className={`w-2 h-2 rounded-full transition-all duration-200 ${lyricsSource === 'online' ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
-                                    <span className={`text-[11px] ${lyricsSource === 'online' ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
-                                        {t('localMusic.lyricsSource')}
-                                    </span>
-                                </button>
+                                {/* Toggle Buttons in a single row */}
+                                <div className="flex flex-row items-center justify-between w-full gap-1.5">
+                                    <button
+                                        onClick={() => {
+                                            if (sourceSupportsCover(source, selectedResult)) {
+                                                setUseOnlineCover(!useOnlineCover);
+                                            }
+                                        }}
+                                        disabled={!sourceSupportsCover(source, selectedResult)}
+                                        className="flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title={t('localMusic.coverSource')}
+                                    >
+                                        <div className={`w-2 h-2 rounded-full transition-all duration-200 ${useOnlineCover && sourceSupportsCover(source, selectedResult) ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
+                                        <span className={`text-[11px] ${useOnlineCover && sourceSupportsCover(source, selectedResult) ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
+                                            {t('localMusic.coverSource')}
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={() => setUseOnlineMetadata(!useOnlineMetadata)}
+                                        className="flex items-center gap-1.5 group"
+                                        title={t('localMusic.metadataSource')}
+                                    >
+                                        <div className={`w-2 h-2 rounded-full transition-all duration-200 ${useOnlineMetadata ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
+                                        <span className={`text-[11px] ${useOnlineMetadata ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
+                                            {t('localMusic.metadataSource')}
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={() => setLyricsSource(lyricsSource === 'online' ? undefined : 'online')}
+                                        className="flex items-center gap-1.5 group"
+                                        title={t('localMusic.lyricsSource')}
+                                    >
+                                        <div className={`w-2 h-2 rounded-full transition-all duration-200 ${lyricsSource === 'online' ? dotActive + ' shadow-sm shadow-blue-400/50' : dotBase} group-hover:scale-150`} />
+                                        <span className={`text-[11px] ${lyricsSource === 'online' ? (isDaylight ? 'text-blue-600 font-medium' : 'text-blue-300 font-medium') : textSecondary} transition-colors`}>
+                                            {t('localMusic.lyricsSource')}
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Song Info (CoverTab-style) */}
-                            <div className="space-y-2 w-full">
+                            {/* Right Column: Song Info */}
+                            <div className="flex-1 min-w-0 space-y-3">
                                 {/* Title */}
-                                <h3 className={`text-lg font-bold line-clamp-2 ${textPrimary}`}>
+                                <h3 className={`text-base font-bold line-clamp-3 leading-snug ${textPrimary}`}>
                                     {selectedResult
                                         ? formatSongName(selectedResult)
                                         : (song.embeddedTitle || song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, ''))
                                     }
                                 </h3>
 
-                                    {/* Artist - editable if NOT using online metadata */}
-                                    {useOnlineMetadata ? (
-                                        <div className={`text-sm opacity-60 font-medium ${textPrimary}`}>
-                                            {editArtist}
-                                        </div>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={editArtist}
-                                            onChange={(e) => setEditArtist(e.target.value)}
-                                            className={`w-full text-center ${editInputBg} border rounded-lg py-1.5 px-3 text-sm focus:outline-none transition-all ${textPrimary}`}
-                                            placeholder={t('localMusic.artistLabel')}
-                                        />
-                                    )}
-
-                                    {/* Album - editable if NOT using online metadata */}
-                                    {useOnlineMetadata ? (
-                                        <div className={`text-sm opacity-40 ${textPrimary}`}>
-                                            {editAlbum}
-                                        </div>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={editAlbum}
-                                            onChange={(e) => setEditAlbum(e.target.value)}
-                                            className={`w-full text-center ${editInputBg} border rounded-lg py-1.5 px-3 text-sm focus:outline-none transition-all ${textPrimary}`}
-                                            placeholder={t('localMusic.albumLabel')}
-                                        />
-                                    )}
-
-                                    {/* Lyrics source (display only) */}
-                                    <div className="flex items-center justify-center gap-2 pt-1">
-                                        <span className={`text-xs ${textSecondary}`}>{t('localMusic.lyricsSource')}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${lyricsSource === 'online'
-                                            ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300')
-                                            : ((song.hasLocalLyrics || song.hasEmbeddedLyrics) ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60')
-                                            }`}>
-                                            {lyricsSourceLabel}
-                                        </span>
+                                {/* Artist */}
+                                {useOnlineMetadata ? (
+                                    <div className={`text-sm opacity-75 font-medium line-clamp-2 ${textPrimary}`}>
+                                        {editArtist}
                                     </div>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={editArtist}
+                                        onChange={(e) => setEditArtist(e.target.value)}
+                                        className={`w-full ${editInputBg} border rounded-lg py-1.5 px-2.5 text-xs focus:outline-none transition-all ${textPrimary}`}
+                                        placeholder={t('localMusic.artistLabel')}
+                                    />
+                                )}
+
+                                {/* Album */}
+                                {useOnlineMetadata ? (
+                                    <div className={`text-xs opacity-60 line-clamp-2 ${textPrimary}`}>
+                                        {editAlbum}
+                                    </div>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={editAlbum}
+                                        onChange={(e) => setEditAlbum(e.target.value)}
+                                        className={`w-full ${editInputBg} border rounded-lg py-1.5 px-2.5 text-xs focus:outline-none transition-all ${textPrimary}`}
+                                        placeholder={t('localMusic.albumLabel')}
+                                    />
+                                )}
+
+                                {/* Lyrics source (display only) */}
+                                <div className="flex items-center gap-2 pt-1">
+                                    <span className={`text-xs ${textSecondary}`}>{t('localMusic.lyricsSource')}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${lyricsSource === 'online'
+                                        ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300')
+                                        : ((song.hasLocalLyrics || song.hasEmbeddedLyrics) ? 'bg-green-500/20 text-green-300' : 'bg-white/10 opacity-60')
+                                        }`}>
+                                        {lyricsSourceLabel}
+                                    </span>
+                                </div>
                             </div>
+                        </div>
+
+                        {/* Lyric Preview Panel */}
+                        <div className="w-full flex-1 min-h-0 flex flex-col">
+                            <LyricPreviewPanel selectedResult={selectedResult} source={source} isDaylight={isDaylight} />
                         </div>
                     </div>
                 </div>

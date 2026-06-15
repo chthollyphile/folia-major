@@ -11,6 +11,12 @@ import { searchKugouLyrics, fetchKugouLyrics } from '../../utils/lyrics/provider
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
+import {
+    getMatchResultCoverUrl,
+    getMatchResultArtists,
+    getMatchResultAlbumName,
+} from './lyricMatchResultHelpers';
+import { LyricPreviewPanel } from './LyricPreviewPanel';
 
 // src/components/modal/OnlineLyricMatchModal.tsx
 
@@ -184,7 +190,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
     return (
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div
-                className={`w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-3xl border ${bgClass} shadow-2xl flex flex-col`}
+                className={`w-full max-w-5xl max-h-[85vh] overflow-hidden rounded-3xl border ${bgClass} shadow-2xl flex flex-col`}
                 onClick={event => event.stopPropagation()}
             >
                 <div className={`flex items-center justify-between px-6 py-5 border-b ${borderColor}`}>
@@ -197,93 +203,149 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                     </button>
                 </div>
 
-                <div className="p-6 flex flex-col gap-5 min-h-0">
-                    <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
-                        {[
-                            { id: 'netease', label: '网易云音乐' },
-                            ...(enableAlternativeLyricSources ? [
-                                { id: 'qq', label: 'QQ 音乐' },
-                                { id: 'kugou', label: '酷狗音乐' }
-                            ] : [])
-                        ].map(t => {
-                            const isSelected = source === t.id;
-                            const activeTabClass = isSelected
-                                ? isDaylight
-                                    ? 'border-blue-500 text-blue-600 font-semibold'
-                                    : 'border-blue-400 text-blue-300 font-semibold'
-                                : 'border-transparent text-zinc-400 hover:text-zinc-200';
-                            return (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setSource(t.id as any)}
-                                    className={`pb-2 border-b-2 text-sm transition-all px-1 cursor-pointer ${activeTabClass}`}
-                                >
-                                    {t.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <div className="flex gap-3">
-                        <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
-                            <Search size={18} className={textSecondary} />
-                            <input
-                                value={searchQuery}
-                                onChange={event => setSearchQuery(event.target.value)}
-                                onKeyDown={event => {
-                                    if (event.key === 'Enter') {
-                                        void handleSearch();
-                                    }
-                                }}
-                                className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
-                            />
+                <div className="flex-1 flex min-h-0 overflow-hidden">
+                    {/* LEFT PANEL */}
+                    <div className={`w-[55%] flex flex-col border-r ${borderColor} p-6 gap-5 min-h-0`}>
+                        <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
+                            {[
+                                { id: 'netease', label: '网易云音乐' },
+                                ...(enableAlternativeLyricSources ? [
+                                    { id: 'qq', label: 'QQ 音乐' },
+                                    { id: 'kugou', label: '酷狗音乐' }
+                                ] : [])
+                            ].map(t => {
+                                const isSelected = source === t.id;
+                                const activeTabClass = isSelected
+                                    ? isDaylight
+                                        ? 'border-blue-500 text-blue-600 font-semibold'
+                                        : 'border-blue-400 text-blue-300 font-semibold'
+                                    : 'border-transparent text-zinc-400 hover:text-zinc-200';
+                                return (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setSource(t.id as any)}
+                                        className={`pb-2 border-b-2 text-sm transition-all px-1 cursor-pointer ${activeTabClass}`}
+                                    >
+                                        {t.label}
+                                    </button>
+                                );
+                            })}
                         </div>
-                        <button
-                            onClick={() => void handleSearch()}
-                            disabled={isSearching}
-                            className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
-                        >
-                            {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
-                        </button>
+
+                        <div className="flex gap-3">
+                            <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                <Search size={18} className={textSecondary} />
+                                <input
+                                    value={searchQuery}
+                                    onChange={event => setSearchQuery(event.target.value)}
+                                    onKeyDown={event => {
+                                        if (event.key === 'Enter') {
+                                            void handleSearch();
+                                        }
+                                    }}
+                                    className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                />
+                            </div>
+                            <button
+                                onClick={() => void handleSearch()}
+                                disabled={isSearching}
+                                className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                            >
+                                {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
+                            </button>
+                        </div>
+
+                        <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+                            {searchResults.map(result => {
+                                const artist = getMatchResultArtists(result);
+                                const isSelected = selectedResult?.id === result.id;
+                                const resultCover = getMatchResultCoverUrl(result, source);
+                                return (
+                                    <button
+                                        key={result.id}
+                                        onClick={() => setSelectedResult(result)}
+                                        className={`w-full text-left border rounded-2xl p-4 transition-colors ${isSelected ? resultItemSelected : resultItemBg}`}
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center ${isDaylight ? 'bg-black/5' : 'bg-white/5'} shrink-0`}>
+                                                {resultCover ? (
+                                                    <img
+                                                        src={resultCover}
+                                                        alt="Cover"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <Music size={18} className={textSecondary} />
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-sm font-medium truncate ${textPrimary}`}>{formatSongName(result)}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/10 text-blue-400 rounded-md font-mono shrink-0">
+                                                        {calculateMatchScore(songInfo, result)}%
+                                                    </span>
+                                                </div>
+                                                <div className={`text-xs mt-1 truncate ${textSecondary}`}>{artist || '-'}</div>
+                                                <div className={`text-xs mt-1 truncate ${textSecondary}`}>{getMatchResultAlbumName(result) || '-'}</div>
+                                            </div>
+                                            {isSelected && <Check size={18} className={isDaylight ? 'text-blue-600' : 'text-blue-300'} />}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
-                        {searchResults.map(result => {
-                            const artist = result.ar?.map(item => item.name).join(', ') || result.artists?.map(item => item.name).join(', ') || '';
-                            const isSelected = selectedResult?.id === result.id;
-                            return (
-                                <button
-                                    key={result.id}
-                                    onClick={() => setSelectedResult(result)}
-                                    className={`w-full text-left border rounded-2xl p-4 transition-colors ${isSelected ? resultItemSelected : resultItemBg}`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center ${isDaylight ? 'bg-black/5' : 'bg-white/5'} shrink-0`}>
-                                            {result.al?.picUrl || result.album?.picUrl ? (
-                                                <img
-                                                    src={result.al?.picUrl || result.album?.picUrl}
-                                                    alt="Cover"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <Music size={18} className={textSecondary} />
-                                            )}
+                    {/* RIGHT PANEL */}
+                    <div className="w-[45%] flex flex-col items-center justify-start px-5 py-6 min-h-0 overflow-hidden">
+                        {/* Upper row: Cover + Indicators on left, Metadata on right */}
+                        <div className="flex items-start gap-5 w-full flex-shrink-0 text-left mb-4">
+                            {/* Left Column: Cover */}
+                            <div className="flex flex-col items-center w-36 flex-shrink-0">
+                                <div className="w-36 h-36 rounded-2xl overflow-hidden bg-zinc-800 shadow-md">
+                                    {selectedResult ? (
+                                        getMatchResultCoverUrl(selectedResult, source) ? (
+                                            <img src={getMatchResultCoverUrl(selectedResult, source) || ''} alt="Cover" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
+                                        )
+                                    ) : (
+                                        song.al?.picUrl || song.album?.picUrl ? (
+                                            <img src={song.al?.picUrl || song.album?.picUrl || ''} alt="Cover" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center"><Music size={28} className="opacity-10" /></div>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right Column: Song Info */}
+                            <div className="flex-1 min-w-0 space-y-3">
+                                <div>
+                                    <h3 className={`text-base font-bold line-clamp-3 leading-snug ${textPrimary}`}>
+                                        {selectedResult ? formatSongName(selectedResult) : song.name}
+                                    </h3>
+                                    
+                                    <div className="space-y-1.5 mt-2.5">
+                                        <div className={`text-sm opacity-75 font-medium line-clamp-2 ${textPrimary}`}>
+                                            {selectedResult
+                                                ? getMatchResultArtists(selectedResult)
+                                                : (song.ar?.map(item => item.name).join(', ') || song.artists?.map(item => item.name).join(', ') || '')}
                                         </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-sm font-medium truncate ${textPrimary}`}>{formatSongName(result)}</span>
-                                                <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/10 text-blue-400 rounded-md font-mono shrink-0">
-                                                    {calculateMatchScore(songInfo, result)}%
-                                                </span>
-                                            </div>
-                                            <div className={`text-xs mt-1 truncate ${textSecondary}`}>{artist || '-'}</div>
-                                            <div className={`text-xs mt-1 truncate ${textSecondary}`}>{result.al?.name || result.album?.name || '-'}</div>
+                                        <div className={`text-xs opacity-60 line-clamp-2 ${textPrimary}`}>
+                                            {selectedResult
+                                                ? getMatchResultAlbumName(selectedResult)
+                                                : (song.al?.name || song.album?.name || '')}
                                         </div>
-                                        {isSelected && <Check size={18} className={isDaylight ? 'text-blue-600' : 'text-blue-300'} />}
                                     </div>
-                                </button>
-                            );
-                        })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Lyric Preview Panel */}
+                        <div className="w-full flex-1 min-h-0 flex flex-col">
+                            <LyricPreviewPanel selectedResult={selectedResult} source={source} isDaylight={isDaylight} />
+                        </div>
                     </div>
                 </div>
 

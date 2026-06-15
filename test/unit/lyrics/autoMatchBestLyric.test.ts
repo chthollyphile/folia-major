@@ -60,10 +60,10 @@ describe('autoMatchBestLyric', () => {
             isPureMusic: false
         });
 
-        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
         expect(result).not.toBeNull();
-        expect(result?.source).toBe('netease');
-        expect(result?.id).toBe(101);
+        expect(result.source).toBe('netease');
+        expect(result.id).toBe(101);
         expect(cloudSearchMock).toHaveBeenCalled();
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
     });
@@ -86,15 +86,15 @@ describe('autoMatchBestLyric', () => {
         });
 
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
-        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
         expect(result).not.toBeNull();
-        expect(result?.source).toBe('qq');
-        expect(result?.id).toBe(201);
-        expect(result?.qqMid).toBe('mid123');
+        expect(result.source).toBe('qq');
+        expect(result.id).toBe(201);
+        expect(result.qqMid).toBe('mid123');
         expect(searchKugouLyricsMock).not.toHaveBeenCalled();
     });
 
@@ -148,6 +148,7 @@ describe('autoMatchBestLyric', () => {
                 name: 'Night of Bloom',
                 duration: 286000,
                 artists: [{ id: 1, name: 'Kirara Magic' }, { id: 2, name: 'Xomu' }, { id: 3, name: 'nayuta' }],
+                album: { id: 0, name: '' },
                 qqMid: 'mid-night'
             }
         ]);
@@ -157,20 +158,20 @@ describe('autoMatchBestLyric', () => {
             'Night of Bloom (feat. nayuta)',
             'Kirara Magic/Xomu/nayuta',
             286000000
-        );
+        ) as any;
 
-        expect(result?.source).toBe('qq');
-        expect(result?.qqMid).toBe('mid-night');
+        expect(result.source).toBe('qq');
+        expect(result.qqMid).toBe('mid-night');
     });
 
     it('scores the top 10 QQ results and fetches only the highest scoring candidate', async () => {
         cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
         const distractors = [
-            { id: 200, name: 'Night Of Bloom (Starling Remix)', duration: 286000, artists: [{ id: 1, name: 'Xomu' }, { id: 2, name: 'StarlingEDM' }, { id: 3, name: 'nayuta' }], qqMid: 'remix' },
-            { id: 201, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Ayrex' }], qqMid: 'wrong-artist-1' },
-            { id: 202, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Nightcore Vibe' }], qqMid: 'wrong-artist-2' },
-            { id: 203, name: 'Night of Bloom (K歌版)', duration: 286000, artists: [{ id: 1, name: '東京都立中央精神病院院長' }], qqMid: 'karaoke' },
-            { id: 204, name: 'Night of Bloom remix', duration: 286000, artists: [{ id: 1, name: 'Gphuuuuuc' }], qqMid: 'remix-2' }
+            { id: 200, name: 'Night Of Bloom (Starling Remix)', duration: 286000, artists: [{ id: 1, name: 'Xomu' }, { id: 2, name: 'StarlingEDM' }, { id: 3, name: 'nayuta' }], album: { id: 0, name: '' }, qqMid: 'remix' },
+            { id: 201, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Ayrex' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-1' },
+            { id: 202, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Nightcore Vibe' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-2' },
+            { id: 203, name: 'Night of Bloom (K歌版)', duration: 286000, artists: [{ id: 1, name: '東京都立中央精神病院院長' }], album: { id: 0, name: '' }, qqMid: 'karaoke' },
+            { id: 204, name: 'Night of Bloom remix', duration: 286000, artists: [{ id: 1, name: 'Gphuuuuuc' }], album: { id: 0, name: '' }, qqMid: 'remix-2' }
         ];
         const correct = {
             id: 205,
@@ -188,7 +189,7 @@ describe('autoMatchBestLyric', () => {
             'Kirara Magic/Xomu/nayuta',
             286000,
             { album: 'Night of Bloom' }
-        );
+        ) as any;
 
         expect(searchQQLyricsMock).toHaveBeenCalledWith(
             'Night of Bloom (feat. nayuta) - Kirara Magic/Xomu/nayuta - Night of Bloom',
@@ -200,8 +201,8 @@ describe('autoMatchBestLyric', () => {
             expect.objectContaining({ id: 205, qqMid: 'correct-mid' }),
             { chorusRanges: [] }
         );
-        expect(result?.source).toBe('qq');
-        expect(result?.qqMid).toBe('correct-mid');
+        expect(result.source).toBe('qq');
+        expect(result.qqMid).toBe('correct-mid');
     });
 
     it('applies NetEase API chorus ranges to a QQ best lyric match', async () => {
@@ -223,7 +224,7 @@ describe('autoMatchBestLyric', () => {
         });
 
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({
             lines: [
@@ -233,17 +234,17 @@ describe('autoMatchBestLyric', () => {
             isWordByWord: true
         });
 
-        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
 
-        expect(result?.source).toBe('qq');
+        expect(result.source).toBe('qq');
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(
             expect.objectContaining({ id: 201 }),
             { chorusRanges: [{ startTime: 34, endTime: 89 }] }
         );
-        expect(result?.lyrics.lines[0].isChorus).toBeUndefined();
-        expect(result?.lyrics.lines[0].chorusEffect).toBeUndefined();
-        expect(result?.lyrics.lines[1].isChorus).toBe(true);
-        expect(result?.lyrics.lines[1].chorusEffect).toBe('bars');
+        expect(result.lyrics.lines[0].isChorus).toBeUndefined();
+        expect(result.lyrics.lines[0].chorusEffect).toBeUndefined();
+        expect(result.lyrics.lines[1].isChorus).toBe(true);
+        expect(result.lyrics.lines[1].chorusEffect).toBe('bars');
     });
 
     it('reuses a preprocessed NetEase candidate for the same song id', async () => {
@@ -255,7 +256,7 @@ describe('autoMatchBestLyric', () => {
             }
         });
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -265,9 +266,9 @@ describe('autoMatchBestLyric', () => {
                 lyrics: { lines: [], isWordByWord: false },
                 chorusRanges: [{ startTime: 71.288, endTime: 100.79 }]
             }
-        });
+        }) as any;
 
-        expect(result?.source).toBe('qq');
+        expect(result.source).toBe('qq');
         expect(cloudSearchMock).not.toHaveBeenCalled();
         expect(getLyricMock).not.toHaveBeenCalled();
         expect(processNeteaseLyricsMock).not.toHaveBeenCalled();
@@ -284,10 +285,10 @@ describe('autoMatchBestLyric', () => {
                 lyrics: { lines: [], isWordByWord: true },
                 chorusRanges: [{ startTime: 10, endTime: 30 }]
             }
-        });
+        }) as any;
 
-        expect(result?.source).toBe('netease');
-        expect(result?.id).toBe(101);
+        expect(result.source).toBe('netease');
+        expect(result.id).toBe(101);
         expect(cloudSearchMock).not.toHaveBeenCalled();
         expect(getLyricMock).not.toHaveBeenCalled();
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
@@ -298,15 +299,15 @@ describe('autoMatchBestLyric', () => {
         cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
         searchQQLyricsMock.mockResolvedValue([]);
         searchKugouLyricsMock.mockResolvedValue([
-            { id: 301, name: 'Song Title', duration: 199000, artists: [{ id: 1, name: 'Artist Name' }], kgHash: 'hash123' }
+            { id: 301, name: 'Song Title', duration: 199000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, kgHash: 'hash123' }
         ]);
         fetchKugouLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
-        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
         expect(result).not.toBeNull();
-        expect(result?.source).toBe('kugou');
-        expect(result?.id).toBe(301);
-        expect(result?.kgHash).toBe('hash123');
+        expect(result.source).toBe('kugou');
+        expect(result.id).toBe(301);
+        expect(result.kgHash).toBe('hash123');
     });
 
     it('returns null if no sources match the duration filter', async () => {

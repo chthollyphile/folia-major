@@ -235,6 +235,7 @@ export interface NavidromeSong extends SongResult {
     useOnlineCover?: boolean;
     useOnlineMetadata?: boolean;
     noAutoMatch?: boolean;
+    matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
     cachedStructuredLyrics?: StructuredLyricLine[];
     cachedPlainLyrics?: string;
 }

@@ -163,13 +163,13 @@ export async function loadOnlineSongLyrics(
                     chorusRanges: processed.chorusRanges
                 }
             });
-            if (bestMatch && !bestMatch.isPureMusic && (bestMatch.source === 'qq' || bestMatch.source === 'kugou')) {
+            if (bestMatch && 'lyrics' in bestMatch && (bestMatch.source === 'qq' || bestMatch.source === 'kugou')) {
                 const overrideState: OnlineLyricsState = {
                     lyricsSource: 'online',
-                    matchedSongId: song.id,
-                    matchedLyrics: bestMatch.lyrics,
+                    matchedSongId: typeof bestMatch.id === 'number' ? bestMatch.id : parseInt(String(bestMatch.id), 10) || 0,
+                    hasOnlineOverride: true,
+                    onlineOverrideLyrics: bestMatch.lyrics,
                     matchedLyricsSource: bestMatch.source,
-                    useOnlineLyrics: true,
                 };
                 await saveOnlineLyricsState(song, overrideState);
                 resolvedLyrics = bestMatch.lyrics;

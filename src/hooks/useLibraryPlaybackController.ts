@@ -651,7 +651,7 @@ export function useLibraryPlaybackController({
                             isAutoMatched = true;
                             autoMatchedLyrics = null;
                             (navidromeSong as NavidromeSong & { matchedIsPureMusic?: boolean; }).matchedIsPureMusic = true;
-                        } else if (bestMatch) {
+                        } else if (bestMatch && 'lyrics' in bestMatch) {
                             nextLyrics = bestMatch.lyrics;
                             autoMatchedLyrics = bestMatch.lyrics;
                             isAutoMatched = true;
@@ -1102,7 +1102,7 @@ export function useLibraryPlaybackController({
                     setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
                     return false;
                 }
-                if (bestMatch.isPureMusic) {
+                if ('isPureMusic' in bestMatch) {
                     setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词' });
                     return false;
                 }
@@ -1144,7 +1144,7 @@ export function useLibraryPlaybackController({
                     setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
                     return false;
                 }
-                if (bestMatch.isPureMusic) {
+                if ('isPureMusic' in bestMatch) {
                     setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词' });
                     return false;
                 }
@@ -1187,7 +1187,7 @@ export function useLibraryPlaybackController({
                 setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
                 return false;
             }
-            if (bestMatch.isPureMusic) {
+            if ('isPureMusic' in bestMatch) {
                 setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词' });
                 return false;
             }

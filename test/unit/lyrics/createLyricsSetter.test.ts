@@ -56,7 +56,7 @@ describe('createLyricsSetter', () => {
             id: 12345,
             name: 'Test Song',
             artists: [],
-            album: { name: 'Test Album' },
+            album: { id: 1, name: 'Test Album' },
             duration: 180000,
         };
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: currentSong };
