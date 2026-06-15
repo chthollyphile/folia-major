@@ -28,6 +28,19 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [lyricData, setLyricData] = useState<LyricData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [retryTrigger, setRetryTrigger] = useState(0);
+
+    const [prevResultId, setPrevResultId] = useState<number | string | null>(null);
+    const [prevSource, setPrevSource] = useState<'netease' | 'qq' | 'kugou' | null>(null);
+
+    // Synchronously reset state when selection or source changes to avoid UI flash
+    if (selectedResult && (selectedResult.id !== prevResultId || source !== prevSource)) {
+        setPrevResultId(selectedResult.id);
+        setPrevSource(source);
+        setLyricData(null);
+        setError(null);
+        setIsLoading(true);
+    }
 
     // Dynamic styling
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
@@ -36,12 +49,84 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     const btnBg = isDaylight ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600' : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300';
     const previewBoxBg = isDaylight ? 'bg-black/[0.02] border-black/5' : 'bg-white/[0.02] border-white/5';
 
-    // 当选择的歌曲结果或源改变时重置状态，只有在用户主动点击按钮时才加载
+    // Automatically fetch and parse the preview lyrics
     useEffect(() => {
-        setLyricData(null);
-        setError(null);
-        setIsLoading(false);
-    }, [selectedResult?.id, source]);
+        if (!selectedResult) {
+            setLyricData(null);
+            setError(null);
+            setIsLoading(false);
+            return;
+        }
+
+        let isCancelled = false;
+
+        const loadPreview = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                let processed: { lyrics: any; isPureMusic: boolean } | null = null;
+                if (source === 'netease') {
+                    const lyricRes = await neteaseApi.getLyric(selectedResult.id);
+                    if (isCancelled) return;
+                    processed = await processNeteaseLyrics(
+                        {
+                            type: 'netease',
+                            ...lyricRes
+                        },
+                        { songId: selectedResult.id }
+                    );
+                } else if (source === 'qq') {
+                    const parsedLyrics = await fetchQQLyrics(selectedResult);
+                    if (isCancelled) return;
+                    processed = {
+                        lyrics: parsedLyrics,
+                        isPureMusic: false,
+                    };
+                } else if (source === 'kugou') {
+                    const parsedLyrics = await fetchKugouLyrics(selectedResult);
+                    if (isCancelled) return;
+                    processed = {
+                        lyrics: parsedLyrics,
+                        isPureMusic: false,
+                    };
+                }
+
+                if (isCancelled) return;
+
+                if (processed && processed.lyrics) {
+                    setLyricData(processed.lyrics);
+                } else if (processed && processed.isPureMusic) {
+                    setLyricData({
+                        lines: [
+                            {
+                                startTime: 0,
+                                endTime: 999,
+                                fullText: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词',
+                                words: []
+                            }
+                        ]
+                    });
+                } else {
+                    setError(t('localMusic.noLyricsAvailable'));
+                }
+            } catch (e) {
+                console.error('Failed to load lyric preview:', e);
+                if (!isCancelled) {
+                    setError(t('localMusic.matchFailed'));
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        loadPreview();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [selectedResult?.id, source, retryTrigger, t]);
 
     if (!selectedResult) {
         return (
@@ -51,60 +136,6 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
             </div>
         );
     }
-
-    // 核心函数：根据所选的源异步拉取并解析对应的歌词
-    const handleLoadPreview = async () => {
-        setIsLoading(true);
-        setError(null);
-        setLyricData(null);
-        try {
-            let processed: { lyrics: any; isPureMusic: boolean } | null = null;
-            if (source === 'netease') {
-                const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-                processed = await processNeteaseLyrics(
-                    {
-                        type: 'netease',
-                        ...lyricRes
-                    },
-                    { songId: selectedResult.id }
-                );
-            } else if (source === 'qq') {
-                const parsedLyrics = await fetchQQLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            } else if (source === 'kugou') {
-                const parsedLyrics = await fetchKugouLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            }
-
-            if (processed && processed.lyrics) {
-                setLyricData(processed.lyrics);
-            } else if (processed && processed.isPureMusic) {
-                setLyricData({
-                    lines: [
-                        {
-                            startTime: 0,
-                            endTime: 999,
-                            fullText: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词',
-                            words: []
-                        }
-                    ]
-                });
-            } else {
-                setError(t('localMusic.noLyricsAvailable'));
-            }
-        } catch (e) {
-            console.error('Failed to load lyric preview:', e);
-            setError(t('localMusic.matchFailed'));
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     if (isLoading) {
         return (
@@ -120,30 +151,21 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
             <div className={`w-full flex-1 flex flex-col items-center justify-center p-4 border rounded-xl ${previewBoxBg} ${textSecondary}`}>
                 <span className="text-xs mb-2">{error}</span>
                 <button
-                    onClick={handleLoadPreview}
+                    onClick={() => setRetryTrigger(prev => prev + 1)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${btnBg}`}
                 >
-                    {t('localMusic.reimport')}
+                    {t('localMusic.reload')}
                 </button>
             </div>
         );
     }
 
     if (!lyricData) {
-        return (
-            <div className={`w-full flex-1 flex flex-col items-center justify-center p-4 border rounded-xl border-dashed ${previewBoxBg} ${textSecondary}`}>
-                <button
-                    onClick={handleLoadPreview}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${isDaylight ? 'bg-blue-50 border-blue-200/50 text-blue-600 hover:bg-blue-100/50' : 'bg-blue-500/10 border-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}
-                >
-                    {t('localMusic.clickToPreview')}
-                </button>
-            </div>
-        );
+        return null;
     }
 
     // 判断特征
-    const isWordByWord = lyricData.isWordByWord || lyricData.lines?.some(line => line.words && line.words.length > 0);
+    const isWordByWord = !!lyricData.isWordByWord;
     const hasTranslation = lyricData.lines?.some(line => !!line.translation);
 
     return (

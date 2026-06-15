@@ -619,6 +619,7 @@ export default {
     "switchToAlbums": "切换到专辑视图",
     "switchToFolders": "切换到文件夹视图",
     "reimport": "重新导入",
+    "reload": "重新加载",
     "delete": "删除",
     "deleteFromLibrary": "从库中删除",
     "cancel": "取消",

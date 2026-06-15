@@ -617,6 +617,7 @@ export default {
     "switchToAlbums": "Switch to Albums",
     "switchToFolders": "Switch to Folders",
     "reimport": "Re-import",
+    "reload": "Reload",
     "delete": "Delete",
     "deleteFromLibrary": "Delete from Library",
     "cancel": "Cancel",
