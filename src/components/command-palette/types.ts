@@ -62,4 +62,6 @@ export type CommandPaletteContext = {
     toggleTransparentBackground: () => void;
     toggleDaylightMode: () => void;
     toggleAlternativeLyricSources: () => void;
+    enableAlternativeLyricSources: boolean;
+    runAutoMatchBestLyric: () => Promise<boolean>;
 };

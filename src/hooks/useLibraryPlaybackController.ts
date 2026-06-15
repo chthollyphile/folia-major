@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { LyricParserFactory } from '../utils/lyrics/LyricParserFactory';
-import { getFromCacheWithMigration, getLocalSongs, removeFromCache, saveToCache } from '../services/db';
+import { getFromCacheWithMigration, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../services/db';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../services/coverCache';
 import { ensureLocalSongEmbeddedCover, getAudioFromLocalSong } from '../services/localMusicService';
 import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, setLocalSongFavorite } from '../services/localPlaylistService';
@@ -1054,6 +1054,150 @@ export function useLibraryPlaybackController({
         }
     }, [currentSong, loadLocalSongs, setCachedCoverUrl, setCurrentSong, setLyrics]);
 
+    const handleAutoMatchBestLyricForCurrentSong = useCallback(async (): Promise<boolean> => {
+        if (!currentSong) {
+            setStatusMsg({ type: 'info', text: t('status.noSongPlaying') || '当前没有正在播放的歌曲' });
+            return false;
+        }
+
+        if (isStagePlaybackSong(currentSong)) {
+            setStatusMsg({ type: 'info', text: t('status.stageActionUnavailable') || 'Stage 模式下不支持该操作' });
+            return false;
+        }
+
+        const settings = useSettingsUiStore.getState();
+        if (!settings.enableAlternativeLyricSources) {
+            return false;
+        }
+
+        setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '正在匹配最佳歌词...' });
+
+        try {
+            if (isLocalPlaybackSong(currentSong) && currentSong.localData) {
+                const localData = currentSong.localData;
+                const title = localData.title || localData.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
+                const bestMatch = await autoMatchBestLyric(title, localData.artist || '', localData.duration, {
+                    album: localData.album
+                });
+
+                if (!bestMatch) {
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                    return false;
+                }
+
+                const updatedLocalSong: LocalSong = {
+                    ...localData,
+                    matchedLyrics: bestMatch.lyrics,
+                    matchedLyricsSource: bestMatch.source,
+                    matchedIsPureMusic: false,
+                    lyricsSource: 'online',
+                    matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : localData.matchedSongId,
+                };
+                await saveLocalSong(updatedLocalSong);
+                const updatedSong = { ...currentSong, localData: updatedLocalSong };
+                setCurrentSong(prev => prev?.id === currentSong.id ? updatedSong : prev);
+                setLyrics(bestMatch.lyrics);
+                setCurrentLineIndex(-1);
+                await persistLastPlaybackCache(updatedSong, playQueue);
+                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+                return true;
+            }
+
+            if (isNavidromePlaybackSong(currentSong)) {
+                const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+                if (!navidromeSong) {
+                    setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '匹配最佳歌词失败' });
+                    return false;
+                }
+
+                const artistName = navidromeSong.artists?.map(artist => artist.name).filter(Boolean).join(', ')
+                    || navidromeSong.ar?.map(artist => artist.name).filter(Boolean).join(', ')
+                    || '';
+                const albumName = navidromeSong.album?.name || navidromeSong.al?.name || '';
+                const bestMatch = await autoMatchBestLyric(navidromeSong.name, artistName, navidromeSong.duration || navidromeSong.dt || 0, {
+                    album: albumName
+                });
+
+                if (!bestMatch) {
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                    return false;
+                }
+
+                const matchData: NavidromeMatchData = {
+                    matchedLyrics: bestMatch.lyrics,
+                    matchedLyricsSource: bestMatch.source,
+                    lyricsSource: 'online',
+                    useOnlineLyrics: true,
+                    matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : undefined,
+                    matchedIsPureMusic: false,
+                };
+                await saveToCache(`navidrome_match_${navidromeSong.navidromeData.id}`, matchData);
+
+                const updatedSong = {
+                    ...currentSong,
+                    matchedLyrics: bestMatch.lyrics,
+                    matchedLyricsSource: bestMatch.source,
+                    matchedIsPureMusic: false,
+                    lyricsSource: 'online' as const,
+                    useOnlineLyrics: true,
+                };
+                setCurrentSong(prev => prev?.id === currentSong.id ? updatedSong : prev);
+                setLyrics(bestMatch.lyrics);
+                setCurrentLineIndex(-1);
+                await persistLastPlaybackCache(updatedSong, playQueue);
+                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+                return true;
+            }
+
+            const artistName = currentSong.artists?.map(artist => artist.name).filter(Boolean).join(', ')
+                || currentSong.ar?.map(artist => artist.name).filter(Boolean).join(', ')
+                || '';
+            const albumName = currentSong.album?.name || currentSong.al?.name || '';
+            const bestMatch = await autoMatchBestLyric(currentSong.name, artistName, currentSong.duration || currentSong.dt || 0, {
+                album: albumName
+            });
+
+            if (!bestMatch) {
+                setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                return false;
+            }
+
+            const previousState = await loadOnlineLyricsState(currentSong);
+            const nextState: OnlineLyricsState = {
+                lyricsSource: 'online',
+                importedLyrics: previousState?.importedLyrics ?? null,
+                importedLyricsName: previousState?.importedLyricsName ?? null,
+                hasOnlineOverride: true,
+                onlineOverrideLyrics: bestMatch.lyrics,
+                matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : currentSong.id,
+                matchedIsPureMusic: false,
+                matchedLyricsSource: bestMatch.source,
+            };
+            await saveOnlineLyricsState(currentSong, nextState);
+
+            const updatedSong = { ...currentSong, onlineLyricsState: nextState, isPureMusic: false };
+            setCurrentSong(prev => prev?.id === currentSong.id ? updatedSong : prev);
+            setLyrics(bestMatch.lyrics);
+            setCurrentLineIndex(-1);
+            await persistLastPlaybackCache(updatedSong, playQueue);
+            setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+            return true;
+        } catch (error) {
+            console.error('[CommandPalette] Failed to auto-match best lyric:', error);
+            setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '匹配最佳歌词失败' });
+            return false;
+        }
+    }, [
+        currentSong,
+        persistLastPlaybackCache,
+        playQueue,
+        setCurrentLineIndex,
+        setCurrentSong,
+        setLyrics,
+        setStatusMsg,
+        t,
+    ]);
+
     const handleLike = useCallback(async () => {
         if (!currentSong) return;
 
@@ -1177,6 +1321,7 @@ export function useLibraryPlaybackController({
         handleOnlineLyricMatchComplete,
         handleClearOnlineLyricsState,
         handleHomeMatchSong,
+        handleAutoMatchBestLyricForCurrentSong,
         handleLike,
     };
 }

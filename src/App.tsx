@@ -787,6 +787,7 @@ export default function App() {
         handleOnlineLyricMatchComplete,
         handleClearOnlineLyricsState,
         handleHomeMatchSong,
+        handleAutoMatchBestLyricForCurrentSong,
         handleLike,
     } = useLibraryPlaybackController({
         t: (key, fallback) => t(key, fallback ?? ''),
@@ -1372,7 +1373,11 @@ export default function App() {
         toggleTransparentBackground: () => handleToggleTransparentPlayerBackground(!transparentPlayerBackground),
         toggleDaylightMode,
         toggleAlternativeLyricSources: () => handleToggleAlternativeLyricSources(!enableAlternativeLyricSources),
+        enableAlternativeLyricSources,
+        runAutoMatchBestLyric: handleAutoMatchBestLyricForCurrentSong,
     }), [
+        enableAlternativeLyricSources,
+        handleAutoMatchBestLyricForCurrentSong,
         handleNextTrack,
         handlePrevTrack,
         handleSetVisualizerMode,
@@ -1395,7 +1400,6 @@ export default function App() {
         transparentPlayerBackground,
         toggleDaylightMode,
         handleToggleAlternativeLyricSources,
-        enableAlternativeLyricSources,
     ]);
     const commandPalette = useCommandPalette({
         currentView,

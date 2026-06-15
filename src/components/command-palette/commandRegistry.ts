@@ -295,6 +295,14 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
             return true;
         },
     },
+    {
+        id: 'playback-auto-match-best-lyric',
+        group: 'playback',
+        title: 'Match best lyrics',
+        description: 'Run automatic best lyric matching for the current song',
+        keywords: ['best lyrics', 'match best lyrics', 'auto match lyrics', '最佳歌词', '匹配最佳歌词', '自动匹配歌词', 'zuijiageci', 'pipeizuijiageci', 'zidongpipeigeci', 'zjgc', 'ppzjgc', 'zdppgc'],
+        execute: (_input, context) => context.runAutoMatchBestLyric(),
+    },
 
     createVisualizerCommand('classic', 'Visualizer: Luminous', 'Switch to classic visualizer', ['visualizer classic', 'classic', '流光', 'liuguang', 'lg']),
     createVisualizerCommand('cadenza', 'Visualizer: Mindscape', 'Switch to cadenza visualizer', ['visualizer cadenza', 'cadenza', 'mindscape', '心象', 'xinxiang', 'xx']),
@@ -395,6 +403,10 @@ export const getCommandPaletteMatches = (query: string, context?: CommandPalette
             if (isWebBrowser && !isElectron) {
                 return false;
             }
+        }
+
+        if (command.id === 'playback-auto-match-best-lyric') {
+            return Boolean(context?.enableAlternativeLyricSources);
         }
 
         if (command.group === 'search') {
