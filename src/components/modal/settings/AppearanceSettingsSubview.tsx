@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { DualTheme, Theme, ThemeMode, UrlBackgroundItem } from '../../../types';
+import {
+    DEFAULT_MONET_BACKGROUND_TUNING,
+    DEFAULT_MONET_TUNING,
+    type DualTheme,
+    type Theme,
+    type ThemeMode,
+    type UrlBackgroundItem,
+} from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
 
@@ -169,16 +176,16 @@ const compressMonetBackground = (t: any): any => ({
     mbwcc: t.backgroundWashCustomColor,
 });
 const decompressMonetBackground = (o: any): any => ({
-    backgroundSource: o.mbs || 'cover-derived',
-    backgroundLayout: o.mbl || 'half-pane-gradient',
-    backgroundBlurPx: o.mbb !== undefined ? o.mbb : 2,
-    backgroundOverlayOpacity: o.mbo !== undefined ? o.mbo : 0.42,
-    backgroundGrayscale: o.mbg !== undefined ? o.mbg : 0,
-    backgroundSaturation: o.mbsat !== undefined ? o.mbsat : 1.05,
-    backgroundWash: o.mbw !== undefined ? o.mbw : 0.16,
-    backgroundHalfPaneOffsetX: o.mbh !== undefined ? o.mbh : 0,
-    backgroundWashColorMode: o.mbwcm || 'theme',
-    backgroundWashCustomColor: o.mbwcc || '#8fb7ff',
+    backgroundSource: o.mbs || DEFAULT_MONET_BACKGROUND_TUNING.backgroundSource,
+    backgroundLayout: o.mbl || DEFAULT_MONET_BACKGROUND_TUNING.backgroundLayout,
+    backgroundBlurPx: o.mbb !== undefined ? o.mbb : DEFAULT_MONET_BACKGROUND_TUNING.backgroundBlurPx,
+    backgroundOverlayOpacity: o.mbo !== undefined ? o.mbo : DEFAULT_MONET_BACKGROUND_TUNING.backgroundOverlayOpacity,
+    backgroundGrayscale: o.mbg !== undefined ? o.mbg : DEFAULT_MONET_BACKGROUND_TUNING.backgroundGrayscale,
+    backgroundSaturation: o.mbsat !== undefined ? o.mbsat : DEFAULT_MONET_BACKGROUND_TUNING.backgroundSaturation,
+    backgroundWash: o.mbw !== undefined ? o.mbw : DEFAULT_MONET_BACKGROUND_TUNING.backgroundWash,
+    backgroundHalfPaneOffsetX: o.mbh !== undefined ? o.mbh : DEFAULT_MONET_BACKGROUND_TUNING.backgroundHalfPaneOffsetX,
+    backgroundWashColorMode: o.mbwcm || DEFAULT_MONET_BACKGROUND_TUNING.backgroundWashColorMode,
+    backgroundWashCustomColor: o.mbwcc || DEFAULT_MONET_BACKGROUND_TUNING.backgroundWashCustomColor,
 });
 
 const compressMonet = (t: any): any => ({
@@ -191,13 +198,13 @@ const compressMonet = (t: any): any => ({
     mpy: t.portraitStyle,
 });
 const decompressMonet = (o: any): any => ({
-    keywordColoringEnabled: o.kce !== undefined ? o.kce : true,
-    showDescription: o.msd !== undefined ? o.msd : true,
-    audioStyle: o.mas || 'bar',
-    fontScale: o.mfs !== undefined ? o.mfs : 1.0,
-    portraitSource: o.mps || 'cover',
-    portraitOffsetX: o.pox !== undefined ? o.pox : 0,
-    portraitStyle: o.mpy || 'rectangular',
+    keywordColoringEnabled: o.kce !== undefined ? o.kce : DEFAULT_MONET_TUNING.keywordColoringEnabled,
+    showDescription: o.msd !== undefined ? o.msd : DEFAULT_MONET_TUNING.showDescription,
+    audioStyle: o.mas || DEFAULT_MONET_TUNING.audioStyle,
+    fontScale: o.mfs !== undefined ? o.mfs : DEFAULT_MONET_TUNING.fontScale,
+    portraitSource: o.mps || DEFAULT_MONET_TUNING.portraitSource,
+    portraitOffsetX: o.pox !== undefined ? o.pox : DEFAULT_MONET_TUNING.portraitOffsetX,
+    portraitStyle: o.mpy || DEFAULT_MONET_TUNING.portraitStyle,
 });
 
 export const compressConfig = (config: any): string => {

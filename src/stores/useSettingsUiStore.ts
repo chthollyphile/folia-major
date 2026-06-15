@@ -502,7 +502,7 @@ export const resolveStoredMonetTuning = (parsed: StoredMonetTuningInput): MonetT
     portraitOffsetX: typeof parsed.portraitOffsetX === 'number'
         ? Math.min(0, Math.max(-150, parsed.portraitOffsetX))
         : (DEFAULT_MONET_TUNING.portraitOffsetX ?? 0),
-    portraitStyle: parsed.portraitStyle === 'square' ? 'square' : 'rectangular',
+    portraitStyle: parsed.portraitStyle === 'rectangular' ? 'rectangular' : DEFAULT_MONET_TUNING.portraitStyle,
 });
 const readStoredMonetBackgroundTuning = (): MonetBackgroundTuning => {
     if (typeof window === 'undefined') {

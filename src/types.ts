@@ -346,12 +346,12 @@ export interface MonetTuning {
 
 export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
   backgroundSource: 'cover-derived',
-  backgroundLayout: 'half-pane-gradient',
-  backgroundBlurPx: 2,
-  backgroundOverlayOpacity: 0.42,
+  backgroundLayout: 'full-overlay',
+  backgroundBlurPx: 6,
+  backgroundOverlayOpacity: 0.74,
   backgroundGrayscale: 0,
   backgroundSaturation: 1.05,
-  backgroundWash: 0.16,
+  backgroundWash: 0.34,
   backgroundHalfPaneOffsetX: 0,
   backgroundWashColorMode: 'theme',
   backgroundWashCustomColor: '#8fb7ff',
@@ -361,10 +361,10 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   keywordColoringEnabled: true,
   showDescription: true,
   audioStyle: 'bar',
-  fontScale: 1.0,
+  fontScale: 1.2,
   portraitSource: 'cover',
   portraitOffsetX: 0,
-  portraitStyle: 'rectangular',
+  portraitStyle: 'square',
 };
 
 export interface StoredCappellaEmojiImage {
