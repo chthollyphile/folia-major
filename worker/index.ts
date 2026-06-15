@@ -1,5 +1,6 @@
 import { handleGenerateTheme } from "./generate-theme.ts";
 import { handleGenerateOpenAITheme } from "./generate-theme_openai.ts";
+import { handleLyricProxy } from "./lyric-proxy.ts";
 
 type Env = {
   ASSETS: {
@@ -21,6 +22,10 @@ export default {
 
     if (url.pathname === "/api/generate-theme_openai") {
       return handleGenerateOpenAITheme(request, env);
+    }
+
+    if (url.pathname === "/api/lyric-proxy") {
+      return handleLyricProxy(request);
     }
 
     return env.ASSETS.fetch(request);

@@ -120,6 +120,8 @@ export default function App() {
         settingsModalState,
         homeLayoutStyle,
         setActiveGridViewCollection,
+        enableAlternativeLyricSources,
+        handleToggleAlternativeLyricSources,
     } = useSettingsUiStore(useShallow(state => ({
         closeSettings: state.closeSettings,
         isSettingsSubviewOpen: state.isSubSettingsViewOpen,
@@ -127,6 +129,8 @@ export default function App() {
         settingsModalState: state.settingsModalState,
         homeLayoutStyle: state.homeLayoutStyle,
         setActiveGridViewCollection: state.setActiveGridViewCollection,
+        enableAlternativeLyricSources: state.enableAlternativeLyricSources,
+        handleToggleAlternativeLyricSources: state.handleToggleAlternativeLyricSources,
     })));
 
     const loadNavidromeFavorites = useCallback(async () => {
@@ -1363,6 +1367,7 @@ export default function App() {
         setMonetBackgroundTuning: handleSetMonetBackgroundTuning,
         toggleTransparentBackground: () => handleToggleTransparentPlayerBackground(!transparentPlayerBackground),
         toggleDaylightMode,
+        toggleAlternativeLyricSources: () => handleToggleAlternativeLyricSources(!enableAlternativeLyricSources),
     }), [
         handleNextTrack,
         handlePrevTrack,
@@ -1385,6 +1390,8 @@ export default function App() {
         handleToggleTransparentPlayerBackground,
         transparentPlayerBackground,
         toggleDaylightMode,
+        handleToggleAlternativeLyricSources,
+        enableAlternativeLyricSources,
     ]);
     const commandPalette = useCommandPalette({
         currentView,

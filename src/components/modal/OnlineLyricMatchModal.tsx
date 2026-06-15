@@ -6,6 +6,9 @@ import type { OnlineLyricsState, SongResult } from '../../types';
 import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { loadOnlineLyricsState, saveOnlineLyricsState } from '../../utils/onlineLyricsState';
+import { searchQQLyrics, fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
+import { searchKugouLyrics, fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
+import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 
 // src/components/modal/OnlineLyricMatchModal.tsx
 
@@ -18,6 +21,7 @@ interface OnlineLyricMatchModalProps {
 
 const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onClose, onMatch, isDaylight }) => {
     const { t } = useTranslation();
+    const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
     const bgClass = isDaylight ? 'bg-white/90 border-white/20' : 'bg-zinc-900/95 border-white/10';
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
     const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
@@ -34,6 +38,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
     const [selectedResult, setSelectedResult] = useState<SongResult | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [isMatching, setIsMatching] = useState(false);
+    const [source, setSource] = useState<'netease' | 'qq' | 'kugou'>('netease');
 
     const handleSearch = async (query = searchQuery) => {
         if (!query.trim()) {
@@ -44,8 +49,15 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         setSearchResults([]);
         setSelectedResult(null);
         try {
-            const response = await neteaseApi.cloudSearch(query);
-            const results = response.result?.songs ?? [];
+            let results: SongResult[] = [];
+            if (source === 'netease') {
+                const response = await neteaseApi.cloudSearch(query);
+                results = response.result?.songs ?? [];
+            } else if (source === 'qq') {
+                results = await searchQQLyrics(query);
+            } else if (source === 'kugou') {
+                results = await searchKugouLyrics(query);
+            }
             setSearchResults(results);
             if (results.length > 0) {
                 setSelectedResult(results[0]);
@@ -69,12 +81,20 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
 
         void (async () => {
             try {
-                const response = await neteaseApi.cloudSearch(initialQuery);
+                let results: SongResult[] = [];
+                if (source === 'netease') {
+                    const response = await neteaseApi.cloudSearch(initialQuery);
+                    results = response.result?.songs ?? [];
+                } else if (source === 'qq') {
+                    results = await searchQQLyrics(initialQuery);
+                } else if (source === 'kugou') {
+                    results = await searchKugouLyrics(initialQuery);
+                }
+
                 if (!isCurrent) {
                     return;
                 }
 
-                const results = response.result?.songs ?? [];
                 setSearchResults(results);
                 if (results.length > 0) {
                     setSelectedResult(results[0]);
@@ -93,7 +113,13 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         return () => {
             isCurrent = false;
         };
-    }, [song]);
+    }, [song, source]);
+
+    useEffect(() => {
+        if (!enableAlternativeLyricSources && source !== 'netease') {
+            setSource('netease');
+        }
+    }, [enableAlternativeLyricSources, source]);
 
     const handleConfirm = async () => {
         if (!selectedResult) {
@@ -102,20 +128,38 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
 
         setIsMatching(true);
         try {
-            const lyricResponse = await neteaseApi.getLyric(selectedResult.id);
-            const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: selectedResult.id });
-            const previousState = await loadOnlineLyricsState(song);
-            const nextState: OnlineLyricsState = {
-                lyricsSource: 'online',
-                importedLyrics: previousState?.importedLyrics ?? null,
-                importedLyricsName: previousState?.importedLyricsName ?? null,
-                hasOnlineOverride: true,
-                onlineOverrideLyrics: processed.lyrics,
-                matchedSongId: selectedResult.id,
-                matchedIsPureMusic: processed.isPureMusic,
-            };
-            await saveOnlineLyricsState(song, nextState);
-            onMatch();
+            let processed: { lyrics: any; isPureMusic: boolean } | null = null;
+            if (source === 'netease') {
+                const lyricResponse = await neteaseApi.getLyric(selectedResult.id);
+                processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: selectedResult.id });
+            } else if (source === 'qq') {
+                const parsedLyrics = await fetchQQLyrics(selectedResult);
+                processed = {
+                    lyrics: parsedLyrics,
+                    isPureMusic: false,
+                };
+            } else if (source === 'kugou') {
+                const parsedLyrics = await fetchKugouLyrics(selectedResult);
+                processed = {
+                    lyrics: parsedLyrics,
+                    isPureMusic: false,
+                };
+            }
+
+            if (processed && processed.lyrics) {
+                const previousState = await loadOnlineLyricsState(song);
+                const nextState: OnlineLyricsState = {
+                    lyricsSource: 'online',
+                    importedLyrics: previousState?.importedLyrics ?? null,
+                    importedLyricsName: previousState?.importedLyricsName ?? null,
+                    hasOnlineOverride: true,
+                    onlineOverrideLyrics: processed.lyrics,
+                    matchedSongId: selectedResult.id,
+                    matchedIsPureMusic: processed.isPureMusic,
+                };
+                await saveOnlineLyricsState(song, nextState);
+                onMatch();
+            }
         } catch (error) {
             console.error('Online lyric match failed', error);
         } finally {
@@ -140,6 +184,32 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                 </div>
 
                 <div className="p-6 flex flex-col gap-5 min-h-0">
+                    <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
+                        {[
+                            { id: 'netease', label: '网易云音乐' },
+                            ...(enableAlternativeLyricSources ? [
+                                { id: 'qq', label: 'QQ 音乐' },
+                                { id: 'kugou', label: '酷狗音乐' }
+                            ] : [])
+                        ].map(t => {
+                            const isSelected = source === t.id;
+                            const activeTabClass = isSelected
+                                ? isDaylight
+                                    ? 'border-blue-500 text-blue-600 font-semibold'
+                                    : 'border-blue-400 text-blue-300 font-semibold'
+                                : 'border-transparent text-zinc-400 hover:text-zinc-200';
+                            return (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setSource(t.id as any)}
+                                    className={`pb-2 border-b-2 text-sm transition-all px-1 cursor-pointer ${activeTabClass}`}
+                                >
+                                    {t.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     <div className="flex gap-3">
                         <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
                             <Search size={18} className={textSecondary} />

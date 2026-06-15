@@ -35,6 +35,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
     const { t } = useTranslation();
     const {
         disableHomeDynamicBackground,
+        enableAlternativeLyricSources,
         hidePlayerProgressBar,
         hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle,
@@ -43,6 +44,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         staticMode,
         visualizerFrameRate,
         onToggleDisableHomeDynamicBackground,
+        onToggleAlternativeLyricSources,
         onToggleHidePlayerProgressBar,
         onToggleHidePlayerRightPanelButton,
         onToggleHidePlayerTranslationSubtitle,
@@ -54,6 +56,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         onVisualizerFrameRateChange,
     } = useSettingsUiStore(useShallow(state => ({
         disableHomeDynamicBackground: state.disableHomeDynamicBackground,
+        enableAlternativeLyricSources: state.enableAlternativeLyricSources,
         hidePlayerProgressBar: state.hidePlayerProgressBar,
         hidePlayerRightPanelButton: state.hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
@@ -62,6 +65,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         staticMode: state.staticMode,
         visualizerFrameRate: state.visualizerFrameRate,
         onToggleDisableHomeDynamicBackground: state.handleToggleDisableHomeDynamicBackground,
+        onToggleAlternativeLyricSources: state.handleToggleAlternativeLyricSources,
         onToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
         onToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
         onToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
@@ -155,6 +159,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                 onClick={() => {
                                     onToggleStaticMode(false);
                                     onToggleDisableHomeDynamicBackground(false);
+                                    onToggleAlternativeLyricSources(false);
                                     onToggleHidePlayerProgressBar(false);
                                     onToggleHidePlayerTranslationSubtitle(false);
                                     onToggleHidePlayerRightPanelButton(false);
@@ -204,6 +209,19 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                         </div>
                                     </div>
                                     {renderToggle(disableHomeDynamicBackground, () => onToggleDisableHomeDynamicBackground(!disableHomeDynamicBackground))}
+                                </div>
+
+                                <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Settings2 size={14} />
+                                            {t('options.enableAlternativeLyricSources') || '更多歌词源'}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.enableAlternativeLyricSourcesDesc') || '在歌词匹配面板中显示备选歌词源（QQ音乐、酷狗音乐），支持加载与解密 QRC/KRC 歌词。'}
+                                        </div>
+                                    </div>
+                                    {renderToggle(enableAlternativeLyricSources, () => onToggleAlternativeLyricSources(!enableAlternativeLyricSources))}
                                 </div>
 
                                 <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>

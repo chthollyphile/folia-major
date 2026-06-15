@@ -641,6 +641,27 @@ function setupFileSystemAccessPermissionHandlers() {
   });
 }
 
+function setupCorsBypassHandlers() {
+  const ses = session.defaultSession;
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    const originUrl = details.url;
+
+    const isTargetDomain = originUrl.includes('.qq.com/') || 
+                           originUrl.includes('.kugou.com/') ||
+                           originUrl.includes('//qq.com/') ||
+                           originUrl.includes('//kugou.com/');
+
+    if (isTargetDomain) {
+      responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+      responseHeaders['Access-Control-Allow-Headers'] = ['*'];
+      responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS, PUT, DELETE'];
+    }
+
+    callback({ cancel: false, responseHeaders });
+  });
+}
+
 function normalizeDebugSelector(selector) {
   if (typeof selector !== 'string') {
     return '';
@@ -1987,6 +2008,7 @@ app.whenReady().then(async () => {
   }
 
   setupFileSystemAccessPermissionHandlers();
+  setupCorsBypassHandlers();
 
   session.defaultSession.on('file-system-access-restricted', (event, details, callback) => {
     if (details.isDirectory) {

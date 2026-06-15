@@ -513,6 +513,8 @@ export interface SongResult {
   resourceState?: boolean;
   privilege?: SongPrivilege;
   onlineLyricsState?: OnlineLyricsState;
+  qqMid?: string;
+  kgHash?: string;
 }
 
 export interface OnlineLyricsState {

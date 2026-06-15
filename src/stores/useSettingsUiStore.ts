@@ -674,6 +674,7 @@ type SettingsUiState = {
     useCoverColorBg: boolean;
     staticMode: boolean;
     disableHomeDynamicBackground: boolean;
+    enableAlternativeLyricSources: boolean;
     hidePlayerProgressBar: boolean;
     hidePlayerTranslationSubtitle: boolean;
     hidePlayerRightPanelButton: boolean;
@@ -753,6 +754,7 @@ type SettingsUiState = {
     handleToggleCoverColorBg: (enable: boolean) => void;
     handleToggleStaticMode: (enable: boolean) => void;
     handleToggleDisableHomeDynamicBackground: (disable: boolean) => void;
+    handleToggleAlternativeLyricSources: (enable: boolean) => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
     handleToggleHidePlayerTranslationSubtitle: (enable: boolean) => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
@@ -826,6 +828,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     useCoverColorBg: getStoredBoolean('use_cover_color_bg', false),
     staticMode: getStoredBoolean('static_mode', false),
     disableHomeDynamicBackground: readStoredDisableHomeDynamicBackground(),
+    enableAlternativeLyricSources: getStoredBoolean('enable_alternative_lyric_sources', false),
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
     hidePlayerTranslationSubtitle: getStoredBoolean('hide_player_translation_subtitle', false),
     hidePlayerRightPanelButton: getStoredBoolean('hide_player_right_panel_button', false),
@@ -964,6 +967,14 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, {
             type: 'info',
             text: disable ? '主页动态背景已关闭' : '主页动态背景已开启',
+        });
+    },
+    handleToggleAlternativeLyricSources: (enable) => {
+        setStoredBoolean('enable_alternative_lyric_sources', enable);
+        set({ enableAlternativeLyricSources: enable });
+        notify(get, {
+            type: 'info',
+            text: enable ? '更多歌词源已开启' : '更多歌词源已关闭',
         });
     },
     handleToggleHidePlayerProgressBar: (enable) => {
