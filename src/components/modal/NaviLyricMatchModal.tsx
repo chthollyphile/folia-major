@@ -98,7 +98,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             );
             if (data) {
                 setInitialMatchData(data);
-                setLyricsSource(data.lyricsSource ?? (data.useOnlineLyrics ? 'online' : 'navi'));
+                setLyricsSource(data.lyricsSource ?? 'online');
             } else {
                 setLyricsSource('online');
             }
@@ -189,6 +189,13 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             setSource('netease');
         }
     }, [enableAlternativeLyricSources, source]);
+
+    // When a search result is selected, update lyricsSource to 'online'
+    useEffect(() => {
+        if (selectedResult) {
+            setLyricsSource('online');
+        }
+    }, [selectedResult]);
 
 
 
@@ -313,18 +320,30 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                     );
                                 })}
                             </div>
-                            <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} className="relative">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder={t('localMusic.searchForSong')}
-                                    className={`w-full ${inputBg} border rounded-lg py-2.5 pl-9 pr-4 text-sm focus:outline-none transition-all ${textPrimary}`}
-                                    autoFocus
-                                />
-                                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 opacity-40 ${textSecondary}`} size={16} />
-                                <button type="submit" disabled={isSearching} className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 ${searchBtnBg} rounded-md text-xs transition-colors disabled:opacity-50`}>
-                                    {isSearching ? t('localMusic.searching') || '搜索中...' : t('localMusic.search') || '搜索'}
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleSearch();
+                                }}
+                                className="flex gap-3"
+                            >
+                                <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                    <Search size={18} className={`opacity-40 ${textSecondary}`} />
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
+                                        className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                        autoFocus
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isSearching}
+                                    className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                                >
+                                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
                                 </button>
                             </form>
                         </div>

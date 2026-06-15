@@ -61,7 +61,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     const [source, setSource] = useState<LyricMatchSource>('netease');
 
     // Online data toggle state (dots)
-    const [lyricsSource, setLyricsSource] = useState<'local' | 'embedded' | 'online' | undefined>(song.lyricsSource);
+    const [lyricsSource, setLyricsSource] = useState<'local' | 'embedded' | 'online' | undefined>(song.lyricsSource || 'online');
     const [useOnlineCover, setUseOnlineCover] = useState(song.useOnlineCover ?? !song.embeddedCover);
     const [useOnlineMetadata, setUseOnlineMetadata] = useState(song.useOnlineMetadata ?? true);
 
@@ -84,6 +84,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             const onlineAlbum = getMatchResultAlbumName(selectedResult);
             setEditArtist(useOnlineMetadata ? onlineArtist : (song.embeddedArtist || song.artist || onlineArtist));
             setEditAlbum(useOnlineMetadata ? onlineAlbum : (song.embeddedAlbum || song.album || onlineAlbum));
+            setLyricsSource('online');
         }
     }, [selectedResult, source, useOnlineMetadata, song.embeddedArtist, song.artist, song.embeddedAlbum, song.album]);
 
@@ -377,28 +378,30 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                     );
                                 })}
                             </div>
-                            <form
+                             <form
                                 onSubmit={(e) => {
                                     e.preventDefault();
                                     handleSearch();
                                 }}
-                                className="relative"
+                                className="flex gap-3"
                             >
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder={t('localMusic.searchForSong')}
-                                    className={`w-full ${inputBg} border rounded-lg py-2.5 pl-9 pr-4 text-sm focus:outline-none transition-all ${textPrimary}`}
-                                    autoFocus
-                                />
-                                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 opacity-40 ${textSecondary}`} size={16} />
+                                <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                    <Search size={18} className={`opacity-40 ${textSecondary}`} />
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder={t('localMusic.searchForSong')}
+                                        className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                        autoFocus
+                                    />
+                                </div>
                                 <button
                                     type="submit"
                                     disabled={isSearching}
-                                    className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 ${searchBtnBg} rounded-md text-xs transition-colors disabled:opacity-50`}
+                                    className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
                                 >
-                                    {isSearching ? t('localMusic.searching') : t('localMusic.search')}
+                                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
                                 </button>
                             </form>
                         </div>
