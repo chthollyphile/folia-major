@@ -86,7 +86,7 @@ const DAYLIGHT_THEME: Theme = {
 export default function App() {
     const { t } = useTranslation();
     const isDev = import.meta.env.DEV;
-    const isElectronWindow = Boolean((window as typeof window & { electron?: unknown }).electron);
+    const isElectronWindow = Boolean((window as typeof window & { electron?: unknown; }).electron);
     const [isTitlebarRevealed, setIsTitlebarRevealed] = useState(false);
     const [showTransparentWindowBorder, setShowTransparentWindowBorder] = useState(false);
     const [isMainWindowClickThroughEnabled, setIsMainWindowClickThroughEnabled] = useState(false);
@@ -1456,20 +1456,20 @@ export default function App() {
     const devDebugSnapshot = useMemo(() => (
         isDev
             ? buildDebugSnapshot({
-            shortcutLabel: DEV_DEBUG_SHORTCUT_LABEL,
-            currentSong,
-            currentView,
-            playerState,
-            visualizerMode,
-            lyrics,
-            currentLineIndex,
-            currentTimeValue: currentTime.get(),
-            audioSrc,
-            coverUrl,
-            nowPlayingDebug: nowPlayingDebugSnapshot,
-            themeMode: bgMode,
-            activeDualTheme,
-        })
+                shortcutLabel: DEV_DEBUG_SHORTCUT_LABEL,
+                currentSong,
+                currentView,
+                playerState,
+                visualizerMode,
+                lyrics,
+                currentLineIndex,
+                currentTimeValue: currentTime.get(),
+                audioSrc,
+                coverUrl,
+                nowPlayingDebug: nowPlayingDebugSnapshot,
+                themeMode: bgMode,
+                activeDualTheme,
+            })
             : null
     ), [
         audioSrc,
@@ -2200,6 +2200,19 @@ export default function App() {
     //     lastBufferedPercentLogRef.current = null;
     // }, [audioSrc]);
 
+    // Optimize background layout cost: completely hide home surface when player is active
+    const [isHomeFullyHidden, setIsHomeFullyHidden] = useState(false);
+    const isHomeVisible = currentView === 'home' || isSettingsModalOpen || isPanelOpen;
+    useEffect(() => {
+        if (isHomeVisible) {
+            setIsHomeFullyHidden(false);
+        } else {
+            // Wait for the 300ms opacity transition to finish before applying display: none
+            const timer = setTimeout(() => setIsHomeFullyHidden(true), 350);
+            return () => clearTimeout(timer);
+        }
+    }, [isHomeVisible]);
+
     return (
         <AppShell
             appStyle={appStyle}
@@ -2346,6 +2359,21 @@ export default function App() {
                 }}
             />}
         >
+
+            {/* Home Mount Point */}
+            <div
+                className="absolute inset-0 z-0"
+                style={{
+                    opacity: isSettingsModalOpen || isPanelOpen ? 0 : 1,
+                    pointerEvents: isSettingsModalOpen || isPanelOpen ? 'none' : 'auto',
+                    transition: 'opacity 0.25s ease-in-out',
+                    display: isHomeFullyHidden ? 'none' : 'block',
+                }}
+            >
+                {currentView === 'home' || currentView === 'player' ? (
+                    <Home model={homeModel} isHomeFullyHidden={isHomeFullyHidden} />
+                ) : null}
+            </div>
 
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
             <div

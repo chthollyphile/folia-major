@@ -8,10 +8,15 @@ import type { HomeViewModel } from './home/buildHomeModel';
 // App-level entry for the home surface backed by a view model.
 type AppHomeProps = {
     model: HomeViewModel;
+    isHomeFullyHidden?: boolean;
 };
 
-const Home: React.FC<AppHomeProps> = ({ model }) => {
+const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden }) => {
     const homeLayoutStyle = useSettingsUiStore(state => state.homeLayoutStyle);
+
+    if (isHomeFullyHidden) {
+        return null;
+    }
 
     if (homeLayoutStyle === 'grid') {
         return (
