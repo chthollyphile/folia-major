@@ -49,15 +49,30 @@ const resolveSourceUrl = ({
         : coverUrl ?? monetBackgroundImage?.url ?? null
 );
 
-const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+const loadImage = async (src: string): Promise<HTMLImageElement> => {
     const image = new Image();
     if (src.startsWith('http://') || src.startsWith('https://')) {
         image.crossOrigin = 'anonymous';
     }
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    image.decoding = 'async';
+    
+    // Create a promise for the fallback load event
+    const loadPromise = new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    });
+
     image.src = src;
-});
+
+    try {
+        await image.decode();
+    } catch (e) {
+        // Fallback to waiting for onload if decode() fails or is unsupported
+        await loadPromise;
+    }
+    
+    return image;
+};
 
 const resolveCanvasImageDimension = (
     image: CanvasImageSource,

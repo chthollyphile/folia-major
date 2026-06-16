@@ -312,12 +312,6 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                       x: [0, -9, 0, 9, 0],
                                                       rotate: [0, 1.2, 0, -1.2, 0],
                                                   }
-                                                : theme.animationIntensity === 'normal'
-                                                ? {
-                                                      y: [0, -6, 0, 6, 0],
-                                                      x: [0, -3, 0, 3, 0],
-                                                      rotate: [0, 0.4, 0, -0.4, 0],
-                                                  }
                                                 : {
                                                       y: 0,
                                                       x: 0,
@@ -325,14 +319,16 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                   }
                                         }
                                         transition={
-                                            theme.animationIntensity === 'calm'
-                                                ? { duration: 0.8, ease: 'easeOut' }
-                                                : { duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }
+                                            theme.animationIntensity === 'chaotic'
+                                                ? { duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }
+                                                : { duration: 0.8, ease: 'easeOut' }
                                         }
                                         className="relative"
                                         style={{
                                             width: monetTuning.portraitStyle === 'square' ? '135.135%' : '100%',
                                             marginLeft: monetTuning.portraitStyle === 'square' ? '-35.135%' : '0%',
+                                            willChange: 'transform',
+                                            transform: 'translateZ(0)',
                                         }}
                                     >
                                         {/* Hanger / Black-White Bar */}
@@ -393,18 +389,19 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                         {/* Square cover with enhanced shadow, no transparent border */}
                                         {monetTuning.portraitStyle === 'square' ? (
                                             <div
-                                                className="relative w-full aspect-square"
+                                                className="relative w-full aspect-square overflow-hidden rounded-[2rem] bg-center"
                                                 style={{
                                                     boxShadow: `0 36px 80px ${colorWithAlpha(theme.backgroundColor, 0.45)}, 0 20px 42px ${colorWithAlpha(theme.accentColor, 0.22)}, 0 0 0 1px ${colorWithAlpha(theme.primaryColor, 0.06)}`,
-                                                    borderRadius: '2rem',
+                                                    backgroundColor: colorWithAlpha(theme.primaryColor, 0.08),
                                                 }}
                                             >
-                                                <div
-                                                    className="w-full h-full overflow-hidden rounded-[2rem] bg-cover bg-center"
-                                                    style={{
-                                                        backgroundImage: portraitUrl ? `url(${portraitUrl})` : undefined,
-                                                        backgroundColor: colorWithAlpha(theme.primaryColor, 0.08),
-                                                    }}
+                                                <img
+                                                    src={portraitUrl || ''}
+                                                    decoding="async"
+                                                    alt=""
+                                                    className="w-full h-full object-cover"
+                                                    style={{ opacity: portraitUrl ? 1 : 0, transition: 'opacity 1s ease' }}
+                                                    draggable={false}
                                                 />
                                             </div>
                                         ) : (
@@ -417,12 +414,20 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 }}
                                             >
                                                 <div
-                                                    className="w-full h-full overflow-hidden rounded-[1.85rem] bg-cover bg-center"
+                                                    className="w-full h-full overflow-hidden rounded-[1.85rem] bg-center"
                                                     style={{
-                                                        backgroundImage: portraitUrl ? `url(${portraitUrl})` : undefined,
                                                         backgroundColor: colorWithAlpha(theme.primaryColor, 0.08),
                                                     }}
-                                                />
+                                                >
+                                                    <img
+                                                        src={portraitUrl || ''}
+                                                        decoding="async"
+                                                        alt=""
+                                                        className="w-full h-full object-cover"
+                                                        style={{ opacity: portraitUrl ? 1 : 0, transition: 'opacity 1s ease' }}
+                                                        draggable={false}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </motion.div>
