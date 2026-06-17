@@ -63,8 +63,6 @@ const MONET_ACTIVE_GAP_PX = 18;
 const MONET_INACTIVE_GAP_PX = 14;
 const MONET_GLOW_RISE_DURATION_SCALE = 1.18;
 const MONET_GLOW_PASS_TAIL_SECONDS = 1.05;
-const MONET_GLOW_BUFFER_PX = 24;
-const MONET_V_GLOW_BUFFER_PX = 20;
 const MONET_SCROLL_TRANSITION = {
     y: { type: 'spring', stiffness: 142, damping: 28, mass: 0.82 },
     scale: { type: 'spring', stiffness: 150, damping: 30, mass: 0.78 },
@@ -446,9 +444,10 @@ const MonetRailLine: React.FC<{
     translationFontPx: number;
     fontStack: string;
     glowBufferPx: number;
+    vGlowBufferPx: number;
     wordColorMatchers: WordColorMatcher[];
     audioPower?: MotionValue<number>;
-}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack, glowBufferPx, wordColorMatchers, audioPower }) => {
+}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack, glowBufferPx, vGlowBufferPx, wordColorMatchers, audioPower }) => {
     const initialOffset = entry.offset >= 0 ? 34 : -34;
     const exitOffset = entry.status === 'passed' || entry.offset < 0 ? -38 : 38;
     const textMask = getLineMask(entry.layout.isTextClipped, Math.max(lyricFontPx * 0.55, 12));
@@ -507,11 +506,11 @@ const MonetRailLine: React.FC<{
                     marginRight: `-${glowBufferPx}px`,
                     paddingLeft: `${glowBufferPx}px`,
                     paddingRight: `${glowBufferPx}px`,
-                    marginTop: `-${MONET_V_GLOW_BUFFER_PX}px`,
-                    marginBottom: `-${MONET_V_GLOW_BUFFER_PX}px`,
-                    paddingTop: `${entry.layout.textPaddingTopPx + MONET_V_GLOW_BUFFER_PX}px`,
-                    paddingBottom: `${entry.layout.textPaddingBottomPx + MONET_V_GLOW_BUFFER_PX}px`,
-                    height: `${entry.layout.textHeightPx + MONET_V_GLOW_BUFFER_PX * 2}px`,
+                    marginTop: `-${vGlowBufferPx}px`,
+                    marginBottom: `-${vGlowBufferPx}px`,
+                    paddingTop: `${entry.layout.textPaddingTopPx + vGlowBufferPx}px`,
+                    paddingBottom: `${entry.layout.textPaddingBottomPx + vGlowBufferPx}px`,
+                    height: `${entry.layout.textHeightPx + vGlowBufferPx * 2}px`,
                     boxSizing: 'border-box',
                     fontFamily: fontStack,
                     fontSize: lyricFontPx,
@@ -592,6 +591,9 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
 }) => {
     const railRef = useRef<HTMLDivElement | null>(null);
     const railSize = useMonetRailSize(railRef);
+    const glowBufferPx = Math.round(lyricFontPx * 1.2);
+    const vGlowBufferPx = Math.round(lyricFontPx * 1.2);
+
     const positionedEntries = useMemo(
         () => buildPositionedEntries(
             entries,
@@ -601,9 +603,9 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
             inactiveFontPx,
             translationFontPx,
             fontStack,
-            MONET_GLOW_BUFFER_PX,
+            glowBufferPx,
         ),
-        [entries, railSize, theme, lyricFontPx, inactiveFontPx, translationFontPx, fontStack],
+        [entries, railSize, theme, lyricFontPx, inactiveFontPx, translationFontPx, fontStack, glowBufferPx],
     );
     const wordColorMatchers = useMemo(
         () => prepareWordColorMatchers(theme.wordColors, keywordColoringEnabled),
@@ -615,10 +617,10 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
             ref={railRef}
             className="relative h-[clamp(260px,42vh,400px)] max-w-[720px] overflow-hidden"
             style={{
-                marginLeft: `-${MONET_GLOW_BUFFER_PX}px`,
-                marginRight: `-${MONET_GLOW_BUFFER_PX}px`,
-                paddingLeft: `${MONET_GLOW_BUFFER_PX}px`,
-                paddingRight: `${MONET_GLOW_BUFFER_PX}px`,
+                marginLeft: `-${glowBufferPx}px`,
+                marginRight: `-${glowBufferPx}px`,
+                paddingLeft: `${glowBufferPx}px`,
+                paddingRight: `${glowBufferPx}px`,
                 WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
                 maskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
             }}
@@ -634,7 +636,8 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
                             lyricFontPx={lyricFontPx}
                             translationFontPx={translationFontPx}
                             fontStack={fontStack}
-                            glowBufferPx={MONET_GLOW_BUFFER_PX}
+                            glowBufferPx={glowBufferPx}
+                            vGlowBufferPx={vGlowBufferPx}
                             wordColorMatchers={wordColorMatchers}
                             audioPower={audioPower}
                         />
