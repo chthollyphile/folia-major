@@ -645,7 +645,8 @@ export function useLibraryPlaybackController({
 
                     if (settings.enableAlternativeLyricSources && settings.autoUseBestLyric) {
                         const bestMatch = await autoMatchBestLyric(navidromeSong.name, artistName, navidromeSong.duration || navidromeSong.dt || 0, {
-                            album: albumName
+                            album: albumName,
+                            preferredSource: settings.preferredAlternativeLyricSource,
                         });
                         if (bestMatch?.isPureMusic) {
                             isAutoMatched = true;
@@ -1095,7 +1096,8 @@ export function useLibraryPlaybackController({
                 const localData = currentSong.localData;
                 const title = localData.title || localData.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
                 const bestMatch = await autoMatchBestLyric(title, localData.artist || '', localData.duration, {
-                    album: localData.album
+                    album: localData.album,
+                    preferredSource: settings.preferredAlternativeLyricSource,
                 });
 
                 if (!bestMatch) {
@@ -1137,7 +1139,8 @@ export function useLibraryPlaybackController({
                     || '';
                 const albumName = navidromeSong.album?.name || navidromeSong.al?.name || '';
                 const bestMatch = await autoMatchBestLyric(navidromeSong.name, artistName, navidromeSong.duration || navidromeSong.dt || 0, {
-                    album: albumName
+                    album: albumName,
+                    preferredSource: settings.preferredAlternativeLyricSource,
                 });
 
                 if (!bestMatch) {
@@ -1180,7 +1183,8 @@ export function useLibraryPlaybackController({
                 || '';
             const albumName = currentSong.album?.name || currentSong.al?.name || '';
             const bestMatch = await autoMatchBestLyric(currentSong.name, artistName, currentSong.duration || currentSong.dt || 0, {
-                album: albumName
+                album: albumName,
+                preferredSource: settings.preferredAlternativeLyricSource,
             });
 
             if (!bestMatch) {

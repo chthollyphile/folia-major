@@ -19,6 +19,7 @@ const SHOULD_LOG_MATCH_DETAILS = import.meta.env.DEV;
 
 export interface AutoMatchBestLyricOptions {
     album?: string;
+    preferredSource?: 'netease' | 'qq' | 'kugou';
     neteaseCandidate?: {
         id: number | string;
         lyrics: LyricData | null;
@@ -125,137 +126,146 @@ export async function autoMatchBestLyric(
     const targetSong = { title, artist, album: options.album, durationMs: normalizedDurationMs };
     let neteaseChorusRanges: NeteaseChorusRange[] = options.neteaseCandidate?.chorusRanges ?? [];
 
-    // 1. NetEase Music
-    try {
-        let candidateSongs: any[];
-        if (options.neteaseCandidate) {
-            candidateSongs = [{ id: options.neteaseCandidate.id, name: title, ar: artist ? [{ name: artist }] : [] }];
-        } else {
-            const neteaseSearchRes = await withTimeout(
-                neteaseApi.cloudSearch(searchQuery, AUTO_MATCH_SEARCH_LIMIT),
-                PROVIDER_SEARCH_TIMEOUT_MS,
-                'NetEase search',
-                { result: { songs: [] } }
-            );
-            const neteaseSongs = neteaseSearchRes.result?.songs || [];
-            const bestCandidate = selectBestCandidate('netease', neteaseSongs, targetSong);
-            candidateSongs = bestCandidate ? [bestCandidate] : [];
-        }
+    const defaultOrder = ['netease', 'qq', 'kugou'] as const;
+    const searchOrder = options.preferredSource
+        ? [options.preferredSource, ...defaultOrder.filter(s => s !== options.preferredSource)]
+        : defaultOrder;
 
-        for (const song of candidateSongs) {
-            console.log(`[autoMatchBestLyric] Checking NetEase candidate: "${song.name}" by "${song.ar?.map((a: any) => a.name).join(', ')}"`);
-            const processed = String(options.neteaseCandidate?.id) === String(song.id)
-                ? {
-                    lyrics: options.neteaseCandidate.lyrics,
-                    isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
-                    chorusRanges: options.neteaseCandidate.chorusRanges ?? []
+    for (const searchSource of searchOrder) {
+        if (searchSource === 'netease') {
+            // 1. NetEase Music
+            try {
+                let candidateSongs: any[];
+                if (options.neteaseCandidate) {
+                    candidateSongs = [{ id: options.neteaseCandidate.id, name: title, ar: artist ? [{ name: artist }] : [] }];
+                } else {
+                    const neteaseSearchRes = await withTimeout(
+                        neteaseApi.cloudSearch(searchQuery, AUTO_MATCH_SEARCH_LIMIT),
+                        PROVIDER_SEARCH_TIMEOUT_MS,
+                        'NetEase search',
+                        { result: { songs: [] } }
+                    );
+                    const neteaseSongs = neteaseSearchRes.result?.songs || [];
+                    const bestCandidate = selectBestCandidate('netease', neteaseSongs, targetSong);
+                    candidateSongs = bestCandidate ? [bestCandidate] : [];
                 }
-                : await withTimeout(
-                    (async () => {
-                        const lyricRes = await neteaseApi.getLyric(song.id);
-                        return processNeteaseLyrics(
-                            {
-                                type: 'netease',
-                                ...lyricRes
-                            },
-                            { songId: song.id }
+
+                for (const song of candidateSongs) {
+                    console.log(`[autoMatchBestLyric] Checking NetEase candidate: "${song.name}" by "${song.ar?.map((a: any) => a.name).join(', ')}"`);
+                    const processed = String(options.neteaseCandidate?.id) === String(song.id)
+                        ? {
+                            lyrics: options.neteaseCandidate.lyrics,
+                            isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
+                            chorusRanges: options.neteaseCandidate.chorusRanges ?? []
+                        }
+                        : await withTimeout(
+                            (async () => {
+                                const lyricRes = await neteaseApi.getLyric(song.id);
+                                return processNeteaseLyrics(
+                                    {
+                                        type: 'netease',
+                                        ...lyricRes
+                                    },
+                                    { songId: song.id }
+                                );
+                            })(),
+                            PROVIDER_LYRIC_TIMEOUT_MS,
+                            `NetEase lyric fetch for ${song.id}`,
+                            null
                         );
-                    })(),
-                    PROVIDER_LYRIC_TIMEOUT_MS,
-                    `NetEase lyric fetch for ${song.id}`,
-                    null
+
+                    if (!processed) {
+                        continue;
+                    }
+
+                    if (processed.isPureMusic) {
+                        console.log(`[autoMatchBestLyric] NetEase candidate "${song.name}" is pure music. Skipping alternative lyric sources.`);
+                        return { isPureMusic: true };
+                    }
+
+                    if (processed.chorusRanges && processed.chorusRanges.length > 0) {
+                        neteaseChorusRanges = processed.chorusRanges;
+                    }
+
+                    if (processed.lyrics && processed.lyrics.isWordByWord) {
+                        console.log(`[autoMatchBestLyric] Found perfect NetEase word-by-word lyric match!`);
+                        return {
+                            lyrics: processed.lyrics,
+                            source: 'netease',
+                            id: song.id
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error(`[autoMatchBestLyric] NetEase search/fetch failed:`, error);
+            }
+        } else if (searchSource === 'qq') {
+            // 2. QQ Music
+            try {
+                const qqSongs = await withTimeout(
+                    searchQQLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
+                    PROVIDER_SEARCH_TIMEOUT_MS,
+                    'QQ search',
+                    []
                 );
+                const bestCandidate = selectBestCandidate('qq', qqSongs, targetSong);
+                const candidateSongs = bestCandidate ? [bestCandidate] : [];
 
-            if (!processed) {
-                continue;
+                for (const song of candidateSongs) {
+                    console.log(`[autoMatchBestLyric] Checking QQ candidate: "${song.name}" by "${song.artists?.map((a: any) => a.name).join(', ')}"`);
+                    const parsedLyrics = await withTimeout(
+                        fetchQQLyrics(song, { chorusRanges: neteaseChorusRanges }),
+                        PROVIDER_LYRIC_TIMEOUT_MS,
+                        `QQ lyric fetch for ${song.id}`,
+                        null
+                    );
+                    if (parsedLyrics && parsedLyrics.isWordByWord) {
+                        console.log(`[autoMatchBestLyric] Found perfect QQ word-by-word lyric match!`);
+                        return {
+                            lyrics: parsedLyrics,
+                            source: 'qq',
+                            id: song.id,
+                            qqMid: song.qqMid
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error(`[autoMatchBestLyric] QQ search/fetch failed:`, error);
             }
+        } else if (searchSource === 'kugou') {
+            // 3. Kugou Music
+            try {
+                const kugouSongs = await withTimeout(
+                    searchKugouLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
+                    PROVIDER_SEARCH_TIMEOUT_MS,
+                    'Kugou search',
+                    []
+                );
+                const bestCandidate = selectBestCandidate('kugou', kugouSongs, targetSong);
+                const candidateSongs = bestCandidate ? [bestCandidate] : [];
 
-            if (processed.isPureMusic) {
-                console.log(`[autoMatchBestLyric] NetEase candidate "${song.name}" is pure music. Skipping alternative lyric sources.`);
-                return { isPureMusic: true };
-            }
-
-            if (processed.chorusRanges && processed.chorusRanges.length > 0) {
-                neteaseChorusRanges = processed.chorusRanges;
-            }
-
-            if (processed.lyrics && processed.lyrics.isWordByWord) {
-                console.log(`[autoMatchBestLyric] Found perfect NetEase word-by-word lyric match!`);
-                return {
-                    lyrics: processed.lyrics,
-                    source: 'netease',
-                    id: song.id
-                };
-            }
-        }
-    } catch (error) {
-        console.error(`[autoMatchBestLyric] NetEase search/fetch failed:`, error);
-    }
-
-    // 2. QQ Music
-    try {
-        const qqSongs = await withTimeout(
-            searchQQLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
-            PROVIDER_SEARCH_TIMEOUT_MS,
-            'QQ search',
-            []
-        );
-        const bestCandidate = selectBestCandidate('qq', qqSongs, targetSong);
-        const candidateSongs = bestCandidate ? [bestCandidate] : [];
-
-        for (const song of candidateSongs) {
-            console.log(`[autoMatchBestLyric] Checking QQ candidate: "${song.name}" by "${song.artists?.map((a: any) => a.name).join(', ')}"`);
-            const parsedLyrics = await withTimeout(
-                fetchQQLyrics(song, { chorusRanges: neteaseChorusRanges }),
-                PROVIDER_LYRIC_TIMEOUT_MS,
-                `QQ lyric fetch for ${song.id}`,
-                null
-            );
-            if (parsedLyrics && parsedLyrics.isWordByWord) {
-                console.log(`[autoMatchBestLyric] Found perfect QQ word-by-word lyric match!`);
-                return {
-                    lyrics: parsedLyrics,
-                    source: 'qq',
-                    id: song.id,
-                    qqMid: song.qqMid
-                };
-            }
-        }
-    } catch (error) {
-        console.error(`[autoMatchBestLyric] QQ search/fetch failed:`, error);
-    }
-
-    // 3. Kugou Music
-    try {
-        const kugouSongs = await withTimeout(
-            searchKugouLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
-            PROVIDER_SEARCH_TIMEOUT_MS,
-            'Kugou search',
-            []
-        );
-        const bestCandidate = selectBestCandidate('kugou', kugouSongs, targetSong);
-        const candidateSongs = bestCandidate ? [bestCandidate] : [];
-
-        for (const song of candidateSongs) {
-            console.log(`[autoMatchBestLyric] Checking Kugou candidate: "${song.name}" by "${song.artists?.map((a: any) => a.name).join(', ')}"`);
-            const parsedLyrics = await withTimeout(
-                fetchKugouLyrics(song, { chorusRanges: neteaseChorusRanges }),
-                PROVIDER_LYRIC_TIMEOUT_MS,
-                `Kugou lyric fetch for ${song.id}`,
-                null
-            );
-            if (parsedLyrics && parsedLyrics.isWordByWord) {
-                console.log(`[autoMatchBestLyric] Found perfect Kugou word-by-word lyric match!`);
-                return {
-                    lyrics: parsedLyrics,
-                    source: 'kugou',
-                    id: song.id,
-                    kgHash: song.kgHash
-                };
+                for (const song of candidateSongs) {
+                    console.log(`[autoMatchBestLyric] Checking Kugou candidate: "${song.name}" by "${song.artists?.map((a: any) => a.name).join(', ')}"`);
+                    const parsedLyrics = await withTimeout(
+                        fetchKugouLyrics(song, { chorusRanges: neteaseChorusRanges }),
+                        PROVIDER_LYRIC_TIMEOUT_MS,
+                        `Kugou lyric fetch for ${song.id}`,
+                        null
+                    );
+                    if (parsedLyrics && parsedLyrics.isWordByWord) {
+                        console.log(`[autoMatchBestLyric] Found perfect Kugou word-by-word lyric match!`);
+                        return {
+                            lyrics: parsedLyrics,
+                            source: 'kugou',
+                            id: song.id,
+                            kgHash: song.kgHash
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error(`[autoMatchBestLyric] Kugou search/fetch failed:`, error);
             }
         }
-    } catch (error) {
-        console.error(`[autoMatchBestLyric] Kugou search/fetch failed:`, error);
     }
 
     console.log(`[autoMatchBestLyric] No perfect word-by-word lyric match found across any source.`);

@@ -219,12 +219,18 @@ const prefetchSong = async (
                 const hasWordByWord = resolvedLyrics?.isWordByWord === true;
                 const enableAlternative = settings.enableAlternativeLyricSources;
                 const autoUseBest = settings.autoUseBestLyric;
+                const preferredSource = settings.preferredAlternativeLyricSource;
+                const isBaseNetease = !onlineLyricsState?.hasOnlineOverride;
 
-                if (!hasWordByWord && enableAlternative && autoUseBest) {
+                const shouldAutoMatch = enableAlternative && autoUseBest &&
+                                        (!hasWordByWord || (isBaseNetease && preferredSource !== 'netease'));
+
+                if (shouldAutoMatch) {
                     try {
                         const artistName = song.artists?.map(a => a.name).join(', ') || '';
                         const bestMatch = await autoMatchBestLyric(song.name, artistName, song.duration || song.dt || 0, {
                             album: song.album?.name || song.al?.name,
+                            preferredSource: settings.preferredAlternativeLyricSource,
                             neteaseCandidate: {
                                 id: song.id,
                                 lyrics: parsedLyrics,
@@ -250,6 +256,7 @@ const prefetchSong = async (
                     console.log(
                         `[Prefetch] Skipping autoMatchBestLyric for "${song.name}": ` +
                         `hasWordByWord=${hasWordByWord}, ` +
+                        `preferredSource=${preferredSource}, ` +
                         `enableAlternativeLyricSources=${enableAlternative}, ` +
                         `autoUseBestLyric=${autoUseBest}`
                     );

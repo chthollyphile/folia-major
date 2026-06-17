@@ -101,9 +101,10 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
         const settings = useSettingsUiStore.getState();
-        const shouldAutoMatch = (!effectiveLyrics || !effectiveLyrics.isWordByWord) &&
-                                settings.enableAlternativeLyricSources &&
-                                settings.autoUseBestLyric;
+        const shouldAutoMatch = settings.enableAlternativeLyricSources &&
+                                settings.autoUseBestLyric &&
+                                (!effectiveLyrics || !effectiveLyrics.isWordByWord ||
+                                 (!onlineLyricsState?.hasOnlineOverride && settings.preferredAlternativeLyricSource !== 'netease'));
 
         if (!shouldAutoMatch) {
             const effectiveText = effectiveLyrics?.lines.map(line => line.fullText).join('\n') ?? '';
@@ -166,12 +167,18 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
     const settings = useSettingsUiStore.getState();
-    if ((!resolvedLyrics || !resolvedLyrics.isWordByWord) && settings.enableAlternativeLyricSources && settings.autoUseBestLyric) {
+    const shouldAutoMatch = settings.enableAlternativeLyricSources &&
+                            settings.autoUseBestLyric &&
+                            (!resolvedLyrics || !resolvedLyrics.isWordByWord ||
+                             (!onlineLyricsState?.hasOnlineOverride && settings.preferredAlternativeLyricSource !== 'netease'));
+
+    if (shouldAutoMatch) {
         try {
             onAutoMatchStart?.();
             const artistName = song.artists?.map(a => a.name).join(', ') || '';
             const bestMatch = await autoMatchBestLyric(song.name, artistName, song.duration || song.dt || 0, {
                 album: song.album?.name || song.al?.name,
+                preferredSource: settings.preferredAlternativeLyricSource,
                 neteaseCandidate: {
                     id: song.id,
                     lyrics: parsedLyrics,

@@ -1284,7 +1284,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         if (settings.enableAlternativeLyricSources && settings.autoUseBestLyric) {
             const cleanTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
             const bestMatch = await autoMatchBestLyric(cleanTitle, song.artist || '', song.duration, {
-                album: song.album
+                album: song.album,
+                preferredSource: settings.preferredAlternativeLyricSource,
             });
             if (bestMatch && 'lyrics' in bestMatch) {
                 if (bestMatch.source === 'netease') {

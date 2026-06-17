@@ -645,6 +645,12 @@ const readStoredHomeLayoutStyle = (): 'carousel' | 'grid' => {
     return saved === 'carousel' ? 'carousel' : 'grid';
 };
 
+const readStoredPreferredAlternativeLyricSource = (): 'netease' | 'qq' | 'kugou' => {
+    if (typeof window === 'undefined') return 'netease';
+    const saved = localStorage.getItem('preferred_alternative_lyric_source');
+    return saved === 'qq' || saved === 'kugou' ? saved : 'netease';
+};
+
 /**
  * Reads the stored card style for the Grid3D desktop home view from localStorage.
  * Returns 'image' (pure cover cover) or 'card' (Polaroid style with details).
@@ -676,6 +682,7 @@ type SettingsUiState = {
     disableHomeDynamicBackground: boolean;
     enableAlternativeLyricSources: boolean;
     autoUseBestLyric: boolean;
+    preferredAlternativeLyricSource: 'netease' | 'qq' | 'kugou';
     hidePlayerProgressBar: boolean;
     hidePlayerTranslationSubtitle: boolean;
     hidePlayerRightPanelButton: boolean;
@@ -757,6 +764,7 @@ type SettingsUiState = {
     handleToggleDisableHomeDynamicBackground: (disable: boolean) => void;
     handleToggleAlternativeLyricSources: (enable: boolean) => void;
     handleToggleAutoUseBestLyric: (enable: boolean) => void;
+    handleSetPreferredAlternativeLyricSource: (source: 'netease' | 'qq' | 'kugou') => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
     handleToggleHidePlayerTranslationSubtitle: (enable: boolean) => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
@@ -832,6 +840,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     disableHomeDynamicBackground: readStoredDisableHomeDynamicBackground(),
     enableAlternativeLyricSources: getStoredBoolean('enable_alternative_lyric_sources', true),
     autoUseBestLyric: getStoredBoolean('auto_use_best_lyric', true),
+    preferredAlternativeLyricSource: readStoredPreferredAlternativeLyricSource(),
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
     hidePlayerTranslationSubtitle: getStoredBoolean('hide_player_translation_subtitle', false),
     hidePlayerRightPanelButton: getStoredBoolean('hide_player_right_panel_button', false),
@@ -986,6 +995,16 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, {
             type: 'info',
             text: enable ? '自动使用最佳歌词已开启' : '自动使用最佳歌词已关闭',
+        });
+    },
+    handleSetPreferredAlternativeLyricSource: (source) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('preferred_alternative_lyric_source', source);
+        }
+        set({ preferredAlternativeLyricSource: source });
+        notify(get, {
+            type: 'info',
+            text: `优先匹配歌词源已切换为${source === 'qq' ? 'QQ音乐' : source === 'kugou' ? '酷狗音乐' : '网易云音乐'}`,
         });
     },
     handleToggleHidePlayerProgressBar: (enable) => {
