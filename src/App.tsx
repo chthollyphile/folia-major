@@ -20,6 +20,7 @@ import { createNavidromeNavigation } from './components/app/navigation/createNav
 import { createPanelNavigation } from './components/app/navigation/createPanelNavigation';
 import { buildAppStyle } from './components/app/presentation/buildAppStyle';
 import { buildDebugSnapshot } from './components/app/presentation/buildDebugSnapshot';
+import { buildHomeSurfacePresentation } from './components/app/presentation/buildHomeSurfacePresentation';
 import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerViewFlags';
 import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
 import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
@@ -2200,18 +2201,23 @@ export default function App() {
     //     lastBufferedPercentLogRef.current = null;
     // }, [audioSrc]);
 
-    // Optimize background layout cost: completely hide home surface when player is active
+    // Optimize background layout cost: completely hide home surface when player is active.
+    // Keep the mount state separate from opacity so transparent player mode never reveals Home during delayed unmount.
     const [isHomeFullyHidden, setIsHomeFullyHidden] = useState(false);
-    const isHomeVisible = currentView === 'home' || isSettingsModalOpen || isPanelOpen;
+    const { shouldKeepHomeMounted, shouldShowHomeSurface } = buildHomeSurfacePresentation({
+        currentView,
+        isSettingsModalOpen,
+        isPanelOpen,
+    });
     useEffect(() => {
-        if (isHomeVisible) {
+        if (shouldKeepHomeMounted) {
             setIsHomeFullyHidden(false);
         } else {
             // Wait for the 300ms opacity transition to finish before applying display: none
             const timer = setTimeout(() => setIsHomeFullyHidden(true), 350);
             return () => clearTimeout(timer);
         }
-    }, [isHomeVisible]);
+    }, [shouldKeepHomeMounted]);
 
     return (
         <AppShell
@@ -2364,8 +2370,8 @@ export default function App() {
             <div
                 className="absolute inset-0 z-0"
                 style={{
-                    opacity: isSettingsModalOpen || isPanelOpen ? 0 : 1,
-                    pointerEvents: isSettingsModalOpen || isPanelOpen ? 'none' : 'auto',
+                    opacity: shouldShowHomeSurface ? 1 : 0,
+                    pointerEvents: shouldShowHomeSurface ? 'auto' : 'none',
                     transition: 'opacity 0.25s ease-in-out',
                     display: isHomeFullyHidden ? 'none' : 'block',
                 }}

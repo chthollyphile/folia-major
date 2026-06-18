@@ -10,6 +10,12 @@ import { getSizedCoverUrl } from '../utils/coverUrl';
 import { colorWithAlpha } from './visualizer/colorMix';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
+import {
+    applyHexCardFrameStyles,
+    computeHexCardFrame,
+    createHexCardFrameStyleCache,
+    type HexCardFrameStyleCache,
+} from './folia-grid/hexCardTransform';
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import { SidePanelList, TrackListItem } from './shared/SidePanelList';
@@ -81,6 +87,8 @@ type StoredGridViewNavigationState = {
 
 const GRID_VIEW_NAVIGATION_PREFIX = 'folia_gridview_state';
 const GRID_VIEW_LAST_INDEX_PREFIX = 'folia_gridview_last_index';
+const GRID_VIEW_RENDER_BUFFER_FACTOR = 0.75;
+const GRID_VIEW_CARD_VISIBILITY_BUFFER = 96;
 
 /**
  * High-performance memoized Polaroid card — pure visual component.
@@ -439,8 +447,7 @@ export const GridView: React.FC<GridViewProps> = ({
     const focusedIndexRef = useRef(0);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const isComposingSearchRef = useRef(false);
-    const lastUpdateRef = useRef(0);
-    const pendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const pendingFocusCommitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isDraggingRef = useRef(false);
     const pendingBackgroundTracksRef = useRef<SongResult[] | null>(null);
     const pendingBackgroundOffsetRef = useRef(0);
@@ -546,12 +553,33 @@ export const GridView: React.FC<GridViewProps> = ({
     }, [containerSize, layoutConfig]);
 
     const renderRadius = useMemo(() => (
-        clipRadius + Math.max(layoutConfig.spacingX, layoutConfig.spacingY) * 1.5
+        clipRadius + Math.max(layoutConfig.spacingX, layoutConfig.spacingY) * GRID_VIEW_RENDER_BUFFER_FACTOR
     ), [clipRadius, layoutConfig.spacingX, layoutConfig.spacingY]);
 
     const renderRing = useMemo(() => (
         Math.ceil(renderRadius / Math.min(layoutConfig.spacingX, layoutConfig.spacingY)) + 1
     ), [layoutConfig.spacingX, layoutConfig.spacingY, renderRadius]);
+
+    const cardFrameOptions = useMemo(() => ({
+        clipRadius,
+        maxDistance: layoutConfig.maxDistance,
+        lodStart: layoutConfig.lodStart,
+        lodEnd: layoutConfig.lodEnd,
+        viewportWidth: containerSize.width,
+        viewportHeight: containerSize.height,
+        cardWidth: layoutConfig.cardWidth,
+        cardHeight: layoutConfig.cardHeight,
+        visibilityBuffer: GRID_VIEW_CARD_VISIBILITY_BUFFER,
+    }), [
+        clipRadius,
+        containerSize.height,
+        containerSize.width,
+        layoutConfig.cardHeight,
+        layoutConfig.cardWidth,
+        layoutConfig.lodEnd,
+        layoutConfig.lodStart,
+        layoutConfig.maxDistance,
+    ]);
 
     const navigationStorageKey = useMemo(() => {
         if (mode !== 'tracks' || !collection) return null;
@@ -573,9 +601,11 @@ export const GridView: React.FC<GridViewProps> = ({
     const [loadedAlbumInfo, setLoadedAlbumInfo] = useState<any>(null);
     const [removedExternalTrackKeys, setRemovedExternalTrackKeys] = useState<Set<string>>(() => new Set());
     const baseDisplayTracks = externalTracks ?? tracks;
-    const displayTracks = baseDisplayTracks.filter((track, index) => (
-        !removedExternalTrackKeys.has(`${track.id}-${index}`) && !removedExternalTrackKeys.has(String(track.id))
-    ));
+    const displayTracks = useMemo(() => (
+        baseDisplayTracks.filter((track, index) => (
+            !removedExternalTrackKeys.has(`${track.id}-${index}`) && !removedExternalTrackKeys.has(String(track.id))
+        ))
+    ), [baseDisplayTracks, removedExternalTrackKeys]);
     const usesExternalTracks = externalTracks !== undefined;
     const [isEditMode, setIsEditMode] = useState(false);
     const [editableTitle, setEditableTitle] = useState(title);
@@ -606,6 +636,7 @@ export const GridView: React.FC<GridViewProps> = ({
         && Boolean(sourceActions?.navidrome?.onAddToPlaylist || sourceActions?.navidrome?.onCreatePlaylist);
 
     useEffect(() => {
+        if (isDraggingRef.current || pendingFocusCommitTimeoutRef.current) return;
         focusedIndexRef.current = focusedIndex;
     }, [focusedIndex]);
 
@@ -1144,6 +1175,28 @@ export const GridView: React.FC<GridViewProps> = ({
         };
     }, [baseCoords, layoutConfig, containerSize]);
 
+    const commitFocusedIndex = useCallback((index = focusedIndexRef.current) => {
+        if (pendingFocusCommitTimeoutRef.current) {
+            clearTimeout(pendingFocusCommitTimeoutRef.current);
+            pendingFocusCommitTimeoutRef.current = null;
+        }
+
+        const safeIndex = Math.max(0, Math.min(index, Math.max(gridItems.length - 1, 0)));
+        focusedIndexRef.current = safeIndex;
+        setFocusedIndex(prev => (prev === safeIndex ? prev : safeIndex));
+    }, [gridItems.length]);
+
+    const scheduleFocusedIndexCommit = useCallback((delayMs = 180) => {
+        if (pendingFocusCommitTimeoutRef.current) {
+            clearTimeout(pendingFocusCommitTimeoutRef.current);
+        }
+
+        pendingFocusCommitTimeoutRef.current = setTimeout(() => {
+            pendingFocusCommitTimeoutRef.current = null;
+            commitFocusedIndex();
+        }, delayMs);
+    }, [commitFocusedIndex]);
+
     // Keep the active focusedIndex centered when baseCoords changes on resize
     useEffect(() => {
         if (baseCoords.length > 0 && focusedIndex >= 0 && focusedIndex < baseCoords.length) {
@@ -1161,13 +1214,7 @@ export const GridView: React.FC<GridViewProps> = ({
         const targetX = -baseCoords[index].baseX;
         const targetY = -baseCoords[index].baseY;
 
-        if (pendingTimeoutRef.current) {
-            clearTimeout(pendingTimeoutRef.current);
-            pendingTimeoutRef.current = null;
-        }
-        setFocusedIndex(index);
-        focusedIndexRef.current = index;
-        lastUpdateRef.current = performance.now();
+        commitFocusedIndex(index);
         updateRenderedIndexesForViewport(targetX, targetY, true);
 
         if (snap) {
@@ -1198,9 +1245,7 @@ export const GridView: React.FC<GridViewProps> = ({
         const restoredX = -restoredCoord.baseX;
         const restoredY = -restoredCoord.baseY;
 
-        setFocusedIndex(restoredIndex);
-        focusedIndexRef.current = restoredIndex;
-        lastUpdateRef.current = performance.now();
+        commitFocusedIndex(restoredIndex);
         dragX.set(restoredX);
         dragY.set(restoredY);
         wheelTargetRef.current = { x: restoredX, y: restoredY };
@@ -1208,7 +1253,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
         hasRestoredNavigationRef.current = true;
         pendingRestoreStateRef.current = null;
-    }, [baseCoords, deferredSearchQuery, dragX, dragY, gridItems.length, updateRenderedIndexesForViewport]);
+    }, [baseCoords, commitFocusedIndex, deferredSearchQuery, dragX, dragY, gridItems.length, updateRenderedIndexesForViewport]);
 
     const handleViewportWheel = useCallback((event: WheelEvent) => {
         if (gridItems.length === 0 || event.ctrlKey) return;
@@ -1234,7 +1279,15 @@ export const GridView: React.FC<GridViewProps> = ({
 
         animate(dragX, clampedX, { type: 'spring', stiffness: 560, damping: 48, mass: 0.65 });
         animate(dragY, clampedY, { type: 'spring', stiffness: 560, damping: 48, mass: 0.65 });
-    }, [containerSize.height, dragX, dragY, gridItems.length, dragBounds]);
+        scheduleFocusedIndexCommit(240);
+    }, [
+        containerSize.height,
+        dragX,
+        dragY,
+        gridItems.length,
+        dragBounds,
+        scheduleFocusedIndexCommit,
+    ]);
 
     useEffect(() => {
         const element = containerRef.current;
@@ -1301,27 +1354,32 @@ export const GridView: React.FC<GridViewProps> = ({
 
             const initialDx = dragX.get();
             const initialDy = dragY.get();
-            const initialCenterX = coord.baseX + initialDx;
-            const initialCenterY = coord.baseY + initialDy;
-            const initialDist = Math.sqrt(initialCenterX * initialCenterX + initialCenterY * initialCenterY);
-            const initialT = Math.min(initialDist / layoutConfig.maxDistance, 1);
-            const initialScale = 1.1 - 0.65 * initialT;
-            const initialOpacity = 1.0 - 0.60 * initialT;
-            const initialZ = Math.round(50 - 49 * initialT);
+            const initialFrame = computeHexCardFrame(coord, initialDx, initialDy, cardFrameOptions);
 
             return (
                 <div
                     key={`${mode}-${idx}-${item.id}`}
-                    ref={(el) => { cardWrapperRefs.current[idx] = el; }}
-                    className="absolute select-none pointer-events-auto"
+                    ref={(el) => {
+                        cardWrapperRefs.current[idx] = el;
+                        cardFrameStyleCachesRef.current[idx] = el
+                            ? createHexCardFrameStyleCache(initialFrame)
+                            : undefined;
+                    }}
+                    className="absolute select-none pointer-events-auto folia-grid-card-frame"
                     style={{
                         transformOrigin: 'center center',
-                        willChange: 'transform, opacity',
-                        display: initialDist > clipRadius ? 'none' : undefined,
-                        transform: `translate(${coord.baseX}px, ${coord.baseY}px) scale(${initialScale})`,
-                        opacity: initialDist > clipRadius ? 0 : initialOpacity,
-                        zIndex: initialZ,
-                    }}
+                        contain: 'layout style',
+                        backfaceVisibility: 'hidden',
+                        display: initialFrame.display || undefined,
+                        transform: initialFrame.transform,
+                        opacity: initialFrame.opacity,
+                        zIndex: initialFrame.zIndex,
+                        '--queue-opacity': initialFrame.queueOpacity,
+                        '--queue-pe': initialFrame.queuePointerEvents,
+                        '--play-opacity': initialFrame.playOpacity,
+                        '--play-scale': initialFrame.playScale,
+                        '--play-pe': initialFrame.playPointerEvents,
+                    } as React.CSSProperties}
                 >
                     <PolaroidCard
                         item={item}
@@ -1371,8 +1429,7 @@ export const GridView: React.FC<GridViewProps> = ({
         t,
         layoutConfig.cardWidth,
         layoutConfig.cardHeight,
-        layoutConfig.maxDistance,
-        clipRadius,
+        cardFrameOptions,
         isEditMode,
         displayTracks,
         onSelectTrack,
@@ -1386,12 +1443,13 @@ export const GridView: React.FC<GridViewProps> = ({
 
     // Refs for direct DOM manipulation — eliminates per-card useTransform subscriptions
     const cardWrapperRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const cardFrameStyleCachesRef = useRef<(HexCardFrameStyleCache | undefined)[]>([]);
 
-    // Cleanup throttled state updates on unmount
+    // Cleanup deferred focus state commits on unmount
     useEffect(() => {
         return () => {
-            if (pendingTimeoutRef.current) {
-                clearTimeout(pendingTimeoutRef.current);
+            if (pendingFocusCommitTimeoutRef.current) {
+                clearTimeout(pendingFocusCommitTimeoutRef.current);
             }
         };
     }, []);
@@ -1403,36 +1461,12 @@ export const GridView: React.FC<GridViewProps> = ({
     useEffect(() => {
         let rafId: number | null = null;
 
-        const updateFocusedIndexThrottled = (newIndex: number) => {
-            if (pendingTimeoutRef.current) {
-                clearTimeout(pendingTimeoutRef.current);
-                pendingTimeoutRef.current = null;
-            }
-
-            const now = performance.now();
-            const timeSinceLast = now - lastUpdateRef.current;
-
-            if (timeSinceLast >= 200) {
-                setFocusedIndex(newIndex);
-                focusedIndexRef.current = newIndex;
-                lastUpdateRef.current = now;
-            } else {
-                const remaining = 200 - timeSinceLast;
-                pendingTimeoutRef.current = setTimeout(() => {
-                    setFocusedIndex(newIndex);
-                    focusedIndexRef.current = newIndex;
-                    lastUpdateRef.current = performance.now();
-                }, remaining);
-            }
-        };
-
         const update = () => {
             if (rafId !== null) return;
             rafId = requestAnimationFrame(() => {
                 rafId = null;
                 const dx = dragX.get();
                 const dy = dragY.get();
-                const { maxDistance, lodStart, lodEnd } = layoutConfig;
                 updateRenderedIndexesForViewport(dx, dy);
 
                 let closestIdx = focusedIndexRef.current;
@@ -1443,65 +1477,23 @@ export const GridView: React.FC<GridViewProps> = ({
                     const i = activeIndexes[activeIndex];
                     const coord = baseCoords[i];
                     if (!coord) continue;
-                    const cx = coord.baseX + dx;
-                    const cy = coord.baseY + dy;
-                    const distSq = cx * cx + cy * cy;
+                    const frame = computeHexCardFrame(coord, dx, dy, cardFrameOptions);
 
                     // Track closest card for focusedIndex
-                    if (distSq < minDistSq) {
-                        minDistSq = distSq;
+                    if (frame.distanceSq < minDistSq) {
+                        minDistSq = frame.distanceSq;
                         closestIdx = i;
                     }
 
                     const el = cardWrapperRefs.current[i];
                     if (!el) continue;
-
-                    const dist = Math.sqrt(distSq);
-
-                    // Viewport clipping — skip off-screen cards entirely
-                    if (dist > clipRadius) {
-                        el.style.display = 'none';
-                        continue;
-                    }
-
-                    el.style.display = '';
-                    const t = Math.min(dist / maxDistance, 1);
-                    const scale = 1.1 - 0.65 * t;   // lerp(1.1, 0.45, t)
-                    const opac = 1.0 - 0.60 * t;     // lerp(1.0, 0.4, t)
-                    const z = Math.round(50 - 49 * t); // lerp(50, 1, t)
-
-                    el.style.transform = `translate(${coord.baseX}px, ${coord.baseY}px) scale(${scale})`;
-                    el.style.opacity = String(opac);
-                    el.style.zIndex = String(z);
-
-                    // Queue button visibility via CSS custom properties
-                    if (dist > lodEnd) {
-                        el.style.setProperty('--queue-opacity', '0');
-                        el.style.setProperty('--queue-pe', 'none');
-                    } else if (dist < lodStart) {
-                        el.style.setProperty('--queue-opacity', '1');
-                        el.style.setProperty('--queue-pe', 'auto');
-                    } else {
-                        const qt = (dist - lodStart) / (lodEnd - lodStart);
-                        el.style.setProperty('--queue-opacity', String(1 - qt));
-                        el.style.setProperty('--queue-pe', 'auto');
-                    }
-
-                    // Play button visibility via CSS custom properties
-                    if (dist < 40) {
-                        const pt = dist / 40;
-                        el.style.setProperty('--play-opacity', String(1 - pt));
-                        el.style.setProperty('--play-scale', String(1 - 0.2 * pt));
-                        el.style.setProperty('--play-pe', 'auto');
-                    } else {
-                        el.style.setProperty('--play-opacity', '0');
-                        el.style.setProperty('--play-scale', '0.8');
-                        el.style.setProperty('--play-pe', 'none');
-                    }
+                    const cache = cardFrameStyleCachesRef.current[i] ?? {};
+                    cardFrameStyleCachesRef.current[i] = cache;
+                    applyHexCardFrameStyles(el, frame, cache);
                 }
 
-                // Update focusedIndex with throttle to eliminate React drag lags
-                updateFocusedIndexThrottled(closestIdx);
+                // Keep continuous focus out of React state during drag frames.
+                focusedIndexRef.current = closestIdx;
             });
         };
 
@@ -1515,7 +1507,7 @@ export const GridView: React.FC<GridViewProps> = ({
             unsubY();
             if (rafId !== null) cancelAnimationFrame(rafId);
         };
-    }, [dragX, dragY, baseCoords, layoutConfig, clipRadius, updateRenderedIndexesForViewport]);
+    }, [dragX, dragY, baseCoords, cardFrameOptions, updateRenderedIndexesForViewport]);
 
     // Setup arrow keyboard navigation
     useEffect(() => {
@@ -1746,12 +1738,17 @@ export const GridView: React.FC<GridViewProps> = ({
                         dragElastic={0.05}
                         dragTransition={{ power: 0.16, timeConstant: 220 }}
                         onDragStart={() => {
+                            if (pendingFocusCommitTimeoutRef.current) {
+                                clearTimeout(pendingFocusCommitTimeoutRef.current);
+                                pendingFocusCommitTimeoutRef.current = null;
+                            }
                             isDraggingRef.current = true;
                         }}
                         onDragEnd={() => {
                             setTimeout(() => {
                                 isDraggingRef.current = false;
                                 flushPendingBackgroundTracks();
+                                scheduleFocusedIndexCommit(140);
                             }, 50);
                         }}
                         style={{ x: dragX, y: dragY, background: 'rgba(0,0,0,0)', touchAction: 'none' }}
