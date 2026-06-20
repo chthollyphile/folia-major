@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, Check, Loader2, Server, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { NowPlayingConnectionStatus, StageSource, StageStatus, Theme } from '../../../types';
+import type { NavidromeServerProfile } from '../../../types/navidrome';
 
 // src/components/modal/settings/IntegrationSettingsSubview.tsx
 // Integration settings for Stage, Now Playing, and Navidrome.
@@ -41,6 +42,7 @@ export type IntegrationNavidromeModel = {
     navidromeConfigured: boolean;
     navidromeEnabled: boolean;
     navidromePassword: string;
+    navidromeServerProfile: NavidromeServerProfile | null;
     navidromeTestStatus: NavidromeTestStatus;
     navidromeUrl: string;
     navidromeUsername: string;
@@ -106,6 +108,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         navidromeConfigured,
         navidromeEnabled,
         navidromePassword,
+        navidromeServerProfile,
         navidromeTestStatus,
         navidromeUrl,
         navidromeUsername,
@@ -118,6 +121,11 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     } = navidrome;
     const { t } = useTranslation();
     const nowPlayingStatusLabel = getNowPlayingStatusLabel(nowPlayingConnectionStatus);
+    const navidromeExtensionCount = navidromeServerProfile?.openSubsonicExtensions.length ?? 0;
+    const navidromeFolderCount = navidromeServerProfile?.musicFolders.length ?? 0;
+    const navidromeServerLabel = navidromeServerProfile?.serverVersion
+        || navidromeServerProfile?.serverType
+        || t('navidrome.serverProfileUnavailable');
 
     const handleCopyStageAddress = async (address: string) => {
         await onCopyText(address);
@@ -365,6 +373,42 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     style={{ color: 'var(--text-primary)' }}
                                 />
                             </div>
+
+                            {navidromeConfigured && navidromeServerProfile && (
+                                <div className="border-t border-white/10 pt-3 space-y-2">
+                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('navidrome.serverProfile') || 'Server Profile'}
+                                    </div>
+                                    <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('navidrome.server') || 'Server'}
+                                        </span>
+                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerLabel}>
+                                            {navidromeServerLabel}
+                                        </span>
+                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('navidrome.user') || 'User'}
+                                        </span>
+                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerProfile.user?.username || navidromeUsername}>
+                                            {navidromeServerProfile.user?.username || navidromeUsername}
+                                        </span>
+                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('navidrome.openSubsonic') || 'OpenSubsonic'}
+                                        </span>
+                                        <span style={{ color: 'var(--text-primary)' }}>
+                                            {navidromeServerProfile.openSubsonic
+                                                ? `${t('navidrome.enabled') || 'Enabled'} · ${navidromeExtensionCount}`
+                                                : (t('navidrome.notAvailable') || 'Not available')}
+                                        </span>
+                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('navidrome.musicFolders') || 'Libraries'}
+                                        </span>
+                                        <span style={{ color: 'var(--text-primary)' }}>
+                                            {navidromeFolderCount}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
 

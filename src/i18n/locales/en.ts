@@ -722,7 +722,15 @@ export default {
     "fetchingLyrics": "Matching lyrics...",
     "lyricsFromNetease": "Lyrics from Netease",
     "saveSettings": "Save Settings",
-    "clearSettings": "Clear Settings"
+    "clearSettings": "Clear Settings",
+    "serverProfile": "Server Profile",
+    "server": "Server",
+    "user": "User",
+    "openSubsonic": "OpenSubsonic",
+    "enabled": "Enabled",
+    "notAvailable": "Not available",
+    "musicFolders": "Libraries",
+    "serverProfileUnavailable": "Unknown server"
   },
   "queue": {
     "empty": "Queue is empty",

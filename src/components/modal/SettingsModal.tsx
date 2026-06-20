@@ -4,8 +4,8 @@ import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monit
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
-import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled } from '../../services/navidromeService';
-import { NavidromeConfig } from '../../types/navidrome';
+import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled, getCachedNavidromeServerProfile, refreshNavidromeServerProfile } from '../../services/navidromeService';
+import { NavidromeConfig, NavidromeServerProfile } from '../../types/navidrome';
 import VisPlayground from '../visualizer/VisPlayground';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel } from '../visualizer/registry';
 import ThemePark from './ThemePark';
@@ -434,6 +434,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [navidromePassword, setNavidromePassword] = useState('');
     const [navidromeTestStatus, setNavidromeTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
     const [navidromeConfigured, setNavidromeConfigured] = useState(false);
+    const [navidromeServerProfile, setNavidromeServerProfile] = useState<NavidromeServerProfile | null>(null);
 
     // Load Navidrome config on mount
     useEffect(() => {
@@ -443,6 +444,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             setNavidromeUrl(config.serverUrl);
             setNavidromeUsername(config.username);
             setNavidromeConfigured(true);
+            setNavidromeServerProfile(getCachedNavidromeServerProfile());
         }
     }, []);
 
@@ -465,6 +467,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             saveNavidromeConfig(config);
             setNavidromeConfigured(true);
             setNavidromeTestStatus('success');
+            void refreshNavidromeServerProfile(config)
+                .then(setNavidromeServerProfile)
+                .catch((error) => {
+                    console.warn('[Settings] Failed to refresh Navidrome server profile:', error);
+                    setNavidromeServerProfile(null);
+                });
         } else {
             setNavidromeTestStatus('failed');
         }
@@ -486,6 +494,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setNavidromeUsername('');
         setNavidromePassword('');
         setNavidromeConfigured(false);
+        setNavidromeServerProfile(null);
         setNavidromeTestStatus('idle');
     };
 
@@ -605,6 +614,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             }]
             : []),
     ];
+    const navidromeExtensionCount = navidromeServerProfile?.openSubsonicExtensions.length ?? 0;
+    const navidromeFolderCount = navidromeServerProfile?.musicFolders.length ?? 0;
+    const navidromeServerLabel = navidromeServerProfile?.serverVersion
+        || navidromeServerProfile?.serverType
+        || t('navidrome.serverProfileUnavailable')
+        || 'Unknown server';
 
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBg = isDaylight ? 'bg-white/82' : 'bg-zinc-900/95';
@@ -1587,6 +1602,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     style={{ color: 'var(--text-primary)' }}
                                                 />
                                             </div>
+
+                                            {navidromeConfigured && navidromeServerProfile && (
+                                                <div className="border-t border-white/10 pt-3 space-y-2">
+                                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('navidrome.serverProfile') || 'Server Profile'}
+                                                    </div>
+                                                    <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('navidrome.server') || 'Server'}
+                                                        </span>
+                                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerLabel}>
+                                                            {navidromeServerLabel}
+                                                        </span>
+                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('navidrome.user') || 'User'}
+                                                        </span>
+                                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerProfile.user?.username || navidromeUsername}>
+                                                            {navidromeServerProfile.user?.username || navidromeUsername}
+                                                        </span>
+                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('navidrome.openSubsonic') || 'OpenSubsonic'}
+                                                        </span>
+                                                        <span style={{ color: 'var(--text-primary)' }}>
+                                                            {navidromeServerProfile.openSubsonic
+                                                                ? `${t('navidrome.enabled') || 'Enabled'} · ${navidromeExtensionCount}`
+                                                                : (t('navidrome.notAvailable') || 'Not available')}
+                                                        </span>
+                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('navidrome.musicFolders') || 'Libraries'}
+                                                        </span>
+                                                        <span style={{ color: 'var(--text-primary)' }}>
+                                                            {navidromeFolderCount}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     )}
 
@@ -2189,6 +2240,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             navidromeConfigured,
                             navidromeEnabled,
                             navidromePassword,
+                            navidromeServerProfile,
                             navidromeTestStatus,
                             navidromeUrl,
                             navidromeUsername,

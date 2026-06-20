@@ -43,6 +43,7 @@ import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
 import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
 import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
+import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReporter';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
 import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
 import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge';
@@ -1017,6 +1018,10 @@ export default function App() {
         getSyntheticStageLyricsTime,
         syncStageLyricsClock,
         t: key => t(key),
+    });
+    useNavidromeScrobbleReporter({
+        audioRef,
+        currentSong,
     });
 
     const mediaSessionPlayRef = useRef(resumePlayback);

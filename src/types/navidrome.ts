@@ -166,6 +166,84 @@ export interface Starred2Response {
     };
 }
 
+export interface OpenSubsonicExtension {
+    name: string;
+    versions: number[];
+}
+
+export interface OpenSubsonicExtensionsResponse {
+    openSubsonicExtensions?: OpenSubsonicExtension[];
+}
+
+export interface NavidromeUserProfile {
+    username: string;
+    email?: string;
+    scrobblingEnabled?: boolean;
+    adminRole?: boolean;
+    settingsRole?: boolean;
+    downloadRole?: boolean;
+    uploadRole?: boolean;
+    playlistRole?: boolean;
+    coverArtRole?: boolean;
+    commentRole?: boolean;
+    podcastRole?: boolean;
+    streamRole?: boolean;
+    jukeboxRole?: boolean;
+    shareRole?: boolean;
+    videoConversionRole?: boolean;
+    avatarLastChanged?: string;
+    folder?: Array<string | number>;
+}
+
+export interface UserResponse {
+    user?: NavidromeUserProfile;
+}
+
+export interface MusicFolder {
+    id: string | number;
+    name: string;
+}
+
+export interface MusicFoldersResponse {
+    musicFolders?: {
+        musicFolder?: MusicFolder[];
+    };
+}
+
+export interface NavidromeLicense {
+    valid: boolean;
+    email?: string;
+    licenseExpires?: string;
+    trialExpires?: string;
+}
+
+export interface LicenseResponse {
+    license?: NavidromeLicense;
+}
+
+export interface NavidromeCapabilities {
+    openSubsonic: boolean;
+    extensionVersions: Record<string, number[]>;
+    supportsApiKeyAuthentication: boolean;
+    supportsFormPost: boolean;
+    supportsPlaybackReport: boolean;
+    supportsSongLyrics: boolean;
+    supportsTranscoding: boolean;
+}
+
+export interface NavidromeServerProfile {
+    fetchedAt: number;
+    apiVersion?: string;
+    serverType?: string;
+    serverVersion?: string;
+    openSubsonic: boolean;
+    openSubsonicExtensions: OpenSubsonicExtension[];
+    capabilities: NavidromeCapabilities;
+    user: NavidromeUserProfile | null;
+    musicFolders: MusicFolder[];
+    license: NavidromeLicense | null;
+}
+
 // Ping Response
 export interface PingResponse {
     // Empty, just checks status

@@ -20,12 +20,22 @@ import {
     ArtistsIndexResponse,
     ArtistResponse,
     SubsonicArtist,
+    OpenSubsonicExtension,
+    OpenSubsonicExtensionsResponse,
+    UserResponse,
+    MusicFoldersResponse,
+    LicenseResponse,
+    NavidromeCapabilities,
+    NavidromeServerProfile,
 } from '../types/navidrome';
 import md5 from 'blueimp-md5';
 
 // LocalStorage key for config
 const CONFIG_KEY = 'navidrome_config';
 const ENABLED_KEY = 'navidrome_enabled';
+const SERVER_PROFILE_KEY = 'navidrome_server_profile';
+type SubsonicParamPrimitive = string | number | boolean;
+type SubsonicParamValue = SubsonicParamPrimitive | SubsonicParamPrimitive[];
 
 // Check if Navidrome is enabled
 export const isNavidromeEnabled = (): boolean => {
@@ -58,6 +68,25 @@ export const saveNavidromeConfig = (config: NavidromeConfig): void => {
 // Clear configuration
 export const clearNavidromeConfig = (): void => {
     localStorage.removeItem(CONFIG_KEY);
+    clearNavidromeServerProfile();
+};
+
+export const getCachedNavidromeServerProfile = (): NavidromeServerProfile | null => {
+    try {
+        const stored = localStorage.getItem(SERVER_PROFILE_KEY);
+        return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+        console.error('[Navidrome] Failed to parse server profile:', e);
+        return null;
+    }
+};
+
+export const saveNavidromeServerProfile = (profile: NavidromeServerProfile): void => {
+    localStorage.setItem(SERVER_PROFILE_KEY, JSON.stringify(profile));
+};
+
+export const clearNavidromeServerProfile = (): void => {
+    localStorage.removeItem(SERVER_PROFILE_KEY);
 };
 
 // For Subsonic API, we need the plain password to compute token = md5(password + salt)
@@ -96,7 +125,7 @@ const buildAuthParams = (config: NavidromeConfig): URLSearchParams => {
 const fetchSubsonic = async <T>(
     config: NavidromeConfig,
     endpoint: string,
-    extraParams?: Record<string, string | string[]>
+    extraParams?: Record<string, SubsonicParamValue>
 ): Promise<SubsonicResponse<T>> => {
     const url = new URL(`${config.serverUrl}/rest/${endpoint}`);
     const authParams = buildAuthParams(config);
@@ -110,11 +139,11 @@ const fetchSubsonic = async <T>(
     if (extraParams) {
         Object.entries(extraParams).forEach(([key, value]) => {
             if (Array.isArray(value)) {
-                value.forEach(item => url.searchParams.append(key, item));
+                value.forEach(item => url.searchParams.append(key, String(item)));
                 return;
             }
 
-            url.searchParams.set(key, value);
+            url.searchParams.set(key, String(value));
         });
     }
 
@@ -124,6 +153,32 @@ const fetchSubsonic = async <T>(
     }
 
     return response.json();
+};
+
+const buildNavidromeCapabilities = (
+    extensions: OpenSubsonicExtension[],
+    openSubsonic: boolean
+): NavidromeCapabilities => {
+    const extensionVersions = extensions.reduce<Record<string, number[]>>((acc, extension) => {
+        acc[extension.name] = extension.versions || [];
+        return acc;
+    }, {});
+
+    return {
+        openSubsonic,
+        extensionVersions,
+        supportsApiKeyAuthentication: Boolean(extensionVersions.apiKeyAuthentication),
+        supportsFormPost: Boolean(extensionVersions.formPost),
+        supportsPlaybackReport: Boolean(extensionVersions.playbackReport),
+        supportsSongLyrics: Boolean(extensionVersions.songLyrics),
+        supportsTranscoding: Boolean(extensionVersions.transcoding),
+    };
+};
+
+export const refreshNavidromeServerProfile = async (config: NavidromeConfig): Promise<NavidromeServerProfile> => {
+    const profile = await navidromeApi.getServerProfile(config);
+    saveNavidromeServerProfile(profile);
+    return profile;
 };
 
 // API Methods
@@ -137,6 +192,84 @@ export const navidromeApi = {
             console.error('[Navidrome] Ping failed:', e);
             return false;
         }
+    },
+
+    getOpenSubsonicExtensions: async (config: NavidromeConfig): Promise<OpenSubsonicExtension[]> => {
+        try {
+            const res = await fetchSubsonic<OpenSubsonicExtensionsResponse>(config, 'getOpenSubsonicExtensions');
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].openSubsonicExtensions || [];
+            }
+        } catch (e) {
+            console.warn('[Navidrome] getOpenSubsonicExtensions failed:', e);
+        }
+        return [];
+    },
+
+    getUser: async (config: NavidromeConfig) => {
+        try {
+            const res = await fetchSubsonic<UserResponse>(config, 'getUser', {
+                username: config.username,
+            });
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].user || null;
+            }
+        } catch (e) {
+            console.warn('[Navidrome] getUser failed:', e);
+        }
+        return null;
+    },
+
+    getMusicFolders: async (config: NavidromeConfig) => {
+        try {
+            const res = await fetchSubsonic<MusicFoldersResponse>(config, 'getMusicFolders');
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].musicFolders?.musicFolder || [];
+            }
+        } catch (e) {
+            console.warn('[Navidrome] getMusicFolders failed:', e);
+        }
+        return [];
+    },
+
+    getLicense: async (config: NavidromeConfig) => {
+        try {
+            const res = await fetchSubsonic<LicenseResponse>(config, 'getLicense');
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].license || null;
+            }
+        } catch (e) {
+            console.warn('[Navidrome] getLicense failed:', e);
+        }
+        return null;
+    },
+
+    getServerProfile: async (config: NavidromeConfig): Promise<NavidromeServerProfile> => {
+        const [pingResult, extensions, user, musicFolders, license] = await Promise.all([
+            fetchSubsonic<PingResponse>(config, 'ping').catch((error) => {
+                console.warn('[Navidrome] profile ping failed:', error);
+                return null;
+            }),
+            navidromeApi.getOpenSubsonicExtensions(config),
+            navidromeApi.getUser(config),
+            navidromeApi.getMusicFolders(config),
+            navidromeApi.getLicense(config),
+        ]);
+        const pingBody = pingResult?.['subsonic-response'];
+        const openSubsonic = Boolean(pingBody?.openSubsonic || extensions.length > 0);
+
+        return {
+            fetchedAt: Date.now(),
+            apiVersion: pingBody?.version,
+            serverType: pingBody?.type,
+            serverVersion: pingBody?.serverVersion,
+            openSubsonic,
+            openSubsonicExtensions: extensions,
+            capabilities: buildNavidromeCapabilities(extensions, openSubsonic),
+            user,
+            musicFolders,
+            license,
+        };
     },
 
     // Get album list
@@ -245,9 +378,9 @@ export const navidromeApi = {
                 playlistId,
                 ...(options.name ? { name: options.name } : {}),
                 ...(options.comment ? { comment: options.comment } : {}),
-                ...(typeof options.public === 'boolean' ? { public: String(options.public) } : {}),
+                ...(typeof options.public === 'boolean' ? { public: options.public } : {}),
                 ...(options.songIdsToAdd?.length ? { songIdToAdd: options.songIdsToAdd } : {}),
-                ...(options.songIndexesToRemove?.length ? { songIndexToRemove: options.songIndexesToRemove.map(String) } : {}),
+                ...(options.songIndexesToRemove?.length ? { songIndexToRemove: options.songIndexesToRemove } : {}),
             });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
@@ -300,6 +433,27 @@ export const navidromeApi = {
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
             console.error('[Navidrome] unstar failed:', e);
+        }
+        return false;
+    },
+
+    scrobble: async (
+        config: NavidromeConfig,
+        songId: string,
+        options: {
+            time?: number;
+            submission?: boolean;
+        } = {}
+    ): Promise<boolean> => {
+        try {
+            const res = await fetchSubsonic<Record<string, never>>(config, 'scrobble', {
+                id: songId,
+                time: options.time ?? Date.now(),
+                submission: options.submission ?? true,
+            });
+            return res['subsonic-response'].status === 'ok';
+        } catch (e) {
+            console.warn('[Navidrome] scrobble failed:', e);
         }
         return false;
     },

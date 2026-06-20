@@ -724,7 +724,15 @@ export default {
     "fetchingLyrics": "正在匹配歌词...",
     "lyricsFromNetease": "歌词来自网易云音乐",
     "saveSettings": "保存设置",
-    "clearSettings": "清除设置"
+    "clearSettings": "清除设置",
+    "serverProfile": "服务器信息",
+    "server": "服务器",
+    "user": "用户",
+    "openSubsonic": "OpenSubsonic",
+    "enabled": "已启用",
+    "notAvailable": "不可用",
+    "musicFolders": "音乐库",
+    "serverProfileUnavailable": "未知服务器"
   },
   "queue": {
     "empty": "播放列表为空",

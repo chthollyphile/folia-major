@@ -401,6 +401,12 @@ async function mockNeteaseApi(page: Page, mode: MockNeteaseMode) {
         },
         cookie: 'fixture-cookie',
       },
+      '/user/account': {
+        account: {
+          id: neteaseFixtures.profile.userId,
+        },
+        profile: neteaseFixtures.profile,
+      },
       '/user/playlist': {
         playlist: playlistPayload,
       },
@@ -483,6 +489,48 @@ async function mockNavidromeApi(page: Page) {
           },
         },
       },
+      getOpenSubsonicExtensions: {
+        'subsonic-response': {
+          status: 'ok',
+          openSubsonic: true,
+          openSubsonicExtensions: [
+            { name: 'songLyrics', versions: [1] },
+            { name: 'formPost', versions: [1] },
+          ],
+        },
+      },
+      getUser: {
+        'subsonic-response': {
+          status: 'ok',
+          user: {
+            username: navidromeFixtures.config.username,
+            scrobblingEnabled: true,
+          },
+        },
+      },
+      getMusicFolders: {
+        'subsonic-response': {
+          status: 'ok',
+          musicFolders: {
+            musicFolder: [
+              { id: 'music', name: 'Music' },
+            ],
+          },
+        },
+      },
+      getLicense: {
+        'subsonic-response': {
+          status: 'ok',
+          license: {
+            valid: true,
+          },
+        },
+      },
+      scrobble: {
+        'subsonic-response': {
+          status: 'ok',
+        },
+      },
     };
 
     await route.fulfill({
@@ -516,7 +564,7 @@ test.describe('frontend screenshot coverage', () => {
 
     await openApp(page);
 
-    await expect(page.getByRole('heading', { name: 'Daily Mix' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Daily Mix' }).first()).toBeVisible();
     await expect(page).toHaveScreenshot('netease-home.png', {
       animations: 'disabled',
       scale: 'css',
@@ -534,8 +582,8 @@ test.describe('frontend screenshot coverage', () => {
 
     await openApp(page);
 
-    await page.getByRole('button', { name: 'Navi' }).click();
-    await expect(page.getByText('Aurora Echoes')).toBeVisible();
+    await page.getByRole('button', { name: 'Navi' }).last().click();
+    await expect(page.getByText('Aurora Echoes').first()).toBeVisible();
     await expect(page).toHaveScreenshot('navidrome-home.png', {
       animations: 'disabled',
       scale: 'css',
@@ -552,10 +600,10 @@ test.describe('frontend screenshot coverage', () => {
 
     await openApp(page);
 
-    await page.getByRole('button', { name: 'Folder' }).click();
-    await page.getByRole('button', { name: 'Import Folder' }).click();
-    await expect(page.getByText('All Songs')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Import Folder' })).toBeVisible();
+    await page.getByRole('button', { name: 'Folder' }).last().click();
+    await page.getByRole('button', { name: 'Import Folder' }).last().click();
+    await expect(page.getByText('All Songs').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Import Folder' }).first()).toBeVisible();
     await expect(page).toHaveScreenshot('local-library.png', {
       animations: 'disabled',
       scale: 'css',
