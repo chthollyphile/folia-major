@@ -316,7 +316,6 @@ declare global {
       onMainWindowClickThroughChanged: (callback: (state: ElectronMainWindowClickThroughState) => void) => () => void;
       getObsBrowserSourceStatus: () => Promise<ElectronObsBrowserSourceStatus>;
       setObsBrowserSourceEnabled: (enabled: boolean) => Promise<ElectronObsBrowserSourceStatus>;
-      setObsBrowserSourceSize: (size: { width: number; height: number }) => Promise<ElectronObsBrowserSourceStatus>;
       regenerateObsBrowserSourceToken: () => Promise<ElectronObsBrowserSourceStatus>;
       publishObsBrowserSourceConfig: (config: ElectronObsBrowserSourceConfig) => Promise<boolean>;
       publishObsBrowserSourceClock: (clock: ElectronObsBrowserSourceClock) => Promise<boolean>;

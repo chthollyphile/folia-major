@@ -53,7 +53,6 @@ interface SettingsModalProps {
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
-    onSetObsBrowserSourceSize?: (size: { width: number; height: number }) => Promise<void> | void;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     aiTheme?: DualTheme | null;
     customTheme?: DualTheme | null;
@@ -91,7 +90,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     obsBrowserSourceStatus = null,
     onToggleObsBrowserSource,
     onRegenerateObsBrowserSourceToken,
-    onSetObsBrowserSourceSize,
     onAudioOutputDeviceChange,
     aiTheme,
     customTheme,
@@ -2267,7 +2265,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             onCopyText: copyText,
                             onRegenerateObsBrowserSourceToken,
                             onRegenerateStageToken,
-                            onSetObsBrowserSourceSize,
                             onStageSourceChange,
                             onToggleObsBrowserSource,
                             onToggleNowPlayingStage,

@@ -24,18 +24,12 @@ import type {
 // src/types/obsBrowserSource.ts
 // Shared contracts for the local OBS browser source renderer.
 
-export interface ObsBrowserSourceSize {
-    width: number;
-    height: number;
-}
-
 export interface ObsBrowserSourceStatus {
     enabled: boolean;
     port: number;
     token: string | null;
     url: string | null;
     clientCount: number;
-    size: ObsBrowserSourceSize;
 }
 
 export interface ObsBrowserSourceConfig {

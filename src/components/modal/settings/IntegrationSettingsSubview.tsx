@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { AlertCircle, Check, Loader2, Server, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { NowPlayingConnectionStatus, StageSource, StageStatus, Theme } from '../../../types';
@@ -30,7 +30,6 @@ export type IntegrationStageModel = {
     onCopyText: (text: string) => Promise<void>;
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
-    onSetObsBrowserSourceSize?: (size: { width: number; height: number }) => Promise<void> | void;
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
@@ -100,7 +99,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         obsBrowserSourceStatus,
         onCopyText,
         onRegenerateObsBrowserSourceToken,
-        onSetObsBrowserSourceSize,
         onRegenerateStageToken,
         onStageSourceChange,
         onToggleObsBrowserSource,
@@ -130,10 +128,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     } = navidrome;
     const { t } = useTranslation();
     const [obsAddressCopied, setObsAddressCopied] = useState(false);
-    const [obsSizeDraft, setObsSizeDraft] = useState(() => ({
-        width: String(obsBrowserSourceStatus?.size.width ?? 1920),
-        height: String(obsBrowserSourceStatus?.size.height ?? 1080),
-    }));
     const nowPlayingStatusLabel = getNowPlayingStatusLabel(nowPlayingConnectionStatus);
     const navidromeExtensionCount = navidromeServerProfile?.openSubsonicExtensions.length ?? 0;
     const navidromeFolderCount = navidromeServerProfile?.musicFolders.length ?? 0;
@@ -152,22 +146,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         setObsAddressCopied(true);
         window.setTimeout(() => setObsAddressCopied(false), 1600);
     };
-
-    const handleCommitObsSize = async () => {
-        const width = Number(obsSizeDraft.width);
-        const height = Number(obsSizeDraft.height);
-        if (!Number.isFinite(width) || !Number.isFinite(height)) {
-            return;
-        }
-        await onSetObsBrowserSourceSize?.({ width, height });
-    };
-
-    useEffect(() => {
-        setObsSizeDraft({
-            width: String(obsBrowserSourceStatus?.size.width ?? 1920),
-            height: String(obsBrowserSourceStatus?.size.height ?? 1080),
-        });
-    }, [obsBrowserSourceStatus?.size.height, obsBrowserSourceStatus?.size.width]);
 
     return (
         <>
@@ -232,39 +210,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                             style={{ color: 'var(--text-primary)' }}
                                         >
                                             {t('options.regenerateObsBrowserSourceToken') || 'Regenerate Token'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className={`rounded-xl border p-3 space-y-3 ${settingsCardClass}`}>
-                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                        {t('options.obsBrowserSourceSize') || 'Canvas Size'}
-                                    </div>
-                                    <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
-                                        <input
-                                            value={obsSizeDraft.width}
-                                            onChange={event => setObsSizeDraft(prev => ({ ...prev, width: event.target.value }))}
-                                            className="min-w-0 rounded-lg bg-white/10 px-3 py-2 text-sm outline-none"
-                                            inputMode="numeric"
-                                            aria-label={t('options.obsBrowserSourceWidth') || 'OBS width'}
-                                            style={{ color: 'var(--text-primary)' }}
-                                        />
-                                        <span className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>x</span>
-                                        <input
-                                            value={obsSizeDraft.height}
-                                            onChange={event => setObsSizeDraft(prev => ({ ...prev, height: event.target.value }))}
-                                            className="min-w-0 rounded-lg bg-white/10 px-3 py-2 text-sm outline-none"
-                                            inputMode="numeric"
-                                            aria-label={t('options.obsBrowserSourceHeight') || 'OBS height'}
-                                            style={{ color: 'var(--text-primary)' }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleCommitObsSize()}
-                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            {t('options.save') || 'Save'}
                                         </button>
                                     </div>
                                 </div>

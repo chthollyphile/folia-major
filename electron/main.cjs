@@ -68,7 +68,6 @@ const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
 const OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY = 'OBS_BROWSER_SOURCE_ENABLED';
 const OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY = 'OBS_BROWSER_SOURCE_TOKEN';
 const OBS_BROWSER_SOURCE_PORT_SETTING_KEY = 'OBS_BROWSER_SOURCE_PORT';
-const OBS_BROWSER_SOURCE_SIZE_SETTING_KEY = 'OBS_BROWSER_SOURCE_SIZE';
 const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
 const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
 const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
@@ -76,7 +75,6 @@ const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const DEFAULT_STAGE_API_PORT = 32107;
 const DEFAULT_OBS_BROWSER_SOURCE_PORT = 32108;
-const DEFAULT_OBS_BROWSER_SOURCE_SIZE = { width: 1920, height: 1080 };
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/chthollyphile/folia-major/releases/latest';
 const WINDOWS_APP_USER_MODEL_ID = 'top.izuna.foliamajor';
@@ -185,24 +183,6 @@ function getPublicSettings() {
   };
 }
 
-function sanitizeObsBrowserSourceSize(size) {
-  const width = Math.round(Number(size?.width));
-  const height = Math.round(Number(size?.height));
-
-  if (!Number.isFinite(width) || !Number.isFinite(height)) {
-    return DEFAULT_OBS_BROWSER_SOURCE_SIZE;
-  }
-
-  return {
-    width: Math.min(3840, Math.max(320, width)),
-    height: Math.min(3840, Math.max(320, height)),
-  };
-}
-
-function getObsBrowserSourceSize() {
-  return sanitizeObsBrowserSourceSize(store.get(OBS_BROWSER_SOURCE_SIZE_SETTING_KEY));
-}
-
 function getConfiguredObsBrowserSourcePort() {
   const storedPort = Number(store.get(OBS_BROWSER_SOURCE_PORT_SETTING_KEY));
   if (Number.isInteger(storedPort) && storedPort > 0 && storedPort <= 65535) {
@@ -247,7 +227,6 @@ function buildObsBrowserSourceStatus() {
     token,
     url: token ? buildObsBrowserSourceUrl() : null,
     clientCount: obsBrowserSourceClients.size,
-    size: getObsBrowserSourceSize(),
   };
 }
 
@@ -2672,17 +2651,6 @@ ipcMain.handle('obs-browser-source-set-enabled', async (event, enabled) => {
 
   store.set(OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY, Boolean(enabled));
   return syncObsBrowserSourceServerState();
-});
-
-ipcMain.handle('obs-browser-source-set-size', (event, size) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to resize OBS browser source.');
-  }
-
-  const nextSize = sanitizeObsBrowserSourceSize(size);
-  store.set(OBS_BROWSER_SOURCE_SIZE_SETTING_KEY, nextSize);
-  broadcastObsBrowserSourceStatus();
-  return buildObsBrowserSourceStatus();
 });
 
 ipcMain.handle('obs-browser-source-regenerate-token', (event) => {

@@ -86,7 +86,6 @@ const emptyObsStatus = (): ObsBrowserSourceStatus => ({
     token: null,
     url: null,
     clientCount: 0,
-    size: { width: 1920, height: 1080 },
 });
 
 const getSongArtist = (song: SongResult | null) =>

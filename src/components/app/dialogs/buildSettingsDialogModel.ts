@@ -98,12 +98,6 @@ export const buildSettingsDialogModel = ({
                 await refreshObsBrowserSourceStatus?.();
             }
         },
-        onSetObsBrowserSourceSize: async (size) => {
-            const nextStatus = await window.electron?.setObsBrowserSourceSize?.(size);
-            if (!nextStatus) {
-                await refreshObsBrowserSourceStatus?.();
-            }
-        },
         onAudioOutputDeviceChange,
         initialTab: state.initialTab,
         initialSubview: state.initialSubview ?? null,
