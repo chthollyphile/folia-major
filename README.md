@@ -13,7 +13,7 @@ Lyrics Reimagined // 辞曲新境
 [![GitHub stars](https://img.shields.io/github/stars/chthollyphile/folia-major?style=social)](https://github.com/chthollyphile/folia-major/stargazers)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-12-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [桌面版下载](https://github.com/chthollyphile/folia-major/releases)
@@ -147,6 +147,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/948720857"><img src="https://avatars.githubusercontent.com/u/23718388?v=4?s=100" width="100px;" alt="948720857"/><br /><sub><b>948720857</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3A948720857" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/setube"><img src="https://avatars.githubusercontent.com/u/73606411?v=4?s=100" width="100px;" alt="谦君"/><br /><sub><b>谦君</b></sub></a><br /><a href="#ideas-setube" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/suheandzl"><img src="https://avatars.githubusercontent.com/u/3975134?v=4?s=100" width="100px;" alt="suheandzl"/><br /><sub><b>suheandzl</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Asuheandzl" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/pwupink"><img src="https://avatars.githubusercontent.com/u/122716454?v=4?s=100" width="100px;" alt="不会飞的麻将"/><br /><sub><b>不会飞的麻将</b></sub></a><br /><a href="#ideas-pwupink" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
