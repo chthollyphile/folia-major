@@ -131,6 +131,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "streamstack-cn",
+      "name": "streamstack-cn",
+      "avatar_url": "https://avatars.githubusercontent.com/u/270505056?v=4",
+      "profile": "https://github.com/streamstack-cn",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "commit": false,
