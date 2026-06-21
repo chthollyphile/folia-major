@@ -586,6 +586,21 @@ describe('stageApi http contract', () => {
         expect(unsupportedResponse.status).toBe(409);
 
         publishNormalPlayerSnapshot(context.stageApi);
+        const invalidSeekResponse = await fetch(`${context.baseUrl}/stage/player/control`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'seek' }),
+        });
+        expect(invalidSeekResponse.status).toBe(400);
+        const invalidSeekPayload = await invalidSeekResponse.json();
+        expect(invalidSeekPayload).toMatchObject({
+            code: 'INVALID_STAGE_PLAYER_SEEK_POSITION',
+        });
+        expect(receivedControls).toHaveLength(0);
+
         const response = await fetch(`${context.baseUrl}/stage/player/control`, {
             method: 'POST',
             headers: {

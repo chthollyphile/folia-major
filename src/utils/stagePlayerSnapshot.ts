@@ -82,6 +82,41 @@ const getSongSource = (song: SongResult | null): string => {
     return 'netease';
 };
 
+export const buildStagePlayerQueueItemId = (song: SongResult, index: number): string => {
+    const source = getSongSource(song);
+    const id = String(song.id ?? `${source}-${index}`);
+    return `${source}:${id}:${index}`;
+};
+
+// Resolves a public queue item identifier only when it still matches the current queue item.
+export const resolveStagePlayerQueueItemIndex = (queue: SongResult[], queueItemId?: string): number => {
+    if (!queueItemId) {
+        return -1;
+    }
+
+    const firstSeparatorIndex = queueItemId.indexOf(':');
+    const lastSeparatorIndex = queueItemId.lastIndexOf(':');
+    if (firstSeparatorIndex <= 0 || lastSeparatorIndex <= firstSeparatorIndex) {
+        return -1;
+    }
+
+    const encodedSource = queueItemId.slice(0, firstSeparatorIndex);
+    const encodedSongId = queueItemId.slice(firstSeparatorIndex + 1, lastSeparatorIndex);
+    const encodedIndex = Number(queueItemId.slice(lastSeparatorIndex + 1));
+    if (!Number.isInteger(encodedIndex) || encodedIndex < 0 || encodedIndex >= queue.length) {
+        return -1;
+    }
+
+    const queuedSong = queue[encodedIndex];
+    if (!queuedSong) {
+        return -1;
+    }
+
+    const currentSource = getSongSource(queuedSong);
+    const currentSongId = String(queuedSong.id);
+    return currentSource === encodedSource && currentSongId === encodedSongId ? encodedIndex : -1;
+};
+
 const getSongDurationMs = (song: SongResult | null, fallbackMs = 0): number => {
     if (!song) {
         return Math.max(0, Math.floor(fallbackMs));
@@ -96,7 +131,7 @@ const buildQueueItem = (song: SongResult, index: number, fallbackCoverUrl: strin
     const coverUrl = song.al?.picUrl || song.album?.picUrl || fallbackCoverUrl || null;
 
     return {
-        queueItemId: `${source}:${id}:${index}`,
+        queueItemId: buildStagePlayerQueueItemId(song, index),
         id,
         source,
         title: song.name || 'Unknown Song',

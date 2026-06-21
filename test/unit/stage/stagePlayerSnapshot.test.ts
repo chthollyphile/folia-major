@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { resolveStagePlayerPositionSec } from '@/utils/stagePlayerSnapshot';
+import {
+    buildStagePlayerQueueItemId,
+    resolveStagePlayerPositionSec,
+    resolveStagePlayerQueueItemIndex,
+} from '@/utils/stagePlayerSnapshot';
+import type { SongResult } from '@/types';
 
 // Keeps Stage player snapshot clock selection stable across stage-session variants.
 
@@ -38,5 +43,33 @@ describe('stage player snapshot clock selection', () => {
         });
 
         expect(positionSec).toBe(5);
+    });
+});
+
+describe('stage player queue item ids', () => {
+    const buildSong = (id: number, name: string): SongResult => ({
+        id,
+        name,
+        artists: [],
+        album: { id: 0, name: '', picUrl: '' },
+        duration: 1000,
+    });
+
+    it('rejects stale queue item ids when the same index now points at another song', () => {
+        const originalSong = buildSong(42, 'Original');
+        const replacementSong = buildSong(99, 'Replacement');
+        const staleQueueItemId = buildStagePlayerQueueItemId(originalSong, 0);
+
+        expect(resolveStagePlayerQueueItemIndex([replacementSong], staleQueueItemId)).toBe(-1);
+    });
+
+    it('resolves queue item ids only when source, song id, and index still match', () => {
+        const queue = [
+            buildSong(42, 'First'),
+            buildSong(99, 'Second'),
+        ];
+
+        expect(resolveStagePlayerQueueItemIndex(queue, buildStagePlayerQueueItemId(queue[1], 1))).toBe(1);
+        expect(resolveStagePlayerQueueItemIndex(queue, buildStagePlayerQueueItemId(queue[1], 0))).toBe(-1);
     });
 });
