@@ -113,9 +113,19 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "Enkianssus",
+      "name": "Enkianssus",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69905090?v=4",
+      "profile": "https://github.com/Enkianssus",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "commit": false,
   "commitConvention": "none",
-  "skipCi": true
+  "skipCi": true,
+  "commitType": "docs"
 }
