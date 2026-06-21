@@ -688,6 +688,7 @@ type SettingsUiState = {
     hidePlayerTranslationSubtitle: boolean;
     hidePlayerRightPanelButton: boolean;
     transparentPlayerBackground: boolean;
+    enablePlayerPageNativeBlur: boolean;
     autoHidePlayerChrome: boolean;
     disableVisualizerVignette: boolean;
     disableVisualizerGeometricBackground: boolean;
@@ -744,6 +745,7 @@ type SettingsUiState = {
     setStatusSetter: (setter: StatusSetter | null) => void;
     setAudioQuality: (quality: AudioQuality) => void;
     setTransparentPlayerBackgroundFromSystem: (enabled: boolean) => void;
+    handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
     setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; }) => void;
     setStoredCappellaEmojiPack: (pack: StoredCappellaEmojiImage[]) => void;
     setCappellaCustomEmojiImages: (images: CappellaEmojiImage[]) => void;
@@ -848,6 +850,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     hidePlayerTranslationSubtitle: getStoredBoolean('hide_player_translation_subtitle', false),
     hidePlayerRightPanelButton: getStoredBoolean('hide_player_right_panel_button', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
+    enablePlayerPageNativeBlur: getStoredBoolean('enable_player_page_native_blur', false),
     autoHidePlayerChrome: getStoredBoolean('auto_hide_player_chrome', false),
     disableVisualizerVignette: getStoredBoolean('disable_visualizer_vignette', false),
     disableVisualizerGeometricBackground: getStoredBoolean('disable_visualizer_geometric_background', false),
@@ -915,6 +918,13 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     setTransparentPlayerBackgroundFromSystem: (enabled) => {
         setStoredBoolean('transparent_player_background', enabled);
         set({ transparentPlayerBackground: enabled });
+    },
+    handleTogglePlayerPageNativeBlur: (enable) => {
+        setStoredBoolean('enable_player_page_native_blur', enable);
+        set({ enablePlayerPageNativeBlur: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('enable_player_page_native_blur', enable);
+        }
     },
     handleToggleAutoHidePlayerChrome: (enabled: boolean) => {
         localStorage.setItem('auto_hide_player_chrome', enabled ? 'true' : 'false');
@@ -1204,6 +1214,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     setDaylightPreference: (enabled) => {
         setStoredBoolean('default_theme_daylight', enabled);
         set({ isDaylight: enabled });
+        if (typeof window !== 'undefined' && window.electron?.setNativeTheme) {
+            void window.electron.setNativeTheme(enabled ? 'light' : 'dark');
+        }
     },
     handleSetVisualizerMode: (mode) => {
         const entry = getVisualizerRegistryEntry(mode);
@@ -1751,6 +1764,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
     handleToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
     handleToggleTransparentPlayerBackground: state.handleToggleTransparentPlayerBackground,
+    enablePlayerPageNativeBlur: state.enablePlayerPageNativeBlur,
+    handleTogglePlayerPageNativeBlur: state.handleTogglePlayerPageNativeBlur,
     handleToggleAutoHidePlayerChrome: state.handleToggleAutoHidePlayerChrome,
     handleToggleDisableVisualizerVignette: state.handleToggleDisableVisualizerVignette,
     handleToggleDisableVisualizerGeometricBackground: state.handleToggleDisableVisualizerGeometricBackground,
@@ -1810,3 +1825,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleToggleMute: state.handleToggleMute,
     handleToggleLoopMode: state.handleToggleLoopMode,
 });
+
+if (typeof window !== 'undefined' && window.electron?.setNativeTheme) {
+    void window.electron.setNativeTheme(useSettingsUiStore.getState().isDaylight ? 'light' : 'dark');
+}

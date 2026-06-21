@@ -265,6 +265,7 @@ export default function App() {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
+        enablePlayerPageNativeBlur,
         autoHidePlayerChrome,
         disableVisualizerVignette,
         disableVisualizerGeometricBackground,
@@ -1212,7 +1213,8 @@ export default function App() {
     });
 
     const usesCustomWindowChrome = isElectronWindow;
-    const shouldUseTransparentAppBackground = currentView === 'player' && transparentPlayerBackground;
+    const isPlayerPageTransparent = transparentPlayerBackground || enablePlayerPageNativeBlur;
+    const shouldUseTransparentAppBackground = currentView === 'player' && isPlayerPageTransparent;
     const appStyle = useMemo(() => buildAppStyle({
         bgMode,
         isDaylight,
@@ -1242,37 +1244,43 @@ export default function App() {
         let isThrottled = false;
         let rafId: number;
 
-        const handleMouseLeave = () => {
+        const showAndResetTimer = () => {
+            setIsPlayerChromeHidden(false);
             window.clearTimeout(timeoutId);
             timeoutId = window.setTimeout(() => {
                 setIsPlayerChromeHidden(true);
             }, 3000);
         };
 
-        const handleMouseEnter = () => {
-            window.clearTimeout(timeoutId);
-            setIsPlayerChromeHidden(prev => prev ? false : prev);
+        const handleMouseOut = (e: MouseEvent) => {
+            if (!e.relatedTarget || (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight)) {
+                window.clearTimeout(timeoutId);
+                timeoutId = window.setTimeout(() => {
+                    setIsPlayerChromeHidden(true);
+                }, 300);
+            }
         };
 
         const throttledMouseMove = () => {
             if (isThrottled) return;
             isThrottled = true;
             rafId = requestAnimationFrame(() => {
-                handleMouseEnter();
+                showAndResetTimer();
                 isThrottled = false;
             });
         };
 
-        document.addEventListener('mouseleave', handleMouseLeave);
-        document.addEventListener('mouseenter', handleMouseEnter);
-        document.addEventListener('mousemove', throttledMouseMove);
+        // Initialize timer
+        showAndResetTimer();
+
+        window.addEventListener('mouseout', handleMouseOut);
+        window.addEventListener('mousemove', throttledMouseMove);
 
         return () => {
             window.clearTimeout(timeoutId);
             cancelAnimationFrame(rafId);
-            document.removeEventListener('mouseleave', handleMouseLeave);
-            document.removeEventListener('mouseenter', handleMouseEnter);
-            document.removeEventListener('mousemove', throttledMouseMove);
+            window.removeEventListener('mouseout', handleMouseOut);
+            window.removeEventListener('mousemove', throttledMouseMove);
         };
     }, [autoHidePlayerChrome]);
 
@@ -1281,7 +1289,7 @@ export default function App() {
         const html = document.documentElement;
         const previousBodyBackgroundColor = body.style.backgroundColor;
         const previousHtmlBackgroundColor = html.style.backgroundColor;
-        const shouldUseTransparentDocumentBackground = isElectronWindow && transparentPlayerBackground;
+        const shouldUseTransparentDocumentBackground = isElectronWindow && isPlayerPageTransparent;
 
         if (shouldUseTransparentDocumentBackground) {
             body.style.backgroundColor = 'transparent';
@@ -1295,7 +1303,7 @@ export default function App() {
             body.style.backgroundColor = previousBodyBackgroundColor;
             html.style.backgroundColor = previousHtmlBackgroundColor;
         };
-    }, [isElectronWindow, transparentPlayerBackground]);
+    }, [isElectronWindow, isPlayerPageTransparent]);
 
     useEffect(() => {
         if (!isElectronWindow || !window.electron?.getMainWindowClickThroughEnabled || !window.electron?.onMainWindowClickThroughChanged) {
@@ -1427,7 +1435,7 @@ export default function App() {
         backgroundOpacity,
         visualizerOpacity,
         subtitleOverlayOpacity,
-        transparentBackground: transparentPlayerBackground,
+        transparentBackground: isPlayerPageTransparent,
         useCoverColorBg,
         staticMode,
         disableGeometricBackground: disableVisualizerGeometricBackground,
@@ -1489,6 +1497,8 @@ export default function App() {
         setVisualizerBackgroundMode: handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: handleSetMonetBackgroundTuning,
         toggleTransparentBackground: () => handleToggleTransparentPlayerBackground(!transparentPlayerBackground),
+        transparentPlayerBackground,
+        enablePlayerPageNativeBlur,
         toggleDaylightMode,
         toggleAlternativeLyricSources: () => handleToggleAlternativeLyricSources(!enableAlternativeLyricSources),
         enableAlternativeLyricSources,
@@ -1795,7 +1805,7 @@ export default function App() {
         minimizeToTray,
         hideTaskbarIcon,
         openPlayerOnLaunch,
-        transparentPlayerBackground,
+        isPlayerPageTransparent,
         isCustomThemePreferred,
         isDaylight,
         isLoadingCappellaCustomEmojiPack,
@@ -1845,7 +1855,7 @@ export default function App() {
         staticMode,
         theme,
         themeParkSeedTheme,
-        transparentPlayerBackground,
+        isPlayerPageTransparent,
         user,
         visualizerMode,
         handleAudioOutputDeviceChange,
@@ -2534,7 +2544,7 @@ export default function App() {
                         paused={shouldPauseVisualizerBackground}
                         backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
-                        transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
+                        transparentBackground={currentView === 'player' && isPlayerPageTransparent && !isSettingsModalOpen}
                         disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
                         disableVignette={disableVisualizerVignette}
                         visualizerBackgroundMode={visualizerBackgroundMode}

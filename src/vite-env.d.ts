@@ -405,6 +405,7 @@ declare global {
       isWindowMaximized: () => Promise<boolean>;
       getWindowTransparentMode: () => Promise<boolean>;
       setWindowTransparentMode: (enabled: boolean) => Promise<boolean>;
+      setNativeTheme: (themeSource: 'system' | 'light' | 'dark') => Promise<void>;
       getMainWindowClickThroughEnabled: () => Promise<boolean>;
       setMainWindowClickThroughEnabled: (enabled: boolean) => Promise<boolean>;
       setMainWindowClickThroughUnlockHover: (active: boolean) => Promise<boolean>;

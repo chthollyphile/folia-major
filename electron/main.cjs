@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray, nativeTheme } = require('electron');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -76,6 +76,7 @@ const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
 const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
+
 const DEFAULT_STAGE_API_PORT = 32107;
 const DEFAULT_OBS_BROWSER_SOURCE_PORT = 32108;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
@@ -183,6 +184,7 @@ function getPublicSettings() {
     [REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY, true),
     [MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY, false),
     [TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY]: readStoredBoolean(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, false),
+    'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
   };
 }
 
@@ -2238,13 +2240,16 @@ function createWindow(options = {}) {
   const { bounds: storedBounds, isMaximized } = getStoredWindowState();
   const windowBounds = ensureWindowBoundsVisible(storedBounds);
   const useTransparentWindow = isTransparentPlayerBackgroundEnabled();
+  const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
   const win = new BrowserWindow({
     ...windowBounds,
     minWidth: 350,
     minHeight: 100,
     frame: false,
     transparent: useTransparentWindow,
-    backgroundColor: useTransparentWindow ? '#00000000' : '#09090b',
+    backgroundColor: (useTransparentWindow || enableNativeBlur) ? '#00000000' : '#09090b',
+    vibrancy: (!useTransparentWindow && enableNativeBlur) && process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
+    backgroundMaterial: (!useTransparentWindow && enableNativeBlur) && process.platform === 'win32' ? 'acrylic' : undefined,
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     icon: APP_ICON_PATH,
@@ -2393,6 +2398,10 @@ app.on('window-all-closed', () => {
 });
 
 // Settings Management IPC
+ipcMain.handle('window-set-native-theme', (event, themeSource) => {
+  nativeTheme.themeSource = themeSource;
+});
+
 ipcMain.handle('get-settings', () => {
   return getPublicSettings();
 });
@@ -2409,6 +2418,20 @@ ipcMain.handle('save-settings', (event, key, value) => {
   }
 
   store.set(key, nextValue);
+
+  if (key === 'enable_player_page_native_blur') {
+    if (!isTransparentPlayerBackgroundEnabled()) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const enableNativeBlur = Boolean(nextValue);
+        mainWindow.setBackgroundColor(enableNativeBlur ? '#00000000' : '#09090b');
+        if (process.platform === 'darwin') {
+          mainWindow.setVibrancy(enableNativeBlur ? 'fullscreen-ui' : null);
+        } else if (process.platform === 'win32') {
+          mainWindow.setBackgroundMaterial(enableNativeBlur ? 'acrylic' : 'none');
+        }
+      }
+    }
+  }
 
   if (key === ENABLE_UPDATE_CHECK_SETTING_KEY) {
     if (Boolean(nextValue)) {

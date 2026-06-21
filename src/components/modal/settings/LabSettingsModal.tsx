@@ -52,6 +52,8 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         onToggleOpenPlayerOnLaunch,
         onToggleStaticMode,
         onVisualizerFrameRateChange,
+        enablePlayerPageNativeBlur,
+        onTogglePlayerPageNativeBlur,
     } = useSettingsUiStore(useShallow(state => ({
         disableHomeDynamicBackground: state.disableHomeDynamicBackground,
         hidePlayerProgressBar: state.hidePlayerProgressBar,
@@ -61,6 +63,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         showOpenPanelCloseButton: state.showOpenPanelCloseButton,
         staticMode: state.staticMode,
         visualizerFrameRate: state.visualizerFrameRate,
+        enablePlayerPageNativeBlur: state.enablePlayerPageNativeBlur,
         onToggleDisableHomeDynamicBackground: state.handleToggleDisableHomeDynamicBackground,
         onToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
         onToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
@@ -71,6 +74,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         onToggleOpenPlayerOnLaunch: state.handleToggleOpenPlayerOnLaunch,
         onToggleStaticMode: state.handleToggleStaticMode,
         onVisualizerFrameRateChange: state.handleSetVisualizerFrameRate,
+        onTogglePlayerPageNativeBlur: state.handleTogglePlayerPageNativeBlur,
     })));
     const borderColor = isDaylight ? 'border-zinc-300/70' : 'border-white/10';
     const overlayBackground = isDaylight ? 'rgba(0,0,0,0.32)' : 'rgba(0,0,0,0.5)';
@@ -92,6 +96,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
     const isVisualizerFrameRateLimiterEnabled = visualizerFrameRate !== 'off';
     const selectedVisualizerFrameRate = isVisualizerFrameRateLimiterEnabled ? visualizerFrameRate : 120;
     const selectedVisualizerFrameRateIndex = VISUALIZER_FRAME_RATE_OPTIONS.indexOf(selectedVisualizerFrameRate);
+    const isLinux = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('linux');
 
     const renderToggle = (checked: boolean, onChange: () => void) => (
         <button
@@ -309,6 +314,20 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                     </div>
                                     {renderToggle(showOpenPanelCloseButton, () => onToggleOpenPanelCloseButton(!showOpenPanelCloseButton))}
                                 </div>
+
+                                {!isLinux && (
+                                    <div className={`flex items-center justify-between p-4 rounded-xl border transition-colors hover:bg-white/8 ${settingsCardInteractiveClass}`} onClick={() => onTogglePlayerPageNativeBlur(!enablePlayerPageNativeBlur)}>
+                                        <div className="flex flex-col pr-8">
+                                            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                {t('options.enablePlayerPageNativeBlur') || '开启播放页原生毛玻璃背景'}
+                                            </span>
+                                            <span className="text-xs opacity-50 mt-1 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.enablePlayerPageNativeBlurDesc') || '仅在非透明模式下生效。将播放页的背景替换为系统原生毛玻璃效果（仅桌面端）。系统原生效果会消耗更多性能并可能在移动窗口时产生卡顿。'}
+                                            </span>
+                                        </div>
+                                        {renderToggle(enablePlayerPageNativeBlur, () => onTogglePlayerPageNativeBlur(!enablePlayerPageNativeBlur))}
+                                    </div>
+                                )}
 
                                 <button
                                     type="button"

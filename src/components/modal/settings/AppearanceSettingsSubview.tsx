@@ -711,7 +711,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                                 {t('options.autoHidePlayerChrome') || '自动隐藏控制栏'}
                             </div>
                             <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.autoHidePlayerChromeDesc') || '开启后，当鼠标离开窗口超过 3 秒，自动隐藏播放页的进度条和右侧按钮。'}
+                                {t('options.autoHidePlayerChromeDesc') || '开启后，自动隐藏播放页的进度条和右侧按钮。'}
                             </div>
                         </div>
                         <button

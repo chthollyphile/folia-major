@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('electron', {
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     getWindowTransparentMode: () => ipcRenderer.invoke('window-get-transparent-mode'),
     setWindowTransparentMode: (enabled) => ipcRenderer.invoke('window-set-transparent-mode', enabled),
+    setNativeTheme: (themeSource) => ipcRenderer.invoke('window-set-native-theme', themeSource),
     getMainWindowClickThroughEnabled: () => ipcRenderer.invoke('window-get-click-through'),
     setMainWindowClickThroughEnabled: (enabled) => ipcRenderer.invoke('window-set-click-through', enabled),
     setMainWindowClickThroughUnlockHover: (active) => ipcRenderer.invoke('window-set-click-through-unlock-hover', active),
