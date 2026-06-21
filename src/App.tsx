@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useMotionValue } from 'framer-motion';
+import { useMotionValue, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
@@ -2372,15 +2372,24 @@ export default function App() {
             <div
                 className="absolute inset-0 z-10"
                 style={{
-                    opacity: shouldShowHomeSurface ? 1 : 0,
                     pointerEvents: shouldShowHomeSurface ? 'auto' : 'none',
-                    transition: 'opacity 0.25s ease-in-out',
+                    visibility: shouldShowHomeSurface ? 'visible' : 'hidden',
+                    transition: shouldShowHomeSurface 
+                        ? 'visibility 0s linear 0s' 
+                        : 'visibility 0s linear 0.25s',
                     display: isHomeFullyHidden ? 'none' : 'block',
                 }}
             >
-                {currentView === 'home' || currentView === 'player' ? (
-                    <Home model={homeModel} isHomeFullyHidden={isHomeFullyHidden} />
-                ) : null}
+                <motion.div
+                    className="absolute inset-0"
+                    initial={false}
+                    animate={{ opacity: shouldShowHomeSurface ? 1 : 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                >
+                    {currentView === 'home' || currentView === 'player' ? (
+                        <Home model={homeModel} isHomeFullyHidden={isHomeFullyHidden} />
+                    ) : null}
+                </motion.div>
             </div>
 
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
