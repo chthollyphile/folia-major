@@ -87,6 +87,7 @@ export default {
       "settings-appearance": { "title": "外观设置", "description": "打开视觉和外观设置" },
       "settings-playback": { "title": "播放设置", "description": "打开播放行为设置" },
       "settings-integration": { "title": "集成设置", "description": "打开 Stage、Now Playing 和 Navidrome 设置" },
+      "settings-obs-browser-source": { "title": "OBS 浏览器源", "description": "打开 OBS 浏览器源设置" },
       "settings-storage": { "title": "存储设置", "description": "打开缓存和存储设置" },
       "settings-desktop": { "title": "桌面端设置", "description": "打开桌面应用设置" },
       "settings-lab": { "title": "实验设置", "description": "打开实验功能设置" },
@@ -365,6 +366,13 @@ export default {
     "stageTokenRegenerating": "重新生成中...",
     "clearStageSession": "清空 Stage 输入",
     "stageClearing": "清空中...",
+    "obsBrowserSource": "OBS 浏览器源",
+    "enableObsBrowserSource": "启用 OBS 浏览器源",
+    "obsBrowserSourceDesc": "在 OBS 中渲染完整歌词动画且不播放音频。连接后主窗口会停止渲染重动画。",
+    "obsBrowserSourceAddress": "OBS 地址",
+    "copyObsBrowserSourceAddress": "复制 OBS 地址",
+    "regenerateObsBrowserSourceToken": "重新生成 Token",
+    "obsBrowserSourceClients": "连接数",
     "visualSettings": "视觉设置",
     "lyricsRenderer": "歌词动画",
     "lyricsRendererDesc": "选择播放页使用的歌词动画模式。",
@@ -736,6 +744,10 @@ export default {
     "notAvailable": "不可用",
     "musicFolders": "音乐库",
     "serverProfileUnavailable": "未知服务器"
+  },
+  "obs": {
+    "connecting": "正在连接 Folia",
+    "waitingForPlayback": "等待 Folia 播放"
   },
   "queue": {
     "empty": "播放列表为空",

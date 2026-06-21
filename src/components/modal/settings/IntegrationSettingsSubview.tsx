@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertCircle, Check, Loader2, Server, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { NowPlayingConnectionStatus, StageSource, StageStatus, Theme } from '../../../types';
 import type { NavidromeServerProfile } from '../../../types/navidrome';
+import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
 
 // src/components/modal/settings/IntegrationSettingsSubview.tsx
 // Integration settings for Stage, Now Playing, and Navidrome.
@@ -25,9 +26,12 @@ export type IntegrationSettingsChrome = {
 export type IntegrationStageModel = {
     enableNowPlayingStage: boolean;
     nowPlayingConnectionStatus: NowPlayingConnectionStatus;
+    obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     onCopyText: (text: string) => Promise<void>;
+    onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
     onRegenerateStageToken?: () => Promise<void> | void;
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
+    onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
     setStageActionStatus: (status: StageActionStatus) => void;
@@ -92,9 +96,12 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     const {
         enableNowPlayingStage,
         nowPlayingConnectionStatus,
+        obsBrowserSourceStatus,
         onCopyText,
+        onRegenerateObsBrowserSourceToken,
         onRegenerateStageToken,
         onStageSourceChange,
+        onToggleObsBrowserSource,
         onToggleNowPlayingStage,
         onToggleStageMode,
         setStageActionStatus,
@@ -120,6 +127,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         testNavidromeConnection,
     } = navidrome;
     const { t } = useTranslation();
+    const [obsAddressCopied, setObsAddressCopied] = useState(false);
     const nowPlayingStatusLabel = getNowPlayingStatusLabel(nowPlayingConnectionStatus);
     const navidromeExtensionCount = navidromeServerProfile?.openSubsonicExtensions.length ?? 0;
     const navidromeFolderCount = navidromeServerProfile?.musicFolders.length ?? 0;
@@ -133,8 +141,84 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         window.setTimeout(() => setStageAddressCopied(false), 1600);
     };
 
+    const handleCopyObsAddress = async (address: string) => {
+        await onCopyText(address);
+        setObsAddressCopied(true);
+        window.setTimeout(() => setObsAddressCopied(false), 1600);
+    };
+
     return (
         <>
+            {isElectron && obsBrowserSourceStatus && (
+                <section>
+                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                        <Server size={14} /> {t('options.obsBrowserSource') || 'OBS Browser Source'}
+                    </h3>
+                    <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.enableObsBrowserSource') || 'Enable OBS browser source'}
+                                </div>
+                                <div className="text-[10px] opacity-40 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.obsBrowserSourceDesc') || 'Renders the full lyrics animation in OBS without audio. When connected, the main window stops rendering the heavy visualizer.'}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => void onToggleObsBrowserSource?.(!obsBrowserSourceStatus.enabled)}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!obsBrowserSourceStatus.enabled ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: obsBrowserSourceStatus.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                aria-label={t('options.enableObsBrowserSource') || 'Enable OBS browser source'}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${obsBrowserSourceStatus.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {obsBrowserSourceStatus.enabled && (
+                            <div className="space-y-3">
+                                <div className={`rounded-xl border p-3 space-y-3 ${settingsCardClass}`}>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.obsBrowserSourceAddress') || 'OBS URL'}
+                                            </div>
+                                            <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
+                                                {obsBrowserSourceStatus.url ?? 'http://127.0.0.1'}
+                                            </div>
+                                        </div>
+                                        <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] ${obsBrowserSourceStatus.clientCount > 0 ? successBgColor : errorBgColor} ${obsBrowserSourceStatus.clientCount > 0 ? successTextColor : errorTextColor}`}>
+                                            {t('options.obsBrowserSourceClients') || 'Clients'}: {obsBrowserSourceStatus.clientCount}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => obsBrowserSourceStatus.url ? void handleCopyObsAddress(obsBrowserSourceStatus.url) : undefined}
+                                            disabled={!obsBrowserSourceStatus.url}
+                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40 flex items-center gap-2"
+                                            style={{ color: obsAddressCopied ? '#86efac' : 'var(--text-primary)' }}
+                                        >
+                                            {obsAddressCopied ? <Check size={14} /> : null}
+                                            {obsAddressCopied
+                                                ? (t('options.stageAddressCopied') || 'Copied')
+                                                : (t('options.copyObsBrowserSourceAddress') || 'Copy OBS URL')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void onRegenerateObsBrowserSourceToken?.()}
+                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            {t('options.regenerateObsBrowserSourceToken') || 'Regenerate Token'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
             {isElectron && stageStatus && (
                 <section>
                     <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>

@@ -42,6 +42,17 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('main-window-click-through-changed', listener);
         return () => ipcRenderer.removeListener('main-window-click-through-changed', listener);
     },
+    getObsBrowserSourceStatus: () => ipcRenderer.invoke('obs-browser-source-get-status'),
+    setObsBrowserSourceEnabled: (enabled) => ipcRenderer.invoke('obs-browser-source-set-enabled', enabled),
+    regenerateObsBrowserSourceToken: () => ipcRenderer.invoke('obs-browser-source-regenerate-token'),
+    publishObsBrowserSourceConfig: (config) => ipcRenderer.invoke('obs-browser-source-publish-config', config),
+    publishObsBrowserSourceClock: (clock) => ipcRenderer.invoke('obs-browser-source-publish-clock', clock),
+    publishObsBrowserSourceAudio: (audio) => ipcRenderer.invoke('obs-browser-source-publish-audio', audio),
+    onObsBrowserSourceStatusChanged: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('obs-browser-source-status-changed', listener);
+        return () => ipcRenderer.removeListener('obs-browser-source-status-changed', listener);
+    },
     updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
     onTaskbarControl: (callback) => {
         const listener = (_event, action) => callback(action);

@@ -87,6 +87,7 @@ export default {
       "settings-appearance": { "title": "Appearance settings", "description": "Open visual and appearance settings" },
       "settings-playback": { "title": "Playback settings", "description": "Open playback behavior settings" },
       "settings-integration": { "title": "Integration settings", "description": "Open Stage, Now Playing, and Navidrome settings" },
+      "settings-obs-browser-source": { "title": "OBS browser source", "description": "Open OBS browser source settings" },
       "settings-storage": { "title": "Storage settings", "description": "Open cache and storage settings" },
       "settings-desktop": { "title": "Desktop settings", "description": "Open desktop app settings" },
       "settings-lab": { "title": "Lab settings", "description": "Open experimental settings" },
@@ -363,6 +364,13 @@ export default {
     "stageTokenRegenerating": "Regenerating...",
     "clearStageSession": "Clear Stage Input",
     "stageClearing": "Clearing...",
+    "obsBrowserSource": "OBS Browser Source",
+    "enableObsBrowserSource": "Enable OBS browser source",
+    "obsBrowserSourceDesc": "Render the full lyrics animation in OBS without audio. When connected, the main window stops rendering the heavy visualizer.",
+    "obsBrowserSourceAddress": "OBS URL",
+    "copyObsBrowserSourceAddress": "Copy OBS URL",
+    "regenerateObsBrowserSourceToken": "Regenerate Token",
+    "obsBrowserSourceClients": "Clients",
     "visualSettings": "Visual Settings",
     "lyricsRenderer": "Lyrics Animation",
     "lyricsRendererDesc": "Choose the lyrics animation mode used on the playback page.",
@@ -734,6 +742,10 @@ export default {
     "notAvailable": "Not available",
     "musicFolders": "Libraries",
     "serverProfileUnavailable": "Unknown server"
+  },
+  "obs": {
+    "connecting": "Connecting to Folia",
+    "waitingForPlayback": "Waiting for Folia playback"
   },
   "queue": {
     "empty": "Queue is empty",

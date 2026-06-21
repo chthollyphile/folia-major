@@ -4,6 +4,7 @@ import './i18n/config';
 import './index.css';
 import App from './App';
 import RemoteControlApp from './components/remote/RemoteControlApp';
+import ObsBrowserSourceApp from './components/obs/ObsBrowserSourceApp';
 
 // src/bootstrap.tsx
 // Mounts the React app after index.tsx installs runtime-level browser shims.
@@ -14,8 +15,13 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+const searchParams = new URLSearchParams(window.location.search);
 root.render(
   <React.StrictMode>
-    {new URLSearchParams(window.location.search).get('remote') === '1' ? <RemoteControlApp /> : <App />}
+    {searchParams.get('obs') === '1'
+      ? <ObsBrowserSourceApp />
+      : searchParams.get('remote') === '1'
+        ? <RemoteControlApp />
+        : <App />}
   </React.StrictMode>
 );

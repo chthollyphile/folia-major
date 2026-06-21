@@ -1,55 +1,81 @@
-name: Release Candidate
+name: Pre-Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Base version (e.g. 0.4.3). Leave empty to use package.json version.'
+        description: 'Base version (e.g. 0.5.13). Leave empty to use package.json version.'
         required: false
         type: string
-      rc_number:
-        description: 'RC number (e.g. 1 -> vX.Y.Z-rc.1)'
+      channel:
+        description: 'Pre-release channel'
         required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - rc
+      prerelease_number:
+        description: 'Pre-release number (e.g. 1 -> vX.Y.Z-beta.1 or vX.Y.Z-rc.1)'
+        required: false
+        default: '1'
         type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-candidate-${{ github.ref }}-${{ github.event.inputs.rc_number }}
+  group: pre-release-${{ github.ref }}-${{ github.event.inputs.channel }}-${{ github.event.inputs.prerelease_number }}
   cancel-in-progress: false
 
 jobs:
   prepare-release:
-    name: Prepare RC metadata
+    name: Prepare pre-release metadata
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.meta.outputs.version }}
-      rc_label: ${{ steps.meta.outputs.rc_label }}
+      base_version: ${{ steps.meta.outputs.base_version }}
+      prerelease_label: ${{ steps.meta.outputs.prerelease_label }}
+      release_version: ${{ steps.meta.outputs.release_version }}
       tag: ${{ steps.meta.outputs.tag }}
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
 
-      - name: Determine RC version
+      - name: Determine pre-release version
         id: meta
         shell: bash
+        env:
+          BASE_VERSION_INPUT: ${{ github.event.inputs.version }}
+          CHANNEL: ${{ github.event.inputs.channel }}
+          PRERELEASE_NUMBER: ${{ github.event.inputs.prerelease_number }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ -n "${BASE_VERSION_INPUT}" ]; then
+            BASE_VERSION="${BASE_VERSION_INPUT}"
           else
-            VERSION=$(jq -r .version package.json)
+            BASE_VERSION=$(jq -r .version package.json)
           fi
 
-          RC_LABEL="rc.${{ github.event.inputs.rc_number }}"
-          TAG="v${VERSION}-${RC_LABEL}"
+          if [[ ! "${BASE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Base version must be a plain semver version like 0.5.13, got: ${BASE_VERSION}" >&2
+            exit 1
+          fi
 
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "rc_label=${RC_LABEL}" >> "$GITHUB_OUTPUT"
+          if [[ ! "${PRERELEASE_NUMBER}" =~ ^[0-9]+$ ]]; then
+            echo "Pre-release number must be numeric, got: ${PRERELEASE_NUMBER}" >&2
+            exit 1
+          fi
+
+          PRERELEASE_LABEL="${CHANNEL}.${PRERELEASE_NUMBER}"
+          RELEASE_VERSION="${BASE_VERSION}-${PRERELEASE_LABEL}"
+          TAG="v${RELEASE_VERSION}"
+
+          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "prerelease_label=${PRERELEASE_LABEL}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Clean up orphaned RC release tag
+      - name: Clean up orphaned pre-release tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
@@ -68,7 +94,7 @@ jobs:
           fi
 
   build:
-    name: Build RC on ${{ matrix.os }}
+    name: Build pre-release on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
     strategy:
@@ -86,10 +112,10 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Update package.json version for RC build
+      - name: Update package.json version for pre-release build
         shell: bash
         env:
-          TARGET_VERSION: ${{ needs.prepare-release.outputs.version }}
+          TARGET_VERSION: ${{ needs.prepare-release.outputs.release_version }}
         run: |
           CURRENT_VERSION=$(jq -r .version package.json)
           if [ "${CURRENT_VERSION}" = "${TARGET_VERSION}" ]; then
@@ -99,12 +125,13 @@ jobs:
 
           npm version "${TARGET_VERSION}" --no-git-tag-version
 
-      - name: Generate RC release notes from template
+      - name: Generate pre-release notes from template
         shell: bash
         env:
-          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          BASE_VERSION: ${{ needs.prepare-release.outputs.base_version }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
-          RC_LABEL: ${{ needs.prepare-release.outputs.rc_label }}
+          PRERELEASE_LABEL: ${{ needs.prepare-release.outputs.prerelease_label }}
           TARGET_REF: ${{ github.sha }}
         run: |
           node <<'NODE'
@@ -112,13 +139,14 @@ jobs:
           const path = require('path');
 
           const templatePath = path.join('.github', 'release-candidate-template.md');
-          const outputPath = path.join('build', 'release-candidate-notes.md');
+          const outputPath = path.join('build', 'pre-release-notes.md');
           let template = fs.readFileSync(templatePath, 'utf8');
 
           const replacements = {
+            BASE_VERSION: process.env.BASE_VERSION || '',
             VERSION: process.env.RELEASE_VERSION || '',
             TAG: process.env.RELEASE_TAG || '',
-            RC_LABEL: process.env.RC_LABEL || '',
+            PRERELEASE_LABEL: process.env.PRERELEASE_LABEL || '',
             TARGET_REF: process.env.TARGET_REF || '',
           };
 
@@ -146,7 +174,7 @@ jobs:
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: rc-${{ matrix.os }}
+          name: pre-release-${{ matrix.os }}
           path: |
             release/*.dmg
             release/*.zip
@@ -156,12 +184,12 @@ jobs:
             release/*.deb
             release/*.rpm
             release/*.tar.gz
-            build/release-candidate-notes.md
+            build/pre-release-notes.md
           if-no-files-found: error
           retention-days: 14
 
   publish:
-    name: Publish RC draft release
+    name: Publish pre-release draft release
     runs-on: ubuntu-latest
     needs: [prepare-release, build]
 
@@ -169,30 +197,31 @@ jobs:
       - name: Download packaged artifacts
         uses: actions/download-artifact@v7
         with:
-          path: rc-artifacts
+          path: pre-release-artifacts
 
       - name: Prepare release notes
         shell: bash
         run: |
-          NOTES_FILE=$(find rc-artifacts -type f -name 'release-candidate-notes.md' | head -n 1)
+          NOTES_FILE=$(find pre-release-artifacts -type f -name 'pre-release-notes.md' | head -n 1)
           if [ -z "${NOTES_FILE}" ]; then
-            echo "Unable to locate RC release notes artifact"
+            echo "Unable to locate pre-release notes artifact"
             exit 1
           fi
-          cp "${NOTES_FILE}" release-candidate-notes.md
+          cp "${NOTES_FILE}" pre-release-notes.md
 
-      - name: Publish RC draft release
+      - name: Publish pre-release draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          PRERELEASE_LABEL: ${{ needs.prepare-release.outputs.prerelease_label }}
         shell: bash
         run: |
-          mapfile -d '' files < <(find rc-artifacts -type f ! -name 'release-candidate-notes.md' -print0)
+          mapfile -d '' files < <(find pre-release-artifacts -type f ! -name 'pre-release-notes.md' -print0)
           gh release create "${RELEASE_TAG}" \
             "${files[@]}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Release Candidate ${RELEASE_TAG}" \
-            --notes-file release-candidate-notes.md \
+            --title "Pre-Release ${RELEASE_TAG} (${PRERELEASE_LABEL})" \
+            --notes-file pre-release-notes.md \
             --target "${GITHUB_SHA}" \
             --draft \
             --prerelease

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useMotionValue, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import CommandPalette from './components/command-palette/CommandPalette';
@@ -47,6 +48,8 @@ import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReport
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
 import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
 import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge';
+import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
+import { ObsBrowserSourceLyrics } from './components/obs/ObsBrowserSourceLyrics';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useThemeController } from './hooks/useThemeController';
@@ -1360,6 +1363,52 @@ export default function App() {
         stageActiveEntryKind,
     ]);
     const isSettingsModalOpen = settingsModalState.isOpen;
+    const {
+        obsBrowserSourceStatus,
+        isObsBrowserSourceRendering,
+        refreshObsBrowserSourceStatus,
+    } = useObsBrowserSourcePublisher({
+        isElectronWindow,
+        activePlaybackContext,
+        stageSource,
+        currentSong,
+        lyrics,
+        coverUrl,
+        currentTime,
+        duration,
+        playerState,
+        theme: visualizerTheme,
+        isDaylight,
+        visualizerMode,
+        visualizerBackgroundMode,
+        lyricsFontScale,
+        backgroundOpacity,
+        visualizerOpacity,
+        subtitleOverlayOpacity,
+        transparentBackground: transparentPlayerBackground,
+        useCoverColorBg,
+        staticMode,
+        disableGeometricBackground: disableVisualizerGeometricBackground,
+        disableVignette: disableVisualizerVignette,
+        hideTranslationSubtitle: shouldHidePlayerTranslationSubtitle,
+        seed: visualizerGeometrySeed,
+        audioPower,
+        audioBands,
+        classicTuning,
+        cadenzaTuning,
+        partitaTuning,
+        fumeTuning,
+        cappellaTuning,
+        cappellaCustomEmojiImages,
+        cappellaCustomAvatarImages,
+        tiltTuning,
+        monetBackgroundTuning,
+        monetTuning,
+        monetBackgroundImage,
+        monetPortraitImage,
+        urlBackgroundList,
+        urlBackgroundSelectedId,
+    });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const toggleDaylightMode = useCallback(() => {
         handleToggleDaylight(!isDaylight);
@@ -2158,6 +2207,8 @@ export default function App() {
         clearPersistedStagePlaybackCache,
         loadStageSessionIntoPlayback,
         nowPlayingConnectionStatus,
+        obsBrowserSourceStatus,
+        refreshObsBrowserSourceStatus,
         onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
     }), [
         activePlaybackContext,
@@ -2172,6 +2223,8 @@ export default function App() {
         loadCurrentSongLyricPreview,
         loadStageSessionIntoPlayback,
         nowPlayingConnectionStatus,
+        obsBrowserSourceStatus,
+        refreshObsBrowserSourceStatus,
         settingsModalState,
         stageSource,
         stageStatus,
@@ -2418,52 +2471,66 @@ export default function App() {
                 className="absolute inset-0 z-0"
                 onClick={handleContainerClick}
             >
-                <VisualizerRenderer
-                    mode={visualizerMode}
-                    currentTime={currentTime}
-                    currentLineIndex={currentLineIndex}
-                    lines={lyrics?.lines || []}
-                    theme={visualizerTheme}
-                    isDaylight={isDaylight}
-                    audioPower={audioPower}
-                    audioBands={audioBands}
-                    songTitle={currentSong?.name}
-                    songArtist={currentSongArtist}
-                    songAlbum={currentSongAlbum}
-                    coverUrl={getCoverUrl()}
-                    showText={currentView === 'player' && !isSettingsModalOpen}
-                    useCoverColorBg={useCoverColorBg}
-                    seed={visualizerGeometrySeed}
-                    staticMode={staticMode}
-                    paused={shouldPauseVisualizerBackground}
-                    backgroundOpacity={backgroundOpacity}
-                    visualizerOpacity={visualizerOpacity}
-                    transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
-                    disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
-                    disableVignette={disableVisualizerVignette}
-                    visualizerBackgroundMode={visualizerBackgroundMode}
-                    lyricsFontScale={lyricsFontScale}
-                    subtitleOverlayOpacity={subtitleOverlayOpacity}
-                    isPlayerChromeHidden={isPlayerChromeHidden}
-                    hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}
-                    classicTuning={classicTuning}
-                    cadenzaTuning={cadenzaTuning}
-                    partitaTuning={partitaTuning}
-                    fumeTuning={fumeTuning}
-                    cappellaTuning={cappellaTuning}
-                    tiltTuning={tiltTuning}
-                    monetBackgroundTuning={monetBackgroundTuning}
-                    monetTuning={monetTuning}
-                    onMonetTuningChange={handleSetMonetTuning}
-                    cappellaCustomEmojiImages={cappellaCustomEmojiImages}
-                    cappellaCustomAvatarImages={cappellaCustomAvatarImages}
-                    monetBackgroundImage={monetBackgroundImage}
-                    monetPortraitImage={monetPortraitImage}
-                    urlBackgroundList={urlBackgroundList}
-                    urlBackgroundSelectedId={urlBackgroundSelectedId}
-                    onBack={navigateToHome}
-                />
+                {!isObsBrowserSourceRendering && (
+                    <VisualizerRenderer
+                        mode={visualizerMode}
+                        currentTime={currentTime}
+                        currentLineIndex={currentLineIndex}
+                        lines={lyrics?.lines || []}
+                        theme={visualizerTheme}
+                        isDaylight={isDaylight}
+                        audioPower={audioPower}
+                        audioBands={audioBands}
+                        songTitle={currentSong?.name}
+                        songArtist={currentSongArtist}
+                        songAlbum={currentSongAlbum}
+                        coverUrl={getCoverUrl()}
+                        showText={currentView === 'player' && !isSettingsModalOpen}
+                        useCoverColorBg={useCoverColorBg}
+                        seed={visualizerGeometrySeed}
+                        staticMode={staticMode}
+                        paused={shouldPauseVisualizerBackground}
+                        backgroundOpacity={backgroundOpacity}
+                        visualizerOpacity={visualizerOpacity}
+                        transparentBackground={currentView === 'player' && transparentPlayerBackground && !isSettingsModalOpen}
+                        disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
+                        disableVignette={disableVisualizerVignette}
+                        visualizerBackgroundMode={visualizerBackgroundMode}
+                        lyricsFontScale={lyricsFontScale}
+                        subtitleOverlayOpacity={subtitleOverlayOpacity}
+                        isPlayerChromeHidden={isPlayerChromeHidden}
+                        hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}
+                        classicTuning={classicTuning}
+                        cadenzaTuning={cadenzaTuning}
+                        partitaTuning={partitaTuning}
+                        fumeTuning={fumeTuning}
+                        cappellaTuning={cappellaTuning}
+                        tiltTuning={tiltTuning}
+                        monetBackgroundTuning={monetBackgroundTuning}
+                        monetTuning={monetTuning}
+                        onMonetTuningChange={handleSetMonetTuning}
+                        cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                        cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                        monetBackgroundImage={monetBackgroundImage}
+                        monetPortraitImage={monetPortraitImage}
+                        urlBackgroundList={urlBackgroundList}
+                        urlBackgroundSelectedId={urlBackgroundSelectedId}
+                        onBack={navigateToHome}
+                    />
+                )}
             </div>
+
+            {currentView === 'player' && isObsBrowserSourceRendering && (
+                <ObsBrowserSourceLyrics
+                    lyrics={lyrics}
+                    currentLineIndex={currentLineIndex}
+                    visualizerTheme={visualizerTheme}
+                    lyricsFontScale={lyricsFontScale}
+                    shouldHidePlayerTranslationSubtitle={shouldHidePlayerTranslationSubtitle}
+                    isDaylight={isDaylight}
+                    navigateToHome={navigateToHome}
+                />
+            )}
 
             {currentView === 'player' && activePlaybackContext === 'stage' && (!stageActiveEntryKind || stageSource === 'now-playing') && !currentSong && (
                 <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center px-6">
