@@ -106,7 +106,8 @@ const fragmentShader = `
                     float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC) / (cssResolution.y * 0.5), 0.0, 1.0);
                     
                     float radius = 0.3 + hc * 1.5;
-                    float dist = abs(length(localUv) - radius);
+                    float distCenter = length(localUv);
+                    float dist = abs(distCenter - radius);
                     
                     // Mix of thick and thin arcs
                     float thickness = hc < 0.3 ? 0.02 : 0.003; 
@@ -115,11 +116,14 @@ const fragmentShader = `
                     float angle = atan(localUv.y, localUv.x);
                     float sweep = smoothstep(-3.14, 3.14, angle);
                     
-                    if (dist < thickness + aaC && sweep < entrance) {
-                        float mask = smoothstep(thickness + aaC, thickness - aaC, dist);
-                        // Colors: Palette based
+                    if (sweep < entrance) {
                         vec3 cCol = getPaletteColor(hc * 13.0);
-                        col = mix(col, cCol, mask * 0.9);
+                        
+                        // The bright solid arc stroke
+                        if (dist < thickness + aaC) {
+                            float mask = smoothstep(thickness + aaC, thickness - aaC, dist);
+                            col = mix(col, cCol, mask * 0.9);
+                        }
                     }
                 }
             }
@@ -216,6 +220,57 @@ const fragmentShader = `
                         vec3 triCol = ht < 0.2 ? vec3(1.0) : getPaletteColor(ht * 17.0);
                         
                         col = mix(col, triCol, triMask * 0.95);
+                    }
+                }
+            }
+        }
+
+        // --- LAYER 4: Sweeping Adjustment Layers (Filled Circles) ---
+        // Re-iterate the gridC to draw the fills ON TOP of all other shapes, acting like AE Adjustment Layers
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec2 nOffset = vec2(float(x), float(y));
+                vec2 nId = cellCId + nOffset;
+                float hc = hash21(nId + 8.0);
+                
+                if (hc < 0.8 * u_densityGeo && hc > 0.4) {
+                    vec2 localUv = cellCUv - nOffset;
+                    localUv -= hash22(nId) - 0.5;
+                    
+                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC) / (cssResolution.y * 0.5), 0.0, 1.0);
+                    
+                    float radius = 0.3 + hc * 1.5;
+                    float distCenter = length(localUv);
+                    
+                    float angle = atan(localUv.y, localUv.x);
+                    float sweep = smoothstep(-3.14, 3.14, angle);
+                    
+                    if (sweep < entrance && distCenter < radius + aaC) {
+                        float fillMask = smoothstep(radius + aaC, radius - aaC, distCenter);
+                        
+                        // Pick a random blend mode for this adjustment layer
+                        float blendType = hash21(nId + 77.0);
+                        vec3 cCol = getPaletteColor(hc * 13.0);
+                        vec3 blendedCol = col;
+                        
+                        if (blendType < 0.25) {
+                            // 1. Difference (AE Difference)
+                            blendedCol = abs(col - cCol);
+                        } else if (blendType < 0.5) {
+                            // 2. Exclusion (AE Exclusion)
+                            blendedCol = col + cCol - 2.0 * col * cCol;
+                        } else if (blendType < 0.75) {
+                            // 3. Screen (AE Screen)
+                            blendedCol = 1.0 - (1.0 - col) * (1.0 - cCol);
+                        } else {
+                            // 4. Color Burn (AE Color Burn) - inverted logic for visual clarity
+                            blendedCol = 1.0 - (1.0 - col) / (cCol + 0.001);
+                            blendedCol = clamp(blendedCol, 0.0, 1.0);
+                        }
+                        
+                        // Apply the adjustment layer with variable opacity
+                        float opacity = 0.6 + hash21(nId + 99.0) * 0.4;
+                        col = mix(col, blendedCol, fillMask * opacity);
                     }
                 }
             }

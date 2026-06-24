@@ -214,6 +214,9 @@ export const VisualizerCielo: React.FC<VisualizerSharedProps> = (props) => {
                             domNode.style.color = theme.primaryColor;
                             domNode.style.WebkitTextStroke = 'none';
                         }
+                        
+                        // Apply CSS blend mode so the text dynamically inverts against the WebGL shapes
+                        domNode.style.mixBlendMode = 'difference';
                     }
                 });
             });
