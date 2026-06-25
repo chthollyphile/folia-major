@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { UnifiedSong, ReplayGainMode } from '../../types';
 import { FileAudio, RefreshCw, FileText, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 
 interface LocalTabProps {
     currentSong: UnifiedSong;
@@ -11,6 +12,8 @@ interface LocalTabProps {
     onChangeLyricsSource: (source: 'local' | 'embedded' | 'online') => void;
     replayGainMode: ReplayGainMode;
     onChangeReplayGainMode: (mode: ReplayGainMode) => void;
+    lyricTimelineOffsetMs: number;
+    onLyricTimelineOffsetChange: (offsetMs: number) => void;
     isDaylight: boolean;
 }
 
@@ -29,6 +32,8 @@ const LocalTab: React.FC<LocalTabProps> = ({
     onChangeLyricsSource,
     replayGainMode,
     onChangeReplayGainMode,
+    lyricTimelineOffsetMs,
+    onLyricTimelineOffsetChange,
     isDaylight
 }) => {
     const { t } = useTranslation();
@@ -234,6 +239,12 @@ const LocalTab: React.FC<LocalTabProps> = ({
                         ))}
                     </div>
                 )}
+
+                <LyricTimelineOffsetControl
+                    offsetMs={lyricTimelineOffsetMs}
+                    onOffsetChange={onLyricTimelineOffsetChange}
+                    isDaylight={isDaylight}
+                />
             </div>
         </motion.div>
     );

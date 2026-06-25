@@ -696,7 +696,7 @@ const RemoteControlApp: React.FC = () => {
                                                     ) : (
                                                         <RemoteLyricOverlay
                                                             lyrics={snapshot.lyrics}
-                                                            currentTime={snapshot.currentTime}
+                                                            currentTime={snapshot.currentTime - (snapshot.lyricOffsetMs || 0) / 1000}
                                                             duration={snapshot.duration}
                                                             playerState={snapshot.playerState}
                                                             hasTrack={snapshot.hasTrack}

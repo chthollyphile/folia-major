@@ -228,9 +228,9 @@ export function usePlaybackQueueController({
 
         if (changed && affectedSongs.length > 0 && !options?.suppressToast) {
             if (queueAddBehavior === 'next') {
-                setStatusMsg({ type: 'success', text: t('added_to_next_play'), nonce: Date.now(), durationMs: 1200 });
+                setStatusMsg({ type: 'success', text: t('status.added_to_next_play'), nonce: Date.now(), durationMs: 1200 });
             } else {
-                setStatusMsg({ type: 'success', text: t('added_to_play_queue'), nonce: Date.now(), durationMs: 1200 });
+                setStatusMsg({ type: 'success', text: t('status.added_to_play_queue'), nonce: Date.now(), durationMs: 1200 });
             }
         }
 

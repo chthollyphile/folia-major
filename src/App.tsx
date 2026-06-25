@@ -102,6 +102,7 @@ export default function App() {
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
     const [lyrics, setLyricsState] = useState<LyricData | null>(null);
+    const [lyricTimelineOffsetMs, setLyricTimelineOffsetMs] = useState(0);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
     const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext>('main');
 
@@ -356,6 +357,11 @@ export default function App() {
         () => createLyricsSetter(setLyricsState, lyricFilterPattern, currentSongFullRef),
         [lyricFilterPattern],
     );
+    const lyricCurrentTime = useMotionValue(0);
+
+    useEffect(() => {
+        setLyricTimelineOffsetMs(0);
+    }, [currentSong?.id]);
 
     const effectiveLoopMode: StageLoopMode = loopMode;
 
@@ -1200,6 +1206,7 @@ export default function App() {
         exportState,
         isDaylight,
         lyrics,
+        lyricTimelineOffsetMs,
         onRemoteExportCommand: handleExportCommand,
         onExternalPlayRequest: handleStageExternalPlayRequest,
         isLiked: (() => {
@@ -1238,6 +1245,8 @@ export default function App() {
         syncStageLyricsClock,
         getNowPlayingDisplayTime,
         syncNowPlayingClock,
+        lyricTimelineOffsetMs,
+        lyricCurrentTime,
     });
 
     const {
@@ -1487,6 +1496,7 @@ export default function App() {
         lyrics,
         coverUrl,
         currentTime,
+        offsetMs: lyricTimelineOffsetMs,
         duration,
         playerState,
         theme: visualizerTheme,
@@ -1651,7 +1661,7 @@ export default function App() {
                 currentView,
                 playerState,
                 visualizerMode,
-                lyrics,
+                lyrics: lyrics,
                 currentLineIndex,
                 currentTimeValue: currentTime.get(),
                 audioSrc,
@@ -1976,6 +1986,8 @@ export default function App() {
         handleChangeOnlineLyricsSource,
         handleMatchOnlineLyrics,
         handleClearOnlineLyricsState,
+        lyricTimelineOffsetMs,
+        handleLyricTimelineOffsetChange: setLyricTimelineOffsetMs,
         replayGainMode,
         handleChangeReplayGainMode,
         isFmMode,
@@ -2173,6 +2185,7 @@ export default function App() {
         starredNavidromeSongIds,
         localPlaylists,
         lyrics,
+        lyricTimelineOffsetMs,
         navigateToHome,
         openSettings,
         openCurrentLocalAlbum,
@@ -2236,6 +2249,7 @@ export default function App() {
         isDevDebugOverlayVisible,
         devDebugSnapshot,
         currentTime,
+        lyricCurrentTime,
         currentSong,
         playerState,
         duration,
@@ -2593,7 +2607,7 @@ export default function App() {
                 {!isObsBrowserSourceRendering && (
                     <VisualizerRenderer
                         mode={visualizerMode}
-                        currentTime={currentTime}
+                        currentTime={lyricCurrentTime}
                         currentLineIndex={currentLineIndex}
                         lines={lyrics?.lines || []}
                         theme={visualizerTheme}

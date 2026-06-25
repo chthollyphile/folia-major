@@ -53,6 +53,7 @@ type UseElectronPlaybackBridgeOptions = {
     exportState: VideoExportState;
     isDaylight: boolean;
     lyrics: LyricData | null;
+    lyricTimelineOffsetMs?: number;
     onRemoteExportCommand?: (command: RemoteControlCommand) => boolean;
     onExternalPlayRequest?: (request: any) => Promise<void>;
     isLiked: boolean;
@@ -99,6 +100,7 @@ export const useElectronPlaybackBridge = ({
     exportState,
     isDaylight,
     lyrics,
+    lyricTimelineOffsetMs,
     onRemoteExportCommand,
     onExternalPlayRequest,
     isLiked,
@@ -179,6 +181,7 @@ export const useElectronPlaybackBridge = ({
             exportState,
             isDaylight,
             isLiked,
+            lyricOffsetMs: lyricTimelineOffsetMs,
             mainWindowWidth: window.innerWidth,
             mainWindowHeight: window.innerHeight,
         });
@@ -369,7 +372,7 @@ export const useElectronPlaybackBridge = ({
             window.removeEventListener('resize', handleResize);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, lyrics, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
+    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
 
     useEffect(() => {
         if (!playbackSyncBridgeStatus.discordPresenceEnabled || !window.electron?.publishDiscordPresenceSnapshot) {

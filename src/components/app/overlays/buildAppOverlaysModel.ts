@@ -57,6 +57,7 @@ type BuildAppOverlaysModelParams = {
     isDevDebugOverlayVisible: boolean;
     devDebugSnapshot: any;
     currentTime: MotionValue<number>;
+    lyricCurrentTime: MotionValue<number>;
     currentSong: SongResult | null;
     playerState: PlayerState;
     duration: number;
@@ -109,6 +110,7 @@ export const buildAppOverlaysModel = ({
     isDevDebugOverlayVisible,
     devDebugSnapshot,
     currentTime,
+    lyricCurrentTime,
     currentSong,
     playerState,
     duration,
@@ -208,6 +210,7 @@ export const buildAppOverlaysModel = ({
         ? {
             snapshot: devDebugSnapshot,
             currentTime,
+            lyricCurrentTime,
             isDaylight,
         }
         : null,
@@ -216,6 +219,7 @@ export const buildAppOverlaysModel = ({
             currentSong,
             playerState,
             currentTime,
+            lyricCurrentTime,
             duration,
             loopMode: effectiveLoopMode,
             currentView,

@@ -1,8 +1,9 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Search, Upload, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OnlineLyricsState } from '../../types';
+import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 
 // src/components/panelTab/OnlineLyricsTab.tsx
 
@@ -12,6 +13,8 @@ interface OnlineLyricsTabProps {
     onChangeLyricsSource: (source: 'online' | 'imported') => void;
     onMatchOnlineLyrics: () => void;
     onClearOnlineLyricsState: () => void;
+    lyricTimelineOffsetMs: number;
+    onLyricTimelineOffsetChange: (offsetMs: number) => void;
     isDaylight: boolean;
 }
 
@@ -21,10 +24,30 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
     onChangeLyricsSource,
     onMatchOnlineLyrics,
     onClearOnlineLyricsState,
+    lyricTimelineOffsetMs,
+    onLyricTimelineOffsetChange,
     isDaylight,
 }) => {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
+    const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleSourceChange = useCallback((source: 'online' | 'imported') => {
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+        debounceTimeoutRef.current = setTimeout(() => {
+            onChangeLyricsSource(source);
+        }, 200);
+    }, [onChangeLyricsSource]);
+
+    useEffect(() => {
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const activeTabBg = isDaylight ? 'bg-blue-500/15 text-blue-600' : 'bg-blue-500/20 text-blue-300';
     const tabContainerBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
@@ -133,7 +156,7 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                             return (
                                 <button
                                     key={source.key}
-                                    onClick={() => onChangeLyricsSource(source.key)}
+                                    onClick={() => handleSourceChange(source.key)}
                                     className={`flex-1 relative text-[10px] py-1 px-1.5 rounded-md font-medium transition-colors duration-200 focus:outline-none ${
                                         isActive ? activeTextColor : inactiveTextColor
                                     }`}
@@ -151,6 +174,12 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                         })}
                     </div>
                 )}
+
+                <LyricTimelineOffsetControl
+                    offsetMs={lyricTimelineOffsetMs}
+                    onOffsetChange={onLyricTimelineOffsetChange}
+                    isDaylight={isDaylight}
+                />
             </div>
         </motion.div>
     );

@@ -47,6 +47,7 @@ type UseObsBrowserSourcePublisherOptions = {
     lyrics: LyricData | null;
     coverUrl: string | null;
     currentTime: MotionValue<number>;
+    offsetMs: number;
     duration: number;
     playerState: PlayerState;
     theme: Theme;
@@ -106,6 +107,7 @@ export const useObsBrowserSourcePublisher = ({
     lyrics,
     coverUrl,
     currentTime,
+    offsetMs,
     duration,
     playerState,
     theme,
@@ -245,7 +247,8 @@ export const useObsBrowserSourcePublisher = ({
         playerState,
         sentAtMs: Date.now(),
         playbackRate: 1,
-    }), [currentTime, duration, playerState]);
+        lyricOffsetMs: offsetMs,
+    }), [currentTime, duration, playerState, offsetMs]);
 
     const buildAudio = useCallback((): ObsBrowserSourceAudio => ({
         audioPower: audioPower.get(),

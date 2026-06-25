@@ -43,6 +43,7 @@ export interface RemoteControlSnapshot {
     exportState: VideoExportState;
     isDaylight?: boolean;
     lyrics?: LyricData | null;
+    lyricOffsetMs?: number;
     isLiked?: boolean;
     updatedAt: number;
     mainWindowWidth?: number;

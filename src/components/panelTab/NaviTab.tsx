@@ -3,15 +3,25 @@ import { motion } from 'framer-motion';
 import { NavidromeSong } from '../../types/navidrome';
 import { RefreshCw, FileText, Cloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 
 interface NaviTabProps {
     currentSong: NavidromeSong;
     hasLyrics: boolean;
     onMatchOnline: () => void;
+    lyricTimelineOffsetMs: number;
+    onLyricTimelineOffsetChange: (offsetMs: number) => void;
     isDaylight: boolean;
 }
 
-const NaviTab: React.FC<NaviTabProps> = ({ currentSong, hasLyrics, onMatchOnline, isDaylight }) => {
+const NaviTab: React.FC<NaviTabProps> = ({
+    currentSong,
+    hasLyrics,
+    onMatchOnline,
+    lyricTimelineOffsetMs,
+    onLyricTimelineOffsetChange,
+    isDaylight,
+}) => {
     const { t } = useTranslation();
     const navidromeData = currentSong.navidromeData;
 
@@ -105,6 +115,12 @@ const NaviTab: React.FC<NaviTabProps> = ({ currentSong, hasLyrics, onMatchOnline
                         </span>
                     </div>
                 </div>
+
+                <LyricTimelineOffsetControl
+                    offsetMs={lyricTimelineOffsetMs}
+                    onOffsetChange={onLyricTimelineOffsetChange}
+                    isDaylight={isDaylight}
+                />
             </div>
         </motion.div>
     );
