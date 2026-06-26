@@ -215,7 +215,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 currentTime={lyricCurrentTime ?? currentTime}
                 onSeek={(time) => {
                     const offset = currentTime.get() - (lyricCurrentTime?.get() ?? currentTime.get());
-                    onSeek(time + offset);
+                    onSeek(Math.max(0, time + offset));
                 }}
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}

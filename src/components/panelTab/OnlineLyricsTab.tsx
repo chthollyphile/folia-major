@@ -30,24 +30,6 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
 }) => {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
-    const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const handleSourceChange = useCallback((source: 'online' | 'imported') => {
-        if (debounceTimeoutRef.current) {
-            clearTimeout(debounceTimeoutRef.current);
-        }
-        debounceTimeoutRef.current = setTimeout(() => {
-            onChangeLyricsSource(source);
-        }, 200);
-    }, [onChangeLyricsSource]);
-
-    useEffect(() => {
-        return () => {
-            if (debounceTimeoutRef.current) {
-                clearTimeout(debounceTimeoutRef.current);
-            }
-        };
-    }, []);
 
     const activeTabBg = isDaylight ? 'bg-blue-500/15 text-blue-600' : 'bg-blue-500/20 text-blue-300';
     const tabContainerBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
@@ -156,7 +138,7 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                             return (
                                 <button
                                     key={source.key}
-                                    onClick={() => handleSourceChange(source.key)}
+                                    onClick={() => onChangeLyricsSource(source.key)}
                                     className={`flex-1 relative text-[10px] py-1 px-1.5 rounded-md font-medium transition-colors duration-200 focus:outline-none ${
                                         isActive ? activeTextColor : inactiveTextColor
                                     }`}

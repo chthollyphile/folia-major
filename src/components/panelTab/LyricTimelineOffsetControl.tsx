@@ -13,10 +13,6 @@ type LyricTimelineOffsetControlProps = {
 
 const STEP_MS = 250;
 
-const parseOffset = (value: string) => {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-};
 
 const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
     offsetMs,
@@ -25,6 +21,12 @@ const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
 }) => {
     const { t } = useTranslation();
     const [localOffsetMs, setLocalOffsetMs] = useDebouncedFocusSync(offsetMs, onOffsetChange, 20);
+    const [inputValue, setInputValue] = React.useState(localOffsetMs.toString());
+
+    React.useEffect(() => {
+        setInputValue(localOffsetMs.toString());
+    }, [localOffsetMs]);
+
     const buttonHover = isDaylight ? 'hover:bg-black/10 active:bg-black/15' : 'hover:bg-white/10 active:bg-white/15';
 
     return (
@@ -57,8 +59,18 @@ const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
                     <input
                         type="number"
                         step={STEP_MS}
-                        value={localOffsetMs}
-                        onChange={(event) => setLocalOffsetMs(parseOffset(event.target.value))}
+                        value={inputValue}
+                        onChange={(event) => {
+                            const val = event.target.value;
+                            setInputValue(val);
+                            if (val === '' || val === '-') {
+                                return;
+                            }
+                            const parsed = Number.parseInt(val, 10);
+                            if (Number.isFinite(parsed)) {
+                                setLocalOffsetMs(parsed);
+                            }
+                        }}
                         className="w-full min-w-0 bg-transparent px-2 py-1 text-center text-sm font-mono outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         aria-label={t('localMusic.lyricTimelineOffset')}
                     />
