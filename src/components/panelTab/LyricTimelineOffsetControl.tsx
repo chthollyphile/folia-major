@@ -30,32 +30,21 @@ const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
     const buttonHover = isDaylight ? 'hover:bg-black/10 active:bg-black/15' : 'hover:bg-white/10 active:bg-white/15';
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold opacity-50 uppercase tracking-wider">
-                    {t('localMusic.lyricTimelineOffset')}
-                </label>
-                <button
-                    type="button"
-                    onClick={() => setLocalOffsetMs(0)}
-                    className={`p-1 rounded-md transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'} ${localOffsetMs === 0 ? 'opacity-30' : 'opacity-80'}`}
-                    title={t('localMusic.resetLyricTimelineOffset')}
-                    disabled={localOffsetMs === 0}
-                >
-                    <RotateCcw size={13} />
-                </button>
-            </div>
+        <div className="flex items-center justify-between">
+            <label className="text-[11px] font-semibold opacity-50 uppercase tracking-wider shrink-0 mr-3">
+                {t('localMusic.lyricTimelineOffset')}
+            </label>
             <div className="flex items-center">
                 <button
                     type="button"
                     onClick={() => setLocalOffsetMs(localOffsetMs - STEP_MS)}
-                    className={`p-1.5 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
+                    className={`p-1 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
                     title="-250ms"
                 >
-                    <ChevronLeft size={16} />
+                    <ChevronLeft size={14} />
                 </button>
 
-                <div className="flex-1 flex items-center bg-transparent">
+                <div className="w-16 flex items-center justify-center bg-transparent mx-0.5">
                     <input
                         type="number"
                         step={STEP_MS}
@@ -71,18 +60,29 @@ const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
                                 setLocalOffsetMs(parsed);
                             }
                         }}
-                        className="w-full min-w-0 bg-transparent px-2 py-1 text-center text-sm font-mono outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-10 min-w-0 bg-transparent py-0.5 text-right text-xs font-mono outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         aria-label={t('localMusic.lyricTimelineOffset')}
                     />
+                    <span className="text-[10px] opacity-50 ml-0.5 font-mono">ms</span>
                 </div>
 
                 <button
                     type="button"
                     onClick={() => setLocalOffsetMs(localOffsetMs + STEP_MS)}
-                    className={`p-1.5 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
+                    className={`p-1 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
                     title="+250ms"
                 >
-                    <ChevronRight size={16} />
+                    <ChevronRight size={14} />
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setLocalOffsetMs(0)}
+                    className={`p-1 ml-2 rounded-md transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'} ${localOffsetMs === 0 ? 'opacity-30' : 'opacity-80'}`}
+                    title={t('localMusic.resetLyricTimelineOffset')}
+                    disabled={localOffsetMs === 0}
+                >
+                    <RotateCcw size={12} />
                 </button>
             </div>
         </div>
