@@ -41,6 +41,8 @@ type UsePlaybackVisualizerBridgeParams = {
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
     getNowPlayingDisplayTime: () => number;
     syncNowPlayingClock: (progressSec: number, durationSec: number, paused: boolean) => void;
+    lyricTimelineOffsetMs: number;
+    lyricCurrentTime: MotionValue<number>;
 };
 
 // Runs the requestAnimationFrame loop for audio-reactive visuals and lyric timing.
@@ -66,6 +68,8 @@ export function usePlaybackVisualizerBridge({
     syncStageLyricsClock,
     getNowPlayingDisplayTime,
     syncNowPlayingClock,
+    lyricTimelineOffsetMs,
+    lyricCurrentTime,
 }: UsePlaybackVisualizerBridgeParams) {
     const currentLineIndexRef = useRef(-1);
 
@@ -123,8 +127,11 @@ export function usePlaybackVisualizerBridge({
             const time = audioElement.currentTime;
             currentTime.set(time);
 
+            const effectiveLyricTime = time - lyricTimelineOffsetMs / 1000;
+            lyricCurrentTime.set(effectiveLyricTime);
+
             if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, time);
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
@@ -136,8 +143,11 @@ export function usePlaybackVisualizerBridge({
 
             currentTime.set(nextTime);
 
+            const effectiveLyricTime = nextTime - lyricTimelineOffsetMs / 1000;
+            lyricCurrentTime.set(effectiveLyricTime);
+
             if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
@@ -215,6 +225,8 @@ export function usePlaybackVisualizerBridge({
         stageLyricsSession,
         syncNowPlayingClock,
         syncStageLyricsClock,
+        lyricTimelineOffsetMs,
+        lyricCurrentTime,
     ]);
 
     useEffect(() => {

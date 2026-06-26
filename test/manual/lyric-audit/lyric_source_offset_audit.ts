@@ -683,7 +683,7 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
         throw new Error('VITE_NETEASE_API_BASE is required. Put it in .env.local or export it before running.');
     }
 
-    (globalThis as typeof globalThis & { window?: unknown }).window = { electron: {} };
+    (globalThis as typeof globalThis & { window?: unknown }).window = { electron: {} as any } as any;
 
     const [
         { neteaseApi },

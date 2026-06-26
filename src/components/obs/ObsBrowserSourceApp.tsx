@@ -143,11 +143,12 @@ const ObsBrowserSourceApp: React.FC = () => {
     useEffect(() => {
         let frameId = 0;
         const tick = () => {
-            const nextTime = resolveObsBrowserSourceClockTime(clockRef.current);
-            currentTime.set(nextTime);
+            const lyricTime = resolveObsBrowserSourceClockTime(clockRef.current);
+            
+            currentTime.set(lyricTime);
 
             const lines = configRef.current?.lyrics?.lines ?? [];
-            const nextLineIndex = lines.length > 0 ? findLatestActiveLineIndex(lines, nextTime) : -1;
+            const nextLineIndex = lines.length > 0 ? findLatestActiveLineIndex(lines, lyricTime) : -1;
             if (nextLineIndex !== currentLineIndexRef.current) {
                 currentLineIndexRef.current = nextLineIndex;
                 setCurrentLineIndex(nextLineIndex);

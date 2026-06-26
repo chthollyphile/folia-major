@@ -57,6 +57,8 @@ export default {
     "queueUpdated": "已添加到播放队列",
     "copiedSongInfo": "已复制歌曲信息",
     "copied": "已复制",
+    "added_to_next_play": "已添加至下一首播放",
+    "added_to_play_queue": "已添加到播放队列",
   },
   "commandPalette": {
     "placeholder": "输入命令或搜索内容...",
@@ -687,6 +689,9 @@ export default {
     "replayGainAlbum": "专辑",
     "replayGainUnavailable": "未检测到 ReplayGain",
     "lyricsSource": "歌词",
+    "lyricTimelineOffset": "时间轴偏移",
+    "lyricTimelineOffsetHint": "仅本次播放临时生效。正数让歌词更晚出现。",
+    "resetLyricTimelineOffset": "重置时间轴偏移",
     "coverSource": "封面",
     "metadataSource": "元数据",
     "kugouNoCover": "酷狗音乐暂不提供封面，选择封面时会保留本地封面。",

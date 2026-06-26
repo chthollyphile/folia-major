@@ -14,13 +14,15 @@ export const resolveObsBrowserSourceClockTime = (
         return 0;
     }
 
+    const offsetSec = (clock.lyricOffsetMs || 0) / 1000;
+
     if (clock.playerState !== PlayerState.PLAYING) {
-        return clock.currentTime;
+        return clock.currentTime - offsetSec;
     }
 
     const elapsed = Math.max(0, (nowMs - clock.sentAtMs) / 1000);
     const nextTime = clock.currentTime + elapsed * (clock.playbackRate || 1);
-    return clock.duration > 0 ? Math.min(clock.duration, nextTime) : nextTime;
+    return (clock.duration > 0 ? Math.min(clock.duration, nextTime) : nextTime) - offsetSec;
 };
 
 export const downsampleObsSpectrum = (

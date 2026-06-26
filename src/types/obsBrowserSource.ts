@@ -79,6 +79,7 @@ export interface ObsBrowserSourceClock {
     playerState: PlayerState;
     sentAtMs: number;
     playbackRate: number;
+    lyricOffsetMs?: number;
 }
 
 export interface ObsBrowserSourceAudio {

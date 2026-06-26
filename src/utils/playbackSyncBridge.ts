@@ -35,6 +35,7 @@ export interface PlaybackSyncBridgeModel {
     isLiked: boolean;
     mainWindowWidth: number;
     mainWindowHeight: number;
+    lyricOffsetMs?: number;
     sampledAt: number;
 }
 
@@ -63,6 +64,7 @@ export interface BuildPlaybackSyncBridgeModelArgs {
     isLiked: boolean;
     mainWindowWidth: number;
     mainWindowHeight: number;
+    lyricOffsetMs?: number;
     sampledAt?: number;
 }
 
@@ -141,6 +143,7 @@ export const buildPlaybackSyncBridgeModel = ({
     isLiked,
     mainWindowWidth,
     mainWindowHeight,
+    lyricOffsetMs,
     sampledAt = Date.now(),
 }: BuildPlaybackSyncBridgeModelArgs): PlaybackSyncBridgeModel => {
     const hasTrack = !isStageActive && Boolean(currentSong);
@@ -183,6 +186,7 @@ export const buildPlaybackSyncBridgeModel = ({
         isLiked,
         mainWindowWidth,
         mainWindowHeight,
+        lyricOffsetMs,
         sampledAt,
     };
 };
@@ -210,6 +214,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
     exportState: model.exportState,
     isDaylight: model.isDaylight,
     ...(options.includeLyrics ? { lyrics: options.lyrics ?? null } : {}),
+    lyricOffsetMs: model.lyricOffsetMs,
     isLiked: model.isLiked,
     updatedAt: model.sampledAt,
     mainWindowWidth: model.mainWindowWidth,

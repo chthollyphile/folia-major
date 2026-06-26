@@ -20,6 +20,7 @@ interface FloatingPlayerControlsProps {
     currentSong: { name: string; } | null;
     playerState: PlayerState;
     currentTime: MotionValue<number>;
+    lyricCurrentTime?: MotionValue<number>;
     duration: number;
     loopMode: 'off' | 'all' | 'one';
     currentView: 'home' | 'player';
@@ -45,6 +46,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     currentSong,
     playerState,
     currentTime,
+    lyricCurrentTime,
     duration,
     loopMode,
     currentView,
@@ -173,6 +175,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     currentSong={currentSong}
                                     playerState={playerState}
                                     currentTime={currentTime}
+                                    lyricCurrentTime={lyricCurrentTime}
                                     duration={duration}
                                     loopMode={loopMode}
                                     canTogglePlay={canTogglePlay}
@@ -209,8 +212,11 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 onClose={() => setIsTimelineOpen(false)}
                 lyrics={lyrics}
                 duration={duration}
-                currentTime={currentTime}
-                onSeek={onSeek}
+                currentTime={lyricCurrentTime ?? currentTime}
+                onSeek={(time) => {
+                    const offset = currentTime.get() - (lyricCurrentTime?.get() ?? currentTime.get());
+                    onSeek(Math.max(0, time + offset));
+                }}
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
                 accentColor="var(--text-accent)"
@@ -227,6 +233,7 @@ interface ExpandedViewProps {
     currentSong: { name: string; } | null;
     playerState: PlayerState;
     currentTime: MotionValue<number>;
+    lyricCurrentTime?: MotionValue<number>;
     duration: number;
     loopMode: 'off' | 'all' | 'one';
     canTogglePlay: boolean;
@@ -247,6 +254,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     currentSong,
     playerState,
     currentTime,
+    lyricCurrentTime,
     duration,
     loopMode,
     canTogglePlay,

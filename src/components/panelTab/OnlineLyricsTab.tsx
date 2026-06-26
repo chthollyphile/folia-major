@@ -1,8 +1,9 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Search, Upload, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OnlineLyricsState } from '../../types';
+import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 
 // src/components/panelTab/OnlineLyricsTab.tsx
 
@@ -12,6 +13,8 @@ interface OnlineLyricsTabProps {
     onChangeLyricsSource: (source: 'online' | 'imported') => void;
     onMatchOnlineLyrics: () => void;
     onClearOnlineLyricsState: () => void;
+    lyricTimelineOffsetMs: number;
+    onLyricTimelineOffsetChange: (offsetMs: number) => void;
     isDaylight: boolean;
 }
 
@@ -21,6 +24,8 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
     onChangeLyricsSource,
     onMatchOnlineLyrics,
     onClearOnlineLyricsState,
+    lyricTimelineOffsetMs,
+    onLyricTimelineOffsetChange,
     isDaylight,
 }) => {
     const { t } = useTranslation();
@@ -151,6 +156,12 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                         })}
                     </div>
                 )}
+
+                <LyricTimelineOffsetControl
+                    offsetMs={lyricTimelineOffsetMs}
+                    onOffsetChange={onLyricTimelineOffsetChange}
+                    isDaylight={isDaylight}
+                />
             </div>
         </motion.div>
     );

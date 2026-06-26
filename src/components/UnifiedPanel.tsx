@@ -54,6 +54,8 @@ type UnifiedPanelPlaybackProps = {
     onChangeOnlineLyricsSource: (source: 'online' | 'imported') => void;
     onMatchOnlineLyrics: () => void;
     onClearOnlineLyricsState: () => void;
+    lyricTimelineOffsetMs: number;
+    onLyricTimelineOffsetChange: (offsetMs: number) => void;
     replayGainMode: ReplayGainMode;
     onChangeReplayGainMode: (mode: ReplayGainMode) => void;
     isFmMode: boolean;
@@ -165,6 +167,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onChangeOnlineLyricsSource,
         onMatchOnlineLyrics,
         onClearOnlineLyricsState,
+        lyricTimelineOffsetMs,
+        onLyricTimelineOffsetChange,
         replayGainMode,
         onChangeReplayGainMode,
         isFmMode,
@@ -854,6 +858,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onChangeLyricsSource={onChangeLyricsSource}
                                             replayGainMode={replayGainMode}
                                             onChangeReplayGainMode={onChangeReplayGainMode}
+                                            lyricTimelineOffsetMs={lyricTimelineOffsetMs}
+                                            onLyricTimelineOffsetChange={onLyricTimelineOffsetChange}
                                             isDaylight={isDaylight}
                                         />
                                     )}
@@ -862,6 +868,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             currentSong={currentSong as any}
                                             hasLyrics={hasLyrics}
                                             onMatchOnline={onMatchOnline}
+                                            lyricTimelineOffsetMs={lyricTimelineOffsetMs}
+                                            onLyricTimelineOffsetChange={onLyricTimelineOffsetChange}
                                             isDaylight={isDaylight}
                                         />
                                     )}
@@ -872,6 +880,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onChangeLyricsSource={onChangeOnlineLyricsSource}
                                             onMatchOnlineLyrics={onMatchOnlineLyrics}
                                             onClearOnlineLyricsState={onClearOnlineLyricsState}
+                                            lyricTimelineOffsetMs={lyricTimelineOffsetMs}
+                                            onLyricTimelineOffsetChange={onLyricTimelineOffsetChange}
                                             isDaylight={isDaylight}
                                         />
                                     )}

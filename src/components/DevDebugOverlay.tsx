@@ -76,6 +76,7 @@ export interface DevDebugSnapshot {
 interface DevDebugOverlayProps {
     snapshot: DevDebugSnapshot;
     currentTime: MotionValue<number>;
+    lyricCurrentTime: MotionValue<number>;
     isDaylight: boolean;
 }
 
@@ -451,10 +452,12 @@ const TabButton: React.FC<{
 const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
     snapshot,
     currentTime,
+    lyricCurrentTime,
     isDaylight,
 }) => {
     const [activeTab, setActiveTab] = useState<'memory' | 'playback' | 'lyrics' | 'theme'>('memory');
     const [liveCurrentTime, setLiveCurrentTime] = useState(() => currentTime.get());
+    const [liveLyricCurrentTime, setLiveLyricCurrentTime] = useState(() => lyricCurrentTime?.get() ?? currentTime.get());
     const [memoryHistory, setMemoryHistory] = useState<MemorySample[]>([]);
     const [gcCount, setGcCount] = useState(0);
     const [baselineUsedHeap, setBaselineUsedHeap] = useState<number | null>(null);
@@ -463,6 +466,10 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
 
     useMotionValueEvent(currentTime, 'change', latest => {
         setLiveCurrentTime(latest);
+    });
+
+    useMotionValueEvent(lyricCurrentTime, 'change', latest => {
+        setLiveLyricCurrentTime(latest);
     });
 
     useEffect(() => {
@@ -677,6 +684,10 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                                         label="time"
                                         value={`${formatClock(liveCurrentTime)} / ${formatClock(snapshot.duration)} (${formatSeconds(liveCurrentTime)})`}
                                     />
+                                    <DebugRow
+                                        label="lyricTime"
+                                        value={`${formatClock(liveLyricCurrentTime)} (${formatSeconds(liveLyricCurrentTime)})`}
+                                    />
                                     <DebugRow label="songSource" value={snapshot.songSource} />
                                     <DebugRow label="lyricsSource" value={snapshot.lyricsSource} />
                                     <DebugRow label="audioSrc" value={snapshot.audioSrcKind} />
@@ -730,14 +741,14 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                             label="Current Line"
                             line={snapshot.activeLine}
                             isDaylight={isDaylight}
-                            currentTime={liveCurrentTime}
+                            currentTime={liveLyricCurrentTime}
                             nextLineStartTime={snapshot.nextLine?.startTime ?? null}
                         />
                         <DebugLineBlock
                             label="Next Line"
                             line={snapshot.nextLine}
                             isDaylight={isDaylight}
-                            currentTime={liveCurrentTime}
+                            currentTime={liveLyricCurrentTime}
                             nextLineStartTime={null}
                         />
                         <RawLinePayloadBlock

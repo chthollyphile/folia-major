@@ -57,6 +57,8 @@ export default {
     "queueUpdated": "Added to queue",
     "copiedSongInfo": "Copied song info",
     "copied": "Copied",
+    "added_to_next_play": "Added to play next",
+    "added_to_play_queue": "Added to play queue",
   },
   "commandPalette": {
     "placeholder": "Type a command or search...",
@@ -685,6 +687,9 @@ export default {
     "replayGainAlbum": "Album",
     "replayGainUnavailable": "No ReplayGain detected",
     "lyricsSource": "Lyrics",
+    "lyricTimelineOffset": "Timeline Offset",
+    "lyricTimelineOffsetHint": "Temporary for this playback session. Positive values make lyrics later.",
+    "resetLyricTimelineOffset": "Reset timeline offset",
     "coverSource": "Cover",
     "metadataSource": "Metadata",
     "kugouNoCover": "Kugou does not provide cover art, so local cover art will be kept.",
