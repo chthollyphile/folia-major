@@ -105,7 +105,8 @@ const fragmentShader = `
                     vec2 localUv = cellCUv - nOffset;
                     localUv -= shapeOffset;
                     
-                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC) / (cssResolution.y * 0.5), 0.0, 1.0);
+                    float timeStagger = hash21(nId + 33.0) * cssResolution.y * 0.6;
+                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC - timeStagger) / (cssResolution.y * 0.5), 0.0, 1.0);
                     
                     // Cap radius so the neighbor search can cover the full contour with antialiasing.
                     float radius = min(0.3 + hc * 1.5, 1.95);
@@ -182,7 +183,8 @@ const fragmentShader = `
                     vec2 localUv = cellTUv - nOffset;
                     localUv -= hash22(nId) - 0.5;
                     
-                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridT) / (cssResolution.y * 1.0), 0.0, 1.0);
+                    float timeStagger = hash21(nId + 88.0) * cssResolution.y * 0.5;
+                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridT - timeStagger) / (cssResolution.y * 1.0), 0.0, 1.0);
                     
                     // Fixed rotation (no continuous spinning)
                     float rotAngle = hash21(nId) * 6.28;
@@ -244,7 +246,8 @@ const fragmentShader = `
                     vec2 localUv = cellCUv - nOffset;
                     localUv -= shapeOffset;
                     
-                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC) / (cssResolution.y * 0.5), 0.0, 1.0);
+                    float timeStagger = hash21(nId + 33.0) * cssResolution.y * 0.6;
+                    float entrance = clamp((u_cameraY + cssResolution.y - nId.y * gridC - timeStagger) / (cssResolution.y * 0.5), 0.0, 1.0);
                     
                     // Cap radius so the neighbor search can cover the full contour with antialiasing.
                     float radius = min(0.3 + hc * 1.5, 1.95);
