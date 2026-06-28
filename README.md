@@ -185,6 +185,7 @@ npm run contributors:generate
 - [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
 - [chenglou/pretext](https://github.com/chenglou/pretext)
 
+本项目接入了 [Apple Music-like Lyrics TTML 逐词歌词库](https://github.com/amll-dev/amll-ttml-db) 以提供高质量的歌词文件，感谢此歌词库的作者和贡献者们。
 
 ## 许可证
 
