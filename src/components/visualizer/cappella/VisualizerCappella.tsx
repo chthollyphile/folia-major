@@ -12,6 +12,7 @@ import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { builtinAvatarImages, type CappellaAvatarImage, resolveCappellaAvatarUrl } from './avatarImages';
+import { createCappellaAgentSenderResolver, type CappellaMessageSender } from './cappellaMessageSenders';
 import { builtinEmoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
@@ -347,16 +348,22 @@ const buildCappellaMessages = (
 
     let sideSequenceCursor = 0;
     let nextLeftAvatarCursor = 0;
-    let lastLyricSender: Pick<CappellaLineMessage, 'side' | 'avatarIndex'> | null = null;
+    let lastLyricSender: CappellaMessageSender | null = null;
     let lyricMessagesSinceRandomEmo = Number.POSITIVE_INFINITY;
     let randomEmoCount = 0;
     const randomEmoCap = Math.floor(lines.length * config.sequencing.maxRandomEmoRatio);
+    const agentSenderResolver = createCappellaAgentSenderResolver(lines, {
+        rightAvatarIndex: RIGHT_AVATAR_INDEX,
+        leftAvatarCount: LEFT_AVATAR_INDICES.length,
+    });
 
     lines.forEach((line, lineIndex) => {
         const nextLine = lines[lineIndex + 1];
         const isShortLine = countCompactChars(line.fullText) <= SHORT_LINE_CHAR_LIMIT;
-        const shouldForceRight = (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
-        const shouldCarrySender = isShortLine
+        const agentSender = agentSenderResolver?.resolve(line) ?? null;
+        const shouldForceRight = !agentSender && (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
+        const shouldCarrySender = !agentSender
+            && isShortLine
             && lastLyricSender
             && seededUnit('carry', line.startTime, lineIndex) <= config.sequencing.shortLineCarryChance;
         const baseSide = config.sequencing.sideSequence[sideSequenceCursor % config.sequencing.sideSequence.length];
@@ -365,7 +372,7 @@ const buildCappellaMessages = (
         const resolvedSide = shouldFlipSide
             ? (baseSide === 'left' ? 'right' : 'left')
             : baseSide;
-        const sender = shouldForceRight
+        const sender = agentSender ?? (shouldForceRight
             ? {
                 side: 'right' as const,
                 avatarIndex: RIGHT_AVATAR_INDEX,
@@ -377,7 +384,7 @@ const buildCappellaMessages = (
                     avatarIndex: resolvedSide === 'left'
                         ? nextLeftAvatarCursor
                         : RIGHT_AVATAR_INDEX,
-                };
+                });
 
         const isInterlude = line.fullText === INTERLUDE_TEXT;
         const emoImage = isInterlude && showEmoMessages
@@ -439,7 +446,9 @@ const buildCappellaMessages = (
             }
         }
 
-        if (shouldForceRight) {
+        if (agentSender) {
+            lastLyricSender = sender;
+        } else if (shouldForceRight) {
             sideSequenceCursor = 0;
             lastLyricSender = null;
         } else if (!shouldCarrySender) {
