@@ -1,5 +1,5 @@
 import type { NowPlayingLyricPayload, StageLyricsSession } from '../../types';
-import { detectTimedLyricFormat } from './formatDetection';
+import { detectNonTtmlTimedLyricFormat } from './formatDetection';
 
 // Keep now-playing field mapping isolated so stage playback can evolve
 // without hard-coding assumptions in App.tsx.
@@ -35,6 +35,6 @@ export const buildNowPlayingLyricSource = (payload: NowPlayingLyricPayload): Sta
         type: 'local',
         lrcContent: lrc,
         ...(translatedLyric ? { tLrcContent: translatedLyric } : {}),
-        formatHint: detectTimedLyricFormat(lrc),
+        formatHint: detectNonTtmlTimedLyricFormat(lrc),
     };
 };

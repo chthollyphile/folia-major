@@ -2,6 +2,9 @@ import { LyricData, Line, Word } from '../../types';
 import type { TimedLyricFormat } from './formatDetection';
 import { annotateLyricLines } from './renderHints';
 import type { LyricProcessingOptions } from './types';
+import { TTMLParser } from '@applemusic-like-lyrics/ttml';
+import { DOMParser } from '@xmldom/xmldom';
+import { buildLyricDataFromTTMLResult } from './ttmlConversion';
 
 export type LyricParseFormat = TimedLyricFormat | 'yrc' | 'qrc' | 'krc';
 
@@ -747,6 +750,22 @@ export const parseVTT = (
     return { lines: finalizeParsedLyricLines(lines, options) };
 };
 
+export const parseTTML = (
+    ttmlString: string,
+    _translationString: string = '',
+    options: LyricProcessingOptions = {}
+): LyricData => {
+    const ttmlResult = TTMLParser.parse(ttmlString.replace(/^\uFEFF/, ''), {
+        domParser: new DOMParser(),
+    });
+    const parsed = buildLyricDataFromTTMLResult(ttmlResult, buildTimedWords);
+
+    return {
+        ...parsed,
+        lines: finalizeParsedLyricLines(parsed.lines, options),
+    };
+};
+
 export const parseEnhancedLRC = (
     lrcString: string,
     translationString: string = '',
@@ -984,6 +1003,8 @@ export const parseLyricsByFormat = (
             return parseEnhancedLRC(content, translation, options);
         case 'vtt':
             return parseVTT(content, translation, options);
+        case 'ttml':
+            return parseTTML(content, translation, options);
         case 'lrc':
         default:
             return parseLRC(content, translation, options);

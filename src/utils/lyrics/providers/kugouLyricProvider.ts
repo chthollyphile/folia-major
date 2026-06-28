@@ -8,7 +8,7 @@
 import md5 from 'blueimp-md5';
 import { SongResult } from '../../../types';
 import { parseLyricsByFormat } from '../parserCore';
-import { detectTimedLyricFormat } from '../formatDetection';
+import { detectNonTtmlTimedLyricFormat } from '../formatDetection';
 import { krcDecrypt } from './krcDecrypt';
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../chorusEffects';
 import type { NeteaseChorusRange } from '../chorusEffects';
@@ -42,7 +42,7 @@ export async function decodeKugouDownloadedLyric(
     const lyricText = decodeUtf8(bytes);
     return {
       lyricText,
-      format: detectTimedLyricFormat(lyricText),
+      format: detectNonTtmlTimedLyricFormat(lyricText),
     };
   }
 
@@ -57,7 +57,7 @@ export async function decodeKugouDownloadedLyric(
       console.warn('[Kugou] KRC decrypt failed; using plain lyric fallback:', error);
       return {
         lyricText: fallbackText,
-        format: detectTimedLyricFormat(fallbackText),
+        format: detectNonTtmlTimedLyricFormat(fallbackText),
       };
     }
     throw error;

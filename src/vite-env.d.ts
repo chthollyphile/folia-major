@@ -268,7 +268,7 @@ declare global {
     audioMimeType?: string;
     coverMimeType?: string;
     lyricsText?: string | null;
-    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc' | null;
+    lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'ttml' | 'yrc' | 'qrc' | null;
     updatedAt: number;
   }
 

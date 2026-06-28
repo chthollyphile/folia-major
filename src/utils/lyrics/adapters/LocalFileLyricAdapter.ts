@@ -11,13 +11,15 @@ export class LocalFileLyricAdapter implements LyricAdapter<RawLocalFileLyric> {
         
         let mainLrc = source.lrcContent;
         let transLrc = source.tLrcContent || '';
+        let format = source.formatHint || detectTimedLyricFormat(mainLrc);
 
-        if (!transLrc) {
+        if (!transLrc && format !== 'ttml') {
             const { main, trans } = splitCombinedTimeline(mainLrc);
             mainLrc = main;
             transLrc = trans;
+            format = source.formatHint || detectTimedLyricFormat(mainLrc);
         }
 
-        return await parseLyricsAsync(source.formatHint || detectTimedLyricFormat(mainLrc), mainLrc, transLrc, options);
+        return await parseLyricsAsync(format, mainLrc, transLrc, options);
     }
 }

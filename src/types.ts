@@ -1,9 +1,49 @@
 import type { LineRenderHints } from './utils/lyrics/renderHints';
 
+export interface LyricRuby {
+  text: string;
+  startTime: number; // Seconds
+  endTime: number; // Seconds
+}
+
+export interface LyricSyllable {
+  text: string;
+  startTime: number; // Seconds
+  endTime: number; // Seconds
+  endsWithSpace?: boolean;
+  ruby?: LyricRuby[];
+  obscene?: boolean;
+  emptyBeat?: number;
+}
+
+export interface LyricAlternateText {
+  role: 'translation' | 'romanization' | string;
+  language?: string;
+  text: string;
+  syllables?: LyricSyllable[];
+}
+
 export interface Word {
   text: string;
   startTime: number; // Seconds
   endTime: number; // Seconds
+  syllables?: LyricSyllable[];
+}
+
+export interface LyricBackgroundVocal {
+  text: string;
+  startTime: number; // Seconds
+  endTime: number; // Seconds
+  words: Word[];
+  translation?: string;
+  romanization?: string;
+  alternateTexts?: LyricAlternateText[];
+}
+
+export interface LyricAgent {
+  id: string;
+  name?: string;
+  type?: string;
 }
 
 export interface Line {
@@ -12,6 +52,13 @@ export interface Line {
   endTime: number;
   fullText: string;
   translation?: string;
+  id?: string;
+  agentId?: string;
+  songPart?: string;
+  blockIndex?: number;
+  romanization?: string;
+  alternateTexts?: LyricAlternateText[];
+  backgroundVocal?: LyricBackgroundVocal;
   renderHints?: LineRenderHints;
   isChorus?: boolean;
   chorusEffect?: 'bars' | 'circles' | 'beams';
@@ -22,6 +69,10 @@ export interface LyricData {
   title?: string;
   artist?: string;
   isWordByWord?: boolean;
+  ttml?: {
+    timingMode?: 'Word' | 'Line';
+    agents?: Record<string, LyricAgent>;
+  };
 }
 
 export interface Theme {
@@ -84,7 +135,7 @@ export interface StageLocalLyricSource {
   type: 'local';
   lrcContent: string;
   tLrcContent?: string;
-  formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | 'qrc';
+  formatHint?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'ttml' | 'yrc' | 'qrc';
 }
 
 export interface StageNeteaseLyricBranch {
@@ -149,7 +200,7 @@ export interface StageMediaSession {
   audioMimeType?: string;
   coverMimeType?: string;
   lyricsText?: string | null;
-  lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc' | null;
+  lyricsFormat?: 'lrc' | 'enhanced-lrc' | 'vtt' | 'ttml' | 'yrc' | 'qrc' | null;
   updatedAt: number;
 }
 
