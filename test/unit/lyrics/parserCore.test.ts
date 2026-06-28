@@ -27,7 +27,7 @@ const TTML_ADVANCED_FIXTURE = [
     '<amll:meta key="artists" value="Ignored Artist"/>',
     '</metadata></head>',
     '<body dur="00:08.000">',
-    '<div begin="00:01.000" end="00:08.000" itunes:song-part="Chorus">',
+    '<div begin="00:01.000" end="00:08.000" itunes:songPart="Chorus">',
     '<p begin="00:01.000" end="00:05.000" itunes:key="L1" ttm:agent="v2">',
     '<span begin="00:01.000" end="00:01.400">hurri</span><span begin="00:01.400" end="00:02.000">cane</span> ',
     '<span tts:ruby="container" amll:empty-beat="2"><span tts:ruby="base">風</span><span tts:ruby="textContainer"><span tts:ruby="text" begin="00:02.000" end="00:02.500">かぜ</span></span></span>',
@@ -143,6 +143,7 @@ describe('parserCore', () => {
         expect(line.id).toBe('L1');
         expect(line.agentId).toBe('v2');
         expect(line.songPart).toBe('Chorus');
+        expect(line.isChorus).toBe(true);
         expect(line.blockIndex).toBe(1);
         expect(line.fullText).toBe('hurricane 風');
         expect(line.translation).toBe('飓风之风');

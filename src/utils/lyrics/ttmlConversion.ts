@@ -124,6 +124,9 @@ const convertAlternateTexts = (
 const getFirstText = (entries: TtmlSubLyricContent[] | undefined): string | undefined =>
     entries?.find(entry => entry.text.trim().length > 0)?.text;
 
+const isChorusSongPart = (songPart: string | undefined): boolean =>
+    songPart?.trim().toLowerCase() === 'chorus';
+
 const convertBackgroundVocal = (
     vocal: TtmlBackgroundVocal | undefined,
     buildTimedWords: TimedWordBuilder
@@ -168,6 +171,7 @@ const convertLine = (line: TtmlLyricLine, buildTimedWords: TimedWordBuilder): Li
         ...(line.id ? { id: line.id } : {}),
         ...(line.agentId ? { agentId: line.agentId } : {}),
         ...(line.songPart ? { songPart: line.songPart } : {}),
+        ...(isChorusSongPart(line.songPart) ? { isChorus: true } : {}),
         ...(typeof line.blockIndex === 'number' ? { blockIndex: line.blockIndex } : {}),
         ...(getFirstText(line.romanizations) ? { romanization: getFirstText(line.romanizations) } : {}),
         ...(alternateTexts.length > 0 ? { alternateTexts } : {}),

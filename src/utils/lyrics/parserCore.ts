@@ -759,11 +759,14 @@ export const parseTTML = (
         domParser: new DOMParser(),
     });
     const parsed = buildLyricDataFromTTMLResult(ttmlResult, buildTimedWords);
-
-    return {
+    const adapted = {
         ...parsed,
         lines: finalizeParsedLyricLines(parsed.lines, options),
     };
+
+    console.log('[TTML] Adapted lyric data for visualizers:', adapted);
+
+    return adapted;
 };
 
 export const parseEnhancedLRC = (
