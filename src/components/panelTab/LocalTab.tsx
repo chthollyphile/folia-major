@@ -4,6 +4,7 @@ import { UnifiedSong, ReplayGainMode } from '../../types';
 import { FileAudio, RefreshCw, FileText, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
+import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
 
 interface LocalTabProps {
     currentSong: UnifiedSong;
@@ -66,13 +67,6 @@ const LocalTab: React.FC<LocalTabProps> = ({
         e.target.value = '';
     };
 
-    // Helper to get platform source label
-    const getOnlineSourceLabel = (src?: 'netease' | 'qq' | 'kugou') => {
-        if (src === 'qq') return 'QQ 音乐';
-        if (src === 'kugou') return '酷狗音乐';
-        return '网易云音乐';
-    };
-
     // Compute available lyrics sources
     const availableSources = useMemo(() => {
         const sources: { key: 'local' | 'embedded' | 'online'; label: string }[] = [];
@@ -83,7 +77,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
             sources.push({ key: 'embedded', label: t('localMusic.statusEmbedded') });
         }
         if ((localData.matchedLyrics?.lines?.length ?? 0) > 0) {
-            sources.push({ key: 'online', label: getOnlineSourceLabel(localData.matchedLyricsSource) });
+            sources.push({ key: 'online', label: getLyricProviderLabel(localData.matchedLyricsSource, localData.matchedLyricsProviderPlatform) });
         }
         return sources;
     }, [localData, t]);
@@ -111,7 +105,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
         if (localData.hasLocalLyrics) states.push(t('localMusic.statusLocal'));
         if (localData.hasEmbeddedLyrics) states.push(t('localMusic.statusEmbedded'));
         if ((localData.matchedLyrics?.lines?.length ?? 0) > 0) {
-            states.push(getOnlineSourceLabel(localData.matchedLyricsSource));
+            states.push(getLyricProviderLabel(localData.matchedLyricsSource, localData.matchedLyricsProviderPlatform));
         }
         return states.length > 0 ? states.join(' / ') : t('localMusic.statusNone');
     }, [localData, t]);

@@ -654,6 +654,9 @@ export interface NoCopyrightRecommendation {
   expInfo?: unknown | null;
 }
 
+export type LyricProviderSource = 'netease' | 'qq' | 'kugou' | 'amll';
+export type AmllDbPlatform = 'ncm' | 'qq';
+
 export interface SongResult {
   id: number;
   name: string;
@@ -678,8 +681,11 @@ export interface SongResult {
   resourceState?: boolean;
   privilege?: SongPrivilege;
   onlineLyricsState?: OnlineLyricsState;
+  matchedLyricsSource?: LyricProviderSource;
+  matchedLyricsProviderPlatform?: AmllDbPlatform;
   qqMid?: string;
   kgHash?: string;
+  amllDbPlatform?: AmllDbPlatform;
 }
 
 export interface OnlineLyricsState {
@@ -690,7 +696,8 @@ export interface OnlineLyricsState {
   onlineOverrideLyrics?: LyricData | null;
   matchedSongId?: number;
   matchedIsPureMusic?: boolean;
-  matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
+  matchedLyricsSource?: LyricProviderSource;
+  matchedLyricsProviderPlatform?: AmllDbPlatform;
 }
 
 export interface SearchResponse {
@@ -743,7 +750,8 @@ export interface LocalSong {
   hasManualLyricSelection?: boolean;
   folderName?: string; // Name of the folder if imported via folder import
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
-  matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
+  matchedLyricsSource?: LyricProviderSource;
+  matchedLyricsProviderPlatform?: AmllDbPlatform;
 
   // User preferences for online data override (set via LyricMatchModal)
   lyricsSource?: 'local' | 'embedded' | 'online';  // Explicit lyrics source selection; undefined = default priority (local > embedded > online)

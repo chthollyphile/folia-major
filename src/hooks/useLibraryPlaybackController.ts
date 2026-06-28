@@ -629,7 +629,8 @@ export function useLibraryPlaybackController({
 
             let isAutoMatched = false;
             let autoMatchedLyrics: LyricData | null = null;
-            let matchedLyricsSource: 'netease' | 'qq' | 'kugou' | undefined;
+            let matchedLyricsSource: SongResult['matchedLyricsSource'] | undefined;
+            let matchedLyricsProviderPlatform: SongResult['matchedLyricsProviderPlatform'] | undefined;
 
             if (!nextLyrics && !matchData?.noAutoMatch && !matchData?.matchedIsPureMusic) {
                 try {
@@ -657,15 +658,17 @@ export function useLibraryPlaybackController({
                             autoMatchedLyrics = bestMatch.lyrics;
                             isAutoMatched = true;
                             matchedLyricsSource = bestMatch.source;
+                            matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
 
                             const newMatchData: NavidromeMatchData = {
                                 matchedLyrics: bestMatch.lyrics,
                                 matchedLyricsSource: bestMatch.source,
+                                matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                                 lyricsSource: 'online',
                                 useOnlineLyrics: true,
                             };
 
-                            if (bestMatch.source === 'netease') {
+                            if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
                                 newMatchData.matchedSongId = bestMatch.id as number;
                                 try {
                                     const detailRes = await neteaseApi.getSongDetail(bestMatch.id as number);
@@ -703,11 +706,11 @@ export function useLibraryPlaybackController({
                                 isAutoMatched = true;
                                 matchedLyricsSource = 'netease';
 
-                                const newMatchData: NavidromeMatchData = {
-                                    matchedSongId: matchedSong.id,
-                                    matchedLyrics: nextLyrics || undefined,
-                                    matchedIsPureMusic: processed.isPureMusic,
-                                    matchedLyricsSource: 'netease',
+                            const newMatchData: NavidromeMatchData = {
+                                matchedSongId: matchedSong.id,
+                                matchedLyrics: nextLyrics || undefined,
+                                matchedIsPureMusic: processed.isPureMusic,
+                                matchedLyricsSource: 'netease',
                                     lyricsSource: 'online',
                                     useOnlineLyrics: true,
                                 };
@@ -725,13 +728,15 @@ export function useLibraryPlaybackController({
                 matchedIsPureMusic?: boolean;
                 useOnlineLyrics?: boolean;
                 lyricsSource?: string;
-                matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
+                matchedLyricsSource?: SongResult['matchedLyricsSource'];
+                matchedLyricsProviderPlatform?: SongResult['matchedLyricsProviderPlatform'];
             };
             if (isAutoMatched) {
                 mutableSong.matchedLyrics = autoMatchedLyrics;
                 mutableSong.useOnlineLyrics = true;
                 mutableSong.lyricsSource = 'online';
                 mutableSong.matchedLyricsSource = matchedLyricsSource;
+                mutableSong.matchedLyricsProviderPlatform = matchedLyricsProviderPlatform;
             } else {
                 mutableSong.matchedLyrics = matchData?.matchedLyrics ?? null;
                 mutableSong.matchedIsPureMusic = matchData?.matchedIsPureMusic;
@@ -740,6 +745,7 @@ export function useLibraryPlaybackController({
                     ? 'online'
                     : (hasRenderableLyrics(nextLyrics) ? 'navi' : matchData?.lyricsSource);
                 mutableSong.matchedLyricsSource = matchData?.matchedLyricsSource;
+                mutableSong.matchedLyricsProviderPlatform = matchData?.matchedLyricsProviderPlatform;
             }
 
             if (!coverUrl) {
@@ -752,6 +758,7 @@ export function useLibraryPlaybackController({
                 matchedArtists: matchData?.matchedArtists,
                 matchedAlbumName: matchData?.matchedAlbumName,
                 matchedLyricsSource: mutableSong.matchedLyricsSource || matchData?.matchedLyricsSource,
+                matchedLyricsProviderPlatform: mutableSong.matchedLyricsProviderPlatform || matchData?.matchedLyricsProviderPlatform,
             });
 
             shouldAutoPlayRef.current = true;
@@ -933,6 +940,7 @@ export function useLibraryPlaybackController({
                 matchedSongId: previousState?.matchedSongId,
                 matchedIsPureMusic: previousState?.matchedIsPureMusic,
                 matchedLyricsSource: previousState?.matchedLyricsSource,
+                matchedLyricsProviderPlatform: previousState?.matchedLyricsProviderPlatform,
             };
             await saveOnlineLyricsState(currentSong, nextState);
 
@@ -963,6 +971,7 @@ export function useLibraryPlaybackController({
             matchedSongId: previousState?.matchedSongId,
             matchedIsPureMusic: previousState?.matchedIsPureMusic,
             matchedLyricsSource: previousState?.matchedLyricsSource,
+            matchedLyricsProviderPlatform: previousState?.matchedLyricsProviderPlatform,
         };
 
         if (source === 'imported' && !nextState.importedLyrics) {
@@ -1115,9 +1124,12 @@ export function useLibraryPlaybackController({
                     ...localData,
                     matchedLyrics: bestMatch.lyrics,
                     matchedLyricsSource: bestMatch.source,
+                    matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                     matchedIsPureMusic: false,
                     lyricsSource: 'online',
-                    matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : localData.matchedSongId,
+                    matchedSongId: bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')
+                        ? bestMatch.id as number
+                        : localData.matchedSongId,
                 };
                 await saveLocalSong(updatedLocalSong);
                 const updatedSong = { ...currentSong, localData: updatedLocalSong };
@@ -1157,9 +1169,12 @@ export function useLibraryPlaybackController({
                 const matchData: NavidromeMatchData = {
                     matchedLyrics: bestMatch.lyrics,
                     matchedLyricsSource: bestMatch.source,
+                    matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                     lyricsSource: 'online',
                     useOnlineLyrics: true,
-                    matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : undefined,
+                    matchedSongId: bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')
+                        ? bestMatch.id as number
+                        : undefined,
                     matchedIsPureMusic: false,
                 };
                 await saveToCache(`navidrome_match_${navidromeSong.navidromeData.id}`, matchData);
@@ -1168,6 +1183,7 @@ export function useLibraryPlaybackController({
                     ...currentSong,
                     matchedLyrics: bestMatch.lyrics,
                     matchedLyricsSource: bestMatch.source,
+                    matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                     matchedIsPureMusic: false,
                     lyricsSource: 'online' as const,
                     useOnlineLyrics: true,
@@ -1205,9 +1221,12 @@ export function useLibraryPlaybackController({
                 importedLyricsName: previousState?.importedLyricsName ?? null,
                 hasOnlineOverride: true,
                 onlineOverrideLyrics: bestMatch.lyrics,
-                matchedSongId: bestMatch.source === 'netease' ? bestMatch.id as number : currentSong.id,
+                matchedSongId: bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')
+                    ? bestMatch.id as number
+                    : currentSong.id,
                 matchedIsPureMusic: false,
                 matchedLyricsSource: bestMatch.source,
+                matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
             };
             await saveOnlineLyricsState(currentSong, nextState);
 

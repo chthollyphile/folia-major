@@ -5,6 +5,8 @@ import { useShallow } from 'zustand/react/shallow';
 import type { QueueAddBehavior, Theme } from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { CustomSelect } from '../../shared/CustomSelect';
+import { LYRIC_MATCH_SOURCES } from '../../../utils/lyrics/lyricMatchSources';
+import { getLyricProviderPreferenceLabel } from '../../../utils/lyrics/lyricSourceLabels';
 
 // src/components/modal/settings/PlaybackSettingsSubview.tsx
 // Playback behavior and output-device settings extracted from the global settings modal.
@@ -255,18 +257,15 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                         <div className="p-4 space-y-3 border-t" style={{ borderColor: 'var(--border-primary, rgba(255,255,255,0.06))' }}>
                             <div className="space-y-1">
                                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                    歌词匹配优先级
+                                    {t('settings.lyricMatchPriority')}
                                 </div>
                                 <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
-                                    在多个歌词源都存在匹配度满足要求的歌词时，优先选择该歌词源的结果。
+                                    {t('settings.lyricMatchPriorityDesc')}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 mt-2">
-                                {([
-                                    { value: 'netease', label: '网易云' },
-                                    { value: 'qq', label: 'QQ 音乐' },
-                                    { value: 'kugou', label: '酷狗音乐' },
-                                ] as const).map((option) => {
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                                {LYRIC_MATCH_SOURCES.map((source) => {
+                                    const option = { value: source, label: getLyricProviderPreferenceLabel(source) };
                                     const selected = preferredAlternativeLyricSource === option.value;
                                     return (
                                         <button

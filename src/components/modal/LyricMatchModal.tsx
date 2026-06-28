@@ -2,15 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
 import { LocalSong, SongResult, LyricData } from '../../types';
-import { neteaseApi } from '../../services/netease';
 import { saveLocalSong, removeFromCache, saveToCache } from '../../services/db';
 import { formatSongName } from '../../utils/songNameFormatter';
-import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
-import { searchQQLyrics, fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
 import { calculateMatchScore, normalizeLyricMatchText } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
+import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource } from '../../utils/lyrics/lyricMatchSources';
 import {
     getLyricMatchSourceLabel,
     getMatchResultAlbumId,
@@ -137,7 +134,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     const lyricsSourceLabel = useMemo(() => {
         if (lyricsSource === 'online') {
             const src = selectedResult ? source : (song.matchedLyricsSource || 'netease');
-            return getLyricMatchSourceLabel(src);
+            const platform = selectedResult?.amllDbPlatform ?? song.matchedLyricsProviderPlatform;
+            return getLyricMatchSourceLabel(src, platform);
         }
         if (lyricsSource === 'embedded') return t('localMusic.statusEmbedded');
         if (lyricsSource === 'local') return t('localMusic.statusLocal');
@@ -166,18 +164,9 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         setSelectedResult(null);
 
         try {
-            let results: SongResult[] = [];
-            if (activeSource === 'netease') {
-                const res = await neteaseApi.cloudSearch(q);
-                results = res.result?.songs ?? [];
-            } else if (activeSource === 'qq') {
-                results = await searchQQLyrics(q);
-            } else if (activeSource === 'kugou') {
-                results = await searchKugouLyrics(q);
-            }
+            const results = await searchLyricsByMatchSource(activeSource, q, songInfo);
             if (requestId !== searchRequestIdRef.current) return;
 
-            results.sort((a, b) => calculateMatchScore(songInfo, b) - calculateMatchScore(songInfo, a));
             setSearchResults(results);
 
             const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
@@ -226,35 +215,15 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         setIsMatching(true);
         try {
             // Always fetch lyrics from selected song (we decide whether to save them based on toggle)
-            let processed: { lyrics: any; isPureMusic: boolean } | null = null;
-            if (source === 'netease') {
-                const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-                processed = await processNeteaseLyrics(
-                    {
-                        type: 'netease',
-                        ...lyricRes
-                    },
-                    { songId: selectedResult.id }
-                );
-            } else if (source === 'qq') {
-                const parsedLyrics = await fetchQQLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            } else if (source === 'kugou') {
-                const parsedLyrics = await fetchKugouLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            }
+            const processed = await fetchLyricsForMatchSource(source, selectedResult);
+            if (!processed) return;
             const parsedLyrics: LyricData | null = processed ? processed.lyrics : null;
 
             // Always save the matched song ID for reference
             song.matchedSongId = selectedResult.id;
             song.matchedIsPureMusic = processed.isPureMusic;
             song.matchedLyricsSource = source;
+            song.matchedLyricsProviderPlatform = processed.matchedLyricsProviderPlatform;
 
             // Save lyrics if online is selected
             if (lyricsSource === 'online') {
@@ -321,6 +290,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             delete song.matchedLyrics;
             delete song.matchedCoverUrl;
             delete song.matchedLyricsSource;
+            delete song.matchedLyricsProviderPlatform;
 
             await saveLocalSong(song);
             // Clear cached online cover so embedded cover is used
@@ -354,13 +324,10 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         {/* Search Bar */}
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
-                                {[
-                                    { id: 'netease', label: '网易云音乐' },
-                                    ...(enableAlternativeLyricSources ? [
-                                        { id: 'qq', label: 'QQ 音乐' },
-                                        { id: 'kugou', label: '酷狗音乐' }
-                                    ] : [])
-                                ].map(t => {
+                                {LYRIC_MATCH_SOURCES
+                                    .filter(id => id === 'netease' || enableAlternativeLyricSources)
+                                    .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
+                                    .map(t => {
                                     const isSelected = source === t.id;
                                     const activeTabClass = isSelected
                                         ? isDaylight
@@ -421,14 +388,16 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             ) : (
                                 <div className="space-y-1.5">
                                     {searchResults.map((result) => {
+                                        const resultKey = `${source}-${result.amllDbPlatform ?? 'base'}-${result.id}`;
+                                        const selectedKey = selectedResult ? `${source}-${selectedResult.amllDbPlatform ?? 'base'}-${selectedResult.id}` : null;
                                         const resultCoverUrl = getMatchResultCoverUrl(result, source);
                                         const resultArtists = getMatchResultArtists(result);
                                         const resultAlbum = getMatchResultAlbumName(result);
                                         return (
                                             <div
-                                                key={result.id}
+                                                key={resultKey}
                                                 onClick={() => setSelectedResult(result)}
-                                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${selectedResult?.id === result.id
+                                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${selectedKey === resultKey
                                                     ? resultItemSelected
                                                     : resultItemBg
                                                     }`}

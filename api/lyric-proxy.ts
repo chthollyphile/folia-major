@@ -27,7 +27,8 @@ const IGNORED_FORWARD_HEADERS = ['host', 'connection', 'content-length', 'origin
 
 function isAllowedLyricProxyHost(hostname: string): boolean {
   return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
-    hostname === 'kugou.com' || hostname.endsWith('.kugou.com');
+    hostname === 'kugou.com' || hostname.endsWith('.kugou.com') ||
+    hostname === 'amll-ttml-db.stevexmh.net';
 }
 
 export default async function handler(req: any, res: any) {
@@ -49,7 +50,7 @@ export default async function handler(req: any, res: any) {
     const targetUrl = new URL(targetUrlStr);
     const hostname = targetUrl.hostname;
 
-    // Security check: only allow proxying to qq.com and kugou.com domains
+    // Security check: only allow proxying to known lyric provider domains
     const isAllowed = isAllowedLyricProxyHost(hostname);
 
     if (!isAllowed) {
