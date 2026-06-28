@@ -932,6 +932,7 @@ export function useLibraryPlaybackController({
                 onlineOverrideLyrics: previousState?.onlineOverrideLyrics ?? null,
                 matchedSongId: previousState?.matchedSongId,
                 matchedIsPureMusic: previousState?.matchedIsPureMusic,
+                matchedLyricsSource: previousState?.matchedLyricsSource,
             };
             await saveOnlineLyricsState(currentSong, nextState);
 
@@ -961,6 +962,7 @@ export function useLibraryPlaybackController({
             onlineOverrideLyrics: previousState?.onlineOverrideLyrics ?? null,
             matchedSongId: previousState?.matchedSongId,
             matchedIsPureMusic: previousState?.matchedIsPureMusic,
+            matchedLyricsSource: previousState?.matchedLyricsSource,
         };
 
         if (source === 'imported' && !nextState.importedLyrics) {
