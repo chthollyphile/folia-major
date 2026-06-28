@@ -9,7 +9,7 @@ import { migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/stora
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
-import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource } from '../../utils/lyrics/lyricMatchSources';
+import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
 import {
     getLyricMatchSourceLabel,
     getMatchResultAlbumName,
@@ -85,9 +85,10 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         return {
             title: song.name || '',
             artist: navidromeArtist || '',
+            album: navidromeAlbum || '',
             durationMs: song.duration || song.dt || 0,
         };
-    }, [song, navidromeArtist]);
+    }, [song, navidromeArtist, navidromeAlbum]);
 
     // Prepare component data
     useEffect(() => {
@@ -107,7 +108,9 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
     }, [song]);
 
     const handleSearch = async (query?: string) => {
-        const q = query || searchQuery;
+        const q = sourceSupportsManualSearch(source)
+            ? (query || searchQuery)
+            : buildLyricSearchQuery(songInfo.title, songInfo.artist, songInfo.album || '');
         if (!q.trim()) return;
 
         setIsSearching(true);
@@ -281,32 +284,34 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                     );
                                 })}
                             </div>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleSearch();
-                                }}
-                                className="flex gap-3"
-                            >
-                                <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
-                                    <Search size={18} className={`opacity-40 ${textSecondary}`} />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
-                                        className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
-                                        autoFocus
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={isSearching}
-                                    className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                            {sourceSupportsManualSearch(source) && (
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        handleSearch();
+                                    }}
+                                    className="flex gap-3"
                                 >
-                                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
-                                </button>
-                            </form>
+                                    <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                        <Search size={18} className={`opacity-40 ${textSecondary}`} />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
+                                            className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={isSearching}
+                                        className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                                    >
+                                        {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
+                                    </button>
+                                </form>
+                            )}
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
                             {isSearching ? (

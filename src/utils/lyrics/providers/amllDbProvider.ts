@@ -4,7 +4,9 @@ import { parseLyricsByFormat } from '../parserCore';
 // src/utils/lyrics/providers/amllDbProvider.ts
 
 const AMLL_DB_BASE_URL = 'https://amll-ttml-db.stevexmh.net';
+const AMLL_DB_CACHE_LIMIT = 200;
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
+const lyricsCache = new Map<string, Promise<LyricData | null>>();
 
 export const buildAmllDbLyricsUrl = (platform: AmllDbPlatform, musicId: number | string): string => (
     `${AMLL_DB_BASE_URL}/${platform}/${encodeURIComponent(String(musicId))}?format=ttml`
@@ -15,17 +17,18 @@ const buildAmllDbRequestUrl = (platform: AmllDbPlatform, musicId: number | strin
     return isElectron ? targetUrl : `/api/lyric-proxy?url=${encodeURIComponent(targetUrl)}`;
 };
 
-export async function fetchAmllDbLyrics(
+export function clearAmllDbLyricsCache(): void {
+    lyricsCache.clear();
+}
+
+async function fetchAmllDbLyricsUncached(
     platform: AmllDbPlatform,
     musicId: number | string,
 ): Promise<LyricData | null> {
-    const id = String(musicId).trim();
-    if (!id) {
-        return null;
-    }
-
     try {
-        const response = await fetch(buildAmllDbRequestUrl(platform, id));
+        const response = await fetch(buildAmllDbRequestUrl(platform, musicId), {
+            credentials: 'omit',
+        });
         if (!response.ok) {
             return null;
         }
@@ -38,7 +41,34 @@ export async function fetchAmllDbLyrics(
         const parsed = parseLyricsByFormat('ttml', ttml);
         return parsed?.lines?.length ? parsed : null;
     } catch (error) {
-        console.warn(`[AMLLDB] Failed to fetch ${platform}/${id}:`, error);
+        console.warn(`[AMLLDB] Failed to fetch ${platform}/${musicId}:`, error);
         return null;
     }
+}
+
+export async function fetchAmllDbLyrics(
+    platform: AmllDbPlatform,
+    musicId: number | string,
+): Promise<LyricData | null> {
+    const id = String(musicId).trim();
+    if (!id) {
+        return null;
+    }
+
+    const cacheKey = `${platform}:${id}`;
+    const cached = lyricsCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const request = fetchAmllDbLyricsUncached(platform, id);
+    lyricsCache.set(cacheKey, request);
+    if (lyricsCache.size > AMLL_DB_CACHE_LIMIT) {
+        const oldestKey = lyricsCache.keys().next().value;
+        if (oldestKey) {
+            lyricsCache.delete(oldestKey);
+        }
+    }
+
+    return request;
 }

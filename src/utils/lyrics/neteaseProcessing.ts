@@ -20,6 +20,54 @@ export interface ProcessedNeteaseLyricsResult extends ExtractedNeteaseLyricPaylo
     chorusRanges?: NeteaseChorusRange[];
 }
 
+const neteaseChorusRangesCache = new Map<string, Promise<NeteaseChorusRange[]>>();
+
+export const clearNeteaseChorusRangesCache = (): void => {
+    neteaseChorusRangesCache.clear();
+};
+
+export const parseNeteaseChorusRanges = (chorusRes: any): NeteaseChorusRange[] => {
+    if (!chorusRes || chorusRes.code !== 200) {
+        return [];
+    }
+
+    const ranges = chorusRes.chorus || chorusRes.data || [];
+    if (!Array.isArray(ranges) || ranges.length === 0) {
+        return [];
+    }
+
+    return ranges
+        .map((range: any) => ({
+            startTime: (range.startTime ?? 0) / 1000,
+            endTime: (range.endTime ?? 0) / 1000
+        }))
+        .filter(range => Number.isFinite(range.startTime) && Number.isFinite(range.endTime) && range.endTime > range.startTime);
+};
+
+export const fetchNeteaseChorusRanges = async (songId: number | string): Promise<NeteaseChorusRange[]> => {
+    const parsedId = Number(songId);
+    if (!Number.isFinite(parsedId) || parsedId <= 0) {
+        return [];
+    }
+
+    const cacheKey = String(parsedId);
+    const cached = neteaseChorusRangesCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const request = (async () => {
+        try {
+            return parseNeteaseChorusRanges(await neteaseApi.getChorus(parsedId));
+        } catch (error) {
+            console.warn(`[processNeteaseLyrics] Failed to fetch API-based chorus for song ${songId}:`, error);
+            return [];
+        }
+    })();
+    neteaseChorusRangesCache.set(cacheKey, request);
+    return request;
+};
+
 export const extractNeteaseLyricPayload = (source?: RawNeteaseLyric | null): ExtractedNeteaseLyricPayload => {
     const mainLrc = source?.lrc?.lyric || null;
     const yrcLrc = source?.yrc?.lyric || source?.lrc?.yrc?.lyric || null;
@@ -75,18 +123,12 @@ export const processNeteaseLyrics = async (
         let chorusApplied = false;
         if (chorusPromise) {
             const chorusRes = await chorusPromise;
-            if (chorusRes && chorusRes.code === 200) {
-                const ranges = chorusRes.chorus || chorusRes.data || [];
-                if (Array.isArray(ranges) && ranges.length > 0) {
-                    const parsedRanges = ranges.map((r: any) => ({
-                        startTime: (r.startTime ?? 0) / 1000,
-                        endTime: (r.endTime ?? 0) / 1000
-                    }));
-                    chorusRanges = parsedRanges;
-                    lyrics = applyNeteaseChorusByTime(lyrics, parsedRanges);
-                    chorusApplied = true;
-                    console.log(`[processNeteaseLyrics] Applied API-based chorus detection for song ${options.songId}. Ranges: ${JSON.stringify(parsedRanges)}`);
-                }
+            const parsedRanges = parseNeteaseChorusRanges(chorusRes);
+            if (parsedRanges.length > 0) {
+                chorusRanges = parsedRanges;
+                lyrics = applyNeteaseChorusByTime(lyrics, parsedRanges);
+                chorusApplied = true;
+                console.log(`[processNeteaseLyrics] Applied API-based chorus detection for song ${options.songId}. Ranges: ${JSON.stringify(parsedRanges)}`);
             }
         }
 

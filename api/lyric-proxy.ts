@@ -31,6 +31,10 @@ function isAllowedLyricProxyHost(hostname: string): boolean {
     hostname === 'amll-ttml-db.stevexmh.net';
 }
 
+function isAmllDbHost(hostname: string): boolean {
+  return hostname === 'amll-ttml-db.stevexmh.net';
+}
+
 export default async function handler(req: any, res: any) {
   // Allow CORS for the proxy
   Object.entries(CORS_HEADERS).forEach(([key, value]) => {
@@ -81,6 +85,10 @@ export default async function handler(req: any, res: any) {
     }
 
     const response = await fetch(targetUrl.toString(), fetchOptions);
+    if (isAmllDbHost(hostname) && response.status === 404) {
+      return res.status(204).end();
+    }
+
     const contentType = response.headers.get('content-type') || '';
 
     // Forward response headers

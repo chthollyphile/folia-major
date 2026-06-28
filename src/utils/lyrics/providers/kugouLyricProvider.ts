@@ -130,6 +130,7 @@ async function requestKugou(url: string, params: Record<string, any>, module: st
 
   const response = await fetch(requestUrl, {
     method: 'GET',
+    credentials: 'omit',
     headers: finalHeaders,
   });
 
@@ -224,6 +225,7 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
   try {
     const response = await fetch(requestUrl, {
       method: 'GET',
+      credentials: 'omit',
       headers: {
         'User-Agent': 'Android14-1070-11070-201-0-SearchSong-wifi',
       },
