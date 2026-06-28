@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments, type PrepareOptions } from '@chenglou/pretext';
 import { DEFAULT_CAPPELLA_TUNING, type AudioBands, type CappellaEmojiImage, type CappellaTuning, type Line, type Theme } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { buildLineGraphemeTimeline, buildWordGraphemeTimings, splitLyricGraphemes } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
@@ -11,6 +12,7 @@ import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { builtinAvatarImages, type CappellaAvatarImage, resolveCappellaAvatarUrl } from './avatarImages';
+import { createCappellaAgentSenderResolver, type CappellaMessageSender } from './cappellaMessageSenders';
 import { builtinEmoImages } from './emoImages';
 
 // src/components/visualizer/cappella/VisualizerCappella.tsx
@@ -143,7 +145,6 @@ interface CharacterRevealPlan {
 const INTERLUDE_TEXT = '......';
 const DEFAULT_CHAR_FADE_MS = 220;
 const MIN_CHAR_FADE_MS = 40;
-const LATIN_REVEAL_UNIT_RE = /^[\p{Script=Latin}\p{Number}'’_-]+$/u;
 
 const countCompactChars = (text: string) => Array.from(text.replace(/\s/g, '')).length;
 
@@ -347,16 +348,22 @@ const buildCappellaMessages = (
 
     let sideSequenceCursor = 0;
     let nextLeftAvatarCursor = 0;
-    let lastLyricSender: Pick<CappellaLineMessage, 'side' | 'avatarIndex'> | null = null;
+    let lastLyricSender: CappellaMessageSender | null = null;
     let lyricMessagesSinceRandomEmo = Number.POSITIVE_INFINITY;
     let randomEmoCount = 0;
     const randomEmoCap = Math.floor(lines.length * config.sequencing.maxRandomEmoRatio);
+    const agentSenderResolver = createCappellaAgentSenderResolver(lines, {
+        rightAvatarIndex: RIGHT_AVATAR_INDEX,
+        leftAvatarCount: LEFT_AVATAR_INDICES.length,
+    });
 
     lines.forEach((line, lineIndex) => {
         const nextLine = lines[lineIndex + 1];
         const isShortLine = countCompactChars(line.fullText) <= SHORT_LINE_CHAR_LIMIT;
-        const shouldForceRight = (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
-        const shouldCarrySender = isShortLine
+        const agentSender = agentSenderResolver?.resolve(line) ?? null;
+        const shouldForceRight = !agentSender && (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
+        const shouldCarrySender = !agentSender
+            && isShortLine
             && lastLyricSender
             && seededUnit('carry', line.startTime, lineIndex) <= config.sequencing.shortLineCarryChance;
         const baseSide = config.sequencing.sideSequence[sideSequenceCursor % config.sequencing.sideSequence.length];
@@ -365,7 +372,7 @@ const buildCappellaMessages = (
         const resolvedSide = shouldFlipSide
             ? (baseSide === 'left' ? 'right' : 'left')
             : baseSide;
-        const sender = shouldForceRight
+        const sender = agentSender ?? (shouldForceRight
             ? {
                 side: 'right' as const,
                 avatarIndex: RIGHT_AVATAR_INDEX,
@@ -377,7 +384,7 @@ const buildCappellaMessages = (
                     avatarIndex: resolvedSide === 'left'
                         ? nextLeftAvatarCursor
                         : RIGHT_AVATAR_INDEX,
-                };
+                });
 
         const isInterlude = line.fullText === INTERLUDE_TEXT;
         const emoImage = isInterlude && showEmoMessages
@@ -439,7 +446,9 @@ const buildCappellaMessages = (
             }
         }
 
-        if (shouldForceRight) {
+        if (agentSender) {
+            lastLyricSender = sender;
+        } else if (shouldForceRight) {
             sideSequenceCursor = 0;
             lastLyricSender = null;
         } else if (!shouldCarrySender) {
@@ -484,7 +493,7 @@ const buildCappellaMessages = (
     return messages;
 };
 
-const getLineCharacters = (line: Line) => Array.from(line.fullText);
+const getLineCharacters = (line: Line) => splitLyricGraphemes(line.fullText);
 
 const getWordTextRanges = (line: Line) => {
     const ranges: Array<{ start: number; end: number; } | null> = [];
@@ -510,6 +519,14 @@ const getWordTextRanges = (line: Line) => {
 // this bridges the two without rebuilding text ranges during playback.
 const buildCharacterRevealTimes = (line: Line, characters: string[]) => {
     const revealTimes = characters.map(() => Number.POSITIVE_INFINITY);
+    const lineTimeline = buildLineGraphemeTimeline(line);
+    if (lineTimeline.length === characters.length) {
+        lineTimeline.forEach((timing, index) => {
+            revealTimes[index] = timing.startTime;
+        });
+        return revealTimes;
+    }
+
     const ranges = getWordTextRanges(line);
     let previousWordEndCharacterIndex = 0;
     let lastResolvedRevealTime = line.startTime;
@@ -521,10 +538,9 @@ const buildCharacterRevealTimes = (line: Line, characters: string[]) => {
             return;
         }
 
-        const startCharacterIndex = Array.from(line.fullText.slice(0, range.start)).length;
-        const endCharacterIndex = Array.from(line.fullText.slice(0, range.end)).length;
-        const wordCharacters = Array.from(word.text);
-        const duration = Math.max(word.endTime - word.startTime, 0.001);
+        const startCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.start)).length;
+        const endCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.end)).length;
+        const wordTimings = buildWordGraphemeTimings(word);
 
         // Characters between two timed words are usually spaces or sticky punctuation.
         // Reveal them with the next word so the visible text remains contiguous.
@@ -532,15 +548,13 @@ const buildCharacterRevealTimes = (line: Line, characters: string[]) => {
             revealTimes[characterIndex] = word.startTime;
         }
 
-        // The first character appears at word start, then the rest spread
-        // across the word duration to match the previous reveal behavior.
-        wordCharacters.forEach((_, characterIndex) => {
+        wordTimings.forEach((timing, characterIndex) => {
             const targetIndex = startCharacterIndex + characterIndex;
             if (targetIndex >= revealTimes.length) {
                 return;
             }
 
-            revealTimes[targetIndex] = word.startTime + duration * (characterIndex / wordCharacters.length);
+            revealTimes[targetIndex] = timing.startTime;
             lastResolvedRevealTime = Math.max(lastResolvedRevealTime, revealTimes[targetIndex]);
             hasResolvedRevealTime = true;
         });
@@ -583,25 +597,18 @@ const getBubbleTargetCharacterCount = (metrics: PreparedBubbleMetrics, currentTi
 const getTimestampReadyTime = (metrics: PreparedBubbleMetrics | null, line: Line) =>
     metrics?.timestampReadyTime ?? line.endTime;
 
-const getWordRevealUnitCount = (wordText: string) => {
-    const trimmed = wordText.trim();
-    if (!trimmed) {
-        return 1;
-    }
-
-    const characters = Array.from(wordText);
-    if (!LATIN_REVEAL_UNIT_RE.test(trimmed)) {
-        return 1;
-    }
-
-    const revealCharacters = characters.filter(character => character.trim().length > 0);
-    return Math.max(revealCharacters.length, 1);
-};
-
 // Builds the CSS fade duration for each character. The timestamp uses the same
 // values so it appears after the last visible character has finished fading in.
 const buildCharacterFadeDurationsMs = (line: Line, characters: string[]) => {
     const fadeDurationsMs = characters.map(() => DEFAULT_CHAR_FADE_MS);
+    const lineTimeline = buildLineGraphemeTimeline(line);
+    if (lineTimeline.length === characters.length) {
+        lineTimeline.forEach((timing, index) => {
+            fadeDurationsMs[index] = Math.max((timing.endTime - timing.startTime) * 1000, MIN_CHAR_FADE_MS);
+        });
+        return fadeDurationsMs;
+    }
+
     const ranges = getWordTextRanges(line);
 
     line.words.forEach((word, index) => {
@@ -610,21 +617,19 @@ const buildCharacterFadeDurationsMs = (line: Line, characters: string[]) => {
             return;
         }
 
-        const startCharacterIndex = Array.from(line.fullText.slice(0, range.start)).length;
-        const wordCharacters = Array.from(word.text);
-        const unitCount = getWordRevealUnitCount(word.text);
-        const fadeDurationMs = Math.max(
-            ((word.endTime - word.startTime) / unitCount) * 1000,
-            MIN_CHAR_FADE_MS
-        );
+        const startCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.start)).length;
+        const wordTimings = buildWordGraphemeTimings(word);
 
-        for (let characterIndex = 0; characterIndex < wordCharacters.length; characterIndex += 1) {
+        for (let characterIndex = 0; characterIndex < wordTimings.length; characterIndex += 1) {
             const targetIndex = startCharacterIndex + characterIndex;
             if (targetIndex >= fadeDurationsMs.length) {
                 break;
             }
 
-            fadeDurationsMs[targetIndex] = fadeDurationMs;
+            const timing = wordTimings[characterIndex];
+            fadeDurationsMs[targetIndex] = timing
+                ? Math.max((timing.endTime - timing.startTime) * 1000, MIN_CHAR_FADE_MS)
+                : DEFAULT_CHAR_FADE_MS;
         }
     });
 

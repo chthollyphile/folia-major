@@ -27,19 +27,29 @@ const collectSourceFiles = async (relativeDir: string): Promise<string[]> => {
 
 describe('lyrics architecture', () => {
     it('keeps Netease call sites on the shared processing helper', async () => {
-        const callSites = [
+        const directProcessingCallSites = [
             'src/hooks/useLibraryPlaybackController.ts',
             'src/components/app/playback/restorePlaybackSource.ts',
             'src/services/prefetchService.ts',
             'src/services/onlinePlayback.ts',
             'src/services/localMusicService.ts',
+            'src/utils/lyrics/lyricMatchSources.ts'
+        ];
+        const delegatedProcessingCallSites = [
             'src/components/modal/LyricMatchModal.tsx',
             'src/components/modal/NaviLyricMatchModal.tsx'
         ];
 
-        for (const file of callSites) {
+        for (const file of directProcessingCallSites) {
             const content = await readRepoFile(file);
             expect(content, `${file} should use shared Netease processing`).toContain('processNeteaseLyrics');
+            expect(content, `${file} should not import legacy parsers`).not.toMatch(/lrcParser|yrcParser/);
+            expect(content, `${file} should not inline chorus detection`).not.toContain('detectChorusLines');
+        }
+
+        for (const file of delegatedProcessingCallSites) {
+            const content = await readRepoFile(file);
+            expect(content, `${file} should delegate lyric source fetching`).toContain('fetchLyricsForMatchSource');
             expect(content, `${file} should not import legacy parsers`).not.toMatch(/lrcParser|yrcParser/);
             expect(content, `${file} should not inline chorus detection`).not.toContain('detectChorusLines');
         }

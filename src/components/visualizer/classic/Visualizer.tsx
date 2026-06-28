@@ -8,6 +8,7 @@ import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { buildPostLyricLayoutUnits, buildDisplayWordsFromLayoutUnits } from '../../../utils/lyrics/cjkSemanticLayout';
+import { buildWordGraphemeTimings } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 
 // This mode is the most straightforward lyric pipeline in the folder.
@@ -177,6 +178,7 @@ const Word: React.FC<{
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
     const duration = getClassicWordDisplayDuration(word, renderProfile);
     const activeEndTime = getClassicWordActiveEndTime(word, renderProfile);
+    const graphemeTimings = useMemo(() => buildWordGraphemeTimings(word), [word]);
 
     useMotionValueEvent(currentTime, "change", (latest: number) => {
         let newStatus: "waiting" | "active" | "passed" = "waiting";
@@ -221,14 +223,25 @@ const Word: React.FC<{
                 className="absolute inset-0 select-none pointer-events-none block"
                 aria-hidden="true"
             >
-                {!isCJK(word.text) && word.text.length > 1 ? (
-                    word.text.split('').map((char, index) => (
+                {graphemeTimings.length > 1 ? (
+                    graphemeTimings.map((timing, index) => (
                         <motion.span
                             key={index}
                             variants={glowVariants}
-                            custom={{ config, activeColor, baseColor, duration, index, total: word.text.length, wordRevealMode: renderProfile.wordRevealMode }}
+                            custom={{
+                                config,
+                                activeColor,
+                                baseColor,
+                                duration,
+                                index,
+                                total: graphemeTimings.length,
+                                charStartTime: timing.startTime,
+                                charEndTime: timing.endTime,
+                                wordStartTime: word.startTime,
+                                wordRevealMode: renderProfile.wordRevealMode,
+                            }}
                         >
-                            {char}
+                            {timing.char}
                         </motion.span>
                     ))
                 ) : (
@@ -524,7 +537,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
             color: "transparent",
             textShadow: "none",
         },
-        active: ({ activeColor, duration, index, total, wordRevealMode }: any) => {
+        active: ({ activeColor, duration, index, total, charStartTime, charEndTime, wordStartTime, wordRevealMode }: any) => {
             if (wordRevealMode === 'instant') {
                 return {
                     color: "transparent",
@@ -559,6 +572,16 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
 
             if (total !== undefined && total > 1) {
                 const singleDuration = duration / total;
+                const hasCharTiming = typeof charStartTime === 'number'
+                    && typeof charEndTime === 'number'
+                    && typeof wordStartTime === 'number';
+                const resolvedCharDuration = hasCharTiming ? charEndTime - charStartTime : 0;
+                const charDuration = hasCharTiming
+                    ? Math.max(resolvedCharDuration, 0.001)
+                    : singleDuration;
+                const charDelay = hasCharTiming
+                    ? Math.max(0, charStartTime - wordStartTime)
+                    : singleDuration * index;
                 return {
                     color: "transparent",
                     textShadow: [
@@ -567,9 +590,9 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                         "none"
                     ],
                     transition: {
-                        duration: singleDuration * 6, // stretch the fade over a few letters
+                        duration: charDuration * 6, // stretch the fade over a few letters
                         times: [0, 0.3, 1], // peak early, then fade
-                        delay: singleDuration * index,
+                        delay: charDelay,
                         ease: "easeInOut"
                     }
                 };

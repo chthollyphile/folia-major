@@ -1,9 +1,11 @@
-import { LyricData, SongResult } from '../../types';
+import { LyricData, LyricProviderSource, SongResult } from '../../types';
 import { neteaseApi } from '../../services/netease';
-import { processNeteaseLyrics } from './neteaseProcessing';
+import { fetchNeteaseChorusRanges, processNeteaseLyrics } from './neteaseProcessing';
+import { applyNeteaseChorusByTime } from './chorusEffects';
 import type { NeteaseChorusRange } from './chorusEffects';
 import { searchQQLyrics, fetchQQLyrics } from './providers/qqLyricProvider';
 import { searchKugouLyrics, fetchKugouLyrics } from './providers/kugouLyricProvider';
+import { fetchAmllDbLyrics } from './providers/amllDbProvider';
 import { normalizeLyricMatchDurationMs } from './duration';
 import { calculateMatchScoreDetails } from './matchScore';
 import { buildLyricSearchQuery } from './searchQuery';
@@ -17,9 +19,13 @@ const AUTO_MATCH_SEARCH_LIMIT = 10;
 const AUTO_MATCH_MIN_SCORE = 75;
 const SHOULD_LOG_MATCH_DETAILS = import.meta.env.DEV;
 
+const hasChorusMarkers = (lyrics: LyricData | null): boolean => (
+    Boolean(lyrics?.lines.some(line => line.isChorus))
+);
+
 export interface AutoMatchBestLyricOptions {
     album?: string;
-    preferredSource?: 'netease' | 'qq' | 'kugou';
+    preferredSource?: LyricProviderSource;
     neteaseCandidate?: {
         id: number | string;
         lyrics: LyricData | null;
@@ -30,10 +36,11 @@ export interface AutoMatchBestLyricOptions {
 
 export type AutoMatchBestLyricMatch = {
     lyrics: LyricData;
-    source: 'netease' | 'qq' | 'kugou';
+    source: LyricProviderSource;
     id: number | string;
     qqMid?: string;
     kgHash?: string;
+    matchedLyricsProviderPlatform?: 'ncm' | 'qq';
     isPureMusic?: false;
 };
 
@@ -44,7 +51,7 @@ export type AutoMatchBestLyricPureMusic = {
 export type AutoMatchBestLyricResult = AutoMatchBestLyricMatch | AutoMatchBestLyricPureMusic | null;
 
 function selectBestCandidate(
-    source: 'netease' | 'qq' | 'kugou',
+    source: LyricProviderSource,
     songs: SongResult[],
     target: { title: string; artist: string; durationMs: number; album?: string }
 ): SongResult | null {
@@ -125,54 +132,118 @@ export async function autoMatchBestLyric(
     console.log(`[autoMatchBestLyric] Initiating best lyric auto-match for "${searchQuery}" (Duration: ${normalizedDurationMs}ms)`);
     const targetSong = { title, artist, album: options.album, durationMs: normalizedDurationMs };
     let neteaseChorusRanges: NeteaseChorusRange[] = options.neteaseCandidate?.chorusRanges ?? [];
+    let neteaseCandidateSongs: any[] | null = null;
+    let qqBestCandidate: SongResult | null | undefined;
 
-    const defaultOrder = ['netease', 'qq', 'kugou'] as const;
+    const defaultOrder = ['netease', 'amll', 'qq', 'kugou'] as const;
     const searchOrder = options.preferredSource
         ? [options.preferredSource, ...defaultOrder.filter(s => s !== options.preferredSource)]
         : defaultOrder;
+
+    const getNeteaseCandidateSongs = async (): Promise<any[]> => {
+        if (neteaseCandidateSongs) {
+            return neteaseCandidateSongs;
+        }
+        if (options.neteaseCandidate) {
+            neteaseCandidateSongs = [{ id: options.neteaseCandidate.id, name: title, ar: artist ? [{ name: artist }] : [] }];
+            return neteaseCandidateSongs;
+        }
+
+        const neteaseSearchRes = await withTimeout(
+            neteaseApi.cloudSearch(searchQuery, AUTO_MATCH_SEARCH_LIMIT),
+            PROVIDER_SEARCH_TIMEOUT_MS,
+            'NetEase search',
+            { result: { songs: [] } }
+        );
+        const neteaseSongs = neteaseSearchRes.result?.songs || [];
+        const bestCandidate = selectBestCandidate('netease', neteaseSongs, targetSong);
+        neteaseCandidateSongs = bestCandidate ? [bestCandidate] : [];
+        return neteaseCandidateSongs;
+    };
+
+    const getQqBestCandidate = async (): Promise<SongResult | null> => {
+        if (qqBestCandidate !== undefined) {
+            return qqBestCandidate;
+        }
+        const qqSongs = await withTimeout(
+            searchQQLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
+            PROVIDER_SEARCH_TIMEOUT_MS,
+            'QQ search',
+            []
+        );
+        qqBestCandidate = selectBestCandidate('qq', qqSongs, targetSong);
+        return qqBestCandidate;
+    };
+
+    const getNeteaseProcessed = async (song: any) => {
+        return String(options.neteaseCandidate?.id) === String(song.id)
+            ? {
+                lyrics: options.neteaseCandidate.lyrics,
+                isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
+                chorusRanges: options.neteaseCandidate.chorusRanges ?? []
+            }
+            : await withTimeout(
+                (async () => {
+                    const lyricRes = await neteaseApi.getLyric(song.id);
+                    return processNeteaseLyrics(
+                        {
+                            type: 'netease',
+                            ...lyricRes
+                        },
+                        { songId: song.id }
+                    );
+                })(),
+                PROVIDER_LYRIC_TIMEOUT_MS,
+                `NetEase lyric fetch for ${song.id}`,
+                null
+            );
+    };
+
+    const tryAmllDbCandidate = async (
+        platform: 'ncm' | 'qq',
+        song: any,
+    ): Promise<AutoMatchBestLyricMatch | null> => {
+        console.log(`[autoMatchBestLyric] Probing AMLLDB ${platform}/${song.id} for "${song.name || title}"`);
+        const lyrics = await withTimeout(
+            fetchAmllDbLyrics(platform, song.id),
+            PROVIDER_LYRIC_TIMEOUT_MS,
+            `AMLLDB lyric fetch for ${platform}/${song.id}`,
+            null
+        );
+        if (!lyrics) {
+            console.log(`[autoMatchBestLyric] AMLLDB ${platform}/${song.id} returned no TTML lyrics. Continuing with the next source.`);
+            return null;
+        }
+        if (!lyrics.isWordByWord) {
+            console.log(`[autoMatchBestLyric] AMLLDB ${platform}/${song.id} returned lyrics but they are not word-by-word. Continuing with the next source.`);
+            return null;
+        }
+        const chorusRanges = platform === 'ncm' && !hasChorusMarkers(lyrics)
+            ? (neteaseChorusRanges.length > 0 ? neteaseChorusRanges : await fetchNeteaseChorusRanges(song.id))
+            : [];
+        const decoratedLyrics = chorusRanges.length > 0
+            ? applyNeteaseChorusByTime(lyrics, chorusRanges)
+            : lyrics;
+
+        console.log(`[autoMatchBestLyric] Found AMLLDB word-by-word lyric match from ${platform}!`);
+        return {
+            lyrics: decoratedLyrics,
+            source: 'amll',
+            id: song.id,
+            matchedLyricsProviderPlatform: platform,
+            ...(platform === 'qq' ? { qqMid: song.qqMid } : {}),
+        };
+    };
 
     for (const searchSource of searchOrder) {
         if (searchSource === 'netease') {
             // 1. NetEase Music
             try {
-                let candidateSongs: any[];
-                if (options.neteaseCandidate) {
-                    candidateSongs = [{ id: options.neteaseCandidate.id, name: title, ar: artist ? [{ name: artist }] : [] }];
-                } else {
-                    const neteaseSearchRes = await withTimeout(
-                        neteaseApi.cloudSearch(searchQuery, AUTO_MATCH_SEARCH_LIMIT),
-                        PROVIDER_SEARCH_TIMEOUT_MS,
-                        'NetEase search',
-                        { result: { songs: [] } }
-                    );
-                    const neteaseSongs = neteaseSearchRes.result?.songs || [];
-                    const bestCandidate = selectBestCandidate('netease', neteaseSongs, targetSong);
-                    candidateSongs = bestCandidate ? [bestCandidate] : [];
-                }
+                const candidateSongs = await getNeteaseCandidateSongs();
 
                 for (const song of candidateSongs) {
                     console.log(`[autoMatchBestLyric] Checking NetEase candidate: "${song.name}" by "${song.ar?.map((a: any) => a.name).join(', ')}"`);
-                    const processed = String(options.neteaseCandidate?.id) === String(song.id)
-                        ? {
-                            lyrics: options.neteaseCandidate.lyrics,
-                            isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
-                            chorusRanges: options.neteaseCandidate.chorusRanges ?? []
-                        }
-                        : await withTimeout(
-                            (async () => {
-                                const lyricRes = await neteaseApi.getLyric(song.id);
-                                return processNeteaseLyrics(
-                                    {
-                                        type: 'netease',
-                                        ...lyricRes
-                                    },
-                                    { songId: song.id }
-                                );
-                            })(),
-                            PROVIDER_LYRIC_TIMEOUT_MS,
-                            `NetEase lyric fetch for ${song.id}`,
-                            null
-                        );
+                    const processed = await getNeteaseProcessed(song);
 
                     if (!processed) {
                         continue;
@@ -199,16 +270,28 @@ export async function autoMatchBestLyric(
             } catch (error) {
                 console.error(`[autoMatchBestLyric] NetEase search/fetch failed:`, error);
             }
+        } else if (searchSource === 'amll') {
+            try {
+                const neteaseCandidates = await getNeteaseCandidateSongs();
+                if (neteaseCandidates.length === 0) {
+                    console.log('[autoMatchBestLyric] Skipping AMLLDB auto probe because no reliable NetEase candidate id was found.');
+                    continue;
+                }
+
+                for (const song of neteaseCandidates) {
+                    const result = await tryAmllDbCandidate('ncm', song);
+                    if (result) {
+                        return result;
+                    }
+                }
+                console.log('[autoMatchBestLyric] AMLLDB auto probe finished after NCM miss; QQ AMLLDB probing is reserved for manual matching.');
+            } catch (error) {
+                console.error(`[autoMatchBestLyric] AMLLDB probe failed:`, error);
+            }
         } else if (searchSource === 'qq') {
             // 2. QQ Music
             try {
-                const qqSongs = await withTimeout(
-                    searchQQLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
-                    PROVIDER_SEARCH_TIMEOUT_MS,
-                    'QQ search',
-                    []
-                );
-                const bestCandidate = selectBestCandidate('qq', qqSongs, targetSong);
+                const bestCandidate = await getQqBestCandidate();
                 const candidateSongs = bestCandidate ? [bestCandidate] : [];
 
                 for (const song of candidateSongs) {

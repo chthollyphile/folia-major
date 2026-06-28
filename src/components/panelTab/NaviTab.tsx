@@ -4,6 +4,7 @@ import { NavidromeSong } from '../../types/navidrome';
 import { RefreshCw, FileText, Cloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
+import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
 
 interface NaviTabProps {
     currentSong: NavidromeSong;
@@ -48,18 +49,13 @@ const NaviTab: React.FC<NaviTabProps> = ({
     const matchedLyrics = currentSong.matchedLyrics || (navidromeData as any)?.matchedLyrics;
     const songLyricsSource = (currentSong as any).lyricsSource ?? (navidromeData as any)?.lyricsSource;
     const matchedLyricsSource = currentSong.matchedLyricsSource || (navidromeData as any)?.matchedLyricsSource;
+    const matchedLyricsProviderPlatform = currentSong.matchedLyricsProviderPlatform || (navidromeData as any)?.matchedLyricsProviderPlatform;
     const hasMatchedLyrics = (matchedLyrics?.lines?.length ?? 0) > 0;
     const isOnline = hasMatchedLyrics && songLyricsSource === 'online';
     
     let lyricsSourceLabel = '无';
     if (isOnline) {
-        if (matchedLyricsSource === 'qq') {
-            lyricsSourceLabel = 'QQ 音乐';
-        } else if (matchedLyricsSource === 'kugou') {
-            lyricsSourceLabel = '酷狗音乐';
-        } else {
-            lyricsSourceLabel = '网易云音乐';
-        }
+        lyricsSourceLabel = getLyricProviderLabel(matchedLyricsSource, matchedLyricsProviderPlatform);
     } else if (hasLyrics) {
         lyricsSourceLabel = '服务器歌词';
     }

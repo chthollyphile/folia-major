@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
@@ -10,6 +10,7 @@ import { buildStoredMonetBackgroundImage, clearMonetBackgroundImage, isSupported
 import { buildStoredMonetPortraitImage, clearMonetPortraitImage, isSupportedMonetPortraitFile, saveMonetPortraitImage } from '../services/monetPortraitImage';
 import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAME_RATE_STORAGE_KEY } from '../utils/frameRateLimiter';
 import { sanitizeUrlBackgroundItem, sanitizeUrlBackgroundList } from '../utils/urlBackground';
+import { getLyricProviderPreferenceLabel } from '../utils/lyrics/lyricSourceLabels';
 
 // src/stores/useSettingsUiStore.ts
 // Shared settings state and actions used by App, Home, and SettingsModal.
@@ -646,10 +647,10 @@ const readStoredHomeLayoutStyle = (): 'carousel' | 'grid' => {
     return saved === 'carousel' ? 'carousel' : 'grid';
 };
 
-const readStoredPreferredAlternativeLyricSource = (): 'netease' | 'qq' | 'kugou' => {
+const readStoredPreferredAlternativeLyricSource = (): LyricProviderSource => {
     if (typeof window === 'undefined') return 'netease';
     const saved = localStorage.getItem('preferred_alternative_lyric_source');
-    return saved === 'qq' || saved === 'kugou' ? saved : 'netease';
+    return saved === 'qq' || saved === 'kugou' || saved === 'amll' ? saved : 'netease';
 };
 
 /**
@@ -683,7 +684,7 @@ type SettingsUiState = {
     disableHomeDynamicBackground: boolean;
     enableAlternativeLyricSources: boolean;
     autoUseBestLyric: boolean;
-    preferredAlternativeLyricSource: 'netease' | 'qq' | 'kugou';
+    preferredAlternativeLyricSource: LyricProviderSource;
     hidePlayerProgressBar: boolean;
     hidePlayerTranslationSubtitle: boolean;
     hidePlayerRightPanelButton: boolean;
@@ -768,7 +769,7 @@ type SettingsUiState = {
     handleToggleDisableHomeDynamicBackground: (disable: boolean) => void;
     handleToggleAlternativeLyricSources: (enable: boolean) => void;
     handleToggleAutoUseBestLyric: (enable: boolean) => void;
-    handleSetPreferredAlternativeLyricSource: (source: 'netease' | 'qq' | 'kugou') => void;
+    handleSetPreferredAlternativeLyricSource: (source: LyricProviderSource) => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
     handleToggleHidePlayerTranslationSubtitle: (enable: boolean) => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
@@ -1022,7 +1023,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ preferredAlternativeLyricSource: source });
         notify(get, {
             type: 'info',
-            text: `优先匹配歌词源已切换为${source === 'qq' ? 'QQ音乐' : source === 'kugou' ? '酷狗音乐' : '网易云音乐'}`,
+            text: `优先匹配歌词源已切换为${getLyricProviderPreferenceLabel(source)}`,
         });
     },
     handleToggleHidePlayerProgressBar: (enable) => {

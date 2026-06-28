@@ -4,6 +4,7 @@ import { FileText, Search, Upload, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OnlineLyricsState } from '../../types';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
+import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
 
 // src/components/panelTab/OnlineLyricsTab.tsx
 
@@ -42,10 +43,10 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
     const activeSource = onlineLyricsState?.lyricsSource === 'imported' && hasImportedLyrics ? 'imported' : 'online';
 
     const onlineSourceLabel = useMemo(() => {
-        const src = onlineLyricsState?.matchedLyricsSource;
-        if (src === 'qq') return 'QQ 音乐';
-        if (src === 'kugou') return '酷狗音乐';
-        return '网易云音乐';
+        return getLyricProviderLabel(
+            onlineLyricsState?.matchedLyricsSource,
+            onlineLyricsState?.matchedLyricsProviderPlatform,
+        );
     }, [onlineLyricsState]);
 
     const availableSources = useMemo(

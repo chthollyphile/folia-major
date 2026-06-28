@@ -121,6 +121,30 @@ describe('Monet tuning and lyric helpers', () => {
         ]);
     });
 
+    it('keeps TTML syllable timing on Monet timed tokens', () => {
+        const line: Line = {
+            startTime: 1,
+            endTime: 2,
+            fullText: 'hurricane',
+            words: [{
+                text: 'hurricane',
+                startTime: 1,
+                endTime: 2,
+                syllables: [
+                    { text: 'hurri', startTime: 1, endTime: 1.4 },
+                    { text: 'cane', startTime: 1.4, endTime: 2, endsWithSpace: true },
+                ],
+            }],
+        };
+
+        const [token] = buildMonetDisplayTokens(line);
+
+        expect(token.text).toBe('hurricane');
+        expect(token.graphemeTimings.map(timing => timing.char).join('')).toBe('hurricane');
+        expect(token.graphemeTimings[5]).toMatchObject({ char: 'c', startTime: 1.4 });
+        expect(token.graphemeTimings[8].startTime).toBeCloseTo(1.85);
+    });
+
     it('keeps lyric context aligned around the active line', () => {
         const lines: Line[] = [
             { startTime: 0, endTime: 1, fullText: 'A', words: [] },

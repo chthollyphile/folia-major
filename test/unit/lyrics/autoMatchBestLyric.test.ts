@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { neteaseApi } from '@/services/netease';
-import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
+import { fetchNeteaseChorusRanges, processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { searchQQLyrics, fetchQQLyrics } from '@/utils/lyrics/providers/qqLyricProvider';
 import { searchKugouLyrics, fetchKugouLyrics } from '@/utils/lyrics/providers/kugouLyricProvider';
+import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 
 // test/unit/lyrics/autoMatchBestLyric.test.ts
 // Unit tests for the best lyric auto-matcher.
@@ -17,6 +18,7 @@ vi.mock('@/services/netease', () => ({
 }));
 
 vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
+    fetchNeteaseChorusRanges: vi.fn(),
     processNeteaseLyrics: vi.fn()
 }));
 
@@ -30,6 +32,10 @@ vi.mock('@/utils/lyrics/providers/kugouLyricProvider', () => ({
     fetchKugouLyrics: vi.fn()
 }));
 
+vi.mock('@/utils/lyrics/providers/amllDbProvider', () => ({
+    fetchAmllDbLyrics: vi.fn()
+}));
+
 describe('autoMatchBestLyric', () => {
     const cloudSearchMock = vi.mocked(neteaseApi.cloudSearch);
     const getLyricMock = vi.mocked(neteaseApi.getLyric);
@@ -38,9 +44,13 @@ describe('autoMatchBestLyric', () => {
     const fetchQQLyricsMock = vi.mocked(fetchQQLyrics);
     const searchKugouLyricsMock = vi.mocked(searchKugouLyrics);
     const fetchKugouLyricsMock = vi.mocked(fetchKugouLyrics);
+    const fetchAmllDbLyricsMock = vi.mocked(fetchAmllDbLyrics);
+    const fetchNeteaseChorusRangesMock = vi.mocked(fetchNeteaseChorusRanges);
 
     beforeEach(() => {
         vi.resetAllMocks();
+        fetchAmllDbLyricsMock.mockResolvedValue(null);
+        fetchNeteaseChorusRangesMock.mockResolvedValue([]);
     });
 
     it('prioritizes NetEase when perfect word-by-word match exists', async () => {
@@ -295,6 +305,118 @@ describe('autoMatchBestLyric', () => {
         expect(searchKugouLyricsMock).not.toHaveBeenCalled();
     });
 
+    it('prioritizes AMLLDB when preferred and a NetEase candidate id has TTML', async () => {
+        fetchAmllDbLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+            preferredSource: 'amll',
+            neteaseCandidate: {
+                id: 101,
+                lyrics: { lines: [], isWordByWord: false },
+                chorusRanges: []
+            }
+        }) as any;
+
+        expect(result.source).toBe('amll');
+        expect(result.id).toBe(101);
+        expect(result.matchedLyricsProviderPlatform).toBe('ncm');
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', 101);
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+        expect(fetchQQLyricsMock).not.toHaveBeenCalled();
+    });
+
+    it('tries AMLLDB for the NetEase id before falling back to QQ or Kugou', async () => {
+        cloudSearchMock.mockResolvedValue({
+            result: {
+                songs: [
+                    { id: 101, name: 'Song Title', dt: 200000, ar: [{ name: 'Artist Name' }] }
+                ]
+            }
+        });
+        getLyricMock.mockResolvedValue({ lyric: '[00:00.00]test' });
+        processNeteaseLyricsMock.mockResolvedValue({
+            lyrics: { lines: [], isWordByWord: false },
+            mainLrc: 'test',
+            yrcLrc: null,
+            transLrc: '',
+            isPureMusic: false
+        });
+        fetchAmllDbLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
+
+        expect(result.source).toBe('amll');
+        expect(result.matchedLyricsProviderPlatform).toBe('ncm');
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', 101);
+        expect(searchQQLyricsMock).not.toHaveBeenCalled();
+        expect(searchKugouLyricsMock).not.toHaveBeenCalled();
+    });
+
+    it('does not probe QQ AMLLDB after the automatic NCM AMLLDB probe misses', async () => {
+        cloudSearchMock.mockResolvedValue({
+            result: {
+                songs: [
+                    { id: 101, name: 'Song Title', dt: 200000, ar: [{ name: 'Artist Name' }] }
+                ]
+            }
+        });
+        getLyricMock.mockResolvedValue({ lyric: '[00:00.00]test' });
+        processNeteaseLyricsMock.mockResolvedValue({
+            lyrics: { lines: [], isWordByWord: false },
+            mainLrc: 'test',
+            yrcLrc: null,
+            transLrc: '',
+            isPureMusic: false
+        });
+        searchQQLyricsMock.mockResolvedValue([
+            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+        ]);
+        fetchAmllDbLyricsMock.mockResolvedValue(null);
+        fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+            preferredSource: 'amll'
+        }) as any;
+
+        expect(result.source).toBe('qq');
+        expect(result.id).toBe(201);
+        expect(result.qqMid).toBe('mid123');
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledTimes(1);
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', 101);
+        expect(fetchAmllDbLyricsMock).not.toHaveBeenCalledWith('qq', 201);
+        expect(fetchQQLyricsMock).toHaveBeenCalledWith(expect.objectContaining({ id: 201 }), { chorusRanges: [] });
+    });
+
+    it('preserves AMLLDB TTML chorus markers instead of fetching NetEase chorus ranges', async () => {
+        cloudSearchMock.mockResolvedValue({
+            result: {
+                songs: [
+                    { id: 101, name: 'Song Title', dt: 200000, ar: [{ name: 'Artist Name' }] }
+                ]
+            }
+        });
+        getLyricMock.mockResolvedValue({ lyric: '[00:00.00]test' });
+        processNeteaseLyricsMock.mockResolvedValue({
+            lyrics: { lines: [], isWordByWord: false },
+            mainLrc: 'test',
+            yrcLrc: null,
+            transLrc: '',
+            isPureMusic: false
+        });
+        fetchAmllDbLyricsMock.mockResolvedValue({
+            lines: [
+                { fullText: 'Chorus', startTime: 10, endTime: 20, words: [], isChorus: true, chorusEffect: 'bars' }
+            ],
+            isWordByWord: true
+        });
+
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000) as any;
+
+        expect(result.source).toBe('amll');
+        expect(result.lyrics.lines[0].isChorus).toBe(true);
+        expect(fetchNeteaseChorusRangesMock).not.toHaveBeenCalled();
+    });
+
     it('falls back to Kugou Music if both NetEase and QQ Music matches fail', async () => {
         cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
         searchQQLyricsMock.mockResolvedValue([]);
@@ -308,6 +430,7 @@ describe('autoMatchBestLyric', () => {
         expect(result.source).toBe('kugou');
         expect(result.id).toBe(301);
         expect(result.kgHash).toBe('hash123');
+        expect(fetchAmllDbLyricsMock).not.toHaveBeenCalledWith(expect.anything(), 301);
     });
 
     it('returns null if no sources match the duration filter', async () => {

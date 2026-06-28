@@ -142,6 +142,23 @@ describe('VisualizerFume word timing helpers', () => {
         expect(resolvePrintedGraphemeProgress(line, ranges, 5, 0.5)).toBeCloseTo(2.5, 5);
     });
 
+    it('uses TTML syllable timing for printed grapheme count when available', () => {
+        const line = makeLine('hurricane', [
+            {
+                text: 'hurricane',
+                startTime: 1,
+                endTime: 2,
+                syllables: [
+                    { text: 'hurri', startTime: 1, endTime: 1.4 },
+                    { text: 'cane', startTime: 1.4, endTime: 2, endsWithSpace: true },
+                ],
+            },
+        ]);
+        const ranges = buildWordRangesFromWords(line, Array.from(line.fullText));
+
+        expect(resolvePrintedGraphemeCount(line, ranges, 9, 1.45)).toBe(6);
+    });
+
     it('keeps reveal completion aligned with line endTime even when renderEndTime is later', () => {
         const line = makeLine('while inside', [
             { text: 'while ', startTime: 77.92, endTime: 80.9 },

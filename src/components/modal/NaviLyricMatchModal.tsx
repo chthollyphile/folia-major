@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
-import { SongResult, LyricData } from '../../types';
+import { AmllDbPlatform, LyricProviderSource, SongResult, LyricData } from '../../types';
 import { NavidromeSong } from '../../types/navidrome';
-import { neteaseApi } from '../../services/netease';
 import { saveToCache, getFromCacheWithMigration } from '../../services/db';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/storageMigration';
-import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
-import { searchQQLyrics, fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
+import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
 import {
+    getLyricMatchSourceLabel,
     getMatchResultAlbumName,
     getMatchResultArtists,
     getMatchResultCoverUrl,
+    type LyricMatchSource,
 } from './lyricMatchResultHelpers';
 import { LyricPreviewPanel } from './LyricPreviewPanel';
 
@@ -34,7 +33,8 @@ export interface NavidromeMatchData {
     useOnlineMetadata?: boolean;
     noAutoMatch?: boolean;
     hasManualLyricSelection?: boolean;
-    matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
+    matchedLyricsSource?: LyricProviderSource;
+    matchedLyricsProviderPlatform?: AmllDbPlatform;
 }
 
 interface NaviLyricMatchModalProps {
@@ -76,7 +76,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
     // Online data toggle state
     const [lyricsSource, setLyricsSource] = useState<'navi' | 'online'>('online');
     const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
-    const [source, setSource] = useState<'netease' | 'qq' | 'kugou'>('netease');
+    const [source, setSource] = useState<LyricMatchSource>('netease');
 
     const navidromeArtist = song.artists?.map(a => a.name).join(', ') || song.ar?.map(a => a.name).join(', ') || '';
     const navidromeAlbum = song.album?.name || song.al?.name || '';
@@ -85,9 +85,10 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         return {
             title: song.name || '',
             artist: navidromeArtist || '',
+            album: navidromeAlbum || '',
             durationMs: song.duration || song.dt || 0,
         };
-    }, [song, navidromeArtist]);
+    }, [song, navidromeArtist, navidromeAlbum]);
 
     // Prepare component data
     useEffect(() => {
@@ -107,7 +108,9 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
     }, [song]);
 
     const handleSearch = async (query?: string) => {
-        const q = query || searchQuery;
+        const q = sourceSupportsManualSearch(source)
+            ? (query || searchQuery)
+            : buildLyricSearchQuery(songInfo.title, songInfo.artist, songInfo.album || '');
         if (!q.trim()) return;
 
         setIsSearching(true);
@@ -115,16 +118,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         setSelectedResult(null);
 
         try {
-            let results: SongResult[] = [];
-            if (source === 'netease') {
-                const res = await neteaseApi.cloudSearch(q);
-                results = res.result?.songs ?? [];
-            } else if (source === 'qq') {
-                results = await searchQQLyrics(q);
-            } else if (source === 'kugou') {
-                results = await searchKugouLyrics(q);
-            }
-            results.sort((a, b) => calculateMatchScore(songInfo, b) - calculateMatchScore(songInfo, a));
+            const results = await searchLyricsByMatchSource(source, q, songInfo);
             setSearchResults(results);
 
             // Preselect exact match roughly
@@ -152,19 +146,10 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
 
         void (async () => {
             try {
-                let results: SongResult[] = [];
-                if (source === 'netease') {
-                    const res = await neteaseApi.cloudSearch(query);
-                    results = res.result?.songs ?? [];
-                } else if (source === 'qq') {
-                    results = await searchQQLyrics(query);
-                } else if (source === 'kugou') {
-                    results = await searchKugouLyrics(query);
-                }
+                const results = await searchLyricsByMatchSource(source, query, songInfo);
 
                 if (!isCurrent) return;
 
-                results.sort((a, b) => calculateMatchScore(songInfo, b) - calculateMatchScore(songInfo, a));
                 setSearchResults(results);
                 const exactMatch = results.find(s => s.name.toLowerCase() === song.name.toLowerCase());
                 if (exactMatch) {
@@ -207,29 +192,8 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         setIsMatching(true);
         try {
             // Always fetch lyrics
-            let processed: { lyrics: any; isPureMusic: boolean } | null = null;
-            if (source === 'netease') {
-                const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-                processed = await processNeteaseLyrics(
-                    {
-                        type: 'netease',
-                        ...lyricRes
-                    },
-                    { songId: selectedResult.id }
-                );
-            } else if (source === 'qq') {
-                const parsedLyrics = await fetchQQLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            } else if (source === 'kugou') {
-                const parsedLyrics = await fetchKugouLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            }
+            const processed = await fetchLyricsForMatchSource(source, selectedResult);
+            if (!processed) return;
             const parsedLyrics: LyricData | null = processed ? processed.lyrics : null;
 
             const matchData: NavidromeMatchData = {
@@ -240,6 +204,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                 lyricsSource,
                 hasManualLyricSelection: true,
                 matchedLyricsSource: source,
+                matchedLyricsProviderPlatform: processed.matchedLyricsProviderPlatform,
             };
 
             if (source !== 'netease') {
@@ -297,13 +262,10 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                     <div className={`w-[62%] flex flex-col border-r ${borderColor}`}>
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
-                                {[
-                                    { id: 'netease', label: '网易云音乐' },
-                                    ...(enableAlternativeLyricSources ? [
-                                        { id: 'qq', label: 'QQ 音乐' },
-                                        { id: 'kugou', label: '酷狗音乐' }
-                                    ] : [])
-                                ].map(t => {
+                                {LYRIC_MATCH_SOURCES
+                                    .filter(id => id === 'netease' || enableAlternativeLyricSources)
+                                    .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
+                                    .map(t => {
                                     const isSelected = source === t.id;
                                     const activeTabClass = isSelected
                                         ? isDaylight
@@ -322,32 +284,34 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                     );
                                 })}
                             </div>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleSearch();
-                                }}
-                                className="flex gap-3"
-                            >
-                                <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
-                                    <Search size={18} className={`opacity-40 ${textSecondary}`} />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
-                                        className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
-                                        autoFocus
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={isSearching}
-                                    className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                            {sourceSupportsManualSearch(source) && (
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        handleSearch();
+                                    }}
+                                    className="flex gap-3"
                                 >
-                                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
-                                </button>
-                            </form>
+                                    <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                        <Search size={18} className={`opacity-40 ${textSecondary}`} />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
+                                            className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={isSearching}
+                                        className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                                    >
+                                        {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
+                                    </button>
+                                </form>
+                            )}
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
                             {isSearching ? (
@@ -360,11 +324,13 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                             ) : (
                                 <div className="space-y-1.5">
                                     {searchResults.map((result) => {
+                                        const resultKey = `${source}-${result.amllDbPlatform ?? 'base'}-${result.id}`;
+                                        const selectedKey = selectedResult ? `${source}-${selectedResult.amllDbPlatform ?? 'base'}-${selectedResult.id}` : null;
                                         const resultCoverUrl = getMatchResultCoverUrl(result, source);
                                         const resultArtists = getMatchResultArtists(result);
                                         const resultAlbum = getMatchResultAlbumName(result);
                                         return (
-                                            <div key={result.id} onClick={() => setSelectedResult(result)} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${selectedResult?.id === result.id ? resultItemSelected : resultItemBg}`}>
+                                            <div key={resultKey} onClick={() => setSelectedResult(result)} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${selectedKey === resultKey ? resultItemSelected : resultItemBg}`}>
                                                 <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
                                                     {resultCoverUrl ? (
                                                         <img src={resultCoverUrl} alt={result.name} className="w-full h-full object-cover" />

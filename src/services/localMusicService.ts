@@ -1288,9 +1288,10 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
                 preferredSource: settings.preferredAlternativeLyricSource,
             });
             if (bestMatch && 'lyrics' in bestMatch) {
-                if (bestMatch.source === 'netease') {
+                if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
                     song.matchedSongId = bestMatch.id as number;
-                    song.matchedLyricsSource = 'netease';
+                    song.matchedLyricsSource = bestMatch.source;
+                    song.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
                     song.matchedLyrics = bestMatch.lyrics;
                     song.matchedIsPureMusic = false;
 
@@ -1311,6 +1312,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
                     }
                 } else {
                     song.matchedLyricsSource = bestMatch.source;
+                    song.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
                     song.matchedLyrics = bestMatch.lyrics;
                     song.matchedIsPureMusic = false;
                 }

@@ -1,4 +1,4 @@
-import { LocalSong, SongResult, UnifiedSong } from '../types';
+import { AmllDbPlatform, LocalSong, LyricProviderSource, SongResult, UnifiedSong } from '../types';
 import { NavidromeSong } from '../types/navidrome';
 
 export const getLocalSongId = (localSong: LocalSong): number => {
@@ -132,7 +132,8 @@ export function buildUnifiedNavidromeSong(
         useOnlineMetadata?: boolean;
         matchedArtists?: string;
         matchedAlbumName?: string;
-        matchedLyricsSource?: 'netease' | 'qq' | 'kugou';
+        matchedLyricsSource?: LyricProviderSource;
+        matchedLyricsProviderPlatform?: AmllDbPlatform;
     }
 ): SongResult {
     const displayArtists = (options?.useOnlineMetadata && options.matchedArtists)
@@ -159,7 +160,8 @@ export function buildUnifiedNavidromeSong(
         dt: navidromeSong.dt,
         isNavidrome: true,
         navidromeData: navidromeSong,
-        matchedLyricsSource: options?.matchedLyricsSource
+        matchedLyricsSource: options?.matchedLyricsSource,
+        matchedLyricsProviderPlatform: options?.matchedLyricsProviderPlatform
     } as any;
 }
 

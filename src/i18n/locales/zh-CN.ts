@@ -285,6 +285,10 @@ export default {
     "madeBy": "Project:",
     "version": "版本"
   },
+  "settings": {
+    "lyricMatchPriority": "歌词匹配优先级",
+    "lyricMatchPriorityDesc": "在多个歌词源都存在高置信度匹配时，优先选择该歌词源的结果。"
+  },
   "options": {
     "cacheDetails": "缓存详情",
     "playlistData": "歌单数据",
@@ -328,9 +332,11 @@ export default {
     "disableHomeDynamicBackgroundDesc": "关闭后主页不再继续播放背景动画，可降低 GPU 占用。",
     "disableHomeDynamicBackgroundWarning": "默认情况下允许动态背景。",
     "enableAlternativeLyricSources": "更多歌词源",
-    "enableAlternativeLyricSourcesDesc": "启用备选歌词源（QQ音乐、酷狗音乐）",
+    "enableAlternativeLyricSourcesDesc": "启用备选歌词源（AMLLDB、QQ音乐、酷狗音乐）",
     "autoUseBestLyric": "自动使用最佳歌词",
-    "autoUseBestLyricDesc": "自动检索所有歌词源，若存在完美匹配的逐字歌词则自动优先采用。",
+    "autoUseBestLyricDesc": "自动检索网易云、AMLLDB、QQ 和酷狗歌词，若存在完美匹配的逐字歌词则自动优先采用。",
+    "lyricMatchPriority": "歌词匹配优先级",
+    "lyricMatchPriorityDesc": "在多个歌词源都存在匹配度满足要求的歌词时，优先选择该歌词源的结果。",
     "labHidePlayerUi": "隐藏播放页 UI",
     "labHidePlayerUiDesc": "仅对播放页生效。可分别隐藏底部控制条、底部字幕和右侧按钮；隐藏右侧按钮后仍可使用 P 键打开或关闭右侧面板。",
     "hidePlayerProgressBar": "隐藏底部控制条",

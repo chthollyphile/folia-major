@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments, type LayoutLine, type LayoutCursor, type PreparedTextWithSegments } from '@chenglou/pretext';
 import { AudioBands, DEFAULT_CADENZA_TUNING, Line, Theme, Word as WordType, type CadenzaTuning } from '../../../types';
+import { buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime, getLineTransitionTiming, type LineTransitionTiming } from '../../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { colorWithAlpha, mixColors } from '../colorMix';
@@ -34,6 +35,7 @@ interface WordRange {
     start: number;
     end: number;
     color: string;
+    graphemeTimings: GraphemeTiming[];
 }
 
 interface WordFragment {
@@ -47,6 +49,7 @@ interface WordFragment {
     fragmentStartInWord: number;
     fragmentEndInWord: number;
     wordGraphemeCount: number;
+    wordGraphemeTimings: GraphemeTiming[];
     fragmentIndexInWord: number;
     fragmentCountInWord: number;
     isPrimaryFragment: boolean;
@@ -73,6 +76,7 @@ interface WordPlacement {
     fragmentStartInWord: number;
     fragmentEndInWord: number;
     wordGraphemeCount: number;
+    wordGraphemeTimings: GraphemeTiming[];
     emphasis: number;
     isInterlude: boolean;
 }
@@ -324,11 +328,15 @@ const getClassicCharGlow = (
     word: WordType,
     glyphIndex: number,
     glyphCount: number,
+    wordGraphemeTimings: GraphemeTiming[] = [],
 ) => {
     const duration = Math.max(word.endTime - word.startTime, 0.1);
     const singleDuration = duration / Math.max(glyphCount, 1);
-    const animationDuration = singleDuration * 6;
-    const elapsed = time - word.startTime - singleDuration * glyphIndex;
+    const timing = wordGraphemeTimings[glyphIndex];
+    const charDuration = timing ? Math.max(timing.endTime - timing.startTime, 0.001) : singleDuration;
+    const charStartTime = timing?.startTime ?? (word.startTime + singleDuration * glyphIndex);
+    const animationDuration = charDuration * 6;
+    const elapsed = time - charStartTime;
     const activeGlow = elapsed <= 0 ? 0 : getClassicKeyframedGlow(elapsed / animationDuration);
 
     if (time <= word.endTime) {
@@ -613,6 +621,7 @@ const findWordRanges = (line: Line, graphemes: string[], theme: Theme) => {
             start,
             end,
             color: getActiveColor(word.text, theme),
+            graphemeTimings: buildWordGraphemeTimings(word),
         });
 
         cursor = end;
@@ -715,6 +724,7 @@ const buildLineFragments = (
                 fragmentStartInWord: fragmentStart - range.start,
                 fragmentEndInWord: fragmentEnd - range.start,
                 wordGraphemeCount: Math.max(range.end - range.start, 1),
+                wordGraphemeTimings: range.graphemeTimings,
                 fragmentIndexInWord: 0,
                 fragmentCountInWord: 1,
                 isPrimaryFragment: true,
@@ -1098,6 +1108,7 @@ const buildWordPlacements = (
             fragmentStartInWord: fragment.fragmentStartInWord,
             fragmentEndInWord: fragment.fragmentEndInWord,
             wordGraphemeCount: fragment.wordGraphemeCount,
+            wordGraphemeTimings: fragment.wordGraphemeTimings,
             emphasis,
             isInterlude,
         });
@@ -1611,6 +1622,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
                             placement.word,
                             absoluteIndex,
                             Math.max(placement.wordGraphemeCount, glyphs.length),
+                            placement.wordGraphemeTimings,
                         ) * clamp(animatedState.glowAlpha, 0, 1) * Math.max(tuning.glowIntensity, 0);
 
                         glyphSpan.style.textShadow = buildDomTextShadow(placement.color, intensity, blurScale);

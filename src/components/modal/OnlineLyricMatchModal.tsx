@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Music, Search, X } from 'lucide-react';
-import { neteaseApi } from '../../services/netease';
 import type { OnlineLyricsState, SongResult } from '../../types';
-import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { loadOnlineLyricsState, saveOnlineLyricsState } from '../../utils/onlineLyricsState';
-import { searchQQLyrics, fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
+import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
+import { getLyricMatchSourceLabel, type LyricMatchSource } from './lyricMatchResultHelpers';
 import {
     getMatchResultCoverUrl,
     getMatchResultArtists,
@@ -46,7 +44,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
     const [selectedResult, setSelectedResult] = useState<SongResult | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [isMatching, setIsMatching] = useState(false);
-    const [source, setSource] = useState<'netease' | 'qq' | 'kugou'>('netease');
+    const [source, setSource] = useState<LyricMatchSource>('netease');
 
     const songInfo = React.useMemo(() => {
         const artist = song.ar?.map(item => item.name).join(', ') || song.artists?.map(item => item.name).join(', ') || '';
@@ -58,8 +56,15 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         };
     }, [song]);
 
+    const getMatchQuery = (query = searchQuery) => (
+        sourceSupportsManualSearch(source)
+            ? query.trim()
+            : buildLyricSearchQuery(songInfo.title, songInfo.artist, songInfo.album || '')
+    );
+
     const handleSearch = async (query = searchQuery) => {
-        if (!query.trim()) {
+        const q = getMatchQuery(query);
+        if (!q.trim()) {
             return;
         }
 
@@ -67,16 +72,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         setSearchResults([]);
         setSelectedResult(null);
         try {
-            let results: SongResult[] = [];
-            if (source === 'netease') {
-                const response = await neteaseApi.cloudSearch(query);
-                results = response.result?.songs ?? [];
-            } else if (source === 'qq') {
-                results = await searchQQLyrics(query);
-            } else if (source === 'kugou') {
-                results = await searchKugouLyrics(query);
-            }
-            results.sort((a, b) => calculateMatchScore(songInfo, b) - calculateMatchScore(songInfo, a));
+            const results = await searchLyricsByMatchSource(source, q, songInfo);
             setSearchResults(results);
             if (results.length > 0) {
                 setSelectedResult(results[0]);
@@ -101,21 +97,12 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
 
         void (async () => {
             try {
-                let results: SongResult[] = [];
-                if (source === 'netease') {
-                    const response = await neteaseApi.cloudSearch(initialQuery);
-                    results = response.result?.songs ?? [];
-                } else if (source === 'qq') {
-                    results = await searchQQLyrics(initialQuery);
-                } else if (source === 'kugou') {
-                    results = await searchKugouLyrics(initialQuery);
-                }
+                const results = await searchLyricsByMatchSource(source, initialQuery, songInfo);
 
                 if (!isCurrent) {
                     return;
                 }
 
-                results.sort((a, b) => calculateMatchScore(songInfo, b) - calculateMatchScore(songInfo, a));
                 setSearchResults(results);
                 if (results.length > 0) {
                     setSelectedResult(results[0]);
@@ -149,23 +136,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
 
         setIsMatching(true);
         try {
-            let processed: { lyrics: any; isPureMusic: boolean } | null = null;
-            if (source === 'netease') {
-                const lyricResponse = await neteaseApi.getLyric(selectedResult.id);
-                processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: selectedResult.id });
-            } else if (source === 'qq') {
-                const parsedLyrics = await fetchQQLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            } else if (source === 'kugou') {
-                const parsedLyrics = await fetchKugouLyrics(selectedResult);
-                processed = {
-                    lyrics: parsedLyrics,
-                    isPureMusic: false,
-                };
-            }
+            const processed = await fetchLyricsForMatchSource(source, selectedResult);
 
             if (processed && (processed.lyrics || processed.isPureMusic)) {
                 const previousState = await loadOnlineLyricsState(song);
@@ -178,6 +149,7 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                     matchedSongId: selectedResult.id,
                     matchedIsPureMusic: processed.isPureMusic,
                     matchedLyricsSource: source,
+                    matchedLyricsProviderPlatform: processed.matchedLyricsProviderPlatform,
                 };
                 await saveOnlineLyricsState(song, nextState);
                 onMatch();
@@ -209,13 +181,10 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                     {/* LEFT PANEL */}
                     <div className={`w-[62%] flex flex-col border-r ${borderColor} p-6 gap-5 min-h-0`}>
                         <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
-                            {[
-                                { id: 'netease', label: '网易云音乐' },
-                                ...(enableAlternativeLyricSources ? [
-                                    { id: 'qq', label: 'QQ 音乐' },
-                                    { id: 'kugou', label: '酷狗音乐' }
-                                ] : [])
-                            ].map(t => {
+                            {LYRIC_MATCH_SOURCES
+                                .filter(id => id === 'netease' || enableAlternativeLyricSources)
+                                .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
+                                .map(t => {
                                 const isSelected = source === t.id;
                                 const activeTabClass = isSelected
                                     ? isDaylight
@@ -238,67 +207,82 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                             })}
                         </div>
 
-                        <div className="flex gap-3">
-                            <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
-                                <Search size={18} className={textSecondary} />
-                                <input
-                                    value={searchQuery}
-                                    onChange={event => setSearchQuery(event.target.value)}
-                                    onKeyDown={event => {
-                                        if (event.key === 'Enter') {
-                                            void handleSearch();
-                                        }
-                                    }}
-                                    className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
-                                />
+                        {sourceSupportsManualSearch(source) && (
+                            <div className="flex gap-3">
+                                <div className={`flex-1 flex items-center gap-3 rounded-2xl border px-4 py-3 ${inputBg}`}>
+                                    <Search size={18} className={textSecondary} />
+                                    <input
+                                        value={searchQuery}
+                                        onChange={event => setSearchQuery(event.target.value)}
+                                        onKeyDown={event => {
+                                            if (event.key === 'Enter') {
+                                                void handleSearch();
+                                            }
+                                        }}
+                                        className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => void handleSearch()}
+                                    disabled={isSearching}
+                                    className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
+                                >
+                                    {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
+                                </button>
                             </div>
-                            <button
-                                onClick={() => void handleSearch()}
-                                disabled={isSearching}
-                                className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
-                            >
-                                {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
-                            </button>
-                        </div>
+                        )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
-                            {searchResults.map(result => {
-                                const artist = getMatchResultArtists(result);
-                                const isSelected = selectedResult?.id === result.id;
-                                const resultCover = getMatchResultCoverUrl(result, source);
-                                return (
-                                    <button
-                                        key={result.id}
-                                        onClick={() => setSelectedResult(result)}
-                                        className={`w-full text-left border rounded-2xl p-4 transition-colors ${isSelected ? resultItemSelected : resultItemBg}`}
-                                    >
-                                        <div className="flex items-start gap-4">
-                                            <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center ${isDaylight ? 'bg-black/5' : 'bg-white/5'} shrink-0`}>
-                                                {resultCover ? (
-                                                    <img
-                                                        src={resultCover}
-                                                        alt="Cover"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <Music size={18} className={textSecondary} />
-                                                )}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-sm font-medium truncate ${textPrimary}`}>{formatSongName(result)}</span>
-                                                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/10 text-blue-400 rounded-md font-mono shrink-0">
-                                                        {calculateMatchScore(songInfo, result)}%
-                                                    </span>
+                            {isSearching ? (
+                                <div className="flex justify-center items-center h-40">
+                                    <Loader2 className="animate-spin opacity-50" size={28} />
+                                </div>
+                            ) : searchResults.length === 0 ? (
+                                <div className={`flex flex-col items-center justify-center h-40 opacity-50 ${textSecondary}`}>
+                                    <Music size={40} className="mb-2" />
+                                    <p className="text-sm">{t('localMusic.noResults')}</p>
+                                </div>
+                            ) : (
+                                searchResults.map(result => {
+                                    const artist = getMatchResultArtists(result);
+                                    const resultKey = `${source}-${result.amllDbPlatform ?? 'base'}-${result.id}`;
+                                    const selectedKey = selectedResult ? `${source}-${selectedResult.amllDbPlatform ?? 'base'}-${selectedResult.id}` : null;
+                                    const isSelected = selectedKey === resultKey;
+                                    const resultCover = getMatchResultCoverUrl(result, source);
+                                    return (
+                                        <button
+                                            key={resultKey}
+                                            onClick={() => setSelectedResult(result)}
+                                            className={`w-full text-left border rounded-2xl p-4 transition-colors ${isSelected ? resultItemSelected : resultItemBg}`}
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center ${isDaylight ? 'bg-black/5' : 'bg-white/5'} shrink-0`}>
+                                                    {resultCover ? (
+                                                        <img
+                                                            src={resultCover}
+                                                            alt="Cover"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <Music size={18} className={textSecondary} />
+                                                    )}
                                                 </div>
-                                                <div className={`text-xs mt-1 truncate ${textSecondary}`}>{artist || '-'}</div>
-                                                <div className={`text-xs mt-1 truncate ${textSecondary}`}>{getMatchResultAlbumName(result) || '-'}</div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-sm font-medium truncate ${textPrimary}`}>{formatSongName(result)}</span>
+                                                        <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/10 text-blue-400 rounded-md font-mono shrink-0">
+                                                            {calculateMatchScore(songInfo, result)}%
+                                                        </span>
+                                                    </div>
+                                                    <div className={`text-xs mt-1 truncate ${textSecondary}`}>{artist || '-'}</div>
+                                                    <div className={`text-xs mt-1 truncate ${textSecondary}`}>{getMatchResultAlbumName(result) || '-'}</div>
+                                                </div>
+                                                {isSelected && <Check size={18} className={isDaylight ? 'text-blue-600' : 'text-blue-300'} />}
                                             </div>
-                                            {isSelected && <Check size={18} className={isDaylight ? 'text-blue-600' : 'text-blue-300'} />}
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                                        </button>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 

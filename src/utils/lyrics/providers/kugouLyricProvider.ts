@@ -8,7 +8,7 @@
 import md5 from 'blueimp-md5';
 import { SongResult } from '../../../types';
 import { parseLyricsByFormat } from '../parserCore';
-import { detectTimedLyricFormat } from '../formatDetection';
+import { detectNonTtmlTimedLyricFormat } from '../formatDetection';
 import { krcDecrypt } from './krcDecrypt';
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../chorusEffects';
 import type { NeteaseChorusRange } from '../chorusEffects';
@@ -42,7 +42,7 @@ export async function decodeKugouDownloadedLyric(
     const lyricText = decodeUtf8(bytes);
     return {
       lyricText,
-      format: detectTimedLyricFormat(lyricText),
+      format: detectNonTtmlTimedLyricFormat(lyricText),
     };
   }
 
@@ -57,7 +57,7 @@ export async function decodeKugouDownloadedLyric(
       console.warn('[Kugou] KRC decrypt failed; using plain lyric fallback:', error);
       return {
         lyricText: fallbackText,
-        format: detectTimedLyricFormat(fallbackText),
+        format: detectNonTtmlTimedLyricFormat(fallbackText),
       };
     }
     throw error;
@@ -130,6 +130,7 @@ async function requestKugou(url: string, params: Record<string, any>, module: st
 
   const response = await fetch(requestUrl, {
     method: 'GET',
+    credentials: 'omit',
     headers: finalHeaders,
   });
 
@@ -224,6 +225,7 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
   try {
     const response = await fetch(requestUrl, {
       method: 'GET',
+      credentials: 'omit',
       headers: {
         'User-Agent': 'Android14-1070-11070-201-0-SearchSong-wifi',
       },

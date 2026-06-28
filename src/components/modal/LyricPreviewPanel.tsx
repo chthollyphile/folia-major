@@ -3,18 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, Music, Sparkles, Languages } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SongResult, LyricData, Line } from '../../types';
-import { neteaseApi } from '../../services/netease';
-import { processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
-import { fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
-import { fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
 import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
+import { fetchLyricsForMatchSource } from '../../utils/lyrics/lyricMatchSources';
+import type { LyricMatchSource } from './lyricMatchResultHelpers';
 
 // src/components/modal/LyricPreviewPanel.tsx
 // 歌词预览面板组件：支持逐字高亮与自适应水平滚动，切换行带平滑淡入淡出动画，右上角绝对定位状态标签。
 
 interface LyricPreviewPanelProps {
     selectedResult: SongResult | null;
-    source: 'netease' | 'qq' | 'kugou';
+    source: LyricMatchSource;
     isDaylight: boolean;
 }
 
@@ -71,7 +69,7 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     const [retryTrigger, setRetryTrigger] = useState(0);
 
     const [prevResultId, setPrevResultId] = useState<number | string | null>(null);
-    const [prevSource, setPrevSource] = useState<'netease' | 'qq' | 'kugou' | null>(null);
+    const [prevSource, setPrevSource] = useState<LyricMatchSource | null>(null);
 
     const [display, setDisplay] = useState<RemoteLyricDisplay>(EMPTY_DISPLAY);
     const displayRef = useRef(display);
@@ -123,32 +121,8 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
             setIsLoading(true);
             setError(null);
             try {
-                let processed: { lyrics: any; isPureMusic: boolean } | null = null;
-                if (source === 'netease') {
-                    const lyricRes = await neteaseApi.getLyric(selectedResult.id);
-                    if (isCancelled) return;
-                    processed = await processNeteaseLyrics(
-                        {
-                            type: 'netease',
-                            ...lyricRes
-                        },
-                        { songId: selectedResult.id }
-                    );
-                } else if (source === 'qq') {
-                    const parsedLyrics = await fetchQQLyrics(selectedResult);
-                    if (isCancelled) return;
-                    processed = {
-                        lyrics: parsedLyrics,
-                        isPureMusic: false,
-                    };
-                } else if (source === 'kugou') {
-                    const parsedLyrics = await fetchKugouLyrics(selectedResult);
-                    if (isCancelled) return;
-                    processed = {
-                        lyrics: parsedLyrics,
-                        isPureMusic: false,
-                    };
-                }
+                const processed = await fetchLyricsForMatchSource(source, selectedResult);
+                if (isCancelled) return;
 
                 if (isCancelled) return;
 

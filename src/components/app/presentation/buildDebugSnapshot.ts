@@ -89,10 +89,17 @@ export const buildDebugSnapshot = ({
         }
 
         return {
+            id: line.id ?? null,
             startTime: line.startTime,
             endTime: line.endTime,
             fullText: line.fullText,
             translation: line.translation ?? null,
+            romanization: line.romanization ?? null,
+            alternateTexts: line.alternateTexts ?? null,
+            agentId: line.agentId ?? null,
+            songPart: line.songPart ?? null,
+            blockIndex: line.blockIndex ?? null,
+            backgroundVocal: line.backgroundVocal ?? null,
             isChorus: line.isChorus ?? false,
             chorusEffect: line.chorusEffect ?? null,
             renderHints: line.renderHints ?? null,
@@ -100,6 +107,7 @@ export const buildDebugSnapshot = ({
                 text: word.text,
                 startTime: word.startTime,
                 endTime: word.endTime,
+                ...(word.syllables ? { syllables: word.syllables } : {}),
             })),
         };
     };
@@ -120,6 +128,7 @@ export const buildDebugSnapshot = ({
         totalLines: lyrics?.lines.length ?? 0,
         totalWords: lyrics?.lines.reduce((sum, line) => sum + line.words.length, 0) ?? 0,
         maxWordsPerLine: lyrics?.lines.reduce((max, line) => Math.max(max, line.words.length), 0) ?? 0,
+        lyricTtml: lyrics?.ttml ?? null,
         nowPlaying: nowPlayingDebug,
         activeLine: toLineSnapshot(debugActiveLine),
         nextLine: toLineSnapshot(debugNextLine),

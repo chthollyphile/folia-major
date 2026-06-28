@@ -238,13 +238,14 @@ const prefetchSong = async (
                                 chorusRanges: (processed as any).chorusRanges || []
                             }
                         });
-                        if (bestMatch && 'lyrics' in bestMatch && (bestMatch.source === 'qq' || bestMatch.source === 'kugou')) {
+                        if (bestMatch && 'lyrics' in bestMatch && bestMatch.source !== 'netease') {
                             const overrideState: OnlineLyricsState = {
                                 lyricsSource: 'online',
                                 matchedSongId: typeof bestMatch.id === 'number' ? bestMatch.id : parseInt(String(bestMatch.id), 10) || 0,
                                 hasOnlineOverride: true,
                                 onlineOverrideLyrics: bestMatch.lyrics,
                                 matchedLyricsSource: bestMatch.source,
+                                matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                             };
                             await saveOnlineLyricsState(song, overrideState);
                             finalLyrics = bestMatch.lyrics;

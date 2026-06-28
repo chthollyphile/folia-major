@@ -1,14 +1,14 @@
-import type { SongResult } from '../../types';
+import type { AmllDbPlatform, LyricProviderSource, SongResult } from '../../types';
+import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
 
 // src/components/modal/lyricMatchResultHelpers.ts
 
-export type LyricMatchSource = 'netease' | 'qq' | 'kugou';
+export type LyricMatchSource = LyricProviderSource;
 
-export const getLyricMatchSourceLabel = (source: LyricMatchSource): string => {
-    if (source === 'qq') return 'QQ 音乐';
-    if (source === 'kugou') return '酷狗音乐';
-    return '网易云音乐';
-};
+export const getLyricMatchSourceLabel = (
+    source: LyricMatchSource,
+    platform?: AmllDbPlatform | null,
+): string => getLyricProviderLabel(source, platform);
 
 export const getMatchResultArtists = (result: SongResult | null | undefined): string => {
     if (!result) return '';

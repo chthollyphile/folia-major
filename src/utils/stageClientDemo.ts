@@ -1,7 +1,7 @@
 // Shared helpers keep the manual Stage API console and its tests aligned
 // with the latest local-only HTTP contract.
 
-export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'yrc';
+export type StageLyricsFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'ttml' | 'yrc' | 'qrc';
 
 export type StageLyricsSourceType = 'embedded' | 'local' | 'navidrome' | 'netease';
 
@@ -83,7 +83,7 @@ export const normalizeStageBaseUrl = (baseUrl: string) => {
 };
 
 export const isSupportedStageLyricsFormat = (format: string): format is StageLyricsFormat =>
-    format === 'lrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'yrc';
+    format === 'lrc' || format === 'enhanced-lrc' || format === 'vtt' || format === 'ttml' || format === 'yrc' || format === 'qrc';
 
 const buildStageBearerHeaders = (token: string, extraHeaders?: Record<string, string>) => ({
     Authorization: `Bearer ${normalizeText(token)}`,

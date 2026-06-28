@@ -5,6 +5,7 @@ import {
     parseLRC,
     parseLyricsByFormat,
     parseQRC,
+    parseTTML,
     parseVTT,
     parseYRC
 } from '@/utils/lyrics/parserCore';
@@ -16,6 +17,28 @@ const expectNonDecreasingWordTimes = (words: Array<{ startTime: number; endTime:
         expect(words[index].endTime).toBeGreaterThanOrEqual(words[index].startTime);
     }
 };
+
+const TTML_ADVANCED_FIXTURE = [
+    '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:amll="http://www.example.com/ns/amll" itunes:timing="Word">',
+    '<head><metadata>',
+    '<ttm:agent type="person" xml:id="v1"><ttm:name>Alice</ttm:name></ttm:agent>',
+    '<ttm:agent type="person" xml:id="v2"><ttm:name>Bob</ttm:name></ttm:agent>',
+    '<amll:meta key="musicName" value="Ignored Song Title"/>',
+    '<amll:meta key="artists" value="Ignored Artist"/>',
+    '</metadata></head>',
+    '<body dur="00:08.000">',
+    '<div begin="00:01.000" end="00:08.000" itunes:songPart="Chorus">',
+    '<p begin="00:01.000" end="00:05.000" itunes:key="L1" ttm:agent="v2">',
+    '<span begin="00:01.000" end="00:01.400">hurri</span><span begin="00:01.400" end="00:02.000">cane</span> ',
+    '<span tts:ruby="container" amll:empty-beat="2"><span tts:ruby="base">風</span><span tts:ruby="textContainer"><span tts:ruby="text" begin="00:02.000" end="00:02.500">かぜ</span></span></span>',
+    '<span ttm:role="x-bg" begin="00:03.000" end="00:04.000"><span begin="00:03.000" end="00:03.500">echo</span><span begin="00:03.500" end="00:04.000">es</span><span ttm:role="x-translation" xml:lang="zh-CN">回声</span></span>',
+    '<span ttm:role="x-translation" xml:lang="zh-CN">飓风之风</span>',
+    '<span ttm:role="x-roman" xml:lang="en-Latn">hurricane kaze</span>',
+    '</p>',
+    '</div>',
+    '</body>',
+    '</tt>',
+].join('');
 
 describe('parserCore', () => {
     it('parses standard LRC with translation matching and interlude insertion', () => {
@@ -105,6 +128,45 @@ describe('parserCore', () => {
         expect(lyrics.lines[0].endTime).toBe(1.5);
     });
 
+    it('parses TTML advanced lyric structure without promoting song metadata', () => {
+        expect(detectTimedLyricFormat(TTML_ADVANCED_FIXTURE)).toBe('ttml');
+
+        const lyrics = parseTTML(TTML_ADVANCED_FIXTURE);
+        const line = lyrics.lines[0];
+
+        expect(lyrics.title).toBeUndefined();
+        expect(lyrics.artist).toBeUndefined();
+        expect(lyrics.isWordByWord).toBe(true);
+        expect(lyrics.ttml?.timingMode).toBe('Word');
+        expect(lyrics.ttml?.agents?.v2).toEqual({ id: 'v2', name: 'Bob', type: 'person' });
+
+        expect(line.id).toBe('L1');
+        expect(line.agentId).toBe('v2');
+        expect(line.songPart).toBe('Chorus');
+        expect(line.isChorus).toBe(true);
+        expect(line.blockIndex).toBe(1);
+        expect(line.fullText).toBe('hurricane 風');
+        expect(line.translation).toBe('飓风之风');
+        expect(line.romanization).toBe('hurricane kaze');
+        expect(line.alternateTexts).toEqual([
+            { role: 'translation', language: 'zh-CN', text: '飓风之风' },
+            { role: 'romanization', language: 'en-Latn', text: 'hurricane kaze' },
+        ]);
+
+        expect(line.words.map(word => word.text)).toEqual(['hurricane', '風']);
+        expect(line.words[0].startTime).toBe(1);
+        expect(line.words[0].endTime).toBe(2);
+        expect(line.words[0].syllables?.map(syllable => syllable.text)).toEqual(['hurri', 'cane']);
+        expect(line.words[0].syllables?.[1].endsWithSpace).toBe(true);
+        expect(line.words[1].syllables?.[0].ruby).toEqual([{ text: 'かぜ', startTime: 2, endTime: 2.5 }]);
+        expect(line.words[1].syllables?.[0].emptyBeat).toBe(2);
+
+        expect(line.backgroundVocal?.text).toBe('echoes');
+        expect(line.backgroundVocal?.translation).toBe('回声');
+        expect(line.backgroundVocal?.words.map(word => word.text)).toEqual(['echoes']);
+        expect(lyrics.lines).toHaveLength(1);
+    });
+
     it('dispatches formats through parseLyricsByFormat', () => {
         const lyrics = parseLyricsByFormat(
             'enhanced-lrc',
@@ -126,6 +188,13 @@ describe('parserCore', () => {
         expect(lyrics.lines).toHaveLength(1);
         expect(lyrics.lines[0].fullText).toBe('你好');
         expect(lyrics.lines[0].translation).toBe('hello');
+    });
+
+    it('dispatches ttml through parseLyricsByFormat', () => {
+        const lyrics = parseLyricsByFormat('ttml', TTML_ADVANCED_FIXTURE);
+
+        expect(lyrics.lines[0].fullText).toBe('hurricane 風');
+        expect(lyrics.lines[0].backgroundVocal?.text).toBe('echoes');
     });
 
     it('preserves parsing semantics for out-of-order LRC input after conditional sorting', () => {
