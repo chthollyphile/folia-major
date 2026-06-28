@@ -19,6 +19,7 @@ describe('amllDbProvider', () => {
     });
 
     afterEach(() => {
+        vi.restoreAllMocks();
         vi.unstubAllGlobals();
     });
 
@@ -36,10 +37,31 @@ describe('amllDbProvider', () => {
 
         expect(fetchMock).toHaveBeenCalledWith(
             '/api/lyric-proxy?url=https%3A%2F%2Famll-ttml-db.stevexmh.net%2Fncm%2F123%3Fformat%3Dttml',
-            { credentials: 'omit' }
+            expect.objectContaining({
+                credentials: 'omit',
+                signal: expect.any(AbortSignal),
+            })
         );
         expect(parseLyricsByFormatMock).toHaveBeenCalledWith('ttml', '<tt xmlns="http://www.w3.org/ns/ttml"><body /></tt>');
         expect(result?.isWordByWord).toBe(true);
+    });
+
+    it('sets a request timeout', async () => {
+        const timeoutSignal = new AbortController().signal;
+        const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeoutSignal);
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 404,
+            text: vi.fn()
+        });
+
+        await fetchAmllDbLyrics('ncm', 123);
+
+        expect(timeoutSpy).toHaveBeenCalledWith(5000);
+        expect(fetchMock).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({ signal: timeoutSignal })
+        );
     });
 
     it('returns null for 404 responses', async () => {

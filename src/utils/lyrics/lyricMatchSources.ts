@@ -88,20 +88,19 @@ export async function searchAmllDbLyricCandidates(
         })
         .slice(0, AMLL_DB_MAX_PROBES);
 
-    const available: SongResult[] = [];
-    for (const candidate of candidates) {
+    const probes = candidates.map(async (candidate) => {
         const platform = candidate.amllDbPlatform;
         if (!platform) {
-            continue;
+            return null;
         }
+
         const lyrics = await fetchAmllDbLyrics(platform, candidate.id);
-        if (lyrics) {
-            available.push(candidate);
-            if (available.length >= AMLL_DB_MAX_RESULTS) {
-                break;
-            }
-        }
-    }
+        return lyrics ? candidate : null;
+    });
+
+    const results = await Promise.all(probes);
+    const available = results.filter((candidate): candidate is SongResult => candidate !== null)
+        .slice(0, AMLL_DB_MAX_RESULTS);
 
     return available;
 }

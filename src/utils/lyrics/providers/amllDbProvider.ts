@@ -5,6 +5,7 @@ import { parseLyricsByFormat } from '../parserCore';
 
 const AMLL_DB_BASE_URL = 'https://amll-ttml-db.stevexmh.net';
 const AMLL_DB_CACHE_LIMIT = 200;
+const AMLL_DB_FETCH_TIMEOUT_MS = 5000;
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 const lyricsCache = new Map<string, Promise<LyricData | null>>();
 
@@ -28,6 +29,7 @@ async function fetchAmllDbLyricsUncached(
     try {
         const response = await fetch(buildAmllDbRequestUrl(platform, musicId), {
             credentials: 'omit',
+            signal: AbortSignal.timeout(AMLL_DB_FETCH_TIMEOUT_MS),
         });
         if (!response.ok) {
             return null;

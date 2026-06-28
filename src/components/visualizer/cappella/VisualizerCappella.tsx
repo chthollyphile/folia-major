@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { layoutWithLines, prepareWithSegments, type PrepareOptions } from '@chenglou/pretext';
 import { DEFAULT_CAPPELLA_TUNING, type AudioBands, type CappellaEmojiImage, type CappellaTuning, type Line, type Theme } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
-import { buildLineGraphemeTimeline, buildWordGraphemeTimings } from '../../../utils/lyrics/graphemeTiming';
+import { buildLineGraphemeTimeline, buildWordGraphemeTimings, splitLyricGraphemes } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { mixColors } from '../colorMix';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
@@ -493,7 +493,7 @@ const buildCappellaMessages = (
     return messages;
 };
 
-const getLineCharacters = (line: Line) => Array.from(line.fullText);
+const getLineCharacters = (line: Line) => splitLyricGraphemes(line.fullText);
 
 const getWordTextRanges = (line: Line) => {
     const ranges: Array<{ start: number; end: number; } | null> = [];
@@ -538,8 +538,8 @@ const buildCharacterRevealTimes = (line: Line, characters: string[]) => {
             return;
         }
 
-        const startCharacterIndex = Array.from(line.fullText.slice(0, range.start)).length;
-        const endCharacterIndex = Array.from(line.fullText.slice(0, range.end)).length;
+        const startCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.start)).length;
+        const endCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.end)).length;
         const wordTimings = buildWordGraphemeTimings(word);
 
         // Characters between two timed words are usually spaces or sticky punctuation.
@@ -617,7 +617,7 @@ const buildCharacterFadeDurationsMs = (line: Line, characters: string[]) => {
             return;
         }
 
-        const startCharacterIndex = Array.from(line.fullText.slice(0, range.start)).length;
+        const startCharacterIndex = splitLyricGraphemes(line.fullText.slice(0, range.start)).length;
         const wordTimings = buildWordGraphemeTimings(word);
 
         for (let characterIndex = 0; characterIndex < wordTimings.length; characterIndex += 1) {
