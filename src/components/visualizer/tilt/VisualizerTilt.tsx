@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue, motionValue } from 'framer-motion
 import { useTranslation } from 'react-i18next';
 import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { Line, Theme, AudioBands, type TiltColorScheme, type TiltTuning, DEFAULT_TILT_TUNING } from '../../../types';
+import { buildWordGraphemeTimings } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { SentenceLayout } from '../../../utils/lyrics/sentenceLayout';
@@ -113,41 +114,43 @@ const buildCharTimings = (charOffset: number, segmentText: string, segmentStartT
     const timings: CharTiming[] = [];
 
     if (segmentWords.length > 0) {
-        let totalCharsInSegment = 0;
         for (const word of segmentWords) {
-            totalCharsInSegment += [...GRAPHEME_SEGMENTER.segment(word.text)].filter(g => !/^\s+$/.test(g.segment)).length;
-        }
-
-        if (totalCharsInSegment > 0) {
-            for (let wi = 0; wi < segmentWords.length; wi++) {
-                const word = segmentWords[wi];
-                if (!word) continue;
-
-                const wordGraphemes = [...GRAPHEME_SEGMENTER.segment(word.text)];
-                const wordNonSpaceCount = wordGraphemes.filter(g => !/^\s+$/.test(g.segment)).length;
-
-                if (wordNonSpaceCount === 0) continue;
-
-                const wordDuration = Math.max(word.endTime - word.startTime, 0.05);
-                const charDuration = wordDuration / wordNonSpaceCount;
-
-                let nonSpaceCi = 0;
-                for (let ci = 0; ci < wordGraphemes.length; ci++) {
+            if (word.syllables?.length) {
+                const wordTimings = buildWordGraphemeTimings(word).filter(timing => !/^\s+$/.test(timing.char));
+                for (const timing of wordTimings) {
                     if (currentCharIndex >= nonSpaceGraphemes.length) break;
-
-                    const grapheme = wordGraphemes[ci];
-                    const isSpace = /^\s+$/.test(grapheme.segment);
-                    if (isSpace) continue;
 
                     timings.push({
                         charIndex: currentCharIndex,
-                        startTime: word.startTime + nonSpaceCi * charDuration,
-                        endTime: word.startTime + (nonSpaceCi + 1) * charDuration,
+                        startTime: timing.startTime,
+                        endTime: timing.endTime,
                     });
 
                     currentCharIndex++;
-                    nonSpaceCi++;
                 }
+                continue;
+            }
+
+            const wordGraphemes = [...GRAPHEME_SEGMENTER.segment(word.text)];
+            const wordNonSpaceCount = wordGraphemes.filter(g => !/^\s+$/.test(g.segment)).length;
+            if (wordNonSpaceCount === 0) continue;
+
+            const wordDuration = Math.max(word.endTime - word.startTime, 0.05);
+            const charDuration = wordDuration / wordNonSpaceCount;
+            let nonSpaceCi = 0;
+
+            for (const grapheme of wordGraphemes) {
+                if (currentCharIndex >= nonSpaceGraphemes.length) break;
+                if (/^\s+$/.test(grapheme.segment)) continue;
+
+                timings.push({
+                    charIndex: currentCharIndex,
+                    startTime: word.startTime + nonSpaceCi * charDuration,
+                    endTime: word.startTime + (nonSpaceCi + 1) * charDuration,
+                });
+
+                currentCharIndex++;
+                nonSpaceCi++;
             }
         }
     }

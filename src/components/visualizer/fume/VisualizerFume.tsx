@@ -4,6 +4,7 @@ import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, ty
 import { Hourglass } from 'lucide-react';
 import { AudioBands, DEFAULT_FUME_TUNING, FumeTuning, Line, Theme, Word as WordType } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime, getLineRenderHints, getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import { type VisualizerSharedProps } from '../definition';
@@ -43,6 +44,7 @@ interface WordRange {
     end: number;
     colorStart: number;
     colorEnd: number;
+    graphemeTimings: GraphemeTiming[];
 }
 
 interface RenderLineSlice {
@@ -409,6 +411,7 @@ export const buildWordRangesFromWords = (line: Line, graphemes: string[]) => {
             end,
             colorStart: start,
             colorEnd: end,
+            graphemeTimings: buildWordGraphemeTimings(word),
         });
         cursor = end;
     }
@@ -439,6 +442,21 @@ const resolvePrintedGlyphsInRange = (
 
     if (currentTimeValue < range.word.startTime) {
         return 0;
+    }
+
+    const timedGlyphCount = range.word.syllables?.length ? Math.min(range.graphemeTimings.length, length) : 0;
+    if (timedGlyphCount > 0) {
+        if (currentTimeValue >= range.word.endTime) {
+            return length;
+        }
+
+        let printed = 0;
+        for (let index = 0; index < timedGlyphCount; index += 1) {
+            if (currentTimeValue >= range.graphemeTimings[index]!.startTime) {
+                printed = index + 1;
+            }
+        }
+        return clamp(printed, 0, length);
     }
 
     const progress = resolveWordRevealProgress(range, currentTimeValue);
@@ -2770,10 +2788,18 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
                                 const wordProgress = clamp((time - range.word.startTime) / wordDuration, 0, 1);
                                 const glyphCount = Math.max(range.end - range.start, 1);
                                 const glyphIndexInRange = globalOffset - range.start;
-                                const glyphProgress = clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
+                                const glyphTiming = range.word.syllables?.length
+                                    ? range.graphemeTimings[Math.min(glyphIndexInRange, Math.max(range.graphemeTimings.length - 1, 0))]
+                                    : undefined;
+                                const glyphStartTime = glyphTiming?.startTime ?? (range.word.startTime + (glyphIndexInRange / glyphCount) * wordDuration);
+                                const glyphEndTime = glyphTiming?.endTime ?? (range.word.startTime + ((glyphIndexInRange + 1) / glyphCount) * wordDuration);
+                                const glyphDuration = Math.max(glyphEndTime - glyphStartTime, 0.001);
+                                const glyphProgress = glyphTiming
+                                    ? clamp((time - glyphStartTime) / glyphDuration + 0.16, 0, 1)
+                                    : clamp(wordProgress * glyphCount - glyphIndexInRange + 0.16, 0, 1);
                                 const easedGlyphProgress = easeOutCubic(glyphProgress);
                                 const activeColor = getActiveColor((colorRange ?? range).word.text, theme);
-                                const glyphTrailStart = range.word.startTime + ((glyphIndexInRange + 0.18) / glyphCount) * wordDuration;
+                                const glyphTrailStart = glyphStartTime + glyphDuration * 0.18;
                                 const colorTrailPhase = resolveVisualProgressWithCutoff(
                                     glyphTrailStart,
                                     colorTrailDuration,
