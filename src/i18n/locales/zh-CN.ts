@@ -285,6 +285,10 @@ export default {
     "madeBy": "Project:",
     "version": "版本"
   },
+  "settings": {
+    "lyricMatchPriority": "歌词匹配优先级",
+    "lyricMatchPriorityDesc": "在多个歌词源都存在高置信度匹配时，优先选择该歌词源的结果。"
+  },
   "options": {
     "cacheDetails": "缓存详情",
     "playlistData": "歌单数据",

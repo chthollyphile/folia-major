@@ -285,6 +285,10 @@ export default {
     "madeBy": "Project:",
     "version": "version"
   },
+  "settings": {
+    "lyricMatchPriority": "Lyric match priority",
+    "lyricMatchPriorityDesc": "When multiple lyric sources have high-confidence matches, prefer this source first."
+  },
   "options": {
     "cacheDetails": "Cache Details",
     "playlistData": "Playlist Data",
