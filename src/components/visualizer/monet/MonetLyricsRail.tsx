@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useTransform, MotionValue } from 'framer-motion';
 import type { Theme, AudioBands } from '../../../types';
+import type { GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import {
@@ -277,6 +278,7 @@ const MonetTimedTokenSpan: React.FC<{
                         text={token.text}
                         startTime={token.startTime}
                         endTime={token.endTime}
+                        graphemeTimings={token.graphemeTimings}
                         lineRenderEndTime={lineRenderEndTime}
                         currentTime={currentTime}
                         lineStatus={entry.status}
@@ -301,6 +303,7 @@ const MonetWordSweep: React.FC<{
     text: string;
     startTime: number;
     endTime: number;
+    graphemeTimings: GraphemeTiming[];
     lineRenderEndTime: number;
     currentTime: MotionValue<number>;
     lineStatus: MonetLineStatus;
@@ -314,6 +317,7 @@ const MonetWordSweep: React.FC<{
     text,
     startTime,
     endTime,
+    graphemeTimings,
     lineRenderEndTime,
     currentTime,
     lineStatus,
@@ -341,9 +345,37 @@ const MonetWordSweep: React.FC<{
             return (latest - startTime) / Math.max(0.001, endTime - startTime);
         });
 
-        const fillWidth = useTransform(wordProgress, progress => {
+        const fillWidth = useTransform(currentTime, latest => {
+            const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
+            if (!isLineActive || latest <= startTime) return 0;
+            if (latest >= endTime) return fullWidth;
+
+            const timingCount = Math.min(graphemeTimings.length, graphemeOffsets.length - 1);
+            if (timingCount > 0) {
+                for (let index = 0; index < timingCount; index += 1) {
+                    const timing = graphemeTimings[index];
+                    const timingStart = Math.max(startTime, timing.startTime);
+                    const timingEnd = Math.max(timingStart, timing.endTime);
+                    const startWidth = graphemeOffsets[index] ?? 0;
+                    const endWidth = graphemeOffsets[index + 1] ?? startWidth;
+
+                    if (latest < timingStart) {
+                        return startWidth;
+                    }
+
+                    if (latest <= timingEnd) {
+                        const duration = Math.max(0.001, timingEnd - timingStart);
+                        const progress = (latest - timingStart) / duration;
+                        return startWidth + (endWidth - startWidth) * progress;
+                    }
+                }
+
+                return graphemeOffsets[timingCount] ?? fullWidth;
+            }
+
+            const progress = (latest - startTime) / Math.max(0.001, endTime - startTime);
             if (progress <= 0) return 0;
-            if (progress >= 1) return graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
+            if (progress >= 1) return fullWidth;
             const graphemeCount = graphemeOffsets.length - 1;
             const floatIndex = progress * graphemeCount;
             const wholeIndex = Math.floor(floatIndex);

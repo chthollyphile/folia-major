@@ -1,5 +1,6 @@
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import type { Line } from '../../../types';
+import { buildLineGraphemeTimeline, buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 
 // src/components/visualizer/monet/monetLyricsModel.ts
@@ -15,6 +16,7 @@ export interface MonetDisplayToken {
     timed: boolean;
     startOffset: number;
     endOffset: number;
+    graphemeTimings: GraphemeTiming[];
 }
 
 export interface MonetLyricContext {
@@ -167,6 +169,7 @@ export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
             timed: true,
             startOffset: 0,
             endOffset: line.fullText.length,
+            graphemeTimings: buildLineGraphemeTimeline(line),
         }];
     }
 
@@ -187,6 +190,7 @@ export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
                 timed: false,
                 startOffset: cursor,
                 endOffset: matchIndex,
+                graphemeTimings: [],
             });
         }
 
@@ -199,6 +203,7 @@ export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
             timed: true,
             startOffset: matchIndex,
             endOffset,
+            graphemeTimings: buildWordGraphemeTimings(word),
         });
 
         cursor = endOffset;
@@ -213,6 +218,7 @@ export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
             timed: false,
             startOffset: cursor,
             endOffset: line.fullText.length,
+            graphemeTimings: [],
         });
     }
 
@@ -226,6 +232,7 @@ export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
             timed: true,
             startOffset: 0,
             endOffset: line.fullText.length,
+            graphemeTimings: buildLineGraphemeTimeline(line),
         }];
 };
 

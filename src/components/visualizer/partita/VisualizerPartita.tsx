@@ -3,6 +3,7 @@ import { motion, AnimatePresence, MotionValue, Variants, useMotionValueEvent } f
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_PARTITA_TUNING, Line, Theme, Word as WordType, AudioBands, type PartitaTuning } from '../../../types';
 import { buildDisplayWordsFromLayoutUnits, buildPostLyricLayoutUnits, type LyricLayoutUnit } from '../../../utils/lyrics/cjkSemanticLayout';
+import { buildWordGraphemeTimings } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime, getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
@@ -393,6 +394,7 @@ const PartitaWord: React.FC<{
     const rippleScale = useMemo(() => 1.5 + Math.random() * 2, []);
     const duration = getPartitaWordDisplayDuration(word, renderProfile);
     const activeEndTime = getPartitaWordActiveEndTime(word, renderProfile);
+    const graphemeTimings = useMemo(() => buildWordGraphemeTimings(word), [word]);
 
     useMotionValueEvent(currentTime, 'change', (latest: number) => {
         let newStatus: 'waiting' | 'active' | 'passed' = 'waiting';
@@ -429,14 +431,25 @@ const PartitaWord: React.FC<{
                 className="absolute inset-0 select-none pointer-events-none block"
                 aria-hidden="true"
             >
-                {!isCJK(word.text) && word.text.length > 1 ? (
-                    word.text.split('').map((char, index) => (
+                {graphemeTimings.length > 1 ? (
+                    graphemeTimings.map((timing, index) => (
                         <motion.span
                             key={index}
                             variants={glowVariants}
-                            custom={{ config, activeColor, baseColor, duration, index, total: word.text.length, wordRevealMode: renderProfile.wordRevealMode }}
+                            custom={{
+                                config,
+                                activeColor,
+                                baseColor,
+                                duration,
+                                index,
+                                total: graphemeTimings.length,
+                                charStartTime: timing.startTime,
+                                charEndTime: timing.endTime,
+                                wordStartTime: word.startTime,
+                                wordRevealMode: renderProfile.wordRevealMode,
+                            }}
                         >
-                            {char}
+                            {timing.char}
                         </motion.span>
                     ))
                 ) : (
@@ -824,7 +837,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
             color: 'transparent',
             textShadow: 'none',
         },
-        active: ({ activeColor, duration, index, total, wordRevealMode }: any) => {
+        active: ({ activeColor, duration, index, total, charStartTime, charEndTime, wordStartTime, wordRevealMode }: any) => {
             if (wordRevealMode === 'instant') {
                 return {
                     color: 'transparent',
@@ -860,6 +873,16 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
             // Letter-level sweep glow (Classic style)
             if (total !== undefined && total > 1) {
                 const singleDuration = duration / total;
+                const hasCharTiming = typeof charStartTime === 'number'
+                    && typeof charEndTime === 'number'
+                    && typeof wordStartTime === 'number';
+                const resolvedCharDuration = hasCharTiming ? charEndTime - charStartTime : 0;
+                const charDuration = hasCharTiming
+                    ? Math.max(resolvedCharDuration, 0.001)
+                    : singleDuration;
+                const charDelay = hasCharTiming
+                    ? Math.max(0, charStartTime - wordStartTime)
+                    : singleDuration * index;
                 return {
                     color: 'transparent',
                     textShadow: [
@@ -868,9 +891,9 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
                         'none',
                     ],
                     transition: {
-                        duration: singleDuration * 6,
+                        duration: charDuration * 6,
                         times: [0, 0.3, 1],
-                        delay: singleDuration * index,
+                        delay: charDelay,
                         ease: 'easeInOut',
                     },
                 };

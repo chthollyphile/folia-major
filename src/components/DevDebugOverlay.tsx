@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';
-import type { ThemeMode, DualTheme } from '../types';
+import type { ThemeMode, DualTheme, LyricData, LyricAlternateText, LyricBackgroundVocal, LyricSyllable } from '../types';
 
 export interface DevDebugLineSnapshot {
     text: string | null;
@@ -19,13 +19,21 @@ interface DevDebugRawWordSnapshot {
     text: string;
     startTime: number;
     endTime: number;
+    syllables?: LyricSyllable[];
 }
 
 interface DevDebugRawLineSnapshot {
+    id: string | null;
     startTime: number;
     endTime: number;
     fullText: string;
     translation: string | null;
+    romanization: string | null;
+    alternateTexts: LyricAlternateText[] | null;
+    agentId: string | null;
+    songPart: string | null;
+    blockIndex: number | null;
+    backgroundVocal: LyricBackgroundVocal | null;
     isChorus: boolean;
     chorusEffect: string | null;
     renderHints: Record<string, unknown> | null;
@@ -48,6 +56,7 @@ export interface DevDebugSnapshot {
     totalLines: number;
     totalWords?: number;
     maxWordsPerLine?: number;
+    lyricTtml: LyricData['ttml'] | null;
     nowPlaying?: {
         connectionStatus: string;
         isActive: boolean;
@@ -401,9 +410,9 @@ const DebugLineBlock: React.FC<{ label: string; line: DevDebugLineSnapshot | nul
 
 const RawLinePayloadBlock: React.FC<{
     label: string;
-    line: DevDebugRawLineSnapshot | null;
+    payload: unknown;
     isDaylight: boolean;
-}> = ({ label, line, isDaylight }) => {
+}> = ({ label, payload, isDaylight }) => {
     const blockClass = isDaylight
         ? 'border-black/10 bg-black/[0.04]'
         : 'border-white/10 bg-black/15';
@@ -414,9 +423,9 @@ const RawLinePayloadBlock: React.FC<{
     return (
         <section className={`rounded-xl border px-3 py-2 ${blockClass}`}>
             <div className="text-[10px] uppercase tracking-[0.16em] opacity-60">{label}</div>
-            {line ? (
+            {payload ? (
                 <pre className={`mt-2 overflow-x-auto rounded-lg border px-2.5 py-2 text-[10px] leading-4 ${codeClass}`}>
-                    {JSON.stringify(line, null, 2)}
+                    {JSON.stringify(payload, null, 2)}
                 </pre>
             ) : (
                 <div className="mt-1 text-[11px] font-medium">N/A</div>
@@ -752,13 +761,18 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                             nextLineStartTime={null}
                         />
                         <RawLinePayloadBlock
+                            label="TTML Payload"
+                            payload={snapshot.lyricTtml}
+                            isDaylight={isDaylight}
+                        />
+                        <RawLinePayloadBlock
                             label="Raw Current Line Payload"
-                            line={snapshot.rawActiveLine}
+                            payload={snapshot.rawActiveLine}
                             isDaylight={isDaylight}
                         />
                         <RawLinePayloadBlock
                             label="Raw Next Line Payload"
-                            line={snapshot.rawNextLine}
+                            payload={snapshot.rawNextLine}
                             isDaylight={isDaylight}
                         />
                     </div>
