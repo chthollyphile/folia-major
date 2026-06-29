@@ -434,17 +434,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
             return true;
         },
     },
-    {
-        id: 'settings-toggle-alternative-lyric-sources',
-        group: 'settings',
-        title: 'Toggle alternative lyric sources',
-        description: 'Toggle alternative lyric sources (AMLLDB, QQ Music, Kugou Music)',
-        keywords: ['alternative lyrics', 'more lyrics', 'alternative lyric sources', 'amll', 'amll db', 'ttml', '更多歌词源', '备选歌词源', 'qiehuanbexuangece', 'gdyy', 'gecly'],
-        execute: (_input, context) => {
-            context.toggleAlternativeLyricSources();
-            return true;
-        },
-    },
+
 ];
 
 export const getQueueSongMatches = (query: string, context: CommandPaletteContext): CommandPaletteMatch[] => {

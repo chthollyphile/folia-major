@@ -809,8 +809,8 @@ export default {
     "next": "下一页",
     "back": "返回",
     "page2Title": "命令与快捷键",
-    "page2Subtitle": "掌握这些快捷操作可以获得最佳体验。",
-    "shortcuts": "快捷键",
+    "page2Subtitle": "在播放页面可以使用如下快捷操作",
+    "shortcuts": "播放页快捷键",
     "commands": "全部命令",
     "commandsDesc": "输入任意命令的拼音、汉字或英文均可快速触发。"
   }

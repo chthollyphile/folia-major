@@ -1590,7 +1590,6 @@ export default function App() {
         transparentPlayerBackground,
         enablePlayerPageNativeBlur,
         toggleDaylightMode,
-        toggleAlternativeLyricSources: () => handleToggleAlternativeLyricSources(!enableAlternativeLyricSources),
         enableAlternativeLyricSources,
         runAutoMatchBestLyric: handleAutoMatchBestLyricForCurrentSong,
         setIsUserGuideModalOpen,
