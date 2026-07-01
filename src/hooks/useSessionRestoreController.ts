@@ -52,6 +52,17 @@ export function useSessionRestoreController({
     canRestoreSession = true,
 }: UseSessionRestoreControllerParams) {
     const hasInitializedRef = useRef(false);
+    const hasLoadedLocalLibraryRef = useRef(false);
+
+    useEffect(() => {
+        if (hasLoadedLocalLibraryRef.current) {
+            return;
+        }
+
+        hasLoadedLocalLibraryRef.current = true;
+        void loadLocalSongs();
+        void loadLocalPlaylists();
+    }, [loadLocalPlaylists, loadLocalSongs]);
 
     useEffect(() => {
         if (!canRestoreSession) {
@@ -105,7 +116,5 @@ export function useSessionRestoreController({
         };
 
         void restoreSession();
-        void loadLocalSongs();
-        void loadLocalPlaylists();
     }, [canRestoreSession]);
 }
