@@ -22,6 +22,9 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     handleNextTrack: vi.fn(),
     handlePrevTrack: vi.fn(),
     shuffleQueue: vi.fn(),
+    canGenerateAITheme: true,
+    isGeneratingTheme: false,
+    generateAITheme: vi.fn(),
     setVisualizerMode: vi.fn(),
     setVisualizerBackgroundMode: vi.fn(),
     setMonetBackgroundTuning: vi.fn(),
@@ -112,6 +115,26 @@ describe('command palette registry', () => {
         expect(matchDaylight.command.id).toBe('settings-toggle-daylight');
         matchDaylight.command.execute(matchDaylight.input, context);
         expect(context.toggleDaylightMode).toHaveBeenCalled();
+    });
+
+    it('executes the current song AI theme generation command', () => {
+        const context = createContext();
+
+        const [match] = getCommandPaletteMatches('生成AI主题', context);
+        expect(match.command.id).toBe('theme-generate-current');
+
+        match.command.execute(match.input, context);
+        expect(context.generateAITheme).toHaveBeenCalled();
+    });
+
+    it('hides the AI theme generation command when unavailable or already running', () => {
+        expect(getCommandPaletteMatches('生成AI主题', createContext({
+            canGenerateAITheme: false,
+        })).some(match => match.command.id === 'theme-generate-current')).toBe(false);
+
+        expect(getCommandPaletteMatches('生成AI主题', createContext({
+            isGeneratingTheme: true,
+        })).some(match => match.command.id === 'theme-generate-current')).toBe(false);
     });
 
     it('filters out non-current search commands when context is provided', () => {

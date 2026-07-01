@@ -56,6 +56,7 @@ import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublish
 import { ObsBrowserSourceLyrics } from './components/obs/ObsBrowserSourceLyrics';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
+import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useSettingsUiStore } from './stores/useSettingsUiStore';
@@ -636,6 +637,7 @@ export default function App() {
         hasCustomTheme,
         isCustomThemePreferred,
         songThemeAutoSwitchEnabled,
+        songThemeAutoGenerateEnabled,
         bgMode,
         isGeneratingTheme,
         handleToggleDaylight,
@@ -649,6 +651,7 @@ export default function App() {
         applyCustomTheme,
         handleCustomThemePreferenceChange,
         handleSongThemeAutoSwitchChange,
+        handleSongThemeAutoGenerateChange,
     } = themeController;
 
     // Navigation and Library Hooks
@@ -1553,6 +1556,9 @@ export default function App() {
         urlBackgroundSelectedId,
     });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
+    const generateCurrentSongTheme = useCallback(() => {
+        void generateAITheme(lyrics, currentSong);
+    }, [currentSong, generateAITheme, lyrics]);
     const toggleDaylightMode = useCallback(() => {
         handleToggleDaylight(!isDaylight);
     }, [handleToggleDaylight, isDaylight]);
@@ -1611,6 +1617,9 @@ export default function App() {
         shuffleQueue,
         playQueue,
         playSong,
+        canGenerateAITheme,
+        isGeneratingTheme,
+        generateAITheme: generateCurrentSongTheme,
         setVisualizerMode: handleSetVisualizerMode,
         setVisualizerBackgroundMode: handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: handleSetMonetBackgroundTuning,
@@ -1626,12 +1635,14 @@ export default function App() {
     }), [
         enableAlternativeLyricSources,
         enablePlayerPageNativeBlur,
+        generateCurrentSongTheme,
         handleAutoMatchBestLyricForCurrentSong,
         handleNextTrack,
         handlePrevTrack,
         handleSetVisualizerMode,
         handleSetVisualizerBackgroundMode,
         handleSetMonetBackgroundTuning,
+        isGeneratingTheme,
         localSongs,
         navigateToHome,
         navigateToPlayer,
@@ -1640,6 +1651,7 @@ export default function App() {
         playQueue,
         playSong,
         playerState,
+        canGenerateAITheme,
         currentSearchSourceTabInPalette,
         setHomeViewTab,
         shuffleQueue,
@@ -1737,9 +1749,13 @@ export default function App() {
         activeDualTheme,
     ]);
     const themeParkSeedTheme = useMemo(() => getThemeParkSeedTheme(), [getThemeParkSeedTheme]);
-    const generateCurrentSongTheme = useCallback(() => {
-        void generateAITheme(lyrics, currentSong);
-    }, [currentSong, generateAITheme, lyrics]);
+    useSongThemeAutoGeneration({
+        enabled: songThemeAutoSwitchEnabled && songThemeAutoGenerateEnabled,
+        currentSong,
+        lyrics,
+        isLyricsLoading,
+        generateAITheme,
+    });
     const seekMainAudio = useCallback((time: number) => {
         if (audioRef.current) {
             audioRef.current.currentTime = time;

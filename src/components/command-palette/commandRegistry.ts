@@ -358,6 +358,20 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'theme-generate-current',
+        group: 'settings',
+        title: 'Generate AI theme',
+        description: 'Generate an AI theme for the current song',
+        keywords: ['generate ai theme', 'ai theme', 'theme generation', 'generate theme', '生成AI主题', '生成主题', '主题生成', 'shengchengzhuti', 'aizhuti', 'sczt', 'aizt'],
+        execute: (_input, context) => {
+            if (!context.canGenerateAITheme || context.isGeneratingTheme) {
+                return false;
+            }
+            context.generateAITheme();
+            return true;
+        },
+    },
+    {
         id: 'playback-auto-match-best-lyric',
         group: 'playback',
         title: 'Match best lyrics',
@@ -512,6 +526,10 @@ export const getCommandPaletteMatches = (
 
         if (command.id === 'playback-auto-match-best-lyric') {
             return Boolean(context?.enableAlternativeLyricSources);
+        }
+
+        if (command.id === 'theme-generate-current') {
+            return context ? context.canGenerateAITheme && !context.isGeneratingTheme : true;
         }
 
         if (command.group === 'search') {

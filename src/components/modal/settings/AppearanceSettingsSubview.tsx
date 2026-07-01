@@ -26,6 +26,7 @@ type AppearanceSettingsSubviewProps = {
     onApplyDefaultTheme: () => void;
     onOpenThemePark: () => void;
     onOpenVisPlayground: () => void;
+    onToggleSongThemeAutoGenerate: (enabled: boolean) => void;
     onToggleCustomThemePreferred: (enabled: boolean) => void;
     onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
     onToggleTransparentPlayerBackground: (enabled: boolean) => void;
@@ -33,6 +34,7 @@ type AppearanceSettingsSubviewProps = {
     onSaveCustomTheme: (dualTheme: DualTheme) => void;
     settingsCardClass: string;
     songThemeAutoSwitchEnabled: boolean;
+    songThemeAutoGenerateEnabled: boolean;
     theme?: Theme;
     themeParkInitialTheme: DualTheme;
     toggleOffBackgroundClass: string;
@@ -236,6 +238,8 @@ export const compressConfig = (config: any): string => {
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
+    if (config.songThemeAutoSwitchEnabled !== undefined) minified.stas = config.songThemeAutoSwitchEnabled;
+    if (config.songThemeAutoGenerateEnabled !== undefined) minified.stag = config.songThemeAutoGenerateEnabled;
 
     const jsonStr = JSON.stringify(minified);
     const bytes = new TextEncoder().encode(jsonStr);
@@ -290,6 +294,8 @@ export const decompressConfig = (str: string): any => {
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
+        if (parsed.stas !== undefined) decompressed.songThemeAutoSwitchEnabled = parsed.stas;
+        if (parsed.stag !== undefined) decompressed.songThemeAutoGenerateEnabled = parsed.stag;
 
         return decompressed;
     } else {
@@ -298,7 +304,8 @@ export const decompressConfig = (str: string): any => {
             'visualizerOpacity', 'lyricsFontStyle', 'lyricsFontScale', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'cappellaTuning',
             'tiltTuning', 'monetBackgroundTuning', 'monetTuning',
-            'urlBackgroundList', 'urlBackgroundSelectedId'
+            'urlBackgroundList', 'urlBackgroundSelectedId',
+            'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);
         if (!hasValidKey) {
@@ -333,6 +340,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     onApplyDefaultTheme,
     onOpenThemePark,
     onOpenVisPlayground,
+    onToggleSongThemeAutoGenerate,
     onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
     onToggleTransparentPlayerBackground,
@@ -340,6 +348,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     onSaveCustomTheme,
     settingsCardClass,
     songThemeAutoSwitchEnabled,
+    songThemeAutoGenerateEnabled,
     theme,
     themeParkInitialTheme,
     toggleOffBackgroundClass,
@@ -451,6 +460,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             monetTuning: store.monetTuning,
             urlBackgroundList: store.urlBackgroundList,
             urlBackgroundSelectedId: store.urlBackgroundSelectedId,
+            songThemeAutoSwitchEnabled,
+            songThemeAutoGenerateEnabled,
         };
     };
 
@@ -566,6 +577,12 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     store.handleSetUrlBackgroundSelectedId(config.urlBackgroundSelectedId);
                 }
             }
+            if (config.songThemeAutoSwitchEnabled !== undefined) {
+                onToggleSongThemeAutoSwitch(Boolean(config.songThemeAutoSwitchEnabled));
+            }
+            if (config.songThemeAutoGenerateEnabled !== undefined) {
+                onToggleSongThemeAutoGenerate(Boolean(config.songThemeAutoGenerateEnabled));
+            }
 
             store.statusSetter?.({ type: 'success', text: t('options.importSuccess') || '配置导入成功！' });
             setImportText('');
@@ -633,7 +650,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                                 {t('options.preferCustomTheme') || '优先使用自定义主题'}
                             </div>
                             <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.preferCustomThemeDesc') || '保存后，后续主题切换会优先保留自定义主题。'}
+                                {t('options.preferCustomThemeDesc') || '开启后会关闭歌曲主题自动切换。'}
                             </div>
                         </div>
                         <button
@@ -662,6 +679,25 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoSwitchEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                     </div>
+                    {songThemeAutoSwitchEnabled && (
+                        <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${settingsCardClass}`}>
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.autoGenerateSongTheme') || '自动为播放歌曲进行主题生成'}
+                                </div>
+                                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动生成并应用。'}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => onToggleSongThemeAutoGenerate(!songThemeAutoGenerateEnabled)}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!songThemeAutoGenerateEnabled ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: songThemeAutoGenerateEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoGenerateEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </section>
 

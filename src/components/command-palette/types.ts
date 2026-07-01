@@ -59,6 +59,9 @@ export type CommandPaletteContext = {
     shuffleQueue: () => void;
     playQueue: SongResult[];
     playSong: (song: SongResult, queue?: SongResult[]) => void | Promise<void>;
+    canGenerateAITheme: boolean;
+    isGeneratingTheme: boolean;
+    generateAITheme: () => void;
     setVisualizerMode: (mode: VisualizerMode) => void;
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;

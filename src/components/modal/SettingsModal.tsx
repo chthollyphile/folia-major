@@ -34,10 +34,12 @@ interface SettingsModalProps {
     themeParkInitialTheme: DualTheme;
     isCustomThemePreferred: boolean;
     songThemeAutoSwitchEnabled: boolean;
+    songThemeAutoGenerateEnabled: boolean;
     onSaveCustomTheme: (dualTheme: DualTheme) => void;
     onApplyCustomTheme: () => void;
     onToggleCustomThemePreferred: (enabled: boolean) => void;
     onToggleSongThemeAutoSwitch: (enabled: boolean) => void;
+    onToggleSongThemeAutoGenerate: (enabled: boolean) => void;
     onToggleNavidrome?: (enabled: boolean) => void;
     loadLyricFilterPreview: () => Promise<LyricData | null>;
     currentSongTitle?: string | null;
@@ -72,10 +74,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     themeParkInitialTheme,
     isCustomThemePreferred,
     songThemeAutoSwitchEnabled,
+    songThemeAutoGenerateEnabled,
     onSaveCustomTheme,
     onApplyCustomTheme,
     onToggleCustomThemePreferred,
     onToggleSongThemeAutoSwitch,
+    onToggleSongThemeAutoGenerate,
     onToggleNavidrome,
     loadLyricFilterPreview,
     currentSongTitle,
@@ -1359,7 +1363,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     {t('options.preferCustomTheme') || '优先使用自定义主题'}
                                                 </div>
                                                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.preferCustomThemeDesc') || '保存后，后续主题切换会优先保留自定义主题。'}
+                                                    {t('options.preferCustomThemeDesc') || '开启后会关闭歌曲主题自动切换。'}
                                                 </div>
                                             </div>
                                             <button
@@ -1388,6 +1392,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoSwitchEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                                             </button>
                                         </div>
+                                            {songThemeAutoSwitchEnabled && (
+                                                <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.autoGenerateSongTheme') || '自动为播放歌曲进行主题生成'}
+                                                        </div>
+                                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动生成并应用。'}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => onToggleSongThemeAutoGenerate(!songThemeAutoGenerateEnabled)}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!songThemeAutoGenerateEnabled ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: songThemeAutoGenerateEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoGenerateEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+                                            )}
                                     </div>
 
                                     <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
@@ -2231,6 +2254,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onApplyDefaultTheme={onApplyDefaultTheme}
                         onOpenThemePark={() => setShowThemePark(true)}
                         onOpenVisPlayground={() => setShowVisPlayground(true)}
+                        onToggleSongThemeAutoGenerate={onToggleSongThemeAutoGenerate}
                         onToggleCustomThemePreferred={onToggleCustomThemePreferred}
                         onToggleSongThemeAutoSwitch={onToggleSongThemeAutoSwitch}
                         onToggleTransparentPlayerBackground={resolvedToggleTransparentPlayerBackground}
@@ -2238,6 +2262,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onSaveCustomTheme={onSaveCustomTheme}
                         settingsCardClass={settingsCardClass}
                         songThemeAutoSwitchEnabled={songThemeAutoSwitchEnabled}
+                        songThemeAutoGenerateEnabled={songThemeAutoGenerateEnabled}
                         theme={theme}
                         themeParkInitialTheme={themeParkInitialTheme}
                         toggleOffBackgroundClass={toggleOffBackgroundClass}

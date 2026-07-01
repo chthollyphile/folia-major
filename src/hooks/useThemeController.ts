@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { generateThemeFromLyrics, isMissingAiApiKeyError } from '../services/gemini';
 import { saveToCache } from '../services/db';
 import { DualTheme, LyricData, SongResult, StatusMessage, Theme, ThemeMode } from '../types';
@@ -8,10 +8,16 @@ import {
     applyStoredAnimationIntensityToTheme,
     isThemeAnimationIntensity,
     readStoredLastAppliedThemePointer,
+    readStoredThemeAutoGenerateEnabled,
     readStoredThemeAutoSwitchEnabled,
+    resolveCustomThemePreferenceChange,
+    resolveSongThemeAutoGenerateChange,
+    resolveSongThemeAutoSwitchChange,
     saveStoredAnimationIntensity,
     saveStoredLastAppliedThemePointer,
+    saveStoredThemeAutoGenerateEnabled,
     saveStoredThemeAutoSwitchEnabled,
+    type ThemePreferenceSwitchState,
 } from '../services/themePreferences';
 import { extractColors } from '../utils/colorExtractor';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
@@ -22,6 +28,15 @@ import {
 } from './themeControllerState';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
+export type GenerateAIThemeOptions = {
+    source?: 'manual' | 'auto';
+    shouldApply?: () => boolean;
+};
+
+export type GenerateAIThemeResult =
+    | { status: 'generated'; applied: boolean }
+    | { status: 'skipped'; reason: 'in-flight' | 'empty-prompt' }
+    | { status: 'failed' };
 
 const CUSTOM_DUAL_THEME_KEY = 'custom_dual_theme';
 const CUSTOM_THEME_PREFERRED_KEY = 'custom_theme_preferred';
@@ -101,19 +116,59 @@ export function useThemeController({
 }) {
     const getBaseTheme = () => getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
     const initialCustomTheme = useMemo(readStoredCustomTheme, []);
-    const initialCustomPreferred = useMemo(readStoredCustomPreferred, []);
-    const initialSongThemeAutoSwitchEnabled = useMemo(readStoredThemeAutoSwitchEnabled, []);
+    const initialThemePreferenceState = useMemo<ThemePreferenceSwitchState>(() => {
+        const customPreferred = Boolean(initialCustomTheme && readStoredCustomPreferred());
+        if (customPreferred) {
+            return {
+                isCustomThemePreferred: true,
+                songThemeAutoSwitchEnabled: false,
+                songThemeAutoGenerateEnabled: false,
+            };
+        }
+
+        const autoSwitchEnabled = readStoredThemeAutoSwitchEnabled();
+        return {
+            isCustomThemePreferred: false,
+            songThemeAutoSwitchEnabled: autoSwitchEnabled,
+            songThemeAutoGenerateEnabled: autoSwitchEnabled && readStoredThemeAutoGenerateEnabled(),
+        };
+    }, [initialCustomTheme]);
 
     const [theme, setTheme] = useState<Theme>(() => applyStoredAnimationIntensityToTheme(getBaseTheme()));
     const [aiTheme, setAiTheme] = useState<DualTheme | null>(null);
     const [legacyTheme, setLegacyTheme] = useState<Theme | null>(null);
     const [customTheme, setCustomTheme] = useState<DualTheme | null>(initialCustomTheme);
-    const [isCustomThemePreferred, setIsCustomThemePreferred] = useState(initialCustomPreferred);
-    const [songThemeAutoSwitchEnabled, setSongThemeAutoSwitchEnabled] = useState(initialSongThemeAutoSwitchEnabled);
+    const [isCustomThemePreferred, setIsCustomThemePreferred] = useState(initialThemePreferenceState.isCustomThemePreferred);
+    const [songThemeAutoSwitchEnabled, setSongThemeAutoSwitchEnabled] = useState(initialThemePreferenceState.songThemeAutoSwitchEnabled);
+    const [songThemeAutoGenerateEnabled, setSongThemeAutoGenerateEnabled] = useState(initialThemePreferenceState.songThemeAutoGenerateEnabled);
     const [bgMode, setBgMode] = useState<ThemeMode>(() => (
-        initialCustomTheme && initialCustomPreferred ? 'custom' : 'default'
+        initialCustomTheme && initialThemePreferenceState.isCustomThemePreferred ? 'custom' : 'default'
     ));
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
+    const activeThemeGenerationCountRef = useRef(0);
+    const themeGenerationSongKeysRef = useRef(new Set<string>());
+
+    const getPreferenceSwitchState = (): ThemePreferenceSwitchState => ({
+        isCustomThemePreferred,
+        songThemeAutoSwitchEnabled,
+        songThemeAutoGenerateEnabled,
+    });
+
+    const applyPreferenceSwitchState = (state: ThemePreferenceSwitchState) => {
+        setIsCustomThemePreferred(state.isCustomThemePreferred);
+        setSongThemeAutoSwitchEnabled(state.songThemeAutoSwitchEnabled);
+        setSongThemeAutoGenerateEnabled(state.songThemeAutoGenerateEnabled);
+    };
+
+    const beginThemeGeneration = () => {
+        activeThemeGenerationCountRef.current += 1;
+        setIsGeneratingTheme(true);
+    };
+
+    const endThemeGeneration = () => {
+        activeThemeGenerationCountRef.current = Math.max(0, activeThemeGenerationCountRef.current - 1);
+        setIsGeneratingTheme(activeThemeGenerationCountRef.current > 0);
+    };
 
     useEffect(() => {
         if (customTheme) {
@@ -134,6 +189,10 @@ export function useThemeController({
     useEffect(() => {
         saveStoredThemeAutoSwitchEnabled(songThemeAutoSwitchEnabled);
     }, [songThemeAutoSwitchEnabled]);
+
+    useEffect(() => {
+        saveStoredThemeAutoGenerateEnabled(songThemeAutoGenerateEnabled);
+    }, [songThemeAutoGenerateEnabled]);
 
     useEffect(() => {
         const pointer = bgMode === 'custom' && customTheme
@@ -313,7 +372,7 @@ export function useThemeController({
             return;
         }
 
-        setIsCustomThemePreferred(enabled);
+        applyPreferenceSwitchState(resolveCustomThemePreferenceChange(getPreferenceSwitchState(), enabled));
         if (enabled && customTheme) {
             setBgMode('custom');
         }
@@ -325,10 +384,18 @@ export function useThemeController({
     };
 
     const handleSongThemeAutoSwitchChange = (enabled: boolean) => {
-        setSongThemeAutoSwitchEnabled(enabled);
+        applyPreferenceSwitchState(resolveSongThemeAutoSwitchChange(getPreferenceSwitchState(), enabled));
         setStatusMsg({
             type: 'info',
             text: enabled ? '已开启主题自动切换' : '已关闭主题自动切换',
+        });
+    };
+
+    const handleSongThemeAutoGenerateChange = (enabled: boolean) => {
+        applyPreferenceSwitchState(resolveSongThemeAutoGenerateChange(getPreferenceSwitchState(), enabled));
+        setStatusMsg({
+            type: 'info',
+            text: enabled ? '已开启播放歌曲主题自动生成' : '已关闭播放歌曲主题自动生成',
         });
     };
 
@@ -405,10 +472,19 @@ export function useThemeController({
         return 'none' as const;
     };
 
-    const generateAITheme = async (lyrics: LyricData | null, currentSong: SongResult | null) => {
-        if (isGeneratingTheme) return;
+    const generateAITheme = async (
+        lyrics: LyricData | null,
+        currentSong: SongResult | null,
+        options: GenerateAIThemeOptions = {},
+    ): Promise<GenerateAIThemeResult> => {
+        const source = options.source ?? 'manual';
+        const songKey = currentSong?.id != null ? String(currentSong.id) : '__no_song__';
+        if (themeGenerationSongKeysRef.current.has(songKey)) {
+            return { status: 'skipped', reason: 'in-flight' };
+        }
 
-        setIsGeneratingTheme(true);
+        themeGenerationSongKeysRef.current.add(songKey);
+        beginThemeGeneration();
         setStatusMsg({ type: 'info', text: t('status.generatingTheme') });
         try {
             const allText = lyrics?.lines.map(line => line.fullText).join('\n').trim() || '';
@@ -417,8 +493,10 @@ export function useThemeController({
             const promptText = (isPureMusic ? songTitle : allText) || allText;
 
             if (!promptText) {
-                setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
-                return;
+                if (source === 'manual') {
+                    setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
+                }
+                return { status: 'skipped', reason: 'empty-prompt' };
             }
 
             const dualTheme = await generateThemeFromLyrics(promptText, {
@@ -426,6 +504,15 @@ export function useThemeController({
                 songTitle: songTitle || undefined,
             });
             const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(dualTheme);
+            if (currentSong) {
+                await saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
+            }
+
+            const shouldApply = options.shouldApply?.() ?? true;
+            if (!shouldApply) {
+                return { status: 'generated', applied: false };
+            }
+
             applyDualTheme(normalizedDualTheme);
 
             const selectedTheme = getSelectedDualTheme(normalizedDualTheme, isDaylight);
@@ -436,30 +523,39 @@ export function useThemeController({
                     : t('status.themeApplied', { themeName: selectedTheme.name }),
             });
 
-            if (currentSong) {
-                saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
-            }
+            return { status: 'generated', applied: true };
         } catch (error: unknown) {
             console.error(error);
+            const shouldApply = options.shouldApply?.() ?? true;
             if (isMissingAiApiKeyError(error)) {
                 const coverColors = coverUrl ? await extractColors(coverUrl, 5) : [];
                 const fallbackTheme = applyStoredAnimationIntensityToDualTheme(buildBuiltinDualTheme({ coverColors }));
-                applyDualTheme(fallbackTheme);
 
                 if (currentSong) {
-                    saveToCache(`dual_theme_${currentSong.id}`, fallbackTheme);
+                    await saveToCache(`dual_theme_${currentSong.id}`, fallbackTheme);
                 }
+
+                if (!shouldApply) {
+                    return { status: 'generated', applied: false };
+                }
+
+                applyDualTheme(fallbackTheme);
                 setStatusMsg({
                     type: 'info',
                     text: bgMode === 'custom' && customTheme
                         ? 'AI 主题已生成，但当前仍优先使用自定义主题'
                         : t('status.aiFallbackThemeUsed'),
                 });
+                return { status: 'generated', applied: true };
             } else {
-                setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
+                if (shouldApply) {
+                    setStatusMsg({ type: 'error', text: t('status.themeGenerationFailed') });
+                }
+                return { status: 'failed' };
             }
         } finally {
-            setIsGeneratingTheme(false);
+            themeGenerationSongKeysRef.current.delete(songKey);
+            endThemeGeneration();
         }
     };
 
@@ -477,6 +573,7 @@ export function useThemeController({
         hasCustomTheme: Boolean(customTheme),
         isCustomThemePreferred,
         songThemeAutoSwitchEnabled,
+        songThemeAutoGenerateEnabled,
         bgMode,
         setBgMode,
         isGeneratingTheme,
@@ -494,5 +591,6 @@ export function useThemeController({
         applyCustomTheme,
         handleCustomThemePreferenceChange,
         handleSongThemeAutoSwitchChange,
+        handleSongThemeAutoGenerateChange,
     };
 }

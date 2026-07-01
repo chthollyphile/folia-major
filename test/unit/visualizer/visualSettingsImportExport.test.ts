@@ -95,6 +95,8 @@ describe('Visual Settings Import and Export', () => {
             portraitOffsetX: -120,
             portraitStyle: 'square' as const,
         },
+        songThemeAutoSwitchEnabled: true,
+        songThemeAutoGenerateEnabled: true,
     };
 
     it('correctly compresses a full config to a base64 theme code starting with folia-theme://', () => {
@@ -110,6 +112,8 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
+        expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
+        expect(decoded.songThemeAutoGenerateEnabled).toBe(true);
 
         // Verify custom properties alignment
         expect(decoded.theme?.light.wordColors).toEqual([{ word: 'love', color: '#ff0000' }]);
@@ -129,6 +133,8 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.backgroundOpacity).toBe(0.85);
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
+        expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
+        expect(decoded.songThemeAutoGenerateEnabled).toBe(true);
     });
 
     it('gracefully throws error on invalid configuration input strings', () => {

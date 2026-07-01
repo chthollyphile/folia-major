@@ -4,9 +4,15 @@ import { DualTheme, Theme } from '../types';
 
 export type ThemeAnimationIntensity = Theme['animationIntensity'];
 export type LastAppliedThemePointer = 'default' | 'ai' | 'custom';
+export type ThemePreferenceSwitchState = {
+    isCustomThemePreferred: boolean;
+    songThemeAutoSwitchEnabled: boolean;
+    songThemeAutoGenerateEnabled: boolean;
+};
 
 const THEME_ANIMATION_INTENSITY_KEY = 'theme_animation_intensity';
 const THEME_AUTO_SWITCH_KEY = 'theme_auto_switch_enabled';
+const THEME_AUTO_GENERATE_KEY = 'theme_auto_generate_enabled';
 const LAST_APPLIED_THEME_POINTER_KEY = 'last_applied_theme_pointer';
 
 const isBrowser = () => typeof window !== 'undefined';
@@ -61,6 +67,72 @@ export const saveStoredThemeAutoSwitchEnabled = (enabled: boolean) => {
 
     window.localStorage.setItem(THEME_AUTO_SWITCH_KEY, String(enabled));
 };
+
+export const readStoredThemeAutoGenerateEnabled = () => {
+    if (!isBrowser()) {
+        return false;
+    }
+
+    return window.localStorage.getItem(THEME_AUTO_GENERATE_KEY) === 'true';
+};
+
+export const saveStoredThemeAutoGenerateEnabled = (enabled: boolean) => {
+    if (!isBrowser()) {
+        return;
+    }
+
+    window.localStorage.setItem(THEME_AUTO_GENERATE_KEY, String(enabled));
+};
+
+export const resolveCustomThemePreferenceChange = (
+    state: ThemePreferenceSwitchState,
+    enabled: boolean,
+): ThemePreferenceSwitchState => (
+    enabled
+        ? {
+            isCustomThemePreferred: true,
+            songThemeAutoSwitchEnabled: false,
+            songThemeAutoGenerateEnabled: false,
+        }
+        : {
+            ...state,
+            isCustomThemePreferred: false,
+        }
+);
+
+export const resolveSongThemeAutoSwitchChange = (
+    state: ThemePreferenceSwitchState,
+    enabled: boolean,
+): ThemePreferenceSwitchState => (
+    enabled
+        ? {
+            ...state,
+            isCustomThemePreferred: false,
+            songThemeAutoSwitchEnabled: true,
+        }
+        : {
+            ...state,
+            songThemeAutoSwitchEnabled: false,
+            songThemeAutoGenerateEnabled: false,
+        }
+);
+
+export const resolveSongThemeAutoGenerateChange = (
+    state: ThemePreferenceSwitchState,
+    enabled: boolean,
+): ThemePreferenceSwitchState => (
+    enabled
+        ? {
+            ...state,
+            isCustomThemePreferred: false,
+            songThemeAutoSwitchEnabled: true,
+            songThemeAutoGenerateEnabled: true,
+        }
+        : {
+            ...state,
+            songThemeAutoGenerateEnabled: false,
+        }
+);
 
 export const readStoredLastAppliedThemePointer = (): LastAppliedThemePointer => {
     if (!isBrowser()) {
