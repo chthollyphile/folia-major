@@ -557,7 +557,7 @@ export default {
     "autoSwitchSongTheme": "主题自动切换",
     "autoSwitchSongThemeDesc": "自动应用歌曲已缓存的 AI 主题。此选项和优先使用自定义主题互斥。",
     "autoGenerateSongTheme": "自动为播放歌曲进行主题生成",
-    "autoGenerateSongThemeDesc": "当播放歌曲没有缓存 AI 主题时，自动生成并应用。",
+    "autoGenerateSongThemeDesc": "当播放歌曲没有缓存 AI 主题时，自动调用AI并应用（会产生较高token费用！）",
     "updatePreferredCustomTheme": "更新首选自定义主题",
     "lightTheme": "亮色主题",
     "darkTheme": "暗色主题",

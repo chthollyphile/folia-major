@@ -686,7 +686,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                                     {t('options.autoGenerateSongTheme') || '自动为播放歌曲进行主题生成'}
                                 </div>
                                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动生成并应用。'}
+                                    {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动调用AI并应用（会产生较高token费用！）'}
                                 </div>
                             </div>
                             <button
