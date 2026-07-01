@@ -34,6 +34,7 @@ import md5 from 'blueimp-md5';
 const CONFIG_KEY = 'navidrome_config';
 const ENABLED_KEY = 'navidrome_enabled';
 const SERVER_PROFILE_KEY = 'navidrome_server_profile';
+const MAX_STABLE_URL_SALT_CACHE_ENTRIES = 512;
 type SubsonicParamPrimitive = string | number | boolean;
 type SubsonicParamValue = SubsonicParamPrimitive | SubsonicParamPrimitive[];
 
@@ -62,11 +63,13 @@ export const getNavidromeConfig = (): NavidromeConfig | null => {
 
 // Save configuration
 export const saveNavidromeConfig = (config: NavidromeConfig): void => {
+    clearStableUrlSaltCache();
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 };
 
 // Clear configuration
 export const clearNavidromeConfig = (): void => {
+    clearStableUrlSaltCache();
     localStorage.removeItem(CONFIG_KEY);
     clearNavidromeServerProfile();
 };
@@ -103,9 +106,7 @@ const generateSalt = (): string => {
     return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
-// Build authentication parameters
-const buildAuthParams = (config: NavidromeConfig): URLSearchParams => {
-    const salt = generateSalt();
+const buildAuthParamsWithSalt = (config: NavidromeConfig, salt: string): URLSearchParams => {
     // Subsonic API: token = md5(password + salt) where password is the plain text password
     // config.passwordHash actually contains the plain password (see hashPassword function)
     const token = md5(config.passwordHash + salt);
@@ -119,6 +120,42 @@ const buildAuthParams = (config: NavidromeConfig): URLSearchParams => {
     params.set('f', 'json'); // Response format
 
     return params;
+};
+
+// Build authentication parameters
+const buildAuthParams = (config: NavidromeConfig): URLSearchParams => {
+    return buildAuthParamsWithSalt(config, generateSalt());
+};
+
+const stableUrlSaltCache = new Map<string, string>();
+
+export const clearStableUrlSaltCache = (): void => {
+    stableUrlSaltCache.clear();
+};
+
+const getStableUrlAuthCacheKey = (config: NavidromeConfig): string => (
+    md5(JSON.stringify([config.serverUrl, config.username, config.passwordHash]))
+);
+
+const buildStableUrlAuthParams = (config: NavidromeConfig, scope: string): URLSearchParams => {
+    const cacheKey = `${getStableUrlAuthCacheKey(config)}:${scope}`;
+    let salt = stableUrlSaltCache.get(cacheKey);
+    if (salt) {
+        stableUrlSaltCache.delete(cacheKey);
+        stableUrlSaltCache.set(cacheKey, salt);
+        return buildAuthParamsWithSalt(config, salt);
+    }
+
+    salt = generateSalt();
+    stableUrlSaltCache.set(cacheKey, salt);
+    if (stableUrlSaltCache.size > MAX_STABLE_URL_SALT_CACHE_ENTRIES) {
+        const oldestKey = stableUrlSaltCache.keys().next().value;
+        if (oldestKey) {
+            stableUrlSaltCache.delete(oldestKey);
+        }
+    }
+
+    return buildAuthParamsWithSalt(config, salt);
 };
 
 // Generic API fetch function
@@ -486,7 +523,7 @@ export const navidromeApi = {
     // Get streaming URL
     getStreamUrl: (config: NavidromeConfig, songId: string, format?: string): string => {
         const url = new URL(`${config.serverUrl}/rest/stream`);
-        const authParams = buildAuthParams(config);
+        const authParams = buildStableUrlAuthParams(config, `stream:${songId}:${format || ''}`);
 
         authParams.forEach((value, key) => {
             url.searchParams.set(key, value);
@@ -503,7 +540,7 @@ export const navidromeApi = {
     // Get cover art URL
     getCoverArtUrl: (config: NavidromeConfig, coverArtId: string, size?: number): string => {
         const url = new URL(`${config.serverUrl}/rest/getCoverArt`);
-        const authParams = buildAuthParams(config);
+        const authParams = buildStableUrlAuthParams(config, `cover:${coverArtId}:${size || ''}`);
 
         authParams.forEach((value, key) => {
             url.searchParams.set(key, value);

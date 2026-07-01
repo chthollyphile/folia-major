@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { navidromeApi } from '@/services/navidromeService';
+import { clearStableUrlSaltCache, navidromeApi, saveNavidromeConfig } from '@/services/navidromeService';
 import type { NavidromeConfig } from '@/types/navidrome';
 
 // test/unit/navidrome/navidromeService.test.ts
@@ -27,6 +27,19 @@ const subsonicOk = (payload: Record<string, unknown> = {}) => ({
     },
 });
 
+const stubIncrementingCrypto = () => {
+    let saltSeed = 0;
+    vi.stubGlobal('crypto', {
+        getRandomValues: (array: Uint8Array) => {
+            saltSeed += 1;
+            for (let index = 0; index < array.length; index += 1) {
+                array[index] = (saltSeed >> ((index % 4) * 8)) & 0xff;
+            }
+            return array;
+        },
+    });
+};
+
 describe('navidromeService P0 endpoints', () => {
     beforeEach(() => {
         vi.stubGlobal('crypto', {
@@ -38,6 +51,7 @@ describe('navidromeService P0 endpoints', () => {
     });
 
     afterEach(() => {
+        clearStableUrlSaltCache();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
@@ -75,6 +89,50 @@ describe('navidromeService P0 endpoints', () => {
         expect(url.searchParams.get('public')).toBe('false');
         expect(url.searchParams.getAll('songIdToAdd')).toEqual(['a', 'b']);
         expect(url.searchParams.getAll('songIndexToRemove')).toEqual(['0', '2']);
+    });
+
+    it('keeps generated media URLs stable across repeated renders', () => {
+        stubIncrementingCrypto();
+
+        const stableConfig = { ...config, username: 'stable-media-url' };
+
+        const firstCoverUrl = navidromeApi.getCoverArtUrl(stableConfig, 'cover-1', 600);
+        const secondCoverUrl = navidromeApi.getCoverArtUrl(stableConfig, 'cover-1', 600);
+        const otherCoverUrl = navidromeApi.getCoverArtUrl(stableConfig, 'cover-2', 600);
+        const firstStreamUrl = navidromeApi.getStreamUrl(stableConfig, 'song-1');
+        const secondStreamUrl = navidromeApi.getStreamUrl(stableConfig, 'song-1');
+
+        expect(secondCoverUrl).toBe(firstCoverUrl);
+        expect(secondStreamUrl).toBe(firstStreamUrl);
+        expect(new URL(otherCoverUrl).searchParams.get('s')).not.toBe(new URL(firstCoverUrl).searchParams.get('s'));
+    });
+
+    it('clears stable media URL salts when config is saved', () => {
+        stubIncrementingCrypto();
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn(() => null),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+        });
+
+        const firstCoverUrl = navidromeApi.getCoverArtUrl(config, 'cover-1', 600);
+        saveNavidromeConfig(config);
+        const secondCoverUrl = navidromeApi.getCoverArtUrl(config, 'cover-1', 600);
+
+        expect(new URL(secondCoverUrl).searchParams.get('s')).not.toBe(new URL(firstCoverUrl).searchParams.get('s'));
+    });
+
+    it('evicts old stable media URL salts after many unique media URLs', () => {
+        stubIncrementingCrypto();
+        const stableConfig = { ...config, username: 'bounded-media-url-cache' };
+
+        const firstCoverUrl = navidromeApi.getCoverArtUrl(stableConfig, 'cover-0', 600);
+        for (let index = 1; index <= 600; index += 1) {
+            navidromeApi.getCoverArtUrl(stableConfig, `cover-${index}`, 600);
+        }
+        const refreshedCoverUrl = navidromeApi.getCoverArtUrl(stableConfig, 'cover-0', 600);
+
+        expect(new URL(refreshedCoverUrl).searchParams.get('s')).not.toBe(new URL(firstCoverUrl).searchParams.get('s'));
     });
 
     it('builds a server profile even when extension discovery fails', async () => {

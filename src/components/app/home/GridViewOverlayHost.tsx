@@ -342,56 +342,72 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
             return;
         }
 
-        if (isLocalGridViewCollection(selectedCollection)) {
-            if (!liveSelectedCollection || !isLocalGridViewCollection(liveSelectedCollection)) {
-                closeGridView();
-                return;
-            }
-
-            const resolvedTracks = resolveLocalGridViewTracks(liveSelectedCollection, legacyProps.localSongs) as UnifiedSong[];
-            if (liveSelectedCollection.songIds.length > 0 && resolvedTracks.length === 0) {
-                closeGridView();
-                return;
-            }
-
-            setResolvedLocalCollectionCoverUrl(resolveLocalCollectionCoverUrlFromTracks(
-                resolvedTracks,
-                getOrCreateLocalTrackCoverObjectUrl
-            ));
-
-            const activeTrackCoverSongIds = new Set<string>();
-            const processedTracks = resolvedTracks.map(track => {
-                const localData = track.localData;
-                if (!localData) return track;
-
-                const preferOnlineCover = localData.useOnlineCover === true;
-                if (preferOnlineCover && localData.matchedCoverUrl) {
-                    return track;
-                }
-
-                if (localData.embeddedCover) {
-                    const url = getOrCreateLocalTrackCoverObjectUrl(localData);
-                    if (url) {
-                        activeTrackCoverSongIds.add(localData.id);
-                        return withLocalTrackCoverUrl(track, url);
-                    }
-                }
-
-                return track;
-            });
-            pruneLocalTrackCoverObjectUrls(activeTrackCoverSongIds);
-
-            setExternalTracks(processedTracks);
-            setExternalTracksLoading(false);
-
-            return undefined;
-        }
-
-        if (!isNavidromeGridViewCollection(selectedCollection)) {
+        if (selectedCollection.source === 'netease') {
             setExternalTracks(undefined);
             setExternalTracksLoading(false);
             setResolvedLocalCollectionCoverUrl(undefined);
+            setNavidromePlaylistItems([]);
             clearLocalTrackCoverObjectUrls();
+        }
+    }, [clearLocalTrackCoverObjectUrls, selectedCollectionKey]);
+
+    useEffect(() => {
+        if (!selectedCollection || !isLocalGridViewCollection(selectedCollection)) {
+            return;
+        }
+
+        if (!liveSelectedCollection || !isLocalGridViewCollection(liveSelectedCollection)) {
+            closeGridView();
+            return;
+        }
+
+        const resolvedTracks = resolveLocalGridViewTracks(liveSelectedCollection, legacyProps.localSongs) as UnifiedSong[];
+        if (liveSelectedCollection.songIds.length > 0 && resolvedTracks.length === 0) {
+            closeGridView();
+            return;
+        }
+
+        setNavidromePlaylistItems([]);
+        setResolvedLocalCollectionCoverUrl(resolveLocalCollectionCoverUrlFromTracks(
+            resolvedTracks,
+            getOrCreateLocalTrackCoverObjectUrl
+        ));
+
+        const activeTrackCoverSongIds = new Set<string>();
+        const processedTracks = resolvedTracks.map(track => {
+            const localData = track.localData;
+            if (!localData) return track;
+
+            const preferOnlineCover = localData.useOnlineCover === true;
+            if (preferOnlineCover && localData.matchedCoverUrl) {
+                return track;
+            }
+
+            if (localData.embeddedCover) {
+                const url = getOrCreateLocalTrackCoverObjectUrl(localData);
+                if (url) {
+                    activeTrackCoverSongIds.add(localData.id);
+                    return withLocalTrackCoverUrl(track, url);
+                }
+            }
+
+            return track;
+        });
+        pruneLocalTrackCoverObjectUrls(activeTrackCoverSongIds);
+
+        setExternalTracks(processedTracks);
+        setExternalTracksLoading(false);
+    }, [
+        closeGridView,
+        getOrCreateLocalTrackCoverObjectUrl,
+        legacyProps.localSongs,
+        liveSelectedCollection,
+        pruneLocalTrackCoverObjectUrls,
+        selectedCollection,
+    ]);
+
+    useEffect(() => {
+        if (!selectedCollection || !isNavidromeGridViewCollection(selectedCollection)) {
             return;
         }
 
@@ -424,11 +440,6 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         };
     }, [
         clearLocalTrackCoverObjectUrls,
-        closeGridView,
-        getOrCreateLocalTrackCoverObjectUrl,
-        legacyProps.localSongs,
-        liveSelectedCollection,
-        pruneLocalTrackCoverObjectUrls,
         selectedCollection,
     ]);
 
