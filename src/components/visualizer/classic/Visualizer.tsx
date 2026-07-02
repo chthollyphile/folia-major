@@ -10,6 +10,7 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { buildPostLyricLayoutUnits, buildDisplayWordsFromLayoutUnits } from '../../../utils/lyrics/cjkSemanticLayout';
 import { buildWordGraphemeTimings } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
+import { resolveWordColor } from '../wordColoring';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -673,25 +674,7 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
                             {displayWords.map((word, idx) => {
                                 const config = wordConfigs[idx] || { id: `fallback-${idx}`, x: 0, y: 0, rotate: 0, scale: 1, marginRight: '0.5rem', alignSelf: 'auto', passedRotate: 0 };
 
-                                let activeColor = theme.accentColor;
-
-                                // Word color overrides are matched here at render time.
-                                // If the lyric parser attached semantic colors, let them win over the theme accent.
-                                if (theme.wordColors && theme.wordColors.length > 0) {
-                                    const wordText = word.text;
-                                    const cleanCurrent = wordText.trim();
-                                    const emotionalEntry = theme.wordColors.find(wc => {
-                                        const target = wc.word;
-                                        if (isCJK(cleanCurrent)) {
-                                            return target.includes(cleanCurrent);
-                                        } else {
-                                            const targetWords = target.split(/\s+/).map(t => t.toLowerCase().replace(/[^\w]/g, ''));
-                                            const currentLower = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
-                                            return targetWords.includes(currentLower);
-                                        }
-                                    });
-                                    if (emotionalEntry) activeColor = emotionalEntry.color;
-                                }
+                                const activeColor = resolveWordColor(word.text, theme.wordColors, theme.accentColor);
 
                                 return (
                                     <Word

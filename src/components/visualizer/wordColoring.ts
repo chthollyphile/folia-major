@@ -24,11 +24,31 @@ export interface WordColorMatcher {
     priority: number;
 }
 
+export type WordColorCjkMatchMode = 'target-contains-token' | 'bidirectional-contains' | 'exact';
+
 const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
 
 const isCJK = (text: string) => CJK_REGEX.test(text);
 
 const normalizeWordColorToken = (text: string) => text.toLowerCase().replace(/[^\w]/g, '');
+
+const resolveWordColorEntryText = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object' || !('word' in entry)) {
+        return '';
+    }
+
+    const word = (entry as { word?: unknown }).word;
+    return typeof word === 'string' ? word.trim() : '';
+};
+
+const resolveWordColorEntryColor = (entry: unknown) => {
+    if (!entry || typeof entry !== 'object' || !('color' in entry)) {
+        return '';
+    }
+
+    const color = (entry as { color?: unknown }).color;
+    return typeof color === 'string' ? color : '';
+};
 
 const rangesOverlap = (a: Pick<WordColorRange, 'startOffset' | 'endOffset'>, b: Pick<WordColorRange, 'startOffset' | 'endOffset'>) => (
     a.startOffset < b.endOffset && b.startOffset < a.endOffset
@@ -60,14 +80,19 @@ export const prepareWordColorMatchers = (
     }
 
     return wordColors.flatMap(entry => {
-        const target = entry.word.trim();
+        const target = resolveWordColorEntryText(entry);
         if (!target) {
+            return [];
+        }
+
+        const color = resolveWordColorEntryColor(entry);
+        if (!color) {
             return [];
         }
 
         if (isCJK(target)) {
             return [{
-                color: entry.color,
+                color,
                 cjkPhrases: [target],
                 englishWords: [],
                 priority: target.length,
@@ -84,7 +109,7 @@ export const prepareWordColorMatchers = (
         }
 
         return [{
-            color: entry.color,
+            color,
             cjkPhrases: [],
             englishWords,
             priority: Math.max(...englishWords.map(word => word.length)),
@@ -160,6 +185,54 @@ export const buildWordColorRanges = (
         prepareWordColorMatchers(wordColors, keywordColoringEnabled),
     )
 );
+
+export const resolveWordColor = (
+    wordText: string,
+    wordColors: Theme['wordColors'],
+    fallbackColor: string,
+    {
+        keywordColoringEnabled = true,
+        cjkMatchMode = 'target-contains-token',
+    }: {
+        keywordColoringEnabled?: boolean;
+        cjkMatchMode?: WordColorCjkMatchMode;
+    } = {},
+): string => {
+    if (!keywordColoringEnabled || !wordColors || wordColors.length === 0) {
+        return fallbackColor;
+    }
+
+    const cleanCurrent = wordText.trim();
+    if (!cleanCurrent) {
+        return fallbackColor;
+    }
+
+    const matched = wordColors.find(entry => {
+        const target = resolveWordColorEntryText(entry);
+        if (!target) {
+            return false;
+        }
+
+        if (isCJK(cleanCurrent)) {
+            if (cjkMatchMode === 'exact') {
+                return target === cleanCurrent;
+            }
+            if (cjkMatchMode === 'bidirectional-contains') {
+                return target.includes(cleanCurrent) || cleanCurrent.includes(target);
+            }
+            return target.includes(cleanCurrent);
+        }
+
+        const targetWords = target
+            .split(/\s+/)
+            .map(normalizeWordColorToken)
+            .filter(Boolean);
+        const normalizedCurrent = normalizeWordColorToken(cleanCurrent);
+        return Boolean(normalizedCurrent) && targetWords.includes(normalizedCurrent);
+    });
+
+    return resolveWordColorEntryColor(matched) || fallbackColor;
+};
 
 export const resolveTokenColorMap = (
     tokens: WordColorToken[],

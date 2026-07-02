@@ -134,6 +134,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ github.event.inputs.version != '' && github.event.inputs.version || needs.prepare-release.outputs.version }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+          MACOS_UNSIGNED_HELP_URL: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/desktop/macos-app-damaged.md
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -146,6 +147,7 @@ jobs:
           const replacements = {
             VERSION: process.env.RELEASE_VERSION || '',
             TAG: process.env.RELEASE_TAG || '',
+            MACOS_UNSIGNED_HELP_URL: process.env.MACOS_UNSIGNED_HELP_URL || '',
           };
 
           for (const [key, value] of Object.entries(replacements)) {

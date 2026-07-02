@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
+const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
   process.platform === 'linux' &&
@@ -3415,7 +3416,7 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
       if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replace(/^```(json)?\n/, '').replace(/\n```$/, '');
       }
-      dualTheme = JSON.parse(jsonStr);
+      dualTheme = sanitizeGeneratedDualTheme(JSON.parse(jsonStr));
 
       dualTheme.light.provider = 'OpenAI Compatible (Local)';
       dualTheme.dark.provider = 'OpenAI Compatible (Local)';
@@ -3427,12 +3428,12 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
       }
       const systemPrompt = buildThemeSystemPrompt(true);
       const sourcePrompt = buildThemeSourcePrompt(snippet, isPureMusic, songTitle);
-      dualTheme = await generateGeminiTheme({
+      dualTheme = sanitizeGeneratedDualTheme(await generateGeminiTheme({
         apiKey,
         systemPrompt,
         sourcePrompt,
         customFetch
-      });
+      }));
 
       dualTheme.light.provider = 'Google Gemini (Local)';
       dualTheme.dark.provider = 'Google Gemini (Local)';

@@ -1,5 +1,6 @@
 import { DualTheme } from "../types";
 import { applyStoredAnimationIntensityToDualTheme } from "./themePreferences";
+import { sanitizeDualTheme } from "./themeSanitizer";
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) {
@@ -21,7 +22,8 @@ export const generateThemeFromLyrics = async (
   try {
     // Check if running in Electron environment
     if ((window as any).electron && typeof (window as any).electron.generateTheme === 'function') {
-      return await (window as any).electron.generateTheme(lyricsText, options);
+      const dualTheme = await (window as any).electron.generateTheme(lyricsText, options);
+      return sanitizeDualTheme(dualTheme);
     }
 
     const provider = import.meta.env.VITE_AI_PROVIDER;
@@ -41,7 +43,7 @@ export const generateThemeFromLyrics = async (
     }
 
     const dualTheme = await response.json();
-    return applyStoredAnimationIntensityToDualTheme(dualTheme as DualTheme);
+    return applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme as DualTheme));
   } catch (error) {
     console.error("Failed to generate theme via API:", error);
     throw error;

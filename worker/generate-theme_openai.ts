@@ -1,3 +1,5 @@
+import { sanitizeDualTheme } from '../src/services/themeSanitizer';
+
 type WorkerEnv = {
     OPENAI_API_KEY?: string;
     OPENAI_API_URL?: string;
@@ -382,7 +384,7 @@ export async function handleGenerateOpenAITheme(request: Request, env: WorkerEnv
         }
 
         try {
-            dualTheme = JSON.parse(jsonStr);
+            dualTheme = sanitizeDualTheme(JSON.parse(jsonStr));
         } catch (e) {
             console.error('Failed to parse JSON from AI response:', jsonStr);
             throw new Error('Invalid JSON response from AI');

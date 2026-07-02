@@ -38,6 +38,7 @@ import {
     VIS_PLAYGROUND_PREVIEW_LOOP_DURATION,
 } from '../visualizer/PreviewPlaceholder';
 import { getVisualizerModeLabel, getVisualizerScopedSeed } from '../visualizer/registry';
+import { normalizeThemeHexColor, sanitizeDualTheme } from '../../services/themeSanitizer';
 
 interface ThemeParkProps {
     initialTheme: DualTheme;
@@ -82,7 +83,7 @@ const COLOR_FIELDS: Array<{ key: EditableColorKey; label: string; description: s
     { key: 'secondaryColor', label: '辅助色', description: '辅助文本与几何背景颜色' },
 ];
 
-const normalizeTheme = (theme: Theme, fallbackName: string, provider: string): Theme => ({
+const normalizeThemeMetadata = (theme: Theme, fallbackName: string, provider: string): Theme => ({
     ...theme,
     name: theme.name?.trim() || fallbackName,
     provider: theme.provider || provider,
@@ -91,10 +92,18 @@ const normalizeTheme = (theme: Theme, fallbackName: string, provider: string): T
     description: theme.description || '',
 });
 
-const normalizeDualTheme = (dualTheme: DualTheme): DualTheme => ({
-    light: normalizeTheme(dualTheme.light, 'Theme Park Light', 'Custom'),
-    dark: normalizeTheme(dualTheme.dark, 'Theme Park Dark', 'Custom'),
+const normalizeDualThemeMetadata = (dualTheme: DualTheme): DualTheme => ({
+    light: normalizeThemeMetadata(dualTheme.light, 'Theme Park Light', 'Custom'),
+    dark: normalizeThemeMetadata(dualTheme.dark, 'Theme Park Dark', 'Custom'),
 });
+
+const normalizeThemeParkDualTheme = (
+    dualTheme: DualTheme,
+    fallbackTheme: DualTheme = normalizeDualThemeMetadata(dualTheme),
+): DualTheme => sanitizeDualTheme(
+    normalizeDualThemeMetadata(dualTheme),
+    normalizeDualThemeMetadata(fallbackTheme),
+);
 
 const ThemePreviewLayer: React.FC<{
     theme: Theme;
@@ -400,7 +409,8 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const mid = useMotionValue(0.12);
     const vocal = useMotionValue(0.2);
     const treble = useMotionValue(0.1);
-    const [draftTheme, setDraftTheme] = useState<DualTheme>(() => normalizeDualTheme(initialTheme));
+    const normalizedInitialTheme = useMemo(() => normalizeThemeParkDualTheme(initialTheme), [initialTheme]);
+    const [draftTheme, setDraftTheme] = useState<DualTheme>(() => normalizedInitialTheme);
     const [currentLineIndex, setCurrentLineIndex] = useState(() => findPreviewPlaceholderLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, getPreviewPlaceholderStartOffset(visualizerMode, VIS_PLAYGROUND_PREVIEW_LOOP_DURATION)));
     const [pickerState, setPickerState] = useState<PickerState>({
         mode: isDaylight ? 'light' : 'dark',
@@ -467,21 +477,26 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const controlCardBg = isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)';
     const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
     const visualizerModeLabel = getVisualizerModeLabel(visualizerMode, t);
-    const activeTheme = draftTheme[pickerState.mode];
+    const safeDraftTheme = useMemo(
+        () => normalizeThemeParkDualTheme(draftTheme, normalizedInitialTheme),
+        [draftTheme, normalizedInitialTheme],
+    );
+    const activeTheme = safeDraftTheme[pickerState.mode];
+    const activeRawColor = draftTheme[pickerState.mode][pickerState.key];
     const activeColor = activeTheme[pickerState.key];
     const pickerField = COLOR_FIELDS.find(field => field.key === pickerState.key) ?? COLOR_FIELDS[0];
     const previewTheme = useMemo<DualTheme>(() => ({
         light: {
-            ...draftTheme.light,
+            ...safeDraftTheme.light,
             fontStyle: lyricsFontStyle,
             fontFamily: lyricsCustomFontFamily ?? undefined,
         },
         dark: {
-            ...draftTheme.dark,
+            ...safeDraftTheme.dark,
             fontStyle: lyricsFontStyle,
             fontFamily: lyricsCustomFontFamily ?? undefined,
         },
-    }), [draftTheme, lyricsCustomFontFamily, lyricsFontStyle]);
+    }), [safeDraftTheme, lyricsCustomFontFamily, lyricsFontStyle]);
 
     const updateColor = (mode: EditableMode, key: EditableColorKey, value: string) => {
         setDraftTheme(previous => ({
@@ -493,12 +508,25 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         }));
     };
 
+    const commitColor = (mode: EditableMode, key: EditableColorKey) => {
+        setDraftTheme(previous => {
+            const fallbackColor = normalizedInitialTheme[mode][key];
+            return {
+                ...previous,
+                [mode]: {
+                    ...previous[mode],
+                    [key]: normalizeThemeHexColor(previous[mode][key], fallbackColor),
+                },
+            };
+        });
+    };
+
     const handleReset = () => {
-        setDraftTheme(normalizeDualTheme(initialTheme));
+        setDraftTheme(normalizedInitialTheme);
     };
 
     const handleSave = () => {
-        onSaveTheme(normalizeDualTheme(draftTheme));
+        onSaveTheme(normalizeThemeParkDualTheme(draftTheme, normalizedInitialTheme));
     };
 
     // 仅当 mouse down 和 click 都在 overlay 元素本身发生时才触发关闭，
@@ -649,7 +677,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
 
                             <div className="space-y-3">
                                 {COLOR_FIELDS.map(field => {
-                                    const colorValue = draftTheme[pickerState.mode][field.key];
+                                    const colorValue = safeDraftTheme[pickerState.mode][field.key];
                                     const isActive = pickerState.key === field.key;
 
                                     return (
@@ -709,8 +737,9 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                     </div>
                                     <input
                                         type="text"
-                                        value={activeColor}
+                                        value={activeRawColor}
                                         onChange={(event) => updateColor(pickerState.mode, pickerState.key, event.target.value)}
+                                        onBlur={() => commitColor(pickerState.mode, pickerState.key)}
                                         className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm outline-none transition-colors focus:border-white/20"
                                         style={{ color: 'var(--text-primary)' }}
                                         spellCheck={false}

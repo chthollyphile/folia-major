@@ -1,3 +1,5 @@
+import { sanitizeDualTheme } from "../src/services/themeSanitizer";
+
 export const config = {
     runtime: 'edge', // Use edge runtime for fetch support
 };
@@ -383,7 +385,7 @@ export default async function handler(req: Request) {
         }
 
         try {
-            dualTheme = JSON.parse(jsonStr);
+            dualTheme = sanitizeDualTheme(JSON.parse(jsonStr));
         } catch (e) {
             console.error("Failed to parse JSON from AI response:", jsonStr);
             throw new Error("Invalid JSON response from AI");

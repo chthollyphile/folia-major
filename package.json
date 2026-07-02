@@ -50,6 +50,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "shared/**/*",
       "package.json",
       "build/miao.png",
       "build/thumbar/*.png"

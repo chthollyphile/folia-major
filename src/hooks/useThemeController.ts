@@ -19,6 +19,7 @@ import {
     saveStoredThemeAutoSwitchEnabled,
     type ThemePreferenceSwitchState,
 } from '../services/themePreferences';
+import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme, sanitizeTheme } from '../services/themeSanitizer';
 import { extractColors } from '../utils/colorExtractor';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import {
@@ -40,6 +41,33 @@ export type GenerateAIThemeResult =
 
 const CUSTOM_DUAL_THEME_KEY = 'custom_dual_theme';
 const CUSTOM_THEME_PREFERRED_KEY = 'custom_theme_preferred';
+
+const sanitizeCustomTheme = (
+    theme: Theme,
+    fallbackName: string,
+    fallbackTheme: Theme,
+): Theme => {
+    const sanitized = sanitizeTheme(theme, {
+        ...fallbackTheme,
+        name: fallbackName,
+        description: '',
+        wordColors: [],
+        lyricsIcons: [],
+        provider: 'Custom',
+    });
+
+    return {
+        ...sanitized,
+        name: sanitized.name?.trim() || fallbackName,
+        description: sanitized.description || '',
+        provider: sanitized.provider || 'Custom',
+    };
+};
+
+const sanitizeCustomDualTheme = (dualTheme: DualTheme): DualTheme => ({
+    light: sanitizeCustomTheme(dualTheme.light, 'Theme Park Light', FALLBACK_AI_DUAL_THEME.light),
+    dark: sanitizeCustomTheme(dualTheme.dark, 'Theme Park Dark', FALLBACK_AI_DUAL_THEME.dark),
+});
 
 const isValidTheme = (value: unknown): value is Theme => {
     if (!value || typeof value !== 'object') {
@@ -68,30 +96,16 @@ const readStoredCustomTheme = (): DualTheme | null => {
             return null;
         }
 
-        return applyStoredAnimationIntensityToDualTheme({
+        return applyStoredAnimationIntensityToDualTheme(sanitizeCustomDualTheme({
             light: parsed.light,
             dark: parsed.dark,
-        });
+        }));
     } catch {
         return null;
     }
 };
 
 const readStoredCustomPreferred = () => localStorage.getItem(CUSTOM_THEME_PREFERRED_KEY) === 'true';
-
-const sanitizeCustomTheme = (theme: Theme, fallbackName: string): Theme => ({
-    ...theme,
-    name: theme.name?.trim() || fallbackName,
-    wordColors: theme.wordColors || [],
-    lyricsIcons: theme.lyricsIcons || [],
-    description: theme.description || '',
-    provider: theme.provider || 'Custom',
-});
-
-const sanitizeCustomDualTheme = (dualTheme: DualTheme): DualTheme => ({
-    light: sanitizeCustomTheme(dualTheme.light, 'Theme Park Light'),
-    dark: sanitizeCustomTheme(dualTheme.dark, 'Theme Park Dark'),
-});
 
 const getSelectedDualTheme = (dualTheme: DualTheme, isDaylight: boolean) => (
     isDaylight ? dualTheme.light : dualTheme.dark
@@ -272,7 +286,7 @@ export function useThemeController({
         dualTheme: DualTheme,
         options?: { respectCustomPreference?: boolean }
     ) => {
-        const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(dualTheme);
+        const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
         setLegacyTheme(null);
         setAiTheme(normalizedDualTheme);
         void saveToCache('last_dual_theme', normalizedDualTheme);
@@ -286,7 +300,9 @@ export function useThemeController({
         nextLegacyTheme: Theme,
         options?: { respectCustomPreference?: boolean }
     ) => {
-        const normalizedLegacyTheme = applyStoredAnimationIntensityToTheme(nextLegacyTheme);
+        const normalizedLegacyTheme = applyStoredAnimationIntensityToTheme(
+            sanitizeTheme(nextLegacyTheme, FALLBACK_AI_DUAL_THEME.dark),
+        );
         setAiTheme(null);
         setLegacyTheme(normalizedLegacyTheme);
         void saveToCache('last_theme', normalizedLegacyTheme);
@@ -328,17 +344,17 @@ export function useThemeController({
 
         if (legacyTheme) {
             if (isDaylight) {
-                baseDualTheme.light = sanitizeCustomTheme({ ...legacyTheme }, legacyTheme.name || 'Theme Park Light');
+                baseDualTheme.light = sanitizeCustomTheme({ ...legacyTheme }, legacyTheme.name || 'Theme Park Light', FALLBACK_AI_DUAL_THEME.light);
             } else {
-                baseDualTheme.dark = sanitizeCustomTheme({ ...legacyTheme }, legacyTheme.name || 'Theme Park Dark');
+                baseDualTheme.dark = sanitizeCustomTheme({ ...legacyTheme }, legacyTheme.name || 'Theme Park Dark', FALLBACK_AI_DUAL_THEME.dark);
             }
             return baseDualTheme;
         }
 
         if (isDaylight) {
-            baseDualTheme.light = sanitizeCustomTheme({ ...theme }, theme.name || 'Theme Park Light');
+            baseDualTheme.light = sanitizeCustomTheme({ ...theme }, theme.name || 'Theme Park Light', FALLBACK_AI_DUAL_THEME.light);
         } else {
-            baseDualTheme.dark = sanitizeCustomTheme({ ...theme }, theme.name || 'Theme Park Dark');
+            baseDualTheme.dark = sanitizeCustomTheme({ ...theme }, theme.name || 'Theme Park Dark', FALLBACK_AI_DUAL_THEME.dark);
         }
 
         return baseDualTheme;
@@ -503,7 +519,7 @@ export function useThemeController({
                 isPureMusic,
                 songTitle: songTitle || undefined,
             });
-            const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(dualTheme);
+            const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
             if (currentSong) {
                 await saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
             }

@@ -12,6 +12,7 @@ import { buildFumeBackgroundScene, drawFumeBackground, type FumeBackgroundAudioL
 import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { resolveWordColor } from '../wordColoring';
 
 // This mode is basically "turn the whole lyric into an article, then move a camera through it".
 // So the pipeline is much bigger than the others: prebuild the article layout, split it into blocks/render lines/graphemes,
@@ -327,23 +328,9 @@ const resolveFumePassedFadeDuration = (lines: Line[], textHoldRatio: number) => 
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
-    if (!theme.wordColors || theme.wordColors.length === 0) {
-        return theme.accentColor;
-    }
-
-    const cleanCurrent = wordText.trim();
-    const matched = theme.wordColors.find(entry => {
-        const target = entry.word;
-        if (isCJK(cleanCurrent)) {
-            return target.includes(cleanCurrent) || cleanCurrent.includes(target);
-        }
-
-        const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
-        const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
-        return targetWords.includes(normalizedCurrent);
+    return resolveWordColor(wordText, theme.wordColors, theme.accentColor, {
+        cjkMatchMode: 'bidirectional-contains',
     });
-
-    return matched?.color ?? theme.accentColor;
 };
 
 const hashString = (input: string) => {

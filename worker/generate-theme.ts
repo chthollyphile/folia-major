@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { sanitizeDualTheme } from '../src/services/themeSanitizer';
 
 const THEME_GENERATION_PROMPT_PREFIX = `Analyze the mood of the provided song source text and generate TWO visual theme configurations for a music player - one for LIGHT mode and one for DARK mode.
 
@@ -177,7 +178,7 @@ export async function handleGenerateTheme(request: Request, env: WorkerEnv) {
             throw new Error('Failed to generate theme JSON');
         }
 
-        const dualTheme = JSON.parse(jsonText);
+        const dualTheme = sanitizeDualTheme(JSON.parse(jsonText));
 
         // Force fixed properties for both themes
         dualTheme.light.fontStyle = 'sans';

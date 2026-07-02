@@ -11,6 +11,7 @@ import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { resolveWordColor } from '../wordColoring';
 
 // This is the heavy layout mode.
 // The line does not just show up and animate; we first prebuild the active/upcoming lines,
@@ -544,23 +545,7 @@ const buildPreparedState = (
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
-    if (!theme.wordColors || theme.wordColors.length === 0) {
-        return theme.accentColor;
-    }
-
-    const cleanCurrent = wordText.trim();
-    const matched = theme.wordColors.find(entry => {
-        const target = entry.word;
-        if (isCJK(cleanCurrent)) {
-            return target.includes(cleanCurrent);
-        }
-
-        const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
-        const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
-        return targetWords.includes(normalizedCurrent);
-    });
-
-    return matched?.color ?? theme.accentColor;
+    return resolveWordColor(wordText, theme.wordColors, theme.accentColor);
 };
 
 const buildSegmentMetas = (prepared: PreparedTextWithSegments) => {
@@ -1327,7 +1312,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
 
     const preparedStateContextKey = useMemo(() => {
         const wordColorSignature = (theme.wordColors ?? [])
-            .map(entry => `${entry.word}:${entry.color}`)
+            .map(entry => `${typeof entry?.word === 'string' ? entry.word : ''}:${typeof entry?.color === 'string' ? entry.color : ''}`)
             .join('||');
 
         // Prepared line state caches per-word highlight colors derived from the active theme.

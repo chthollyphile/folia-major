@@ -9,6 +9,7 @@ import { shouldPreheatLine, useVisualizerRuntime, type VisualizerPreheatWindow }
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { resolveWordColor } from '../wordColoring';
 
 // This one is still word-driven, but unlike Classic it needs to pre-build a column/chunk structure first.
 // The flow is basically: ask runtime for the active line, optionally preheat the upcoming line,
@@ -187,23 +188,7 @@ const getPartitaLineContainerMotion = (renderProfile: PartitaLineRenderProfile |
 };
 
 const getActiveColor = (wordText: string, theme: Theme) => {
-    if (!theme.wordColors || theme.wordColors.length === 0) {
-        return theme.accentColor;
-    }
-
-    const cleanCurrent = wordText.trim();
-    const matched = theme.wordColors.find(entry => {
-        const target = entry.word;
-        if (isCJK(cleanCurrent)) {
-            return target.includes(cleanCurrent);
-        }
-
-        const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
-        const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
-        return targetWords.includes(normalizedCurrent);
-    });
-
-    return matched?.color ?? theme.accentColor;
+    return resolveWordColor(wordText, theme.wordColors, theme.accentColor);
 };
 
 const getTargetColumnCount = (totalGraphemes: number, wordCount: number) => {

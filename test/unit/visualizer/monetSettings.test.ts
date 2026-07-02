@@ -4,6 +4,7 @@ import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport 
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries } from '@/components/visualizer/monet/monetLyricsModel';
+import { colorWithAlpha, mixColors, parseColorChannels } from '@/components/visualizer/colorMix';
 import { buildWordColorRanges, prepareWordColorMatchers, resolveTokenColorMap } from '@/components/visualizer/wordColoring';
 import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
 
@@ -213,6 +214,38 @@ describe('Monet tuning and lyric helpers', () => {
         expect(resolveMonetWordColor('night', theme, '#ffffff', true)).toBe('#ffee88');
         expect(resolveMonetWordColor('雨', theme, '#ffffff', true)).toBe('#66ccff');
         expect(resolveMonetWordColor('night', theme, '#ffffff', false)).toBe('#ffffff');
+    });
+
+    it('ignores malformed persisted keyword color entries', () => {
+        const theme: Theme = {
+            name: 'Keyword Theme',
+            backgroundColor: '#000000',
+            primaryColor: '#ffffff',
+            accentColor: '#ff99aa',
+            secondaryColor: '#dddddd',
+            fontStyle: 'sans',
+            animationIntensity: 'normal',
+            wordColors: [
+                undefined,
+                { color: '#ff0000' },
+                { word: undefined, color: '#00ff00' },
+                { word: 'night', color: '#ffee88' },
+            ] as unknown as Theme['wordColors'],
+        };
+
+        expect(prepareWordColorMatchers(theme.wordColors)).toEqual([
+            { color: '#ffee88', cjkPhrases: [], englishWords: ['night'], priority: 5 },
+        ]);
+        expect(resolveMonetWordColor('night', theme, '#ffffff', true)).toBe('#ffee88');
+        expect(resolveMonetWordColor('day', theme, '#ffffff', true)).toBe('#ffffff');
+    });
+
+    it('keeps visualizer canvas colors valid when a persisted theme has invalid hex colors', () => {
+        expect(parseColorChannels('#e9b11')).toBeNull();
+        expect(colorWithAlpha('#e9b11', 0.42)).toBe('rgba(255, 255, 255, 0.42)');
+        expect(colorWithAlpha(undefined as unknown as string, 0.35)).toBe('rgba(255, 255, 255, 0.35)');
+        expect(colorWithAlpha('rgb(nope, 20, 30)', 0.5)).toBe('rgba(255, 255, 255, 0.5)');
+        expect(mixColors('#e9b11', '#000000', 0.2, 0.7)).toBe('rgba(255, 255, 255, 0.7)');
     });
 
     it('maps CJK phrase coloring by full-line ranges instead of coloring every matching particle token', () => {

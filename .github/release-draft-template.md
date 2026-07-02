@@ -1,7 +1,8 @@
 ## 下载说明
 
 - Windows：下载 `.exe` 安装包
-- macOS：下载 `.dmg`
+- macOS：下载 `Folia-<version>-arm64.dmg`
+  - 如果打开时提示“应用已损坏”，这通常是当前 macOS 包未签名 / 未 notarize 导致的 Gatekeeper 拦截，不是安装包本身损坏。解决方法见[这份说明]({{MACOS_UNSIGNED_HELP_URL}})
 - Linux：
   - Arch Linux / Manjaro：通过 AUR 安装 `yay -S folia-major-bin`
   - Debian / Ubuntu：下载 `.deb`

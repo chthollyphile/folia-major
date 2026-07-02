@@ -7,6 +7,7 @@ import { colorWithAlpha, mixColors } from '../colorMix';
 import {
     buildWordColorRangesFromMatchers,
     prepareWordColorMatchers,
+    resolveWordColor,
     resolveTokenColorMap,
     type WordColorMatcher,
 } from '../wordColoring';
@@ -71,10 +72,6 @@ const MONET_SCROLL_TRANSITION = {
     filter: { duration: 0.32, ease: [0.32, 0.72, 0, 1] },
 } as const;
 
-const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
-
-const isCJK = (text: string) => CJK_REGEX.test(text);
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export const resolveMonetWordColor = (
@@ -83,23 +80,10 @@ export const resolveMonetWordColor = (
     fallbackColor: string,
     keywordColoringEnabled = true,
 ): string => {
-    if (!keywordColoringEnabled || !theme.wordColors || theme.wordColors.length === 0) {
-        return fallbackColor;
-    }
-
-    const cleanCurrent = wordText.trim();
-    const matched = theme.wordColors.find(entry => {
-        const target = entry.word;
-        if (isCJK(cleanCurrent)) {
-            return target.trim() === cleanCurrent;
-        }
-
-        const targetWords = target.split(/\s+/).map(value => value.toLowerCase().replace(/[^\w]/g, ''));
-        const normalizedCurrent = cleanCurrent.toLowerCase().replace(/[^\w]/g, '');
-        return targetWords.includes(normalizedCurrent);
+    return resolveWordColor(wordText, theme.wordColors, fallbackColor, {
+        keywordColoringEnabled,
+        cjkMatchMode: 'exact',
     });
-
-    return matched?.color ?? fallbackColor;
 };
 
 const resolveLineTone = (
