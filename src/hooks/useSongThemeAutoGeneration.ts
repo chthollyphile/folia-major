@@ -4,6 +4,7 @@ import type { LyricData, SongResult } from '../types';
 import { getCachedThemeState } from '../services/themeCache';
 import {
     getSongThemeAutoGenerationKey,
+    hasSongThemePromptSource,
     isSongThemeGenerationStillCurrent,
     shouldRequestSongThemeAutoGeneration,
 } from '../utils/songThemeAutoGeneration';
@@ -36,71 +37,92 @@ export function useSongThemeAutoGeneration({
 }: UseSongThemeAutoGenerationParams) {
     const latestSongKeyRef = useRef<string | null>(null);
     const latestEnabledRef = useRef(enabled);
+    const latestGenerationInputRef = useRef({ currentSong, lyrics });
     const attemptedSongKeysRef = useRef(new Set<string>());
     const generateAIThemeRef = useRef(generateAITheme);
+    const songKey = getSongThemeAutoGenerationKey(currentSong);
+    const hasPromptSource = currentSong
+        ? hasSongThemePromptSource(currentSong, lyrics)
+        : false;
 
     useEffect(() => {
         generateAIThemeRef.current = generateAITheme;
     }, [generateAITheme]);
 
     useEffect(() => {
+        latestGenerationInputRef.current = { currentSong, lyrics };
+    }, [currentSong, lyrics]);
+
+    useEffect(() => {
         latestEnabledRef.current = enabled;
     }, [enabled]);
 
     useEffect(() => {
-        latestSongKeyRef.current = getSongThemeAutoGenerationKey(currentSong);
-    }, [currentSong?.id]);
+        latestSongKeyRef.current = songKey;
+    }, [songKey]);
 
     useEffect(() => {
+        const scheduledInput = latestGenerationInputRef.current;
+        const scheduledSong = scheduledInput.currentSong;
+        if (!scheduledSong || !songKey) {
+            return;
+        }
+
         if (!shouldRequestSongThemeAutoGeneration({
             enabled,
-            currentSong,
-            lyrics,
+            currentSong: scheduledSong,
+            lyrics: scheduledInput.lyrics,
             isLyricsLoading,
-            hasAttempted: currentSong ? attemptedSongKeysRef.current.has(String(currentSong.id)) : false,
+            hasAttempted: attemptedSongKeysRef.current.has(songKey),
             hasCachedTheme: false,
         })) {
             return;
         }
 
-        const songKey = String(currentSong.id);
+        const targetSongKey = songKey;
         let cancelled = false;
         const timeoutId = window.setTimeout(() => {
             void (async () => {
                 if (cancelled || !isSongThemeGenerationStillCurrent({
                     latestSongKey: latestSongKeyRef.current,
-                    targetSongKey: songKey,
+                    targetSongKey,
                     enabled: latestEnabledRef.current,
                 })) {
                     return;
                 }
 
-                const cachedTheme = await getCachedThemeState(currentSong.id);
+                const latestInput = latestGenerationInputRef.current;
+                const latestSong = latestInput.currentSong;
+                if (!latestSong) {
+                    return;
+                }
+
+                const cachedTheme = await getCachedThemeState(latestSong.id);
                 if (cancelled || !isSongThemeGenerationStillCurrent({
                     latestSongKey: latestSongKeyRef.current,
-                    targetSongKey: songKey,
+                    targetSongKey,
                     enabled: latestEnabledRef.current,
                 })) {
                     return;
                 }
                 if (!shouldRequestSongThemeAutoGeneration({
                     enabled: latestEnabledRef.current,
-                    currentSong,
-                    lyrics,
+                    currentSong: latestSong,
+                    lyrics: latestInput.lyrics,
                     isLyricsLoading: false,
-                    hasAttempted: attemptedSongKeysRef.current.has(songKey),
+                    hasAttempted: attemptedSongKeysRef.current.has(targetSongKey),
                     hasCachedTheme: cachedTheme.kind !== 'none',
                 })) {
-                    attemptedSongKeysRef.current.add(songKey);
+                    attemptedSongKeysRef.current.add(targetSongKey);
                     return;
                 }
 
-                attemptedSongKeysRef.current.add(songKey);
-                await generateAIThemeRef.current(lyrics, currentSong, {
+                attemptedSongKeysRef.current.add(targetSongKey);
+                await generateAIThemeRef.current(latestInput.lyrics, latestSong, {
                     source: 'auto',
                     shouldApply: () => isSongThemeGenerationStillCurrent({
                         latestSongKey: latestSongKeyRef.current,
-                        targetSongKey: songKey,
+                        targetSongKey,
                         enabled: latestEnabledRef.current,
                     }),
                 });
@@ -111,5 +133,5 @@ export function useSongThemeAutoGeneration({
             cancelled = true;
             window.clearTimeout(timeoutId);
         };
-    }, [currentSong, enabled, isLyricsLoading, lyrics]);
+    }, [enabled, hasPromptSource, isLyricsLoading, songKey]);
 }

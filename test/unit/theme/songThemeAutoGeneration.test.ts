@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+    getSongThemeAutoGenerationKey,
+    hasSongThemePromptSource,
     isSongThemeGenerationStillCurrent,
     shouldRequestSongThemeAutoGeneration,
 } from '@/utils/songThemeAutoGeneration';
@@ -18,6 +20,20 @@ const lyrics = {
 } as LyricData;
 
 describe('songThemeAutoGeneration', () => {
+    it('keeps the same generation key across repeated song object instances', () => {
+        expect(getSongThemeAutoGenerationKey(song)).toBe('101');
+        expect(getSongThemeAutoGenerationKey({ ...song } as SongResult)).toBe('101');
+        expect(getSongThemeAutoGenerationKey(null)).toBeNull();
+    });
+
+    it('keeps prompt-source readiness stable across repeated lyric object instances', () => {
+        expect(hasSongThemePromptSource(song, lyrics)).toBe(true);
+        expect(hasSongThemePromptSource({ ...song } as SongResult, {
+            lines: [...lyrics.lines],
+        } as LyricData)).toBe(true);
+        expect(hasSongThemePromptSource({ ...song, isPureMusic: true } as SongResult, null)).toBe(true);
+    });
+
     it('skips when the parent auto-switch setting is disabled', () => {
         expect(shouldRequestSongThemeAutoGeneration({
             enabled: false,
