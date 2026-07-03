@@ -11,6 +11,7 @@ import { buildStoredMonetPortraitImage, clearMonetPortraitImage, isSupportedMone
 import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAME_RATE_STORAGE_KEY } from '../utils/frameRateLimiter';
 import { sanitizeUrlBackgroundItem, sanitizeUrlBackgroundList } from '../utils/urlBackground';
 import { getLyricProviderPreferenceLabel } from '../utils/lyrics/lyricSourceLabels';
+import { applyAppLanguagePreference, readStoredAppLanguagePreference, type AppLanguagePreference } from '../i18n/config';
 
 // src/stores/useSettingsUiStore.ts
 // Shared settings state and actions used by App, Home, and SettingsModal.
@@ -22,7 +23,7 @@ const LAST_SEEN_GUIDE_VERSION_STORAGE_KEY = 'folia_last_seen_guide_version';
 
 export type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 export type SettingsModalInitialTab = 'help' | 'options';
-export type SettingsSubviewId = 'appearance' | 'playback' | 'integration' | 'storage' | 'desktop' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
+export type SettingsSubviewId = 'appearance' | 'general' | 'playback' | 'integration' | 'storage' | 'desktop' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
 export type SettingsModalState = {
     isOpen: boolean;
     initialTab: SettingsModalInitialTab;
@@ -730,6 +731,7 @@ type SettingsUiState = {
     storedMonetPortraitImage: StoredMonetPortraitImage | null;
     monetPortraitImage: MonetPortraitImage | null;
     isLoadingMonetPortraitImage: boolean;
+    appLanguagePreference: AppLanguagePreference;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsCustomFont: StoredCustomLyricsFont | null;
@@ -830,6 +832,7 @@ type SettingsUiState = {
     handleSetLyricsFontScale: (fontScale: number) => void;
     handleSetLyricsCustomFont: (font: StoredCustomLyricsFont | null) => void;
     handleUploadLyricsCustomFont: (file: File) => Promise<{ ok: boolean; error?: string; }>;
+    handleSetAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void>;
     handleSetLyricFilterPattern: (pattern: string) => void;
     handleToggleOpenPanelCloseButton: (enable: boolean) => void;
     handleToggleNowPlayingStage: (enable: boolean) => void;
@@ -896,6 +899,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     storedMonetPortraitImage: null,
     monetPortraitImage: null,
     isLoadingMonetPortraitImage: true,
+    appLanguagePreference: readStoredAppLanguagePreference(),
     lyricsFontStyle: readStoredLyricsFontStyle(),
     lyricsFontScale: readStoredLyricsFontScale(),
     lyricsCustomFont: readStoredCustomLyricsFont(),
@@ -1616,6 +1620,16 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             return { ok: false, error: message };
         }
     },
+    handleSetAppLanguagePreference: async (preference) => {
+        await applyAppLanguagePreference(preference);
+        set({ appLanguagePreference: preference });
+        notify(get, {
+            type: 'info',
+            text: preference === 'system'
+                ? '界面语言已切换为跟随系统'
+                : `界面语言已切换为 ${preference === 'zh-CN' ? '简体中文' : 'English'}`,
+        });
+    },
     handleSetLyricFilterPattern: (pattern) => {
         const next = pattern.trim();
         set({ lyricFilterPattern: next });
@@ -1763,6 +1777,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     isLoadingMonetBackgroundImage: state.isLoadingMonetBackgroundImage,
     monetPortraitImage: state.monetPortraitImage,
     isLoadingMonetPortraitImage: state.isLoadingMonetPortraitImage,
+    appLanguagePreference: state.appLanguagePreference,
     lyricsFontStyle: state.lyricsFontStyle,
     lyricsFontScale: state.lyricsFontScale,
     lyricsCustomFontFamily: state.lyricsCustomFont?.family ?? null,
@@ -1833,6 +1848,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleSetLyricsFontScale: state.handleSetLyricsFontScale,
     handleSetLyricsCustomFont: state.handleSetLyricsCustomFont,
     handleUploadLyricsCustomFont: state.handleUploadLyricsCustomFont,
+    handleSetAppLanguagePreference: state.handleSetAppLanguagePreference,
     handleSetLyricFilterPattern: state.handleSetLyricFilterPattern,
     handleToggleOpenPanelCloseButton: state.handleToggleOpenPanelCloseButton,
     handleToggleNowPlayingStage: state.handleToggleNowPlayingStage,

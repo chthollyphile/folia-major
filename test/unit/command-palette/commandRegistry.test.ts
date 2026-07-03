@@ -30,6 +30,7 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     setMonetBackgroundTuning: vi.fn(),
     toggleTransparentBackground: vi.fn(),
     toggleDaylightMode: vi.fn(),
+    setAppLanguagePreference: vi.fn(async () => undefined),
     enableAlternativeLyricSources: false,
     runAutoMatchBestLyric: vi.fn(async () => true),
     setIsUserGuideModalOpen: vi.fn(),
@@ -68,6 +69,25 @@ describe('command palette registry', () => {
         match.command.execute(match.input, context);
 
         expect(context.openSettings).toHaveBeenCalledWith('options', 'integration');
+    });
+
+    it('opens general settings and executes direct language switch commands', async () => {
+        const context = createContext();
+
+        const [generalMatch] = getCommandPaletteMatches('通用');
+        expect(generalMatch.command.id).toBe('settings-general');
+        generalMatch.command.execute(generalMatch.input, context);
+        expect(context.openSettings).toHaveBeenCalledWith('options', 'general');
+
+        const [systemLanguageMatch] = getCommandPaletteMatches('跟随系统');
+        expect(systemLanguageMatch.command.id).toBe('settings-language-system');
+        await systemLanguageMatch.command.execute(systemLanguageMatch.input, context);
+        expect(context.setAppLanguagePreference).toHaveBeenCalledWith('system');
+
+        const [englishMatch] = getCommandPaletteMatches('english');
+        expect(englishMatch.command.id).toBe('settings-language-en');
+        await englishMatch.command.execute(englishMatch.input, context);
+        expect(context.setAppLanguagePreference).toHaveBeenCalledWith('en');
     });
 
     it('previews recognized search commands with parsed input', () => {

@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { SearchReturnView } from '../../stores/useSearchNavigationStore';
 import type { HomeViewTab, LocalSong, PlayerState, SongResult, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
 
@@ -67,6 +68,7 @@ export type CommandPaletteContext = {
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     toggleTransparentBackground: () => void;
     toggleDaylightMode: () => void;
+    setAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void> | void;
     enableAlternativeLyricSources: boolean;
     runAutoMatchBestLyric: () => Promise<boolean>;
     setIsUserGuideModalOpen: (isOpen: boolean) => void;

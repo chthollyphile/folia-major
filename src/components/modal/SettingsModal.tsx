@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, CircleHelp } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, CircleHelp, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
@@ -12,6 +12,7 @@ import ThemePark from './ThemePark';
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
 import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
+import GeneralSettingsSubview from './settings/GeneralSettingsSubview';
 import IntegrationSettingsSubview from './settings/IntegrationSettingsSubview';
 import LabSettingsModal from './settings/LabSettingsModal';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
@@ -211,6 +212,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
+    const [showGeneralSettings, setShowGeneralSettings] = useState(false);
     const [showPlaybackSettings, setShowPlaybackSettings] = useState(false);
     const [showIntegrationSettings, setShowIntegrationSettings] = useState(false);
     const [showStorageSettings, setShowStorageSettings] = useState(false);
@@ -229,6 +231,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowVisPlayground(initialSubview === 'visualizer');
         setShowThemePark(initialSubview === 'themePark');
         setShowAppearanceSettings(initialSubview === 'appearance');
+        setShowGeneralSettings(initialSubview === 'general');
         setShowPlaybackSettings(initialSubview === 'playback');
         setShowIntegrationSettings(initialSubview === 'integration');
         setShowStorageSettings(initialSubview === 'storage');
@@ -736,6 +739,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const isSubSettingsViewOpen = showVisPlayground
         || showThemePark
         || showAppearanceSettings
+        || showGeneralSettings
         || showPlaybackSettings
         || showIntegrationSettings
         || showStorageSettings
@@ -751,6 +755,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowVisPlayground(false);
         setShowThemePark(false);
         setShowAppearanceSettings(false);
+        setShowGeneralSettings(false);
         setShowPlaybackSettings(false);
         setShowIntegrationSettings(false);
         setShowStorageSettings(false);
@@ -795,9 +800,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={onChange}
                 disabled={disabled}
-                className={`relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 ${
-                    disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'
-                } ${checked ? '' : toggleOffBackgroundClass}`}
+                className={`relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'
+                    } ${checked ? '' : toggleOffBackgroundClass}`}
                 style={{
                     backgroundColor: checked
                         ? (theme?.accentColor || (isDaylight ? '#18181b' : '#f4f4f5'))
@@ -805,9 +809,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 }}
             >
                 <div
-                    className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${
-                        isDaylight ? 'bg-white' : 'bg-zinc-100'
-                    } ${checked ? 'translate-x-5' : 'translate-x-0'}`}
+                    className={`absolute top-1 left-1 w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${isDaylight ? 'bg-white' : 'bg-zinc-100'
+                        } ${checked ? 'translate-x-5' : 'translate-x-0'}`}
                 />
             </button>
         );
@@ -849,13 +852,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                         {/* Decorative background blobs */}
                         <div className="absolute inset-0 pointer-events-none z-0">
-                            <div 
-                                className={`absolute -top-24 -right-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`} 
-                                style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#60a5fa' : '#3b82f6') }} 
+                            <div
+                                className={`absolute -top-24 -right-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`}
+                                style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#60a5fa' : '#3b82f6') }}
                             />
-                            <div 
-                                className={`absolute -bottom-24 -left-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`} 
-                                style={{ backgroundColor: theme?.secondaryColor || theme?.accentColor || (isDaylight ? '#c084fc' : '#a855f7') }} 
+                            <div
+                                className={`absolute -bottom-24 -left-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`}
+                                style={{ backgroundColor: theme?.secondaryColor || theme?.accentColor || (isDaylight ? '#c084fc' : '#a855f7') }}
                             />
                         </div>
                         <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6 relative z-10">
@@ -959,16 +962,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             >
                 {/* Decorative background blobs */}
                 <div className="absolute inset-0 pointer-events-none z-0">
-                    <div 
-                        className={`absolute -top-24 -right-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`} 
-                        style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#60a5fa' : '#3b82f6') }} 
+                    <div
+                        className={`absolute -top-24 -right-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`}
+                        style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#60a5fa' : '#3b82f6') }}
                     />
-                    <div 
-                        className={`absolute -bottom-24 -left-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`} 
-                        style={{ backgroundColor: theme?.secondaryColor || theme?.accentColor || (isDaylight ? '#c084fc' : '#a855f7') }} 
+                    <div
+                        className={`absolute -bottom-24 -left-24 w-64 h-64 rounded-full blur-[80px] ${isDaylight ? 'opacity-20' : 'opacity-10'}`}
+                        style={{ backgroundColor: theme?.secondaryColor || theme?.accentColor || (isDaylight ? '#c084fc' : '#a855f7') }}
                     />
                 </div>
-                
+
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors z-20"
@@ -996,22 +999,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative z-10">
                     <AnimatePresence mode="wait" initial={false}>
-                    {activeTab === 'help' ? (
-                        <motion.div
-                            key="help-tab"
-                            {...contentMotion}
-                            transition={shellTransition}
-                            className="space-y-6"
-                        >
-                            {/* Navigation - REMOVED requested items */}
-                            {/* 
+                        {activeTab === 'help' ? (
+                            <motion.div
+                                key="help-tab"
+                                {...contentMotion}
+                                transition={shellTransition}
+                                className="space-y-6"
+                            >
+                                {/* Navigation - REMOVED requested items */}
+                                {/* 
                                 Removed:
                                 - Switch playlist
                                 - Scroll / Slide
                                 - Select playlist
                                 - Click / Tap center
                             */}
-                            {/* Remaining Navigation Items? The user requested to remove SPECIFIC items. 
+                                {/* Remaining Navigation Items? The user requested to remove SPECIFIC items. 
                                 "Switch playlist", "Scroll / Slide", "Select playlist", "Click / Tap center".
                                 If there are others, I keep them. 
                                 Looking at original:
@@ -1024,524 +1027,1060 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 I'll iterate through original items and verify.
                             */}
 
-                            {/* Shortcuts */}
-                            <div>
-                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Keyboard size={14} /> {t('help.keyboardShortcuts')}
-                                </h3>
-                                <ul className="space-y-2 text-sm" style={{ color: 'var(--text-primary)' }}>
-                                    <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
-                                        <span>{t('help.navigatePlaylists')}</span>
-                                        <div className="flex gap-1">
-                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">←</kbd>
-                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">→</kbd>
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            {/* Player Controls */}
-                            <div>
-                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Keyboard size={14} /> {t('help.playerControls')}
-                                </h3>
-                                <ul className="space-y-2 text-sm" style={{ color: 'var(--text-primary)' }}>
-                                    <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
-                                        <span>{t('help.playPause')}</span>
-                                        <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">Space</kbd>
-                                    </li>
-                                    <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
-                                        <span>{t('help.previousTrack')} / {t('help.nextTrack')}</span>
-                                        <div className="flex items-center gap-1">
-                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">{isMac ? 'Cmd' : 'Ctrl'}</kbd>
-                                            <span className="text-xs opacity-50">+</span>
-                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">← / →</kbd>
-                                        </div>
-                                    </li>
-                                    <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
-                                        <span>{t('help.seekBackward')} / {t('help.seekForward')}</span>
-                                        <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">← / →</kbd>
-                                    </li>
-
-                                </ul>
-                            </div>
-
-                            {/* User Guide Button */}
-                            <div className="mt-6 flex flex-wrap justify-center gap-3">
-                                <button
-                                    onClick={() => {
-                                        setIsUserGuideModalOpen(true);
-                                        onClose();
-                                    }}
-                                    className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    <Command size={16} />
-                                    {t('userGuide.showGuide', 'Show User Guide')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAiHelpPrompt(true)}
-                                    className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
-                                    style={{ color: 'var(--text-primary)' }}
-                                >
-                                    <CircleHelp size={16} />
-                                    {t('aiHelp.openButton', 'Need help?')}
-                                </button>
-                            </div>
-
-                            {/* Author Info (Moved from Footer) */}
-                            <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
-                                <div className="relative mb-1">
-                                    <p className="text-sm opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                        <button
-                                            type="button"
-                                            onClick={handleAuthorLabelClick}
-                                            className="hover:opacity-100 transition-opacity"
-                                            style={{ color: 'inherit' }}
-                                            aria-label="meow"
-                                        >
-                                            {t('help.madeBy') || "Made by"}
-                                        </button>{' '}
-                                        <a href="https://github.com/chthollyphile/folia-major" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile/folia-major</a>
-                                    </p>
+                                {/* Shortcuts */}
+                                <div>
+                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                        <Keyboard size={14} /> {t('help.keyboardShortcuts')}
+                                    </h3>
+                                    <ul className="space-y-2 text-sm" style={{ color: 'var(--text-primary)' }}>
+                                        <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
+                                            <span>{t('help.navigatePlaylists')}</span>
+                                            <div className="flex gap-1">
+                                                <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">←</kbd>
+                                                <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">→</kbd>
+                                            </div>
+                                        </li>
+                                    </ul>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleCopyVersionInfo}
-                                    className="text-xs font-mono opacity-30 hover:opacity-70 transition-opacity cursor-copy"
-                                    style={{ color: 'var(--text-secondary)' }}
-                                    title={versionCopied ? '已复制' : '点击复制版本信息'}
-                                    aria-label={versionCopied ? '已复制版本信息' : '点击复制版本信息'}
-                                >
-                                    {versionCopied
-                                        ? '已复制'
-                                        : `${__APP_VERSION_LABEL__} v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`}
-                                </button>
-                                {updateStatus?.availableVersion && (
-                                    <div className="mt-1 flex items-center justify-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                        <span className="opacity-60">
-                                            {(t('options.updateAvailable') || 'Found')} v{updateStatus.availableVersion}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => window.electron?.openUpdateReleasePage(updateStatus.availableVersion)}
-                                            className="inline-flex items-center gap-1 opacity-50 transition-opacity hover:opacity-90"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            <ExternalLink size={12} />
-                                            {t('options.openReleasePage') || 'Open Release Page'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleOpenChinaDownload}
-                                            className="inline-flex items-center gap-1 opacity-50 transition-opacity hover:opacity-90"
-                                            style={{ color: 'var(--text-primary)' }}
-                                        >
-                                            <ExternalLink size={12} />
-                                            {t('options.downloadChina') || 'CN Download'}
-                                        </button>
-                                    </div>
-                                )}
-                                <p className="text-xs font-mono opacity-30 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                                    AI Service: {aiServiceLabel}
-                                </p>
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="options-tab"
-                            {...contentMotion}
-                            transition={shellTransition}
-                            className="space-y-8"
-                        >
-                            <section className="space-y-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAppearanceSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <Sparkles size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.visualSettings') || '视觉设置'}
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    主题、歌词渲染模式、样式入口和背景透明度。
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
 
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPlaybackSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <PlayCircle size={18} />
+                                {/* Player Controls */}
+                                <div>
+                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                        <Keyboard size={14} /> {t('help.playerControls')}
+                                    </h3>
+                                    <ul className="space-y-2 text-sm" style={{ color: 'var(--text-primary)' }}>
+                                        <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
+                                            <span>{t('help.playPause')}</span>
+                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">Space</kbd>
+                                        </li>
+                                        <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
+                                            <span>{t('help.previousTrack')} / {t('help.nextTrack')}</span>
+                                            <div className="flex items-center gap-1">
+                                                <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">{isMac ? 'Cmd' : 'Ctrl'}</kbd>
+                                                <span className="text-xs opacity-50">+</span>
+                                                <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">← / →</kbd>
                                             </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    播放控制
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    播放行为，歌词来源，音频
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
+                                        </li>
+                                        <li className="flex items-center justify-between bg-white/5 p-2 rounded-lg">
+                                            <span>{t('help.seekBackward')} / {t('help.seekForward')}</span>
+                                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono">← / →</kbd>
+                                        </li>
 
-                                <button
-                                    type="button"
-                                    onClick={() => setShowIntegrationSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <Server size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    连接与集成
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    外部程序接入设置。
-                                                </div>
-                                                {integrationStatusItems.length > 0 && (
-                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
-                                                        {integrationStatusItems.map((item) => (
-                                                            <div
-                                                                key={item.key}
-                                                                className="inline-flex items-center gap-1.5 text-[11px] font-medium"
-                                                                style={{
-                                                                    color: item.tone === 'success'
-                                                                        ? (isDaylight ? '#15803d' : '#86efac')
-                                                                        : (isDaylight ? '#b91c1c' : '#fca5a5'),
-                                                                }}
-                                                            >
-                                                                <span
-                                                                    className="w-1.5 h-1.5 rounded-full"
-                                                                    style={{
-                                                                        backgroundColor: item.tone === 'success'
-                                                                            ? (isDaylight ? '#16a34a' : '#4ade80')
-                                                                            : (isDaylight ? '#dc2626' : '#f87171'),
-                                                                    }}
-                                                                />
-                                                                <span>{item.label}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
+                                    </ul>
+                                </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => setShowStorageSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <Database size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    存储与缓存
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    缓存占用、清理、媒体缓存和缓存目录。
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
-
-                                {isElectron && (
+                                {/* User Guide Button */}
+                                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setIsUserGuideModalOpen(true);
+                                            onClose();
+                                        }}
+                                        className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        <Command size={16} />
+                                        {t('userGuide.showGuide', 'Show User Guide')}
+                                    </button>
                                     <button
                                         type="button"
-                                        onClick={() => setShowDesktopSettings(true)}
+                                        onClick={() => setShowAiHelpPrompt(true)}
+                                        className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        <CircleHelp size={16} />
+                                        {t('aiHelp.openButton', 'Need help?')}
+                                    </button>
+                                </div>
+
+                                {/* Author Info (Moved from Footer) */}
+                                <div className="mt-8 pt-6 border-t border-white/10 text-center shrink-0">
+                                    <div className="relative mb-1">
+                                        <p className="text-sm opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                            <button
+                                                type="button"
+                                                onClick={handleAuthorLabelClick}
+                                                className="hover:opacity-100 transition-opacity"
+                                                style={{ color: 'inherit' }}
+                                                aria-label="meow"
+                                            >
+                                                {t('help.madeBy') || "Made by"}
+                                            </button>{' '}
+                                            <a href="https://github.com/chthollyphile/folia-major" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-white/30 hover:decoration-white">chthollyphile/folia-major</a>
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyVersionInfo}
+                                        className="text-xs font-mono opacity-30 hover:opacity-70 transition-opacity cursor-copy"
+                                        style={{ color: 'var(--text-secondary)' }}
+                                        title={versionCopied ? '已复制' : '点击复制版本信息'}
+                                        aria-label={versionCopied ? '已复制版本信息' : '点击复制版本信息'}
+                                    >
+                                        {versionCopied
+                                            ? '已复制'
+                                            : `${__APP_VERSION_LABEL__} v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`}
+                                    </button>
+                                    {updateStatus?.availableVersion && (
+                                        <div className="mt-1 flex items-center justify-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                            <span className="opacity-60">
+                                                {(t('options.updateAvailable') || 'Found')} v{updateStatus.availableVersion}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => window.electron?.openUpdateReleasePage(updateStatus.availableVersion)}
+                                                className="inline-flex items-center gap-1 opacity-50 transition-opacity hover:opacity-90"
+                                                style={{ color: 'var(--text-primary)' }}
+                                            >
+                                                <ExternalLink size={12} />
+                                                {t('options.openReleasePage') || 'Open Release Page'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleOpenChinaDownload}
+                                                className="inline-flex items-center gap-1 opacity-50 transition-opacity hover:opacity-90"
+                                                style={{ color: 'var(--text-primary)' }}
+                                            >
+                                                <ExternalLink size={12} />
+                                                {t('options.downloadChina') || 'CN Download'}
+                                            </button>
+                                        </div>
+                                    )}
+                                    <p className="text-xs font-mono opacity-30 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                        AI Service: {aiServiceLabel}
+                                    </p>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="options-tab"
+                                {...contentMotion}
+                                transition={shellTransition}
+                                className="space-y-8"
+                            >
+                                <section className="space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAppearanceSettings(true)}
                                         className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
                                     >
                                         <div className="flex items-center justify-between gap-4">
                                             <div className="flex items-start gap-3 text-left">
                                                 <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                    <Command size={18} />
+                                                    <Sparkles size={18} />
                                                 </div>
                                                 <div className="space-y-1">
                                                     <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                        桌面端设置
+                                                        {t('options.visualSettings') || '视觉设置'}
                                                     </div>
                                                     <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                        更新检查、自动更新和桌面端 AI 配置。
+                                                        {t('options.visualSettingsCardDesc') || '主题、歌词渲染模式、样式入口和背景透明度。'}
                                                     </div>
                                                 </div>
                                             </div>
                                             <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                         </div>
                                     </button>
-                                )}
 
-                                <button
-                                    type="button"
-                                    onClick={() => setShowLabSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <FlaskConical size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.labSettings') || '实验室'}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowGeneralSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <Languages size={18} />
                                                 </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.labSettingsDesc') || '高级自定义功能'}
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.generalSettings') || '通用设置'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.generalSettingsDesc') || '语言，应用偏好。'}
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                         </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
-                            </section>
+                                    </button>
 
-                            <div className="hidden">
-                            {/* Visual Settings */}
-                            <section>
-                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Sparkles size={14} /> {t('options.visualSettings') || "Visual Settings"}
-                                </h3>
-                                <div className="space-y-4">
-                                    {/* Theme Presets */}
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                {t('options.themePresets') || "Theme Presets"}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowThemePark(true)}
-                                                className="shrink-0 w-9 h-9 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
-                                                style={{ color: 'var(--text-primary)' }}
-                                                title={t('options.openThemePark') || '打开 Theme Park'}
-                                                aria-label={t('options.openThemePark') || '打开 Theme Park'}
-                                            >
-                                                <Palette size={16} />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <button
-                                                onClick={onApplyDefaultTheme}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
-                                                style={{
-                                                    borderColor: bgMode === 'default' ? theme?.accentColor || 'transparent' : 'transparent',
-                                                    backgroundColor: isDaylight ? 'rgba(245, 245, 244, 0.8)' : 'rgba(9, 9, 11, 0.5)'
-                                                }}
-                                            >
-                                                <div className="w-6 h-6 rounded-full shadow-sm" style={{ background: `linear-gradient(135deg, ${themeParkInitialTheme.light.backgroundColor}, ${themeParkInitialTheme.dark.backgroundColor})`, borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.15)' }} />
-                                                <span className="text-xs opacity-80" style={{ color: isDaylight ? '#27272a' : '#e4e4e7' }}>{t('options.themePresetsDefault') || "Default"}</span>
-                                            </button>
-                                            <button
-                                                onClick={() => onApplyCustomTheme()}
-                                                disabled={!hasCustomTheme}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                style={{
-                                                    borderColor: bgMode === 'custom' ? theme?.accentColor || 'transparent' : 'transparent',
-                                                    backgroundColor: isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.08)'
-                                                }}
-                                            >
-                                                <div className="w-6 h-6 rounded-full" style={{ background: hasCustomTheme ? `linear-gradient(135deg, ${themeParkInitialTheme.light.accentColor}, ${themeParkInitialTheme.dark.accentColor})` : 'rgba(114,119,134,0.4)' }} />
-                                                <span className="text-xs opacity-80" style={{ color: 'var(--text-primary)' }}>{t('options.customTheme') || "Custom"}</span>
-                                            </button>
-                                        </div>
-                                        <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.preferCustomTheme') || '优先使用自定义主题'}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPlaybackSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <PlayCircle size={18} />
                                                 </div>
-                                                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.preferCustomThemeDesc') || '开启后会关闭歌曲主题自动切换。'}
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.playbackSettings') || '播放控制'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.playbackSettingsDesc') || '播放行为，歌词来源，音频'}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => hasCustomTheme && onToggleCustomThemePreferred(!isCustomThemePreferred)}
-                                                disabled={!hasCustomTheme}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!isCustomThemePreferred ? toggleOffBackgroundClass : ''} disabled:opacity-40 disabled:cursor-not-allowed`}
-                                                style={{ backgroundColor: isCustomThemePreferred ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${isCustomThemePreferred ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                         </div>
-                                        <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.autoSwitchSongTheme') || '主题自动切换'}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowIntegrationSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <Server size={18} />
                                                 </div>
-                                                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.autoSwitchSongThemeDesc') || '当切换到的歌曲曾经生成过 AI 主题的时候，自动应用 AI 主题。'}
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.integrationSettings') || '连接与集成'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.integrationSettingsDesc') || '外部程序接入设置。'}
+                                                    </div>
+                                                    {integrationStatusItems.length > 0 && (
+                                                        <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                                                            {integrationStatusItems.map((item) => (
+                                                                <div
+                                                                    key={item.key}
+                                                                    className="inline-flex items-center gap-1.5 text-[11px] font-medium"
+                                                                    style={{
+                                                                        color: item.tone === 'success'
+                                                                            ? (isDaylight ? '#15803d' : '#86efac')
+                                                                            : (isDaylight ? '#b91c1c' : '#fca5a5'),
+                                                                    }}
+                                                                >
+                                                                    <span
+                                                                        className="w-1.5 h-1.5 rounded-full"
+                                                                        style={{
+                                                                            backgroundColor: item.tone === 'success'
+                                                                                ? (isDaylight ? '#16a34a' : '#4ade80')
+                                                                                : (isDaylight ? '#dc2626' : '#f87171'),
+                                                                        }}
+                                                                    />
+                                                                    <span>{item.label}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => onToggleSongThemeAutoSwitch(!songThemeAutoSwitchEnabled)}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!songThemeAutoSwitchEnabled ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: songThemeAutoSwitchEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoSwitchEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                         </div>
-                                            {songThemeAutoSwitchEnabled && (
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowStorageSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <Database size={18} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.storageSettings') || '存储与缓存'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.storageSettingsDesc') || '缓存占用、清理、媒体缓存和缓存目录。'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                        </div>
+                                    </button>
+
+                                    {isElectron && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDesktopSettings(true)}
+                                            className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-start gap-3 text-left">
+                                                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                        <Command size={18} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.desktopSettings') || '桌面端设置'}
+                                                        </div>
+                                                        <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.desktopSettingsDesc') || '更新检查、自动更新和桌面端 AI 配置。'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                            </div>
+                                        </button>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowLabSettings(true)}
+                                        className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3 text-left">
+                                                <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                    <FlaskConical size={18} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.labSettings') || '实验室'}
+                                                    </div>
+                                                    <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {t('options.labSettingsDesc') || '高级自定义功能'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                        </div>
+                                    </button>
+                                </section>
+
+                                <div className="hidden">
+                                    {/* Visual Settings */}
+                                    <section>
+                                        <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                            <Sparkles size={14} /> {t('options.visualSettings') || "Visual Settings"}
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {/* Theme Presets */}
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                        {t('options.themePresets') || "Theme Presets"}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowThemePark(true)}
+                                                        className="shrink-0 w-9 h-9 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+                                                        style={{ color: 'var(--text-primary)' }}
+                                                        title={t('options.openThemePark') || '打开 Theme Park'}
+                                                        aria-label={t('options.openThemePark') || '打开 Theme Park'}
+                                                    >
+                                                        <Palette size={16} />
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <button
+                                                        onClick={onApplyDefaultTheme}
+                                                        className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
+                                                        style={{
+                                                            borderColor: bgMode === 'default' ? theme?.accentColor || 'transparent' : 'transparent',
+                                                            backgroundColor: isDaylight ? 'rgba(245, 245, 244, 0.8)' : 'rgba(9, 9, 11, 0.5)'
+                                                        }}
+                                                    >
+                                                        <div className="w-6 h-6 rounded-full shadow-sm" style={{ background: `linear-gradient(135deg, ${themeParkInitialTheme.light.backgroundColor}, ${themeParkInitialTheme.dark.backgroundColor})`, borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.15)' }} />
+                                                        <span className="text-xs opacity-80" style={{ color: isDaylight ? '#27272a' : '#e4e4e7' }}>{t('options.themePresetsDefault') || "Default"}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onApplyCustomTheme()}
+                                                        disabled={!hasCustomTheme}
+                                                        className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        style={{
+                                                            borderColor: bgMode === 'custom' ? theme?.accentColor || 'transparent' : 'transparent',
+                                                            backgroundColor: isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.08)'
+                                                        }}
+                                                    >
+                                                        <div className="w-6 h-6 rounded-full" style={{ background: hasCustomTheme ? `linear-gradient(135deg, ${themeParkInitialTheme.light.accentColor}, ${themeParkInitialTheme.dark.accentColor})` : 'rgba(114,119,134,0.4)' }} />
+                                                        <span className="text-xs opacity-80" style={{ color: 'var(--text-primary)' }}>{t('options.customTheme') || "Custom"}</span>
+                                                    </button>
+                                                </div>
                                                 <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
                                                     <div className="space-y-1">
                                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                            {t('options.autoGenerateSongTheme') || '自动为播放歌曲进行主题生成'}
+                                                            {t('options.preferCustomTheme') || '优先使用自定义主题'}
                                                         </div>
                                                         <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动调用AI并应用（会产生较高token费用！）'}
+                                                            {t('options.preferCustomThemeDesc') || '开启后会关闭歌曲主题自动切换。'}
                                                         </div>
                                                     </div>
                                                     <button
-                                                        onClick={() => onToggleSongThemeAutoGenerate(!songThemeAutoGenerateEnabled)}
-                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!songThemeAutoGenerateEnabled ? toggleOffBackgroundClass : ''}`}
-                                                        style={{ backgroundColor: songThemeAutoGenerateEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                        onClick={() => hasCustomTheme && onToggleCustomThemePreferred(!isCustomThemePreferred)}
+                                                        disabled={!hasCustomTheme}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!isCustomThemePreferred ? toggleOffBackgroundClass : ''} disabled:opacity-40 disabled:cursor-not-allowed`}
+                                                        style={{ backgroundColor: isCustomThemePreferred ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                                     >
-                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoGenerateEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${isCustomThemePreferred ? 'translate-x-6' : 'translate-x-0'}`} />
                                                     </button>
                                                 </div>
+                                                <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.autoSwitchSongTheme') || '主题自动切换'}
+                                                        </div>
+                                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.autoSwitchSongThemeDesc') || '当切换到的歌曲曾经生成过 AI 主题的时候，自动应用 AI 主题。'}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => onToggleSongThemeAutoSwitch(!songThemeAutoSwitchEnabled)}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!songThemeAutoSwitchEnabled ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: songThemeAutoSwitchEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoSwitchEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+                                                {songThemeAutoSwitchEnabled && (
+                                                    <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between gap-3">
+                                                        <div className="space-y-1">
+                                                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                {t('options.autoGenerateSongTheme') || '自动为播放歌曲进行主题生成'}
+                                                            </div>
+                                                            <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                {t('options.autoGenerateSongThemeDesc') || '当播放歌曲没有缓存 AI 主题时，自动调用AI并应用（会产生较高token费用！）'}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => onToggleSongThemeAutoGenerate(!songThemeAutoGenerateEnabled)}
+                                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!songThemeAutoGenerateEnabled ? toggleOffBackgroundClass : ''}`}
+                                                            style={{ backgroundColor: songThemeAutoGenerateEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${songThemeAutoGenerateEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.lyricsRenderer') || "歌词动画"}
+                                                        </div>
+                                                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.lyricsRendererDesc') || "选择播放页使用的歌词动画模式。"}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowVisPlayground(true)}
+                                                        className="shrink-0 w-9 h-9 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+                                                        style={{ color: 'var(--text-primary)' }}
+                                                        title={t('options.openLyricsStyleSettings') || '打开歌词样式设置'}
+                                                        aria-label={t('options.openLyricsStyleSettings') || '打开歌词样式设置'}
+                                                    >
+                                                        <Settings2 size={16} />
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                    {visualizerModeOptions.map(option => (
+                                                        <button
+                                                            key={option.mode}
+                                                            onClick={() => onVisualizerModeChange?.(option.mode)}
+                                                            className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
+                                                            style={{
+                                                                borderColor: visualizerMode === option.mode ? theme?.accentColor || 'var(--text-accent)' : 'transparent',
+                                                                backgroundColor: visualizerMode === option.mode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)'
+                                                            }}
+                                                        >
+                                                            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                {option.label}
+                                                            </span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </section>
+
+                                    <StorageSettingsSection
+                                        cacheDirectory={cacheDirectory}
+                                        cacheDirectoryIsDefault={cacheDirectoryIsDefault}
+                                        cacheDirectoryStatus={cacheDirectoryStatus}
+                                        cacheSizes={cacheSizes}
+                                        enableMediaCache={enableMediaCache}
+                                        errorTextColor={errorTextColor}
+                                        isCleaning={isCleaning}
+                                        isElectron={isElectron}
+                                        mediaCount={mediaCount}
+                                        onChooseCacheDirectory={handleChooseCacheDirectory}
+                                        onClear={handleClear}
+                                        onClearAll={handleClearAllCache}
+                                        onToggleMediaCache={onToggleMediaCache}
+                                        settingsCardClass={settingsCardClass}
+                                        theme={theme}
+                                        toggleOffBackgroundClass={toggleOffBackgroundClass}
+                                    />
+
+                                    {isElectron && stageStatus && (
+                                        <section>
+                                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                                <Server size={14} /> {t('options.stageMode') || 'Stage Mode'}
+                                            </h3>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.enableStageMode') || 'Enable Stage Mode'}
+                                                        </div>
+                                                        <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            {stageStatus.modeEnabled
+                                                                ? '舞台视图已启用，请在下方选择 Stage API 或 Now Playing。'
+                                                                : (t('options.enableStageModeDescDisabled') || '启用后可在舞台视图中选择 Stage API 或 Now Playing。')}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => void onToggleStageMode?.(!(stageStatus.modeEnabled ?? false))}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!(stageStatus.modeEnabled ?? false) ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: (stageStatus.modeEnabled ?? false) ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${(stageStatus.modeEnabled ?? false) ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+                                                {(stageStatus.modeEnabled ?? false) && (
+                                                    <div className="space-y-3">
+                                                        <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                            <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                                舞台来源
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                {([
+                                                                    { value: 'stage-api', label: 'Stage API' },
+                                                                    { value: 'now-playing', label: 'Now Playing' },
+                                                                ] as Array<{ value: StageSource; label: string; }>).map((option) => {
+                                                                    const selected = stageSource === option.value;
+                                                                    return (
+                                                                        <button
+                                                                            key={option.value}
+                                                                            type="button"
+                                                                            onClick={() => void onStageSourceChange?.(option.value)}
+                                                                            className={`rounded-xl border px-3 py-3 text-sm transition-colors ${selected ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
+                                                                            style={{ color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            {option.label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        {stageSource === 'now-playing' ? (
+                                                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                                                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                                    Now Playing
+                                                                </div>
+                                                                <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                                                                    连接状态：{nowPlayingStatusLabel}
+                                                                </div>
+                                                                <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                    固定连接 `ws://localhost:9863/api/ws/lyric`，请先在本机启动 now-playing 服务。
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                                    <div>
+                                                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                                                            {t('options.stageAddress') || 'Stage Address'}
+                                                                        </div>
+                                                                        <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
+                                                                            {`http://127.0.0.1:${stageStatus.port}`}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void handleCopyStageAddress(`http://127.0.0.1:${stageStatus.port}`)}
+                                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2"
+                                                                            style={{ color: stageAddressCopied ? '#86efac' : 'var(--text-primary)' }}
+                                                                        >
+                                                                            {stageAddressCopied ? <Check size={14} /> : null}
+                                                                            {stageAddressCopied
+                                                                                ? (t('options.stageAddressCopied') || 'Copied')
+                                                                                : (t('options.copyStageAddress') || 'Copy Address')}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                                                                    <div>
+                                                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                                                                            {t('options.stageToken') || 'Bearer Token'}
+                                                                        </div>
+                                                                        <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
+                                                                            {maskStageToken(stageStatus.token)}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void copyText(stageStatus.token || '')}
+                                                                            disabled={!stageStatus.token}
+                                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
+                                                                            style={{ color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            {t('options.copyStageToken') || 'Copy Token'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={async () => {
+                                                                                setStageActionStatus('regenerating');
+                                                                                try {
+                                                                                    await onRegenerateStageToken?.();
+                                                                                } finally {
+                                                                                    setStageActionStatus('idle');
+                                                                                }
+                                                                            }}
+                                                                            disabled={stageActionStatus !== 'idle'}
+                                                                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
+                                                                            style={{ color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            {stageActionStatus === 'regenerating'
+                                                                                ? (t('options.stageTokenRegenerating') || 'Regenerating...')
+                                                                                : (t('options.regenerateStageToken') || 'Regenerate Token')}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </section>
+                                    )}
+
+                                    {/* Navidrome Settings */}
+                                    <section>
+                                        <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                            <Server size={14} /> {t('navidrome.settings') || "Navidrome Settings"}
+                                            {navidromeEnabled && navidromeConfigured && (
+                                                <span className={`ml-2 px-2 py-0.5 ${successBgColor} ${successTextColor} text-xs rounded-full font-normal normal-case`}>
+                                                    {t('navidrome.connectionSuccess') || "Connected"}
+                                                </span>
                                             )}
-                                    </div>
-
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.lyricsRenderer') || "歌词动画"}
-                                                </div>
-                                                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.lyricsRendererDesc') || "选择播放页使用的歌词动画模式。"}
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowVisPlayground(true)}
-                                                className="shrink-0 w-9 h-9 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
-                                                style={{ color: 'var(--text-primary)' }}
-                                                title={t('options.openLyricsStyleSettings') || '打开歌词样式设置'}
-                                                aria-label={t('options.openLyricsStyleSettings') || '打开歌词样式设置'}
-                                            >
-                                                <Settings2 size={16} />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {visualizerModeOptions.map(option => (
+                                        </h3>
+                                        <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                                            {/* Enable Toggle */}
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                    {t('navidrome.enable') || "Enable Navidrome"}
+                                                </span>
                                                 <button
-                                                    key={option.mode}
-                                                    onClick={() => onVisualizerModeChange?.(option.mode)}
-                                                    className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all hover:bg-white/5"
-                                                    style={{
-                                                        borderColor: visualizerMode === option.mode ? theme?.accentColor || 'var(--text-accent)' : 'transparent',
-                                                        backgroundColor: visualizerMode === option.mode ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)'
-                                                    }}
+                                                    onClick={() => handleToggleNavidromeEnabled(!navidromeEnabled)}
+                                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${!navidromeEnabled ? toggleOffBackgroundClass : ''}`}
+                                                    style={{ backgroundColor: navidromeEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                                                 >
-                                                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                        {option.label}
-                                                    </span>
+                                                    <div
+                                                        className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${navidromeEnabled ? 'translate-x-6' : 'translate-x-0'
+                                                            }`}
+                                                    />
                                                 </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                            </div>
 
-                                </div>
-                            </section>
+                                            {/* Config (only show when enabled) */}
+                                            {navidromeEnabled && (
+                                                <>
+                                                    {/* Server URL */}
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('navidrome.serverUrl') || "Server URL"}
+                                                        </label>
+                                                        <input
+                                                            type="url"
+                                                            value={navidromeUrl}
+                                                            onChange={(e) => setNavidromeUrl(e.target.value)}
+                                                            placeholder={t('navidrome.serverUrlPlaceholder') || "e.g., http://localhost:4533"}
+                                                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        />
+                                                    </div>
 
-                            <StorageSettingsSection
-                                cacheDirectory={cacheDirectory}
-                                cacheDirectoryIsDefault={cacheDirectoryIsDefault}
-                                cacheDirectoryStatus={cacheDirectoryStatus}
-                                cacheSizes={cacheSizes}
-                                enableMediaCache={enableMediaCache}
-                                errorTextColor={errorTextColor}
-                                isCleaning={isCleaning}
-                                isElectron={isElectron}
-                                mediaCount={mediaCount}
-                                onChooseCacheDirectory={handleChooseCacheDirectory}
-                                onClear={handleClear}
-                                onClearAll={handleClearAllCache}
-                                onToggleMediaCache={onToggleMediaCache}
-                                settingsCardClass={settingsCardClass}
-                                theme={theme}
-                                toggleOffBackgroundClass={toggleOffBackgroundClass}
-                            />
+                                                    {/* Username */}
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('navidrome.username') || "Username"}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={navidromeUsername}
+                                                            onChange={(e) => setNavidromeUsername(e.target.value)}
+                                                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        />
+                                                    </div>
 
-                            {isElectron && stageStatus && (
-                                <section>
-                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                        <Server size={14} /> {t('options.stageMode') || 'Stage Mode'}
-                                    </h3>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.enableStageMode') || 'Enable Stage Mode'}
+                                                    {/* Password */}
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('navidrome.password') || "Password"}
+                                                        </label>
+                                                        <input
+                                                            type="password"
+                                                            value={navidromePassword}
+                                                            onChange={(e) => setNavidromePassword(e.target.value)}
+                                                            placeholder={navidromeConfigured ? "••••••••" : ""}
+                                                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        />
+                                                    </div>
+
+                                                    {navidromeConfigured && navidromeServerProfile && (
+                                                        <div className="border-t border-white/10 pt-3 space-y-2">
+                                                            <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                                {t('navidrome.serverProfile') || 'Server Profile'}
+                                                            </div>
+                                                            <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+                                                                <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {t('navidrome.server') || 'Server'}
+                                                                </span>
+                                                                <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerLabel}>
+                                                                    {navidromeServerLabel}
+                                                                </span>
+                                                                <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {t('navidrome.user') || 'User'}
+                                                                </span>
+                                                                <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerProfile.user?.username || navidromeUsername}>
+                                                                    {navidromeServerProfile.user?.username || navidromeUsername}
+                                                                </span>
+                                                                <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {t('navidrome.openSubsonic') || 'OpenSubsonic'}
+                                                                </span>
+                                                                <span style={{ color: 'var(--text-primary)' }}>
+                                                                    {navidromeServerProfile.openSubsonic
+                                                                        ? `${t('navidrome.enabled') || 'Enabled'} · ${navidromeExtensionCount}`
+                                                                        : (t('navidrome.notAvailable') || 'Not available')}
+                                                                </span>
+                                                                <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {t('navidrome.musicFolders') || 'Libraries'}
+                                                                </span>
+                                                                <span style={{ color: 'var(--text-primary)' }}>
+                                                                    {navidromeFolderCount}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+
+                                            {/* Buttons (only show when enabled) */}
+                                            {navidromeEnabled && (
+                                                <div className="flex gap-2 pt-2">
+                                                    <button
+                                                        onClick={testNavidromeConnection}
+                                                        disabled={navidromeTestStatus === 'testing' || !navidromeUrl || !navidromeUsername || !navidromePassword}
+                                                        className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        style={{ color: 'var(--text-primary)' }}
+                                                    >
+                                                        {navidromeTestStatus === 'testing' ? (
+                                                            <>
+                                                                <Loader2 size={16} className="animate-spin" />
+                                                                {t('navidrome.testing') || "Connecting..."}
+                                                            </>
+                                                        ) : navidromeTestStatus === 'success' ? (
+                                                            <>
+                                                                <Check size={16} className={successTextColor} />
+                                                                {t('navidrome.connectionSuccess') || "Connected"}
+                                                            </>
+                                                        ) : navidromeTestStatus === 'failed' ? (
+                                                            <>
+                                                                <AlertCircle size={16} className={errorTextColor} />
+                                                                {t('navidrome.connectionFailed') || "Failed"}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Server size={16} />
+                                                                {t('navidrome.testConnection') || "Test Connection"}
+                                                            </>
+                                                        )}
+                                                    </button>
+
+                                                    {navidromeConfigured && (
+                                                        <button
+                                                            onClick={handleClearNavidrome}
+                                                            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${errorBgColor} hover:bg-red-500/20 ${errorTextColor}`}
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {stageStatus.modeEnabled
-                                                        ? '舞台视图已启用，请在下方选择 Stage API 或 Now Playing。'
-                                                        : (t('options.enableStageModeDescDisabled') || '启用后可在舞台视图中选择 Stage API 或 Now Playing。')}
+                                            )}
+                                        </div>
+                                    </section>
+
+                                    {/* Update Settings */}
+                                    {isElectron && (
+                                        <section>
+                                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center justify-between gap-3" style={{ color: 'var(--text-secondary)' }}>
+                                                <span className="flex items-center gap-2">
+                                                    <RefreshCw size={14} /> {t('options.updateCheck') || "Update Check"}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleCheckForUpdates}
+                                                    disabled={!electronSettings.ENABLE_UPDATE_CHECK || updateStatus?.status === 'checking'}
+                                                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium normal-case tracking-normal transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    style={{ color: 'var(--text-primary)' }}
+                                                >
+                                                    {updateBadgeIcon}
+                                                    <span>{updateBadgeLabel}</span>
+                                                </button>
+                                            </h3>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.enableUpdateCheck') || "Enable Update Check"}
+                                                        </div>
+                                                        <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.enableUpdateCheckDesc') || "Check GitHub releases through the system proxy when the desktop app starts."}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleToggleUpdateCheck}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.ENABLE_UPDATE_CHECK ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: electronSettings.ENABLE_UPDATE_CHECK ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_UPDATE_CHECK ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/10">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.enableAutoUpdate') || "Enable Auto Update"}
+                                                        </div>
+                                                        <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.enableAutoUpdateDesc') || "Automatically download updates after a new version is found."}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleToggleAutoUpdate}
+                                                        disabled={!canEnableAutoUpdate}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${!electronSettings.ENABLE_AUTO_UPDATE ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: electronSettings.ENABLE_AUTO_UPDATE ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_AUTO_UPDATE ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="text-[10px] opacity-45" style={{ color: 'var(--text-secondary)' }}>
+                                                    {t('options.autoUpdateGithubNotice') || "Auto update needs access to GitHub; if the network is unstable, keep a system proxy enabled."}
+                                                </div>
+
+                                                {updateStatus?.availableVersion && (
+                                                    <div className="flex flex-wrap gap-2 pt-3 border-t border-white/10">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => window.electron?.openUpdateReleasePage(updateStatus.availableVersion)}
+                                                            className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        >
+                                                            <ExternalLink size={14} />
+                                                            {t('options.openReleasePage') || "Open Release Page"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleOpenChinaDownload}
+                                                            className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        >
+                                                            <ExternalLink size={14} />
+                                                            {t('options.downloadChina') || "CN Download"}
+                                                        </button>
+                                                        {!electronSettings.ENABLE_AUTO_UPDATE && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleDownloadUpdate}
+                                                                disabled={!canDownloadUpdate}
+                                                                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                style={{ color: 'var(--text-primary)' }}
+                                                            >
+                                                                <Download size={14} />
+                                                                {t('options.downloadUpdate') || "Download Update"}
+                                                            </button>
+                                                        )}
+                                                        {updateStatus.status === 'downloaded' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleInstallUpdate}
+                                                                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
+                                                                style={{ color: 'var(--text-primary)' }}
+                                                            >
+                                                                <RefreshCw size={14} />
+                                                                {t('options.restartToInstallUpdate') || "Restart to Install"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </section>
+                                    )}
+
+                                    {/* Electron Settings */}
+                                    {isElectron && (
+                                        <section>
+                                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                                <Command size={14} /> {t('options.electronSettings') || "Desktop App Settings"}
+                                            </h3>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                                <div className="space-y-4">
+                                                    {/* AI Provider selector */}
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.aiProvider') || "AI Provider"}
+                                                        </label>
+                                                        <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
+                                                            <button
+                                                                onClick={() => setElectronSettings({ ...electronSettings, AI_PROVIDER: 'gemini' })}
+                                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${electronSettings.AI_PROVIDER !== 'openai' ? 'bg-white/10 shadow-sm' : 'opacity-50 hover:opacity-100'
+                                                                    }`}
+                                                                style={{ color: 'var(--text-primary)' }}
+                                                            >
+                                                                Gemini
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setElectronSettings({ ...electronSettings, AI_PROVIDER: 'openai' })}
+                                                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${electronSettings.AI_PROVIDER === 'openai' ? 'bg-white/10 shadow-sm' : 'opacity-50 hover:opacity-100'
+                                                                    }`}
+                                                                style={{ color: 'var(--text-primary)' }}
+                                                            >
+                                                                OpenAI
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {electronSettings.AI_PROVIDER !== 'openai' ? (
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                {t('options.geminiApiKey') || "Gemini API Key"}
+                                                            </label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="password"
+                                                                    value={electronSettings.GEMINI_API_KEY || ''}
+                                                                    onChange={(e) => setElectronSettings({ ...electronSettings, GEMINI_API_KEY: e.target.value })}
+                                                                    placeholder="AI Theme Generation Key"
+                                                                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                                    style={{ color: 'var(--text-primary)' }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="space-y-2">
+                                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                    {t('options.openaiApiUrl') || "OpenAI API URL"}
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={electronSettings.OPENAI_API_URL || ''}
+                                                                        onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_URL: e.target.value })}
+                                                                        placeholder="https://api.openai.com/v1 or https://api.deepseek.com"
+                                                                        className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                                        style={{ color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                    {t('options.openaiApiModel') || "OpenAI Model"}
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={electronSettings.OPENAI_API_MODEL || ''}
+                                                                        onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_MODEL: e.target.value })}
+                                                                        placeholder="gpt-4o / gpt-4.1-mini / deepseek-v4-flash"
+                                                                        className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                                        style={{ color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                                <div className="text-[10px] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                                                    {t('options.openaiApiModelDesc') || "Required for many OpenAI-compatible providers. DeepSeek models like deepseek-v4-flash must be filled explicitly if auto-detection does not apply."}
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                    {t('options.openaiApiKey') || "OpenAI API Key"}
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={electronSettings.OPENAI_API_KEY || ''}
+                                                                        onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_KEY: e.target.value })}
+                                                                        placeholder="sk-..."
+                                                                        className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                                                                        style={{ color: 'var(--text-primary)' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    <div className="flex items-center justify-between pt-3 pb-1">
+                                                        <div className="space-y-1">
+                                                            <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                                {t('options.useSystemProxyAI') || "Use System Proxy for AI"}
+                                                            </label>
+                                                            <div className="text-[10px] opacity-40 max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>
+                                                                {t('options.useSystemProxyAIDesc') || "Route strictly AI requests through system proxy."}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setElectronSettings({ ...electronSettings, USE_SYSTEM_PROXY_FOR_AI: !electronSettings.USE_SYSTEM_PROXY_FOR_AI })}
+                                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? toggleOffBackgroundClass : ''}`}
+                                                            style={{ backgroundColor: electronSettings.USE_SYSTEM_PROXY_FOR_AI ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                                                        <div className="text-[10px] opacity-40 mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.geminiApiKeyDesc') || "Netease API backend runs locally."}
+                                                        </div>
+                                                        <button
+                                                            onClick={saveElectronSettings}
+                                                            disabled={electronSaveStatus === 'saving'}
+                                                            className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                                                            style={{ color: 'var(--text-primary)' }}
+                                                        >
+                                                            {electronSaveStatus === 'saved' ? <Check size={16} className={successTextColor} /> : (t('options.save') || "Save")}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => void onToggleStageMode?.(!(stageStatus.modeEnabled ?? false))}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!(stageStatus.modeEnabled ?? false) ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: (stageStatus.modeEnabled ?? false) ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${(stageStatus.modeEnabled ?? false) ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
-                                        {(stageStatus.modeEnabled ?? false) && (
-                                            <div className="space-y-3">
-                                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
-                                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                                        舞台来源
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        {([
-                                                            { value: 'stage-api', label: 'Stage API' },
-                                                            { value: 'now-playing', label: 'Now Playing' },
-                                                        ] as Array<{ value: StageSource; label: string }>).map((option) => {
-                                                            const selected = stageSource === option.value;
-                                                            return (
-                                                                <button
-                                                                    key={option.value}
-                                                                    type="button"
-                                                                    onClick={() => void onStageSourceChange?.(option.value)}
-                                                                    className={`rounded-xl border px-3 py-3 text-sm transition-colors ${selected ? 'bg-white/12 border-white/20' : 'bg-white/5 border-white/10 hover:bg-white/8'}`}
-                                                                    style={{ color: 'var(--text-primary)' }}
-                                                                >
-                                                                    {option.label}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
+                                        </section>
+                                    )}
 
-                                                {stageSource === 'now-playing' ? (
+                                    {!isElectron && (
+                                        <section>
+                                            <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                                <Server size={14} /> 舞台
+                                            </h3>
+                                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            启用 Now Playing
+                                                        </div>
+                                                        <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            开启后首页显示舞台入口，并通过本机 localhost 连接 now-playing 服务。
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => void onToggleNowPlayingStage?.(!enableNowPlayingStage)}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableNowPlayingStage ? toggleOffBackgroundClass : ''}`}
+                                                        style={{ backgroundColor: enableNowPlayingStage ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableNowPlayingStage ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+                                                {enableNowPlayingStage && (
                                                     <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
                                                         <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                                             Now Playing
@@ -1549,553 +2088,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
                                                             连接状态：{nowPlayingStatusLabel}
                                                         </div>
-                                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            固定连接 `ws://localhost:9863/api/ws/lyric`，请先在本机启动 now-playing 服务。
-                                                        </div>
                                                     </div>
-                                                ) : (
-                                                    <>
-                                                        <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
-                                                            <div>
-                                                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                                                                    {t('options.stageAddress') || 'Stage Address'}
-                                                                </div>
-                                                                <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
-                                                                    {`http://127.0.0.1:${stageStatus.port}`}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void handleCopyStageAddress(`http://127.0.0.1:${stageStatus.port}`)}
-                                                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2"
-                                                                    style={{ color: stageAddressCopied ? '#86efac' : 'var(--text-primary)' }}
-                                                                >
-                                                                    {stageAddressCopied ? <Check size={14} /> : null}
-                                                                    {stageAddressCopied
-                                                                        ? (t('options.stageAddressCopied') || 'Copied')
-                                                                        : (t('options.copyStageAddress') || 'Copy Address')}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
-                                                            <div>
-                                                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                                                                    {t('options.stageToken') || 'Bearer Token'}
-                                                                </div>
-                                                                <div className="text-sm break-all" style={{ color: 'var(--text-primary)' }}>
-                                                                    {maskStageToken(stageStatus.token)}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void copyText(stageStatus.token || '')}
-                                                                    disabled={!stageStatus.token}
-                                                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
-                                                                    style={{ color: 'var(--text-primary)' }}
-                                                                >
-                                                                    {t('options.copyStageToken') || 'Copy Token'}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={async () => {
-                                                                        setStageActionStatus('regenerating');
-                                                                        try {
-                                                                            await onRegenerateStageToken?.();
-                                                                        } finally {
-                                                                            setStageActionStatus('idle');
-                                                                        }
-                                                                    }}
-                                                                    disabled={stageActionStatus !== 'idle'}
-                                                                    className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors disabled:opacity-40"
-                                                                    style={{ color: 'var(--text-primary)' }}
-                                                                >
-                                                                    {stageActionStatus === 'regenerating'
-                                                                        ? (t('options.stageTokenRegenerating') || 'Regenerating...')
-                                                                        : (t('options.regenerateStageToken') || 'Regenerate Token')}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
-                                </section>
-                            )}
-
-                            {/* Navidrome Settings */}
-                            <section>
-                                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                    <Server size={14} /> {t('navidrome.settings') || "Navidrome Settings"}
-                                    {navidromeEnabled && navidromeConfigured && (
-                                        <span className={`ml-2 px-2 py-0.5 ${successBgColor} ${successTextColor} text-xs rounded-full font-normal normal-case`}>
-                                            {t('navidrome.connectionSuccess') || "Connected"}
-                                        </span>
-                                    )}
-                                </h3>
-                                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
-                                    {/* Enable Toggle */}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {t('navidrome.enable') || "Enable Navidrome"}
-                                        </span>
-                                        <button
-                                            onClick={() => handleToggleNavidromeEnabled(!navidromeEnabled)}
-                                            className={`w-12 h-6 rounded-full p-1 transition-colors ${!navidromeEnabled ? toggleOffBackgroundClass : ''}`}
-                                            style={{ backgroundColor: navidromeEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                        >
-                                            <div
-                                                className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${navidromeEnabled ? 'translate-x-6' : 'translate-x-0'
-                                                    }`}
-                                            />
-                                        </button>
-                                    </div>
-
-                                    {/* Config (only show when enabled) */}
-                                    {navidromeEnabled && (
-                                        <>
-                                            {/* Server URL */}
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('navidrome.serverUrl') || "Server URL"}
-                                                </label>
-                                                <input
-                                                    type="url"
-                                                    value={navidromeUrl}
-                                                    onChange={(e) => setNavidromeUrl(e.target.value)}
-                                                    placeholder={t('navidrome.serverUrlPlaceholder') || "e.g., http://localhost:4533"}
-                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                />
-                                            </div>
-
-                                            {/* Username */}
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('navidrome.username') || "Username"}
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={navidromeUsername}
-                                                    onChange={(e) => setNavidromeUsername(e.target.value)}
-                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                />
-                                            </div>
-
-                                            {/* Password */}
-                                            <div className="space-y-2">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('navidrome.password') || "Password"}
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={navidromePassword}
-                                                    onChange={(e) => setNavidromePassword(e.target.value)}
-                                                    placeholder={navidromeConfigured ? "••••••••" : ""}
-                                                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                />
-                                            </div>
-
-                                            {navidromeConfigured && navidromeServerProfile && (
-                                                <div className="border-t border-white/10 pt-3 space-y-2">
-                                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                                        {t('navidrome.serverProfile') || 'Server Profile'}
-                                                    </div>
-                                                    <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
-                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('navidrome.server') || 'Server'}
-                                                        </span>
-                                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerLabel}>
-                                                            {navidromeServerLabel}
-                                                        </span>
-                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('navidrome.user') || 'User'}
-                                                        </span>
-                                                        <span className="truncate" style={{ color: 'var(--text-primary)' }} title={navidromeServerProfile.user?.username || navidromeUsername}>
-                                                            {navidromeServerProfile.user?.username || navidromeUsername}
-                                                        </span>
-                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('navidrome.openSubsonic') || 'OpenSubsonic'}
-                                                        </span>
-                                                        <span style={{ color: 'var(--text-primary)' }}>
-                                                            {navidromeServerProfile.openSubsonic
-                                                                ? `${t('navidrome.enabled') || 'Enabled'} · ${navidromeExtensionCount}`
-                                                                : (t('navidrome.notAvailable') || 'Not available')}
-                                                        </span>
-                                                        <span className="opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('navidrome.musicFolders') || 'Libraries'}
-                                                        </span>
-                                                        <span style={{ color: 'var(--text-primary)' }}>
-                                                            {navidromeFolderCount}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
+                                        </section>
                                     )}
 
-                                    {/* Buttons (only show when enabled) */}
-                                    {navidromeEnabled && (
-                                        <div className="flex gap-2 pt-2">
-                                            <button
-                                                onClick={testNavidromeConnection}
-                                                disabled={navidromeTestStatus === 'testing' || !navidromeUrl || !navidromeUsername || !navidromePassword}
-                                                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                style={{ color: 'var(--text-primary)' }}
-                                            >
-                                                {navidromeTestStatus === 'testing' ? (
-                                                    <>
-                                                        <Loader2 size={16} className="animate-spin" />
-                                                        {t('navidrome.testing') || "Connecting..."}
-                                                    </>
-                                                ) : navidromeTestStatus === 'success' ? (
-                                                    <>
-                                                        <Check size={16} className={successTextColor} />
-                                                        {t('navidrome.connectionSuccess') || "Connected"}
-                                                    </>
-                                                ) : navidromeTestStatus === 'failed' ? (
-                                                    <>
-                                                        <AlertCircle size={16} className={errorTextColor} />
-                                                        {t('navidrome.connectionFailed') || "Failed"}
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Server size={16} />
-                                                        {t('navidrome.testConnection') || "Test Connection"}
-                                                    </>
-                                                )}
-                                            </button>
-
-                                            {navidromeConfigured && (
-                                                <button
-                                                    onClick={handleClearNavidrome}
-                                                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${errorBgColor} hover:bg-red-500/20 ${errorTextColor}`}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* Update Settings */}
-                            {isElectron && (
-                                <section>
-                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center justify-between gap-3" style={{ color: 'var(--text-secondary)' }}>
-                                        <span className="flex items-center gap-2">
-                                            <RefreshCw size={14} /> {t('options.updateCheck') || "Update Check"}
-                                        </span>
+                                    {/* 保持实验室入口位于整个 options 列表最底部；Electron 版本下还会多出桌面端专属设置，所以这里必须放在 Electron Settings 之后。 */}
+                                    <section>
                                         <button
                                             type="button"
-                                            onClick={handleCheckForUpdates}
-                                            disabled={!electronSettings.ENABLE_UPDATE_CHECK || updateStatus?.status === 'checking'}
-                                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium normal-case tracking-normal transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                                            style={{ color: 'var(--text-primary)' }}
+                                            onClick={() => setShowLabSettings(true)}
+                                            className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
                                         >
-                                            {updateBadgeIcon}
-                                            <span>{updateBadgeLabel}</span>
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-start gap-3 text-left">
+                                                    <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                                        <FlaskConical size={18} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                                            {t('options.labSettings') || "Lab Settings"}
+                                                        </div>
+                                                        <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
+                                                            {t('options.labSettingsDesc') || "Open a separate page for experimental playback and panel behavior settings."}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
+                                            </div>
                                         </button>
-                                    </h3>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.enableUpdateCheck') || "Enable Update Check"}
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.enableUpdateCheckDesc') || "Check GitHub releases through the system proxy when the desktop app starts."}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={handleToggleUpdateCheck}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.ENABLE_UPDATE_CHECK ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: electronSettings.ENABLE_UPDATE_CHECK ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_UPDATE_CHECK ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
-
-                                        <div className="flex items-center justify-between gap-4 pt-3 border-t border-white/10">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.enableAutoUpdate') || "Enable Auto Update"}
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.enableAutoUpdateDesc') || "Automatically download updates after a new version is found."}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={handleToggleAutoUpdate}
-                                                disabled={!canEnableAutoUpdate}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${!electronSettings.ENABLE_AUTO_UPDATE ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: electronSettings.ENABLE_AUTO_UPDATE ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.ENABLE_AUTO_UPDATE ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
-
-                                        <div className="text-[10px] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.autoUpdateGithubNotice') || "Auto update needs access to GitHub; if the network is unstable, keep a system proxy enabled."}
-                                        </div>
-
-                                        {updateStatus?.availableVersion && (
-                                            <div className="flex flex-wrap gap-2 pt-3 border-t border-white/10">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => window.electron?.openUpdateReleasePage(updateStatus.availableVersion)}
-                                                    className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                >
-                                                    <ExternalLink size={14} />
-                                                    {t('options.openReleasePage') || "Open Release Page"}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleOpenChinaDownload}
-                                                    className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                >
-                                                    <ExternalLink size={14} />
-                                                    {t('options.downloadChina') || "CN Download"}
-                                                </button>
-                                                {!electronSettings.ENABLE_AUTO_UPDATE && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleDownloadUpdate}
-                                                        disabled={!canDownloadUpdate}
-                                                        className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
-                                                        style={{ color: 'var(--text-primary)' }}
-                                                    >
-                                                        <Download size={14} />
-                                                        {t('options.downloadUpdate') || "Download Update"}
-                                                    </button>
-                                                )}
-                                                {updateStatus.status === 'downloaded' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleInstallUpdate}
-                                                        className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/15"
-                                                        style={{ color: 'var(--text-primary)' }}
-                                                    >
-                                                        <RefreshCw size={14} />
-                                                        {t('options.restartToInstallUpdate') || "Restart to Install"}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-                            )}
-
-                            {/* Electron Settings */}
-                            {isElectron && (
-                                <section>
-                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                        <Command size={14} /> {t('options.electronSettings') || "Desktop App Settings"}
-                                    </h3>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
-                                        <div className="space-y-4">
-                                            {/* AI Provider selector */}
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.aiProvider') || "AI Provider"}
-                                                </label>
-                                                <div className="flex bg-white/5 rounded-lg border border-white/10 p-1">
-                                                    <button
-                                                        onClick={() => setElectronSettings({ ...electronSettings, AI_PROVIDER: 'gemini' })}
-                                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${electronSettings.AI_PROVIDER !== 'openai' ? 'bg-white/10 shadow-sm' : 'opacity-50 hover:opacity-100'
-                                                            }`}
-                                                        style={{ color: 'var(--text-primary)' }}
-                                                    >
-                                                        Gemini
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setElectronSettings({ ...electronSettings, AI_PROVIDER: 'openai' })}
-                                                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${electronSettings.AI_PROVIDER === 'openai' ? 'bg-white/10 shadow-sm' : 'opacity-50 hover:opacity-100'
-                                                            }`}
-                                                        style={{ color: 'var(--text-primary)' }}
-                                                    >
-                                                        OpenAI
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {electronSettings.AI_PROVIDER !== 'openai' ? (
-                                                <div className="space-y-2">
-                                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                        {t('options.geminiApiKey') || "Gemini API Key"}
-                                                    </label>
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="password"
-                                                            value={electronSettings.GEMINI_API_KEY || ''}
-                                                            onChange={(e) => setElectronSettings({ ...electronSettings, GEMINI_API_KEY: e.target.value })}
-                                                            placeholder="AI Theme Generation Key"
-                                                            className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                            style={{ color: 'var(--text-primary)' }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                            {t('options.openaiApiUrl') || "OpenAI API URL"}
-                                                        </label>
-                                                        <div className="flex gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={electronSettings.OPENAI_API_URL || ''}
-                                                                onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_URL: e.target.value })}
-                                                                placeholder="https://api.openai.com/v1 or https://api.deepseek.com"
-                                                                className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                                style={{ color: 'var(--text-primary)' }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                            {t('options.openaiApiModel') || "OpenAI Model"}
-                                                        </label>
-                                                        <div className="flex gap-2">
-                                                            <input
-                                                                type="text"
-                                                                value={electronSettings.OPENAI_API_MODEL || ''}
-                                                                onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_MODEL: e.target.value })}
-                                                                placeholder="gpt-4o / gpt-4.1-mini / deepseek-v4-flash"
-                                                                className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                                style={{ color: 'var(--text-primary)' }}
-                                                            />
-                                                        </div>
-                                                        <div className="text-[10px] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                                            {t('options.openaiApiModelDesc') || "Required for many OpenAI-compatible providers. DeepSeek models like deepseek-v4-flash must be filled explicitly if auto-detection does not apply."}
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                            {t('options.openaiApiKey') || "OpenAI API Key"}
-                                                        </label>
-                                                        <div className="flex gap-2">
-                                                            <input
-                                                                type="password"
-                                                                value={electronSettings.OPENAI_API_KEY || ''}
-                                                                onChange={(e) => setElectronSettings({ ...electronSettings, OPENAI_API_KEY: e.target.value })}
-                                                                placeholder="sk-..."
-                                                                className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
-                                                                style={{ color: 'var(--text-primary)' }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            <div className="flex items-center justify-between pt-3 pb-1">
-                                                <div className="space-y-1">
-                                                    <label className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                        {t('options.useSystemProxyAI') || "Use System Proxy for AI"}
-                                                    </label>
-                                                    <div className="text-[10px] opacity-40 max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>
-                                                        {t('options.useSystemProxyAIDesc') || "Route strictly AI requests through system proxy."}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => setElectronSettings({ ...electronSettings, USE_SYSTEM_PROXY_FOR_AI: !electronSettings.USE_SYSTEM_PROXY_FOR_AI })}
-                                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${!electronSettings.USE_SYSTEM_PROXY_FOR_AI ? toggleOffBackgroundClass : ''}`}
-                                                    style={{ backgroundColor: electronSettings.USE_SYSTEM_PROXY_FOR_AI ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                                >
-                                                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${electronSettings.USE_SYSTEM_PROXY_FOR_AI ? 'translate-x-6' : 'translate-x-0'}`} />
-                                                </button>
-                                            </div>
-
-                                            <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                                                <div className="text-[10px] opacity-40 mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.geminiApiKeyDesc') || "Netease API backend runs locally."}
-                                                </div>
-                                                <button
-                                                    onClick={saveElectronSettings}
-                                                    disabled={electronSaveStatus === 'saving'}
-                                                    className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
-                                                    style={{ color: 'var(--text-primary)' }}
-                                                >
-                                                    {electronSaveStatus === 'saved' ? <Check size={16} className={successTextColor} /> : (t('options.save') || "Save")}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </section>
-                            )}
-
-                            {!isElectron && (
-                                <section>
-                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                                        <Server size={14} /> 舞台
-                                    </h3>
-                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    启用 Now Playing
-                                                </div>
-                                                <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    开启后首页显示舞台入口，并通过本机 localhost 连接 now-playing 服务。
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => void onToggleNowPlayingStage?.(!enableNowPlayingStage)}
-                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableNowPlayingStage ? toggleOffBackgroundClass : ''}`}
-                                                style={{ backgroundColor: enableNowPlayingStage ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableNowPlayingStage ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
-                                        {enableNowPlayingStage && (
-                                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-                                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                                    Now Playing
-                                                </div>
-                                                <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                                                    连接状态：{nowPlayingStatusLabel}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-                            )}
-
-                            {/* 保持实验室入口位于整个 options 列表最底部；Electron 版本下还会多出桌面端专属设置，所以这里必须放在 Electron Settings 之后。 */}
-                            <section>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowLabSettings(true)}
-                                    className={`w-full p-4 rounded-xl border transition-colors ${settingsCardInteractiveClass}`}
-                                >
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3 text-left">
-                                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
-                                                <FlaskConical size={18} />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {t('options.labSettings') || "Lab Settings"}
-                                                </div>
-                                                <div className="text-xs opacity-50 max-w-[260px]" style={{ color: 'var(--text-secondary)' }}>
-                                                    {t('options.labSettingsDesc') || "Open a separate page for experimental playback and panel behavior settings."}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                    </div>
-                                </button>
-                            </section>
-                            </div>
-                        </motion.div>
-                    )}
+                                    </section>
+                                </div>
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
 
@@ -2237,10 +2263,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
             </AnimatePresence>
             {renderSettingsSubview({
+                isOpen: showGeneralSettings,
+                onClose: () => closeSubviewOrModal(() => setShowGeneralSettings(false)),
+                title: t('options.generalSettings') || '通用设置',
+                description: t('options.generalSettingsDesc') || '语言，应用偏好。',
+                children: (
+                    <GeneralSettingsSubview
+                        isDaylight={isDaylight}
+                        settingsCardClass={settingsCardClass}
+                        theme={theme}
+                    />
+                ),
+            })}
+            {renderSettingsSubview({
                 isOpen: showPlaybackSettings,
                 onClose: () => closeSubviewOrModal(() => setShowPlaybackSettings(false)),
-                title: '播放控制',
-                description: '播放行为，歌词来源，音频输出等设置。',
+                title: t('options.playbackSettings') || '播放控制',
+                description: t('options.playbackSettingsPanelDesc') || '播放行为，歌词来源，音频输出等设置。',
                 children: (
                     <PlaybackSettingsSubview
                         isOpen={showPlaybackSettings}
@@ -2256,7 +2295,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 isOpen: showAppearanceSettings,
                 onClose: () => closeSubviewOrModal(() => setShowAppearanceSettings(false)),
                 title: t('options.visualSettings') || '视觉设置',
-                description: '主题、歌词渲染和背景外观。',
+                description: t('options.visualSettingsPanelDesc') || '主题、歌词渲染和背景外观。',
                 children: (
                     <AppearanceSettingsSubview
                         accentOutlineColor={accentOutlineColor}
@@ -2295,8 +2334,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             {renderSettingsSubview({
                 isOpen: showStorageSettings,
                 onClose: () => closeSubviewOrModal(() => setShowStorageSettings(false)),
-                title: '存储与缓存',
-                description: '缓存占用、清理和媒体缓存行为。',
+                title: t('options.storageSettings') || '存储与缓存',
+                description: t('options.storageSettingsPanelDesc') || '缓存占用、清理和媒体缓存行为。',
                 children: (
                     <StorageSettingsSection
                         cacheDirectory={cacheDirectory}
@@ -2323,8 +2362,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             {renderSettingsSubview({
                 isOpen: showIntegrationSettings,
                 onClose: () => closeSubviewOrModal(() => setShowIntegrationSettings(false)),
-                title: '集成设置',
-                description: '外部程序接入设置。',
+                title: t('options.integrationSettings') || '集成设置',
+                description: t('options.integrationSettingsDesc') || '外部程序接入设置。',
                 children: (
                     <IntegrationSettingsSubview
                         chrome={{
@@ -2382,8 +2421,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             {renderSettingsSubview({
                 isOpen: showDesktopSettings,
                 onClose: () => closeSubviewOrModal(() => setShowDesktopSettings(false)),
-                title: '桌面端设置',
-                description: '桌面窗口行为、更新检查、自动更新和 AI 配置。',
+                title: t('options.desktopSettings') || '桌面端设置',
+                description: t('options.desktopSettingsPanelDesc') || '桌面窗口行为、更新检查、自动更新和 AI 配置。',
                 children: (
                     <DesktopSettingsSubview
                         chrome={{

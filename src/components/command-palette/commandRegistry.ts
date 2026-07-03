@@ -1,4 +1,5 @@
 import { PlayerState, type HomeViewTab, type SongResult, type VisualizerMode, type VisualizerBackgroundMode, type MonetBackgroundTuning } from '../../types';
+import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type {
     CommandPaletteCommand,
@@ -158,6 +159,24 @@ const createSettingsCommand = (
     },
 });
 
+const createAppLanguageCommand = (
+    id: string,
+    preference: AppLanguagePreference,
+    title: string,
+    description: string,
+    keywords: string[],
+): CommandPaletteCommand => ({
+    id,
+    group: 'settings',
+    title,
+    description,
+    keywords,
+    execute: async (_input, context) => {
+        await context.setAppLanguagePreference(preference);
+        return true;
+    },
+});
+
 const createHomeTabCommand = (
     tab: HomeViewTab,
     title: string,
@@ -232,6 +251,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     },
     createSettingsCommand('settings-options', 'Open Options', 'Open the options center', ['settings', 'options', '设置', '选项', 'shezhi', 'xuanxiang', 'sz', 'xx'], 'options'),
     createSettingsCommand('settings-appearance', 'Appearance settings', 'Open visual and appearance settings', ['appearance', 'visual settings', '外观', '视觉', 'waiguan', 'shijue', 'wg', 'sj'], 'options', 'appearance'),
+    createSettingsCommand('settings-general', 'General settings', 'Open general app preferences', ['general', 'language settings', 'locale', '通用', '语言', 'tongyong', 'yuyan', 'ty', 'yy'], 'options', 'general'),
     createSettingsCommand('settings-playback', 'Playback settings', 'Open playback behavior settings', ['playback settings', 'playback', '播放', '播放设置', 'bofang', 'bofangshezhi', 'bf', 'bfsz'], 'options', 'playback'),
     createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Now Playing, and Navidrome settings', ['integration', 'stage', 'now playing', 'navidrome settings', '集成', '连接', 'jicheng', 'lianjie', 'jc', 'lj'], 'options', 'integration'),
     createSettingsCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'bofangzhuangtai', 'dc', 'zt'], 'options', 'integration'),
@@ -417,7 +437,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         group: 'visualizer',
         title: 'Background: Common',
         description: 'Switch background to general layout',
-        keywords: ['background common', 'background general', 'common', 'general', '通用背景', '通用', 'tybj', 'ty', '背景切换到 通用', '背景切换到通用'],
+        keywords: ['background common', 'background general', 'common', 'general', '通用背景', 'tybj', 'ty', '背景切换到 通用', '背景切换到通用'],
         execute: (_input, context) => {
             context.setVisualizerBackgroundMode('common');
             return true;
@@ -456,6 +476,9 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
             return true;
         },
     },
+    createAppLanguageCommand('settings-language-system', 'system', 'Follow system language', 'Use the browser or system language', ['system language', 'follow system', 'auto language', '跟随系统', '系统语言', 'gensuixitong', 'xitongyuyan', 'gsxt', 'xtyy']),
+    createAppLanguageCommand('settings-language-zh-CN', 'zh-CN', 'Switch language to Chinese', 'Use Simplified Chinese in the interface', ['chinese', 'simplified chinese', '中文', '简体中文', 'zhongwen', 'jiantizhongwen', 'zw', 'jtzw']),
+    createAppLanguageCommand('settings-language-en', 'en', 'Switch language to English', 'Use English in the interface', ['english', 'interface english', '英文', 'yingwen', 'yw']),
 
 ];
 
