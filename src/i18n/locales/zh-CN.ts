@@ -198,7 +198,9 @@ export default {
       "motionAmount": "动势",
       "glowIntensity": "辉光"
     },
-    "backToHome": "返回主页"
+    "backToHome": "返回主页",
+    "cancel": "取消",
+    "apply": "应用"
   },
   "panel": {
     "cover": "封面",
@@ -579,6 +581,8 @@ export default {
     "aiThemeQuickEditRecommendedColors": "推荐色",
     "aiThemeQuickEditSave": "保存 AI 主题",
     "customThemeQuickEditSave": "保存自定义主题",
+    "invalidJsonFormat": "无效的 JSON 格式",
+    "pasteJsonHere": "在此粘贴 JSON...",
     "audioOutputSettings": "播放设备",
     "audioOutputDevice": "当前播放声卡",
     "audioOutputDeviceDesc": "切换当前播放器的音频输出设备。在支持 setSinkId 时可使用。",

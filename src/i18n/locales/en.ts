@@ -199,6 +199,8 @@ export default {
       "glowIntensity": "Glow"
     },
     "backToHome": "Back to Home",
+    "cancel": "Cancel",
+    "apply": "Apply"
   },
   "panel": {
     "cover": "Cover",
@@ -577,6 +579,8 @@ export default {
     "aiThemeQuickEditRecommendedColors": "Recommended colors",
     "aiThemeQuickEditSave": "Save AI Theme",
     "customThemeQuickEditSave": "Save Custom Theme",
+    "invalidJsonFormat": "Invalid JSON format",
+    "pasteJsonHere": "Paste JSON here...",
     "audioOutputSettings": "Playback Device",
     "audioOutputDevice": "Current Output Device",
     "audioOutputDeviceDesc": "Switch the audio output used by the current player. Electron desktop is the primary target, and browser environments also work when setSinkId is available.",

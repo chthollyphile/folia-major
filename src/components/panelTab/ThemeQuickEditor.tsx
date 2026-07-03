@@ -330,17 +330,31 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
                                 </div>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
-                            style={{ backgroundColor: 'transparent' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            aria-label={t('ui.close') || 'Close'}
-                        >
-                            <X size={17} />
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-[11px] font-bold transition-colors duration-300"
+                                style={{ backgroundColor: 'transparent', color: mutedTextColor }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; e.currentTarget.style.color = textColor; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = mutedTextColor; }}
+                                title={t('ui.resetToDefaultTheme') || 'Reset'}
+                            >
+                                <RotateCcw size={14} />
+                                <span className="hidden sm:inline">{t('ui.resetToDefaultTheme') || 'Reset'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
+                                style={{ backgroundColor: 'transparent', color: mutedTextColor }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; e.currentTarget.style.color = textColor; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = mutedTextColor; }}
+                                aria-label={t('ui.close') || 'Close'}
+                            >
+                                <X size={17} />
+                            </button>
+                        </div>
                     </div>
 
                     {isImportPanelOpen ? (
@@ -531,16 +545,7 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex flex-col gap-2 mt-auto">
-                                    <button
-                                        type="button"
-                                        onClick={handleReset}
-                                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
-                                        style={{ borderColor, backgroundColor: softBg, color: textColor }}
-                                    >
-                                        <RotateCcw size={15} />
-                                        <span>{t('ui.resetToDefaultTheme') || 'Reset'}</span>
-                                    </button>
+                                <div className="flex flex-col gap-2 mt-auto pt-2">
                                     <button
                                         type="button"
                                         onClick={handleSave}
@@ -555,18 +560,20 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
                                         <Check size={16} strokeWidth={2.5} />
                                         <span>{saveLabel}</span>
                                     </button>
+                                    {kind === 'ai' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsImportPanelOpen(true)}
+                                            className={`flex min-h-9 items-center justify-center gap-1.5 rounded-xl text-[11px] font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
+                                            style={{ backgroundColor: 'transparent', color: mutedTextColor }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                            <Download size={13} />
+                                            <span>{t('options.manualImportAiTheme') || 'Manual Import'}</span>
+                                        </button>
+                                    )}
                                 </div>
-                                {kind === 'ai' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsImportPanelOpen(true)}
-                                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold hover:brightness-110 active:scale-95 ${allTransitionClass} mt-2`}
-                                        style={{ borderColor, backgroundColor: softBg, color: textColor }}
-                                    >
-                                        <Download size={15} />
-                                        <span>{t('options.manualImportAiTheme') || 'Manual Import'}</span>
-                                    </button>
-                                )}
                             </div>
                         </div>
                     )}
