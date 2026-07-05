@@ -9,7 +9,7 @@ import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { neteaseApi } from '../services/netease';
 import { createCoverPlaceholder } from '../utils/coverPlaceholders';
 import { getSizedCoverUrl } from '../utils/coverUrl';
-import { isBlob } from '../utils/blobGuards';
+import { getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
 import { PolaroidCard } from './GridView';
 import { HexGridCoord, CubeCoord, getHexCubicSpiral } from './folia-grid/hexViewport';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
@@ -46,6 +46,11 @@ interface GridItem {
     rawTrackIndex?: number;
     rawCollection?: any;
 }
+
+type LocalArtistCoverObjectUrlEntry = {
+    signature: string;
+    url: string;
+};
 
 // Custom coordinate generator for Artist Grid
 // Computes baseX/baseY for hexagons, reserving specific spots for Avatar and Bio.
@@ -279,6 +284,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const [albums, setAlbums] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
+    const localAlbumCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
 
     // Coordinate motion values mapping grid drags
     const dragX = useMotionValue(0);
@@ -289,6 +295,36 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const [focusedIndex, setFocusedIndex] = useState(0);
     const lastUpdateRef = useRef(0);
     const pendingTimeoutRef = useRef<any>(null);
+
+    const clearLocalAlbumCoverObjectUrls = useCallback(() => {
+        localAlbumCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
+        localAlbumCoverObjectUrlsRef.current.clear();
+    }, []);
+
+    const getOrCreateLocalAlbumCoverObjectUrl = useCallback((song: LocalSong) => {
+        if (!isBlob(song.embeddedCover)) {
+            return undefined;
+        }
+
+        const signature = getBlobObjectUrlSignature(song.embeddedCover, [
+            song.id,
+            song.fileSignature,
+            song.fileSize,
+            song.fileLastModified,
+        ]);
+        const cached = localAlbumCoverObjectUrlsRef.current.get(song.id);
+        if (cached?.signature === signature) {
+            return cached.url;
+        }
+
+        if (cached) {
+            URL.revokeObjectURL(cached.url);
+        }
+
+        const url = URL.createObjectURL(song.embeddedCover);
+        localAlbumCoverObjectUrlsRef.current.set(song.id, { signature, url });
+        return url;
+    }, []);
 
     // Fetch and sync artist details
     const loadArtistData = async () => {
@@ -350,8 +386,8 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     const albName = song.album || '未知专辑';
                     if (!albumMap.has(albName)) {
                         let coverUrl = song.matchedCoverUrl || undefined;
-                        if (!coverUrl && isBlob(song.embeddedCover)) {
-                            coverUrl = URL.createObjectURL(song.embeddedCover);
+                        if (!coverUrl) {
+                            coverUrl = getOrCreateLocalAlbumCoverObjectUrl(song);
                         }
                         albumMap.set(albName, {
                             id: albName, // Just use name as id
@@ -383,8 +419,10 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     };
 
     useEffect(() => {
+        clearLocalAlbumCoverObjectUrls();
         void loadArtistData();
-    }, [collection.id, collection.source]);
+        return clearLocalAlbumCoverObjectUrls;
+    }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source]);
 
     // Mapping items:
     // Index 0: Avatar

@@ -12,7 +12,7 @@ import { resolveNavidromePlaybackCarrier } from '../../../utils/appPlaybackGuard
 import { deleteFolderSongs, resyncFolder } from '../../../services/localMusicService';
 import { deleteLocalPlaylist, removeSongsFromLocalPlaylist, updateLocalPlaylist } from '../../../services/localPlaylistService';
 import { getNavidromeConfig, navidromeApi } from '../../../services/navidromeService';
-import { isBlob } from '../../../utils/blobGuards';
+import { getBlobObjectUrlSignature, isBlob } from '../../../utils/blobGuards';
 import {
     GridViewCollectionDescriptor,
     LocalGridViewCollectionDescriptor,
@@ -59,14 +59,12 @@ const getLocalTrackCoverObjectUrlSignature = (song: LocalSong): string | null =>
         return null;
     }
 
-    return [
+    return getBlobObjectUrlSignature(song.embeddedCover, [
         song.id,
         song.fileSignature || '',
         song.fileSize,
         song.fileLastModified || 0,
-        song.embeddedCover.size,
-        song.embeddedCover.type,
-    ].join('::');
+    ]);
 };
 
 const resolveLocalCollectionCoverUrlFromTracks = (

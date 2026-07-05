@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { LyricParserFactory } from '../utils/lyrics/LyricParserFactory';
@@ -27,11 +27,20 @@ import type { NavidromeSong } from '../types/navidrome';
 import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal';
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState, getOnlineLyricsStateCacheKey } from '../utils/onlineLyricsState';
-import { isBlob } from '../utils/blobGuards';
+import { getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
 
 // src/hooks/useLibraryPlaybackController.ts
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
+
+type LocalCoverObjectUrlEntry = {
+    signature: string;
+    url: string;
+};
+
+const isBlobObjectUrl = (url: string | null | undefined): url is string => (
+    typeof url === 'string' && url.startsWith('blob:')
+);
 
 type UseLibraryPlaybackControllerParams = {
     t: (key: string, fallback?: string) => string;
@@ -109,6 +118,103 @@ export function useLibraryPlaybackController({
     const [showLyricMatchModal, setShowLyricMatchModal] = useState(false);
     const [showNaviLyricMatchModal, setShowNaviLyricMatchModal] = useState(false);
     const [showOnlineLyricMatchModal, setShowOnlineLyricMatchModal] = useState(false);
+    const localCoverObjectUrlsRef = useRef<Map<string, LocalCoverObjectUrlEntry>>(new Map());
+    const managedCachedCoverObjectUrlRef = useRef<string | null>(null);
+
+    const isRegisteredLocalCoverObjectUrl = useCallback((url: string) => {
+        for (const entry of localCoverObjectUrlsRef.current.values()) {
+            if (entry.url === url) {
+                return true;
+            }
+        }
+        return false;
+    }, []);
+
+    const revokeManagedCachedCoverObjectUrl = useCallback(() => {
+        if (managedCachedCoverObjectUrlRef.current) {
+            URL.revokeObjectURL(managedCachedCoverObjectUrlRef.current);
+            managedCachedCoverObjectUrlRef.current = null;
+        }
+    }, []);
+
+    const setManagedCachedCoverUrl = useCallback((nextUrl: string | null) => {
+        const previousUrl = managedCachedCoverObjectUrlRef.current;
+        if (previousUrl && previousUrl !== nextUrl) {
+            URL.revokeObjectURL(previousUrl);
+            managedCachedCoverObjectUrlRef.current = null;
+        }
+
+        if (isBlobObjectUrl(nextUrl) && !isRegisteredLocalCoverObjectUrl(nextUrl)) {
+            managedCachedCoverObjectUrlRef.current = nextUrl;
+        }
+
+        setCachedCoverUrl(nextUrl);
+    }, [isRegisteredLocalCoverObjectUrl, setCachedCoverUrl]);
+
+    const clearLocalCoverObjectUrls = useCallback(() => {
+        localCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
+        localCoverObjectUrlsRef.current.clear();
+    }, []);
+
+    const pruneLocalCoverObjectUrls = useCallback((activeLocalSongIds: Set<string>) => {
+        localCoverObjectUrlsRef.current.forEach((entry, localSongId) => {
+            if (!activeLocalSongIds.has(localSongId)) {
+                URL.revokeObjectURL(entry.url);
+                localCoverObjectUrlsRef.current.delete(localSongId);
+            }
+        });
+    }, []);
+
+    const getOrCreateLocalCoverObjectUrl = useCallback((song: LocalSong) => {
+        if (!isBlob(song.embeddedCover)) {
+            return null;
+        }
+
+        const signature = getBlobObjectUrlSignature(song.embeddedCover, [
+            song.id,
+            song.fileSignature,
+            song.fileSize,
+            song.fileLastModified,
+        ]);
+        const cached = localCoverObjectUrlsRef.current.get(song.id);
+        if (cached?.signature === signature) {
+            return cached.url;
+        }
+
+        if (cached) {
+            URL.revokeObjectURL(cached.url);
+        }
+
+        const url = URL.createObjectURL(song.embeddedCover);
+        localCoverObjectUrlsRef.current.set(song.id, { signature, url });
+        return url;
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            clearLocalCoverObjectUrls();
+            revokeManagedCachedCoverObjectUrl();
+        };
+    }, [clearLocalCoverObjectUrls, revokeManagedCachedCoverObjectUrl]);
+
+    useEffect(() => {
+        const activeLocalSongIds = new Set<string>();
+        if (isLocalPlaybackSong(currentSong) && currentSong.localData) {
+            activeLocalSongIds.add(currentSong.localData.id);
+        }
+        playQueue.forEach(song => {
+            if (isLocalPlaybackSong(song) && song.localData) {
+                activeLocalSongIds.add(song.localData.id);
+            }
+        });
+        pruneLocalCoverObjectUrls(activeLocalSongIds);
+    }, [currentSong, playQueue, pruneLocalCoverObjectUrls]);
+
+    useEffect(() => {
+        if (!isLocalPlaybackSong(currentSong)) {
+            revokeManagedCachedCoverObjectUrl();
+        }
+    }, [currentSong, revokeManagedCachedCoverObjectUrl]);
 
     const loadLocalSongs = useCallback(async () => {
         try {
@@ -306,7 +412,7 @@ export function useLibraryPlaybackController({
     }, [loadLocalSongs, setStatusMsg]);
 
     const resolveLocalMetadataUI = useCallback(async (localData: LocalSong, matchedSong: SongResult | null) => {
-        const embeddedCoverUrl = isBlob(localData.embeddedCover) ? URL.createObjectURL(localData.embeddedCover) : null;
+        const embeddedCoverUrl = getOrCreateLocalCoverObjectUrl(localData);
         const preferOnlineCover = localData.useOnlineCover === true;
         const preferOnlineMetadata = localData.useOnlineMetadata === true;
         const coverUrl = preferOnlineCover
@@ -339,7 +445,7 @@ export function useLibraryPlaybackController({
         });
 
         return { lyrics: nextLyrics, coverUrl, unifiedSong };
-    }, []);
+    }, [getOrCreateLocalCoverObjectUrl]);
 
     const loadCurrentSongLyricPreview = useCallback(async (): Promise<LyricData | null> => {
         if (!currentSong) {
@@ -494,11 +600,11 @@ export function useLibraryPlaybackController({
         if (initialMeta.coverUrl) {
             loadCachedOrFetchCover(`cover_local_${preparedLocalSong.id}`, initialMeta.coverUrl).then((resolvedCoverUrl) => {
                 if (currentSongRef.current === initialMeta.unifiedSong.id) {
-                    setCachedCoverUrl(resolvedCoverUrl);
+                    setManagedCachedCoverUrl(resolvedCoverUrl);
                 }
             });
         } else {
-            setCachedCoverUrl(null);
+            setManagedCachedCoverUrl(null);
         }
 
         setIsLyricsLoading(true);
@@ -535,11 +641,11 @@ export function useLibraryPlaybackController({
                 if (updatedMeta.coverUrl && updatedMeta.coverUrl !== initialMeta.coverUrl) {
                     loadCachedOrFetchCover(`cover_local_${updatedLocalSong.id}`, updatedMeta.coverUrl).then((resolvedCoverUrl) => {
                         if (currentSongRef.current === updatedMeta.unifiedSong.id) {
-                            setCachedCoverUrl(resolvedCoverUrl);
+                            setManagedCachedCoverUrl(resolvedCoverUrl);
                         }
                     });
                 } else if (!updatedMeta.coverUrl) {
-                    setCachedCoverUrl(null);
+                    setManagedCachedCoverUrl(null);
                 }
 
                 void restoreCachedThemeForSong(updatedMeta.unifiedSong.id).catch((error) => {
@@ -568,7 +674,7 @@ export function useLibraryPlaybackController({
         restoreCachedThemeForSong,
         resolveLocalMetadataUI,
         setAudioSrc,
-        setCachedCoverUrl,
+        setManagedCachedCoverUrl,
         setCurrentLineIndex,
         setCurrentSong,
         setIsLyricsLoading,
@@ -768,7 +874,7 @@ export function useLibraryPlaybackController({
             setCurrentLineIndex(-1);
             currentTime.set(0);
             setCurrentSong(unifiedSong);
-            setCachedCoverUrl(coverUrl);
+            setManagedCachedCoverUrl(coverUrl ?? null);
             setAudioSrc(streamUrl);
             setIsLyricsLoading(false);
 
@@ -802,7 +908,7 @@ export function useLibraryPlaybackController({
         persistLastPlaybackCache,
         restoreCachedThemeForSong,
         setAudioSrc,
-        setCachedCoverUrl,
+        setManagedCachedCoverUrl,
         setCurrentLineIndex,
         setCurrentSong,
         setIsLyricsLoading,
@@ -1067,23 +1173,21 @@ export function useLibraryPlaybackController({
 
                     if (updatedSong.matchedCoverUrl) {
                         try {
-                            const response = await fetch(updatedSong.matchedCoverUrl, { mode: 'cors' });
-                            const coverBlob = await response.blob();
-                            await loadCachedOrFetchCover(`cover_local_${updatedSong.id}`, URL.createObjectURL(coverBlob));
-                            setCachedCoverUrl(URL.createObjectURL(coverBlob));
+                            const resolvedCoverUrl = await loadCachedOrFetchCover(`cover_local_${updatedSong.id}`, updatedSong.matchedCoverUrl);
+                            setManagedCachedCoverUrl(resolvedCoverUrl || updatedSong.matchedCoverUrl);
                         } catch (error) {
                             console.warn('Failed to cache updated cover:', error);
-                            setCachedCoverUrl(updatedSong.matchedCoverUrl);
+                            setManagedCachedCoverUrl(updatedSong.matchedCoverUrl);
                         }
                     } else {
-                        setCachedCoverUrl(null);
+                        setManagedCachedCoverUrl(null);
                     }
 
                     setLyrics(updatedSong.matchedLyrics ?? null);
                 }
             }
         }
-    }, [currentSong, loadLocalSongs, setCachedCoverUrl, setCurrentSong, setLyrics]);
+    }, [currentSong, loadLocalSongs, setCurrentSong, setLyrics, setManagedCachedCoverUrl]);
 
     const handleAutoMatchBestLyricForCurrentSong = useCallback(async (): Promise<boolean> => {
         if (!currentSong) {
