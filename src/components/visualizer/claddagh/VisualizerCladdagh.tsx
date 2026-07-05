@@ -1,7 +1,7 @@
 // Only for the you who has yet to exist in this world.
 // DO NOT REMOVE THE LINE ABOVE.
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useMotionValue, animate, MotionValue } from 'framer-motion';
+import { useMotionValue, animate, MotionValue, useSpring } from 'framer-motion';
 import { Line, Theme } from '../../../types';
 import { buildLineGraphemeTimeline } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
@@ -256,9 +256,18 @@ const RingLine: React.FC<RingLineProps> = ({
             }
         };
 
-        const unsubscribe = currentTime.onChange(handler);
+        const handleUpdate = () => {
+            handler(currentTime.get());
+        };
+
+        const unsubscribeTime = currentTime.onChange(handler);
+        const unsubscribeOffset = lineOffset.onChange(handleUpdate);
         handler(currentTime.get());
-        return unsubscribe;
+        
+        return () => {
+            unsubscribeTime();
+            unsubscribeOffset();
+        };
     }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo]);
 
     return (
@@ -319,6 +328,11 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         currentTime,
         currentLineIndex,
         lines,
+    });
+
+    const smoothedPower = useSpring(audioPower, {
+        stiffness: 120,
+        damping: 24,
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -408,8 +422,10 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             lineOffset.set(curr * Math.PI);
         } else {
             animate(lineOffset, curr * Math.PI, {
-                duration: 0.9,
-                ease: [0.25, 1, 0.5, 1], // easeOutQuart
+                type: 'spring',
+                stiffness: 55,
+                damping: 14,
+                mass: 0.9,
             });
         }
     }, [centerLineIndex, lineOffset]);
@@ -450,7 +466,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             lyricsFontScale={lyricsFontScale}
                             Rx={Rx}
                             Ry={Ry}
-                            audioPower={audioPower}
+                            audioPower={smoothedPower}
                             containerWidth={dimensions.width}
                             containerHeight={dimensions.height}
                             activeSpacingInfo={activeSpacingInfo}
