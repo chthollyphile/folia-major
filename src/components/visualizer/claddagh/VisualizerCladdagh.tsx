@@ -1,15 +1,17 @@
 // Only for the you who has yet to exist in this world.
 // DO NOT REMOVE THE LINE ABOVE.
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
 import { useMotionValue, animate, MotionValue, useSpring } from 'framer-motion';
 import { Line, Theme } from '../../../types';
 import { buildLineGraphemeTimeline } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { type VisualizerSharedProps } from '../definition';
 import { useVisualizerRuntime } from '../runtime';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../colorMix';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { buildWordColorRanges } from '../wordColoring';
 
 // src/components/visualizer/claddagh/VisualizerCladdagh.tsx
 
@@ -18,6 +20,18 @@ import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
  */
 const isCJKChar = (char: string): boolean => {
     return /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(char);
+};
+
+const CLADDAGH_MAX_ARC_SPAN = 4.25;
+const CLADDAGH_LETTER_SPACING_EM = 0.04;
+const CLADDAGH_BASE_TRACKING_EM = 0.18;
+const CLADDAGH_SPACING_CACHE_LIMIT = 240;
+const claddaghSpacingCache = new Map<string, number[]>();
+
+const getFallbackGraphemeWidth = (char: string, fontPx: number): number => {
+    if (/^\s+$/.test(char)) return fontPx * 0.36;
+    if (isCJKChar(char)) return fontPx;
+    return fontPx * 0.62;
 };
 
 /**
@@ -46,7 +60,7 @@ const getFractionalActiveIndex = (
         const itemDur = lastItem.endTime - lastItem.startTime;
         const gapDur = lastItem.startTime - prevItem.startTime;
         const stepDur = itemDur > 0 ? itemDur : (gapDur > 0 ? gapDur : 0.5);
-        
+
         const progress = (t - lastItem.startTime) / stepDur;
         // Limit rotation allowance to 1.8 character units past the last char
         const cappedProgress = Math.min(progress, 1.8);
@@ -62,6 +76,87 @@ const getFractionalActiveIndex = (
         }
     }
     return timeline.length - 1;
+};
+
+const normalizeAudioPower = (power: number): number => {
+    if (!Number.isFinite(power)) return 0;
+    return Math.max(0, Math.min(1, power > 1 ? power / 255 : power));
+};
+
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+// Keeps tangent-based character rotation readable instead of allowing upside-down glyphs.
+const normalizeReadableAngle = (degrees: number): number => {
+    let normalized = degrees;
+    while (normalized > 90) normalized -= 180;
+    while (normalized < -90) normalized += 180;
+    return normalized;
+};
+
+const rememberSpacingOffsets = (key: string, offsets: number[]) => {
+    if (claddaghSpacingCache.size >= CLADDAGH_SPACING_CACHE_LIMIT) {
+        const oldestKey = claddaghSpacingCache.keys().next().value;
+        if (oldestKey) {
+            claddaghSpacingCache.delete(oldestKey);
+        }
+    }
+    claddaghSpacingCache.set(key, offsets);
+    return offsets;
+};
+
+const measureCladdaghTextWidth = (text: string, fontSpec: string, fontPx: number, fallbackWidth: number): number => {
+    if (!text) return 0;
+    const prepared = prepareWithSegments(text, fontSpec, {
+        whiteSpace: 'pre-wrap',
+        letterSpacing: fontPx * CLADDAGH_LETTER_SPACING_EM,
+    });
+    const measuredWidth = measureNaturalWidth(prepared);
+    return Number.isFinite(measuredWidth) && measuredWidth > 0 ? measuredWidth : fallbackWidth;
+};
+
+// Uses pretext's canvas-backed font measurement to place grapheme centers at their rendered advance positions.
+const measureCladdaghGraphemeOffsets = (graphemes: string[], fontSpec: string, fontPx: number): number[] => {
+    const text = graphemes.join('');
+    const cacheKey = `${fontPx}|${fontSpec}|${CLADDAGH_BASE_TRACKING_EM}|${text}`;
+    const cached = claddaghSpacingCache.get(cacheKey);
+    if (cached) return cached;
+
+    const offsets = new Array<number>(graphemes.length + 1).fill(0);
+    let fallbackWidth = 0;
+    for (let index = 1; index <= graphemes.length; index += 1) {
+        fallbackWidth += getFallbackGraphemeWidth(graphemes[index - 1], fontPx);
+        const baseTracking = Math.max(0, index - 1) * fontPx * CLADDAGH_BASE_TRACKING_EM;
+        offsets[index] = Math.max(
+            offsets[index - 1],
+            measureCladdaghTextWidth(graphemes.slice(0, index).join(''), fontSpec, fontPx, fallbackWidth) + baseTracking
+        );
+    }
+    return rememberSpacingOffsets(cacheKey, offsets);
+};
+
+const buildMeasuredSpacingInfo = <T extends { char: string; }>(
+    items: T[],
+    fontSpec: string,
+    fontPx: number,
+    radiusPx: number
+) => {
+    if (items.length === 0) return [];
+    const graphemes = items.map(item => item.char);
+    const offsets = measureCladdaghGraphemeOffsets(graphemes, fontSpec, fontPx);
+    const totalWidth = offsets[offsets.length - 1] ?? 0;
+    const safeRadius = Math.max(radiusPx, fontPx * 2, 1);
+    const totalSpan = totalWidth / safeRadius;
+    const scaleFactor = totalSpan > CLADDAGH_MAX_ARC_SPAN ? CLADDAGH_MAX_ARC_SPAN / totalSpan : 1.0;
+
+    return items.map((item, index) => {
+        const centerPx = ((offsets[index] ?? 0) + (offsets[index + 1] ?? offsets[index] ?? 0)) / 2;
+        const startAngle = centerPx / safeRadius;
+        return {
+            ...item,
+            startAngle,
+            nominalAngle: (startAngle - totalSpan / 2) * scaleFactor,
+        };
+    });
 };
 
 interface RingLineProps {
@@ -100,6 +195,7 @@ const RingLine: React.FC<RingLineProps> = ({
 }) => {
     const fontStack = resolveThemeFontStack(theme);
     const baseFontSize = 72 * lyricsFontScale;
+    const fontSpec = `700 ${baseFontSize}px ${fontStack}`;
 
     const baseColor = useMemo(() => colorWithAlpha(theme.primaryColor, 0.55), [theme.primaryColor]);
     const highlightColor = theme.accentColor || theme.primaryColor;
@@ -107,34 +203,31 @@ const RingLine: React.FC<RingLineProps> = ({
     // Calculate layout positioning and angles for each character/grapheme.
     const spacingInfo = useMemo(() => {
         const timeline = buildLineGraphemeTimeline(line);
-        let accumulatedAngle = 0;
+        const wordColorRanges = buildWordColorRanges(line.fullText, theme.wordColors);
+
+        let codeUnitCursor = 0;
         const data = timeline.map(t => {
-            let gap = 0.09;
-            if (/^\s+$/.test(t.char)) {
-                gap = 0.22;
-            } else if (isCJKChar(t.char)) {
-                gap = 0.14;
-            }
-            const startAngle = accumulatedAngle;
-            accumulatedAngle += gap;
+            const charLength = t.char.length;
+            const startOffset = codeUnitCursor;
+            const endOffset = codeUnitCursor + charLength;
+            codeUnitCursor = endOffset;
+
+            // Find if this character overlaps with any wordColor range
+            const matchedRange = wordColorRanges.find(
+                range => startOffset < range.endOffset && range.startOffset < endOffset
+            );
+            const charColor = matchedRange ? matchedRange.color : null;
+
             return {
                 ...t,
-                startAngle,
+                charColor,
             };
         });
 
-        const maxSpan = 3.2; // Allow wider arc span
-        const totalSpan = accumulatedAngle;
-        const scaleFactor = totalSpan > maxSpan ? maxSpan / totalSpan : 1.0;
-
-        return data.map(item => ({
-            ...item,
-            nominalAngle: (item.startAngle - totalSpan / 2) * scaleFactor,
-        }));
-    }, [line]);
+        return buildMeasuredSpacingInfo(data, fontSpec, baseFontSize, Rx);
+    }, [line, theme.wordColors, fontSpec, baseFontSize, Rx]);
 
     const charRefs = useRef<(HTMLSpanElement | null)[]>([]);
-    const highlightRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
     useEffect(() => {
         const handler = (latestTime: number) => {
@@ -142,10 +235,10 @@ const RingLine: React.FC<RingLineProps> = ({
             if (mvsLength === 0) return;
 
             const curLineOffset = lineOffset.get();
-            const power = audioPower.get();
+            const power = normalizeAudioPower(audioPower.get());
             // Scale radius, bounded to avoid excessive translation
             const maxScale = 1.5;
-            const scaleFactor = Math.min(1 + power * 0.04, maxScale);
+            const scaleFactor = Math.min(1 + power * 0.5, maxScale);
             const currentRx = Rx * scaleFactor;
             const currentRy = Ry * scaleFactor;
 
@@ -176,7 +269,6 @@ const RingLine: React.FC<RingLineProps> = ({
 
             for (let i = 0; i < mvsLength; i++) {
                 const el = charRefs.current[i];
-                const highlightEl = highlightRefs.current[i];
                 if (!el) continue;
 
                 const item = spacingInfo[i];
@@ -214,6 +306,12 @@ const RingLine: React.FC<RingLineProps> = ({
                 const x = rawX * cosTheta - rawY * sinTheta;
                 const y = rawX * sinTheta + rawY * cosTheta;
 
+                const tangentX = Math.cos(thetaCurve) * R_major;
+                const tangentY = -Math.sin(thetaCurve) * R_minor;
+                const rotatedTangentX = tangentX * cosTheta - tangentY * sinTheta;
+                const rotatedTangentY = tangentX * sinTheta + tangentY * cosTheta;
+                const tangentAngle = normalizeReadableAngle(Math.atan2(rotatedTangentY, rotatedTangentX) * 180 / Math.PI);
+
                 // Calculate the focus factor F:
                 // F ranges from 1 (active character on active line) to 0 (back side of the ring / far away)
                 const lineDiffNormalized = Math.abs(curLineOffset - lineIndex * Math.PI) / Math.PI;
@@ -225,9 +323,10 @@ const RingLine: React.FC<RingLineProps> = ({
 
                 // Blend visual properties using depth factor D and focus factor F for a pseudo-3D look
                 // Active character (D=1, F=1) is largest and sharpest.
-                // Background characters (D=0, F=0) are very small and blurry.
-                let finalOpacity = 0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F);
-                
+                // Background characters (D=0, F=0) stay visible while still feeling distant.
+                const distanceOpacity = 0.22 + 0.78 * Math.pow(D, 1.9);
+                let finalOpacity = (0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F)) * distanceOpacity;
+
                 // Hide past lines completely when the transition is done to prevent overlapping in the background
                 if (lineIndex < centerLineIndex) {
                     const pastFade = Math.max(0, 1 - lineDiffNormalized);
@@ -236,22 +335,30 @@ const RingLine: React.FC<RingLineProps> = ({
 
                 const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + 0.65 * F);
                 const blur = 8.0 * (1 - D) * (1 - 0.5 * F);
+                const tiltAngle = clamp(tangentAngle * (0.4 + 0.6 * D), -38, 38);
 
-                el.style.transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px), 0px) scale(${scale.toFixed(3)})`;
+                el.style.transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px), 0px) rotate(${tiltAngle.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
                 el.style.opacity = finalOpacity.toFixed(3);
                 el.style.filter = blur < 0.2 ? 'none' : `blur(${blur.toFixed(2)}px)`;
 
-                if (highlightEl) {
-                    let p = 0;
-                    if (latestTime >= item.endTime) {
-                        p = 1;
-                    } else if (latestTime <= item.startTime) {
-                        p = 0;
-                    } else {
-                        const dur = item.endTime - item.startTime;
-                        p = dur > 0 ? (latestTime - item.startTime) / dur : 1;
-                    }
-                    highlightEl.style.clipPath = `inset(0% ${(1 - p) * 100}% 0% 0%)`;
+                // Update text color and text shadow (glow) based on current play status (like VisualizerClassic)
+                let activeColorState: 'waiting' | 'active' | 'passed' = 'waiting';
+                if (latestTime >= item.startTime && latestTime <= item.endTime) {
+                    activeColorState = 'active';
+                } else if (latestTime > item.endTime) {
+                    activeColorState = 'passed';
+                }
+
+                // All characters of the current active line have a glow that decreases from the center (focus point)
+                const glowRadius = 24 * Math.pow(F, 2.0);
+
+                if (activeColorState === 'active' || activeColorState === 'passed') {
+                    const activeColor = item.charColor || highlightColor;
+                    el.style.color = activeColor;
+                    el.style.textShadow = glowRadius > 0.5 ? `0 0 ${glowRadius.toFixed(1)}px ${activeColor}` : 'none';
+                } else {
+                    el.style.color = baseColor;
+                    el.style.textShadow = glowRadius > 0.5 ? `0 0 ${glowRadius.toFixed(1)}px ${baseColor}` : 'none';
                 }
             }
         };
@@ -263,12 +370,12 @@ const RingLine: React.FC<RingLineProps> = ({
         const unsubscribeTime = currentTime.onChange(handler);
         const unsubscribeOffset = lineOffset.onChange(handleUpdate);
         handler(currentTime.get());
-        
+
         return () => {
             unsubscribeTime();
             unsubscribeOffset();
         };
-    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo]);
+    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, highlightColor]);
 
     return (
         <div className="absolute inset-0 pointer-events-none w-full h-full">
@@ -281,28 +388,16 @@ const RingLine: React.FC<RingLineProps> = ({
                         left: '50%',
                         top: '50%',
                         transformOrigin: 'center center',
-                        willChange: 'transform, opacity, filter',
+                        willChange: 'transform, opacity, filter, color, text-shadow',
                         fontFamily: fontStack,
                         fontSize: `${baseFontSize}px`,
                         fontWeight: 700,
-                        letterSpacing: '0.04em',
+                        letterSpacing: `${CLADDAGH_LETTER_SPACING_EM}em`,
                         whiteSpace: 'nowrap',
+                        color: baseColor,
                     }}
                 >
-                    <span style={{ color: baseColor }}>{item.char}</span>
-                    <span
-                        ref={el => { highlightRefs.current[idx] = el; }}
-                        style={{
-                            position: 'absolute',
-                            left: 0,
-                            top: 0,
-                            color: highlightColor,
-                            willChange: 'clip-path',
-                            clipPath: 'inset(0% 100% 0% 0%)',
-                        }}
-                    >
-                        {item.char}
-                    </span>
+                    {item.char}
                 </span>
             ))}
         </div>
@@ -334,9 +429,56 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         stiffness: 120,
         damping: 24,
     });
+    const fontStack = resolveThemeFontStack(theme);
+    const baseFontSize = 72 * lyricsFontScale;
+    const fontSpec = `700 ${baseFontSize}px ${fontStack}`;
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const axisLineRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+    // Smoothly animate axis line color in response to audio power
+    useEffect(() => {
+        const lineEl = axisLineRef.current;
+        if (!lineEl) return;
+
+        let frameId = 0;
+
+        const updateColors = () => {
+            const latestPower = normalizeAudioPower(smoothedPower.get());
+            const fromColor = theme.primaryColor || '#ffffff';
+            let toColor = theme.accentColor || '#ffffff';
+            // If primary and accent are the same, try secondary
+            if (toColor === fromColor && theme.secondaryColor) {
+                toColor = theme.secondaryColor;
+            }
+            // If still the same, mix with white to guarantee visual color change on beats
+            if (toColor === fromColor) {
+                toColor = '#ffffff';
+            }
+
+            // Subtract noise floor after normalizing real playback values from 0..255.
+            const powerDelta = Math.max(0, latestPower - 0.04);
+            const ratio = Math.min(1.0, powerDelta / 0.62);
+
+            // Mix between fromColor and toColor, pulsing alpha from 0.2 to 0.95
+            const mixed = mixColors(fromColor, toColor, ratio, 0.2 + 0.75 * ratio);
+
+            // Linear-gradient fades out the line at its top-left and bottom-right endpoints (20% and 80%)
+            // so that the endpoints of the short segment are smoothly blurred/faded.
+            const gradientString = `linear-gradient(90deg, transparent, ${mixed} 20%, ${mixed} 80%, transparent)`;
+            lineEl.style.background = gradientString;
+            lineEl.style.backgroundImage = gradientString;
+
+            frameId = requestAnimationFrame(updateColors);
+        };
+
+        frameId = requestAnimationFrame(updateColors);
+
+        return () => {
+            cancelAnimationFrame(frameId);
+        };
+    }, [smoothedPower, theme.primaryColor, theme.accentColor, theme.secondaryColor]);
 
     // Initialize dimensions on mount to avoid zero size on first render
     useEffect(() => {
@@ -383,31 +525,8 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         const line = lines[centerLineIndex];
         if (!line) return [];
         const timeline = buildLineGraphemeTimeline(line);
-        let accumulatedAngle = 0;
-        const data = timeline.map(t => {
-            let gap = 0.09;
-            if (/^\s+$/.test(t.char)) {
-                gap = 0.22;
-            } else if (isCJKChar(t.char)) {
-                gap = 0.14;
-            }
-            const startAngle = accumulatedAngle;
-            accumulatedAngle += gap;
-            return {
-                ...t,
-                startAngle,
-            };
-        });
-
-        const maxSpan = 3.2; // Allow wider arc span
-        const totalSpan = accumulatedAngle;
-        const scaleFactor = totalSpan > maxSpan ? maxSpan / totalSpan : 1.0;
-
-        return data.map(item => ({
-            ...item,
-            nominalAngle: (item.startAngle - totalSpan / 2) * scaleFactor,
-        }));
-    }, [activeLine]);
+        return buildMeasuredSpacingInfo(timeline, fontSpec, baseFontSize, Rx);
+    }, [lines, centerLineIndex, fontSpec, baseFontSize, Rx]);
 
     // Coordinate rotation offsets using MotionValue for line transition自转 animations
     const lineOffset = useMotionValue(centerLineIndex * Math.PI);
@@ -453,7 +572,25 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                 ref={containerRef}
                 className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none"
             >
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                {/* Background Dedicated Visuals */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+                    {/* Center Axis Line with blurred/faded endpoints */}
+                    <div
+                        ref={axisLineRef}
+                        style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            width: '300px',
+                            height: '4px',
+                            transform: 'translate(-50%, -50%) rotate(45deg)',
+                            transformOrigin: 'center center',
+                            willChange: 'background',
+                        }}
+                    />
+                </div>
+
+                <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 10 }}>
                     {Rx > 0 && Ry > 0 && lineIndicesToRender.map(idx => (
                         <RingLine
                             key={idx}
