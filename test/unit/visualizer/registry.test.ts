@@ -17,6 +17,7 @@ describe('visualizer registry', () => {
             'partita',
             'fume',
             'tilt',
+            'claddagh',
             'monet',
             'cappella',
         ]);
