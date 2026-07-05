@@ -1,3 +1,5 @@
+// Only for the you who has yet to exist in this world.
+// DO NOT REMOVE THE LINE ABOVE.
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useMotionValue, animate, MotionValue } from 'framer-motion';
 import { Line, Theme } from '../../../types';
@@ -27,8 +29,29 @@ const getFractionalActiveIndex = (
     t: number
 ): number => {
     if (timeline.length === 0) return 0;
+    if (timeline.length === 1) {
+        const item = timeline[0];
+        const dur = Math.max(0.2, item.endTime - item.startTime);
+        if (t <= item.startTime) return 0;
+        return (t - item.startTime) / dur;
+    }
+
     if (t <= timeline[0].startTime) return 0;
-    if (t >= timeline[timeline.length - 1].startTime) return timeline.length - 1;
+
+    const lastIdx = timeline.length - 1;
+    // Allow smooth extrapolation/overshoot past the last character's start time to prevent freezing
+    if (t >= timeline[lastIdx].startTime) {
+        const lastItem = timeline[lastIdx];
+        const prevItem = timeline[lastIdx - 1];
+        const itemDur = lastItem.endTime - lastItem.startTime;
+        const gapDur = lastItem.startTime - prevItem.startTime;
+        const stepDur = itemDur > 0 ? itemDur : (gapDur > 0 ? gapDur : 0.5);
+        
+        const progress = (t - lastItem.startTime) / stepDur;
+        // Limit rotation allowance to 1.8 character units past the last char
+        const cappedProgress = Math.min(progress, 1.8);
+        return lastIdx + cappedProgress;
+    }
 
     for (let i = 0; i < timeline.length - 1; i++) {
         const tStart = timeline[i].startTime;
@@ -130,11 +153,21 @@ const RingLine: React.FC<RingLineProps> = ({
             let wordOffset = 0;
             if (activeSpacingInfo && activeSpacingInfo.length > 0) {
                 const fractionalIndex = getFractionalActiveIndex(activeSpacingInfo, latestTime);
-                const intPart = Math.floor(fractionalIndex);
-                const fracPart = fractionalIndex - intPart;
-                const angleA = activeSpacingInfo[intPart]?.nominalAngle ?? 0;
-                const angleB = activeSpacingInfo[Math.min(intPart + 1, activeSpacingInfo.length - 1)]?.nominalAngle ?? 0;
-                wordOffset = angleA + (angleB - angleA) * fracPart;
+                const lastIdx = activeSpacingInfo.length - 1;
+                if (fractionalIndex <= lastIdx) {
+                    const intPart = Math.floor(fractionalIndex);
+                    const fracPart = fractionalIndex - intPart;
+                    const angleA = activeSpacingInfo[intPart]?.nominalAngle ?? 0;
+                    const angleB = activeSpacingInfo[Math.min(intPart + 1, lastIdx)]?.nominalAngle ?? 0;
+                    wordOffset = angleA + (angleB - angleA) * fracPart;
+                } else {
+                    // Extrapolate past the last character smoothly to maintain continuous rotation speed
+                    const lastAngle = activeSpacingInfo[lastIdx]?.nominalAngle ?? 0;
+                    const prevAngle = activeSpacingInfo[Math.max(0, lastIdx - 1)]?.nominalAngle ?? 0;
+                    const step = lastAngle - prevAngle;
+                    const overshoot = fractionalIndex - lastIdx;
+                    wordOffset = lastAngle + step * overshoot;
+                }
             }
 
             const R_ref = currentRx;
@@ -193,7 +226,14 @@ const RingLine: React.FC<RingLineProps> = ({
                 // Blend visual properties using depth factor D and focus factor F for a pseudo-3D look
                 // Active character (D=1, F=1) is largest and sharpest.
                 // Background characters (D=0, F=0) are very small and blurry.
-                const finalOpacity = 0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F);
+                let finalOpacity = 0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F);
+                
+                // Hide past lines completely when the transition is done to prevent overlapping in the background
+                if (lineIndex < centerLineIndex) {
+                    const pastFade = Math.max(0, 1 - lineDiffNormalized);
+                    finalOpacity = finalOpacity * pastFade;
+                }
+
                 const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + 0.65 * F);
                 const blur = 8.0 * (1 - D) * (1 - 0.5 * F);
 
