@@ -1818,6 +1818,38 @@ export default function App() {
         }
     }, [publishStagePlayerPlaybackUpdate]);
 
+    const handleMonetLyricLineSeek = useCallback((lyricTimeSec: number) => {
+        if (isNowPlayingControlDisabled) {
+            return;
+        }
+
+        const playbackTime = Math.max(0, lyricTimeSec + currentTime.get() - lyricCurrentTime.get());
+        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+            syncStageLyricsClock(playbackTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+            currentTime.set(playbackTime);
+            if (playerState !== PlayerState.PLAYING) {
+                setPlayerState(PlayerState.PLAYING);
+            }
+            void publishStagePlayerPlaybackUpdate();
+        } else {
+            seekMainAudio(playbackTime);
+        }
+    }, [
+        activePlaybackContext,
+        audioSrc,
+        currentTime,
+        duration,
+        isNowPlayingControlDisabled,
+        lyricCurrentTime,
+        playerState,
+        publishStagePlayerPlaybackUpdate,
+        seekMainAudio,
+        setPlayerState,
+        stageActiveEntryKind,
+        stageLyricsClockRef,
+        syncStageLyricsClock,
+    ]);
+
     const handleUnifiedAlbumSelect = useCallback((albumId: number) => {
         if (homeLayoutStyle === 'grid') {
             setActiveGridViewCollection({
@@ -2768,6 +2800,7 @@ export default function App() {
                         monetPortraitImage={monetPortraitImage}
                         urlBackgroundList={urlBackgroundList}
                         urlBackgroundSelectedId={urlBackgroundSelectedId}
+                        onLyricLineSeek={visualizerMode === 'monet' ? handleMonetLyricLineSeek : undefined}
                         onBack={navigateToHome}
                     />
                 )}

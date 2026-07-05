@@ -40,6 +40,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         monetTuning = DEFAULT_MONET_TUNING,
         monetPortraitImage = null,
         onMonetTuningChange,
+        onLyricLineSeek,
         seed,
     } = props;
     const { t } = useTranslation();
@@ -205,6 +206,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                             >
                                 <MonetLyricsRail
                                     entries={visibleLineEntries}
+                                    lines={lines}
+                                    currentLineIndex={currentLineIndex}
                                     currentTime={currentTime}
                                     theme={theme}
                                     lyricFontPx={lyricFontPx}
@@ -216,6 +219,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     showSubtitleTranslation={showSubtitleTranslation}
                                     audioPower={audioPower}
                                     audioBands={audioBands}
+                                    onLyricLineSeek={onLyricLineSeek}
+                                    seekDisabled={isPreviewMode}
                                 />
                             </motion.div>
 

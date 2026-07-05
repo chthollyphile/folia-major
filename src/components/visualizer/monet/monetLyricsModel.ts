@@ -79,6 +79,9 @@ const MONET_ACTIVE_TEXT_LINE_LIMIT = 3;
 const MONET_INACTIVE_TEXT_LINE_LIMIT = 2;
 const MONET_TRANSLATION_LINE_LIMIT = 2;
 const MONET_MIN_MEASURE_WIDTH_PX = 180;
+const MONET_GRAPHEME_OFFSETS_CACHE_LIMIT = 420;
+
+const monetGraphemeOffsetsCache = new Map<string, number[]>();
 
 const graphemeSegmenter = typeof Intl !== 'undefined'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
@@ -120,14 +123,35 @@ const measureTextWidthAtPx = (text: string, fontPx: number, fontSpec: string): n
     return layout.lines[0]?.width ?? Math.max(text.length, 1) * fontPx * 0.6;
 };
 
+const buildGraphemeOffsetsCacheKey = (text: string, fontPx: number, fontSpec: string) => (
+    `${fontPx}|${fontSpec}|${text}`
+);
+
+const rememberGraphemeOffsets = (key: string, offsets: number[]) => {
+    if (monetGraphemeOffsetsCache.size >= MONET_GRAPHEME_OFFSETS_CACHE_LIMIT) {
+        const oldestKey = monetGraphemeOffsetsCache.keys().next().value;
+        if (oldestKey) {
+            monetGraphemeOffsetsCache.delete(oldestKey);
+        }
+    }
+    monetGraphemeOffsetsCache.set(key, offsets);
+    return offsets;
+};
+
 /** Builds cumulative grapheme offsets so the lyric fill edge can sweep through glyphs instead of stepping whole words. */
 export const measureMonetGraphemeOffsets = (text: string, fontPx: number, fontSpec: string): number[] => {
+    const cacheKey = buildGraphemeOffsetsCacheKey(text, fontPx, fontSpec);
+    const cached = monetGraphemeOffsetsCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
     const graphemes = splitMonetGraphemes(text);
     const offsets = new Array<number>(graphemes.length + 1).fill(0);
     for (let index = 1; index <= graphemes.length; index += 1) {
         offsets[index] = measureTextWidthAtPx(graphemes.slice(0, index).join(''), fontPx, fontSpec);
     }
-    return offsets;
+    return rememberGraphemeOffsets(cacheKey, offsets);
 };
 
 export const resolveMonetLineStatus = (

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useTransform, MotionValue } from 'framer-motion';
-import type { Theme, AudioBands } from '../../../types';
+import type { Theme, AudioBands, Line } from '../../../types';
 import type { GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
@@ -26,6 +26,8 @@ import {
 
 interface MonetLyricsRailProps {
     entries: MonetVisibleLineEntry[];
+    lines: Line[];
+    currentLineIndex: number;
     currentTime: MotionValue<number>;
     theme: Theme;
     lyricFontPx: number;
@@ -37,6 +39,8 @@ interface MonetLyricsRailProps {
     showSubtitleTranslation?: boolean;
     audioPower?: MotionValue<number>;
     audioBands?: AudioBands;
+    onLyricLineSeek?: (lyricTimeSec: number) => void;
+    seekDisabled?: boolean;
 }
 
 interface MonetRailSize {
@@ -60,12 +64,20 @@ interface PositionedMonetLineEntry extends MonetVisibleLineEntry {
     scaledHeight: number;
 }
 
+type MonetLayoutCache = Map<string, MonetMeasuredLineLayout>;
+
 const MONET_RAIL_WIDTH_FALLBACK_PX = 680;
 const MONET_RAIL_HEIGHT_FALLBACK_PX = 340;
 const MONET_ACTIVE_GAP_PX = 18;
 const MONET_INACTIVE_GAP_PX = 14;
 const MONET_GLOW_RISE_DURATION_SCALE = 1.18;
 const MONET_GLOW_PASS_TAIL_SECONDS = 1.05;
+const MONET_SCROLL_IDLE_RESET_MS = 1800;
+const MONET_SCROLL_STEP_PX = 72;
+const MONET_TOUCH_STEP_PX = 52;
+const MONET_SCROLL_BEFORE = 4;
+const MONET_SCROLL_AFTER = 4;
+const MONET_LAYOUT_CACHE_LIMIT = 240;
 const MONET_SCROLL_TRANSITION = {
     y: { type: 'spring', stiffness: 142, damping: 28, mass: 0.82 },
     scale: { type: 'spring', stiffness: 150, damping: 30, mass: 0.78 },
@@ -74,6 +86,8 @@ const MONET_SCROLL_TRANSITION = {
 } as const;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const clampScrollSteps = (steps: number) => Math.max(-1, Math.min(1, steps));
+const getScrollDirection = (delta: number) => (delta === 0 ? 0 : delta > 0 ? 1 : -1);
 
 export const resolveMonetWordColor = (
     wordText: string,
@@ -127,6 +141,105 @@ const resolveLineGap = (previous: PositionedMonetLineEntry, next: PositionedMone
         : MONET_INACTIVE_GAP_PX
 );
 
+const resolveRailLineStatus = (lineIndex: number, activeLineIndex: number): MonetLineStatus => {
+    if (lineIndex === activeLineIndex) {
+        return 'active';
+    }
+    if (activeLineIndex >= 0 && lineIndex < activeLineIndex) {
+        return 'passed';
+    }
+    return 'waiting';
+};
+
+const buildScrollableRailEntries = (
+    lines: Line[],
+    anchorIndex: number,
+    activeLineIndex: number,
+): MonetVisibleLineEntry[] => {
+    if (lines.length === 0) {
+        return [];
+    }
+
+    const safeAnchorIndex = Math.round(clamp(anchorIndex, 0, lines.length - 1));
+    const startIndex = Math.max(0, safeAnchorIndex - MONET_SCROLL_BEFORE);
+    const endIndex = Math.min(lines.length - 1, safeAnchorIndex + MONET_SCROLL_AFTER);
+    const nextEntries: MonetVisibleLineEntry[] = [];
+
+    for (let index = startIndex; index <= endIndex; index += 1) {
+        const line = lines[index];
+        nextEntries.push({
+            key: `${index}-${line.startTime}-${line.fullText}`,
+            line,
+            index,
+            offset: index - safeAnchorIndex,
+            status: resolveRailLineStatus(index, activeLineIndex),
+        });
+    }
+
+    return nextEntries;
+};
+
+const trimOldestCacheEntry = <TValue,>(cache: Map<string, TValue>, limit: number) => {
+    if (cache.size < limit) {
+        return;
+    }
+
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) {
+        cache.delete(oldestKey);
+    }
+};
+
+const buildMonetLayoutCacheKey = (
+    entry: MonetVisibleLineEntry,
+    fontPx: number,
+    translationFontPx: number,
+    fontStack: string,
+    maxWidthPx: number,
+    showSubtitleTranslation: boolean,
+) => [
+    entry.index,
+    entry.line.startTime,
+    entry.line.endTime,
+    entry.line.fullText,
+    entry.line.translation ?? '',
+    entry.status,
+    fontPx,
+    translationFontPx,
+    fontStack,
+    maxWidthPx,
+    showSubtitleTranslation ? 1 : 0,
+].join('\u0001');
+
+const getOrMeasureMonetLineLayout = (
+    cache: MonetLayoutCache,
+    entry: MonetVisibleLineEntry,
+    fontPx: number,
+    translationFontPx: number,
+    fontStack: string,
+    maxWidthPx: number,
+    showSubtitleTranslation: boolean,
+) => {
+    const cacheKey = buildMonetLayoutCacheKey(entry, fontPx, translationFontPx, fontStack, maxWidthPx, showSubtitleTranslation);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const layout = measureMonetLineLayout({
+        line: entry.line,
+        status: entry.status,
+        fontPx,
+        translationFontPx,
+        fontStack,
+        maxWidthPx,
+        showSubtitleTranslation,
+    });
+    trimOldestCacheEntry(cache, MONET_LAYOUT_CACHE_LIMIT);
+    cache.set(cacheKey, layout);
+    return layout;
+};
+
 const useMonetRailSize = (ref: React.RefObject<HTMLDivElement | null>): MonetRailSize => {
     const [size, setSize] = useState<MonetRailSize>({ width: 0, height: 0 });
 
@@ -170,6 +283,7 @@ const buildPositionedEntries = (
     fontStack: string,
     glowBufferPx: number,
     showSubtitleTranslation: boolean,
+    layoutCache: MonetLayoutCache,
 ): PositionedMonetLineEntry[] => {
     const railWidth = railSize.width || MONET_RAIL_WIDTH_FALLBACK_PX;
     const railHeight = railSize.height || MONET_RAIL_HEIGHT_FALLBACK_PX;
@@ -178,15 +292,15 @@ const buildPositionedEntries = (
 
     const measuredEntries: PositionedMonetLineEntry[] = entries.map(entry => {
         const tone = resolveLineTone(entry, theme, inactiveScale);
-        const layout = measureMonetLineLayout({
-            line: entry.line,
-            status: entry.status,
-            fontPx: lyricFontPx,
+        const layout = getOrMeasureMonetLineLayout(
+            layoutCache,
+            entry,
+            lyricFontPx,
             translationFontPx,
             fontStack,
-            maxWidthPx: contentWidthPx - 8,
+            contentWidthPx - 8,
             showSubtitleTranslation,
-        });
+        );
 
         return {
             ...entry,
@@ -236,7 +350,8 @@ const MonetTimedTokenSpan: React.FC<{
     isChorus?: boolean;
     chorusAccentColor?: string;
     audioPower?: MotionValue<number>;
-}> = ({ entry, currentTime, accentColor, fontPx, fontStack, wordColorMatchers, isChorus, chorusAccentColor, audioPower }) => {
+    renderStaticPassed?: boolean;
+}> = ({ entry, currentTime, accentColor, fontPx, fontStack, wordColorMatchers, isChorus, chorusAccentColor, audioPower, renderStaticPassed = false }) => {
     const lineRenderEndTime = useMemo(() => getLineRenderEndTime(entry.line), [entry.line]);
     const tokens = useMemo(() => buildMonetDisplayTokens(entry.line), [entry.line]);
     const wordColorRanges = useMemo(
@@ -259,7 +374,18 @@ const MonetTimedTokenSpan: React.FC<{
     return (
         <span className="block w-full min-w-0 max-w-full whitespace-pre-wrap break-words">
             {tokens.map(token => (
-                token.timed && token.startTime !== null && token.endTime !== null ? (
+                renderStaticPassed ? (
+                    <span
+                        key={token.key}
+                        style={{
+                            color: token.timed
+                                ? tokenColors.get(token.key) ?? resolvedAccentColor
+                                : entry.tone.baseColor,
+                        }}
+                    >
+                        {token.text}
+                    </span>
+                ) : token.timed && token.startTime !== null && token.endTime !== null ? (
                     <MonetWordSweep
                         key={token.key}
                         text={token.text}
@@ -467,16 +593,37 @@ const MonetRailLine: React.FC<{
     wordColorMatchers: WordColorMatcher[];
     showSubtitleTranslation: boolean;
     audioPower?: MotionValue<number>;
-}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack, glowBufferPx, vGlowBufferPx, wordColorMatchers, showSubtitleTranslation, audioPower }) => {
+    onLineSeek?: (line: Line) => void;
+    canSeek?: boolean;
+    disableEntryMotion?: boolean;
+    renderStaticPassed?: boolean;
+}> = ({ entry, currentTime, theme, lyricFontPx, translationFontPx, fontStack, glowBufferPx, vGlowBufferPx, wordColorMatchers, showSubtitleTranslation, audioPower, onLineSeek, canSeek = false, disableEntryMotion = false, renderStaticPassed = false }) => {
     const initialOffset = entry.offset >= 0 ? 34 : -34;
     const exitOffset = entry.status === 'passed' || entry.offset < 0 ? -38 : 38;
     const textMask = getLineMask(entry.layout.isTextClipped, Math.max(lyricFontPx * 0.55, 12));
     const translationMask = getLineMask(entry.layout.isTranslationClipped, Math.max(translationFontPx * 0.65, 10));
+    const handleSeek = (event: React.MouseEvent | React.KeyboardEvent) => {
+        if (!canSeek) {
+            return;
+        }
+
+        event.stopPropagation();
+        onLineSeek?.(entry.line);
+    };
 
     return (
         <motion.div
-            className="absolute top-0 min-w-0 will-change-transform"
-            initial={{
+            role={canSeek ? 'button' : undefined}
+            tabIndex={canSeek ? 0 : undefined}
+            onClick={canSeek ? handleSeek : undefined}
+            onKeyDown={canSeek ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleSeek(event);
+                }
+            } : undefined}
+            className={`absolute top-0 min-w-0 will-change-transform ${canSeek ? 'cursor-pointer' : ''}`}
+            initial={disableEntryMotion ? false : {
                 opacity: 0,
                 y: entry.y + initialOffset,
                 scale: entry.tone.scale * 0.98,
@@ -488,7 +635,7 @@ const MonetRailLine: React.FC<{
                 scale: entry.tone.scale,
                 filter: `blur(${entry.tone.blurPx}px)`,
             }}
-            exit={{
+            exit={disableEntryMotion ? undefined : {
                 opacity: 0,
                 y: entry.y + exitOffset,
                 scale: entry.tone.scale * 0.98,
@@ -558,6 +705,7 @@ const MonetRailLine: React.FC<{
                     isChorus={entry.line.isChorus}
                     chorusAccentColor={theme.accentColor}
                     audioPower={audioPower}
+                    renderStaticPassed={renderStaticPassed}
                 />
             </div>
             {showSubtitleTranslation && entry.status === 'active' && entry.line.translation ? (
@@ -598,6 +746,8 @@ const MonetRailLine: React.FC<{
 
 const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
     entries,
+    lines,
+    currentLineIndex,
     currentTime,
     theme,
     lyricFontPx,
@@ -609,15 +759,34 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
     showSubtitleTranslation = true,
     audioPower,
     audioBands,
+    onLyricLineSeek,
+    seekDisabled = false,
 }) => {
     const railRef = useRef<HTMLDivElement | null>(null);
+    const layoutCacheRef = useRef<MonetLayoutCache>(new Map());
+    const manualScrollResetRef = useRef<number | null>(null);
+    const wheelAccumulatorRef = useRef(0);
+    const wheelDirectionRef = useRef(0);
+    const touchLastYRef = useRef<number | null>(null);
+    const touchAccumulatorRef = useRef(0);
+    const touchDirectionRef = useRef(0);
+    const [manualScrollAnchorIndex, setManualScrollAnchorIndex] = useState<number | null>(null);
     const railSize = useMonetRailSize(railRef);
     const glowBufferPx = Math.round(lyricFontPx * 1.2);
     const vGlowBufferPx = Math.round(lyricFontPx * 1.2);
+    const canSeek = Boolean(onLyricLineSeek) && !seekDisabled;
+
+    const visibleEntries = useMemo(
+        () => manualScrollAnchorIndex === null
+            ? entries
+            : buildScrollableRailEntries(lines, manualScrollAnchorIndex, currentLineIndex),
+        [currentLineIndex, entries, lines, manualScrollAnchorIndex],
+    );
+    const isManualScrolling = manualScrollAnchorIndex !== null;
 
     const positionedEntries = useMemo(
         () => buildPositionedEntries(
-            entries,
+            visibleEntries,
             railSize,
             theme,
             lyricFontPx,
@@ -626,23 +795,154 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
             fontStack,
             glowBufferPx,
             showSubtitleTranslation,
+            layoutCacheRef.current,
         ),
-        [entries, railSize, theme, lyricFontPx, inactiveFontPx, translationFontPx, fontStack, glowBufferPx, showSubtitleTranslation],
+        [visibleEntries, railSize, theme, lyricFontPx, inactiveFontPx, translationFontPx, fontStack, glowBufferPx, showSubtitleTranslation],
     );
     const wordColorMatchers = useMemo(
         () => prepareWordColorMatchers(theme.wordColors, keywordColoringEnabled),
         [keywordColoringEnabled, theme.wordColors],
     );
+    const getFallbackAnchorIndex = useCallback(() => {
+        if (manualScrollAnchorIndex !== null) {
+            return manualScrollAnchorIndex;
+        }
+        if (currentLineIndex >= 0) {
+            return currentLineIndex;
+        }
+        return entries.find(entry => entry.offset === 0)?.index ?? 0;
+    }, [currentLineIndex, entries, manualScrollAnchorIndex]);
+
+    const scheduleManualScrollReset = useCallback(() => {
+        if (manualScrollResetRef.current !== null) {
+            window.clearTimeout(manualScrollResetRef.current);
+        }
+        manualScrollResetRef.current = window.setTimeout(() => {
+            setManualScrollAnchorIndex(null);
+            wheelAccumulatorRef.current = 0;
+            wheelDirectionRef.current = 0;
+            touchAccumulatorRef.current = 0;
+            touchDirectionRef.current = 0;
+            manualScrollResetRef.current = null;
+        }, MONET_SCROLL_IDLE_RESET_MS);
+    }, []);
+
+    const moveManualScrollAnchor = useCallback((steps: number) => {
+        if (lines.length === 0) {
+            return;
+        }
+
+        setManualScrollAnchorIndex(current => {
+            const baseIndex = current ?? getFallbackAnchorIndex();
+            return Math.round(clamp(baseIndex + steps, 0, lines.length - 1));
+        });
+        scheduleManualScrollReset();
+    }, [getFallbackAnchorIndex, lines.length, scheduleManualScrollReset]);
+
+    const handleRailWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+        if (lines.length === 0) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        const direction = getScrollDirection(event.deltaY);
+        if (direction !== 0 && wheelDirectionRef.current !== 0 && direction !== wheelDirectionRef.current) {
+            wheelAccumulatorRef.current = 0;
+        }
+        wheelDirectionRef.current = direction || wheelDirectionRef.current;
+        wheelAccumulatorRef.current += event.deltaY;
+        const steps = clampScrollSteps(Math.trunc(wheelAccumulatorRef.current / MONET_SCROLL_STEP_PX));
+        if (steps !== 0) {
+            wheelAccumulatorRef.current = 0;
+            moveManualScrollAnchor(steps);
+        } else {
+            scheduleManualScrollReset();
+        }
+    }, [lines.length, moveManualScrollAnchor, scheduleManualScrollReset]);
+
+    const handleRailTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+        if (lines.length === 0) {
+            return;
+        }
+
+        event.stopPropagation();
+        touchLastYRef.current = event.touches[0]?.clientY ?? null;
+        touchAccumulatorRef.current = 0;
+        touchDirectionRef.current = 0;
+        setManualScrollAnchorIndex(getFallbackAnchorIndex());
+        scheduleManualScrollReset();
+    }, [getFallbackAnchorIndex, lines.length, scheduleManualScrollReset]);
+
+    const handleRailTouchMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+        if (lines.length === 0 || touchLastYRef.current === null) {
+            return;
+        }
+
+        event.stopPropagation();
+        const nextY = event.touches[0]?.clientY;
+        if (typeof nextY !== 'number') {
+            return;
+        }
+
+        const deltaY = touchLastYRef.current - nextY;
+        touchLastYRef.current = nextY;
+        const direction = getScrollDirection(deltaY);
+        if (direction !== 0 && touchDirectionRef.current !== 0 && direction !== touchDirectionRef.current) {
+            touchAccumulatorRef.current = 0;
+        }
+        touchDirectionRef.current = direction || touchDirectionRef.current;
+        touchAccumulatorRef.current += deltaY;
+        const steps = clampScrollSteps(Math.trunc(touchAccumulatorRef.current / MONET_TOUCH_STEP_PX));
+        if (steps !== 0) {
+            touchAccumulatorRef.current = 0;
+            moveManualScrollAnchor(steps);
+        } else {
+            scheduleManualScrollReset();
+        }
+    }, [lines.length, moveManualScrollAnchor, scheduleManualScrollReset]);
+
+    const handleRailTouchEnd = useCallback(() => {
+        touchLastYRef.current = null;
+        touchDirectionRef.current = 0;
+        touchAccumulatorRef.current = 0;
+        scheduleManualScrollReset();
+    }, [scheduleManualScrollReset]);
+
+    const handleLineSeek = useCallback((line: Line) => {
+        if (!canSeek) {
+            return;
+        }
+
+        onLyricLineSeek?.(line.startTime);
+        setManualScrollAnchorIndex(null);
+    }, [canSeek, onLyricLineSeek]);
+
+    useEffect(() => {
+        return () => {
+            if (manualScrollResetRef.current !== null) {
+                window.clearTimeout(manualScrollResetRef.current);
+            }
+        };
+    }, []);
 
     return (
         <div
             ref={railRef}
-            className="relative h-[clamp(260px,42vh,400px)] max-w-[720px] overflow-hidden"
+            className="relative h-[clamp(260px,42vh,400px)] max-w-[720px] select-none overflow-hidden"
+            onWheel={handleRailWheel}
+            onTouchStart={handleRailTouchStart}
+            onTouchMove={handleRailTouchMove}
+            onTouchEnd={handleRailTouchEnd}
+            onTouchCancel={handleRailTouchEnd}
             style={{
                 marginLeft: `-${glowBufferPx}px`,
                 marginRight: `-${glowBufferPx}px`,
                 paddingLeft: `${glowBufferPx}px`,
                 paddingRight: `${glowBufferPx}px`,
+                touchAction: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
                 WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
                 maskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
             }}
@@ -663,6 +963,10 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
                             wordColorMatchers={wordColorMatchers}
                             showSubtitleTranslation={showSubtitleTranslation}
                             audioPower={audioPower}
+                            onLineSeek={handleLineSeek}
+                            canSeek={canSeek}
+                            disableEntryMotion={isManualScrolling}
+                            renderStaticPassed={isManualScrolling && entry.index !== currentLineIndex}
                         />
                     ))}
                 </AnimatePresence>
