@@ -441,6 +441,18 @@ export const DEFAULT_FUME_TUNING: FumeTuning = {
   heroScale: 1,
 };
 
+export interface CladdaghTuning {
+  focusScaleRatio: number;
+  radiusScale: number;
+  ellipseTiltDeg: number;
+}
+
+export const DEFAULT_CLADDAGH_TUNING: CladdaghTuning = {
+  focusScaleRatio: 0.65,
+  radiusScale: 1.0,
+  ellipseTiltDeg: 45,
+};
+
 export type CappellaEmojiPackSource = 'builtin' | 'custom';
 export type CappellaAvatarSource = 'cover' | 'builtin' | 'color' | 'custom';
 

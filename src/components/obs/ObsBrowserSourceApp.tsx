@@ -213,6 +213,7 @@ const ObsBrowserSourceApp: React.FC = () => {
                 cadenzaTuning={config.cadenzaTuning}
                 partitaTuning={config.partitaTuning}
                 fumeTuning={config.fumeTuning}
+                claddaghTuning={config.claddaghTuning}
                 cappellaTuning={config.cappellaTuning}
                 cappellaCustomEmojiImages={config.cappellaCustomEmojiImages}
                 cappellaCustomAvatarImages={config.cappellaCustomAvatarImages}

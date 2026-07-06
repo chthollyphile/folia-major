@@ -7,6 +7,7 @@ import type {
     CappellaTuning,
     CadenzaTuning,
     ClassicTuning,
+    CladdaghTuning,
     FumeTuning,
     LyricData,
     MonetBackgroundImage,
@@ -72,6 +73,7 @@ type UseObsBrowserSourcePublisherOptions = {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    claddaghTuning?: CladdaghTuning;
     cappellaTuning?: CappellaTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
@@ -133,6 +135,7 @@ export const useObsBrowserSourcePublisher = ({
     cadenzaTuning,
     partitaTuning,
     fumeTuning,
+    claddaghTuning,
     cappellaTuning,
     cappellaCustomEmojiImages,
     cappellaCustomAvatarImages,
@@ -196,6 +199,7 @@ export const useObsBrowserSourcePublisher = ({
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        claddaghTuning,
         cappellaTuning,
         cappellaCustomEmojiImages,
         cappellaCustomAvatarImages,
@@ -214,6 +218,7 @@ export const useObsBrowserSourcePublisher = ({
         cappellaCustomEmojiImages,
         cappellaTuning,
         cadenzaTuning,
+        claddaghTuning,
         classicTuning,
         coverUrl,
         currentSong,

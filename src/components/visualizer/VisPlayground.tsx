@@ -8,6 +8,7 @@ import {
     DEFAULT_CADENZA_TUNING,
     DEFAULT_CAPPELLA_TUNING,
     DEFAULT_CLASSIC_TUNING,
+    DEFAULT_CLADDAGH_TUNING,
     DEFAULT_FUME_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
@@ -19,6 +20,7 @@ import {
     type CappellaTuning,
     type CadenzaTuning,
     type ClassicTuning,
+    type CladdaghTuning,
     type FumeTuning,
     type MonetBackgroundImage,
     type MonetBackgroundTuning,
@@ -64,6 +66,7 @@ interface VisPlaygroundProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    claddaghTuning?: CladdaghTuning;
     cappellaTuning?: CappellaTuning;
     tiltTuning?: TiltTuning;
     monetBackgroundTuning?: MonetBackgroundTuning;
@@ -99,6 +102,8 @@ interface VisPlaygroundProps {
     onResetPartitaTuning?: () => void;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
     onResetFumeTuning?: () => void;
+    onCladdaghTuningChange?: (patch: Partial<CladdaghTuning>) => void;
+    onResetCladdaghTuning?: () => void;
     onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
     onResetCappellaTuning?: () => void;
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
@@ -173,6 +178,9 @@ const clampFumeGlowIntensity = (value: number) => Math.min(1.8, Math.max(0, valu
 const clampFumeBackgroundObjectOpacity = (value: number) => Math.min(1, Math.max(0, value));
 const clampFumeHeroScale = (value: number) => Math.min(1.32, Math.max(0.82, value));
 const clampFumeTextHoldRatio = (value: number) => Math.min(1, Math.max(0, value));
+const clampCladdaghFocusScaleRatio = (val: number) => Math.min(1.5, Math.max(0.0, val));
+const clampCladdaghRadiusScale = (val: number) => Math.min(1.5, Math.max(0.5, val));
+const clampCladdaghEllipseTiltDeg = (val: number) => Math.min(60, Math.max(0, val));
 const isMobileBrowser = () => {
     if (typeof navigator === 'undefined') {
         return false;
@@ -264,6 +272,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     cadenzaTuning = DEFAULT_CADENZA_TUNING,
     partitaTuning = DEFAULT_PARTITA_TUNING,
     fumeTuning = DEFAULT_FUME_TUNING,
+    claddaghTuning = DEFAULT_CLADDAGH_TUNING,
     cappellaTuning = DEFAULT_CAPPELLA_TUNING,
     tiltTuning = DEFAULT_TILT_TUNING,
     monetBackgroundTuning = DEFAULT_MONET_BACKGROUND_TUNING,
@@ -297,6 +306,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     onResetPartitaTuning,
     onFumeTuningChange,
     onResetFumeTuning,
+    onCladdaghTuningChange,
+    onResetCladdaghTuning,
     onCappellaTuningChange,
     onResetCappellaTuning,
     onTiltTuningChange,
@@ -349,6 +360,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [draftClassicTuning, setDraftClassicTuning] = useState<ClassicTuning>(classicTuning);
     const [draftPartitaTuning, setDraftPartitaTuning] = useState<PartitaTuning>(partitaTuning);
     const [draftFumeTuning, setDraftFumeTuning] = useState<FumeTuning>(fumeTuning);
+    const [draftCladdaghTuning, setDraftCladdaghTuning] = useState<CladdaghTuning>(claddaghTuning);
     const [draftTiltTuning, setDraftTiltTuning] = useState<TiltTuning>(tiltTuning);
     const [draftMonetBackgroundTuning, setDraftMonetBackgroundTuning] = useState<MonetBackgroundTuning>(monetBackgroundTuning);
     const [draftMonetTuning, setDraftMonetTuning] = useState<MonetTuning>(monetTuning);
@@ -403,6 +415,17 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         glowIntensity: clampFumeGlowIntensity(draftFumeTuning.glowIntensity),
         heroScale: clampFumeHeroScale(draftFumeTuning.heroScale),
     }), [draftFumeTuning]);
+    const resolvedCladdaghTuning = useMemo<CladdaghTuning>(() => ({
+        focusScaleRatio: clampCladdaghFocusScaleRatio(
+            draftCladdaghTuning.focusScaleRatio ?? DEFAULT_CLADDAGH_TUNING.focusScaleRatio
+        ),
+        radiusScale: clampCladdaghRadiusScale(
+            draftCladdaghTuning.radiusScale ?? DEFAULT_CLADDAGH_TUNING.radiusScale
+        ),
+        ellipseTiltDeg: clampCladdaghEllipseTiltDeg(
+            draftCladdaghTuning.ellipseTiltDeg ?? DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg
+        ),
+    }), [draftCladdaghTuning]);
     const currentFontLabel = customFontLabel || customFontFamily || (t('options.customFont') || '自定义字体');
     const fontStyleOptions: PresetOption<Theme['fontStyle'] | 'custom'>[] = useMemo(() => ([
         ...builtinFontOptions,
@@ -426,6 +449,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => { setDraftClassicTuning(classicTuning); }, [classicTuning]);
     useEffect(() => { setDraftPartitaTuning(partitaTuning); }, [partitaTuning]);
     useEffect(() => { setDraftFumeTuning(fumeTuning); }, [fumeTuning]);
+    useEffect(() => { setDraftCladdaghTuning(claddaghTuning); }, [claddaghTuning]);
     useEffect(() => { setDraftTiltTuning(tiltTuning); }, [tiltTuning]);
     useEffect(() => { setDraftMonetBackgroundTuning(monetBackgroundTuning); }, [monetBackgroundTuning]);
     useEffect(() => { setDraftMonetTuning(monetTuning); }, [monetTuning]);
@@ -499,10 +523,12 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             resetClassicTuning: onResetClassicTuning,
             resetPartitaTuning: onResetPartitaTuning,
             resetFumeTuning: onResetFumeTuning,
+            resetCladdaghTuning: onResetCladdaghTuning,
             resetCappellaTuning: onResetCappellaTuning,
             resetTiltTuning: onResetTiltTuning,
             resetMonetTuning: onResetMonetTuning,
             setDraftFumeTuning,
+            setDraftCladdaghTuning,
         });
     };
 
@@ -664,6 +690,15 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             onFumeTuningChange?.(patch);
         } else {
             pendingCommitRef.current = () => onFumeTuningChange?.(patch);
+        }
+    };
+
+    const handleCladdaghTuningChange = (patch: Partial<CladdaghTuning>) => {
+        setDraftCladdaghTuning(previous => ({ ...previous, ...patch }));
+        if (!isDraggingSlider.current) {
+            onCladdaghTuningChange?.(patch);
+        } else {
+            pendingCommitRef.current = () => onCladdaghTuningChange?.(patch);
         }
     };
 
@@ -867,6 +902,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                 cadenzaTuning={cadenzaTuning}
                                 partitaTuning={resolvedPartitaTuning}
                                 fumeTuning={resolvedFumeTuning}
+                                claddaghTuning={resolvedCladdaghTuning}
                                 cappellaTuning={cappellaTuning}
                                 tiltTuning={draftTiltTuning}
                                 monetBackgroundTuning={draftMonetBackgroundTuning}
@@ -927,6 +963,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                         onPartitaTuningChange={handlePartitaTuningDraft}
                         fumeTuning={resolvedFumeTuning}
                         onFumeTuningChange={handleFumeTuningChange}
+                        claddaghTuning={draftCladdaghTuning}
+                        onCladdaghTuningChange={handleCladdaghTuningChange}
                         cappellaTuning={cappellaTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         onCappellaTuningChange={onCappellaTuningChange}

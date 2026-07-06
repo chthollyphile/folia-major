@@ -131,6 +131,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        claddaghTuning,
         cappellaTuning,
         tiltTuning,
         monetBackgroundTuning,
@@ -179,6 +180,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetPartitaTuning: onResetPartitaTuning,
         handleSetFumeTuning: onFumeTuningChange,
         handleResetFumeTuning: onResetFumeTuning,
+        handleSetCladdaghTuning: onCladdaghTuningChange,
+        handleResetCladdaghTuning: onResetCladdaghTuning,
         handleSetCappellaTuning: onCappellaTuningChange,
         handleResetCappellaTuning: onResetCappellaTuning,
         handleSetTiltTuning: onTiltTuningChange,
@@ -2212,6 +2215,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        claddaghTuning={claddaghTuning}
                         cappellaTuning={cappellaTuning}
                         tiltTuning={tiltTuning}
                         monetBackgroundTuning={monetBackgroundTuning}
@@ -2245,6 +2249,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onResetPartitaTuning={onResetPartitaTuning}
                         onFumeTuningChange={onFumeTuningChange}
                         onResetFumeTuning={onResetFumeTuning}
+                        onCladdaghTuningChange={onCladdaghTuningChange}
+                        onResetCladdaghTuning={onResetCladdaghTuning}
                         onCappellaTuningChange={onCappellaTuningChange}
                         onResetCappellaTuning={onResetCappellaTuning}
                         onTiltTuningChange={onTiltTuningChange}
@@ -2291,6 +2297,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        claddaghTuning={claddaghTuning}
                         cappellaTuning={cappellaTuning}
                         monetBackgroundTuning={monetBackgroundTuning}
                         monetTuning={monetTuning}

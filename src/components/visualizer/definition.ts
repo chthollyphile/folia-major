@@ -7,6 +7,7 @@ import {
     type CappellaTuning,
     type CadenzaTuning,
     type ClassicTuning,
+    type CladdaghTuning,
     type FumeTuning,
     type Line,
     type MonetBackgroundImage,
@@ -23,7 +24,7 @@ import {
 
 // src/components/visualizer/definition.ts
 // Shared contracts for discoverable visualizer modes.
-export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'cappella' | 'tilt' | 'monet';
+export type VisualizerTuningKind = 'none' | 'classic' | 'cadenza' | 'partita' | 'fume' | 'claddagh' | 'cappella' | 'tilt' | 'monet';
 
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
@@ -61,6 +62,8 @@ export interface VisualizerSharedProps {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    claddaghTuning?: CladdaghTuning;
+    onCladdaghTuningChange?: (patch: Partial<CladdaghTuning>) => void;
     cappellaTuning?: CappellaTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
@@ -86,6 +89,8 @@ export interface VisualizerSettingsPanelProps {
     onPartitaTuningChange?: (patch: Partial<PartitaTuning>) => void;
     fumeTuning?: FumeTuning;
     onFumeTuningChange?: (patch: Partial<FumeTuning>) => void;
+    claddaghTuning?: CladdaghTuning;
+    onCladdaghTuningChange?: (patch: Partial<CladdaghTuning>) => void;
     cappellaTuning?: CappellaTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     onCappellaTuningChange?: (patch: Partial<CappellaTuning>) => void;
@@ -129,10 +134,12 @@ export interface VisualizerSettingsResetProps {
     resetClassicTuning?: () => void;
     resetPartitaTuning?: () => void;
     resetFumeTuning?: () => void;
+    resetCladdaghTuning?: () => void;
     resetCappellaTuning?: () => void;
     resetTiltTuning?: () => void;
     resetMonetTuning?: () => void;
     setDraftFumeTuning?: (tuning: FumeTuning) => void;
+    setDraftCladdaghTuning?: (tuning: CladdaghTuning) => void;
 }
 
 export interface VisualizerRegistryEntry {

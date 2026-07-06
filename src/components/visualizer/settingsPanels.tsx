@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CappellaTuning, type ClassicTuning, type FumeTuning, type PartitaTuning, type TiltColorScheme, type TiltTuning } from '../../types';
+import { DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type FumeTuning, type PartitaTuning, type TiltColorScheme, type TiltTuning } from '../../types';
 import { colorWithAlpha } from './colorMix';
 import { type VisualizerSettingsPanelProps } from './definition';
 
@@ -22,6 +22,9 @@ interface PresetGroupProps<T> {
 const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value));
 const clampClassicBreathingFloatMultiplier = (value: number) => Math.min(2, Math.max(0, value));
 const clampClassicWordSpacing = (value: number) => Math.min(2, Math.max(0, value));
+const clampCladdaghFocusScaleRatio = (val: number) => Math.min(1.5, Math.max(0.0, val));
+const clampCladdaghRadiusScale = (val: number) => Math.min(1.5, Math.max(0.5, val));
+const clampCladdaghEllipseTiltDeg = (val: number) => Math.min(60, Math.max(0, val));
 
 const PresetGroup = <T,>({
     label,
@@ -931,6 +934,98 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     step="0.05"
                     value={resolvedTuning.tiltStyleProbability}
                     onChange={(event) => handleTiltTuningChange({ tiltStyleProbability: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+        </div>
+    );
+};
+
+export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+    t,
+    controlCardBg,
+    rangeInputClass,
+    onSliderPointerDown,
+    onSliderCommit,
+    claddaghTuning = DEFAULT_CLADDAGH_TUNING,
+    onCladdaghTuningChange,
+}) => {
+    const resolvedTuning: CladdaghTuning = {
+        focusScaleRatio: clampCladdaghFocusScaleRatio(claddaghTuning.focusScaleRatio ?? DEFAULT_CLADDAGH_TUNING.focusScaleRatio),
+        radiusScale: clampCladdaghRadiusScale(claddaghTuning.radiusScale ?? DEFAULT_CLADDAGH_TUNING.radiusScale),
+        ellipseTiltDeg: clampCladdaghEllipseTiltDeg(claddaghTuning.ellipseTiltDeg ?? DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg),
+    };
+
+    return (
+        <div
+            className="rounded-[24px] border border-white/10 p-4 space-y-4"
+            style={{ backgroundColor: controlCardBg }}
+        >
+            <div className="space-y-1">
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {t('options.claddaghSettings') || '指环参数'}
+                </div>
+                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                    {t('options.claddaghSettingsDesc') || '调整歌词大小对比率、椭圆轨道半径及倾斜度。'}
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghFocusScaleRatio') || '主歌词放大倍率'}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {(resolvedTuning.focusScaleRatio + 1.0).toFixed(2)}x
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0.0"
+                    max="1.5"
+                    step="0.05"
+                    value={resolvedTuning.focusScaleRatio}
+                    onChange={(event) => onCladdaghTuningChange?.({ focusScaleRatio: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghRadiusScale') || '椭圆轨道半径'}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {resolvedTuning.radiusScale.toFixed(2)}x
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.05"
+                    value={resolvedTuning.radiusScale}
+                    onChange={(event) => onCladdaghTuningChange?.({ radiusScale: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghEllipseTiltDeg') || '椭圆轨道倾斜度'}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {resolvedTuning.ellipseTiltDeg}°
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0"
+                    max="60"
+                    step="1"
+                    value={resolvedTuning.ellipseTiltDeg}
+                    onChange={(event) => onCladdaghTuningChange?.({ ellipseTiltDeg: parseInt(event.target.value, 10) })}
                     onPointerDown={onSliderPointerDown}
                     onPointerUp={onSliderCommit}
                     className={rangeInputClass}

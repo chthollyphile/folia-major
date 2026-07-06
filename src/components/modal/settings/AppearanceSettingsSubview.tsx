@@ -3,6 +3,7 @@ import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check } from '
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
+    DEFAULT_CLADDAGH_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
     type DualTheme,
@@ -145,6 +146,17 @@ const decompressFume = (o: any): any => ({
     heroScale: o.hs !== undefined ? o.hs : 1,
 });
 
+const compressCladdagh = (t: any): any => ({
+    fsr: t.focusScaleRatio,
+    rs: t.radiusScale,
+    etd: t.ellipseTiltDeg,
+});
+const decompressCladdagh = (o: any): any => ({
+    focusScaleRatio: o.fsr !== undefined ? o.fsr : DEFAULT_CLADDAGH_TUNING.focusScaleRatio,
+    radiusScale: o.rs !== undefined ? o.rs : DEFAULT_CLADDAGH_TUNING.radiusScale,
+    ellipseTiltDeg: o.etd !== undefined ? o.etd : DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg,
+});
+
 const compressCappella = (t: any): any => ({
     sem: t.showEmoMessages,
     eps: t.emojiPackSource,
@@ -234,6 +246,7 @@ export const compressConfig = (config: any): string => {
     if (config.cadenzaTuning) minified.cat = compressCadenza(config.cadenzaTuning);
     if (config.partitaTuning) minified.pt = compressPartita(config.partitaTuning);
     if (config.fumeTuning) minified.ft = compressFume(config.fumeTuning);
+    if (config.claddaghTuning) minified.clt = compressCladdagh(config.claddaghTuning);
     if (config.cappellaTuning) minified.cpt = compressCappella(config.cappellaTuning);
     if (config.tiltTuning) minified.tt = compressTilt(config.tiltTuning);
     if (config.monetBackgroundTuning) minified.mbt = compressMonetBackground(config.monetBackgroundTuning);
@@ -292,6 +305,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.cat) decompressed.cadenzaTuning = decompressCadenza(parsed.cat);
         if (parsed.pt) decompressed.partitaTuning = decompressPartita(parsed.pt);
         if (parsed.ft) decompressed.fumeTuning = decompressFume(parsed.ft);
+        if (parsed.clt) decompressed.claddaghTuning = decompressCladdagh(parsed.clt);
         if (parsed.cpt) decompressed.cappellaTuning = decompressCappella(parsed.cpt);
         if (parsed.tt) decompressed.tiltTuning = decompressTilt(parsed.tt);
         if (parsed.mbt) decompressed.monetBackgroundTuning = decompressMonetBackground(parsed.mbt);
@@ -307,7 +321,7 @@ export const decompressConfig = (str: string): any => {
             'theme', 'visualizerMode', 'visualizerBackgroundMode', 'backgroundOpacity',
             'visualizerOpacity', 'hidePlayerTranslationSubtitle', 'showSubtitleTranslation',
             'lyricsFontStyle', 'lyricsFontScale', 'classicTuning',
-            'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'cappellaTuning',
+            'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
             'tiltTuning', 'monetBackgroundTuning', 'monetTuning',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
@@ -402,6 +416,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         cadenzaTuning: state.cadenzaTuning,
         partitaTuning: state.partitaTuning,
         fumeTuning: state.fumeTuning,
+        claddaghTuning: state.claddaghTuning,
         cappellaTuning: state.cappellaTuning,
         tiltTuning: state.tiltTuning,
         monetBackgroundTuning: state.monetBackgroundTuning,
@@ -421,6 +436,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetCadenzaTuning: state.handleSetCadenzaTuning,
         handleSetPartitaTuning: state.handleSetPartitaTuning,
         handleSetFumeTuning: state.handleSetFumeTuning,
+        handleSetCladdaghTuning: state.handleSetCladdaghTuning,
         handleSetCappellaTuning: state.handleSetCappellaTuning,
         handleSetTiltTuning: state.handleSetTiltTuning,
         handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
@@ -465,6 +481,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             cadenzaTuning: store.cadenzaTuning,
             partitaTuning: store.partitaTuning,
             fumeTuning: store.fumeTuning,
+            claddaghTuning: store.claddaghTuning,
             cappellaTuning: store.cappellaTuning,
             tiltTuning: store.tiltTuning,
             monetBackgroundTuning: store.monetBackgroundTuning,
@@ -551,6 +568,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (config.fumeTuning) {
                 store.handleSetFumeTuning(config.fumeTuning);
+            }
+            if (config.claddaghTuning) {
+                store.handleSetCladdaghTuning(config.claddaghTuning);
             }
             if (config.cappellaTuning) {
                 store.handleSetCappellaTuning(config.cappellaTuning);

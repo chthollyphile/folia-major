@@ -4,6 +4,7 @@ import type {
     CappellaTuning,
     CadenzaTuning,
     ClassicTuning,
+    CladdaghTuning,
     FumeTuning,
     LyricData,
     MonetBackgroundImage,
@@ -61,6 +62,7 @@ export interface ObsBrowserSourceConfig {
     cadenzaTuning?: CadenzaTuning;
     partitaTuning?: PartitaTuning;
     fumeTuning?: FumeTuning;
+    claddaghTuning?: CladdaghTuning;
     cappellaTuning?: CappellaTuning;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];

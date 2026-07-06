@@ -314,6 +314,7 @@ export default function App() {
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        claddaghTuning,
         cappellaTuning,
         tiltTuning,
         monetBackgroundTuning,
@@ -1577,6 +1578,7 @@ export default function App() {
         cadenzaTuning,
         partitaTuning,
         fumeTuning,
+        claddaghTuning,
         cappellaTuning,
         cappellaCustomEmojiImages,
         cappellaCustomAvatarImages,
@@ -2789,6 +2791,7 @@ export default function App() {
                         cadenzaTuning={cadenzaTuning}
                         partitaTuning={partitaTuning}
                         fumeTuning={fumeTuning}
+                        claddaghTuning={claddaghTuning}
                         cappellaTuning={cappellaTuning}
                         tiltTuning={tiltTuning}
                         monetBackgroundTuning={monetBackgroundTuning}

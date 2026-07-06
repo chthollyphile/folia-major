@@ -66,6 +66,11 @@ describe('Visual Settings Import and Export', () => {
             glowIntensity: 0.9,
             heroScale: 1.1,
         },
+        claddaghTuning: {
+            focusScaleRatio: 0.75,
+            radiusScale: 1.15,
+            ellipseTiltDeg: 52,
+        },
         cappellaTuning: {
             showEmoMessages: false,
             emojiPackSource: 'custom' as const,
@@ -111,6 +116,9 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
         expect(decoded.classicTuning?.breathingFloatMultiplier).toBe(1.2);
+        expect(decoded.claddaghTuning?.focusScaleRatio).toBe(0.75);
+        expect(decoded.claddaghTuning?.radiusScale).toBe(1.15);
+        expect(decoded.claddaghTuning?.ellipseTiltDeg).toBe(52);
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
@@ -137,6 +145,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.backgroundOpacity).toBe(0.85);
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
+        expect(decoded.claddaghTuning?.ellipseTiltDeg).toBe(52);
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
@@ -299,6 +299,41 @@ const readStoredFumeTuning = (): FumeTuning => {
         };
     } catch {
         return DEFAULT_FUME_TUNING;
+    }
+};
+
+const clampCladdaghFocusScaleRatio = (val: any, fallback: number = DEFAULT_CLADDAGH_TUNING.focusScaleRatio): number => {
+    const parsed = typeof val === 'number' ? val : parseFloat(val);
+    return Number.isFinite(parsed) ? Math.min(1.5, Math.max(0.0, parsed)) : fallback;
+};
+
+const clampCladdaghRadiusScale = (val: any, fallback: number = DEFAULT_CLADDAGH_TUNING.radiusScale): number => {
+    const parsed = typeof val === 'number' ? val : parseFloat(val);
+    return Number.isFinite(parsed) ? Math.min(1.5, Math.max(0.5, parsed)) : fallback;
+};
+
+const clampCladdaghEllipseTiltDeg = (val: any, fallback: number = DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg): number => {
+    const parsed = typeof val === 'number' ? val : parseFloat(val);
+    return Number.isFinite(parsed) ? Math.min(60, Math.max(0, parsed)) : fallback;
+};
+
+const readStoredCladdaghTuning = (): CladdaghTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_CLADDAGH_TUNING;
+    }
+
+    const saved = localStorage.getItem('claddagh_tuning');
+    if (!saved) return DEFAULT_CLADDAGH_TUNING;
+
+    try {
+        const parsed = JSON.parse(saved) as Partial<CladdaghTuning>;
+        return {
+            focusScaleRatio: clampCladdaghFocusScaleRatio(parsed.focusScaleRatio, DEFAULT_CLADDAGH_TUNING.focusScaleRatio),
+            radiusScale: clampCladdaghRadiusScale(parsed.radiusScale, DEFAULT_CLADDAGH_TUNING.radiusScale),
+            ellipseTiltDeg: clampCladdaghEllipseTiltDeg(parsed.ellipseTiltDeg, DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg),
+        };
+    } catch {
+        return DEFAULT_CLADDAGH_TUNING;
     }
 };
 
@@ -717,6 +752,7 @@ type SettingsUiState = {
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
     fumeTuning: FumeTuning;
+    claddaghTuning: CladdaghTuning;
     cappellaTuning: CappellaTuning;
     tiltTuning: TiltTuning;
     monetBackgroundTuning: MonetBackgroundTuning;
@@ -815,6 +851,8 @@ type SettingsUiState = {
     handleResetPartitaTuning: () => void;
     handleSetFumeTuning: (patch: Partial<FumeTuning>) => void;
     handleResetFumeTuning: () => void;
+    handleSetCladdaghTuning: (patch: Partial<CladdaghTuning>) => void;
+    handleResetCladdaghTuning: () => void;
     handleSetCappellaTuning: (patch: Partial<CappellaTuning>) => void;
     handleResetCappellaTuning: () => void;
     handleSetTiltTuning: (patch: Partial<TiltTuning>) => void;
@@ -887,6 +925,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     cadenzaTuning: readStoredCadenzaTuning(),
     partitaTuning: readStoredPartitaTuning(),
     fumeTuning: readStoredFumeTuning(),
+    claddaghTuning: readStoredCladdaghTuning(),
     cappellaTuning: readStoredCappellaTuning(),
     tiltTuning: readStoredTiltTuning(),
     monetBackgroundTuning: readStoredMonetBackgroundTuning(),
@@ -1349,6 +1388,25 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ fumeTuning: DEFAULT_FUME_TUNING });
         notify(get, { type: 'info', text: '浮名参数已重置' });
     },
+    handleSetCladdaghTuning: (patch) => {
+        const prev = get().claddaghTuning;
+        const next = {
+            focusScaleRatio: clampCladdaghFocusScaleRatio(patch.focusScaleRatio ?? prev.focusScaleRatio, prev.focusScaleRatio),
+            radiusScale: clampCladdaghRadiusScale(patch.radiusScale ?? prev.radiusScale, prev.radiusScale),
+            ellipseTiltDeg: clampCladdaghEllipseTiltDeg(patch.ellipseTiltDeg ?? prev.ellipseTiltDeg, prev.ellipseTiltDeg),
+        };
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('claddagh_tuning', JSON.stringify(next));
+        }
+        set({ claddaghTuning: next });
+    },
+    handleResetCladdaghTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('claddagh_tuning', JSON.stringify(DEFAULT_CLADDAGH_TUNING));
+        }
+        set({ claddaghTuning: DEFAULT_CLADDAGH_TUNING });
+        notify(get, { type: 'info', text: '指环参数已重置' });
+    },
     handleSetCappellaTuning: (patch) => {
         const requestedCustomWithoutPack = patch.emojiPackSource === 'custom' && get().storedCappellaEmojiPack.length === 0;
         if (requestedCustomWithoutPack) {
@@ -1778,6 +1836,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     cadenzaTuning: state.cadenzaTuning,
     partitaTuning: state.partitaTuning,
     fumeTuning: state.fumeTuning,
+    claddaghTuning: state.claddaghTuning,
     cappellaTuning: state.cappellaTuning,
     tiltTuning: state.tiltTuning,
     monetBackgroundTuning: state.monetBackgroundTuning,
@@ -1842,6 +1901,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetPartitaTuning: state.handleResetPartitaTuning,
     handleSetFumeTuning: state.handleSetFumeTuning,
     handleResetFumeTuning: state.handleResetFumeTuning,
+    handleSetCladdaghTuning: state.handleSetCladdaghTuning,
+    handleResetCladdaghTuning: state.handleResetCladdaghTuning,
     handleSetCappellaTuning: state.handleSetCappellaTuning,
     handleResetCappellaTuning: state.handleResetCappellaTuning,
     handleSetTiltTuning: state.handleSetTiltTuning,

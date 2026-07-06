@@ -1,9 +1,9 @@
 // Only for the you who has yet to exist in this world.
 // DO NOT REMOVE THE LINE ABOVE.
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
 import { useMotionValue, animate, MotionValue, useSpring } from 'framer-motion';
-import { Line, Theme } from '../../../types';
+import { DEFAULT_CLADDAGH_TUNING, type Line, type Theme } from '../../../types';
 import { buildLineGraphemeTimeline } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { type VisualizerSharedProps } from '../definition';
@@ -234,18 +234,20 @@ const buildMeasuredSpacingInfo = <T extends { char: string; }>(
     items: T[],
     fontSpec: string,
     fontPx: number,
-    radiusPx: number
+    radiusPx: number,
+    spacingScale = 1
 ) => {
     if (items.length === 0) return [];
     const graphemes = items.map(item => item.char);
     const offsets = measureCladdaghGraphemeOffsets(graphemes, fontSpec, fontPx);
-    const totalWidth = offsets[offsets.length - 1] ?? 0;
+    const safeSpacingScale = Number.isFinite(spacingScale) ? Math.max(0.1, spacingScale) : 1;
+    const totalWidth = (offsets[offsets.length - 1] ?? 0) * safeSpacingScale;
     const safeRadius = Math.max(radiusPx, fontPx * 2, 1);
     const totalSpan = totalWidth / safeRadius;
     const scaleFactor = totalSpan > CLADDAGH_MAX_ARC_SPAN ? CLADDAGH_MAX_ARC_SPAN / totalSpan : 1.0;
 
     return items.map((item, index) => {
-        const centerPx = ((offsets[index] ?? 0) + (offsets[index + 1] ?? offsets[index] ?? 0)) / 2;
+        const centerPx = ((offsets[index] ?? 0) + (offsets[index + 1] ?? offsets[index] ?? 0)) / 2 * safeSpacingScale;
         const startAngle = centerPx / safeRadius;
         return {
             ...item,
@@ -311,6 +313,9 @@ interface RingLineProps {
     activeSpacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>;
     renderBaseIndex: number;
     lines: Line[];
+    focusScaleRatio?: number;
+    ellipseTiltDeg?: number;
+    textSpacingScale?: number;
 }
 
 /**
@@ -332,6 +337,9 @@ const RingLine: React.FC<RingLineProps> = ({
     activeSpacingInfo,
     renderBaseIndex,
     lines,
+    focusScaleRatio,
+    ellipseTiltDeg,
+    textSpacingScale = 1,
 }) => {
     const fontStack = resolveThemeFontStack(theme);
     const baseFontSize = 72 * lyricsFontScale;
@@ -364,12 +372,12 @@ const RingLine: React.FC<RingLineProps> = ({
             };
         });
 
-        return buildMeasuredSpacingInfo(data, fontSpec, baseFontSize, Rx);
-    }, [line, theme.wordColors, fontSpec, baseFontSize, Rx]);
+        return buildMeasuredSpacingInfo(data, fontSpec, baseFontSize, Rx, textSpacingScale);
+    }, [line, theme.wordColors, fontSpec, baseFontSize, Rx, textSpacingScale]);
 
     const charRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const handler = (latestTime: number) => {
             const mvsLength = spacingInfo.length;
             if (mvsLength === 0) return;
@@ -462,11 +470,9 @@ const RingLine: React.FC<RingLineProps> = ({
                 const rawX = Math.sin(thetaCurve) * R_major * spacingFactor;
                 const rawY = localCos * R_minor;
 
-                // Rotate the coordinate system by exactly -45 degrees (-Math.PI / 4 radians)
-                // so the major axis aligns exactly with the screen's anti-diagonal (y = -x).
-                // Active character rotates to (0.707 R_minor, 0.707 R_minor) (bottom-right).
-                // Back side rotates to (-0.707 R_minor, -0.707 R_minor) (top-left).
-                const thetaRot = -Math.PI / 4;
+                // Rotate the coordinate system by exactly -ellipseTiltDeg degrees
+                // so the major axis aligns exactly with the screen's anti-diagonal.
+                const thetaRot = -((ellipseTiltDeg ?? 45) * Math.PI) / 180;
                 const cosTheta = Math.cos(thetaRot);
                 const sinTheta = Math.sin(thetaRot);
 
@@ -518,7 +524,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 }
                 finalOpacity = finalOpacity * boundaryFade;
 
-                const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + 0.65 * F) * lengthScaleFactor;
+                const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + (focusScaleRatio ?? 0.65) * F) * lengthScaleFactor;
                 const blur = 8.0 * (1 - D) * (1 - 0.5 * F);
                 const tiltAngle = clamp(tangentAngle * (0.4 + 0.6 * D), -38, 38);
 
@@ -560,7 +566,7 @@ const RingLine: React.FC<RingLineProps> = ({
             unsubscribeTime();
             unsubscribeOffset();
         };
-    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, renderBaseIndex, highlightColor]);
+    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, renderBaseIndex, highlightColor, baseColor, focusScaleRatio, ellipseTiltDeg, lines, line]);
 
     return (
         <div className="absolute inset-0 pointer-events-none w-full h-full">
@@ -572,6 +578,8 @@ const RingLine: React.FC<RingLineProps> = ({
                         position: 'absolute',
                         left: '50%',
                         top: '50%',
+                        opacity: 0,
+                        transform: 'translate3d(-50%, -50%, 0px) scale(0.2)',
                         transformOrigin: 'center center',
                         willChange: 'transform, opacity, filter, color, text-shadow',
                         fontFamily: fontStack,
@@ -602,6 +610,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         showSubtitleTranslation,
         audioPower,
         audioBands,
+        claddaghTuning = DEFAULT_CLADDAGH_TUNING,
     } = props;
 
     const { activeLine, upcomingLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
@@ -689,8 +698,11 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
     }, []);
 
     // Radial configuration (increased to prevent long sentence overlaps)
-    const Rx = dimensions.width > 0 ? Math.min(dimensions.width * 0.44, 560) : 360;
+    const Rx = (dimensions.width > 0 ? Math.min(dimensions.width * 0.44, 560) : 360) * claddaghTuning.radiusScale;
     const Ry = Rx > 0 ? Rx * 0.707 : 254; // 45-degree angle projection ratio
+    const centerNormalTiltDeg = 90 - claddaghTuning.ellipseTiltDeg;
+    const focusSpacingScale = (1 + claddaghTuning.focusScaleRatio) / (1 + DEFAULT_CLADDAGH_TUNING.focusScaleRatio);
+    const activeTextSpacingScale = focusSpacingScale;
 
     if (typeof window !== 'undefined') {
         (window as any).visualizerDimensions = dimensions;
@@ -711,8 +723,8 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         const line = lines[renderBaseIndex];
         if (!line) return [];
         const timeline = adjustCladdaghTimeline(buildLineGraphemeTimeline(line), line);
-        return buildMeasuredSpacingInfo(timeline, fontSpec, baseFontSize, Rx);
-    }, [lines, renderBaseIndex, fontSpec, baseFontSize, Rx]);
+        return buildMeasuredSpacingInfo(timeline, fontSpec, baseFontSize, Rx, activeTextSpacingScale);
+    }, [lines, renderBaseIndex, fontSpec, baseFontSize, Rx, activeTextSpacingScale]);
 
     // Coordinate rotation offsets using MotionValue for line transition自转 animations
     const lineOffset = useMotionValue(centerLineIndex * Math.PI);
@@ -778,7 +790,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             top: '50%',
                             width: '300px',
                             height: '4px',
-                            transform: 'translate(-50%, -50%) rotate(45deg)',
+                            transform: `translate(-50%, -50%) rotate(${centerNormalTiltDeg}deg)`,
                             transformOrigin: 'center center',
                             willChange: 'background',
                         }}
@@ -804,6 +816,9 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             activeSpacingInfo={activeSpacingInfo}
                             renderBaseIndex={renderBaseIndex}
                             lines={lines}
+                            focusScaleRatio={claddaghTuning.focusScaleRatio}
+                            ellipseTiltDeg={claddaghTuning.ellipseTiltDeg}
+                            textSpacingScale={activeTextSpacingScale}
                         />
                     ))}
                 </div>
