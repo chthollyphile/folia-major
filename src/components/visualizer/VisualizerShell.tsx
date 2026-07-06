@@ -9,6 +9,7 @@ import FluidBackground from './FluidBackground';
 import GeometricBackground from './GeometricBackground';
 import MonetBackgroundLayer from './backgrounds/MonetBackgroundLayer';
 import UrlBackgroundLayer from './backgrounds/UrlBackgroundLayer';
+import SoraBackground from './SoraBackground';
 
 // Shared outer shell for all visualizers.
 // This is where we keep background layering, font injection, and the hover-only back button
@@ -99,6 +100,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const shouldRenderCommonBackground = !resolvedTransparentBackground && resolvedBackgroundMode === 'common';
     const shouldRenderMonetBackground = !resolvedTransparentBackground && resolvedBackgroundMode === 'monet';
     const shouldRenderUrlBackground = !resolvedTransparentBackground && resolvedBackgroundMode === 'url';
+    const shouldRenderSoraBackground = !resolvedTransparentBackground && resolvedBackgroundMode === 'sora';
 
     // Keep the tailwind font utility roughly aligned with the theme category,
     // but still let the real resolved font stack win through inline style.
@@ -192,6 +194,16 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                     urlBackgroundList={resolvedUrlBackgroundList}
                     urlBackgroundSelectedId={resolvedUrlBackgroundSelectedId}
                 />
+            )}
+
+            {shouldRenderSoraBackground && (
+                <div className="absolute inset-0 z-0">
+                    <SoraBackground
+                        theme={theme}
+                        isDaylight={resolvedIsDaylight}
+                        paused={resolvedPaused}
+                    />
+                </div>
             )}
 
             {/* staticMode here means "kill the heavier ambient motion layer",

@@ -470,6 +470,17 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'background-sora',
+        group: 'visualizer',
+        title: 'Background: Sora',
+        description: 'Switch background to Sora (starry sky) layout',
+        keywords: ['sora', 'background sora', 'starry sky', 'star', '星空', '空', 'kong', 'xingkong', 'xk', '背景切换到 空', '背景切换到空', '背景切换到Sora', '背景切换到星空'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('sora');
+            return true;
+        },
+    },
+    {
         id: 'settings-toggle-transparent',
         group: 'settings',
         title: 'Toggle transparency',

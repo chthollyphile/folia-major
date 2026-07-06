@@ -371,6 +371,7 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         { value: 'common', label: t('options.visualizerBackgroundModeCommon') || '通用' },
         { value: 'monet', label: t('options.visualizerBackgroundModeMonet') || '莫奈' },
         { value: 'url', label: t('options.visualizerBackgroundModeUrl') || 'URL' },
+        { value: 'sora', label: t('options.visualizerBackgroundModeSora') || '空' },
     ]), [t]);
 
     return (
@@ -561,7 +562,7 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 onDeleteUrlBackgroundItem={onDeleteUrlBackgroundItem}
                                 onSetUrlBackgroundSelectedId={onSetUrlBackgroundSelectedId}
                             />
-                        ) : (
+                        ) : resolvedBackgroundMode === 'monet' ? (
                             <MonetBackgroundSettingsCard
                                 t={t}
                                 isDaylight={isDaylight}
@@ -577,7 +578,7 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 onSliderPointerDown={onSliderPointerDown}
                                 onSliderCommit={onSliderCommit}
                                 />
-                        )}
+                        ) : null}
                     </>
                 )}
 

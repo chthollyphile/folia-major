@@ -487,7 +487,7 @@ export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetBackgroundWashColorMode = 'theme' | 'custom';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type VisualizerBackgroundMode = 'common' | 'monet' | 'url';
+export type VisualizerBackgroundMode = 'common' | 'monet' | 'url' | 'sora';
 
 export interface UrlBackgroundItem {
   id: string;

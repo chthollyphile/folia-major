@@ -465,7 +465,7 @@ const readStoredVisualizerBackgroundMode = (): VisualizerBackgroundMode | null =
     }
 
     const saved = localStorage.getItem('visualizer_background_mode');
-    return saved === 'common' || saved === 'monet' || saved === 'url' ? saved : null;
+    return saved === 'common' || saved === 'monet' || saved === 'url' || saved === 'sora' ? saved : null;
 };
 
 const readStoredUrlBackgroundList = (): UrlBackgroundItem[] => {

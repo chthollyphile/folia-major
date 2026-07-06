@@ -152,6 +152,7 @@
     "react-dom": "^19.2.4",
     "react-i18next": "^16.3.5",
     "react-window": "^2.2.7",
+    "twgl.js": "^7.0.0",
     "wanakana": "^5.3.1",
     "ws": "^8.18.0",
     "zustand": "^5.0.12"
