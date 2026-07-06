@@ -2,7 +2,7 @@
 // DO NOT REMOVE THE LINE ABOVE.
 import React, { useMemo, useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
-import { useMotionValue, animate, MotionValue, useSpring } from 'framer-motion';
+import { useMotionValue, animate, MotionValue, useSpring, motion } from 'framer-motion';
 import { DEFAULT_CLADDAGH_TUNING, type Line, type Theme } from '../../../types';
 import { buildLineGraphemeTimeline } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
@@ -391,12 +391,12 @@ const RingLine: React.FC<RingLineProps> = ({
             const curLineOffset = lineOffset.get();
             const power = normalizePower(audioPower.get());
             const intensity = theme.animationIntensity || 'normal';
-            let intensityMultiplier = 0.5;
-            let maxScale = 1.5;
+            let intensityMultiplier = 0.25;
+            let maxScale = 1.25;
 
             if (intensity === 'calm') {
-                intensityMultiplier = 0.15;
-                maxScale = 1.15;
+                intensityMultiplier = 0.08;
+                maxScale = 1.08;
             } else if (intensity === 'chaotic') {
                 intensityMultiplier = 0.95;
                 maxScale = 1.95;
@@ -800,8 +800,8 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         ? currentLineIndex
         : (recentCompletedLine
             ? lines.indexOf(recentCompletedLine)
-            : (upcomingLine ? lines.indexOf(upcomingLine) : 0));
-    const centerLineIndex = Math.max(0, focusIndex);
+            : -1);
+    const centerLineIndex = Math.max(-1, focusIndex);
     const [renderBaseIndex, setRenderBaseIndex] = useState(centerLineIndex);
 
     const activeSpacingInfo = useMemo(() => {
@@ -861,8 +861,12 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             audioBands={audioBands}
             sharedProps={props}
         >
-            <div
-                ref={containerRef}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.96, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.04, filter: 'blur(4px)' }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                ref={containerRef as any}
                 className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none"
             >
                 {/* Background Dedicated Visuals */}
@@ -884,7 +888,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                 </div>
 
                 <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 10 }}>
-                    {Rx > 0 && Ry > 0 && lineIndicesToRender.map(idx => (
+                    {showText && Rx > 0 && Ry > 0 && lineIndicesToRender.map(idx => (
                         <RingLine
                             key={idx}
                             line={lines[idx]}
@@ -908,7 +912,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                         />
                     ))}
                 </div>
-            </div>
+            </motion.div>
 
             {showText && (
                 <VisualizerSubtitleOverlay

@@ -626,7 +626,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 theme={theme}
             />
 
-<div className="space-y-2.5">
+            <div className="space-y-2.5">
                 <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
                     {t('options.cappellaAvatarSource') || '头像来源'}
                 </div>
@@ -965,10 +965,10 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.claddaghSettings') || '指环参数'}
+                    {t('options.claddaghSettings') || '回环参数'}
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.claddaghSettingsDesc') || '调整歌词大小对比率、椭圆轨道半径及倾斜度。'}
+                    {t('options.claddaghSettingsDesc') || '调整歌词大小对比率、轨道半径及倾斜度。'}
                 </div>
             </div>
 
@@ -994,7 +994,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghRadiusScale') || '椭圆轨道半径'}</span>
+                    <span>{t('options.claddaghRadiusScale') || '轨道半径'}</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedTuning.radiusScale.toFixed(2)}x
                     </span>
@@ -1014,7 +1014,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghEllipseTiltDeg') || '椭圆轨道倾斜度'}</span>
+                    <span>{t('options.claddaghEllipseTiltDeg') || '轨道倾斜度'}</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedTuning.ellipseTiltDeg}°
                     </span>

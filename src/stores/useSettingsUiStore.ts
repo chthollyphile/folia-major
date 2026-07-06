@@ -1405,7 +1405,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('claddagh_tuning', JSON.stringify(DEFAULT_CLADDAGH_TUNING));
         }
         set({ claddaghTuning: DEFAULT_CLADDAGH_TUNING });
-        notify(get, { type: 'info', text: '指环参数已重置' });
+        notify(get, { type: 'info', text: '回环参数已重置' });
     },
     handleSetCappellaTuning: (patch) => {
         const requestedCustomWithoutPack = patch.emojiPackSource === 'custom' && get().storedCappellaEmojiPack.length === 0;
