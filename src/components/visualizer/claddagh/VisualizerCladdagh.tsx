@@ -128,12 +128,14 @@ const getFallbackGraphemeWidth = (char: string, fontPx: number): number => {
  */
 const getFractionalActiveIndex = (
     timeline: Array<{ startTime: number; endTime: number; }>,
-    t: number
+    t: number,
+    renderEnd?: number
 ): number => {
     if (timeline.length === 0) return 0;
     if (timeline.length === 1) {
         const item = timeline[0];
-        const dur = Math.max(0.2, item.endTime - item.startTime);
+        const targetEnd = typeof renderEnd === 'number' && Number.isFinite(renderEnd) ? renderEnd : item.endTime;
+        const dur = Math.max(0.2, targetEnd - item.startTime);
         if (t <= item.startTime) return 0;
         return (t - item.startTime) / dur;
     }
@@ -144,6 +146,12 @@ const getFractionalActiveIndex = (
     // Allow smooth extrapolation/overshoot past the last character's start time to prevent freezing
     if (t >= timeline[lastIdx].startTime) {
         const lastItem = timeline[lastIdx];
+
+        if (typeof renderEnd === 'number' && Number.isFinite(renderEnd) && renderEnd > lastItem.startTime) {
+            const progress = clamp((t - lastItem.startTime) / (renderEnd - lastItem.startTime), 0, 1);
+            return lastIdx + progress * 2.0;
+        }
+
         const prevItem = timeline[lastIdx - 1];
         const itemDur = lastItem.endTime - lastItem.startTime;
         const gapDur = lastItem.startTime - prevItem.startTime;
@@ -249,10 +257,11 @@ const buildMeasuredSpacingInfo = <T extends { char: string; }>(
 
 const getLineWordOffset = (
     spacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>,
-    latestTime: number
+    latestTime: number,
+    renderEnd?: number
 ) => {
     if (spacingInfo.length === 0) return 0;
-    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime);
+    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime, renderEnd);
     const lastIdx = spacingInfo.length - 1;
     if (fractionalIndex <= lastIdx) {
         const intPart = Math.floor(fractionalIndex);
@@ -271,16 +280,18 @@ const getLineWordOffset = (
 
 const getLinePlaybackProgress = (
     spacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>,
-    latestTime: number
+    latestTime: number,
+    renderEnd?: number
 ) => {
     if (spacingInfo.length === 0) return 0;
     if (spacingInfo.length === 1) {
         const item = spacingInfo[0];
-        const duration = Math.max(0.001, item.endTime - item.startTime);
+        const targetEnd = typeof renderEnd === 'number' && Number.isFinite(renderEnd) ? renderEnd : item.endTime;
+        const duration = Math.max(0.001, targetEnd - item.startTime);
         return clamp((latestTime - item.startTime) / duration, 0, 1);
     }
 
-    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime);
+    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime, renderEnd);
     return clamp(fractionalIndex / Math.max(1, spacingInfo.length - 1), 0, 1);
 };
 
@@ -395,9 +406,13 @@ const RingLine: React.FC<RingLineProps> = ({
                 lengthFadeFactor = 1.0 - (1.0 - targetMinOpacity) * transitionProgress;
                 lengthScaleFactor = 1.0 - (1.0 - targetMinScale) * transitionProgress;
             }
-            const activeWordOffset = getLineWordOffset(activeSpacingInfo, latestTime);
-            const ownWordOffset = getLineWordOffset(spacingInfo, latestTime);
-            const activeLineProgress = getLinePlaybackProgress(activeSpacingInfo, latestTime);
+            const activeLine = lines[renderBaseIndex];
+            const activeRenderEnd = activeLine ? (activeLine.renderHints?.renderEndTime ?? activeLine.endTime) : undefined;
+            const ownRenderEnd = line.renderHints?.renderEndTime ?? line.endTime;
+
+            const activeWordOffset = getLineWordOffset(activeSpacingInfo, latestTime, activeRenderEnd);
+            const ownWordOffset = getLineWordOffset(spacingInfo, latestTime, ownRenderEnd);
+            const activeLineProgress = getLinePlaybackProgress(activeSpacingInfo, latestTime, activeRenderEnd);
             const backOrbitFollow = Math.PI
                 * CLADDAGH_BACK_ORBIT_FOLLOW_RATIO
                 * (1 - Math.pow(1 - activeLineProgress, 1.35));
@@ -548,7 +563,12 @@ const RingLine: React.FC<RingLineProps> = ({
     }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, renderBaseIndex, highlightColor]);
 
     return (
-        <div className="absolute inset-0 pointer-events-none w-full h-full">
+        <div 
+            className="absolute inset-0 pointer-events-none w-full h-full"
+            style={{
+                animation: 'claddagh-line-fade-in 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards'
+            }}
+        >
             {spacingInfo.map((item, idx) => (
                 <span
                     key={idx}
@@ -730,7 +750,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
     const lineIndicesToRender = useMemo(() => {
         const indices = [];
         if (lines.length === 0) return [];
-        for (let i = renderBaseIndex; i <= renderBaseIndex + 1; i++) {
+        for (let i = renderBaseIndex; i <= renderBaseIndex + 2; i++) {
             if (i >= 0 && i < lines.length) {
                 indices.push(i);
             }
@@ -748,6 +768,12 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             audioBands={audioBands}
             sharedProps={props}
         >
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes claddagh-line-fade-in {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+            ` }} />
             <div
                 ref={containerRef}
                 className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none"
