@@ -401,7 +401,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 const targetMinOpacity = 1.0 - combinedStrength;
                 const targetMinScale = 1.0 - combinedStrength * 0.25;
 
-                const transitionProgress = clamp((lineDiffFromCenter - 0.25) / 0.45, 0, 1);
+                const transitionProgress = clamp((lineDiffFromCenter - 0.4) / 0.5, 0, 1);
 
                 lengthFadeFactor = 1.0 - (1.0 - targetMinOpacity) * transitionProgress;
                 lengthScaleFactor = 1.0 - (1.0 - targetMinScale) * transitionProgress;
@@ -510,7 +510,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 // Boundary fade to keep non-focused lines strictly in the back half of the ellipse
                 let boundaryFade = 1.0;
                 if (lineDiffFromCenter > 0.02) {
-                    const progress = clamp((lineDiffFromCenter - 0.2) / 0.5, 0, 1);
+                    const progress = clamp((lineDiffFromCenter - 0.3) / 0.6, 0, 1);
                     const cosThreshold = 1.0 - 1.2 * progress;
                     if (localCos > cosThreshold) {
                         boundaryFade = clamp(1.0 - (localCos - cosThreshold) / 0.15, 0, 1);
@@ -563,12 +563,7 @@ const RingLine: React.FC<RingLineProps> = ({
     }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, renderBaseIndex, highlightColor]);
 
     return (
-        <div 
-            className="absolute inset-0 pointer-events-none w-full h-full"
-            style={{
-                animation: 'claddagh-line-fade-in 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards'
-            }}
-        >
+        <div className="absolute inset-0 pointer-events-none w-full h-full">
             {spacingInfo.map((item, idx) => (
                 <span
                     key={idx}
@@ -768,12 +763,6 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             audioBands={audioBands}
             sharedProps={props}
         >
-            <style dangerouslySetInnerHTML={{ __html: `
-                @keyframes claddagh-line-fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-            ` }} />
             <div
                 ref={containerRef}
                 className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden select-none"
