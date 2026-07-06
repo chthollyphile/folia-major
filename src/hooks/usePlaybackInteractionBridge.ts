@@ -4,7 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import { neteaseApi } from '../services/netease';
 import { PlayerState } from '../types';
 import type { ReplayGainMode, SongResult, StageLoopMode, StatusMessage } from '../types';
-import { hasPlayableMediaSource, replayGainModeLabels } from '../utils/appPlaybackHelpers';
+import { replayGainModeLabels } from '../utils/appPlaybackHelpers';
 
 // src/hooks/usePlaybackInteractionBridge.ts
 
@@ -87,9 +87,8 @@ export function usePlaybackInteractionBridge({
             return;
         }
 
-        const audioElement = audioRef.current;
-        if (audioElement && hasPlayableMediaSource(audioElement, audioSrc)) {
-            if (!audioElement.paused && !audioElement.ended) {
+        if (audioRef.current) {
+            if (!audioRef.current.paused && !audioRef.current.ended) {
                 pausePlayback();
             } else {
                 void resumePlayback();

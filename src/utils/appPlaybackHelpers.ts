@@ -67,45 +67,6 @@ export const getAudioSrcKind = (audioSrc: string | null): 'empty' | 'blob' | 'ht
     return 'other';
 };
 
-const MEDIA_NETWORK_NO_SOURCE = 3;
-const MEDIA_END_TOLERANCE_SEC = 3;
-
-type MediaSourceLike = Pick<HTMLMediaElement, 'currentSrc' | 'networkState'> & {
-    src?: string | null;
-    getAttribute?: (name: string) => string | null;
-};
-
-type TimedMediaLike = Pick<HTMLMediaElement, 'currentTime' | 'duration'>;
-
-export const hasPlayableMediaSource = (
-    audioElement: MediaSourceLike,
-    requestedSrc: string | null | undefined,
-): boolean => {
-    if (audioElement.networkState === MEDIA_NETWORK_NO_SOURCE) {
-        return false;
-    }
-
-    const domSrc = audioElement.currentSrc || audioElement.src || audioElement.getAttribute?.('src') || '';
-    return Boolean(requestedSrc || domSrc);
-};
-
-export const isNearReportedMediaEnd = (
-    audioElement: TimedMediaLike,
-    fallbackDuration: number,
-    toleranceSec = MEDIA_END_TOLERANCE_SEC,
-): boolean => {
-    const reportedDuration = Number.isFinite(audioElement.duration) && audioElement.duration > 0
-        ? audioElement.duration
-        : fallbackDuration;
-
-    if (!Number.isFinite(reportedDuration) || reportedDuration <= 0) {
-        return false;
-    }
-
-    const current = Number.isFinite(audioElement.currentTime) ? audioElement.currentTime : 0;
-    return current > 0 && reportedDuration - current <= toleranceSec;
-};
-
 export const toSafeRemoteUrl = (url: string | null | undefined): string | null | undefined => {
     if (!url) {
         return url;

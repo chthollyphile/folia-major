@@ -63,7 +63,7 @@ import { useThemeQuickEditorStore } from './stores/useThemeQuickEditorStore';
 import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useSettingsUiStore } from './stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
-import { clampMediaVolume, isNearReportedMediaEnd } from './utils/appPlaybackHelpers';
+import { clampMediaVolume } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong, resolveNavidromePlaybackCarrier } from './utils/appPlaybackGuards';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 
@@ -72,6 +72,7 @@ const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
 const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
+const LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC = 3;
 // Default Theme
 // 午夜墨染
 const DEFAULT_THEME: Theme = {
@@ -258,7 +259,6 @@ export default function App() {
     const onlinePlaybackRecoveryRef = useRef<Promise<boolean> | null>(null);
     const lastAudioRecoverySourceRef = useRef<string | null>(null);
     const currentOnlineAudioUrlFetchedAtRef = useRef<number | null>(null);
-    const intentionalPauseRef = useRef(false);
     // Buffer progress debug helper. Uncomment this ref, the reset effect below,
     // and the audio `onProgress` handler to log buffered percent again.
     // const lastBufferedPercentLogRef = useRef<number | null>(null);
@@ -1138,35 +1138,6 @@ export default function App() {
         t: key => t(key),
     });
 
-    const markIntentionalPause = useCallback(() => {
-        intentionalPauseRef.current = true;
-    }, []);
-
-    const handleNaturalPlaybackEnd = useCallback(() => {
-        if (audioSrc && !audioSrc.startsWith('blob:') && currentSong && !isStagePlaybackSong(currentSong)) {
-            cacheSongAssets();
-        }
-
-        if (effectiveLoopMode === 'one') {
-            const audioElement = audioRef.current;
-            if (!audioElement) {
-                return;
-            }
-
-            audioElement.currentTime = 0;
-            currentTime.set(0);
-            const replayPromise = audioElement.play();
-            if (replayPromise !== undefined) {
-                replayPromise.catch(() => {
-                    setPlayerState(PlayerState.PAUSED);
-                });
-            }
-            return;
-        }
-
-        void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
-    }, [audioRef, audioSrc, cacheSongAssets, currentSong, currentTime, effectiveLoopMode, handleNextTrack]);
-
     const { resumePlayback, pausePlayback } = usePlaybackTransportController({
         activePlaybackContext,
         stageActiveEntryKind,
@@ -1186,8 +1157,6 @@ export default function App() {
         recoverOnlinePlaybackSource,
         getSyntheticStageLyricsTime,
         syncStageLyricsClock,
-        onNaturalPlaybackEnd: handleNaturalPlaybackEnd,
-        markIntentionalPause,
         t: key => t(key),
     });
     useNavidromeScrobbleReporter({
@@ -2655,21 +2624,6 @@ export default function App() {
                 }}
                 onPause={(e) => {
                     shouldAutoPlay.current = false;
-                    const wasIntentionalPause = intentionalPauseRef.current;
-                    intentionalPauseRef.current = false;
-
-                    if (
-                        !wasIntentionalPause
-                        && !e.currentTarget.ended
-                        && isLocalPlaybackSong(currentSong)
-                        && isNearReportedMediaEnd(e.currentTarget, duration)
-                    ) {
-                        currentTime.set(Math.max(e.currentTarget.currentTime, duration));
-                        setPlayerState(PlayerState.IDLE);
-                        handleNaturalPlaybackEnd();
-                        return;
-                    }
-
                     if (!e.currentTarget.ended) {
                         setPlayerState(PlayerState.PAUSED);
                     }
@@ -2711,7 +2665,16 @@ export default function App() {
                 //     }
                 // }}
                 onEnded={() => {
-                    handleNaturalPlaybackEnd();
+                    // Cache if playing fully
+                    if (audioSrc && !audioSrc.startsWith('blob:') && currentSong && !isStagePlaybackSong(currentSong)) {
+                        cacheSongAssets();
+                    }
+
+                    // If single loop is active, native loop handles it.
+                    // If not, we handle queue logic.
+                    if (effectiveLoopMode !== 'one') {
+                        void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    }
                 }}
                 onLoadedMetadata={(e) => {
                     const audioElement = e.currentTarget;
@@ -2733,6 +2696,38 @@ export default function App() {
                 }}
                 onError={(e) => {
                     if (!audioSrc) {
+                        return;
+                    }
+
+                    const audioElement = e.currentTarget;
+                    const reportedDuration = Number.isFinite(audioElement.duration) && audioElement.duration > 0
+                        ? audioElement.duration
+                        : duration;
+                    const isLocalTailDecodeError = Boolean(
+                        isLocalPlaybackSong(currentSong) &&
+                        Number.isFinite(reportedDuration) &&
+                        reportedDuration > 0 &&
+                        audioElement.currentTime > 0 &&
+                        reportedDuration - audioElement.currentTime <= LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC
+                    );
+
+                    if (isLocalTailDecodeError) {
+                        currentTime.set(Math.max(audioElement.currentTime, reportedDuration));
+                        setPlayerState(PlayerState.IDLE);
+
+                        if (effectiveLoopMode === 'one') {
+                            audioElement.currentTime = 0;
+                            audioElement.load();
+                            const replayPromise = audioElement.play();
+                            if (replayPromise !== undefined) {
+                                replayPromise.catch(() => {
+                                    setPlayerState(PlayerState.PAUSED);
+                                });
+                            }
+                            return;
+                        }
+
+                        void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
                         return;
                     }
 
