@@ -426,12 +426,15 @@ const RingLine: React.FC<RingLineProps> = ({
                 * (1 - Math.pow(1 - activeLineProgress, 1.35));
             let wordOffset = ownWordOffset;
             if (lineIndex < centerLineIndex) {
-                wordOffset = activeWordOffset;
+                // Past lines keep their own completed word offset instead of
+                // tracking the new active line, to avoid snapping back to 0.
             } else {
-                let backFollowFactor = lineIndex > centerLineIndex ? 1 : 0;
-                if (lineIndex === centerLineIndex && renderBaseIndex < centerLineIndex) {
-                    backFollowFactor = clamp(lineDiffFromCenter, 0, 1);
-                }
+                // Use lineDiffFromCenter as a continuous blend factor so the
+                // back-follow contribution fades out smoothly during the spring
+                // rotation, instead of jumping to 0 when renderBaseIndex updates.
+                const backFollowFactor = lineIndex > centerLineIndex
+                    ? 1
+                    : clamp(lineDiffFromCenter, 0, 1);
                 wordOffset += (
                     activeWordOffset * CLADDAGH_BACK_FOLLOW_RATIO
                     + backOrbitFollow
@@ -739,25 +742,26 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             lineOffset.set(curr * Math.PI);
             setRenderBaseIndex(curr);
         } else {
-            setRenderBaseIndex(Math.min(prev, curr));
+            // Update renderBaseIndex immediately so activeSpacingInfo tracks
+            // the new active line from the start. This prevents the wordOffset
+            // discontinuity that occurred when onComplete switched it later.
+            setRenderBaseIndex(curr);
             const controls = animate(lineOffset, curr * Math.PI, {
                 type: 'spring',
                 stiffness: 55,
                 damping: 14,
                 mass: 0.9,
-                onComplete: () => {
-                    setRenderBaseIndex(curr);
-                },
             });
             return () => controls.stop();
         }
     }, [centerLineIndex, lineOffset]);
 
-    // Keep only the active transition pair rendered so future lines do not sweep through the foreground.
+    // Keep the transition pair + one preceding line rendered so the outgoing
+    // line remains visible during the spring rotation.
     const lineIndicesToRender = useMemo(() => {
         const indices = [];
         if (lines.length === 0) return [];
-        for (let i = renderBaseIndex; i <= renderBaseIndex + 2; i++) {
+        for (let i = renderBaseIndex - 1; i <= renderBaseIndex + 2; i++) {
             if (i >= 0 && i < lines.length) {
                 indices.push(i);
             }
