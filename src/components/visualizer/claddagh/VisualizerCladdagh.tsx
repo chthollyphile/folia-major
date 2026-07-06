@@ -25,6 +25,8 @@ const isCJKChar = (char: string): boolean => {
 const CLADDAGH_MAX_ARC_SPAN = 4.25;
 const CLADDAGH_LETTER_SPACING_EM = 0.04;
 const CLADDAGH_BASE_TRACKING_EM = 0.18;
+const CLADDAGH_BACK_FOLLOW_RATIO = 0.28;
+const CLADDAGH_BACK_ORBIT_FOLLOW_RATIO = 0.52;
 const CLADDAGH_SPACING_CACHE_LIMIT = 240;
 const claddaghSpacingCache = new Map<string, number[]>();
 
@@ -159,6 +161,43 @@ const buildMeasuredSpacingInfo = <T extends { char: string; }>(
     });
 };
 
+const getLineWordOffset = (
+    spacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>,
+    latestTime: number
+) => {
+    if (spacingInfo.length === 0) return 0;
+    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime);
+    const lastIdx = spacingInfo.length - 1;
+    if (fractionalIndex <= lastIdx) {
+        const intPart = Math.floor(fractionalIndex);
+        const fracPart = fractionalIndex - intPart;
+        const angleA = spacingInfo[intPart]?.nominalAngle ?? 0;
+        const angleB = spacingInfo[Math.min(intPart + 1, lastIdx)]?.nominalAngle ?? 0;
+        return angleA + (angleB - angleA) * fracPart;
+    }
+
+    const lastAngle = spacingInfo[lastIdx]?.nominalAngle ?? 0;
+    const prevAngle = spacingInfo[Math.max(0, lastIdx - 1)]?.nominalAngle ?? 0;
+    const step = lastAngle - prevAngle;
+    const overshoot = fractionalIndex - lastIdx;
+    return lastAngle + step * overshoot;
+};
+
+const getLinePlaybackProgress = (
+    spacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>,
+    latestTime: number
+) => {
+    if (spacingInfo.length === 0) return 0;
+    if (spacingInfo.length === 1) {
+        const item = spacingInfo[0];
+        const duration = Math.max(0.001, item.endTime - item.startTime);
+        return clamp((latestTime - item.startTime) / duration, 0, 1);
+    }
+
+    const fractionalIndex = getFractionalActiveIndex(spacingInfo, latestTime);
+    return clamp(fractionalIndex / Math.max(1, spacingInfo.length - 1), 0, 1);
+};
+
 interface RingLineProps {
     line: Line;
     lineIndex: number;
@@ -173,6 +212,7 @@ interface RingLineProps {
     containerWidth: number;
     containerHeight: number;
     activeSpacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>;
+    renderBaseIndex: number;
 }
 
 /**
@@ -192,6 +232,7 @@ const RingLine: React.FC<RingLineProps> = ({
     containerWidth,
     containerHeight,
     activeSpacingInfo,
+    renderBaseIndex,
 }) => {
     const fontStack = resolveThemeFontStack(theme);
     const baseFontSize = 72 * lyricsFontScale;
@@ -242,25 +283,25 @@ const RingLine: React.FC<RingLineProps> = ({
             const currentRx = Rx * scaleFactor;
             const currentRy = Ry * scaleFactor;
 
-            // Shared active line wordOffset to synchronize all lines on the same track
-            let wordOffset = 0;
-            if (activeSpacingInfo && activeSpacingInfo.length > 0) {
-                const fractionalIndex = getFractionalActiveIndex(activeSpacingInfo, latestTime);
-                const lastIdx = activeSpacingInfo.length - 1;
-                if (fractionalIndex <= lastIdx) {
-                    const intPart = Math.floor(fractionalIndex);
-                    const fracPart = fractionalIndex - intPart;
-                    const angleA = activeSpacingInfo[intPart]?.nominalAngle ?? 0;
-                    const angleB = activeSpacingInfo[Math.min(intPart + 1, lastIdx)]?.nominalAngle ?? 0;
-                    wordOffset = angleA + (angleB - angleA) * fracPart;
-                } else {
-                    // Extrapolate past the last character smoothly to maintain continuous rotation speed
-                    const lastAngle = activeSpacingInfo[lastIdx]?.nominalAngle ?? 0;
-                    const prevAngle = activeSpacingInfo[Math.max(0, lastIdx - 1)]?.nominalAngle ?? 0;
-                    const step = lastAngle - prevAngle;
-                    const overshoot = fractionalIndex - lastIdx;
-                    wordOffset = lastAngle + step * overshoot;
+            const lineDiffFromCenter = Math.abs(curLineOffset - lineIndex * Math.PI) / Math.PI;
+            const activeWordOffset = getLineWordOffset(activeSpacingInfo, latestTime);
+            const ownWordOffset = getLineWordOffset(spacingInfo, latestTime);
+            const activeLineProgress = getLinePlaybackProgress(activeSpacingInfo, latestTime);
+            const backOrbitFollow = Math.PI
+                * CLADDAGH_BACK_ORBIT_FOLLOW_RATIO
+                * (1 - Math.pow(1 - activeLineProgress, 1.35));
+            let wordOffset = ownWordOffset;
+            if (lineIndex < centerLineIndex) {
+                wordOffset = activeWordOffset;
+            } else {
+                let backFollowFactor = lineIndex > centerLineIndex ? 1 : 0;
+                if (lineIndex === centerLineIndex && renderBaseIndex < centerLineIndex) {
+                    backFollowFactor = clamp(lineDiffFromCenter, 0, 1);
                 }
+                wordOffset += (
+                    activeWordOffset * CLADDAGH_BACK_FOLLOW_RATIO
+                    + backOrbitFollow
+                ) * backFollowFactor;
             }
 
             const R_ref = currentRx;
@@ -314,7 +355,7 @@ const RingLine: React.FC<RingLineProps> = ({
 
                 // Calculate the focus factor F:
                 // F ranges from 1 (active character on active line) to 0 (back side of the ring / far away)
-                const lineDiffNormalized = Math.abs(curLineOffset - lineIndex * Math.PI) / Math.PI;
+                const lineDiffNormalized = lineDiffFromCenter;
                 const activeLineFactor = Math.max(0, 1 - lineDiffNormalized);
 
                 const maxVisibleDist = currentRx * 0.48; // Focus width for active line
@@ -326,6 +367,10 @@ const RingLine: React.FC<RingLineProps> = ({
                 // Background characters (D=0, F=0) stay visible while still feeling distant.
                 const distanceOpacity = 0.22 + 0.78 * Math.pow(D, 1.9);
                 let finalOpacity = (0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F)) * distanceOpacity;
+
+                // Hide the next line while it is still equivalent to the outgoing line's foreground turn.
+                const lineWindowFade = clamp(2 - lineDiffNormalized, 0, 1);
+                finalOpacity = finalOpacity * lineWindowFade;
 
                 // Hide past lines completely when the transition is done to prevent overlapping in the background
                 if (lineIndex < centerLineIndex) {
@@ -375,7 +420,7 @@ const RingLine: React.FC<RingLineProps> = ({
             unsubscribeTime();
             unsubscribeOffset();
         };
-    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, highlightColor]);
+    }, [spacingInfo, lineIndex, centerLineIndex, lineOffset, Rx, Ry, audioPower, currentTime, containerWidth, containerHeight, activeSpacingInfo, renderBaseIndex, highlightColor]);
 
     return (
         <div className="absolute inset-0 pointer-events-none w-full h-full">
@@ -520,13 +565,14 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
             ? lines.indexOf(recentCompletedLine)
             : (upcomingLine ? lines.indexOf(upcomingLine) : 0));
     const centerLineIndex = Math.max(0, focusIndex);
+    const [renderBaseIndex, setRenderBaseIndex] = useState(centerLineIndex);
 
     const activeSpacingInfo = useMemo(() => {
-        const line = lines[centerLineIndex];
+        const line = lines[renderBaseIndex];
         if (!line) return [];
         const timeline = buildLineGraphemeTimeline(line);
         return buildMeasuredSpacingInfo(timeline, fontSpec, baseFontSize, Rx);
-    }, [lines, centerLineIndex, fontSpec, baseFontSize, Rx]);
+    }, [lines, renderBaseIndex, fontSpec, baseFontSize, Rx]);
 
     // Coordinate rotation offsets using MotionValue for line transition自转 animations
     const lineOffset = useMotionValue(centerLineIndex * Math.PI);
@@ -539,27 +585,36 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
 
         if (Math.abs(curr - prev) > 1) {
             lineOffset.set(curr * Math.PI);
+            setRenderBaseIndex(curr);
         } else {
-            animate(lineOffset, curr * Math.PI, {
+            setRenderBaseIndex(Math.min(prev, curr));
+            const controls = animate(lineOffset, curr * Math.PI, {
                 type: 'spring',
                 stiffness: 55,
                 damping: 14,
                 mass: 0.9,
+                onComplete: () => {
+                    setRenderBaseIndex(curr);
+                },
             });
+            return () => controls.stop();
         }
     }, [centerLineIndex, lineOffset]);
 
-    // Keep active, previous, and next lines rendered to allow smooth transitions
+    // Keep only the active transition pair rendered so future lines do not sweep through the foreground.
     const lineIndicesToRender = useMemo(() => {
         const indices = [];
         if (lines.length === 0) return [];
-        for (let i = centerLineIndex - 1; i <= centerLineIndex + 1; i++) {
+        for (let i = renderBaseIndex; i <= renderBaseIndex + 1; i++) {
             if (i >= 0 && i < lines.length) {
                 indices.push(i);
             }
         }
+        if (indices.length === 0) {
+            indices.push(Math.max(0, Math.min(centerLineIndex, lines.length - 1)));
+        }
         return indices;
-    }, [centerLineIndex, lines]);
+    }, [centerLineIndex, lines.length, renderBaseIndex]);
 
     return (
         <VisualizerShell
@@ -607,6 +662,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             containerWidth={dimensions.width}
                             containerHeight={dimensions.height}
                             activeSpacingInfo={activeSpacingInfo}
+                            renderBaseIndex={renderBaseIndex}
                         />
                     ))}
                 </div>
