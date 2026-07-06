@@ -22,6 +22,92 @@ const isCJKChar = (char: string): boolean => {
     return /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(char);
 };
 
+/**
+ * Calculates a relative visual length score of a sentence.
+ * CJK characters are counted as 1.0, while other half-width characters count as 0.5.
+ */
+const getVisualLength = (text: string): number => {
+    if (!text) return 0;
+    let score = 0;
+    for (let i = 0; i < text.length; i++) {
+        score += isCJKChar(text[i]) ? 1.0 : 0.5;
+    }
+    return score;
+};
+
+/**
+ * Adjusts character timeline specifically for Claddagh visualizer by smoothly
+ * distributing time durations over gap/space characters.
+ * If word spacing has zero or very small duration, it borrows time safely from neighboring characters.
+ */
+const adjustCladdaghTimeline = <T extends { startTime: number; endTime: number; }>(
+    timeline: T[],
+    line: Line
+): T[] => {
+    if (timeline.length === 0) return timeline;
+
+    const adjusted = timeline.map(item => ({ ...item }));
+    const n = adjusted.length;
+    let i = 0;
+
+    while (i < n) {
+        if (adjusted[i].startTime === adjusted[i].endTime) {
+            let j = i;
+            while (j < n && adjusted[j].startTime === adjusted[j].endTime) {
+                j++;
+            }
+            const gapCount = j - i;
+            let gapStart = i > 0 ? adjusted[i - 1].endTime : line.startTime;
+            let gapEnd = j < n ? adjusted[j].startTime : line.endTime;
+
+            const minNeeded = gapCount * 0.06; // 60ms per character
+            let duration = gapEnd - gapStart;
+
+            if (duration < minNeeded) {
+                const deficit = minNeeded - duration;
+                if (i > 0 && j < n) {
+                    const half = deficit / 2;
+                    const prevDuration = adjusted[i - 1].endTime - adjusted[i - 1].startTime;
+                    const prevSteal = Math.min(half, Math.max(0, prevDuration - 0.04));
+
+                    const nextDuration = adjusted[j].endTime - adjusted[j].startTime;
+                    const nextSteal = Math.min(deficit - prevSteal, Math.max(0, nextDuration - 0.04));
+
+                    gapStart -= prevSteal;
+                    gapEnd += nextSteal;
+
+                    adjusted[i - 1].endTime = gapStart;
+                    adjusted[j].startTime = gapEnd;
+                } else if (i > 0) {
+                    const prevDuration = adjusted[i - 1].endTime - adjusted[i - 1].startTime;
+                    const prevSteal = Math.min(deficit, Math.max(0, prevDuration - 0.04));
+                    gapStart -= prevSteal;
+                    adjusted[i - 1].endTime = gapStart;
+                } else if (j < n) {
+                    const nextDuration = adjusted[j].endTime - adjusted[j].startTime;
+                    const nextSteal = Math.min(deficit, Math.max(0, nextDuration - 0.04));
+                    gapEnd += nextSteal;
+                    adjusted[j].startTime = gapEnd;
+                }
+                duration = gapEnd - gapStart;
+            }
+
+            const gapUnit = duration > 0 ? duration / gapCount : 0;
+            for (let k = i; k < j; k++) {
+                const idxInGap = k - i;
+                adjusted[k].startTime = gapStart + gapUnit * idxInGap;
+                adjusted[k].endTime = gapStart + gapUnit * (idxInGap + 1);
+            }
+            i = j;
+        } else {
+            i++;
+        }
+    }
+
+    return adjusted;
+};
+
+
 const CLADDAGH_MAX_ARC_SPAN = 4.25;
 const CLADDAGH_LETTER_SPACING_EM = 0.04;
 const CLADDAGH_BASE_TRACKING_EM = 0.18;
@@ -213,6 +299,7 @@ interface RingLineProps {
     containerHeight: number;
     activeSpacingInfo: Array<{ nominalAngle: number; startTime: number; endTime: number; }>;
     renderBaseIndex: number;
+    lines: Line[];
 }
 
 /**
@@ -233,6 +320,7 @@ const RingLine: React.FC<RingLineProps> = ({
     containerHeight,
     activeSpacingInfo,
     renderBaseIndex,
+    lines,
 }) => {
     const fontStack = resolveThemeFontStack(theme);
     const baseFontSize = 72 * lyricsFontScale;
@@ -243,7 +331,7 @@ const RingLine: React.FC<RingLineProps> = ({
 
     // Calculate layout positioning and angles for each character/grapheme.
     const spacingInfo = useMemo(() => {
-        const timeline = buildLineGraphemeTimeline(line);
+        const timeline = adjustCladdaghTimeline(buildLineGraphemeTimeline(line), line);
         const wordColorRanges = buildWordColorRanges(line.fullText, theme.wordColors);
 
         let codeUnitCursor = 0;
@@ -284,6 +372,29 @@ const RingLine: React.FC<RingLineProps> = ({
             const currentRy = Ry * scaleFactor;
 
             const lineDiffFromCenter = Math.abs(curLineOffset - lineIndex * Math.PI) / Math.PI;
+
+            // Calculate overlap mitigation factors based on current and next line lengths
+            const currentLine = lines[centerLineIndex];
+            const currentLen = currentLine ? getVisualLength(currentLine.fullText) : 0;
+            const targetLine = lines[lineIndex];
+            const targetLen = targetLine ? getVisualLength(targetLine.fullText) : 0;
+
+            let lengthFadeFactor = 1.0;
+            let lengthScaleFactor = 1.0;
+
+            if (lineIndex > centerLineIndex && currentLen > 10) {
+                const fadeStrength = clamp((currentLen - 10) / 8, 0, 1);
+                const targetStrength = clamp((targetLen - 5) / 5, 0.4, 1);
+                const combinedStrength = fadeStrength * targetStrength;
+
+                const targetMinOpacity = 1.0 - combinedStrength;
+                const targetMinScale = 1.0 - combinedStrength * 0.25;
+
+                const transitionProgress = clamp((lineDiffFromCenter - 0.25) / 0.45, 0, 1);
+
+                lengthFadeFactor = 1.0 - (1.0 - targetMinOpacity) * transitionProgress;
+                lengthScaleFactor = 1.0 - (1.0 - targetMinScale) * transitionProgress;
+            }
             const activeWordOffset = getLineWordOffset(activeSpacingInfo, latestTime);
             const ownWordOffset = getLineWordOffset(spacingInfo, latestTime);
             const activeLineProgress = getLinePlaybackProgress(activeSpacingInfo, latestTime);
@@ -378,7 +489,21 @@ const RingLine: React.FC<RingLineProps> = ({
                     finalOpacity = finalOpacity * pastFade;
                 }
 
-                const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + 0.65 * F);
+                // Apply dynamic layout overlap mitigation factors based on sentence lengths
+                finalOpacity = finalOpacity * lengthFadeFactor;
+
+                // Boundary fade to keep non-focused lines strictly in the back half of the ellipse
+                let boundaryFade = 1.0;
+                if (lineDiffFromCenter > 0.02) {
+                    const progress = clamp((lineDiffFromCenter - 0.2) / 0.5, 0, 1);
+                    const cosThreshold = 1.0 - 1.2 * progress;
+                    if (localCos > cosThreshold) {
+                        boundaryFade = clamp(1.0 - (localCos - cosThreshold) / 0.15, 0, 1);
+                    }
+                }
+                finalOpacity = finalOpacity * boundaryFade;
+
+                const scale = (0.22 + 0.98 * Math.pow(D, 1.5)) * (1.0 + 0.65 * F) * lengthScaleFactor;
                 const blur = 8.0 * (1 - D) * (1 - 0.5 * F);
                 const tiltAngle = clamp(tangentAngle * (0.4 + 0.6 * D), -38, 38);
 
@@ -548,9 +673,9 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         return () => observer.disconnect();
     }, []);
 
-    // Radial configuration
-    const Rx = dimensions.width > 0 ? Math.min(dimensions.width * 0.38, 480) : 320;
-    const Ry = Rx > 0 ? Rx * 0.707 : 226; // 45-degree angle projection ratio
+    // Radial configuration (increased to prevent long sentence overlaps)
+    const Rx = dimensions.width > 0 ? Math.min(dimensions.width * 0.44, 560) : 360;
+    const Ry = Rx > 0 ? Rx * 0.707 : 254; // 45-degree angle projection ratio
 
     if (typeof window !== 'undefined') {
         (window as any).visualizerDimensions = dimensions;
@@ -570,7 +695,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
     const activeSpacingInfo = useMemo(() => {
         const line = lines[renderBaseIndex];
         if (!line) return [];
-        const timeline = buildLineGraphemeTimeline(line);
+        const timeline = adjustCladdaghTimeline(buildLineGraphemeTimeline(line), line);
         return buildMeasuredSpacingInfo(timeline, fontSpec, baseFontSize, Rx);
     }, [lines, renderBaseIndex, fontSpec, baseFontSize, Rx]);
 
@@ -663,6 +788,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             containerHeight={dimensions.height}
                             activeSpacingInfo={activeSpacingInfo}
                             renderBaseIndex={renderBaseIndex}
+                            lines={lines}
                         />
                     ))}
                 </div>
