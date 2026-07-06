@@ -1,6 +1,6 @@
 // Only for the you who has yet to exist in this world.
 // DO NOT REMOVE THE LINE ABOVE.
-import React, { useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
 import { useMotionValue, animate, MotionValue, useSpring } from 'framer-motion';
 import { DEFAULT_CLADDAGH_TUNING, type Line, type Theme } from '../../../types';
@@ -174,10 +174,7 @@ const getFractionalActiveIndex = (
     return timeline.length - 1;
 };
 
-const normalizeAudioPower = (power: number): number => {
-    if (!Number.isFinite(power)) return 0;
-    return Math.max(0, Math.min(1, power > 1 ? power / 255 : power));
-};
+
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
@@ -348,6 +345,15 @@ const RingLine: React.FC<RingLineProps> = ({
     const baseColor = useMemo(() => colorWithAlpha(theme.primaryColor, 0.55), [theme.primaryColor]);
     const highlightColor = theme.accentColor || theme.primaryColor;
 
+    const isRawScaleRef = useRef(false);
+    const normalizePower = useCallback((power: number) => {
+        if (!Number.isFinite(power)) return 0;
+        if (power > 1.0) {
+            isRawScaleRef.current = true;
+        }
+        return Math.max(0, Math.min(1, isRawScaleRef.current ? power / 255 : power));
+    }, []);
+
     // Calculate layout positioning and angles for each character/grapheme.
     const spacingInfo = useMemo(() => {
         const timeline = adjustCladdaghTimeline(buildLineGraphemeTimeline(line), line);
@@ -383,10 +389,21 @@ const RingLine: React.FC<RingLineProps> = ({
             if (mvsLength === 0) return;
 
             const curLineOffset = lineOffset.get();
-            const power = normalizeAudioPower(audioPower.get());
+            const power = normalizePower(audioPower.get());
+            const intensity = theme.animationIntensity || 'normal';
+            let intensityMultiplier = 0.5;
+            let maxScale = 1.5;
+
+            if (intensity === 'calm') {
+                intensityMultiplier = 0.15;
+                maxScale = 1.15;
+            } else if (intensity === 'chaotic') {
+                intensityMultiplier = 0.95;
+                maxScale = 1.95;
+            }
+
             // Scale radius, bounded to avoid excessive translation
-            const maxScale = 1.5;
-            const scaleFactor = Math.min(1 + power * 0.5, maxScale);
+            const scaleFactor = Math.min(1 + power * intensityMultiplier, maxScale);
             const currentRx = Rx * scaleFactor;
             const currentRy = Ry * scaleFactor;
 
@@ -471,7 +488,13 @@ const RingLine: React.FC<RingLineProps> = ({
                 // Ellipse positions centered at origin (0, 0)
                 // Active character (psi = 0) is at (0, R_minor) before rotation
                 const rawX = Math.sin(thetaCurve) * R_major * spacingFactor;
-                const rawY = localCos * R_minor;
+                
+                let rawY = localCos * R_minor;
+                if (line.isChorus) {
+                    // Alternating vertical stagger that pushes even/odd indices up/down, pulsing with beat power
+                    const staggerAmount = baseFontSize * (0.06 + power * 0.12);
+                    rawY += (i % 2 === 0 ? 1 : -1) * staggerAmount;
+                }
 
                 // Rotate the coordinate system by exactly -ellipseTiltDeg degrees
                 // so the major axis aligns exactly with the screen's anti-diagonal.
@@ -544,15 +567,27 @@ const RingLine: React.FC<RingLineProps> = ({
                 }
 
                 // All characters of the current active line have a glow that decreases from the center (focus point)
-                const glowRadius = 24 * Math.pow(F, 2.0);
+                // Enhance base glow radius and scale with power on beats for chorus lines
+                const glowRadius = line.isChorus
+                    ? (36 + power * 24) * Math.pow(F, 1.5)
+                    : 24 * Math.pow(F, 2.0);
 
-                if (activeColorState === 'active' || activeColorState === 'passed') {
-                    const activeColor = item.charColor || highlightColor;
-                    el.style.color = activeColor;
-                    el.style.textShadow = glowRadius > 0.5 ? `0 0 ${glowRadius.toFixed(1)}px ${activeColor}` : 'none';
+                const targetColor = activeColorState === 'active' || activeColorState === 'passed'
+                    ? (item.charColor || highlightColor)
+                    : baseColor;
+
+                el.style.color = targetColor;
+
+                if (glowRadius > 0.5) {
+                    if (line.isChorus) {
+                        // Blend targetColor with the theme's primary text color to create a bright inner core matching the theme tone
+                        const innerGlowColor = mixColors(targetColor, theme.primaryColor || '#ffffff', 0.65);
+                        el.style.textShadow = `0 0 ${(glowRadius * 0.35).toFixed(1)}px ${innerGlowColor}, 0 0 ${glowRadius.toFixed(1)}px ${targetColor}, 0 0 ${(glowRadius * 1.6).toFixed(1)}px ${targetColor}`;
+                    } else {
+                        el.style.textShadow = `0 0 ${glowRadius.toFixed(1)}px ${targetColor}`;
+                    }
                 } else {
-                    el.style.color = baseColor;
-                    el.style.textShadow = glowRadius > 0.5 ? `0 0 ${glowRadius.toFixed(1)}px ${baseColor}` : 'none';
+                    el.style.textShadow = 'none';
                 }
             }
         };
@@ -614,7 +649,20 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         audioPower,
         audioBands,
         claddaghTuning = DEFAULT_CLADDAGH_TUNING,
+        paused = false,
     } = props;
+
+    const centerNormalTiltDeg = 90 - claddaghTuning.ellipseTiltDeg;
+
+    const isRawScaleRef = useRef(false);
+    const glowIntensityRef = useRef(0);
+    const normalizePower = useCallback((power: number) => {
+        if (!Number.isFinite(power)) return 0;
+        if (power > 1.0) {
+            isRawScaleRef.current = true;
+        }
+        return Math.max(0, Math.min(1, isRawScaleRef.current ? power / 255 : power));
+    }, []);
 
     const { activeLine, upcomingLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
         currentTime,
@@ -622,7 +670,13 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         lines,
     });
 
-    const smoothedPower = useSpring(audioPower, {
+    const isChorus = activeLine?.isChorus ?? false;
+
+    const smoothedBass = useSpring(audioBands.bass, {
+        stiffness: 150,
+        damping: 25,
+    });
+    const smoothedVocal = useSpring(audioBands.vocal, {
         stiffness: 120,
         damping: 24,
     });
@@ -634,7 +688,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
     const axisLineRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-    // Smoothly animate axis line color in response to audio power
+    // Smoothly animate axis line color and scale in response to audio power
     useEffect(() => {
         const lineEl = axisLineRef.current;
         if (!lineEl) return;
@@ -642,7 +696,8 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         let frameId = 0;
 
         const updateColors = () => {
-            const latestPower = normalizeAudioPower(smoothedPower.get());
+            const bassPower = paused ? 0 : normalizePower(smoothedBass.get());
+            const vocalPower = paused ? 0 : normalizePower(smoothedVocal.get());
             const fromColor = theme.primaryColor || '#ffffff';
             let toColor = theme.accentColor || '#ffffff';
             // If primary and accent are the same, try secondary
@@ -654,18 +709,46 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                 toColor = '#ffffff';
             }
 
-            // Subtract noise floor after normalizing real playback values from 0..255.
-            const powerDelta = Math.max(0, latestPower - 0.04);
-            const ratio = Math.min(1.0, powerDelta / 0.62);
+            // Color response (using maximum of bass and vocal energy for high responsiveness)
+            const colorPower = Math.max(bassPower, vocalPower);
+            const colorDelta = Math.max(0, colorPower - 0.02);
+            const colorRatio = Math.min(1.0, colorDelta / 0.58);
 
-            // Mix between fromColor and toColor, pulsing alpha from 0.2 to 0.95
-            const mixed = mixColors(fromColor, toColor, ratio, 0.2 + 0.75 * ratio);
+            // Mix between fromColor and toColor, pulsing alpha from 0.2 to 0.95 (vivid color beat)
+            const mixed = mixColors(fromColor, toColor, colorRatio, 0.2 + 0.75 * colorRatio);
 
             // Linear-gradient fades out the line at its top-left and bottom-right endpoints (20% and 80%)
             // so that the endpoints of the short segment are smoothly blurred/faded.
             const gradientString = `linear-gradient(90deg, transparent, ${mixed} 20%, ${mixed} 80%, transparent)`;
             lineEl.style.background = gradientString;
             lineEl.style.backgroundImage = gradientString;
+
+            // Square the bass power value to expand the dynamic range and prevent easy saturation for length scaling
+            const bassSqr = bassPower * bassPower;
+
+            // Apply dynamic length scaling using scaleX and subtle thickness scaling using scaleY
+            const scaleX = 1.0 + bassSqr * 1.5;
+            const scaleY = 1.0 + bassSqr * 0.5;
+            lineEl.style.transform = `translate(-50%, -50%) rotate(${centerNormalTiltDeg}deg) scale(${scaleX}, ${scaleY})`;
+
+            // Smoothly transition glow intensity (transition duration ~330ms at 60fps)
+            const targetIntensity = isChorus ? 1.0 : 0.0;
+            const diff = targetIntensity - glowIntensityRef.current;
+            if (Math.abs(diff) > 0.01) {
+                glowIntensityRef.current += Math.sign(diff) * 0.05;
+                glowIntensityRef.current = Math.max(0, Math.min(1, glowIntensityRef.current));
+            } else {
+                glowIntensityRef.current = targetIntensity;
+            }
+
+            const glowIntensity = glowIntensityRef.current;
+            if (glowIntensity > 0.001) {
+                const glowSize = (4 + bassPower * 12) * glowIntensity;
+                const glowColor = colorWithAlpha(mixed, glowIntensity);
+                lineEl.style.filter = `drop-shadow(0 0 ${glowSize.toFixed(1)}px ${glowColor})`;
+            } else {
+                lineEl.style.filter = 'none';
+            }
 
             frameId = requestAnimationFrame(updateColors);
         };
@@ -675,7 +758,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         return () => {
             cancelAnimationFrame(frameId);
         };
-    }, [smoothedPower, theme.primaryColor, theme.accentColor, theme.secondaryColor]);
+    }, [smoothedBass, smoothedVocal, theme.primaryColor, theme.accentColor, theme.secondaryColor, centerNormalTiltDeg, paused, isChorus]);
 
     // Initialize dimensions on mount to avoid zero size on first render
     useEffect(() => {
@@ -703,7 +786,6 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
     // Radial configuration (increased to prevent long sentence overlaps)
     const Rx = (dimensions.width > 0 ? Math.min(dimensions.width * 0.44, 560) : 360) * claddaghTuning.radiusScale;
     const Ry = Rx > 0 ? Rx * 0.707 : 254; // 45-degree angle projection ratio
-    const centerNormalTiltDeg = 90 - claddaghTuning.ellipseTiltDeg;
     const focusSpacingScale = (1 + claddaghTuning.focusScaleRatio) / (1 + DEFAULT_CLADDAGH_TUNING.focusScaleRatio);
     const activeTextSpacingScale = focusSpacingScale;
 
@@ -794,9 +876,9 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             top: '50%',
                             width: '300px',
                             height: '4px',
-                            transform: `translate(-50%, -50%) rotate(${centerNormalTiltDeg}deg)`,
+                            transform: `translate(-50%, -50%) rotate(${centerNormalTiltDeg}deg) scale(1, 1)`,
                             transformOrigin: 'center center',
-                            willChange: 'background',
+                            willChange: 'background, transform, filter',
                         }}
                     />
                 </div>
@@ -814,7 +896,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             lyricsFontScale={lyricsFontScale}
                             Rx={Rx}
                             Ry={Ry}
-                            audioPower={smoothedPower}
+                            audioPower={smoothedBass}
                             containerWidth={dimensions.width}
                             containerHeight={dimensions.height}
                             activeSpacingInfo={activeSpacingInfo}
