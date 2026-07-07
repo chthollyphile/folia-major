@@ -186,6 +186,7 @@ const ObsBrowserSourceApp: React.FC = () => {
                 currentLineIndex={currentLineIndex}
                 lines={config.lyrics?.lines ?? []}
                 theme={config.theme}
+                subtitleTheme={config.subtitleTheme}
                 isDaylight={config.isDaylight}
                 audioPower={audioPower}
                 audioBands={audioBands}

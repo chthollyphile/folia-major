@@ -52,6 +52,7 @@ type UseObsBrowserSourcePublisherOptions = {
     duration: number;
     playerState: PlayerState;
     theme: Theme;
+    subtitleTheme?: Theme;
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
@@ -114,6 +115,7 @@ export const useObsBrowserSourcePublisher = ({
     duration,
     playerState,
     theme,
+    subtitleTheme,
     isDaylight,
     visualizerMode,
     visualizerBackgroundMode,
@@ -208,6 +210,7 @@ export const useObsBrowserSourcePublisher = ({
         coverUrl: obsCoverUrl,
         lyrics,
         theme,
+        subtitleTheme,
         isDaylight,
         visualizerMode,
         visualizerBackgroundMode,
@@ -268,6 +271,7 @@ export const useObsBrowserSourcePublisher = ({
         staticMode,
         subtitleOverlayOpacity,
         theme,
+        subtitleTheme,
         tiltTuning,
         transparentBackground,
         urlBackgroundList,

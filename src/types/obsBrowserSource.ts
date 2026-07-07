@@ -43,6 +43,7 @@ export interface ObsBrowserSourceConfig {
     coverUrl: string | null;
     lyrics: LyricData | null;
     theme: Theme;
+    subtitleTheme?: Theme;
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     visualizerBackgroundMode: VisualizerBackgroundMode | null;

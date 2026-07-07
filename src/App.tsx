@@ -1580,6 +1580,7 @@ export default function App() {
         duration,
         playerState,
         theme: visualizerTheme,
+        subtitleTheme: visualizerSubtitleTheme,
         isDaylight,
         visualizerMode,
         visualizerBackgroundMode,
