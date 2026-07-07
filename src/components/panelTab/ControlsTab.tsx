@@ -6,6 +6,7 @@ import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
+import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 
 // Controls tab keeps the visualizer picker local so it can expand into a full-tab overlay
 // without changing the rest of the player state flow.
@@ -39,6 +40,7 @@ interface ControlsTabProps {
     onVolumeChange: (val: number) => void;
     onToggleMute: () => void;
     loopToggleDisabled?: boolean;
+    onClosePanel?: () => void;
 }
 
 const ControlsTab: React.FC<ControlsTabProps> = ({
@@ -70,9 +72,11 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     onVolumeChange,
     onToggleMute,
     loopToggleDisabled = false,
+    onClosePanel,
 }) => {
     const { t } = useTranslation();
     const openThemeQuickEditor = useThemeQuickEditorStore(state => state.openEditor);
+    const openSettings = useSettingsUiStore(state => state.openSettings);
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
     const [isVisualizerOverlayOpen, setIsVisualizerOverlayOpen] = useState(false);
     const isDraggingRef = useRef(false);
@@ -260,9 +264,17 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
-                            {t('ui.animationMode') || '动画模式'}
-                        </label>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                openSettings('options', 'visualizer');
+                                onClosePanel?.();
+                            }}
+                            className="text-[10px] font-bold opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest text-left"
+                            title={t('ui.openVisualizerSettings') || 'Open Visualizer Settings'}
+                        >
+                            {t('ui.animationMode') || '歌词样式'}
+                        </button>
                         <div className="flex items-center gap-2">
                             <button
                                 ref={visualizerTriggerRef}

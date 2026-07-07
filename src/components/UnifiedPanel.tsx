@@ -800,6 +800,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onVolumeChange={onVolumeChange}
                                             onToggleMute={onToggleMute}
                                             loopToggleDisabled={playbackControlsDisabled}
+                                            onClosePanel={onToggle}
                                         />
                                     )}
                                     {currentTab === 'queue' && (

@@ -31,7 +31,7 @@ import type {
     ObsBrowserSourceConfig,
     ObsBrowserSourceStatus,
 } from '../types/obsBrowserSource';
-import { downsampleObsSpectrum, resolveObsBrowserSourceClockTime } from '../utils/obsBrowserSource';
+import { downsampleObsSpectrum, isObsBrowserSourceBlobCoverUrl, resolveObsBrowserSourceClockTime, resolveObsBrowserSourceCoverUrl } from '../utils/obsBrowserSource';
 
 // src/hooks/useObsBrowserSourcePublisher.ts
 // Publishes the single playback surface to the local OBS browser source.
@@ -148,6 +148,7 @@ export const useObsBrowserSourcePublisher = ({
     urlBackgroundSelectedId,
 }: UseObsBrowserSourcePublisherOptions) => {
     const [status, setStatus] = useState<ObsBrowserSourceStatus>(() => emptyObsStatus());
+    const [obsCoverUrl, setObsCoverUrl] = useState<string | null>(coverUrl);
     const isExternallyRendering = status.enabled && status.clientCount > 0;
     const lastPublishedClockRef = useRef<ObsBrowserSourceClock | null>(null);
     const lastClockPublishMsRef = useRef(0);
@@ -170,6 +171,33 @@ export const useObsBrowserSourcePublisher = ({
         });
     }, [refreshStatus]);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!isObsBrowserSourceBlobCoverUrl(coverUrl)) {
+            setObsCoverUrl(coverUrl);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        setObsCoverUrl(null);
+        void resolveObsBrowserSourceCoverUrl(coverUrl).then(nextCoverUrl => {
+            if (!cancelled) {
+                setObsCoverUrl(nextCoverUrl);
+            }
+        }).catch(error => {
+            console.warn('[OBS] Failed to resolve blob cover for browser source', error);
+            if (!cancelled) {
+                setObsCoverUrl(null);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [coverUrl]);
+
     const config = useMemo<ObsBrowserSourceConfig>(() => ({
         activePlaybackContext,
         stageSource,
@@ -177,7 +205,7 @@ export const useObsBrowserSourcePublisher = ({
         song: currentSong ? { id: currentSong.id, name: currentSong.name } : null,
         songArtist: getSongArtist(currentSong),
         songAlbum: getSongAlbum(currentSong),
-        coverUrl,
+        coverUrl: obsCoverUrl,
         lyrics,
         theme,
         isDaylight,
@@ -220,7 +248,6 @@ export const useObsBrowserSourcePublisher = ({
         cadenzaTuning,
         claddaghTuning,
         classicTuning,
-        coverUrl,
         currentSong,
         disableGeometricBackground,
         disableVignette,
@@ -234,6 +261,7 @@ export const useObsBrowserSourcePublisher = ({
         monetBackgroundTuning,
         monetPortraitImage,
         monetTuning,
+        obsCoverUrl,
         partitaTuning,
         seed,
         stageSource,

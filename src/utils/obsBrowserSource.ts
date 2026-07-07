@@ -50,3 +50,44 @@ export const downsampleObsSpectrum = (
     }
     return result;
 };
+
+export const isObsBrowserSourceBlobCoverUrl = (coverUrl: string | null | undefined): coverUrl is string => (
+    typeof coverUrl === 'string' && coverUrl.startsWith('blob:')
+);
+
+const encodeBase64 = (bytes: Uint8Array): string => {
+    if (typeof btoa === 'function') {
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let index = 0; index < bytes.length; index += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+        }
+        return btoa(binary);
+    }
+
+    if (typeof Buffer !== 'undefined') {
+        return Buffer.from(bytes).toString('base64');
+    }
+
+    throw new Error('No base64 encoder is available in this environment.');
+};
+
+const blobToDataUrl = async (blob: Blob): Promise<string> => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const mimeType = blob.type || 'application/octet-stream';
+    return `data:${mimeType};base64,${encodeBase64(bytes)}`;
+};
+
+// OBS runs in a separate browser context, so blob URLs from the main window are not readable there.
+export const resolveObsBrowserSourceCoverUrl = async (
+    coverUrl: string | null,
+    fetchCover: typeof fetch = fetch,
+): Promise<string | null> => {
+    if (!isObsBrowserSourceBlobCoverUrl(coverUrl)) {
+        return coverUrl;
+    }
+
+    const response = await fetchCover(coverUrl);
+    const blob = await response.blob();
+    return blobToDataUrl(blob);
+};
