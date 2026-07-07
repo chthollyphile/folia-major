@@ -600,7 +600,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const handleClearAllCache = async () => {
-        if (confirm(t('options.confirmClearAll') || '确定要清空所有缓存数据吗？此操作不可恢复。')) {
+        if (confirm(t('options.confirmClearAll'))) {
             setIsCleaning('all');
             await clearAllData();
             window.location.reload();
@@ -644,13 +644,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const nowPlayingStatusLabel = (() => {
         switch (nowPlayingConnectionStatus) {
             case 'connected':
-                return '已连接';
+                return t('status.connected');
             case 'connecting':
-                return '连接中';
+                return t('status.connecting');
             case 'error':
-                return '未连接';
+                return t('status.disconnected');
             default:
-                return '未启用';
+                return t('options.updateCheckDisabled');
         }
     })();
     const stageEnabled = Boolean(stageStatus?.modeEnabled);
@@ -667,14 +667,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         ...(stageConnected
             ? [{
                 key: 'stage',
-                label: 'Stage 已连接',
+                label: t('options.stageConnected'),
                 tone: 'success' as const,
             }]
             : []),
         ...(nowPlayingEnabled
             ? [{
                 key: 'now-playing',
-                label: nowPlayingConnected ? 'Now Playing 已连接' : 'Now Playing 未连接',
+                label: nowPlayingConnected ? t('options.nowPlayingConnectedStatus') : t('options.nowPlayingDisconnectedStatus'),
                 tone: nowPlayingConnected ? 'success' as const : 'error' as const,
             }]
             : []),
@@ -965,7 +965,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             exit={{ opacity: 0 }}
             transition={shellTransition}
             data-folia-keyboard-window="true"
-            className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+            className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8 sm:px-5 sm:py-12"
             style={{ backgroundColor: overlayBackground }}
             onClick={(event) => handleBackdropClose(event, onClose)}
         >
@@ -1131,11 +1131,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                             onClick={handleCopyVersionInfo}
                                             className="opacity-45 hover:opacity-100 transition-opacity cursor-copy hover:underline"
                                             style={{ color: 'var(--text-secondary)' }}
-                                            title={versionCopied ? '已复制' : '点击复制版本信息'}
-                                            aria-label={versionCopied ? '已复制版本信息' : '点击复制版本信息'}
+                                            title={versionCopied ? t('status.copied') : t('options.versionCopiedHint')}
+                                            aria-label={versionCopied ? t('options.versionCopiedHint') : t('options.versionCopiedHint')}
                                         >
                                             {versionCopied
-                                                ? '已复制'
+                                                ? t('status.copied')
                                                 : `${__APP_VERSION_LABEL__} v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`}
                                         </button>
 
@@ -1143,21 +1143,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {updateStatus?.availableVersion && (
                                             <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 mt-0.5">
                                                 <span className="text-amber-500 font-semibold">
-                                                    发现新版本 v{updateStatus.availableVersion}
+                                                    {t('options.newVersionFound', { version: updateStatus.availableVersion })}
                                                 </span>
 
-                                                {/* 主操作：立即下载 / 重启安装 */}
                                                 {updateStatus.status === 'downloaded' ? (
                                                     <button
                                                         type="button"
                                                         onClick={handleInstallUpdate}
                                                         className="text-green-400 font-bold hover:underline ml-1"
                                                     >
-                                                        重启安装
+                                                        {t('options.restartToInstallUpdate')}
                                                     </button>
                                                 ) : updateStatus.status === 'downloading' ? (
                                                     <span className="text-zinc-300 opacity-80 ml-1">
-                                                        正在下载({Math.round(updateStatus.downloadProgress?.percent || 0)}%)
+                                                        {t('options.downloadingProgress', { percent: Math.round(updateStatus.downloadProgress?.percent || 0) })}
                                                     </span>
                                                 ) : (
                                                     !electronSettings.ENABLE_AUTO_UPDATE && (
@@ -1176,26 +1175,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                                                 <span className="opacity-25 select-none" style={{ color: 'var(--text-secondary)' }}>|</span>
 
-                                                {/* 网盘下载 */}
                                                 <button
                                                     type="button"
                                                     onClick={handleOpenChinaDownload}
                                                     className="opacity-55 hover:opacity-100 transition-opacity hover:underline"
                                                     style={{ color: 'var(--text-secondary)' }}
                                                 >
-                                                    网盘下载
+                                                    {t('options.downloadChina')}
                                                 </button>
 
                                                 <span className="opacity-25 select-none" style={{ color: 'var(--text-secondary)' }}>|</span>
 
-                                                {/* 前往Github下载页 */}
                                                 <button
                                                     type="button"
                                                     onClick={() => window.electron?.openUpdateReleasePage(updateStatus.availableVersion)}
                                                     className="opacity-55 hover:opacity-100 transition-opacity hover:underline"
                                                     style={{ color: 'var(--text-secondary)' }}
                                                 >
-                                                    前往Github下载页
+                                                    {t('options.goToGithubRelease')}
                                                 </button>
                                             </div>
                                         )}
@@ -1203,7 +1200,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {/* 第三行：国内网络提醒小字 */}
                                         {updateStatus?.availableVersion && (
                                             <div className="text-xs opacity-45 mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                                提示：下载需直连 GitHub (可能较慢)，国内环境推荐使用【网盘下载】。
+                                                {t('options.chinaDownloadHint')}
                                             </div>
                                         )}
                                     </div>

@@ -524,7 +524,7 @@ export default function App() {
                 if (reportError) {
                     setStatusMsg({
                         type: 'error',
-                        text: '切换播放设备失败',
+                        text: t('options.audioOutputSelectFailed'),
                     });
                 }
                 return false;
@@ -1882,7 +1882,7 @@ export default function App() {
                 source: 'netease',
                 id: albumId,
                 type: 'album',
-                name: '专辑',
+                name: t('home.albums'),
             });
             navigateDirectHome({ clearContext: false });
         } else {
@@ -1896,7 +1896,7 @@ export default function App() {
                 source: 'netease',
                 id: artistId,
                 type: 'artist',
-                name: '歌手',
+                name: t('navidrome.artists'),
             });
             navigateDirectHome({ clearContext: false });
         } else {
@@ -1910,7 +1910,7 @@ export default function App() {
                 source: 'netease',
                 id: albumId,
                 type: 'album',
-                name: '专辑',
+                name: t('home.albums'),
                 returnToPlayerOnClose: true,
             });
             navigateDirectHome({ clearContext: false });
@@ -1925,7 +1925,7 @@ export default function App() {
                 source: 'netease',
                 id: artistId,
                 type: 'artist',
-                name: '歌手',
+                name: t('navidrome.artists'),
                 returnToPlayerOnClose: true,
             });
             navigateDirectHome({ clearContext: false });
@@ -2242,7 +2242,7 @@ export default function App() {
                                 name: artistName,
                                 type: 'artist',
                                 coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl || undefined,
-                                description: `${songs.length} 首歌曲`,
+                                description: `${songs.length} ${t('home.songs')}`,
                                 trackCount: songs.length,
                                 songIds: songs.map(song => song.id),
                                 returnToPlayerOnClose: true,
@@ -2261,7 +2261,7 @@ export default function App() {
                 const playbackCarrier = currentNavidromeSong?.navidromeData;
                 const albumId = currentNavidromeSong?.albumId || playbackCarrier?.albumId;
                 if (albumId) {
-                    const albumName = currentSong?.al?.name || currentSong?.album?.name || '专辑';
+                    const albumName = currentSong?.al?.name || currentSong?.album?.name || t('localMusic.unknownAlbum');
                     setActiveGridViewCollection({
                         source: 'navidrome',
                         id: albumId,
@@ -2282,7 +2282,7 @@ export default function App() {
                 const playbackCarrier = currentNavidromeSong?.navidromeData;
                 const artistId = currentNavidromeSong?.artistId || playbackCarrier?.artistId;
                 if (artistId) {
-                    const artistName = currentSong?.ar?.[0]?.name || currentSong?.artists?.[0]?.name || '歌手';
+                    const artistName = currentSong?.ar?.[0]?.name || currentSong?.artists?.[0]?.name || t('localMusic.unknownArtist');
                     setActiveGridViewCollection({
                         source: 'navidrome',
                         id: artistId,
@@ -2886,15 +2886,15 @@ export default function App() {
                         </div>
                         <div className="mt-3 text-2xl font-semibold">
                             {stageSource === 'now-playing'
-                                ? '等待本地 Now Playing 服务输入'
-                                : (t('options.stageSessionEmpty') || '等待外部输入')}
+                                ? t('options.stageSessionEmpty')
+                                : t('options.stageSessionEmpty')}
                         </div>
                         <div className="mt-2 text-sm opacity-70">
                             {stageSource === 'now-playing'
                                 ? (nowPlayingConnectionStatus === 'error'
-                                    ? '未能连接到 ws://localhost:9863/api/ws/lyric，请确认 now-playing 服务已在本机运行'
-                                    : '请在本机启动 now-playing 服务，并确保播放器正在播放')
-                                : (t('options.enableStageModeDesc') || '本地 Stage API 已开启')}
+                                    ? t('options.stageConnectionError')
+                                    : t('options.stageNotRunning'))
+                                : t('options.enableStageModeDesc')}
                         </div>
                     </div>
                 </div>

@@ -132,7 +132,7 @@ const UrlBackgroundSettingsCard: React.FC<UrlBackgroundSettingsCardProps> = ({
                                         type="text"
                                         value={draftNote}
                                         onChange={e => setDraftNote(e.target.value)}
-                                        placeholder={t('options.urlBackgroundNotePlaceholder') || '备注'}
+                                        placeholder={t('options.urlBackgroundNotePlaceholder')}
                                         className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                                         style={{
                                             backgroundColor: inputBg,
@@ -219,7 +219,7 @@ const UrlBackgroundSettingsCard: React.FC<UrlBackgroundSettingsCardProps> = ({
                         type="text"
                         value={draftNote}
                         onChange={e => setDraftNote(e.target.value)}
-                        placeholder={t('options.urlBackgroundNotePlaceholder') || '备注'}
+                        placeholder={t('options.urlBackgroundNotePlaceholder')}
                         className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                         style={{
                             backgroundColor: inputBg,

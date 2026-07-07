@@ -1,3 +1,4 @@
+import i18n from '../../../i18n/config';
 import { clearCacheByCategory } from '../../../services/db';
 import { invalidatePrefetchedLyrics } from '../../../services/prefetchService';
 import type { LyricData, StatusMessage } from '../../../types';
@@ -28,6 +29,6 @@ export const createLyricFilterPatternSaver = ({
         const previewLyrics = await loadCurrentSongLyricPreview();
         setLyrics(previewLyrics);
         setCurrentLineIndex(-1);
-        setStatusMsg({ type: 'success', text: '歌词过滤规则已更新' });
+        setStatusMsg({ type: 'success', text: i18n.t('options.lyricFilterUpdated') });
     };
 };

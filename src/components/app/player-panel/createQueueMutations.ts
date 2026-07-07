@@ -46,7 +46,7 @@ export const createQueueMutations = ({
         if (changed && affectedSongs.length > 0) {
             setStatusMsg({
                 type: 'success',
-                text: queueAddBehavior === 'next' ? '已插入到下一首' : (t('status.queueUpdated') || '已添加到播放队列'),
+                text: queueAddBehavior === 'next' ? t('status.insertedToNext') : t('status.queueUpdated'),
                 nonce: Date.now(),
                 durationMs: 1200,
             });

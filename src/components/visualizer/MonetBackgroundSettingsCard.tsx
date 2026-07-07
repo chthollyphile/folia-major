@@ -184,20 +184,20 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
     };
 
     const sourceOptions = useMemo<PresetOption<MonetBackgroundSource>[]>(() => ([
-        { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') || '封面' },
+        { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') },
         {
             value: 'uploaded-global',
-            label: t('options.monetBackgroundSourceUploaded') || '自定义图片',
+            label: t('options.monetBackgroundSourceUploaded'),
             disabled: !monetBackgroundImage && !isLoadingMonetBackgroundImage,
         },
     ]), [isLoadingMonetBackgroundImage, monetBackgroundImage, t]);
     const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
-        { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') || '半屏渐变' },
-        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') || '全屏叠色' },
+        { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') },
+        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') },
     ]), [t]);
     const washModeOptions = useMemo<PresetOption<MonetBackgroundWashColorMode>[]>(() => ([
-        { value: 'theme', label: t('options.monetBackgroundWashTheme') || '主题色' },
-        { value: 'custom', label: t('options.monetBackgroundWashCustom') || '自定义' },
+        { value: 'theme', label: t('options.monetBackgroundWashTheme') },
+        { value: 'custom', label: t('options.monetBackgroundWashCustom') },
     ]), [t]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,7 +213,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
             onTuningChange?.({ backgroundSource: 'uploaded-global' });
             setFeedback(files[0].name);
         } else {
-            setFeedback(result.error || (t('options.monetUploadBackground') || '上传失败'));
+            setFeedback(result.error || t('options.monetUploadBackground'));
         }
     };
 
@@ -221,7 +221,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
         <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
-                    {t('options.monetBackgroundSettings') || '莫奈背景'}
+                    {t('options.monetBackgroundSettings')}
                 </div>
                 <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
                     {t('options.monetBackgroundSettingsDesc') || '调整莫奈背景图片来源、布局和后处理。'}
@@ -231,10 +231,10 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
             {/* Section 1: Background Source */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupBackgroundSource') || '背景来源'}
+                    {t('options.monetGroupBackgroundSource')}
                 </div>
                 <PresetGroup
-                    label={t('options.monetBackgroundSource') || '背景来源'}
+                    label={t('options.monetBackgroundSource')}
                     value={resolvedTuning.backgroundSource}
                     options={sourceOptions}
                     onChange={(value) => onTuningChange?.({ backgroundSource: value })}
@@ -243,7 +243,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                 />
 
                 <div className="space-y-2.5">
-                    <SectionLabel theme={theme}>{t('options.monetUploadBackground') || '上传背景图'}</SectionLabel>
+                    <SectionLabel theme={theme}>{t('options.monetUploadBackground')}</SectionLabel>
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
@@ -257,7 +257,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                             }}
                         >
                             <ImagePlus size={15} />
-                            <span>{t('options.monetUploadBackground') || '上传背景图'}</span>
+                            <span>{t('options.monetUploadBackground')}</span>
                         </button>
                         <button
                             type="button"
@@ -271,7 +271,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                             }}
                         >
                             <Trash2 size={15} />
-                            <span>{t('options.monetClearBackground') || '清空背景图'}</span>
+                            <span>{t('options.monetClearBackground')}</span>
                         </button>
                     </div>
                     <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
@@ -290,10 +290,10 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
             {/* Section 2: Layout & Position */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupLayoutPosition') || '布局与对齐'}
+                    {t('options.monetGroupLayoutPosition')}
                 </div>
                 <PresetGroup
-                    label={t('options.monetBackgroundLayout') || '布局模式'}
+                    label={t('options.monetBackgroundLayout')}
                     value={resolvedTuning.backgroundLayout}
                     options={layoutOptions}
                     onChange={(value) => onTuningChange?.({ backgroundLayout: value })}
@@ -303,7 +303,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
 
                 {resolvedTuning.backgroundLayout === 'half-pane-gradient' && (
                     <SliderControl
-                        label={t('options.monetHalfPaneOffsetX') || '图片水平偏移'}
+                        label={t('options.monetHalfPaneOffsetX')}
                         valueLabel={`${Math.round(resolvedTuning.backgroundHalfPaneOffsetX)}%`}
                         min={-40}
                         max={40}
@@ -320,10 +320,10 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
             {/* Section 3: Filters & Post-processing */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupFiltersPostProcessing') || '视觉增强与滤镜'}
+                    {t('options.monetGroupFiltersPostProcessing')}
                 </div>
                 <SliderControl
-                    label={t('options.monetBackgroundBlur') || '背景模糊'}
+                    label={t('options.monetBackgroundBlur')}
                     valueLabel={`${Math.round(resolvedTuning.backgroundBlurPx)}px`}
                     min={0}
                     max={60}
@@ -335,7 +335,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderCommit={onSliderCommit}
                 />
                 <SliderControl
-                    label={t('options.monetBackgroundSaturation') || '饱和度'}
+                    label={t('options.monetBackgroundSaturation')}
                     valueLabel={`${Math.round(resolvedTuning.backgroundSaturation * 100)}%`}
                     min={0}
                     max={2}
@@ -347,7 +347,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderCommit={onSliderCommit}
                 />
                 <SliderControl
-                    label={t('options.monetBackgroundGrayscale') || '去色'}
+                    label={t('options.monetBackgroundGrayscale')}
                     valueLabel={`${Math.round(resolvedTuning.backgroundGrayscale * 100)}%`}
                     min={0}
                     max={1}
@@ -363,10 +363,10 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
             {/* Section 4: Color Tint & Wash */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupColorTintWash') || '叠色与水洗'}
+                    {t('options.monetGroupColorTintWash')}
                 </div>
                 <SliderControl
-                    label={t('options.monetBackgroundOverlayOpacity') || '主题叠色强度'}
+                    label={t('options.monetBackgroundOverlayOpacity')}
                     valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
                     min={0}
                     max={1}
@@ -378,7 +378,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     onSliderCommit={onSliderCommit}
                 />
                 <SliderControl
-                    label={t('options.monetBackgroundWash') || '水洗重着色'}
+                    label={t('options.monetBackgroundWash')}
                     valueLabel={`${Math.round(resolvedTuning.backgroundWash * 100)}%`}
                     min={0}
                     max={1}
@@ -391,7 +391,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                 />
 
                 <PresetGroup
-                    label={t('options.monetBackgroundWashColorMode') || '水洗色彩'}
+                    label={t('options.monetBackgroundWashColorMode')}
                     value={resolvedTuning.backgroundWashColorMode}
                     options={washModeOptions}
                     onChange={(value) => onTuningChange?.({ backgroundWashColorMode: value })}
@@ -403,7 +403,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                     <div className="space-y-3 rounded-[20px] border p-3" style={{ borderColor: colorWithAlpha(theme.secondaryColor, 0.14), backgroundColor: colorWithAlpha(theme.backgroundColor, 0.2) }}>
                         <div className="flex items-center justify-between gap-3">
                             <div className="text-sm" style={{ color: theme.primaryColor }}>
-                                {t('options.monetBackgroundWashCustomColor') || '自定义水洗色'}
+                                {t('options.monetBackgroundWashCustomColor')}
                             </div>
                             <div className="rounded-full px-3 py-1 text-xs font-mono" style={{ color: theme.backgroundColor, backgroundColor: resolvedTuning.backgroundWashCustomColor }}>
                                 {resolvedTuning.backgroundWashCustomColor.toUpperCase()}

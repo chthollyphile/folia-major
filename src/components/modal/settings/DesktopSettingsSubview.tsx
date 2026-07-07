@@ -282,14 +282,14 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                         <div className="flex items-center gap-2">
                             <AlertCircle size={16} className="text-amber-500 shrink-0" />
                             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                发现新版本 v{updateStatus.availableVersion}
+                                {t('options.newVersionFound', { version: updateStatus.availableVersion })}
                             </span>
                         </div>
 
                         {/* 自动更新时的提示 */}
                         {electronSettings.ENABLE_AUTO_UPDATE && updateStatus.status === 'downloading' && (
                             <div className="text-xs text-left text-zinc-400">
-                                新版本正在后台自动下载，下载完成后将提示您重启安装。
+                                {t('options.autoUpdateGithubNotice')}
                             </div>
                         )}
 
@@ -298,7 +298,7 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs font-mono">
                                     <span className="opacity-60 text-left" style={{ color: 'var(--text-secondary)' }}>
-                                        正在下载更新...
+                                        {t('options.downloadUpdate')}
                                     </span>
                                     <span className="font-semibold text-emerald-400">
                                         {Math.round(updateStatus.downloadProgress.percent)}%

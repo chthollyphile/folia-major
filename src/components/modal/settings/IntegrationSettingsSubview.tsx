@@ -334,7 +334,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                             Now Playing
                                         </div>
                                         <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                                            连接状态：{nowPlayingStatusLabel}
+                                            {t("options.nowPlayingStatusLabel", { status: nowPlayingStatusLabel })}
                                         </div>
                                         <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
                                             固定连接 `ws://localhost:9863/api/ws/lyric`，请先在本机启动 now-playing 服务。
@@ -442,7 +442,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     Now Playing
                                 </div>
                                 <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                                    连接状态：{nowPlayingStatusLabel}
+                                    {t("options.nowPlayingStatusLabel", { status: nowPlayingStatusLabel })}
                                 </div>
                             </div>
                         )}

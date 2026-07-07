@@ -217,7 +217,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             onMatch();
         } catch (error) {
             console.error('Failed to save Navidrome match:', error);
-            alert(t('localMusic.matchFailed') || '匹配失败');
+            alert(t('localMusic.matchFailed'));
         } finally {
             setIsMatching(false);
         }
@@ -251,7 +251,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
             <div className={`${bgClass} border rounded-2xl max-w-5xl w-full max-h-[80vh] flex flex-col shadow-2xl backdrop-blur-md`}>
                 {/* Header */}
                 <div className={`px-6 py-4 border-b ${borderColor} flex items-center justify-between`}>
-                    <h2 className={`text-lg font-bold ${textPrimary}`}>{t('localMusic.matchLyrics') || '匹配歌词'} (Navidrome)</h2>
+                    <h2 className={`text-lg font-bold ${textPrimary}`}>{t('localMusic.matchLyrics')} (Navidrome)</h2>
                     <button onClick={onClose} className={`p-2 ${closeBtnHover} rounded-lg transition-colors ${textPrimary}`}>
                         <X size={20} />
                     </button>
@@ -298,7 +298,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                             type="text"
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder={t('localMusic.searchForSong') || '搜索歌词...'}
+                                            placeholder={t('localMusic.searchForSong')}
                                             className={`flex-1 bg-transparent outline-none text-sm ${textPrimary}`}
                                             autoFocus
                                         />
@@ -308,7 +308,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                                         disabled={isSearching}
                                         className={`px-4 rounded-2xl text-sm font-medium transition-colors ${searchBtnBg}`}
                                     >
-                                        {isSearching ? <Loader2 size={16} className="animate-spin" /> : (t('localMusic.search') || '搜索')}
+                                        {isSearching ? <Loader2 size={16} className="animate-spin" /> : t('localMusic.search')}
                                     </button>
                                 </form>
                             )}
@@ -319,7 +319,7 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                             ) : searchResults.length === 0 ? (
                                 <div className={`flex flex-col items-center justify-center h-40 opacity-50 ${textSecondary}`}>
                                     <Music size={40} className="mb-2" />
-                                    <p className="text-sm">{t('localMusic.noResults') || '未找到结果'}</p>
+                                    <p className="text-sm">{t('localMusic.noResults')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-1.5">
@@ -388,9 +388,9 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
 
                                 {selectedResult && (
                                     <div className="flex items-center justify-center gap-2 pt-1">
-                                        <span className={`text-[11px] ${textSecondary}`}>匹配状态</span>
+                                        <span className={`text-[11px] ${textSecondary}`}>{t('localMusic.matchStatus')}</span>
                                         <span className={`text-[11px] px-2 py-0.5 rounded-full ${lyricsSource === 'online' ? (isDaylight ? 'bg-blue-500/10 text-blue-600' : 'bg-blue-500/20 text-blue-300') : (isDaylight ? 'bg-orange-500/10 text-orange-600' : 'bg-orange-500/20 text-orange-300')}`}>
-                                            {lyricsSource === 'online' ? '优先使用在线歌词' : '强制回退服务器歌词'}
+                                            {lyricsSource === 'online' ? t('localMusic.preferOnline') : t('localMusic.forceServer')}
                                         </span>
                                     </div>
                                 )}
@@ -406,13 +406,13 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
 
                 <div className={`px-6 py-4 border-t ${borderColor} flex justify-end gap-3`}>
                     <button onClick={handleNoMatch} className={`px-5 py-2 ${noMatchBtnBg} text-red-400 border rounded-lg transition-colors mr-auto text-sm`}>
-                        不使用在线匹配
+                        {t('localMusic.skipOnlineMatch')}
                     </button>
                     <button onClick={onClose} className={`px-5 py-2 ${cancelBtnBg} rounded-lg transition-colors ${textPrimary} text-sm`}>
-                        取消
+                        {t('localMusic.cancel')}
                     </button>
                     <button onClick={handleConfirm} disabled={!selectedResult || isMatching} className="px-5 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm text-white">
-                        {isMatching ? <><Loader2 className="animate-spin" size={14} />保存...</> : '保存匹配'}
+                        {isMatching ? <><Loader2 className="animate-spin" size={14} />{t('localMusic.saving')}</> : t('localMusic.save')}
                     </button>
                 </div>
             </div>

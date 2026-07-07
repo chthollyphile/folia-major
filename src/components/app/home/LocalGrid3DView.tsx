@@ -201,11 +201,11 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     const actions: DesktopGrid3DAction[] = [
         {
             id: 'import-folder',
-            label: isScanInProgress ? '扫描中' : isImporting ? t('localMusic.importing') : t('localMusic.importFolder'),
+            label: isScanInProgress ? t('options.scanning') : isImporting ? t('localMusic.importing') : t('localMusic.importFolder'),
             icon: importButtonDisabled ? <Loader2 size={13} className="animate-spin" /> : <FolderOpen size={13} />,
             disabled: importButtonDisabled,
             onClick: onImportFolder,
-            title: isScanInProgress ? '正在扫描媒体库' : t('localMusic.importFolder'),
+            title: isScanInProgress ? t('options.scanningMediaLib') : t('localMusic.importFolder'),
         },
     ];
 
@@ -220,7 +220,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
                     className="px-6 py-3 rounded-full transition-colors text-sm flex items-center gap-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {importButtonDisabled ? <Loader2 size={16} className="animate-spin" /> : <FolderOpen size={16} />}
-                    {isScanInProgress ? '扫描中' : isImporting ? t('localMusic.importing') : t('localMusic.importFolder')}
+                    {isScanInProgress ? t('options.scanning') : isImporting ? t('localMusic.importing') : t('localMusic.importFolder')}
                 </button>
             </div>
         );
@@ -229,7 +229,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     return (
         <DesktopGrid3DSurface
             title={String(activeSection.label)}
-            mapButtonLabel={t('home.allAlbums') || '全部'}
+            mapButtonLabel={t('home.allAlbums')}
             items={activeSection.items.map((item: any) => ({
                 id: item.id,
                 name: item.name,

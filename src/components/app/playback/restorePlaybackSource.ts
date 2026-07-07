@@ -1,3 +1,4 @@
+import i18n from '../../../i18n/config';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { getCachedAudioBlob } from '../../../services/audioCache';
 import { getCachedCoverUrl } from '../../../services/coverCache';
@@ -129,7 +130,7 @@ export const restorePlaybackSourceForSong = async (
             console.warn('[restorePlaybackSourceForSong] Could not find local song in library');
             setStatusMsg({
                 type: 'info',
-                text: '上次播放的本地歌曲已不在曲库中',
+                text: i18n.t('status.localSongNotInLibrary'),
             });
             return false;
         }
@@ -139,7 +140,7 @@ export const restorePlaybackSourceForSong = async (
             console.warn('[restorePlaybackSourceForSong] Local song file not accessible - needs resync');
             setStatusMsg({
                 type: 'info',
-                text: '本地歌曲文件需要重新授权访问，请从本地音乐列表重新选择播放',
+                text: i18n.t('status.localFileReauthorize'),
             });
             return false;
         }

@@ -80,11 +80,11 @@ interface PickerState {
     key: EditableColorKey;
 }
 
-const COLOR_FIELDS: Array<{ key: EditableColorKey; label: string; description: string; }> = [
-    { key: 'backgroundColor', label: '背景', description: '页面主背景与大面积氛围色' },
-    { key: 'primaryColor', label: '主文本', description: '主文本与歌词颜色' },
-    { key: 'accentColor', label: '强调色', description: '高亮、按钮与歌词发光颜色' },
-    { key: 'secondaryColor', label: '辅助色', description: '辅助文本与几何背景颜色' },
+const COLOR_FIELDS: Array<{ key: EditableColorKey; labelKey: string; descKey: string; }> = [
+    { key: 'backgroundColor', labelKey: 'theme.bgColor', descKey: 'theme.bgColorDesc' },
+    { key: 'primaryColor', labelKey: 'theme.primaryColor', descKey: 'theme.primaryColorDesc' },
+    { key: 'accentColor', labelKey: 'theme.accentColor', descKey: 'theme.accentColorDesc' },
+    { key: 'secondaryColor', labelKey: 'theme.secondaryColor', descKey: 'theme.secondaryColorDesc' },
 ];
 
 const normalizeThemeMetadata = (theme: Theme, fallbackName: string, provider: string): Theme => ({
@@ -174,6 +174,7 @@ const ThemePreviewLayer: React.FC<{
     clipPath,
     overlayAlign,
 }) => {
+        const { t } = useTranslation();
         const isLight = mode === 'light';
         const overlayPositionClass = overlayAlign === 'top-left'
             ? 'items-start justify-start'
@@ -247,7 +248,7 @@ const ThemePreviewLayer: React.FC<{
                             {isActive && (
                                 <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs backdrop-blur-md" style={{ color: theme.backgroundColor, backgroundColor: theme.accentColor }}>
                                     <Check size={12} />
-                                    <span>编辑中</span>
+                                    <span>{t('theme.editingBadge')}</span>
                                 </div>
                             )}
                             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.2em] backdrop-blur-md" style={{ color: theme.secondaryColor, borderColor: `${theme.secondaryColor}25`, backgroundColor: `${theme.backgroundColor}88` }}>
@@ -332,6 +333,7 @@ const ThemePreview: React.FC<{
     isPaused,
     onTogglePause,
 }) => {
+        const { t } = useTranslation();
         const borderColor = theme.accentColor;
 
         return (
@@ -346,7 +348,7 @@ const ThemePreview: React.FC<{
                         onTogglePause();
                     }}
                     className="absolute right-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-zinc-950/40 text-white backdrop-blur-md transition-all hover:bg-zinc-950/60 hover:scale-105 active:scale-95 shadow-sm pointer-events-auto"
-                    title={isPaused ? "播放预览" : "暂停预览"}
+                    title={isPaused ? t('ui.play') : t('ui.pause')}
                     aria-label={isPaused ? "Play preview" : "Pause preview"}
                 >
                     {isPaused ? <Play size={16} className="translate-x-[1px]" fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
@@ -593,7 +595,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                 Theme Park
                             </div>
                             <div className="mt-1 text-xs opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.themeParkDesc') || '手动创建一套只包含颜色的 dual themes，亮暗模式分别预览。'}
+                                {t('options.themeParkDesc')}
                             </div>
                         </div>
                     </div>
@@ -606,7 +608,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             style={{ color: 'var(--text-primary)' }}
                         >
                             <RotateCcw size={14} />
-                            <span>{t('ui.resetToDefaultTheme') || '重置'}</span>
+                            <span>{t('ui.resetToDefaultTheme')}</span>
                         </button>
                         <button
                             type="button"
@@ -615,7 +617,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                             style={{ color: 'var(--text-primary)' }}
                         >
                             <Palette size={14} />
-                            <span>{t('options.saveAndApplyCustomTheme') || '保存并应用自定义主题'}</span>
+                            <span>{t('options.saveAndApplyCustomTheme')}</span>
                         </button>
                     </div>
                 </div>
@@ -663,10 +665,10 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                         >
                             <div className="space-y-1">
                                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                    {pickerState.mode === 'light' ? (t('options.lightTheme') || '亮色主题') : (t('options.darkTheme') || '暗色主题')}
+                                    {t(pickerState.mode === 'light' ? 'options.lightTheme' : 'options.darkTheme')}
                                 </div>
                                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.themeParkPickerDesc') || '编辑颜色字段。'}
+                                    {t('options.themeParkPickerDesc')}
                                 </div>
                             </div>
 
@@ -680,7 +682,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                         backgroundColor: pickerState.mode === 'light' ? (isDaylight ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.12)') : 'transparent',
                                     }}
                                 >
-                                    {t('options.lightTheme') || '亮色'}
+                                    {t('options.lightTheme')}
                                 </button>
                                 <button
                                     type="button"
@@ -691,7 +693,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                         backgroundColor: pickerState.mode === 'dark' ? (isDaylight ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.12)') : 'transparent',
                                     }}
                                 >
-                                    {t('options.darkTheme') || '暗色'}
+                                    {t('options.darkTheme')}
                                 </button>
                             </div>
 
@@ -714,10 +716,10 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                             <div className="h-10 w-10 rounded-xl border border-black/10" style={{ backgroundColor: colorValue }} />
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                                    {field.label}
+                                                    {t(field.labelKey)}
                                                 </div>
                                                 <div className="mt-0.5 text-xs opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                                                    {field.description}
+                                                    {t(field.descKey)}
                                                 </div>
                                             </div>
                                             <div className="text-xs font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
@@ -732,10 +734,10 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {pickerField.label}
+                                            {t(pickerField.labelKey)}
                                         </div>
                                         <div className="mt-1 text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                            {pickerField.description}
+                                            {t(pickerField.descKey)}
                                         </div>
                                     </div>
                                     <div className="rounded-full px-3 py-1 text-xs font-mono" style={{ color: activeTheme.backgroundColor, backgroundColor: activeColor }}>

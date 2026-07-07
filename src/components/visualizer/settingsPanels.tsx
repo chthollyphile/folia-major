@@ -87,12 +87,12 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         ),
     };
     const wordRotationOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.classicWordRotationOn') || '启用' },
-        { value: false, label: t('options.classicWordRotationOff') || '关闭' },
+        { value: true, label: t('options.classicWordRotationOn')  },
+        { value: false, label: t('options.classicWordRotationOff')  },
     ]), [t]);
     const legacyLayoutOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: false, label: t('options.classicLegacyLayoutOff') || '自适应(推荐)' },
-        { value: true, label: t('options.classicLegacyLayoutOn') || '旧版(重叠)' },
+        { value: false, label: t('options.classicLegacyLayoutOff')  },
+        { value: true, label: t('options.classicLegacyLayoutOn')  },
     ]), [t]);
 
     return (
@@ -102,7 +102,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.classicSettings') || '流光参数'}
+                    {t('options.classicSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.classicSettingsDesc') || '控制逐字旋转和整行呼吸浮动范围。'}
@@ -110,7 +110,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.classicWordRotation') || '逐字旋转'}
+                label={t('options.classicWordRotation') }
                 value={resolvedClassicTuning.enableWordRotation}
                 options={wordRotationOptions}
                 onChange={(enabled) => onClassicTuningChange?.({ enableWordRotation: enabled })}
@@ -119,7 +119,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             />
 
             <PresetGroup
-                label={t('options.classicLegacyLayout') || '排版模式'}
+                label={t('options.classicLegacyLayout') }
                 value={resolvedClassicTuning.useLegacyLayout || false}
                 options={legacyLayoutOptions}
                 onChange={(enabled) => onClassicTuningChange?.({ useLegacyLayout: enabled })}
@@ -129,7 +129,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.classicBreathingFloatMultiplier') || '呼吸浮动范围'}</span>
+                    <span>{t('options.classicBreathingFloatMultiplier') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedClassicTuning.breathingFloatMultiplier.toFixed(2)}x
                     </span>
@@ -150,7 +150,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             {!resolvedClassicTuning.useLegacyLayout && (
                 <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                        <span>{t('options.classicWordSpacing') || '单词间距'}</span>
+                        <span>{t('options.classicWordSpacing') }</span>
                         <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                             {resolvedClassicTuning.wordSpacing.toFixed(2)}x
                         </span>
@@ -192,12 +192,12 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         staggerMax: Math.max(rawMin, rawMax),
     };
     const guideLineOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn') || '显示' },
-        { value: false, label: t('options.partitaGuideLinesOff') || '隐藏' },
+        { value: true, label: t('options.partitaGuideLinesOn')  },
+        { value: false, label: t('options.partitaGuideLinesOff')  },
     ]), [t]);
     const semanticLayoutOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaSemanticLayoutOn') || '启用' },
-        { value: false, label: t('options.partitaSemanticLayoutOff') || '关闭' },
+        { value: true, label: t('options.partitaSemanticLayoutOn')  },
+        { value: false, label: t('options.partitaSemanticLayoutOff')  },
     ]), [t]);
     const handlePartitaMinChange = (next: number) => {
         const clampedNext = clampPartitaStagger(next);
@@ -221,7 +221,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.partitaSettings') || '云阶参数'}
+                    {t('options.partitaSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.partitaSettingsDesc') || '控制引导线显示和分块横向错位范围。'}
@@ -229,7 +229,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.partitaGuideLines') || '引导线'}
+                label={t('options.partitaGuideLines') }
                 value={resolvedPartitaTuning.showGuideLines}
                 options={guideLineOptions}
                 onChange={(enabled) => onPartitaTuningChange?.({ showGuideLines: enabled })}
@@ -238,7 +238,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             />
 
             <PresetGroup
-                label={t('options.partitaSemanticLayout') || '语义排列'}
+                label={t('options.partitaSemanticLayout') }
                 value={resolvedPartitaTuning.useSemanticLayout}
                 options={semanticLayoutOptions}
                 onChange={(enabled) => onPartitaTuningChange?.({ useSemanticLayout: enabled })}
@@ -248,7 +248,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.partitaStaggerMin') || '错位最小值'}</span>
+                    <span>{t('options.partitaStaggerMin') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedPartitaTuning.staggerMin}px
                     </span>
@@ -268,7 +268,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.partitaStaggerMax') || '错位最大值'}</span>
+                    <span>{t('options.partitaStaggerMax') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedPartitaTuning.staggerMax}px
                     </span>
@@ -317,12 +317,12 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         heroScale: Math.min(1.32, Math.max(0.82, fumeTuning.heroScale)),
     };
     const visibilityOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: false, label: t('options.partitaGuideLinesOn') || '显示' },
-        { value: true, label: t('options.partitaGuideLinesOff') || '隐藏' },
+        { value: false, label: t('options.partitaGuideLinesOn')  },
+        { value: true, label: t('options.partitaGuideLinesOff')  },
     ]), [t]);
     const fumeCameraTrackingOptions: PresetOption<FumeTuning['cameraTrackingMode']>[] = useMemo(() => ([
-        { value: 'stepped', label: t('options.fumeCameraTrackingStepped') || '定格' },
-        { value: 'smooth', label: t('options.fumeCameraTrackingSmooth') || '平滑' },
+        { value: 'stepped', label: t('options.fumeCameraTrackingStepped')  },
+        { value: 'smooth', label: t('options.fumeCameraTrackingSmooth')  },
     ]), [t]);
     const handleFumeTuningChange = (patch: Partial<FumeTuning>) => {
         onFumeTuningChange?.(patch);
@@ -335,7 +335,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.fumeSettings') || '浮名参数'}
+                    {t('options.fumeSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.fumeSettingsDesc') || '控制打印方块、镜头节奏、辉光和大标题比例。'}
@@ -343,7 +343,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.fumeHidePrintSymbols') || '隐藏打印方块'}
+                label={t('options.fumeHidePrintSymbols') }
                 value={resolvedFumeTuning.hidePrintSymbols}
                 options={visibilityOptions}
                 onChange={(next) => handleFumeTuningChange({ hidePrintSymbols: next })}
@@ -352,7 +352,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             />
 
             <PresetGroup
-                label={t('options.fumeGeometricBackground') || '通用几何图形'}
+                label={t('options.fumeGeometricBackground') }
                 value={resolvedFumeTuning.disableGeometricBackground}
                 options={visibilityOptions}
                 onChange={(next) => handleFumeTuningChange({ disableGeometricBackground: next })}
@@ -362,7 +362,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeBackgroundObjectOpacity') || '世界背景物体透明度'}</span>
+                    <span>{t('options.fumeBackgroundObjectOpacity') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {Math.round(resolvedFumeTuning.backgroundObjectOpacity * 100)}%
                     </span>
@@ -382,7 +382,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeTextHoldRatio') || '文字停留比例'}</span>
+                    <span>{t('options.fumeTextHoldRatio') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {Math.round(resolvedFumeTuning.textHoldRatio * 100)}%
                     </span>
@@ -402,7 +402,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeCameraSpeed') || '摄影机移动速度'}</span>
+                    <span>{t('options.fumeCameraSpeed') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedFumeTuning.cameraSpeed.toFixed(2)}x
                     </span>
@@ -421,7 +421,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.fumeCameraTrackingMode') || '摄影机追焦方式'}
+                label={t('options.fumeCameraTrackingMode') }
                 value={resolvedFumeTuning.cameraTrackingMode}
                 options={fumeCameraTrackingOptions}
                 onChange={(next) => handleFumeTuningChange({ cameraTrackingMode: next })}
@@ -431,7 +431,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeGlowIntensity') || '当前句辉光强度'}</span>
+                    <span>{t('options.fumeGlowIntensity') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedFumeTuning.glowIntensity.toFixed(2)}x
                     </span>
@@ -451,7 +451,7 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeHeroScale') || '大标题比例'}</span>
+                    <span>{t('options.fumeHeroScale') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedFumeTuning.heroScale.toFixed(2)}x
                     </span>
@@ -511,14 +511,14 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     const [isImportingAvatar, setIsImportingAvatar] = useState(false);
     const resolvedTuning = resolveCappellaTuning(cappellaTuning, hasCappellaCustomEmojiPack);
     const emojiSourceOptions: PresetOption<CappellaTuning['emojiPackSource']>[] = useMemo(() => ([
-        { value: 'builtin', label: t('options.cappellaEmojiSourceBuiltin') || '内置' },
-        { value: 'custom', label: t('options.cappellaEmojiSourceCustom') || '自定义' },
+        { value: 'builtin', label: t('options.cappellaEmojiSourceBuiltin')  },
+        { value: 'custom', label: t('options.cappellaEmojiSourceCustom')  },
     ]), [t]);
     const avatarSourceOptions: PresetOption<CappellaTuning['avatarSource']>[] = useMemo(() => ([
-        { value: 'cover', label: t('options.cappellaAvatarSourceCover') || '封面' },
-        { value: 'builtin', label: t('options.cappellaAvatarSourceBuiltin') || '内置头像' },
-        { value: 'color', label: t('options.cappellaAvatarSourceColor') || '色块' },
-        { value: 'custom', label: t('options.cappellaAvatarSourceCustom') || '自定义' },
+        { value: 'cover', label: t('options.cappellaAvatarSourceCover')  },
+        { value: 'builtin', label: t('options.cappellaAvatarSourceBuiltin')  },
+        { value: 'color', label: t('options.cappellaAvatarSourceColor')  },
+        { value: 'custom', label: t('options.cappellaAvatarSourceCustom')  },
     ]), [t]);
 
     const handleImportClick = () => {
@@ -607,7 +607,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.cappellaSettings') || '群唱参数'}
+                    {t('options.cappellaSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.cappellaSettingsDesc') || '控制表情包显示与自定义表情包来源。'}
@@ -615,11 +615,11 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup
-                label={t('options.cappellaShowEmoMessages') || '显示表情包'}
+                label={t('options.cappellaShowEmoMessages') }
                 value={resolvedTuning.showEmoMessages}
                 options={[
-                    { value: true, label: t('options.partitaGuideLinesOn') || '显示' },
-                    { value: false, label: t('options.partitaGuideLinesOff') || '隐藏' },
+                    { value: true, label: t('options.partitaGuideLinesOn')  },
+                    { value: false, label: t('options.partitaGuideLinesOff')  },
                 ]}
                 onChange={(next) => onCappellaTuningChange?.({ showEmoMessages: next })}
                 isDaylight={isDaylight}
@@ -628,7 +628,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2.5">
                 <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-                    {t('options.cappellaAvatarSource') || '头像来源'}
+                    {t('options.cappellaAvatarSource') }
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {avatarSourceOptions.map(option => {
@@ -660,7 +660,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2.5">
                 <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaAvatarPreview') || '自定义头像预览'}
+                    {t('options.cappellaAvatarPreview') }
                 </div>
                 <div className="grid grid-cols-5 gap-2">
                     {avatarPreviewSlots.map((image, index) => (
@@ -672,7 +672,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                                 backgroundColor: isDaylight ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.04)',
                                 color: 'var(--text-secondary)',
                             }}
-                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') || '空槽位')}
+                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') )}
                         >
                             {image ? (
                                 <img
@@ -688,7 +688,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 </div>
                 <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {hasCappellaCustomAvatar
-                        ? `${t('options.cappellaEmojiCount') || '已上传'} ${cappellaCustomAvatarImages.length}`
+                        ? `${t('options.cappellaEmojiCount') } ${cappellaCustomAvatarImages.length}`
                         : (t('options.cappellaAvatarUploadHint') || '还没有自定义头像，上传后可切换到自定义来源。')}
                 </div>
 
@@ -706,7 +706,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     >
                         {isImportingAvatar
                             ? (t('options.cappellaAvatarUploading') || '导入中...')
-                            : (t('options.cappellaAvatarUpload') || '上传自定义头像')}
+                            : (t('options.cappellaAvatarUpload') )}
                     </button>
                     <button
                         type="button"
@@ -719,7 +719,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                             backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
                         }}
                     >
-                        {t('options.cappellaAvatarClear') || '清空自定义头像'}
+                        {t('options.cappellaAvatarClear') }
                     </button>
                 </div>
 
@@ -735,7 +735,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2.5">
                 <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaEmojiSource') || '表情包来源'}
+                    {t('options.cappellaEmojiSource') }
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {emojiSourceOptions.map(option => {
@@ -767,7 +767,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2.5">
                 <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaEmojiPreview') || '自定义表情预览'}
+                    {t('options.cappellaEmojiPreview') }
                 </div>
                 <div className="grid grid-cols-5 gap-2">
                     {previewSlots.map((image, index) => (
@@ -779,7 +779,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                                 backgroundColor: isDaylight ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.04)',
                                 color: 'var(--text-secondary)',
                             }}
-                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') || '空槽位')}
+                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') )}
                         >
                             {image ? (
                                 <img
@@ -795,7 +795,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 </div>
                 <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {hasCappellaCustomEmojiPack
-                        ? `${t('options.cappellaEmojiCount') || '已上传'} ${cappellaCustomEmojiCount}`
+                        ? `${t('options.cappellaEmojiCount') } ${cappellaCustomEmojiCount}`
                         : (t('options.cappellaEmojiUploadHint') || '还没有自定义表情包，上传后才能切换到自定义。')}
                 </div>
             </div>
@@ -814,7 +814,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 >
                     {isImporting
                         ? (t('options.cappellaEmojiUploading') || '导入中...')
-                        : (t('options.cappellaEmojiUpload') || '上传自定义表情包')}
+                        : (t('options.cappellaEmojiUpload') )}
                 </button>
                 <button
                     type="button"
@@ -827,7 +827,7 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                         backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
                     }}
                 >
-                    {t('options.cappellaEmojiClear') || '清空自定义表情包'}
+                    {t('options.cappellaEmojiClear') }
                 </button>
             </div>
 
@@ -867,10 +867,10 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     };
 
     const colorSchemeOptions: PresetOption<TiltColorScheme>[] = useMemo(() => ([
-        { label: t('options.tiltColorSchemeDefault') || '双色1', value: 'default' },
-        { label: t('options.tiltColorSchemeSwap') || '双色2', value: 'swap' },
-        { label: t('options.tiltColorSchemeAccentAll') || '单色1', value: 'accentAll' },
-        { label: t('options.tiltColorSchemePrimaryAll') || '单色2', value: 'primaryAll' },
+        { label: t('options.tiltColorSchemeDefault') , value: 'default' },
+        { label: t('options.tiltColorSchemeSwap') , value: 'swap' },
+        { label: t('options.tiltColorSchemeAccentAll') , value: 'accentAll' },
+        { label: t('options.tiltColorSchemePrimaryAll') , value: 'primaryAll' },
     ]), [t]);
 
     const handleTiltTuningChange = (patch: Partial<TiltTuning>) => {
@@ -884,7 +884,7 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.tiltSettings') || '倾诉参数'}
+                    {t('options.tiltSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.tiltSettingsDesc') || '控制歌词分行概率和斜体强调样式的出现频率。'}
@@ -892,7 +892,7 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             </div>
 
             <PresetGroup<TiltColorScheme>
-                label={t('options.tiltColorScheme') || '配色方案'}
+                label={t('options.tiltColorScheme') }
                 value={resolvedTuning.colorScheme}
                 options={colorSchemeOptions}
                 onChange={(next) => handleTiltTuningChange({ colorScheme: next })}
@@ -902,7 +902,7 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.tiltSplitProbability') || '分行概率'}</span>
+                    <span>{t('options.tiltSplitProbability') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {Math.round(resolvedTuning.splitProbability * 100)}%
                     </span>
@@ -922,7 +922,7 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.tiltStyleProbability') || '斜体强调概率'}</span>
+                    <span>{t('options.tiltStyleProbability') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {Math.round(resolvedTuning.tiltStyleProbability * 100)}%
                     </span>
@@ -965,7 +965,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.claddaghSettings') || '回环参数'}
+                    {t('options.claddaghSettings') }
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.claddaghSettingsDesc') || '调整歌词大小对比率、轨道半径及倾斜度。'}
@@ -974,7 +974,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghFocusScaleRatio') || '主歌词放大倍率'}</span>
+                    <span>{t('options.claddaghFocusScaleRatio') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {(resolvedTuning.focusScaleRatio + 1.0).toFixed(2)}x
                     </span>
@@ -994,7 +994,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghRadiusScale') || '轨道半径'}</span>
+                    <span>{t('options.claddaghRadiusScale') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedTuning.radiusScale.toFixed(2)}x
                     </span>
@@ -1014,7 +1014,7 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghEllipseTiltDeg') || '轨道倾斜度'}</span>
+                    <span>{t('options.claddaghEllipseTiltDeg') }</span>
                     <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
                         {resolvedTuning.ellipseTiltDeg}°
                     </span>

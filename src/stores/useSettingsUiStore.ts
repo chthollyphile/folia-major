@@ -12,7 +12,11 @@ import { parseVisualizerFrameRate, setGlobalVisualizerFrameRate, VISUALIZER_FRAM
 import { sanitizeUrlBackgroundItem, sanitizeUrlBackgroundList } from '../utils/urlBackground';
 import { getLyricProviderPreferenceLabel } from '../utils/lyrics/lyricSourceLabels';
 import { applyAppLanguagePreference, readStoredAppLanguagePreference, type AppLanguagePreference } from '../i18n/config';
+<<<<<<< HEAD
 import { normalizeFontFamilyStack } from '../utils/fontStacks';
+=======
+import i18n from '../i18n/config';
+>>>>>>> f364ab5 (> **Note:** The file `src/i18n/locales/in.ts` (Indonesian locale) still needs translations filled in.)
 
 // src/stores/useSettingsUiStore.ts
 // Shared settings state and actions used by App, Home, and SettingsModal.
@@ -1113,7 +1117,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ useCoverColorBg: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '添加封面色彩' : '使用默认色彩',
+            text: i18n.t('notifications.' + (enable ? 'coverColorAdded' : 'coverColorDefault')),
         });
     },
     handleToggleStaticMode: (enable) => {
@@ -1121,7 +1125,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ staticMode: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '静态模式已开启' : '静态模式已关闭',
+            text: i18n.t('notifications.' + (enable ? 'staticModeOn' : 'staticModeOff')),
         });
     },
     handleToggleDisableHomeDynamicBackground: (disable) => {
@@ -1129,7 +1133,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ disableHomeDynamicBackground: disable });
         notify(get, {
             type: 'info',
-            text: disable ? '主页动态背景已关闭' : '主页动态背景已开启',
+            text: i18n.t('notifications.' + (disable ? 'homeBgDisabled' : 'homeBgEnabled')),
         });
     },
     handleToggleAlternativeLyricSources: (enable) => {
@@ -1137,7 +1141,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ enableAlternativeLyricSources: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '更多歌词源已开启' : '更多歌词源已关闭',
+            text: i18n.t('notifications.' + (enable ? 'altLyricsOn' : 'altLyricsOff')),
         });
     },
     handleToggleAutoUseBestLyric: (enable) => {
@@ -1145,7 +1149,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ autoUseBestLyric: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '自动使用最佳歌词已开启' : '自动使用最佳歌词已关闭',
+            text: i18n.t('notifications.' + (enable ? 'autoBestLyricOn' : 'autoBestLyricOff')),
         });
     },
     handleSetPreferredAlternativeLyricSource: (source) => {
@@ -1155,7 +1159,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ preferredAlternativeLyricSource: source });
         notify(get, {
             type: 'info',
-            text: `优先匹配歌词源已切换为${getLyricProviderPreferenceLabel(source)}`,
+            text: i18n.t('notifications.lyricSourceChanged', { source: getLyricProviderPreferenceLabel(source) }),
         });
     },
     handleToggleHidePlayerProgressBar: (enable) => {
@@ -1163,7 +1167,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ hidePlayerProgressBar: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '播放页底部控制条已隐藏' : '播放页底部控制条已显示',
+            text: i18n.t('notifications.' + (enable ? 'progressBarHidden' : 'progressBarShown')),
         });
     },
     handleToggleHidePlayerTranslationSubtitle: (enable) => {
@@ -1171,7 +1175,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ hidePlayerTranslationSubtitle: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '底部字幕层已隐藏' : '底部字幕层已显示',
+            text: i18n.t('notifications.' + (enable ? 'subtitleHidden' : 'subtitleShown')),
         });
     },
     handleToggleShowSubtitleTranslation: (enable) => {
@@ -1179,7 +1183,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ showSubtitleTranslation: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '字幕翻译已显示' : '字幕翻译已隐藏',
+            text: i18n.t('notifications.' + (enable ? 'translationShown' : 'translationHidden')),
         });
     },
     handleToggleHidePlayerRightPanelButton: (enable) => {
@@ -1187,7 +1191,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ hidePlayerRightPanelButton: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '播放页右侧按钮已隐藏' : '播放页右侧按钮已显示',
+            text: i18n.t('notifications.' + (enable ? 'rightBtnHidden' : 'rightBtnShown')),
         });
     },
     handleToggleTransparentPlayerBackground: (enable) => {
@@ -1195,7 +1199,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ transparentPlayerBackground: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '播放页透明背景已开启' : '播放页透明背景已关闭',
+            text: i18n.t('notifications.' + (enable ? 'transparentBgOn' : 'transparentBgOff')),
         });
     },
     handleToggleDisableVisualizerVignette: (disable) => {
@@ -1203,7 +1207,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ disableVisualizerVignette: disable });
         notify(get, {
             type: 'info',
-            text: disable ? '播放页暗角效果已关闭' : '播放页暗角效果已开启',
+            text: i18n.t('notifications.' + (disable ? 'vignetteOff' : 'vignetteOn')),
         });
     },
     handleToggleDisableVisualizerGeometricBackground: (disable) => {
@@ -1211,7 +1215,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ disableVisualizerGeometricBackground: disable });
         notify(get, {
             type: 'info',
-            text: disable ? '通用几何背景已隐藏' : '通用几何背景已显示',
+            text: i18n.t('notifications.' + (disable ? 'geometricBgHidden' : 'geometricBgShown')),
         });
     },
     handleToggleMinimizeToTray: (enable) => {
@@ -1222,7 +1226,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         notify(get, {
             type: 'info',
-            text: enable ? '最小化将隐藏到托盘' : '最小化将保留在任务栏',
+            text: i18n.t('notifications.' + (enable ? 'minimizeToTray' : 'minimizeToTaskbar')),
         });
     },
     handleToggleHideTaskbarIcon: (enable) => {
@@ -1233,7 +1237,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         notify(get, {
             type: 'info',
-            text: enable ? '主窗口任务栏图标已隐藏' : '主窗口任务栏图标已恢复',
+            text: i18n.t('notifications.' + (enable ? 'taskbarHidden' : 'taskbarRestored')),
         });
     },
     handleToggleOpenPlayerOnLaunch: (enable) => {
@@ -1241,7 +1245,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ openPlayerOnLaunch: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '启动后将直接进入播放页' : '启动后将默认进入首页',
+            text: i18n.t('notifications.' + (enable ? 'openPlayerOnLaunch' : 'openHomeOnLaunch')),
         });
     },
     handleToggleMediaCache: (enable) => {
@@ -1364,7 +1368,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ visualizerMode: mode });
         notify(get, {
             type: 'info',
-            text: `已切换到${entry.labelFallback}歌词`,
+            text: i18n.t('notifications.visualizerSwitched', { mode: entry.labelFallback }),
         });
     },
     handleSetClassicTuning: (patch) => {
@@ -1391,7 +1395,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('classic_tuning', JSON.stringify(DEFAULT_CLASSIC_TUNING));
         }
         set({ classicTuning: DEFAULT_CLASSIC_TUNING });
-        notify(get, { type: 'info', text: '流光参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.classicReset') });
     },
     handleSetCadenzaTuning: (patch) => {
         const next = { ...get().cadenzaTuning, ...patch, beamIntensity: 0 };
@@ -1405,7 +1409,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('cadenza_tuning', JSON.stringify(DEFAULT_CADENZA_TUNING));
         }
         set({ cadenzaTuning: DEFAULT_CADENZA_TUNING });
-        notify(get, { type: 'info', text: '心象参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.cadenzaReset') });
     },
     handleSetPartitaTuning: (patch) => {
         const prev = get().partitaTuning;
@@ -1427,7 +1431,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('partita_tuning', JSON.stringify(DEFAULT_PARTITA_TUNING));
         }
         set({ partitaTuning: DEFAULT_PARTITA_TUNING });
-        notify(get, { type: 'info', text: '云阶参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.partitaReset') });
     },
     handleSetFumeTuning: (patch) => {
         const prev = get().fumeTuning;
@@ -1454,7 +1458,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('fume_tuning', JSON.stringify(DEFAULT_FUME_TUNING));
         }
         set({ fumeTuning: DEFAULT_FUME_TUNING });
-        notify(get, { type: 'info', text: '浮名参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.fumeReset') });
     },
     handleSetCladdaghTuning: (patch) => {
         const prev = get().claddaghTuning;
@@ -1473,12 +1477,12 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('claddagh_tuning', JSON.stringify(DEFAULT_CLADDAGH_TUNING));
         }
         set({ claddaghTuning: DEFAULT_CLADDAGH_TUNING });
-        notify(get, { type: 'info', text: '回环参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.claddaghReset') });
     },
     handleSetCappellaTuning: (patch) => {
         const requestedCustomWithoutPack = patch.emojiPackSource === 'custom' && get().storedCappellaEmojiPack.length === 0;
         if (requestedCustomWithoutPack) {
-            notify(get, { type: 'info', text: '请先上传自定义表情包' });
+            notify(get, { type: 'info', text: i18n.t('notifications.uploadEmojiFirst') });
         }
 
         const prev = get().cappellaTuning;
@@ -1499,7 +1503,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('cappella_tuning', JSON.stringify(DEFAULT_CAPPELLA_TUNING));
         }
         set({ cappellaTuning: DEFAULT_CAPPELLA_TUNING });
-        notify(get, { type: 'info', text: '群唱参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.cappellaReset') });
     },
     handleSetTiltTuning: (patch) => {
         const prev = get().tiltTuning;
@@ -1518,7 +1522,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('tilt_tuning', JSON.stringify(DEFAULT_TILT_TUNING));
         }
         set({ tiltTuning: DEFAULT_TILT_TUNING });
-        notify(get, { type: 'info', text: '倾诉参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.tiltReset') });
     },
     handleSetMonetBackgroundTuning: (patch) => {
         const prev = get().monetBackgroundTuning;
@@ -1536,7 +1540,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('monet_background_tuning', JSON.stringify(DEFAULT_MONET_BACKGROUND_TUNING));
         }
         set({ monetBackgroundTuning: DEFAULT_MONET_BACKGROUND_TUNING });
-        notify(get, { type: 'info', text: '莫奈背景参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.monetBgReset') });
     },
     handleSetMonetTuning: (patch) => {
         const prev = get().monetTuning;
@@ -1554,22 +1558,22 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             localStorage.setItem('monet_tuning', JSON.stringify(DEFAULT_MONET_TUNING));
         }
         set({ monetTuning: DEFAULT_MONET_TUNING });
-        notify(get, { type: 'info', text: '莫奈参数已重置' });
+        notify(get, { type: 'info', text: i18n.t('notifications.monetReset') });
     },
     handleUploadMonetBackgroundImage: async (files) => {
         const file = files[0];
         if (!file) {
-            return { ok: false, error: '请选择图片文件。' };
+            return { ok: false, error: i18n.t('notifications.selectImageFile') };
         }
 
         if (!isSupportedMonetBackgroundFile(file)) {
-            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+            return { ok: false, error: i18n.t('notifications.unsupportedImageFormat') };
         }
 
         const image = buildStoredMonetBackgroundImage(file);
         await saveMonetBackgroundImage(image);
         set({ storedMonetBackgroundImage: image });
-        notify(get, { type: 'success', text: 'Monet 背景图已更新' });
+        notify(get, { type: 'success', text: i18n.t('notifications.monetBgUpdated') });
         return { ok: true };
     },
     handleClearMonetBackgroundImage: async () => {
@@ -1586,22 +1590,22 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             monetBackgroundImage: null,
             monetBackgroundTuning: nextTuning,
         });
-        notify(get, { type: 'info', text: 'Monet 背景图已清空' });
+        notify(get, { type: 'info', text: i18n.t('notifications.monetBgCleared') });
     },
     handleUploadMonetPortraitImage: async (files) => {
         const file = files[0];
         if (!file) {
-            return { ok: false, error: '请选择图片文件。' };
+            return { ok: false, error: i18n.t('notifications.selectImageFile') };
         }
 
         if (!isSupportedMonetPortraitFile(file)) {
-            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+            return { ok: false, error: i18n.t('notifications.unsupportedImageFormat') };
         }
 
         const image = buildStoredMonetPortraitImage(file);
         await saveMonetPortraitImage(image);
         set({ storedMonetPortraitImage: image });
-        notify(get, { type: 'success', text: 'Monet 肖像图已更新' });
+        notify(get, { type: 'success', text: i18n.t('notifications.monetPortraitUpdated') });
         return { ok: true };
     },
     handleClearMonetPortraitImage: async () => {
@@ -1618,17 +1622,17 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             monetPortraitImage: null,
             monetTuning: nextTuning,
         });
-        notify(get, { type: 'info', text: 'Monet 肖像图已清空' });
+        notify(get, { type: 'info', text: i18n.t('notifications.monetPortraitCleared') });
     },
     handleImportCustomCappellaEmojiPack: async (files) => {
         if (files.length === 0) {
-            return { ok: false, error: '请选择图片文件。' };
+            return { ok: false, error: i18n.t('notifications.selectImageFile') };
         }
 
         const storedCappellaEmojiPack = get().storedCappellaEmojiPack;
 
         if (!files.every(isSupportedCappellaEmojiFile)) {
-            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+            return { ok: false, error: i18n.t('notifications.unsupportedImageFormat') };
         }
 
         const appendedPack = buildStoredCappellaEmojiPack(files);
@@ -1637,7 +1641,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ storedCappellaEmojiPack: storedPack });
         notify(get, {
             type: 'success',
-            text: `已新增 ${appendedPack.length} 张群唱表情包，当前共 ${storedPack.length} 张`,
+            text: i18n.t('notifications.emojiPackAdded', { added: appendedPack.length, total: storedPack.length }),
         });
 
         return { ok: true };
@@ -1655,17 +1659,17 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             storedCappellaEmojiPack: [],
             cappellaTuning: nextTuning,
         });
-        notify(get, { type: 'info', text: '自定义群唱表情包已清空' });
+        notify(get, { type: 'info', text: i18n.t('notifications.emojiPackCleared') });
     },
     handleImportCustomCappellaAvatar: async (files) => {
         if (files.length === 0) {
-            return { ok: false, error: '请选择图片文件。' };
+            return { ok: false, error: i18n.t('notifications.selectImageFile') };
         }
 
         const storedCappellaAvatarPack = get().storedCappellaAvatarPack;
 
         if (!files.every(isSupportedCappellaAvatarFile)) {
-            return { ok: false, error: '仅支持 png、jpg、jpeg、gif、webp、svg 图片。' };
+            return { ok: false, error: i18n.t('notifications.unsupportedImageFormat') };
         }
 
         const builtPack = buildStoredCappellaAvatar(files);
@@ -1674,7 +1678,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ storedCappellaAvatarPack: storedPack });
         notify(get, {
             type: 'success',
-            text: `已新增 ${builtPack.length} 张自定义头像，当前共 ${storedPack.length} 张`,
+            text: i18n.t('notifications.avatarAdded', { added: builtPack.length, total: storedPack.length }),
         });
 
         return { ok: true };
@@ -1692,7 +1696,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             storedCappellaAvatarPack: [],
             cappellaTuning: nextTuning,
         });
-        notify(get, { type: 'info', text: '自定义头像已清空' });
+        notify(get, { type: 'info', text: i18n.t('notifications.avatarCleared') });
     },
     handleSetLyricsFontStyle: (fontStyle) => {
         if (typeof window !== 'undefined') {
@@ -1745,14 +1749,14 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             }
             notify(get, {
                 type: 'success',
-                text: `已启用上传字体：${meta.label || meta.family}`,
+                text: i18n.t('notifications.fontEnabled', { fontName: meta.label || meta.family }),
             });
 
             return { ok: true };
         } catch (error) {
             const message = error instanceof Error && error.message
                 ? error.message
-                : '上传字体失败。';
+                : i18n.t('notifications.fontUploadFailed');
             notify(get, { type: 'error', text: message });
 
             return { ok: false, error: message };
@@ -1792,11 +1796,20 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     handleSetAppLanguagePreference: async (preference) => {
         await applyAppLanguagePreference(preference);
         set({ appLanguagePreference: preference });
+        const getLanguageLabel = (pref: AppLanguagePreference): string => {
+            switch (pref) {
+                case 'zh-CN': return i18n.t('options.appLanguageZhCN', { lng: 'zh-CN' });
+                case 'in': return i18n.t('options.appLanguageInID', { lng: 'in' });
+                case 'en': return i18n.t('options.appLanguageEnUS', { lng: 'en' });
+                default: return '';
+            }
+        };
+
         notify(get, {
             type: 'info',
             text: preference === 'system'
-                ? '界面语言已切换为跟随系统'
-                : `界面语言已切换为 ${preference === 'zh-CN' ? '简体中文' : 'English'}`,
+                ? i18n.t('notifications.langFollowSystem')
+                : i18n.t('notifications.langManual', { language: getLanguageLabel(preference) }),
         });
     },
     handleSetLyricFilterPattern: (pattern) => {
@@ -1818,7 +1831,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ showOpenPanelCloseButton: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '已显示面板关闭按钮' : '已隐藏面板关闭按钮',
+            text: i18n.t('notifications.' + (enable ? 'panelCloseBtnShown' : 'panelCloseBtnHidden')),
         });
     },
     handleToggleNowPlayingStage: (enable) => {
@@ -1826,7 +1839,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ enableNowPlayingStage: enable });
         notify(get, {
             type: 'info',
-            text: enable ? '舞台模式已启用' : '舞台模式已关闭',
+            text: i18n.t('notifications.' + (enable ? 'stageModeOn' : 'stageModeOff')),
         });
     },
     handleSetQueueAddBehavior: (behavior) => {
@@ -1836,7 +1849,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ queueAddBehavior: behavior });
         notify(get, {
             type: 'info',
-            text: behavior === 'next' ? '加入队列将插到下一首' : '加入队列将追加到末尾',
+            text: i18n.t('notifications.' + (behavior === 'next' ? 'queueInsertNext' : 'queueAppend')),
         });
     },
     handleSetAudioOutputDeviceId: (deviceId) => {
@@ -1881,7 +1894,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ homeLayoutStyle: style });
         notify(get, {
             type: 'info',
-            text: style === 'grid' ? '首页布局已切换为万象' : '首页布局已切换为经典',
+            text: i18n.t('notifications.' + (style === 'grid' ? 'homeLayoutGrid' : 'homeLayoutCarousel')),
         });
     },
     handleSetGrid3dCardStyle: (style) => {
@@ -1891,7 +1904,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ grid3dCardStyle: style });
         notify(get, {
             type: 'info',
-            text: style === 'image' ? '卡片样式已切换为纯图片封面' : '卡片样式已切换为拍立得卡片',
+            text: i18n.t('notifications.' + (style === 'image' ? 'cardStyleImage' : 'cardStyleCard')),
         });
     },
 }));

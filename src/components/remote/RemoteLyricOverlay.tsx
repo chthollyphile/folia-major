@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { PlayerState, type Line, type LyricData } from '../../types';
 import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
 
@@ -81,6 +82,7 @@ const RemoteLyricOverlay: React.FC<RemoteLyricOverlayProps> = ({
     baseColor,
     activeColor,
 }) => {
+    const { t } = useTranslation();
     const [display, setDisplay] = useState<RemoteLyricDisplay>(() => resolveDisplay(lyrics, currentTime));
     const syncRef = useRef({ snapshotTime: currentTime, localTime: performance.now() });
     const displayRef = useRef(display);
@@ -365,7 +367,7 @@ const RemoteLyricOverlay: React.FC<RemoteLyricOverlayProps> = ({
                             )
                         ) : (
                             <span style={{ color: baseColor }}>
-                                {hasTrack && !hasLyrics ? '无歌词' : ''}
+                                {hasTrack && !hasLyrics ? t('remote.noLyrics') : ''}
                             </span>
                         )}
                     </div>

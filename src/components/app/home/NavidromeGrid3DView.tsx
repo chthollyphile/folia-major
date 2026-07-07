@@ -244,7 +244,7 @@ export const NavidromeGrid3DView: React.FC<NavidromeGrid3DViewProps> = ({
     return (
         <DesktopGrid3DSurface
             title={section === 'albums' ? t('navidrome.albums') : section === 'playlists' ? t('home.playlists') : t('navidrome.artists')}
-            mapButtonLabel={t('home.allAlbums') || '全部'}
+            mapButtonLabel={t('home.allAlbums')}
             items={currentItems}
             focusedIndex={focusedIndex}
             onFocusedIndexChange={setFocusedIndex}

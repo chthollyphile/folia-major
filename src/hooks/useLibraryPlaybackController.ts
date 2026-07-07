@@ -341,7 +341,7 @@ export function useLibraryPlaybackController({
 
         await createLocalPlaylist(trimmedName, [currentSong.localData]);
         await loadLocalPlaylists();
-        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, loadLocalPlaylists, setStatusMsg, t]);
 
     const addCurrentSongToNeteasePlaylist = useCallback(async (playlistId: number) => {
@@ -352,7 +352,7 @@ export function useLibraryPlaybackController({
         await neteaseApi.updatePlaylistTracks('add', playlistId, [currentSong.id]);
         await removeFromCache(`playlist_tracks_${playlistId}`);
         await removeFromCache(`playlist_detail_${playlistId}`);
-        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
     const addCurrentSongToNavidromePlaylist = useCallback(async (playlistId: string) => {
@@ -369,7 +369,7 @@ export function useLibraryPlaybackController({
         await navidromeApi.updatePlaylist(config, playlistId, {
             songIdsToAdd: [navidromeSong.navidromeData.id],
         });
-        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
     const createCurrentNavidromePlaylist = useCallback(async (name: string) => {
@@ -384,7 +384,7 @@ export function useLibraryPlaybackController({
         }
 
         await navidromeApi.createPlaylist(config, name, [navidromeSong.navidromeData.id]);
-        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '歌单已更新' });
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
     const handleLocalSongMatch = useCallback(async (localSong: LocalSong): Promise<{ updatedLocalSong: LocalSong; matchedSongResult: SongResult | null; }> => {
@@ -394,7 +394,7 @@ export function useLibraryPlaybackController({
         const needsCoverMatch = !isBlob(localSong.embeddedCover) && !localSong.matchedCoverUrl;
 
         if ((needsLyricsMatch || needsCoverMatch) && !localSong.noAutoMatch) {
-            setStatusMsg({ type: 'info', text: '正在匹配歌词和封面...' });
+            setStatusMsg({ type: 'info', text: t('status.matchingLyricsAndCover') || '' });
             try {
                 const { matchLyrics } = await import('../services/localMusicService');
                 await matchLyrics(localSong);
@@ -539,7 +539,7 @@ export function useLibraryPlaybackController({
         void persistLastPlaybackCache(currentSong, nextQueue);
         setStatusMsg({
             type: 'success',
-            text: queueAddBehavior === 'next' ? '已插入到下一首' : (t('status.queueUpdated') || '已添加到播放队列'),
+            text: queueAddBehavior === 'next' ? (t('status.insertedToNext') || '') : (t('status.queueUpdated') || ''),
             nonce: Date.now(),
             durationMs: 1200,
         });
@@ -593,7 +593,7 @@ export function useLibraryPlaybackController({
 
         const blobUrl = await getAudioFromLocalSong(localSong);
         if (!blobUrl) {
-            setStatusMsg({ type: 'error', text: '无法访问文件，请重新导入文件夹' });
+            setStatusMsg({ type: 'error', text: t('status.localFileAccessError') || '' });
             return;
         }
 
@@ -634,7 +634,7 @@ export function useLibraryPlaybackController({
 
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
-        setStatusMsg({ type: 'success', text: '本地音乐已加载' });
+        setStatusMsg({ type: 'success', text: t('status.localMusicLoaded') || '' });
         void restoreCachedThemeForSong(initialMeta.unifiedSong.id).catch((error) => {
             console.warn('Theme load error', error);
         });
@@ -741,7 +741,7 @@ export function useLibraryPlaybackController({
 
             if (!nextLyrics) {
                 if (!showedLoadingToast) {
-                    setStatusMsg({ type: 'info', text: t('status.loadingSong') || '加载歌曲中...' });
+                    setStatusMsg({ type: 'info', text: t('status.loadingSong') || '' });
                     showedLoadingToast = true;
                 }
                 await hydrateNavidromeLyricPayload(config, navidromeSong);
@@ -756,7 +756,7 @@ export function useLibraryPlaybackController({
             if (!nextLyrics && !matchData?.noAutoMatch && !matchData?.matchedIsPureMusic) {
                 try {
                     if (!showedLoadingToast) {
-                        setStatusMsg({ type: 'info', text: t('status.loadingSong') || '加载歌曲中...' });
+                        setStatusMsg({ type: 'info', text: t('status.loadingSong') || '' });
                         showedLoadingToast = true;
                     }
                     const artistName = navidromeSong.artists?.map(artist => artist.name).filter(Boolean).join(', ')
@@ -905,13 +905,13 @@ export function useLibraryPlaybackController({
                 navigateToPlayer();
             }
             setPlayerState(PlayerState.IDLE);
-            setStatusMsg({ type: 'success', text: 'Navidrome 歌曲已加载' });
+            setStatusMsg({ type: 'success', text: t('status.navidromeSongLoaded') || '' });
             void restoreCachedThemeForSong(unifiedSong.id).catch((error) => {
                 console.warn('Theme load error', error);
             });
         } catch (error) {
             console.error('[App] Failed to play Navidrome song:', error);
-            setStatusMsg({ type: 'error', text: '播放失败' });
+            setStatusMsg({ type: 'error', text: t('status.playbackFailed') || '' });
             setIsLyricsLoading(false);
         }
     }, [
@@ -935,7 +935,7 @@ export function useLibraryPlaybackController({
     ]);
 
     const onMatchNavidromeSong = useCallback(async () => {
-        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics') || '正在匹配歌词...' });
+        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics') || '' });
     }, [setStatusMsg, t]);
 
     const handleUpdateLocalLyrics = useCallback(async (content: string, isTranslation: boolean, fileName?: string) => {
@@ -992,7 +992,7 @@ export function useLibraryPlaybackController({
                 : prev
             );
             await loadLocalSongs();
-            setStatusMsg({ type: 'success', text: '歌词来源已切换' });
+            setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched') || '' });
         } catch (error) {
             console.error('Failed to save lyrics source', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
@@ -1113,7 +1113,7 @@ export function useLibraryPlaybackController({
             setLyrics(nextLyrics);
             setCurrentLineIndex(-1);
             await persistLastPlaybackCache(updatedSong, playQueue);
-            setStatusMsg({ type: 'success', text: '歌词来源已切换' });
+            setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched') || '' });
         } catch (error) {
             console.error('Failed to switch online lyrics source', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
@@ -1159,10 +1159,10 @@ export function useLibraryPlaybackController({
             setLyrics(resolved.lyrics);
             setCurrentLineIndex(-1);
             await persistLastPlaybackCache(updatedSong, playQueue);
-            setStatusMsg({ type: 'success', text: '已清除手动匹配/上传的歌词' });
+            setStatusMsg({ type: 'success', text: t('status.clearedManualLyrics') || '' });
         } catch (error) {
             console.error('Failed to clear online lyrics state', error);
-            setStatusMsg({ type: 'error', text: '清除失败' });
+            setStatusMsg({ type: 'error', text: t('status.clearFailed') || '' });
         }
     }, [currentSong, persistLastPlaybackCache, playQueue, resolveOnlineSongLyricsState, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
 
@@ -1210,21 +1210,19 @@ export function useLibraryPlaybackController({
 
     const handleAutoMatchBestLyricForCurrentSong = useCallback(async (): Promise<boolean> => {
         if (!currentSong) {
-            setStatusMsg({ type: 'info', text: t('status.noSongPlaying') || '当前没有正在播放的歌曲' });
+            setStatusMsg({ type: 'info', text: t('status.noSongPlaying') || '' });
             return false;
         }
 
         if (isStagePlaybackSong(currentSong)) {
-            setStatusMsg({ type: 'info', text: t('status.stageActionUnavailable') || 'Stage 模式下不支持该操作' });
+            setStatusMsg({ type: 'info', text: t('status.stageActionUnavailable') || '' });
             return false;
         }
 
         const settings = useSettingsUiStore.getState();
         if (!settings.enableAlternativeLyricSources) {
             return false;
-        }
-
-        setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '正在匹配最佳歌词...' });
+        }            setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '' });
 
         try {
             if (isLocalPlaybackSong(currentSong) && currentSong.localData) {
@@ -1236,11 +1234,11 @@ export function useLibraryPlaybackController({
                 });
 
                 if (!bestMatch) {
-                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '' });
                     return false;
                 }
                 if ('isPureMusic' in bestMatch) {
-                    setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词' });
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '' });
                     return false;
                 }
 
@@ -1261,14 +1259,13 @@ export function useLibraryPlaybackController({
                 setLyrics(bestMatch.lyrics);
                 setCurrentLineIndex(-1);
                 await persistLastPlaybackCache(updatedSong, playQueue);
-                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '' });
                 return true;
             }
 
             if (isNavidromePlaybackSong(currentSong)) {
                 const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
-                if (!navidromeSong) {
-                    setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '匹配最佳歌词失败' });
+                if (!navidromeSong) {                        setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '' });
                     return false;
                 }
 
@@ -1282,11 +1279,11 @@ export function useLibraryPlaybackController({
                 });
 
                 if (!bestMatch) {
-                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '' });
                     return false;
                 }
                 if ('isPureMusic' in bestMatch) {
-                    setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '纯音乐，无需匹配歌词' });
+                    setStatusMsg({ type: 'info', text: t('status.bestLyricsPureMusic') || '' });
                     return false;
                 }
 
@@ -1316,7 +1313,7 @@ export function useLibraryPlaybackController({
                 setLyrics(bestMatch.lyrics);
                 setCurrentLineIndex(-1);
                 await persistLastPlaybackCache(updatedSong, playQueue);
-                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+                setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '' });
                 return true;
             }
 
@@ -1330,7 +1327,7 @@ export function useLibraryPlaybackController({
             });
 
             if (!bestMatch) {
-                setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '没有找到合适的最佳歌词' });
+                setStatusMsg({ type: 'info', text: t('status.bestLyricsNotFound') || '' });
                 return false;
             }
             if ('isPureMusic' in bestMatch) {
@@ -1359,11 +1356,11 @@ export function useLibraryPlaybackController({
             setLyrics(bestMatch.lyrics);
             setCurrentLineIndex(-1);
             await persistLastPlaybackCache(updatedSong, playQueue);
-            setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '已匹配最佳歌词' });
+            setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '' });
             return true;
         } catch (error) {
             console.error('[CommandPalette] Failed to auto-match best lyric:', error);
-            setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '匹配最佳歌词失败' });
+            setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '' });
             return false;
         }
     }, [
@@ -1381,7 +1378,7 @@ export function useLibraryPlaybackController({
         if (!currentSong) return;
 
         if (isStagePlaybackSong(currentSong)) {
-            setStatusMsg({ type: 'info', text: t('status.stageActionUnavailable') || 'Stage 模式下不支持收藏操作' });
+            setStatusMsg({ type: 'info', text: t('status.stageLikeUnavailable') || '' });
             return;
         }
 
@@ -1390,7 +1387,7 @@ export function useLibraryPlaybackController({
             try {
                 await setLocalSongFavorite(currentSong.localData, nextLiked);
                 await loadLocalPlaylists();
-                setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '已取消喜欢') });
+                setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
             } catch (error) {
                 console.error('Failed to update local favorite playlist', error);
                 setStatusMsg({ type: 'error', text: t('status.likeFailed') });
@@ -1404,7 +1401,7 @@ export function useLibraryPlaybackController({
 
             const config = getNavidromeConfig();
             if (!config) {
-                setStatusMsg({ type: 'error', text: t('navidrome.notConfigured') || 'Navidrome 尚未配置' });
+                setStatusMsg({ type: 'error', text: t('navidrome.notConfigured') || '' });
                 return;
             }
 
@@ -1425,14 +1422,14 @@ export function useLibraryPlaybackController({
                     });
                     setStatusMsg({
                         type: 'success',
-                        text: nextStarred ? t('status.liked') : (t('status.unliked') || '已取消喜欢'),
+                        text: nextStarred ? t('status.liked') : (t('status.unliked') || ''),
                     });
                 } else {
-                    setStatusMsg({ type: 'error', text: t('status.likeFailed') || '操作失败' });
+                    setStatusMsg({ type: 'error', text: t('status.likeFailed') || '' });
                 }
             } catch (error) {
                 console.error('[Navidrome Favorite] Failed to toggle favorite:', error);
-                setStatusMsg({ type: 'error', text: t('status.likeFailed') || '操作失败' });
+                setStatusMsg({ type: 'error', text: t('status.likeFailed') || '' });
             }
             return;
         }

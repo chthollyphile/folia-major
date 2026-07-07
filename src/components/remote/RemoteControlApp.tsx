@@ -16,6 +16,7 @@ import {
 } from '../../types/videoExport';
 import type { VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
 import { extractColors } from '../../utils/colorExtractor';
+import { useTranslation } from 'react-i18next';
 
 // src/components/remote/RemoteControlApp.tsx
 // Electron-only companion window for controlling the single real player instance.
@@ -88,6 +89,7 @@ const emptySnapshot: RemoteControlSnapshot = {
 type RemotePanelMode = 'playback' | 'export' | 'transparent-controls';
 
 const RemoteControlApp: React.FC = () => {
+    const { t } = useTranslation();
     const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(() => {
         if (typeof window !== 'undefined') {
             const stored = window.localStorage.getItem(REMOTE_BACKGROUND_MODE_STORAGE_KEY);
@@ -305,7 +307,7 @@ const RemoteControlApp: React.FC = () => {
         sendCommand({ type: 'resize-main-window', width: clampedW, height: clampedH });
     };
 
-    const getCalculatedAspectRatio = (wStr: string, hStr: string) => {
+    const getCalculatedAspectRatio = (t: (key: string) => string, wStr: string, hStr: string) => {
         const w = Number(wStr);
         const h = Number(hStr);
         if (!w || !h || !Number.isFinite(w) || !Number.isFinite(h)) {
@@ -316,7 +318,7 @@ const RemoteControlApp: React.FC = () => {
         const divisor = gcd(w, h);
         const aspectW = w / divisor;
         const aspectH = h / divisor;
-        const orientationStr = w >= h ? '横屏' : '竖屏';
+        const orientationStr = w >= h ? t('remote.landscape') : t('remote.portrait');
 
         if (aspectW === 16 && aspectH === 9) {
             return `16:9 (${orientationStr})`;
@@ -331,10 +333,10 @@ const RemoteControlApp: React.FC = () => {
             return `3:4 (${orientationStr})`;
         }
         if (aspectW === 1 && aspectH === 1) {
-            return `1:1 (方屏)`;
+            return `1:1 (${t('remote.square')})`;
         }
         if (aspectW === 21 && aspectH === 9) {
-            return `21:9 (超宽屏)`;
+            return `21:9 (${t('remote.ultrawide')})`;
         }
 
         return `${aspectW}:${aspectH} (${orientationStr})`;
@@ -427,9 +429,9 @@ const RemoteControlApp: React.FC = () => {
                         <button
                             type="button"
                             title={
-                                backgroundMode === 'default' ? '默认背景' :
-                                    backgroundMode === 'cover' ? '封面色彩' :
-                                        '透明背景'
+                                backgroundMode === 'default' ? t('remote.backgroundDefault') :
+                                    backgroundMode === 'cover' ? t('remote.backgroundCover') :
+                                        t('remote.backgroundTransparent')
                             }
                             tabIndex={windowControlsRevealed ? 0 : -1}
                             onClick={() => {
@@ -444,7 +446,7 @@ const RemoteControlApp: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            title={alwaysOnTop ? '取消置顶' : '固定到最前'}
+                            title={alwaysOnTop ? t('remote.unpin') : t('remote.pinToFront')}
                             aria-pressed={alwaysOnTop}
                             tabIndex={windowControlsRevealed ? 0 : -1}
                             onClick={handleToggleAlwaysOnTop}
@@ -656,7 +658,7 @@ const RemoteControlApp: React.FC = () => {
                                                                 <div className="flex items-center gap-1.5">
                                                                     <button
                                                                         type="button"
-                                                                        title={snapshot.isLiked ? '取消收藏' : '收藏'}
+                                                                        title={snapshot.isLiked ? t('remote.unlike') : t('remote.like')}
                                                                         disabled={primaryDisabled}
                                                                         onClick={() => sendCommand({ type: 'toggle-like' })}
                                                                         className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${snapshot.isLiked
@@ -748,7 +750,7 @@ const RemoteControlApp: React.FC = () => {
                                                             : (isDaylight ? 'text-black/70 hover:bg-black/5 hover:text-black' : 'text-white/70 hover:bg-white/5 hover:text-white')
                                                             }`}
                                                     >
-                                                        常规
+                                                        {t('remote.standard')}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -758,7 +760,7 @@ const RemoteControlApp: React.FC = () => {
                                                             : (isDaylight ? 'text-black/70 hover:bg-black/5 hover:text-black' : 'text-white/70 hover:bg-white/5 hover:text-white')
                                                             }`}
                                                     >
-                                                        透明
+                                                        {t('remote.transparent')}
                                                     </button>
                                                 </div>
 
@@ -770,7 +772,7 @@ const RemoteControlApp: React.FC = () => {
                                                         : (isDaylight ? 'bg-black/5 border-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white')
                                                         }`}
                                                 >
-                                                    {snapshot.playerChromeHidden ? '显示 UI' : '隐藏 UI'}
+                                                    {snapshot.playerChromeHidden ? t('remote.showUI') : t('remote.hideUI')}
                                                 </button>
                                             </div>
 
@@ -784,7 +786,7 @@ const RemoteControlApp: React.FC = () => {
                                                         : (isDaylight ? 'bg-black/5 border-black/5 text-black/70 hover:bg-black/10 hover:text-black' : 'bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white')
                                                         }`}
                                                 >
-                                                    {snapshot.mainWindowBorderVisible ? '隐藏边框' : '显示边框'}
+                                                    {snapshot.mainWindowBorderVisible ? t('remote.hideBorder') : t('remote.showBorder')}
                                                 </button>
 
                                                 <div className={`grid h-8 grid-cols-2 overflow-hidden rounded-xl border transition-colors ${isDaylight ? 'border-black/5 bg-black/5' : 'border-white/5 bg-white/5'
@@ -792,7 +794,7 @@ const RemoteControlApp: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         disabled={!snapshot.transparentModeEnabled}
-                                                        title={snapshot.mainWindowClickThroughEnabled ? '关闭点击穿透' : '点击穿透'}
+                                                        title={snapshot.mainWindowClickThroughEnabled ? t('remote.disableClickThrough') : t('remote.enableClickThrough')}
                                                         aria-pressed={snapshot.mainWindowClickThroughEnabled}
                                                         onClick={() => sendCommand({ type: 'set-main-window-click-through', enabled: !snapshot.mainWindowClickThroughEnabled })}
                                                         className={`flex h-full items-center justify-center gap-1 text-[10px] font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${snapshot.mainWindowClickThroughEnabled
@@ -801,11 +803,11 @@ const RemoteControlApp: React.FC = () => {
                                                             }`}
                                                     >
                                                         {snapshot.mainWindowClickThroughEnabled ? <Lock size={12} /> : <LockOpen size={12} />}
-                                                        <span>穿透</span>
+                                                        <span>{t('remote.through')}</span>
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        title={snapshot.mainWindowAlwaysOnTop ? '取消主窗口置顶' : '置顶主窗口'}
+                                                        title={snapshot.mainWindowAlwaysOnTop ? t('remote.unpinMainWindow') : t('remote.pinMainWindow')}
                                                         aria-pressed={snapshot.mainWindowAlwaysOnTop}
                                                         onClick={() => sendCommand({ type: 'set-main-window-always-on-top', enabled: !snapshot.mainWindowAlwaysOnTop })}
                                                         className={`flex h-full items-center justify-center gap-1 border-l text-[10px] font-bold transition ${snapshot.mainWindowAlwaysOnTop
@@ -814,7 +816,7 @@ const RemoteControlApp: React.FC = () => {
                                                             }`}
                                                     >
                                                         {snapshot.mainWindowAlwaysOnTop ? <Pin size={12} /> : <PinOff size={12} />}
-                                                        <span>置顶</span>
+                                                        <span>{t('remote.pin')}</span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -858,7 +860,7 @@ const RemoteControlApp: React.FC = () => {
                             </div>
                             <div className="flex items-center justify-between mb-1.5">
                                 <span className={`text-[13px] font-bold transition-colors ${isDaylight ? 'text-black/90' : 'text-white/90'
-                                    }`}>选择导出预设</span>
+                                    }`}>{t('remote.presetSelectorTitle')}</span>
                                 <button
                                     type="button"
                                     onClick={() => setPresetSelectorOpen(false)}
@@ -893,7 +895,7 @@ const RemoteControlApp: React.FC = () => {
                                             >
                                                 <div className="flex flex-col min-w-0">
                                                     <span className="text-[9px] opacity-60 font-semibold mb-0.5 tracking-wide uppercase truncate">
-                                                        预设 {index + 1} ({preset.orientation === 'portrait' ? '竖屏' : '横屏'})
+                                                        {t('remote.preset', { index: index + 1 })} ({preset.orientation === 'portrait' ? t('remote.portrait') : t('remote.landscape')})
                                                     </span>
                                                     <span className="text-xs font-bold truncate">{preset.label}</span>
                                                 </div>
@@ -919,7 +921,7 @@ const RemoteControlApp: React.FC = () => {
                                         <div className="flex items-center gap-1.5 mb-1.5">
                                             <Sliders size={11} className="opacity-75" />
                                             <span className="text-[9px] opacity-60 font-semibold tracking-wide uppercase">
-                                                自定义预设 {exportPresets.findIndex(p => p.id === selectedPresetId) + 1}
+                                                {t('remote.customPreset', { index: exportPresets.findIndex(p => p.id === selectedPresetId) + 1 })}
                                             </span>
                                         </div>
 
@@ -930,7 +932,7 @@ const RemoteControlApp: React.FC = () => {
                                                     : 'bg-zinc-950/35 border-white/5 focus-within:border-white/20'
                                                     }`}
                                             >
-                                                <span className="text-[9px] opacity-50 font-semibold">宽度 (px)</span>
+                                                <span className="text-[9px] opacity-50 font-semibold">{t('remote.widthPx')}</span>
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
@@ -956,7 +958,7 @@ const RemoteControlApp: React.FC = () => {
                                                     : 'bg-zinc-950/35 border-white/5 focus-within:border-white/20'
                                                     }`}
                                             >
-                                                <span className="text-[9px] opacity-50 font-semibold">高度 (px)</span>
+                                                <span className="text-[9px] opacity-50 font-semibold">{t('remote.heightPx')}</span>
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
@@ -977,11 +979,11 @@ const RemoteControlApp: React.FC = () => {
                                             </label>
                                         </div>
 
-                                        {getCalculatedAspectRatio(draftWidth, draftHeight) && (
+                                        {getCalculatedAspectRatio(t, draftWidth, draftHeight) && (
                                             <div className="mt-1.5 flex items-center px-0.5">
                                                 <span className={`text-[9px] font-semibold transition-colors px-1.5 py-0.5 rounded ${isDaylight ? 'bg-black/5 text-black/60' : 'bg-white/5 text-white/60'
                                                     }`}>
-                                                    比例: {getCalculatedAspectRatio(draftWidth, draftHeight)}
+                                                    {t('remote.aspectRatio')} {getCalculatedAspectRatio(t, draftWidth, draftHeight)}
                                                 </span>
                                             </div>
                                         )}
@@ -989,7 +991,7 @@ const RemoteControlApp: React.FC = () => {
 
                                     <div className="flex flex-col gap-1 mt-1">
                                         <div className={`text-[9px] leading-tight opacity-50 ${isDaylight ? 'text-black' : 'text-white'}`}>
-                                            限制范围 {VIDEO_EXPORT_PRESET_MIN}-{VIDEO_EXPORT_PRESET_MAX} px，偶数有更好的编码兼容性
+                                            {t('remote.rangeHint', { min: VIDEO_EXPORT_PRESET_MIN, max: VIDEO_EXPORT_PRESET_MAX })} {t('remote.encodingHint')}
                                         </div>
                                         <button
                                             type="button"
@@ -999,7 +1001,7 @@ const RemoteControlApp: React.FC = () => {
                                                 : 'bg-white text-zinc-950 hover:bg-white/90'
                                                 }`}
                                         >
-                                            保存至预设 {exportPresets.findIndex(p => p.id === selectedPresetId) + 1}
+                                            {t('remote.saveToPreset', { index: exportPresets.findIndex(p => p.id === selectedPresetId) + 1 })}
                                         </button>
                                     </div>
                                 </div>

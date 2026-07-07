@@ -47,6 +47,43 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
 }
 
 const store = new Store({ projectName: 'Folia' });
+
+// --- Electron main process locale map ---
+const APP_LOCALE_KEY = 'APP_LOCALE';
+const mainLocale = {
+  'zh-CN': {
+    trayShowHide: '显示/隐藏主窗口',
+    trayOpenRemote: '打开 遥控窗口',
+    trayToggleClickThrough: '切换点击穿透',
+    trayHideTaskbar: '隐藏任务栏图标',
+    trayQuit: '退出',
+    dialogImportTitle: '无法导入此文件夹',
+    dialogImportMessage: '不能直接导入系统目录或常用用户目录。\n请选择一个专门存放音乐的文件夹。',
+    dialogChooseOther: '选择其他文件夹',
+    dialogCancel: '取消',
+  },
+  en: {
+    trayShowHide: 'Show/Hide Main Window',
+    trayOpenRemote: 'Open Remote Window',
+    trayToggleClickThrough: 'Toggle Click-Through',
+    trayHideTaskbar: 'Hide Taskbar Icon',
+    trayQuit: 'Quit',
+    dialogImportTitle: 'Cannot import this folder',
+    dialogImportMessage: 'Cannot directly import system or common user directories.\nPlease choose a dedicated music folder.',
+    dialogChooseOther: 'Choose Another Folder',
+    dialogCancel: 'Cancel',
+  },
+};
+
+function getMainLocale() {
+  const stored = store.get(APP_LOCALE_KEY);
+  if (stored === 'zh-CN' || stored === 'en') {
+    return mainLocale[stored];
+  }
+  return mainLocale.en;
+}
+
+
 let mainWindow = null;
 let remoteControlWindow = null;
 let appTray = null;
@@ -589,21 +626,22 @@ function refreshTrayMenu() {
     return;
   }
 
+  const locale = getMainLocale();
   const menu = Menu.buildFromTemplate([
     {
-      label: '显示/隐藏主窗口',
+      label: locale.trayShowHide,
       click: () => {
         toggleMainWindowVisibility();
       },
     },
     {
-      label: '打开 遥控窗口',
+      label: locale.trayOpenRemote,
       click: () => {
         createRemoteControlWindow();
       },
     },
     {
-      label: '切换点击穿透',
+      label: locale.trayToggleClickThrough,
       type: 'checkbox',
       checked: mainWindowClickThroughEnabled,
       enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
@@ -612,7 +650,7 @@ function refreshTrayMenu() {
       },
     },
     {
-      label: '隐藏任务栏图标',
+      label: locale.trayHideTaskbar,
       type: 'checkbox',
       checked: mainWindowSkipTaskbarEnabled,
       enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
@@ -622,7 +660,7 @@ function refreshTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: locale.trayQuit,
       click: () => {
         app.quit();
       },
@@ -2645,11 +2683,12 @@ app.whenReady().then(async () => {
 
   session.defaultSession.on('file-system-access-restricted', (event, details, callback) => {
     if (details.isDirectory) {
+      const locale = getMainLocale();
       dialog.showMessageBox(mainWindow, {
         type: 'warning',
-        title: '无法导入此文件夹',
-        message: '不能直接导入系统目录或常用用户目录。\n请选择一个专门存放音乐的文件夹。',
-        buttons: ['选择其他文件夹', '取消'],
+        title: locale.dialogImportTitle,
+        message: locale.dialogImportMessage,
+        buttons: [locale.dialogChooseOther, locale.dialogCancel],
         defaultId: 0,
         cancelId: 1,
       }).then(({ response }) => {
@@ -2709,6 +2748,14 @@ ipcMain.handle('window-set-native-theme', (event, themeSource) => {
 
 ipcMain.handle('get-settings', () => {
   return getPublicSettings();
+});
+
+ipcMain.handle('set-app-locale', (event, localeKey) => {
+  if (localeKey === 'zh-CN' || localeKey === 'en' || localeKey === 'in') {
+    store.set(APP_LOCALE_KEY, localeKey);
+    refreshTrayMenu();
+  }
+  return localeKey;
 });
 
 ipcMain.handle('save-settings', (event, key, value) => {

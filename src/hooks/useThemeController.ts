@@ -293,7 +293,7 @@ export function useThemeController({
         setBgMode('default');
         setStatusMsg({
             type: 'success',
-            text: `已应用默认主题: ${isDaylight ? 'Daylight Default' : 'Midnight Default'}`,
+            text: t('notifications.appliedDefaultTheme', { themeName: isDaylight ? 'Daylight Default' : 'Midnight Default' }),
         });
     };
 
@@ -381,7 +381,7 @@ export function useThemeController({
         setBgMode('custom');
         setStatusMsg({
             type: 'success',
-            text: `已保存并应用自定义主题: ${getSelectedDualTheme(sanitized, isDaylight).name}`,
+            text: t('notifications.savedCustomTheme', { themeName: getSelectedDualTheme(sanitized, isDaylight).name }),
         });
         return sanitized;
     };
@@ -410,7 +410,7 @@ export function useThemeController({
         setBgMode('custom');
         setStatusMsg({
             type: 'success',
-            text: `已应用自定义主题: ${getSelectedDualTheme(customTheme, isDaylight).name}`,
+            text: t('notifications.appliedCustomTheme', { themeName: getSelectedDualTheme(customTheme, isDaylight).name }),
         });
     };
 
@@ -426,7 +426,7 @@ export function useThemeController({
 
         setStatusMsg({
             type: 'info',
-            text: enabled ? '已开启优先使用自定义主题' : '已关闭优先使用自定义主题',
+            text: t('notifications.' + (enabled ? 'customThemePreferredOn' : 'customThemePreferredOff')),
         });
     };
 
@@ -434,7 +434,7 @@ export function useThemeController({
         applyPreferenceSwitchState(resolveSongThemeAutoSwitchChange(getPreferenceSwitchState(), enabled));
         setStatusMsg({
             type: 'info',
-            text: enabled ? '已开启主题自动切换' : '已关闭主题自动切换',
+            text: t('notifications.' + (enabled ? 'autoSwitchThemeOn' : 'autoSwitchThemeOff')),
         });
     };
 
@@ -442,7 +442,7 @@ export function useThemeController({
         applyPreferenceSwitchState(resolveSongThemeAutoGenerateChange(getPreferenceSwitchState(), enabled));
         setStatusMsg({
             type: 'info',
-            text: enabled ? '已开启播放歌曲主题自动生成' : '已关闭播放歌曲主题自动生成',
+            text: t('notifications.' + (enabled ? 'autoGenerateThemeOn' : 'autoGenerateThemeOff')),
         });
     };
 
@@ -566,7 +566,7 @@ export function useThemeController({
             setStatusMsg({
                 type: 'success',
                 text: bgMode === 'custom' && customTheme
-                    ? 'AI 主题已更新，自定义主题仍为首选'
+                    ? t('notifications.aiThemeUpdatedCustomPreferred')
                     : t('status.themeApplied', { themeName: selectedTheme.name }),
             });
 
@@ -590,7 +590,7 @@ export function useThemeController({
                 setStatusMsg({
                     type: 'info',
                     text: bgMode === 'custom' && customTheme
-                        ? 'AI 主题已生成，但当前仍优先使用自定义主题'
+                        ? t('notifications.aiThemeGeneratedCustomPreferred')
                         : t('status.aiFallbackThemeUsed'),
                 });
                 return { status: 'generated', applied: true };

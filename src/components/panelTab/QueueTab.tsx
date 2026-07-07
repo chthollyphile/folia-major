@@ -156,9 +156,9 @@ const QueueTab: React.FC<QueueTabProps> = ({
                             <button
                                 onClick={handleSavePlaylist}
                                 className="px-2 py-1 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100 text-[10px] font-medium"
-                                title={t('localMusic.saveQueueAsPlaylist') || '保存为歌单'}
+                                title={t('localMusic.saveQueueAsPlaylist')}
                             >
-                                {t('localMusic.saveQueueAsPlaylist') || '保存为歌单'}
+                                {t('localMusic.saveQueueAsPlaylist')}
                             </button>
                         )}
                         {onShuffle && (
@@ -194,9 +194,9 @@ const QueueTab: React.FC<QueueTabProps> = ({
                 isOpen={isSaveDialogOpen}
                 onClose={() => setIsSaveDialogOpen(false)}
                 isDaylight={isDaylight}
-                title={t('localMusic.saveQueueAsPlaylist') || '保存为歌单'}
-                description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                title={t('localMusic.saveQueueAsPlaylist')}
+                description={t('localMusic.enterPlaylistName')}
+                placeholder={t('localMusic.enterPlaylistName')}
                 confirmLabel={t('localMusic.save')}
                 onConfirm={async (playlistName) => {
                     try {

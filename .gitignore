@@ -44,3 +44,5 @@ test/manual/lyric-audit-output/*
 .agents/
 skills-lock.json
 TODO.MD
+commit.md
+.codebuff-ai/reasson/conf.jsonc

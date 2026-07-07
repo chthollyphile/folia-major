@@ -17,7 +17,7 @@ export const createCopySongInfoSuccessHandler = ({
     return () => {
         setStatusMsg({
             type: 'success',
-            text: t('status.copiedSongInfo') || '已复制歌曲信息',
+            text: t('status.copiedSongInfo'),
         });
     };
 };

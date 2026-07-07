@@ -9,7 +9,7 @@ export default defineVisualizer({
     mode: 'cappella',
     order: 50,
     labelKey: 'ui.visualizerCappella',
-    labelFallback: '群唱',
+    labelFallback: 'Cappella',
     previewSeed: 'cappella',
     previewStartOffset: 0,
     tuningKind: 'cappella',

@@ -3,17 +3,22 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.ts';
 import zhCN from './locales/zh-CN.ts';
+import ind from './locales/in.ts';
 
-export type AppLanguagePreference = 'system' | 'en' | 'zh-CN';
+export type AppLanguagePreference = 'system' | 'en' | 'zh-CN' | 'in';
 export const APP_LANGUAGE_STORAGE_KEY = 'folia_app_language';
 
 const isSupportedManualLanguage = (value: string | null | undefined): value is Exclude<AppLanguagePreference, 'system'> => (
-  value === 'en' || value === 'zh-CN'
+  value === 'en' || value === 'zh-CN' || value === 'in'
 );
 
 const normalizeSupportedLanguage = (value: string | null | undefined): Exclude<AppLanguagePreference, 'system'> => {
   if (!value) {
     return 'en';
+  }
+
+  if (value === 'in' || value === 'id' || value.toLowerCase().startsWith('in')) {
+    return 'in';
   }
 
   if (value.toLowerCase().startsWith('zh')) {
@@ -65,10 +70,13 @@ i18n
       },
       'zh-CN': {
         translation: zhCN
+      },
+      in: {
+        translation: ind
       }
     },
     fallbackLng: 'en',
-    supportedLngs: ['en', 'zh-CN'],
+    supportedLngs: ['en', 'zh-CN', 'in'],
     ...(initialLanguagePreference !== 'system' ? { lng: initialLanguagePreference } : {}),
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],

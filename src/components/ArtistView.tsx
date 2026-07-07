@@ -185,7 +185,7 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                                                         onAddSongToQueue(track);
                                                     }}
                                                     className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-                                                    title={t('navidrome.addToQueue') || '加入播放队列'}
+                                                    title={t('navidrome.addToQueue')}
                                                     style={{ color: 'var(--text-secondary)' }}
                                                 >
                                                     <Plus size={14} />

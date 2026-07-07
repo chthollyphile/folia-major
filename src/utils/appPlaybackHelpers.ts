@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import type { LyricData, ReplayGainMode, SongResult } from '../types';
 import type { StructuredLyric } from '../types/navidrome';
 import { detectTimedLyricFormat } from './lyrics/formatDetection';
@@ -36,9 +37,9 @@ export const formatTime = (time: number) => {
 };
 
 export const replayGainModeLabels: Record<ReplayGainMode, string> = {
-    off: 'ReplayGain 已关闭',
-    track: 'ReplayGain: 单曲模式',
-    album: 'ReplayGain: 专辑模式'
+    off: i18n.t('replayGain.off'),
+    track: i18n.t('replayGain.track'),
+    album: i18n.t('replayGain.album'),
 };
 
 export const hasRenderableLyrics = (lyricData: LyricData | null | undefined): lyricData is LyricData => {

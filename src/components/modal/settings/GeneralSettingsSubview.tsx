@@ -30,14 +30,24 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
         onAppLanguagePreferenceChange: state.handleSetAppLanguagePreference,
     })));
 
-    const currentResolvedLanguage = i18n.resolvedLanguage?.startsWith('zh')
-        ? (t('options.appLanguageZhCN') || '简体中文')
-        : (t('options.appLanguageEnUS') || 'English');
+    const getResolvedLanguageLabel = (): string => {
+        const lang = i18n.resolvedLanguage;
+        if (lang?.startsWith('zh')) {
+            return t('options.appLanguageZhCN') || '简体中文';
+        }
+        if (lang === 'in' || lang?.startsWith('id')) {
+            return t('options.appLanguageInID') || 'Bahasa Indonesia';
+        }
+        return t('options.appLanguageEnUS') || 'English';
+    };
+
+    const currentResolvedLanguage = getResolvedLanguageLabel();
 
     const languageOptions: Array<{ value: AppLanguagePreference; label: string; }> = [
         { value: 'system', label: t('options.appLanguageSystem') || '跟随系统' },
         { value: 'zh-CN', label: t('options.appLanguageZhCN') || '简体中文' },
         { value: 'en', label: t('options.appLanguageEnUS') || 'English' },
+        { value: 'in', label: t('options.appLanguageInID') || 'Bahasa Indonesia' },
     ];
 
     const languageHint = appLanguagePreference === 'system'

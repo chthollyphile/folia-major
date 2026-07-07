@@ -76,11 +76,11 @@ export const isSupportedLyricsFontFile = (file: File) => {
 
 export const validateUploadedLyricsFontFile = (file: File): string | null => {
     if (!isSupportedLyricsFontFile(file)) {
-        return '仅支持 woff2、woff、ttf、otf 字体文件。';
+        return 'Only woff2, woff, ttf, and otf font files are supported.';
     }
 
     if (file.size > MAX_UPLOADED_LYRICS_FONT_SIZE) {
-        return '字体文件不能超过 50MB。';
+        return 'Font file must not exceed 50MB.';
     }
 
     return null;
@@ -114,7 +114,7 @@ export const registerUploadedLyricsFont = async (storedFont: StoredUploadedLyric
     const documentFonts = getDocumentFonts();
 
     if (!FontFaceConstructor || !documentFonts) {
-        throw new Error('当前浏览器不支持加载上传字体。');
+        throw new Error('This browser does not support loading uploaded fonts.');
     }
 
     const fontData = await storedFont.blob.arrayBuffer();

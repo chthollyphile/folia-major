@@ -234,7 +234,7 @@ export const PolaroidCard = React.memo<{
                     {isUnavailable && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-2 text-center z-10">
                             <span className="text-[10px] bg-red-500/80 text-white font-bold px-2 py-1 rounded-full uppercase tracking-wider">
-                                {unavailableTagText || 'UNAVAILABLE'}
+                                {unavailableTagText || t('status.songUnavailableTag').toUpperCase()}
                             </span>
                         </div>
                     )}
@@ -339,7 +339,7 @@ export const PolaroidCard = React.memo<{
                                         transition: 'opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, color 0.2s ease',
                                     }}
                                     className="w-9 h-9 rounded-full bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 text-current flex items-center justify-center shadow-sm pointer-events-auto z-10"
-                                    title={t('playlist.play') || 'Play'}
+                                    title={t('playlist.play')}
                                 >
                                     <Play size={15} fill="currentColor" className="ml-0.5" />
                                 </button>
@@ -352,7 +352,7 @@ export const PolaroidCard = React.memo<{
                                     }}
                                     style={{ opacity: 'var(--queue-opacity, 1)' as any, pointerEvents: 'var(--queue-pe, auto)' as any }}
                                     className="w-9 h-9 rounded-full bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 text-current flex items-center justify-center transition-colors shadow-sm pointer-events-auto"
-                                    title={t('navidrome.addToQueue') || 'Add to Queue'}
+                                    title={t('navidrome.addToQueue')}
                                 >
                                     <Plus size={15} />
                                 </button>
@@ -1632,7 +1632,7 @@ export const GridView: React.FC<GridViewProps> = ({
                     {neteaseAlbumInfo?.name || title}
                     {mode === 'tracks' && collection && (
                         <span className="text-[9px] bg-zinc-500/20 text-current px-1.5 py-0.5 rounded-full font-normal opacity-60">
-                            {showCutInPanel ? '收起信息' : '歌单信息'}
+                            {t(showCutInPanel ? 'ui.close' : 'ui.info')}
                         </span>
                     )}
                 </h2>
@@ -1709,7 +1709,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                             setSearchQuery('');
                                         }
                                     }}
-                                    placeholder={`${t('home.gridSearchPlaceholder') || 'Filter songs...'} (Esc)`}
+                                    placeholder={`${t('home.gridSearchPlaceholder')} (Esc)`}
                                     className="w-full rounded-full bg-transparent py-3 pl-11 pr-11 text-sm font-medium outline-none placeholder:text-current placeholder:opacity-40"
                                     style={{ color: 'var(--text-primary)' }}
                                 />
@@ -1736,11 +1736,11 @@ export const GridView: React.FC<GridViewProps> = ({
                 {showLoading ? (
                     <div className="flex flex-col items-center gap-4 opacity-50">
                         <Loader2 className="animate-spin" size={32} />
-                        <span className="text-sm font-semibold font-sans">{t('playlist.loading') || 'Loading...'}</span>
+                        <span className="text-sm font-semibold font-sans">{t('playlist.loading')}</span>
                     </div>
                 ) : gridItems.length === 0 ? (
                     <div className="opacity-40 text-sm font-sans">
-                        {hasSearchQuery ? (t('home.gridSearchNoResults') || 'No matching cards') : (t('home.loadingLibrary') || 'No items found')}
+                        {hasSearchQuery ? (t('home.gridSearchNoResults')) : (t('home.loadingLibrary'))}
                     </div>
                 ) : (
                     <motion.div
@@ -1802,7 +1802,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                         style={{
                                             backgroundColor: isDaylight ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)',
                                         }}
-                                        title={playlistSubscribed ? (isNeteaseAlbum ? "取消收藏专辑" : "取消收藏歌单") : (isNeteaseAlbum ? "收藏专辑" : "收藏歌单")}
+                                        title={playlistSubscribed ? (isNeteaseAlbum ? t('options.unsubscribeAlbum') : t('options.unsubscribePlaylist')) : (isNeteaseAlbum ? t('options.subscribeAlbum') : t('options.subscribePlaylist'))}
                                     >
                                         {isSubscribing ? (
                                             <Loader2 size={18} className="animate-spin opacity-60" style={{ color: 'var(--text-primary)' }} />
@@ -1846,8 +1846,8 @@ export const GridView: React.FC<GridViewProps> = ({
                                         </div>
                                     )}
                                     <div className="text-[10px] opacity-40 mt-1.5">
-                                        {collection.trackCount !== undefined && <span>{collection.trackCount} 首歌</span>}
-                                        {collection.playCount !== undefined && <span> • {collection.playCount} 次播放</span>}
+                                        {collection.trackCount !== undefined && <span>{collection.trackCount} {t('home.songs')}</span>}
+                                        {collection.playCount !== undefined && <span> • {collection.playCount} {t('playlist.plays')}</span>}
                                     </div>
                                     {isAlbumCollection && (
                                         <div className="mt-3 space-y-1.5 text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
@@ -1920,7 +1920,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                     className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                 >
                                     <ListPlus size={14} />
-                                    {t('navidrome.addToQueue') || '加入播放队列'}
+                                    {t('navidrome.addToQueue')}
                                 </button>
                                 {canAddNavidromeToPlaylist && (
                                     <button
@@ -1929,7 +1929,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                         className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                     >
                                         <Plus size={14} />
-                                        {t('localMusic.addToPlaylist') || '添加到歌单'}
+                                        {t('localMusic.addToPlaylist')}
                                     </button>
                                 )}
                                 {isLocalFolderCollection && sourceActions?.local?.onResyncFolder && (
@@ -1987,7 +1987,7 @@ export const GridView: React.FC<GridViewProps> = ({
             </div>
             <PlaylistSelectionDialog
                 isOpen={isPlaylistPickerOpen}
-                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                title={t('localMusic.addToPlaylist')}
                 playlists={sourceActions?.navidrome?.availablePlaylists || []}
                 onClose={() => setIsPlaylistPickerOpen(false)}
                 onSelect={(playlistId) => {
@@ -1995,14 +1995,14 @@ export const GridView: React.FC<GridViewProps> = ({
                     setIsPlaylistPickerOpen(false);
                 }}
                 onCreate={() => setIsCreatePlaylistOpen(true)}
-                createLabel={t('localMusic.createPlaylist') || '新建歌单'}
+                createLabel={t('localMusic.createPlaylist')}
                 isDaylight={isDaylight}
             />
             <TextInputDialog
                 isOpen={isCreatePlaylistOpen}
-                title={t('localMusic.createPlaylist') || '新建歌单'}
-                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                confirmLabel={t('localMusic.createPlaylist') || '新建歌单'}
+                title={t('localMusic.createPlaylist')}
+                placeholder={t('localMusic.enterPlaylistName')}
+                confirmLabel={t('localMusic.createPlaylist')}
                 onClose={() => setIsCreatePlaylistOpen(false)}
                 onConfirm={(name) => {
                     void handleCreateNavidromePlaylist(name);
@@ -2021,7 +2021,7 @@ export const GridView: React.FC<GridViewProps> = ({
                         borderColor: isDaylight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
                         color: 'var(--text-primary)'
                     }}
-                    title={t('playlist.viewTracks') || 'View Tracks'}
+                    title={t('playlist.viewTracks')}
                 >
                     <List size={22} />
                 </button>

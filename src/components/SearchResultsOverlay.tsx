@@ -274,7 +274,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                                     onAddSongToQueue(track);
                                                 }}
                                                 className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-                                                title={t('navidrome.addToQueue') || '加入播放队列'}
+                                                title={t('navidrome.addToQueue')}
                                                 style={{ color: 'var(--text-secondary)' }}
                                             >
                                                 <Plus size={14} />
@@ -291,7 +291,7 @@ const SearchResultsOverlay: React.FC<SearchResultsOverlayProps> = ({
                                             disabled={isLoadingMore}
                                             className={`px-5 py-2 rounded-full border transition-colors ${isDaylight ? 'border-black/10 bg-black/5 hover:bg-black/10' : 'border-white/10 bg-white/5 hover:bg-white/10'} disabled:opacity-60`}
                                         >
-                                            {isLoadingMore ? (t('localMusic.searching') || '搜索中...') : (t('home.loadMore') || '加载更多')}
+                                            {isLoadingMore ? t('localMusic.searching') : t('home.loadMore')}
                                         </button>
                                     </div>
                                 )}

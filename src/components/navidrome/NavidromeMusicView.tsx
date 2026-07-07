@@ -200,24 +200,24 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
 
         const getCoverUrl = (coverArtId: string, size?: number) => navidromeApi.getCoverArtUrl(config, coverArtId, size);
         const randomCoverUrl = pickRandomSongCoverUrl(randomSongs, getCoverUrl, 600, 3)
-            || createCoverPlaceholder(t('navidrome.random') || '随机音乐', 'playlist');
+            || createCoverPlaceholder(t('navidrome.random'), 'playlist');
         const favoriteCoverUrl = pickRandomSongCoverUrl(favoriteSongs, getCoverUrl, 600, 3)
-            || createCoverPlaceholder(t('navidrome.favorites') || '收藏', 'playlist');
+            || createCoverPlaceholder(t('navidrome.favorites'), 'playlist');
 
         const virtualItems = [
             {
                 id: '__navi_random__',
-                name: t('navidrome.random') || '随机音乐',
+                name: t('navidrome.random'),
                 coverUrl: randomCoverUrl,
                 trackCount: randomSongs.length,
-                description: t('navidrome.randomDesc') || '即时随机播放列表',
+                description: t('navidrome.randomDesc'),
             },
             {
                 id: '__navi_favorites__',
-                name: t('navidrome.favorites') || '收藏',
+                name: t('navidrome.favorites'),
                 coverUrl: favoriteCoverUrl,
                 trackCount: favoriteSongs.length,
-                description: t('navidrome.favoritesDesc') || '已标星歌曲',
+                description: t('navidrome.favoritesDesc'),
             },
         ];
 
@@ -430,13 +430,13 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                 title={selectedItem.type === 'playlist'
                     ? selectedItem.playlist.name
                     : selectedItem.type === 'favorites'
-                        ? (t('navidrome.favorites') || '收藏')
-                        : (t('navidrome.random') || '随机音乐')}
+                        ? (t('navidrome.favorites'))
+                        : (t('navidrome.random'))}
                 subtitle={selectedItem.type === 'playlist'
                     ? (selectedItem.playlist.owner || t('home.playlists'))
                     : selectedItem.type === 'favorites'
-                        ? (t('navidrome.favoritesDesc') || '已标星歌曲')
-                        : (t('navidrome.randomDesc') || '即时随机播放列表')}
+                        ? (t('navidrome.favoritesDesc'))
+                        : (t('navidrome.randomDesc'))}
                 coverUrl={selectedItem.type === 'playlist'
                     ? (selectedItem.playlist.coverArt
                         ? navidromeApi.getCoverArtUrl(config, selectedItem.playlist.coverArt, 600)
@@ -447,13 +447,13 @@ const NavidromeMusicView: React.FC<NavidromeMusicViewProps> = ({
                             (coverArtId, size) => navidromeApi.getCoverArtUrl(config, coverArtId, size),
                             600,
                             3
-                        ) || createCoverPlaceholder(t('navidrome.favorites') || '收藏', 'playlist'))
+                        ) || createCoverPlaceholder(t('navidrome.favorites'), 'playlist'))
                         : (pickRandomSongCoverUrl(
                             selectedItem.songs,
                             (coverArtId, size) => navidromeApi.getCoverArtUrl(config, coverArtId, size),
                             600,
                             3
-                        ) || createCoverPlaceholder(t('navidrome.random') || '随机音乐', 'playlist'))}
+                        ) || createCoverPlaceholder(t('navidrome.random'), 'playlist'))}
                 placeholderVariant="playlist"
                 songs={selectedItem.songs}
                 config={config}

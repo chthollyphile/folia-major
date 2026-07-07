@@ -654,7 +654,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                             {isImporting || isScanInProgress ? (
                                 <>
                                     <Loader2 size={16} className="animate-spin" />
-                                    {isScanInProgress ? '扫描中' : t('localMusic.importing')}
+                                    {isScanInProgress ? t('options.scanning') : t('localMusic.importing')}
                                 </>
                             ) : (
                                 <>
@@ -695,7 +695,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                                                     : 'bg-white/10 hover:bg-white/20'
                                             }`}
                                             disabled={importButtonDisabled}
-                                            title={isScanInProgress ? '正在扫描媒体库' : 'Import Folder'}
+                                            title={isScanInProgress ? t('options.scanningMediaLib') : t('localMusic.importFolder')}
                                         >
                                             {importButtonDisabled ? <Loader2 size={14} className="animate-spin" /> : <FolderOpen size={14} />}
                                         </button>

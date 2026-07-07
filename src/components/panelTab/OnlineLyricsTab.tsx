@@ -92,7 +92,7 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                             <button
                                 onClick={onClearOnlineLyricsState}
                                 className={`p-1 rounded-md transition-all opacity-40 hover:opacity-100 ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5'}`}
-                                title={t('localMusic.delete') || '清除'}
+                                title={t('localMusic.delete')}
                             >
                                 <RotateCcw size={13} />
                             </button>
@@ -126,7 +126,7 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
                 {availableSources.length === 1 ? (
                     <div className={`flex items-center justify-between ${isDaylight ? 'bg-black/5' : 'bg-white/5'} rounded-lg p-2 pl-3`}>
                         <span className="text-[11px] opacity-60">
-                            {t('lyricsSource') === 'Lyrics' ? 'Lyrics Source' : '歌词来源'}
+                            {t('localMusic.lyricsSource')}
                         </span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${activeTabBg}`}>
                             {availableSources[0].label}

@@ -24,7 +24,7 @@ export default defineVisualizer({
     mode: 'cadenza',
     order: 20,
     labelKey: 'ui.visualizerCadenze',
-    labelFallback: '心象',
+    labelFallback: 'Mindscape',
     previewSeed: 'cadenza',
     previewStartOffset: 0,
     tuningKind: 'cadenza',

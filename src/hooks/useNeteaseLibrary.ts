@@ -71,7 +71,7 @@ const getAllUserPlaylists = async (uid: number): Promise<NeteasePlaylist[]> => {
     return allPlaylists;
 };
 
-const getUserCloudPlaylist = async (user: NeteaseUser): Promise<NeteasePlaylist | null> => {
+const getUserCloudPlaylist = async (user: NeteaseUser, t: (key: string) => string): Promise<NeteasePlaylist | null> => {
     const response = await neteaseApi.getUserCloud(1, 0);
     const trackCount = Number(response.count || 0);
 
@@ -83,14 +83,14 @@ const getUserCloudPlaylist = async (user: NeteaseUser): Promise<NeteasePlaylist 
 
     return {
         id: -100,
-        name: '云盘',
+        name: t('navidrome.cloudDrive'),
         coverImgUrl,
         trackCount,
         playCount: 0,
         updateTime: Date.now(),
         trackUpdateTime: Date.now(),
         creator: user,
-        description: '网易云音乐云盘',
+        description: t('navidrome.cloudDriveDesc'),
         specialType: 'cloud',
     };
 };
@@ -166,7 +166,7 @@ export function useNeteaseLibrary({
                 }
 
                 try {
-                    const nextCloudPlaylist = await getUserCloudPlaylist(profile);
+                    const nextCloudPlaylist = await getUserCloudPlaylist(profile, t);
                     setCloudPlaylist(nextCloudPlaylist);
                     await saveToCache('user_cloud_playlist', nextCloudPlaylist);
                 } catch (error) {
@@ -246,7 +246,7 @@ export function useNeteaseLibrary({
 
             const newPlaylists = await getAllUserPlaylists(profile.userId);
             if (!newPlaylists || newPlaylists.length === 0) return;
-            const nextCloudPlaylist = await getUserCloudPlaylist(profile);
+            const nextCloudPlaylist = await getUserCloudPlaylist(profile, t);
 
             const cachedPlaylists = await getFromCache<NeteasePlaylist[]>('user_playlists');
 

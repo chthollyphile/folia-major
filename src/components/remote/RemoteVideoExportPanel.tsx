@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, Square } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { RemoteControlCommand } from '../../types/remoteControl';
 import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from '../../types/videoExport';
 
@@ -61,6 +62,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
     sendCommand,
     isDaylight = false,
 }) => {
+    const { t } = useTranslation();
     const exportBusy = isExportBusy(exportState.status);
     const statusLabel = getExportStatusLabel(exportState);
 
@@ -79,7 +81,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                                 : (isDaylight ? 'text-black/70 hover:bg-black/5 hover:text-black' : 'text-white/70 hover:bg-white/5 hover:text-white')
                         }`}
                     >
-                        整首歌
+                        {t('remote.exportFullSong')}
                     </button>
                     <button
                         type="button"
@@ -91,7 +93,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                                 : (isDaylight ? 'text-black/70 hover:bg-black/5 hover:text-black' : 'text-white/70 hover:bg-white/5 hover:text-white')
                         }`}
                     >
-                        从此
+                        {t('remote.exportFromHere')}
                     </button>
                 </div>
 
@@ -106,7 +108,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                     }`}
                 >
                     <span className="truncate">
-                        {selectedPreset.orientation === 'portrait' ? '竖屏 ' : '横屏 '}
+                        {selectedPreset.orientation === 'portrait' ? t('remote.portrait') : t('remote.landscape')}
                         {selectedPreset.label}
                     </span>
                     <ChevronDown size={12} className="shrink-0 ml-1 opacity-60" />
@@ -122,25 +124,25 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
             {exportState.status === 'countdown' && (
                 <div className={`text-[10px] font-semibold flex items-center gap-1.5 animate-pulse -mt-1 ${isDaylight ? 'text-blue-600' : 'text-blue-400'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isDaylight ? 'bg-blue-600' : 'bg-blue-400'}`} />
-                    即将开始录制 ({exportState.countdown}s)...
+                    {t('remote.recordingCountdown', { countdown: exportState.countdown })}
                 </div>
             )}
             {exportState.status === 'preparing' && (
                 <div className={`text-[10px] font-semibold flex items-center gap-1.5 animate-pulse -mt-1 ${isDaylight ? 'text-amber-600' : 'text-amber-400'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isDaylight ? 'bg-amber-600' : 'bg-amber-400'}`} />
-                    正在准备录制环境...
+                    {t('remote.preparingEnvironment')}
                 </div>
             )}
             {exportState.status === 'recording' && (
                 <div className={`text-[10px] font-semibold flex items-center gap-1.5 -mt-1 ${isDaylight ? 'text-red-600' : 'text-red-500'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full animate-ping ${isDaylight ? 'bg-red-600' : 'bg-red-500'}`} />
-                    视频录制中 ({Math.round(exportState.progress * 100)}%)
+                    {t('remote.recordingProgress', { progress: Math.round(exportState.progress * 100) })}
                 </div>
             )}
             {exportState.status === 'finalizing' && (
                 <div className={`text-[10px] font-semibold flex items-center gap-1.5 animate-pulse -mt-1 ${isDaylight ? 'text-emerald-600' : 'text-emerald-400'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isDaylight ? 'bg-emerald-600' : 'bg-emerald-400'}`} />
-                    正在保存视频...
+                    {t('remote.savingVideo')}
                 </div>
             )}
 
@@ -159,7 +161,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                             }`}
                         >
                             <Square size={10} fill="currentColor" />
-                            停止并保存
+                            {t('remote.stopAndSave')}
                         </button>
                         <button
                             key="btn-cancel"
@@ -171,7 +173,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                                     : 'bg-white/10 text-white hover:bg-white/15'
                             }`}
                         >
-                            取消
+                            {t('remote.cancel')}
                         </button>
                     </>
                 ) : (
@@ -186,7 +188,7 @@ const RemoteVideoExportPanel: React.FC<RemoteVideoExportPanelProps> = ({
                                 : 'bg-white text-zinc-950 hover:bg-white/90'
                         }`}
                     >
-                        {statusLabel === 'Ready' ? '开始录制' : (statusLabel === 'Saved' ? '已保存' : (statusLabel === 'Error' ? '出错' : (statusLabel === 'Saving' ? '保存中' : (statusLabel === 'Preparing' ? '准备中' : statusLabel))))}
+                        {statusLabel === 'Ready' ? t('remote.startRecording') : (statusLabel === 'Saved' ? t('remote.saved') : (statusLabel === 'Error' ? t('remote.error') : (statusLabel === 'Saving' ? t('remote.saving') : (statusLabel === 'Preparing' ? t('remote.preparing') : statusLabel))))}
                     </button>
                 )}
             </div>

@@ -527,7 +527,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             await navigator.clipboard.writeText(code);
             setCopiedType('shortcode');
             setTimeout(() => setCopiedType('none'), 2000);
-            store.statusSetter?.({ type: 'success', text: t('status.copied') || '已复制' });
+            store.statusSetter?.({ type: 'success', text: t('status.copied') });
         } catch (err) {
             console.error('Failed to copy shortcode:', err);
         }
@@ -540,7 +540,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             await navigator.clipboard.writeText(code);
             setCopiedType('json');
             setTimeout(() => setCopiedType('none'), 2000);
-            store.statusSetter?.({ type: 'success', text: t('status.copied') || '已复制' });
+            store.statusSetter?.({ type: 'success', text: t('status.copied') });
         } catch (err) {
             console.error('Failed to copy JSON:', err);
         }
@@ -980,7 +980,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             style={{ color: 'var(--text-primary)' }}
                         >
                             {copiedType === 'shortcode' ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-                            <span>{copiedType === 'shortcode' ? (t('status.copied') || '已复制') : (t('options.exportBtn') || '复制配置码')}</span>
+                            <span>{copiedType === 'shortcode' ? (t('status.copied')) : (t('options.exportBtn') || '复制配置码')}</span>
                         </button>
                         <button
                             type="button"
@@ -989,7 +989,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             style={{ color: 'var(--text-primary)' }}
                         >
                             {copiedType === 'json' ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-                            <span>{copiedType === 'json' ? (t('status.copied') || '已复制') : '复制 JSON'}</span>
+                            <span>{copiedType === 'json' ? (t('status.copied')) : t('options.importBtn')}</span>
                         </button>
                         <div className="flex-1 min-w-[20px]" />
                         <button

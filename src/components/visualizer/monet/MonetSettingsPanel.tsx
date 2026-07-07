@@ -163,7 +163,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { value: 'cover', label: t('options.monetPortraitSourceCover') || '封面' },
         {
             value: 'custom',
-            label: t('options.monetPortraitSourceCustom') || '自定义图片',
+            label: t('options.monetPortraitSourceCustom'),
             disabled: !monetPortraitImage && !isLoadingMonetPortraitImage,
         },
     ]), [isLoadingMonetPortraitImage, monetPortraitImage, t]);
@@ -172,8 +172,8 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { value: 'line', label: t('options.monetAudioStyleLine') || '线条' },
     ]), [t]);
     const portraitStyleOptions = useMemo<PresetOption<'rectangular' | 'square'>[]>(() => ([
-        { value: 'rectangular', label: t('options.monetPortraitStyleRectangular') || '长方形' },
-        { value: 'square', label: t('options.monetPortraitStyleSquare') || '正方形' },
+        { value: 'rectangular', label: t('options.monetPortraitStyleRectangular') },
+        { value: 'square', label: t('options.monetPortraitStyleSquare') },
     ]), [t]);
     const showPortraitDragHangerOptions = useMemo<PresetOption<boolean>[]>(() => ([
         { value: true, label: t('options.monetPortraitDragHangerShow') || '显示' },
@@ -193,7 +193,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             onMonetTuningChange?.({ portraitSource: 'custom' });
             setFeedback(files[0].name);
         } else {
-            setFeedback(result.error || (t('options.monetUploadPortrait') || '上传失败'));
+            setFeedback(result.error || t('options.monetUploadPortrait'));
         }
     };
 
@@ -204,7 +204,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         >
             <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.monetSettings') || '莫奈参数'}
+                    {t('options.monetSettings')}
                 </div>
                 <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.monetSettingsDesc') || '控制关键字、右侧肖像和底部频谱样式。'}
@@ -214,11 +214,11 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             {/* Section 1: Lyrics & Typography */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.lyricsStyleSettings') || '歌词与排版'}
+                    {t('options.lyricsStyleSettings')}
                 </div>
                 
                 <SliderControl
-                    label={t('options.monetFontScale') || '字体缩放'}
+                    label={t('options.monetFontScale')}
                     valueLabel={`${resolvedTuning.fontScale.toFixed(2)}x`}
                     min={0.7}
                     max={1.5}
@@ -231,7 +231,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 />
 
                 <PresetGroup
-                    label={t('options.monetKeywordColoring') || '关键字着色'}
+                    label={t('options.monetKeywordColoring')}
                     value={resolvedTuning.keywordColoringEnabled}
                     options={keywordColoringOptions}
                     onChange={(value) => onMonetTuningChange?.({ keywordColoringEnabled: value })}
@@ -240,7 +240,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 />
 
                 <PresetGroup
-                    label={t('options.monetShowDescription') || '显示歌曲描述'}
+                    label={t('options.monetShowDescription')}
                     value={resolvedTuning.showDescription}
                     options={showDescriptionOptions}
                     onChange={(value) => onMonetTuningChange?.({ showDescription: value })}
@@ -252,11 +252,11 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             {/* Section 2: Portrait Character */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.cappellaAvatarSource') || '肖像展示'}
+                    {t('options.cappellaAvatarSource')}
                 </div>
 
                 <PresetGroup
-                    label={t('options.monetPortraitSource') || '右侧肖像来源'}
+                    label={t('options.monetPortraitSource')}
                     value={resolvedTuning.portraitSource}
                     options={portraitSourceOptions}
                     onChange={(value) => onMonetTuningChange?.({ portraitSource: value })}
@@ -265,7 +265,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 />
 
                 <PresetGroup
-                    label={t('options.monetPortraitStyle') || '封面形状'}
+                    label={t('options.monetPortraitStyle')}
                     value={resolvedTuning.portraitStyle}
                     options={portraitStyleOptions}
                     onChange={(value) => onMonetTuningChange?.({ portraitStyle: value })}
@@ -274,7 +274,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 />
 
                 <PresetGroup
-                    label={t('options.monetPortraitDragHanger') || '拖拽调整按钮'}
+                    label={t('options.monetPortraitDragHanger')}
                     value={resolvedTuning.showPortraitDragHanger}
                     options={showPortraitDragHangerOptions}
                     onChange={(value) => onMonetTuningChange?.({ showPortraitDragHanger: value })}
@@ -283,7 +283,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 />
 
                 <div className="space-y-2.5">
-                    <SectionLabel theme={theme}>{t('options.monetUploadPortrait') || '上传肖像图'}</SectionLabel>
+                    <SectionLabel theme={theme}>{t('options.monetUploadPortrait')}</SectionLabel>
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
@@ -311,7 +311,7 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                             }}
                         >
                             <Trash2 size={15} />
-                            <span>{t('options.monetClearPortrait') || '清空肖像图'}</span>
+                            <span>{t('options.monetClearPortrait')}</span>
                         </button>
                     </div>
                     <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
@@ -330,11 +330,11 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             {/* Section 3: Audio Spectrum */}
             <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
                 <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetAudioStyle') || '频谱反馈'}
+                    {t('options.monetAudioStyle')}
                 </div>
 
                 <PresetGroup
-                    label={t('options.monetAudioStyle') || '频谱样式'}
+                    label={t('options.monetAudioStyle')}
                     value={resolvedTuning.audioStyle}
                     options={audioStyleOptions}
                     onChange={(value) => onMonetTuningChange?.({ audioStyle: value })}

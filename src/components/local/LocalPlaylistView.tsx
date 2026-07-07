@@ -382,7 +382,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                     style={{ color: 'var(--text-primary)' }}
                                 >
                                     <Pencil size={16} />
-                                    {isEditMode ? (t('localMusic.finishEditing') || '完成编辑') : (t('localMusic.editPlaylist') || '编辑歌单')}
+                                    {isEditMode ? t('localMusic.finishEditing') : t('localMusic.editPlaylist')}
                                 </button>
 
                                 {onDeletePlaylist && (
@@ -391,7 +391,7 @@ const LocalPlaylistView: React.FC<LocalPlaylistViewProps> = ({ title, coverUrl, 
                                         className="flex-1 py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500"
                                     >
                                         <Trash2 size={16} />
-                                        {t('localMusic.deletePlaylist') || '删除歌单'}
+                                        {t('localMusic.deletePlaylist')}
                                     </button>
                                 )}
                             </div>

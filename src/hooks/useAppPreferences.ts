@@ -15,6 +15,7 @@ import {
     selectSettingsUiSnapshot,
     useSettingsUiStore,
 } from '../stores/useSettingsUiStore';
+import i18n from '../i18n/config';
 
 export { resolveStoredCappellaTuning, resolveStoredCustomLyricsFont, resolveStoredMonetBackgroundTuning, resolveVisualizerBackgroundMode };
 
@@ -224,7 +225,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
                 if (!restoredFont) {
                     clearLyricsCustomFontAfterRestoreFailure({
                         type: 'info',
-                        text: '上传字体不可用，已恢复内置字体',
+                        text: i18n.t('notifications.uploadedFontUnavailable'),
                     });
                 }
             } catch (error) {
@@ -235,7 +236,7 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
 
                 clearLyricsCustomFontAfterRestoreFailure({
                     type: 'error',
-                    text: '加载上传字体失败，已恢复内置字体',
+                    text: i18n.t('notifications.uploadedFontLoadFailed'),
                 });
             }
         };

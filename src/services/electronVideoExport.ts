@@ -107,7 +107,7 @@ export const getAudioElementCaptureStream = (audioElement: HTMLAudioElement) => 
     const stream = capturableAudio.captureStream?.() ?? capturableAudio.mozCaptureStream?.();
 
     if (!stream || stream.getAudioTracks().length === 0) {
-        throw new Error('当前音频元素无法提供录制音轨。');
+        throw new Error('Current audio element cannot provide a recording track.');
     }
 
     return stream;
@@ -116,7 +116,7 @@ export const getAudioElementCaptureStream = (audioElement: HTMLAudioElement) => 
 export const getMainWindowVideoCaptureStream = async (preset: VideoExportPreset) => {
     const source = await window.electron?.getMainWindowCaptureSource?.();
     if (!source) {
-        throw new Error('无法找到主播放器窗口的采集源。');
+        throw new Error('Could not find the main player window capture source.');
     }
 
     return navigator.mediaDevices.getUserMedia({

@@ -53,11 +53,11 @@ const NaviTab: React.FC<NaviTabProps> = ({
     const hasMatchedLyrics = (matchedLyrics?.lines?.length ?? 0) > 0;
     const isOnline = hasMatchedLyrics && songLyricsSource === 'online';
     
-    let lyricsSourceLabel = '无';
+    let lyricsSourceLabel = t('localMusic.statusNone');
     if (isOnline) {
         lyricsSourceLabel = getLyricProviderLabel(matchedLyricsSource, matchedLyricsProviderPlatform);
     } else if (hasLyrics) {
-        lyricsSourceLabel = '服务器歌词';
+        lyricsSourceLabel = t('navidrome.server');
     }
 
     return (
@@ -100,7 +100,7 @@ const NaviTab: React.FC<NaviTabProps> = ({
                 <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 pl-3">
                     <div className="flex items-center gap-2">
                         <FileText size={16} className="opacity-60" />
-                        <span className="text-sm">歌词来源</span>
+                        <span className="text-sm">{t('localMusic.lyricsSource')}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${isOnline

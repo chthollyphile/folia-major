@@ -47,19 +47,19 @@ const mapLocalSongToUnifiedSong = (
 ): UnifiedSong => ({
     id: -(Date.now() + index),
     name: song.title || song.embeddedTitle || song.fileName,
-    artists: [{ id: 0, name: song.artist || song.embeddedArtist || t('player.unknownArtist', '未知歌手') }],
+    artists: [{ id: 0, name: song.artist || song.embeddedArtist || t('player.unknownArtist') }],
     album: {
         id: 0,
-        name: song.album || song.embeddedAlbum || t('player.unknownAlbum', '未知专辑'),
+        name: song.album || song.embeddedAlbum || t('player.unknownAlbum'),
         picUrl: song.matchedCoverUrl || undefined,
     },
     duration: song.duration,
     al: {
         id: 0,
-        name: song.album || song.embeddedAlbum || t('player.unknownAlbum', '未知专辑'),
+        name: song.album || song.embeddedAlbum || t('player.unknownAlbum'),
         picUrl: song.matchedCoverUrl || undefined,
     },
-    ar: [{ id: 0, name: song.artist || song.embeddedArtist || t('player.unknownArtist', '未知歌手') }],
+    ar: [{ id: 0, name: song.artist || song.embeddedArtist || t('player.unknownArtist') }],
     dt: song.duration,
     isLocal: true,
     localData: song,

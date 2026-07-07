@@ -26,7 +26,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     value,
     onChange,
     options,
-    placeholder = '请选择',
+    placeholder = 'Select...',
     disabled = false,
     isDaylight = false,
     theme,

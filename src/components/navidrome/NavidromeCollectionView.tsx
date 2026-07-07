@@ -204,7 +204,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                 style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                             >
                                 <ListPlus size={18} />
-                                {t('navidrome.addToQueue') || '加入播放队列'}
+                                {t('navidrome.addToQueue')}
                             </button>
 
                             {canAddCollectionToPlaylist && (
@@ -215,7 +215,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                     style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                 >
                                     <Plus size={18} />
-                                    {t('localMusic.addToPlaylist') || '添加到歌单'}
+                                    {t('localMusic.addToPlaylist')}
                                 </button>
                             )}
 
@@ -231,8 +231,8 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                     >
                                         {isRenamingPlaylist ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />}
                                         {isEditMode
-                                            ? (t('localMusic.finishEditing') || '完成编辑')
-                                            : (t('localMusic.editPlaylist') || '编辑歌单')}
+                                            ? t('localMusic.finishEditing')
+                                            : t('localMusic.editPlaylist')}
                                     </button>
                                     {onDeletePlaylist && (
                                         <button
@@ -240,7 +240,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                             className={dangerButtonClass}
                                         >
                                             <Trash2 size={16} />
-                                            {t('localMusic.deletePlaylist') || '删除歌单'}
+                                            {t('localMusic.deletePlaylist')}
                                         </button>
                                     )}
                                 </div>
@@ -314,7 +314,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                                         setSongPlaylistPickerIndex(idx);
                                                     }}
                                                     className="rounded-full p-2 hover:bg-white/10"
-                                                    title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                                                    title={t('localMusic.addToPlaylist')}
                                                     style={{ color: 'var(--text-secondary)' }}
                                                 >
                                                     <Plus size={14} />
@@ -334,7 +334,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                                                     }}
                                                     disabled={removingSongIndex === idx}
                                                     className="rounded-full p-2 hover:bg-red-500/10 disabled:opacity-60"
-                                                    title={t('localMusic.delete') || '删除'}
+                                                    title={t('localMusic.delete')}
                                                     style={{ color: 'var(--text-secondary)' }}
                                                 >
                                                     {removingSongIndex === idx ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -353,7 +353,7 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                 isOpen={isPlaylistPickerOpen}
                 onClose={() => setIsPlaylistPickerOpen(false)}
                 isDaylight={isDaylight}
-                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                title={t('localMusic.addToPlaylist')}
                 description={t('home.playlists') || 'Playlists'}
                 playlists={availablePlaylists}
                 onSelect={async (playlistId) => {
@@ -363,14 +363,14 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                     setIsPlaylistPickerOpen(false);
                     setIsCreatePlaylistOpen(true);
                 } : undefined}
-                createLabel={t('navidrome.createPlaylist') || '新建歌单'}
+                createLabel={t('navidrome.createPlaylist')}
             />
 
             <PlaylistSelectionDialog
                 isOpen={songPlaylistPickerIndex !== null}
                 onClose={() => setSongPlaylistPickerIndex(null)}
                 isDaylight={isDaylight}
-                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                title={t('localMusic.addToPlaylist')}
                 description={songs[songPlaylistPickerIndex ?? -1]?.title || title}
                 playlists={availablePlaylists}
                 onSelect={async (playlistId) => {
@@ -385,17 +385,17 @@ const NavidromeCollectionView: React.FC<NavidromeCollectionViewProps> = ({
                     setIsCreatePlaylistOpen(true);
                     setSongPlaylistPickerIndex(null);
                 } : undefined}
-                createLabel={t('navidrome.createPlaylist') || '新建歌单'}
+                createLabel={t('navidrome.createPlaylist')}
             />
 
             <TextInputDialog
                 isOpen={isCreatePlaylistOpen}
                 onClose={() => setIsCreatePlaylistOpen(false)}
                 isDaylight={isDaylight}
-                title={t('navidrome.createPlaylist') || '新建歌单'}
-                description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                confirmLabel={t('options.save') || '保存'}
+                title={t('navidrome.createPlaylist')}
+                description={t('localMusic.enterPlaylistName')}
+                placeholder={t('localMusic.enterPlaylistName')}
+                confirmLabel={t('options.save')}
                 onConfirm={async (name) => {
                     if (createPlaylistSongIndex !== null) {
                         const targetSong = queue[createPlaylistSongIndex];

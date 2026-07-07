@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, Loader2, RotateCcw } from 'lucide-react';
 import type { LyricData } from '../../types';
@@ -38,6 +39,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
     onClose,
     onSave,
 }) => {
+    const { t } = useTranslation();
     const [draftPattern, setDraftPattern] = useState(initialPattern);
     const [isFilterEnabled, setIsFilterEnabled] = useState(Boolean(initialPattern.trim()));
     const [previewLyrics, setPreviewLyrics] = useState<LyricData | null>(null);
@@ -131,10 +133,10 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                 </button>
                                 <div className="min-w-0">
                                     <div className="truncate text-lg font-semibold sm:text-xl" style={{ color: 'var(--text-primary)' }}>
-                                        歌词过滤正则
+                                        {t('lyricFilter.title')}
                                     </div>
                                     <div className={`mt-1 text-xs ${mutedText}`}>
-                                        {currentSongTitle ? `预览当前歌曲：${currentSongTitle}` : '预览当前播放歌曲的歌词过滤效果'}
+                                        {currentSongTitle ? t('lyricFilter.previewCurrentSong', { title: currentSongTitle }) : t('lyricFilter.previewFallback')}
                                     </div>
                                 </div>
                             </div>
@@ -146,7 +148,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                     style={{ color: 'var(--text-primary)' }}
                                 >
                                     <RotateCcw size={14} />
-                                    <span>清空</span>
+                                    <span>{t('lyricFilter.clear')}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -155,7 +157,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                     className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium transition-colors hover:bg-white/15 disabled:opacity-50"
                                     style={{ color: 'var(--text-primary)' }}
                                 >
-                                    {isSaving ? '保存中...' : '保存'}
+                                    {isSaving ? t('lyricFilter.saving') : t('lyricFilter.save')}
                                 </button>
                             </div>
                         </div>
@@ -165,12 +167,12 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                 <div className="flex items-center justify-between px-4 py-4 sm:px-6">
                                     <div>
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            预览
+                                            {t('lyricFilter.preview')}
                                         </div>
                                         <div className={`mt-1 text-xs ${mutedText}`}>
                                             {preview.totalCount > 0
-                                                ? `已过滤 ${preview.removedCount} / 总计 ${preview.totalCount}`
-                                                : '当前没有可预览的歌词'}
+                                                ? t('lyricFilter.filteredCount', { removed: preview.removedCount, total: preview.totalCount })
+                                                : t('lyricFilter.noLyricsToPreview')}
                                         </div>
                                     </div>
                                 </div>
@@ -181,7 +183,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                         </div>
                                     ) : preview.lines.length === 0 ? (
                                         <div className={`flex h-full items-center justify-center text-sm ${mutedText}`}>
-                                            当前没有可预览的歌词内容
+                                            {t('lyricFilter.emptyContent')}
                                         </div>
                                     ) : (
                                         <div className="space-y-4 py-4 text-center">
@@ -211,7 +213,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                                 <div className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                                     <div>
                                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            开启过滤
+                                            {t('lyricFilter.enableFilter')}
                                         </div>
                                     </div>
                                     <button
@@ -226,26 +228,26 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
 
                                 <div className={`rounded-[24px] border p-4 ${cardBg} ${borderColor}`}>
                                     <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                        正则表达式
+                                        {t('lyricFilter.regexPattern')}
                                     </div>
                                     <div className={`mt-1 text-xs ${mutedText}`}>
-                                        按整首歌的正文歌词逐行匹配，命中后删除整行。
+                                        {t('lyricFilter.regexDescription')}
                                     </div>
                                     <input
                                         type="text"
                                         value={draftPattern}
                                         onChange={(event) => setDraftPattern(event.target.value)}
-                                        placeholder="输入正则表达式"
+                                        placeholder={t('lyricFilter.inputPlaceholder')}
                                         disabled={!isFilterEnabled}
                                         className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${inputBg}`}
                                         style={{ color: 'var(--text-primary)' }}
                                     />
                                     <div className="mt-3 px-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                        示例：<code>{LYRIC_FILTER_REGEX_EXAMPLE}</code>
+                                        {t('lyricFilter.example')} <code>{LYRIC_FILTER_REGEX_EXAMPLE}</code>
                                     </div>
                                     {error && (
                                         <div className={`mt-3 text-xs ${dangerText}`}>
-                                            正则无效：{error}
+                                            {t('lyricFilter.invalidRegex', { error })}
                                         </div>
                                     )}
                                 </div>

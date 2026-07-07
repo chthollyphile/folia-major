@@ -37,7 +37,7 @@ export const NewFeaturesIntro: React.FC<NewFeaturesIntroProps> = ({ isDaylight, 
                     icon={Sparkles}
                     iconClassName={isDaylight ? 'text-blue-500' : 'text-blue-400'}
                     title={t('userGuide.title', '欢迎使用 Folia')}
-                    description="以下是新版本功能与改进"
+                    description={t('options.newFeatureReleaseNotes')}
                 />
             </div>
 
@@ -53,22 +53,15 @@ export const NewFeaturesIntro: React.FC<NewFeaturesIntroProps> = ({ isDaylight, 
                     {...featureCardClasses}
                     icon={MousePointerClick}
                     iconClassName={isDaylight ? 'text-rose-500' : 'text-rose-400'}
-                    title="莫奈歌词交互升级"
-                    description="莫奈歌词界面现已支持鼠标滚轮滚动查看，并可点击歌词直接跳转播放进度。"
+                    title="主题快速编辑"
+                    description="点击控制面板中的 AI主题/自定义主题 名称，可从封面取色和 AI 推荐色中选择心仪的颜色搭配。"
                 />
                 <UserGuideFeatureCard
                     {...featureCardClasses}
                     icon={Type}
                     iconClassName={isDaylight ? 'text-purple-500' : 'text-purple-400'}
-                    title="字体设置增强"
-                    description="支持自定义字体回退栈（Font Stack），并可以为字幕配置完全独立的字体。"
-                />
-                <UserGuideFeatureCard
-                    {...featureCardClasses}
-                    icon={Zap}
-                    iconClassName={isDaylight ? 'text-amber-500' : 'text-amber-400'}
-                    title="歌词样式快速入口"
-                    description="在控制面板新增快捷入口，可直接打开 Visualizer Playground 调整歌词与动效样式。"
+                    title="手动导入 AI 主题"
+                    description="未配置 API 时，也可在快速编辑面板中一键复制提示词并前往任意大模型对话，将结果手动导入为专属 AI 主题。"
                 />
             </div>
         </div>

@@ -336,7 +336,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     name: r.name,
                     coverUrl: r.picUrl,
                     trackCount: r.trackCount,
-                    description: r.copywriter || '推荐歌单',
+                    description: r.copywriter || t('home.playlists'),
                     summary: r.copywriter || ''
                 }));
             }
@@ -360,7 +360,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             name: p.name,
             coverUrl: p.coverImgUrl || (p as any).coverUrl,
             trackCount: p.trackCount,
-            description: p.creator?.nickname || '歌单',
+            description: p.creator?.nickname || t('home.playlists'),
             summary: p.description || '',
             type: 'playlist' as const,
             raw: p
@@ -373,7 +373,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             name: a.name,
             coverUrl: a.picUrl,
             trackCount: a.size,
-            description: a.artists?.[0]?.name || '未知歌手',
+            description: a.artists?.[0]?.name || t('player.unknownArtist'),
             summary: a.description || a.briefDesc || '',
             type: 'album' as const,
             raw: a
@@ -386,7 +386,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             name: r.name,
             coverUrl: r.coverUrl,
             trackCount: r.trackCount,
-            description: r.description || '电台',
+            description: r.description || t('home.radio'),
             summary: r.summary || '',
             type: r.isFm ? 'radio' as const : 'playlist' as const,
             raw: r
@@ -493,7 +493,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             <Settings size={20} style={{ color: 'var(--text-primary)' }} />
                             {showUpdateIndicator && (
                                 <span className="text-[10px] font-medium text-zinc-800 dark:text-zinc-200 opacity-80 whitespace-nowrap bg-zinc-200/50 dark:bg-white/10 px-2 py-0.5 rounded-md">
-                                    新版本发布
+                                    {t('options.updateAvailable')}
                                 </span>
                             )}
                         </button>
@@ -510,7 +510,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         background: `conic-gradient(from -90deg, ${isDaylight ? (theme?.accentColor || 'rgba(17,24,39,0.92)') : 'rgba(255,255,255,0.98)'} 0deg ${scanProgressPercent * 3.6}deg, ${isDaylight ? 'rgba(24,24,27,0.16)' : 'rgba(255,255,255,0.14)'} ${scanProgressPercent * 3.6}deg 360deg)`,
                                         borderRadius: '999px'
                                     }}
-                                    title="查看扫描进度"
+                                    title={t('options.scanProgress')}
                                 >
                                     <div
                                         className={`relative flex items-center justify-center min-w-[56px] h-7 px-2.5 rounded-full backdrop-blur-md ${
@@ -533,10 +533,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                             }`}
                                         >
                                             <div className="text-sm font-semibold truncate">
-                                                正在扫描 {scanProgress.folderName}
+                                                {t('options.scanningFolder', { folderName: scanProgress.folderName })}
                                             </div>
                                             <div className={`text-xs mt-1 ${isDaylight ? 'text-zinc-600' : 'text-zinc-300/70'}`}>
-                                                正在后台提取元数据与封面，媒体库较大时会持续一段时间。
+                                                {t('options.scanProgressDesc')}
                                             </div>
                                             <div className="mt-3 flex items-center justify-between text-xs font-mono">
                                                 <span>进度</span>
@@ -564,8 +564,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             <div className="inline-flex items-center gap-0">
                                 {[
                                     { key: 'playlist', label: t('home.playlists') },
-                                    { key: 'radio', label: t('home.radio') || '电台' },
-                                    { key: 'albums', label: t('home.albums') || '专辑' },
+                                    { key: 'radio', label: t('home.radio') },
+                                    { key: 'albums', label: t('home.albums') },
                                     { key: 'local', label: t('localMusic.folder') },
                                     ...(navidromeEnabled ? [{ key: 'navidrome', label: t('navidrome.title') || 'Navidrome' }] : []),
                                 ].map((tab) => {
@@ -593,7 +593,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         data-stage-active={stageIsActive ? 'true' : 'false'}
                                         className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
                                     >
-                                        <span className="relative z-10">{t('home.stage') || '舞台'}</span>
+                                        <span className="relative z-10">{t('home.stage')}</span>
                                     </button>
                                 )}
                             </div>
@@ -650,7 +650,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                     ? t('home.albums')
                                     : t('home.radio')
                         }
-                        mapButtonLabel={t('home.allAlbums') || '全部'}
+                        mapButtonLabel={t('home.allAlbums')}
                         items={currentDesktopItems}
                         focusedIndex={focusedIndex}
                         onFocusedIndexChange={setFocusedIndex}

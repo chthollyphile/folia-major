@@ -273,7 +273,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                             className="text-[10px] font-bold opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest text-left"
                             title={t('ui.openVisualizerSettings') || 'Open Visualizer Settings'}
                         >
-                            {t('ui.animationMode') || '歌词样式'}
+                            {t('ui.animationMode')}
                         </button>
                         <div className="flex items-center gap-2">
                             <button

@@ -336,8 +336,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                 className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${secondaryButtonBg}`}
                 style={{ color: 'var(--text-primary)' }}
               >
-                <ListPlus size={16} />
-                {t('navidrome.addToQueue') || '加入播放队列'}
+                <ListPlus size={16} />                                {t('navidrome.addToQueue')}
               </button>
               {canEditPlaylist && (
                 <button
@@ -345,8 +344,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                   className={`w-full py-2.5 rounded-full text-sm font-medium transition-colors flex items-center justify-center gap-2 ${secondaryButtonBg}`}
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  <Pencil size={16} />
-                  {isEditMode ? (t('localMusic.finishEditing') || '完成编辑') : (t('localMusic.editPlaylist') || '编辑歌单')}
+                  <Pencil size={16} />                                    {isEditMode ? t('localMusic.finishEditing') : t('localMusic.editPlaylist')}
                 </button>
               )}
             </div>
@@ -435,7 +433,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                       onAddSongToQueue(track);
                     }}
                     className="p-2 ml-2 rounded-full hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-                    title={t('navidrome.addToQueue') || '加入播放队列'}
+                    title={t('navidrome.addToQueue')}
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     <Plus size={14} />
@@ -449,7 +447,7 @@ const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, onBack, onPlaySon
                       void handleRemoveTrack(track.id);
                     }}
                     className="p-2 ml-2 rounded-full hover:bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                    title={t('localMusic.delete') || '删除'}
+                    title={t('localMusic.delete')}
                   >
                     <X size={14} />
                   </button>

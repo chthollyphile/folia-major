@@ -189,7 +189,7 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                             style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                         >
                             <ListPlus size={18} />
-                            {t('navidrome.addToQueue') || '加入播放队列'}
+                            {t('navidrome.addToQueue')}
                         </button>
 
                         <button
@@ -199,7 +199,7 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                             style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                         >
                             <Plus size={18} />
-                            {t('localMusic.addToPlaylist') || '添加到歌单'}
+                            {t('localMusic.addToPlaylist')}
                         </button>
                     </div>
                 </div>
@@ -298,7 +298,7 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                 isOpen={isPlaylistPickerOpen}
                 onClose={() => setIsPlaylistPickerOpen(false)}
                 isDaylight={isDaylight}
-                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                title={t('localMusic.addToPlaylist')}
                 description={t('home.playlists') || 'Playlists'}
                 playlists={availablePlaylists}
                 onSelect={async (playlistId) => {
@@ -308,16 +308,16 @@ const NavidromeAlbumView: React.FC<NavidromeAlbumViewProps> = ({
                     setIsPlaylistPickerOpen(false);
                     setIsCreatePlaylistOpen(true);
                 } : undefined}
-                createLabel={t('navidrome.createPlaylist') || '新建歌单'}
+                createLabel={t('navidrome.createPlaylist')}
             />
 
             <TextInputDialog
                 isOpen={isCreatePlaylistOpen}
                 onClose={() => setIsCreatePlaylistOpen(false)}
                 isDaylight={isDaylight}
-                title={t('navidrome.createPlaylist') || '新建歌单'}
-                description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
+                title={t('navidrome.createPlaylist')}
+                description={t('localMusic.enterPlaylistName')}
+                placeholder={t('localMusic.enterPlaylistName')}
                 confirmLabel={t('options.save') || '保存'}
                 onConfirm={async (name) => {
                     await onCreatePlaylist?.(name, convertToNavidromeSongs());

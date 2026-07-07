@@ -307,7 +307,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         { id: 'cover' as PanelTab, label: t('panel.cover'), icon: Disc },
         { id: 'controls' as PanelTab, label: t('panel.controls'), icon: SlidersHorizontal },
         isFmMode 
-            ? { id: 'queue' as PanelTab, label: t('home.radio') || '私人FM', icon: Radio }
+            ? { id: 'queue' as PanelTab, label: t('home.radio'), icon: Radio }
             : { id: 'queue' as PanelTab, label: t('panel.playlist'), icon: ListMusic },
         { id: 'account' as PanelTab, label: t('panel.account'), icon: UserIcon },
     ];
@@ -672,7 +672,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                     handleOpenSettings();
                                                 }}
                                                 className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                                title={t('ui.options') || '设置'}
+                                                title={t('ui.options')}
                                             >
                                                 <Settings size={18} />
                                             </button>
@@ -691,7 +691,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 handleNavigateHome();
                                             }}
                                             className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                            title={t('ui.backToHome') || '返回主页'}
+                                            title={t('ui.backToHome')}
                                         >
                                             <HomeIcon size={18} />
                                         </button>
@@ -711,7 +711,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                     setIsPlaylistPickerOpen(true);
                                                 }}
                                                 className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
-                                                title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                                                title={t('localMusic.addToPlaylist')}
                                             >
                                                 <Star size={18} />
                                             </button>
@@ -902,7 +902,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                     isOpen={isPlaylistPickerOpen}
                     onClose={() => setIsPlaylistPickerOpen(false)}
                     isDaylight={isDaylight}
-                    title={t('localMusic.addToPlaylist') || '添加到歌单'}
+                    title={t('localMusic.addToPlaylist')}
                     description={t('home.playlists') || 'Playlists'}
                     playlists={availablePlaylists}
                     onSelect={async (playlistId) => {
@@ -925,17 +925,17 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                         setIsPlaylistPickerOpen(false);
                         setIsCreatePlaylistOpen(true);
                     } : undefined}
-                    createLabel={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist') || '新建歌单'}
+                    createLabel={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist')}
                 />
 
                 <TextInputDialog
                     isOpen={isCreatePlaylistOpen}
                     onClose={() => setIsCreatePlaylistOpen(false)}
                     isDaylight={isDaylight}
-                    title={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist') || '新建歌单'}
-                    description={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                    placeholder={t('localMusic.enterPlaylistName') || '输入歌单名称'}
-                    confirmLabel={t('options.save') || '保存'}
+                    title={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist')}
+                    description={t('localMusic.enterPlaylistName')}
+                    placeholder={t('localMusic.enterPlaylistName')}
+                    confirmLabel={t('options.save')}
                     onConfirm={async (name) => {
                         if (isLocal) {
                             await onCreateCurrentLocalPlaylist(name);

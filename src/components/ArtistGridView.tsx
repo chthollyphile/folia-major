@@ -383,7 +383,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
                 const albumMap = new Map<string, { id: string, name: string, picUrl?: string, publishTime?: number; }>();
                 artistSongs.forEach(song => {
-                    const albName = song.album || '未知专辑';
+                    const albName = song.album || t('localMusic.unknownAlbum');
                     if (!albumMap.has(albName)) {
                         let coverUrl = song.matchedCoverUrl || undefined;
                         if (!coverUrl) {
@@ -860,7 +860,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
                             <div className="flex-1 overflow-hidden mt-3 mb-2">
                                 <p className="text-xs opacity-65 leading-relaxed break-words whitespace-pre-wrap">
-                                    {item.description || '暂无详细介绍'}
+                                    {item.description || t('options.noDescription')}
                                 </p>
                             </div>
 

@@ -10,7 +10,7 @@ export default defineVisualizer({
     mode: 'claddagh',
     order: 45,
     labelKey: 'ui.visualizerCladdagh',
-    labelFallback: '回环',
+    labelFallback: 'Claddagh',
     previewSeed: 'claddagh',
     previewStartOffset: 0,
     tuningKind: 'claddagh',

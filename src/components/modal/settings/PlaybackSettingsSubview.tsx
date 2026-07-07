@@ -103,7 +103,7 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
     const loadAudioOutputDevices = async () => {
         if (!supportsAudioOutputSelection) {
             setAudioOutputDevices([]);
-            setAudioOutputDevicesError(t('options.audioOutputUnsupported') || '当前环境不支持切换播放设备。');
+            setAudioOutputDevicesError(t('options.audioOutputUnsupported'));
             return;
         }
 
@@ -130,12 +130,12 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                 .filter(device => device.kind === 'audiooutput')
                 .map((device, index) => ({
                     deviceId: device.deviceId,
-                    label: device.label || `${t('options.audioOutputUnnamed') || '播放设备'} ${index + 1}`,
+                    label: device.label || `${t('options.audioOutputUnnamed')} ${index + 1}`,
                 }));
             setAudioOutputDevices(outputs);
         } catch (error) {
             console.error('[PlaybackSettingsSubview] Failed to enumerate audio output devices', error);
-            setAudioOutputDevicesError(t('options.audioOutputLoadFailed') || '读取播放设备失败。');
+            setAudioOutputDevicesError(t('options.audioOutputLoadFailed'));
         } finally {
             stopMediaStream(permissionProbeStream);
             setIsAudioOutputDevicesLoading(false);
@@ -162,11 +162,11 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
             if (applied) {
                 await loadAudioOutputDevices();
             } else {
-                setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
+                setAudioOutputDevicesError(t('options.audioOutputSelectFailed'));
             }
         } catch (error) {
             console.error('[PlaybackSettingsSubview] Failed to select audio output device', error);
-            setAudioOutputDevicesError(t('options.audioOutputSelectFailed') || '切换播放设备失败。');
+            setAudioOutputDevicesError(t('options.audioOutputSelectFailed'));
         } finally {
             setIsSelectingAudioOutput(false);
         }
@@ -197,8 +197,8 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         {([
-                            { value: 'append', label: '追加到末尾', desc: '加入到播放队列的末尾。' },
-                            { value: 'next', label: '追加到下一首', desc: '加入当前播放歌曲后面。' },
+                            { value: 'append', label: t('options.queueAppendLabel'), desc: t('options.queueAppendDesc') },
+                            { value: 'next', label: t('options.queueNextLabel'), desc: t('options.queueNextDesc') },
                         ] as Array<{ value: QueueAddBehavior; label: string; desc: string }>).map((option) => {
                             const selected = queueAddBehavior === option.value;
                             return (
@@ -315,7 +315,7 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
 
                     {!supportsAudioOutputSelection ? (
                         <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.audioOutputUnsupported') || '当前环境不支持切换播放设备。'}
+                            {t('options.audioOutputUnsupported')}
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -325,10 +325,10 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                                     void handleSelectAudioOutputDevice(val);
                                 }}
                                 options={[
-                                    { value: '', label: t('options.audioOutputDefault') || '系统默认' },
+                                    { value: '', label: t('options.audioOutputDefault') },
                                     ...audioOutputDevices.map((device, index) => ({
                                         value: device.deviceId,
-                                        label: device.label || `${t('options.audioOutputUnnamed') || '播放设备'} ${index + 1}`,
+                                        label: device.label || `${t('options.audioOutputUnnamed')} ${index + 1}`,
                                     })),
                                 ]}
                                 disabled={isAudioOutputDevicesLoading || isSelectingAudioOutput}
@@ -338,10 +338,10 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
 
                             <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
                                 {isSelectingAudioOutput
-                                    ? (t('options.audioOutputSelecting') || '正在切换播放设备...')
+                                    ? (t('options.audioOutputSelecting'))
                                     : isAudioOutputDevicesLoading
-                                        ? (t('options.audioOutputLoading') || '正在读取播放设备...')
-                                        : (t('options.audioOutputDefaultDesc') || '跟随操作系统当前默认输出设备。')}
+                                        ? (t('options.audioOutputLoading'))
+                                        : (t('options.audioOutputDefaultDesc'))}
                             </div>
 
                             {audioOutputDevicesError && (
@@ -352,7 +352,7 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
 
                             {!isAudioOutputDevicesLoading && audioOutputDevices.length === 0 && !audioOutputDevicesError && (
                                 <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.audioOutputEmpty') || '没有检测到可切换的播放设备。'}
+                                    {t('options.audioOutputEmpty')}
                                 </div>
                             )}
                         </div>

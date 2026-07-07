@@ -294,7 +294,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         if (!selectedCollection) return;
 
         const source = selectedCollection.source;
-        const albumName = album?.name || '专辑';
+        const albumName = album?.name || '';
         const albumCoverUrl = album?.coverImgUrl || album?.coverUrl || album?.picUrl;
         if (source === 'netease') {
             handlePushCollection({
@@ -640,14 +640,14 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                                     handlePushCollection({
                                         source: 'netease',
                                         id: Number(artistId),
-                                        name: '歌手',
+                                        name: String(artistId),
                                         type: 'artist',
                                     });
                                 } else if (source === 'navidrome') {
                                     handlePushCollection({
                                         source: 'navidrome',
                                         id: String(artistId),
-                                        name: '歌手',
+                                        name: String(artistId),
                                         type: 'artist',
                                     });
                                 } else if (source === 'local') {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Lock, LockOpen } from 'lucide-react';
 import TitlebarDragZone from '../TitlebarDragZone';
@@ -36,6 +37,7 @@ const AppShell: React.FC<AppShellProps> = ({
     audioElement,
     children,
 }) => {
+    const { t } = useTranslation();
     const [isWindowMaximized, setIsWindowMaximized] = useState(false);
 
     useEffect(() => {
@@ -110,7 +112,7 @@ const AppShell: React.FC<AppShellProps> = ({
                             <button
                                 type="button"
                                 aria-label={isMainWindowClickThroughEnabled ? 'Disable click-through' : 'Enable click-through'}
-                                title={isMainWindowClickThroughEnabled ? '关闭点击穿透' : '开启点击穿透'}
+                                title={isMainWindowClickThroughEnabled ? t('remote.disableClickThrough') : t('remote.enableClickThrough')}
                                 onClick={onToggleMainWindowClickThrough}
                                 className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition-all duration-200 ${
                                     showMainWindowClickThroughToggle
