@@ -559,6 +559,8 @@ export default {
     "claddaghFocusScaleRatio": "Active Lyric Scale Ratio",
     "claddaghRadiusScale": "Orbit Radius Scale",
     "claddaghEllipseTiltDeg": "Orbit Tilt Degree",
+    "claddaghShowAxisLine": "Center Axis Line",
+    "claddaghLetterSpacingOffset": "Letter Spacing",
     "customFont": "Custom Font",
     "fontFamily": "Font Family",
     "fontSize": "Font Size",
