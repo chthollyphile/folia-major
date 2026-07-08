@@ -943,8 +943,12 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     );
 };
 
+const clampCladdaghLetterSpacingOffset = (val: number) => Math.min(20, Math.max(-5, val));
+
 export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     t,
+    isDaylight,
+    theme,
     controlCardBg,
     rangeInputClass,
     onSliderPointerDown,
@@ -956,7 +960,14 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         focusScaleRatio: clampCladdaghFocusScaleRatio(claddaghTuning.focusScaleRatio ?? DEFAULT_CLADDAGH_TUNING.focusScaleRatio),
         radiusScale: clampCladdaghRadiusScale(claddaghTuning.radiusScale ?? DEFAULT_CLADDAGH_TUNING.radiusScale),
         ellipseTiltDeg: clampCladdaghEllipseTiltDeg(claddaghTuning.ellipseTiltDeg ?? DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg),
+        showAxisLine: claddaghTuning.showAxisLine ?? DEFAULT_CLADDAGH_TUNING.showAxisLine,
+        letterSpacingOffset: clampCladdaghLetterSpacingOffset(claddaghTuning.letterSpacingOffset ?? DEFAULT_CLADDAGH_TUNING.letterSpacingOffset),
     };
+
+    const axisLineOptions: PresetOption<boolean>[] = useMemo(() => ([
+        { value: true, label: t('options.partitaGuideLinesOn') || '显示' },
+        { value: false, label: t('options.partitaGuideLinesOff') || '隐藏' },
+    ]), [t]);
 
     return (
         <div
@@ -1026,6 +1037,35 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     step="1"
                     value={resolvedTuning.ellipseTiltDeg}
                     onChange={(event) => onCladdaghTuningChange?.({ ellipseTiltDeg: parseInt(event.target.value, 10) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <PresetGroup
+                label={t('options.claddaghShowAxisLine') || '中间轴线'}
+                value={resolvedTuning.showAxisLine}
+                options={axisLineOptions}
+                onChange={(next) => onCladdaghTuningChange?.({ showAxisLine: next })}
+                isDaylight={isDaylight}
+                theme={theme}
+            />
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghLetterSpacingOffset') || '字符间距'}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {resolvedTuning.letterSpacingOffset > 0 ? '+' : ''}{resolvedTuning.letterSpacingOffset.toFixed(1)}px
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="-5"
+                    max="20"
+                    step="0.5"
+                    value={resolvedTuning.letterSpacingOffset}
+                    onChange={(event) => onCladdaghTuningChange?.({ letterSpacingOffset: parseFloat(event.target.value) })}
                     onPointerDown={onSliderPointerDown}
                     onPointerUp={onSliderCommit}
                     className={rangeInputClass}

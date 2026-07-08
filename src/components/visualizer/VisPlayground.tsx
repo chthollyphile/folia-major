@@ -192,6 +192,7 @@ const clampFumeTextHoldRatio = (value: number) => Math.min(1, Math.max(0, value)
 const clampCladdaghFocusScaleRatio = (val: number) => Math.min(1.5, Math.max(0.0, val));
 const clampCladdaghRadiusScale = (val: number) => Math.min(1.5, Math.max(0.5, val));
 const clampCladdaghEllipseTiltDeg = (val: number) => Math.min(60, Math.max(0, val));
+const clampCladdaghLetterSpacingOffset = (val: number) => Math.min(20, Math.max(-5, val));
 const isMobileBrowser = () => {
     if (typeof navigator === 'undefined') {
         return false;
@@ -465,6 +466,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         ),
         ellipseTiltDeg: clampCladdaghEllipseTiltDeg(
             draftCladdaghTuning.ellipseTiltDeg ?? DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg
+        ),
+        showAxisLine: draftCladdaghTuning.showAxisLine ?? DEFAULT_CLADDAGH_TUNING.showAxisLine,
+        letterSpacingOffset: clampCladdaghLetterSpacingOffset(
+            draftCladdaghTuning.letterSpacingOffset ?? DEFAULT_CLADDAGH_TUNING.letterSpacingOffset
         ),
     }), [draftCladdaghTuning]);
     const currentFontLabel = customFontLabel || customFontFamily || (t('options.customFont') || '自定义字体');

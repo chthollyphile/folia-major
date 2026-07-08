@@ -446,12 +446,16 @@ export interface CladdaghTuning {
   focusScaleRatio: number;
   radiusScale: number;
   ellipseTiltDeg: number;
+  showAxisLine: boolean;
+  letterSpacingOffset: number;
 }
 
 export const DEFAULT_CLADDAGH_TUNING: CladdaghTuning = {
   focusScaleRatio: 0.65,
   radiusScale: 1.0,
   ellipseTiltDeg: 45,
+  showAxisLine: true,
+  letterSpacingOffset: 0,
 };
 
 export type CappellaEmojiPackSource = 'builtin' | 'custom';

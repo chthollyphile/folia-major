@@ -323,6 +323,11 @@ const clampCladdaghEllipseTiltDeg = (val: any, fallback: number = DEFAULT_CLADDA
     return Number.isFinite(parsed) ? Math.min(60, Math.max(0, parsed)) : fallback;
 };
 
+const clampCladdaghLetterSpacingOffset = (val: any, fallback: number = DEFAULT_CLADDAGH_TUNING.letterSpacingOffset): number => {
+    const parsed = typeof val === 'number' ? val : parseFloat(val);
+    return Number.isFinite(parsed) ? Math.min(20, Math.max(-5, parsed)) : fallback;
+};
+
 const readStoredCladdaghTuning = (): CladdaghTuning => {
     if (typeof window === 'undefined') {
         return DEFAULT_CLADDAGH_TUNING;
@@ -337,6 +342,8 @@ const readStoredCladdaghTuning = (): CladdaghTuning => {
             focusScaleRatio: clampCladdaghFocusScaleRatio(parsed.focusScaleRatio, DEFAULT_CLADDAGH_TUNING.focusScaleRatio),
             radiusScale: clampCladdaghRadiusScale(parsed.radiusScale, DEFAULT_CLADDAGH_TUNING.radiusScale),
             ellipseTiltDeg: clampCladdaghEllipseTiltDeg(parsed.ellipseTiltDeg, DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg),
+            showAxisLine: typeof parsed.showAxisLine === 'boolean' ? parsed.showAxisLine : DEFAULT_CLADDAGH_TUNING.showAxisLine,
+            letterSpacingOffset: clampCladdaghLetterSpacingOffset(parsed.letterSpacingOffset, DEFAULT_CLADDAGH_TUNING.letterSpacingOffset),
         };
     } catch {
         return DEFAULT_CLADDAGH_TUNING;
@@ -1462,6 +1469,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             focusScaleRatio: clampCladdaghFocusScaleRatio(patch.focusScaleRatio ?? prev.focusScaleRatio, prev.focusScaleRatio),
             radiusScale: clampCladdaghRadiusScale(patch.radiusScale ?? prev.radiusScale, prev.radiusScale),
             ellipseTiltDeg: clampCladdaghEllipseTiltDeg(patch.ellipseTiltDeg ?? prev.ellipseTiltDeg, prev.ellipseTiltDeg),
+            showAxisLine: patch.showAxisLine ?? prev.showAxisLine,
+            letterSpacingOffset: clampCladdaghLetterSpacingOffset(patch.letterSpacingOffset ?? prev.letterSpacingOffset, prev.letterSpacingOffset),
         };
         if (typeof window !== 'undefined') {
             localStorage.setItem('claddagh_tuning', JSON.stringify(next));

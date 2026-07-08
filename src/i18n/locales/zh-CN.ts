@@ -545,6 +545,8 @@ export default {
     "claddaghFocusScaleRatio": "主歌词放大倍率",
     "claddaghRadiusScale": "轨道半径",
     "claddaghEllipseTiltDeg": "轨道倾斜度",
+    "claddaghShowAxisLine": "中间轴线",
+    "claddaghLetterSpacingOffset": "字符间距",
     "customFont": "自定义字体",
     "fontFamily": "字体",
     "fontSize": "字号",
