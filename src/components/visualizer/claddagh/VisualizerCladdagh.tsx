@@ -349,7 +349,7 @@ const RingLine: React.FC<RingLineProps> = ({
     const baseFontSize = 72 * lyricsFontScale;
     const fontSpec = `700 ${baseFontSize}px ${fontStack}`;
 
-    const baseColor = useMemo(() => colorWithAlpha(theme.primaryColor, 0.8), [theme.primaryColor]);
+    const baseColor = useMemo(() => colorWithAlpha(theme.primaryColor, 0.55), [theme.primaryColor]);
     const highlightColor = theme.accentColor || theme.primaryColor;
 
     const isRawScaleRef = useRef(false);
@@ -540,15 +540,15 @@ const RingLine: React.FC<RingLineProps> = ({
                 const lineDiffNormalized = lineDiffFromCenter;
                 const activeLineFactor = Math.max(0, 1 - lineDiffNormalized);
 
-                const maxVisibleDist = currentRx * 0.58; // Focus width for active line (increased from 0.48)
+                const maxVisibleDist = currentRx * 0.48; // Focus width for active line
                 const distRatio = Math.min(1, Math.abs(deltaDist) / maxVisibleDist);
-                const F = activeLineFactor * Math.pow(1 - distRatio, 1.0); // Gentler linear decay to keep nearby characters more opaque
+                const F = activeLineFactor * Math.pow(1 - distRatio, 1.8);
 
                 // Blend visual properties using depth factor D and focus factor F for a pseudo-3D look
                 // Active character (D=1, F=1) is largest and sharpest.
                 // Background characters (D=0, F=0) stay visible while still feeling distant.
                 const distanceOpacity = 0.68 + 0.32 * Math.pow(D, 1.9);
-                let finalOpacity = (0.5 + 0.5 * Math.pow(D, 1.5) * (0.5 + 0.5 * F)) * distanceOpacity;
+                let finalOpacity = (0.35 + 0.65 * Math.pow(D, 1.5) * (0.35 + 0.65 * F)) * distanceOpacity;
 
                 // Hide the next line while it is still equivalent to the outgoing line's foreground turn.
                 const lineWindowFade = clamp(2 - lineDiffNormalized, 0, 1);
@@ -564,7 +564,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 finalOpacity = finalOpacity * lengthFadeFactor;
 
                 if (isUpcomingLine) {
-                    finalOpacity = finalOpacity * (0.45 + 0.55 * upcomingEntryProgress);
+                    finalOpacity = finalOpacity * (0.18 + 0.82 * upcomingEntryProgress);
                 }
 
                 // Boundary fade to keep non-focused lines strictly in the back half of the ellipse
@@ -605,7 +605,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 
                 // Color and alpha with "camera flash" effect
                 let targetColor = baseColor;
-                let currentAlpha = 0.8;
+                let currentAlpha = 0.55;
                 let flashPop = 0;
 
                 if (charProgress >= 1) {
@@ -614,7 +614,7 @@ const RingLine: React.FC<RingLineProps> = ({
                 } else if (charProgress > 0) {
                     // Near-instant transition (hard cut) for the color snap
                     const progressFactor = Math.min(1, charProgress * 15.0);
-                    currentAlpha = 0.8 + 0.2 * progressFactor;
+                    currentAlpha = 0.55 + 0.45 * progressFactor;
                     targetColor = mixColors(baseColor, finalHighlightColor, progressFactor, currentAlpha);
                     
                     // A quick decaying pop on the radius to emphasize the flash
