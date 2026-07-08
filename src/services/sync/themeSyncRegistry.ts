@@ -71,15 +71,21 @@ const writeThemeSyncRegistry = (records: Record<string, ThemeSyncRegistryRecord>
     }
 };
 
-export const upsertThemeSyncRecord = (record: ThemeSyncRegistryRecord) => {
-    if (!record.fingerprint || !record.cacheKey) {
+export const upsertThemeSyncRecords = (records: ThemeSyncRegistryRecord[]) => {
+    const validRecords = records.filter(record => record.fingerprint && record.cacheKey);
+    if (validRecords.length === 0) {
         return;
     }
 
-    writeThemeSyncRegistry({
-        ...readThemeSyncRegistry(),
-        [record.fingerprint]: record,
+    const registry = readThemeSyncRegistry();
+    validRecords.forEach((record) => {
+        registry[record.fingerprint] = record;
     });
+    writeThemeSyncRegistry(registry);
+};
+
+export const upsertThemeSyncRecord = (record: ThemeSyncRegistryRecord) => {
+    upsertThemeSyncRecords([record]);
 };
 
 export const registerThemeSyncRecordForSong = (
@@ -140,5 +146,10 @@ export const getNeteaseThemeCacheKeyFromFingerprint = (fingerprint: string) => {
     const match = /^netease:id:(\d+)$/.exec(fingerprint);
     return match ? `${DUAL_THEME_CACHE_PREFIX}${match[1]}` : null;
 };
+
+export const getThemeCacheKeyFromFingerprint = (fingerprint: string) => (
+    getNeteaseThemeCacheKeyFromFingerprint(fingerprint)
+    ?? `${DUAL_THEME_CACHE_PREFIX}sync_${encodeURIComponent(fingerprint)}`
+);
 
 export const getThemeSyncRegistryRecords = () => Object.values(readThemeSyncRegistry());

@@ -24,32 +24,32 @@ export type SyncRuntimeStatus = {
 };
 
 export type SyncedVisualSettings = {
-    visualizerMode: VisualizerMode;
-    visualizerBackgroundMode: VisualizerBackgroundMode | null;
-    backgroundOpacity: number;
-    visualizerOpacity: number;
-    hidePlayerTranslationSubtitle: boolean;
-    showSubtitleTranslation: boolean;
-    lyricsFontStyle: Theme['fontStyle'];
-    lyricsFontScale: number;
-    lyricsFontFallbackFamilies: string[];
-    subtitleFontInheritsLyrics: boolean;
-    subtitleFontStyle: Theme['fontStyle'];
-    subtitleFontFamily: string | null;
-    subtitleFontFallbackFamilies: string[];
-    classicTuning: unknown;
-    cadenzaTuning: unknown;
-    partitaTuning: unknown;
-    fumeTuning: unknown;
-    claddaghTuning: unknown;
-    cappellaTuning: unknown;
-    tiltTuning: unknown;
-    monetBackgroundTuning: unknown;
-    monetTuning: unknown;
-    urlBackgroundList: unknown[];
-    urlBackgroundSelectedId: string | null;
-    homeLayoutStyle: 'carousel' | 'grid';
-    grid3dCardStyle: 'image' | 'card';
+    visualizerMode?: VisualizerMode;
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    backgroundOpacity?: number;
+    visualizerOpacity?: number;
+    hidePlayerTranslationSubtitle?: boolean;
+    showSubtitleTranslation?: boolean;
+    lyricsFontStyle?: Theme['fontStyle'];
+    lyricsFontScale?: number;
+    lyricsFontFallbackFamilies?: string[];
+    subtitleFontInheritsLyrics?: boolean;
+    subtitleFontStyle?: Theme['fontStyle'];
+    subtitleFontFamily?: string | null;
+    subtitleFontFallbackFamilies?: string[];
+    classicTuning?: unknown;
+    cadenzaTuning?: unknown;
+    partitaTuning?: unknown;
+    fumeTuning?: unknown;
+    claddaghTuning?: unknown;
+    cappellaTuning?: unknown;
+    tiltTuning?: unknown;
+    monetBackgroundTuning?: unknown;
+    monetTuning?: unknown;
+    urlBackgroundList?: unknown[];
+    urlBackgroundSelectedId?: string | null;
+    homeLayoutStyle?: 'carousel' | 'grid';
+    grid3dCardStyle?: 'image' | 'card';
 };
 
 export type SyncedSettingsRecord = {

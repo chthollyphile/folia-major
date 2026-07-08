@@ -3,6 +3,7 @@ import { buildThemeBucketSummaries, getThemeBucketId } from '@/services/sync/syn
 import {
     parseSyncRemoteState,
     parseSyncThemeManifest,
+    parseSyncedSettingsRecord,
     parseSyncedThemeRecord,
     parseSyncedThemeRecords,
 } from '@/services/sync/syncSchema';
@@ -11,6 +12,37 @@ import {
 // Guards sync schema parsing against malformed sync server responses.
 
 describe('sync schema parsing', () => {
+    it('keeps only valid synced visual settings fields', () => {
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                visualizerMode: 'classic',
+                visualizerBackgroundMode: 'bad',
+                backgroundOpacity: Number.NaN,
+                visualizerOpacity: 0.7,
+                hidePlayerTranslationSubtitle: 'false',
+                showSubtitleTranslation: true,
+                lyricsFontStyle: 'fantasy',
+                subtitleFontStyle: 'serif',
+                lyricsFontFallbackFamilies: ['Inter', 'Arial'],
+                subtitleFontFallbackFamilies: ['Noto Sans'],
+                homeLayoutStyle: 'desktop',
+                grid3dCardStyle: 'image',
+            },
+        });
+
+        expect(record?.data).toEqual({
+            visualizerMode: 'classic',
+            visualizerOpacity: 0.7,
+            showSubtitleTranslation: true,
+            subtitleFontStyle: 'serif',
+            lyricsFontFallbackFamilies: ['Inter', 'Arial'],
+            subtitleFontFallbackFamilies: ['Noto Sans'],
+            grid3dCardStyle: 'image',
+        });
+    });
+
     it('parses theme records and normalizes invalid sources', () => {
         const record = parseSyncedThemeRecord({
             fingerprint: 'netease:id:123',

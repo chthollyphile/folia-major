@@ -16,11 +16,12 @@ import { createSongSyncFingerprint, createSongSyncFingerprintCandidates } from '
 import { buildThemeBucketSummaries, getThemeBucketId } from './syncMerkle';
 import {
     createLegacyNeteaseThemeSyncRecord,
-    getNeteaseThemeCacheKeyFromFingerprint,
     readThemeSyncRegistry,
+    getThemeCacheKeyFromFingerprint,
     getThemeSyncRegistryRecords,
     registerThemeSyncRecordForSong,
     upsertThemeSyncRecord,
+    upsertThemeSyncRecords,
 } from './themeSyncRegistry';
 import type {
     SyncLibraryExportBundle,
@@ -181,20 +182,27 @@ export const pushRemoteSettings = async (record: SyncedSettingsRecord) => {
     return true;
 };
 
-const saveRemoteThemeToLocalCache = async (record: SyncedThemeRecord, preferredCacheKey?: string) => {
-    const cacheKey = preferredCacheKey ?? getNeteaseThemeCacheKeyFromFingerprint(record.fingerprint);
+const saveRemoteThemeToLocalCache = async (
+    record: SyncedThemeRecord,
+    preferredCacheKey?: string,
+    skipRegistryUpdate = false,
+) => {
+    const cacheKey = preferredCacheKey ?? getThemeCacheKeyFromFingerprint(record.fingerprint);
     if (!cacheKey) {
-        return false;
+        return null;
     }
 
     await saveToCache(cacheKey, sanitizeDualTheme(record.theme));
-    upsertThemeSyncRecord({
+    const registryRecord = {
         fingerprint: record.fingerprint,
         cacheKey,
         updatedAt: record.updatedAt,
         source: record.source,
-    });
-    return true;
+    };
+    if (!skipRegistryUpdate) {
+        upsertThemeSyncRecord(registryRecord);
+    }
+    return registryRecord;
 };
 
 export const getSyncedThemeForSong = async (song: SongResult | null): Promise<DualTheme | null> => {
@@ -257,12 +265,16 @@ export const saveSyncedThemeForSong = async (
 const hydrateLegacyNeteaseThemeSyncRecords = async () => {
     const entries = await getCacheEntriesByPrefix<DualTheme>(DUAL_THEME_CACHE_PREFIX);
     const registry = readThemeSyncRegistry();
+    const recordsToUpsert: NonNullable<ReturnType<typeof createLegacyNeteaseThemeSyncRecord>>[] = [];
     entries.forEach((entry) => {
         const record = createLegacyNeteaseThemeSyncRecord(entry.key, entry.timestamp);
         if (record && !registry[record.fingerprint]) {
-            upsertThemeSyncRecord(record);
+            recordsToUpsert.push(record);
         }
     });
+    if (recordsToUpsert.length > 0) {
+        upsertThemeSyncRecords(recordsToUpsert);
+    }
 };
 
 const collectLocalThemeUploadEntries = async (
@@ -389,6 +401,7 @@ export const pushMissingLocalThemesToRemote = async (
     const remoteRecordMap = new Map(remoteRecords.map(record => [record.fingerprint, record]));
     const localRecordMap = new Map(localRecords.map(record => [record.fingerprint, record]));
     let downloadedCount = 0;
+    const downloadedRegistryRecords: NonNullable<Awaited<ReturnType<typeof saveRemoteThemeToLocalCache>>>[] = [];
 
     for (const remoteRecord of remoteRecords) {
         const localRecord = localRecordMap.get(remoteRecord.fingerprint);
@@ -396,9 +409,14 @@ export const pushMissingLocalThemesToRemote = async (
             continue;
         }
 
-        if (await saveRemoteThemeToLocalCache(remoteRecord, localRecord?.cacheKey)) {
+        const registryRecord = await saveRemoteThemeToLocalCache(remoteRecord, localRecord?.cacheKey, true);
+        if (registryRecord) {
+            downloadedRegistryRecords.push(registryRecord);
             downloadedCount += 1;
         }
+    }
+    if (downloadedRegistryRecords.length > 0) {
+        upsertThemeSyncRecords(downloadedRegistryRecords);
     }
 
     const uploadEntries = await collectLocalThemeUploadEntries(remoteRecordMap, affectedLocalRecords);
@@ -461,8 +479,15 @@ export const mergeLocalThemesIntoRecords = async (
 };
 
 export const saveSyncLibraryBundleToLocalCache = async (bundle: SyncLibraryExportBundle) => {
+    const registryRecords: NonNullable<Awaited<ReturnType<typeof saveRemoteThemeToLocalCache>>>[] = [];
     for (const record of bundle.themes) {
-        await saveRemoteThemeToLocalCache(record);
+        const registryRecord = await saveRemoteThemeToLocalCache(record, undefined, true);
+        if (registryRecord) {
+            registryRecords.push(registryRecord);
+        }
+    }
+    if (registryRecords.length > 0) {
+        upsertThemeSyncRecords(registryRecords);
     }
 };
 

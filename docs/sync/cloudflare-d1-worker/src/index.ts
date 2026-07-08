@@ -69,7 +69,13 @@ const readBody = async <T,>(request: Request): Promise<T | null> => {
   }
 };
 
+let schemaEnsured = false;
+
 const ensureSchema = async (db: D1Database) => {
+  if (schemaEnsured) {
+    return;
+  }
+
   await db.batch([
     db.prepare(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -98,6 +104,7 @@ const ensureSchema = async (db: D1Database) => {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_themes_updated_at ON themes(updated_at)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_themes_bucket_id ON themes(bucket_id)'),
   ]);
+  schemaEnsured = true;
 };
 
 const parseThemeInput = (value: unknown) => {
@@ -156,14 +163,15 @@ const refreshThemeBuckets = async (db: D1Database, bucketIds: number[]) => {
     return;
   }
 
-  const summaries = [];
-  for (const bucketId of uniqueBucketIds) {
-    const rows = await db
-      .prepare('SELECT fingerprint, updated_at FROM themes WHERE bucket_id = ?')
-      .bind(bucketId)
-      .all<{ fingerprint: string; updated_at: string }>();
-    summaries.push(buildThemeBucketSummary(bucketId, rows.results ?? []));
-  }
+  const summaries = await Promise.all(
+    uniqueBucketIds.map(async (bucketId) => {
+      const rows = await db
+        .prepare('SELECT fingerprint, updated_at FROM themes WHERE bucket_id = ?')
+        .bind(bucketId)
+        .all<{ fingerprint: string; updated_at: string }>();
+      return buildThemeBucketSummary(bucketId, rows.results ?? []);
+    }),
+  );
 
   await db.batch(summaries.map(summary => db
     .prepare(`
@@ -265,6 +273,7 @@ const handleRequest = async (request: Request, env: Env) => {
         ON CONFLICT(key) DO UPDATE SET
           value_json = excluded.value_json,
           updated_at = excluded.updated_at
+        WHERE excluded.updated_at >= settings.updated_at
       `)
       .bind('visual', JSON.stringify(body), body.updatedAt)
       .run();

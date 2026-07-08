@@ -26,6 +26,7 @@ let unsubscribeSettings: (() => void) | null = null;
 let settingsUploadTimer: number | null = null;
 let lastSettingsSignature: string | null = null;
 let applyingRemoteSettings = false;
+let isSyncingInProgress = false;
 
 const isBrowser = () => typeof window !== 'undefined';
 
@@ -127,11 +128,16 @@ export const pullRemoteVisualSettings = async (remoteState?: SyncRemoteState | n
 };
 
 export const syncNow = async (options: { applyRemoteSettings?: boolean; pushSettings?: boolean } = {}) => {
+    if (isSyncingInProgress) {
+        return false;
+    }
+
     const config = getSyncConfig();
     if (!isSyncConfigured(config)) {
         return false;
     }
 
+    isSyncingInProgress = true;
     setSyncStatus({ state: 'syncing', lastError: null });
     try {
         const remoteState = await fetchRemoteSyncState();
@@ -159,6 +165,8 @@ export const syncNow = async (options: { applyRemoteSettings?: boolean; pushSett
         console.error('[sync] Sync failed:', error);
         setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
         return false;
+    } finally {
+        isSyncingInProgress = false;
     }
 };
 

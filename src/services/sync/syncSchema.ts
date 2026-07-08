@@ -5,6 +5,7 @@ import {
     type SyncThemeBucketSummary,
     type SyncThemeManifest,
     type SyncedSettingsRecord,
+    type SyncedVisualSettings,
     type SyncedThemeRecord,
 } from './syncTypes';
 
@@ -21,6 +22,56 @@ const isIsoDateString = (value: unknown): value is string => (
 
 const isSchemaCompatible = (value: unknown) => value === SYNC_SCHEMA_VERSION;
 
+const isFiniteNumber = (value: unknown): value is number => (
+    typeof value === 'number' && Number.isFinite(value)
+);
+
+const isStringArray = (value: unknown): value is string[] => (
+    Array.isArray(value) && value.every(item => typeof item === 'string')
+);
+
+const isFontStyle = (value: unknown): value is SyncedVisualSettings['lyricsFontStyle'] => (
+    value === 'sans' || value === 'serif' || value === 'mono'
+);
+
+const isVisualizerBackgroundMode = (value: unknown): value is NonNullable<SyncedVisualSettings['visualizerBackgroundMode']> => (
+    value === 'common' || value === 'monet' || value === 'url' || value === 'sora'
+);
+
+const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisualSettings => {
+    const settings: SyncedVisualSettings = {};
+
+    if (typeof value.visualizerMode === 'string' && value.visualizerMode.trim()) settings.visualizerMode = value.visualizerMode;
+    if (value.visualizerBackgroundMode === null) settings.visualizerBackgroundMode = null;
+    else if (isVisualizerBackgroundMode(value.visualizerBackgroundMode)) settings.visualizerBackgroundMode = value.visualizerBackgroundMode;
+    if (isFiniteNumber(value.backgroundOpacity)) settings.backgroundOpacity = value.backgroundOpacity;
+    if (isFiniteNumber(value.visualizerOpacity)) settings.visualizerOpacity = value.visualizerOpacity;
+    if (typeof value.hidePlayerTranslationSubtitle === 'boolean') settings.hidePlayerTranslationSubtitle = value.hidePlayerTranslationSubtitle;
+    if (typeof value.showSubtitleTranslation === 'boolean') settings.showSubtitleTranslation = value.showSubtitleTranslation;
+    if (isFontStyle(value.lyricsFontStyle)) settings.lyricsFontStyle = value.lyricsFontStyle;
+    if (isFiniteNumber(value.lyricsFontScale)) settings.lyricsFontScale = value.lyricsFontScale;
+    if (isStringArray(value.lyricsFontFallbackFamilies)) settings.lyricsFontFallbackFamilies = value.lyricsFontFallbackFamilies;
+    if (typeof value.subtitleFontInheritsLyrics === 'boolean') settings.subtitleFontInheritsLyrics = value.subtitleFontInheritsLyrics;
+    if (isFontStyle(value.subtitleFontStyle)) settings.subtitleFontStyle = value.subtitleFontStyle;
+    if (value.subtitleFontFamily === null || typeof value.subtitleFontFamily === 'string') settings.subtitleFontFamily = value.subtitleFontFamily;
+    if (isStringArray(value.subtitleFontFallbackFamilies)) settings.subtitleFontFallbackFamilies = value.subtitleFontFallbackFamilies;
+    if (value.classicTuning !== undefined) settings.classicTuning = value.classicTuning;
+    if (value.cadenzaTuning !== undefined) settings.cadenzaTuning = value.cadenzaTuning;
+    if (value.partitaTuning !== undefined) settings.partitaTuning = value.partitaTuning;
+    if (value.fumeTuning !== undefined) settings.fumeTuning = value.fumeTuning;
+    if (value.claddaghTuning !== undefined) settings.claddaghTuning = value.claddaghTuning;
+    if (value.cappellaTuning !== undefined) settings.cappellaTuning = value.cappellaTuning;
+    if (value.tiltTuning !== undefined) settings.tiltTuning = value.tiltTuning;
+    if (value.monetBackgroundTuning !== undefined) settings.monetBackgroundTuning = value.monetBackgroundTuning;
+    if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
+    if (Array.isArray(value.urlBackgroundList)) settings.urlBackgroundList = value.urlBackgroundList;
+    if (value.urlBackgroundSelectedId === null || typeof value.urlBackgroundSelectedId === 'string') settings.urlBackgroundSelectedId = value.urlBackgroundSelectedId;
+    if (value.homeLayoutStyle === 'carousel' || value.homeLayoutStyle === 'grid') settings.homeLayoutStyle = value.homeLayoutStyle;
+    if (value.grid3dCardStyle === 'image' || value.grid3dCardStyle === 'card') settings.grid3dCardStyle = value.grid3dCardStyle;
+
+    return settings;
+};
+
 export const parseSyncedSettingsRecord = (value: unknown): SyncedSettingsRecord | null => {
     if (!isRecord(value) || !isSchemaCompatible(value.schemaVersion) || !isIsoDateString(value.updatedAt) || !isRecord(value.data)) {
         return null;
@@ -29,7 +80,7 @@ export const parseSyncedSettingsRecord = (value: unknown): SyncedSettingsRecord 
     return {
         schemaVersion: SYNC_SCHEMA_VERSION,
         updatedAt: value.updatedAt,
-        data: value.data as SyncedSettingsRecord['data'],
+        data: parseSyncedVisualSettings(value.data),
     };
 };
 

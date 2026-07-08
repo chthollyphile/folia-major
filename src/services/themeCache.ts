@@ -1,7 +1,8 @@
 import { DualTheme, SongResult, Theme } from '../types';
 import { getFromCache, saveToCache } from './db';
 import { getSyncedThemeForSong } from './sync/syncRepository';
-import { registerThemeSyncRecordForSongIfMissing } from './sync/themeSyncRegistry';
+import { createSongSyncFingerprintCandidates } from './sync/syncFingerprint';
+import { readThemeSyncRegistry, registerThemeSyncRecordForSongIfMissing } from './sync/themeSyncRegistry';
 import { sanitizeDualTheme, sanitizeTheme, FALLBACK_AI_DUAL_THEME } from './themeSanitizer';
 
 export type ThemeCacheSongKey = string | number;
@@ -36,6 +37,20 @@ export async function getCachedThemeStateForSong(song: SongResult | null): Promi
             registerThemeSyncRecordForSongIfMissing(song, 'manual');
         }
         return localThemeState;
+    }
+
+    const registry = readThemeSyncRegistry();
+    const registryRecord = createSongSyncFingerprintCandidates(song)
+        .map(fingerprint => registry[fingerprint])
+        .find(Boolean);
+    if (registryRecord) {
+        const syncedLocalTheme = await getFromCache<DualTheme>(registryRecord.cacheKey);
+        if (syncedLocalTheme) {
+            const sanitizedTheme = sanitizeDualTheme(syncedLocalTheme);
+            await saveToCache(`dual_theme_${song.id}`, sanitizedTheme);
+            registerThemeSyncRecordForSongIfMissing(song, registryRecord.source);
+            return { kind: 'dual', theme: sanitizedTheme };
+        }
     }
 
     const syncedTheme = await getSyncedThemeForSong(song);
