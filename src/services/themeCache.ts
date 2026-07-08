@@ -25,17 +25,10 @@ export async function getCachedThemeState(songKey: ThemeCacheSongKey): Promise<C
     return { kind: 'none' };
 }
 
+
 export async function getCachedThemeStateForSong(song: SongResult | null): Promise<CachedThemeState> {
     if (!song) {
         return { kind: 'none' };
-    }
-
-    const localThemeState = await getCachedThemeState(song.id);
-    if (localThemeState.kind !== 'none') {
-        if (localThemeState.kind === 'dual') {
-            registerThemeSyncRecordForSongIfMissing(song, 'manual');
-        }
-        return localThemeState;
     }
 
     const registry = readThemeSyncRegistry();
@@ -45,9 +38,16 @@ export async function getCachedThemeStateForSong(song: SongResult | null): Promi
     if (registryRecord) {
         const syncedLocalTheme = await getFromCache<DualTheme>(registryRecord.cacheKey);
         if (syncedLocalTheme) {
-            const sanitizedTheme = sanitizeDualTheme(syncedLocalTheme);
-            return { kind: 'dual', theme: sanitizedTheme };
+            return { kind: 'dual', theme: sanitizeDualTheme(syncedLocalTheme) };
         }
+    }
+
+    const localThemeState = await getCachedThemeState(song.id);
+    if (localThemeState.kind !== 'none') {
+        if (localThemeState.kind === 'dual') {
+            registerThemeSyncRecordForSongIfMissing(song, 'manual');
+        }
+        return localThemeState;
     }
 
     return { kind: 'none' };
