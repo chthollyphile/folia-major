@@ -4,7 +4,7 @@ import { Check, Moon, Palette, RotateCcw, Sun, X, Copy, ArrowLeft, Download } fr
 import { HexColorPicker } from 'react-colorful';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { DualTheme } from '../../types';
+import type { DualTheme, SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { FALLBACK_AI_DUAL_THEME, normalizeThemeHexColor, sanitizeDualTheme } from '../../services/themeSanitizer';
 import { extractColors } from '../../utils/colorExtractor';
@@ -607,18 +607,19 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
 };
 
 type ThemeQuickEditorHostProps = {
-    onSaveAiTheme: (theme: DualTheme, songKey: ThemeCacheSongKey | null) => void;
+    onSaveAiTheme: (theme: DualTheme, song: SongResult | null, songKey: ThemeCacheSongKey | null) => void;
     onSaveCustomTheme: (theme: DualTheme) => void;
 };
 
 const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiTheme, onSaveCustomTheme }) => {
-    const { isOpen, editorKind, aiTheme, customTheme, coverUrl, isDaylight, songKey, closeEditor, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(useShallow(state => ({
+    const { isOpen, editorKind, aiTheme, customTheme, coverUrl, isDaylight, song, songKey, closeEditor, promptSourceText, isPureMusic, songTitle } = useThemeQuickEditorStore(useShallow(state => ({
         isOpen: state.isOpen,
         editorKind: state.editorKind,
         aiTheme: state.aiTheme,
         customTheme: state.customTheme,
         coverUrl: state.coverUrl,
         isDaylight: state.isDaylight,
+        song: state.song,
         songKey: state.songKey,
         promptSourceText: state.promptSourceText,
         isPureMusic: state.isPureMusic,
@@ -643,7 +644,7 @@ const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiThe
                         if (editorKind === 'custom') {
                             onSaveCustomTheme(theme);
                         } else {
-                            onSaveAiTheme(theme, songKey);
+                            onSaveAiTheme(theme, song, songKey);
                         }
                         closeEditor();
                     }}

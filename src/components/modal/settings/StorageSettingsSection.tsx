@@ -1,7 +1,11 @@
 import React from 'react';
-import { Command, Database, Disc3, FolderOpen, Layers, Loader2, Pencil, PlayCircle, Trash2 } from 'lucide-react';
+import { Check, Cloud, Command, Database, Disc3, Download, FolderOpen, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
+import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeSyncConfig, subscribeSyncStatus } from '../../../services/sync/syncConfig';
+import { exportSyncLibraryBundle, importSyncLibraryBundle, isSyncLibraryExportBundle, syncNow, testSyncProviderConnection } from '../../../services/sync/syncCoordinator';
+import { createSyncLibraryZipBlob, readSyncLibraryZipFile } from '../../../services/sync/syncArchive';
+import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from '../../../services/sync/syncTypes';
 
 // src/components/modal/settings/StorageSettingsSection.tsx
 // Shared storage and media cache settings used by the main options page and storage subview.
@@ -52,6 +56,11 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     useInsetCacheRows = false,
 }) => {
     const { t } = useTranslation();
+    const [syncConfig, setSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
+    const [draftSyncConfig, setDraftSyncConfig] = React.useState<SyncProviderConfig>(() => getSyncConfig());
+    const [syncStatus, setSyncStatusState] = React.useState<SyncRuntimeStatus>(() => getSyncStatus());
+    const [syncAction, setSyncAction] = React.useState<'idle' | 'testing' | 'syncing' | 'exporting' | 'importing'>('idle');
+    const syncImportInputRef = React.useRef<HTMLInputElement | null>(null);
     const cacheRowClass = useInsetCacheRows
         ? `flex items-center justify-between p-3 rounded-xl border ${settingsCardClass}`
         : 'flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5';
@@ -64,6 +73,118 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         { id: 'cover' as const, label: t('options.covers') || 'Covers', size: cacheSizes.cover, icon: Disc3 },
         { id: 'media' as const, label: t('options.mediaFiles') || 'Media Files', size: cacheSizes.media, icon: PlayCircle },
     ];
+    const syncConfigDirty = JSON.stringify(syncConfig) !== JSON.stringify(draftSyncConfig);
+    const syncConfigured = Boolean(draftSyncConfig.workerBaseUrl.trim() && draftSyncConfig.authToken.trim());
+    const syncStatusLabel = syncStatus.state === 'error'
+        ? (syncStatus.lastError || t('options.r2SyncStatusError') || 'Sync failed')
+        : syncStatus.lastSyncAt
+            ? `${t('options.r2SyncLastSync') || 'Last sync'}: ${new Date(syncStatus.lastSyncAt).toLocaleString()}`
+            : (t('options.r2SyncStatusIdle') || 'Not synced yet');
+
+    React.useEffect(() => {
+        const unsubscribeConfig = subscribeSyncConfig(() => {
+            const nextConfig = getSyncConfig();
+            setSyncConfig(nextConfig);
+            setDraftSyncConfig(nextConfig);
+        });
+        const unsubscribeStatus = subscribeSyncStatus(() => setSyncStatusState(getSyncStatus()));
+        return () => {
+            unsubscribeConfig();
+            unsubscribeStatus();
+        };
+    }, []);
+
+    const updateDraftSyncConfig = (patch: Partial<SyncProviderConfig>) => {
+        setDraftSyncConfig(prev => ({
+            ...prev,
+            ...patch,
+            provider: SYNC_PROVIDER,
+        }));
+    };
+
+    const handleSaveSyncConfig = () => {
+        saveSyncConfig(draftSyncConfig);
+        setSyncConfig(getSyncConfig());
+    };
+
+    const handleTestSync = async () => {
+        setSyncAction('testing');
+        const nextConfig = {
+            ...draftSyncConfig,
+            workerBaseUrl: draftSyncConfig.workerBaseUrl.trim().replace(/\/+$/, ''),
+            authToken: draftSyncConfig.authToken.trim(),
+        };
+        try {
+            const ok = await testSyncProviderConnection(nextConfig);
+            if (ok) {
+                saveSyncConfig(nextConfig);
+                setSyncConfig(getSyncConfig());
+                setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
+            }
+        } catch (error) {
+            setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
+        } finally {
+            setSyncAction('idle');
+        }
+    };
+
+    const handleSyncNow = async () => {
+        if (syncConfigDirty) {
+            handleSaveSyncConfig();
+        }
+        setSyncAction('syncing');
+        try {
+            await syncNow({ applyRemoteSettings: true, pushSettings: true });
+        } finally {
+            setSyncAction('idle');
+        }
+    };
+
+    const handleExportSyncLibrary = async () => {
+        setSyncAction('exporting');
+        try {
+            const bundle = await exportSyncLibraryBundle();
+            const blob = createSyncLibraryZipBlob(bundle);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `folia-sync-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } finally {
+            setSyncAction('idle');
+        }
+    };
+
+    const handleImportSyncLibrary = async (file: File | null) => {
+        if (!file) {
+            return;
+        }
+
+        setSyncAction('importing');
+        try {
+            const parsed = file.name.toLowerCase().endsWith('.zip')
+                ? await readSyncLibraryZipFile(file)
+                : JSON.parse(await file.text()) as unknown;
+            if (!isSyncLibraryExportBundle(parsed)) {
+                throw new Error('Invalid Folia sync export');
+            }
+            const shouldImport = window.confirm(t('options.r2SyncImportConfirm') || 'Import this sync library and overwrite local sync cache?');
+            if (!shouldImport) {
+                return;
+            }
+            await importSyncLibraryBundle(parsed, {
+                pushRemote: draftSyncConfig.enabled && syncConfigured,
+            });
+        } catch (error) {
+            setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
+        } finally {
+            setSyncAction('idle');
+            if (syncImportInputRef.current) {
+                syncImportInputRef.current.value = '';
+            }
+        }
+    };
 
     return (
         <>
@@ -102,6 +223,125 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                             </button>
                         </div>
                     ))}
+                </div>
+            </section>
+
+            <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <Cloud size={14} /> {t('options.r2Sync') || 'Sync Server'}
+                </h3>
+                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                {t('options.r2SyncEnable') || 'Enable sync server'}
+                            </div>
+                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.r2SyncEnableDesc') || 'Sync appearance settings and AI themes through your own Cloudflare D1 Worker or self-hosted sync service.'}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => updateDraftSyncConfig({ enabled: !draftSyncConfig.enabled })}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!draftSyncConfig.enabled ? toggleOffBackgroundClass : ''}`}
+                            style={{ backgroundColor: draftSyncConfig.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                        >
+                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${draftSyncConfig.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="block space-y-1">
+                            <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.r2SyncWorkerUrl') || 'Sync Server URL'}
+                            </span>
+                            <input
+                                type="url"
+                                value={draftSyncConfig.workerBaseUrl}
+                                onChange={(event) => updateDraftSyncConfig({ workerBaseUrl: event.target.value })}
+                                placeholder="https://folia-sync.example.workers.dev"
+                                className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
+                                style={{ color: 'var(--text-primary)' }}
+                            />
+                        </label>
+                        <label className="block space-y-1">
+                            <span className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.r2SyncToken') || 'Bearer Token'}
+                            </span>
+                            <input
+                                type="password"
+                                value={draftSyncConfig.authToken}
+                                onChange={(event) => updateDraftSyncConfig({ authToken: event.target.value })}
+                                placeholder={t('options.r2SyncTokenPlaceholder') || 'Worker SYNC_TOKEN'}
+                                className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
+                                style={{ color: 'var(--text-primary)' }}
+                            />
+                        </label>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={handleSaveSyncConfig}
+                            disabled={!syncConfigDirty}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            <Check size={14} />
+                            {t('options.r2SyncSave') || 'Save'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleTestSync()}
+                            disabled={!syncConfigured || syncAction !== 'idle'}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {syncAction === 'testing' ? <Loader2 size={14} className="animate-spin" /> : <Cloud size={14} />}
+                            {t('options.r2SyncTest') || 'Test'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleSyncNow()}
+                            disabled={!draftSyncConfig.enabled || !syncConfigured || syncAction !== 'idle'}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {syncAction === 'syncing' ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                            {t('options.r2SyncNow') || 'Sync now'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleExportSyncLibrary()}
+                            disabled={syncAction !== 'idle'}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {syncAction === 'exporting' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                            {t('options.r2SyncExportLibrary') || 'Export library'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => syncImportInputRef.current?.click()}
+                            disabled={syncAction !== 'idle'}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {syncAction === 'importing' ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                            {t('options.r2SyncImportLibrary') || 'Import library'}
+                        </button>
+                        <input
+                            ref={syncImportInputRef}
+                            type="file"
+                            accept="application/zip,.zip,application/json,.json"
+                            className="hidden"
+                            onChange={(event) => void handleImportSyncLibrary(event.target.files?.[0] ?? null)}
+                        />
+                    </div>
+
+                    <div className={`rounded-lg border px-3 py-2 text-xs ${syncStatus.state === 'error' ? errorTextColor : ''}`} style={{ color: 'var(--text-secondary)' }}>
+                        {syncStatusLabel}
+                    </div>
                 </div>
             </section>
 

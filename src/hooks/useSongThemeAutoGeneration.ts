@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { GenerateAIThemeOptions, GenerateAIThemeResult } from './useThemeController';
 import type { LyricData, SongResult } from '../types';
-import { getCachedThemeState } from '../services/themeCache';
+import { getCachedThemeStateForSong } from '../services/themeCache';
 import {
     getSongThemeAutoGenerationKey,
     hasSongThemePromptSource,
@@ -97,7 +97,7 @@ export function useSongThemeAutoGeneration({
                     return;
                 }
 
-                const cachedTheme = await getCachedThemeState(latestSong.id);
+                const cachedTheme = await getCachedThemeStateForSong(latestSong);
                 if (cancelled || !isSongThemeGenerationStillCurrent({
                     latestSongKey: latestSongKeyRef.current,
                     targetSongKey,

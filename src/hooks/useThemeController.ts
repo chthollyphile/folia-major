@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { generateThemeFromLyrics, isMissingAiApiKeyError } from '../services/gemini';
 import { saveToCache } from '../services/db';
 import { DualTheme, LyricData, SongResult, StatusMessage, Theme, ThemeMode } from '../types';
-import { getCachedThemeState, getLastDualTheme, getLastLegacyTheme, type ThemeCacheSongKey } from '../services/themeCache';
+import { getCachedThemeState, getCachedThemeStateForSong, getLastDualTheme, getLastLegacyTheme, type ThemeCacheSongKey } from '../services/themeCache';
+import { saveSyncedThemeForSong } from '../services/sync/syncRepository';
 import {
     applyStoredAnimationIntensityToDualTheme,
     applyStoredAnimationIntensityToTheme,
@@ -386,14 +387,22 @@ export function useThemeController({
         return sanitized;
     };
 
-    const saveEditedAiDualTheme = (dualTheme: DualTheme, songKey?: ThemeCacheSongKey | null) => {
+    const saveEditedAiDualTheme = (
+        dualTheme: DualTheme,
+        songOrKey?: SongResult | ThemeCacheSongKey | null,
+    ) => {
         const sanitized = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
         setLegacyTheme(null);
         setAiTheme(sanitized);
         setBgMode('ai');
         void saveToCache('last_dual_theme', sanitized);
+        const syncSong = songOrKey && typeof songOrKey === 'object' ? songOrKey : null;
+        const songKey = syncSong?.id ?? songOrKey;
         if (songKey != null) {
             void saveToCache(`dual_theme_${songKey}`, sanitized);
+        }
+        if (syncSong) {
+            void saveSyncedThemeForSong(syncSong, sanitized, 'edited');
         }
         setStatusMsg({
             type: 'success',
@@ -475,7 +484,7 @@ export function useThemeController({
     };
 
     const restoreCachedThemeForSong = async (
-        songId: ThemeCacheSongKey,
+        songOrId: ThemeCacheSongKey | SongResult,
         options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean }
     ) => {
         if (!songThemeAutoSwitchEnabled) {
@@ -485,7 +494,9 @@ export function useThemeController({
             return 'restored' as const;
         }
 
-        const cachedTheme = await getCachedThemeState(songId);
+        const cachedTheme = typeof songOrId === 'object'
+            ? await getCachedThemeStateForSong(songOrId)
+            : await getCachedThemeState(songOrId);
 
         if (cachedTheme.kind === 'dual') {
             applyDualTheme(cachedTheme.theme, { respectCustomPreference: false });
@@ -553,6 +564,7 @@ export function useThemeController({
             const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
             if (currentSong) {
                 await saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
+                void saveSyncedThemeForSong(currentSong, normalizedDualTheme, source === 'auto' ? 'auto' : 'manual');
             }
 
             const shouldApply = options.shouldApply?.() ?? true;
@@ -580,6 +592,7 @@ export function useThemeController({
 
                 if (currentSong) {
                     await saveToCache(`dual_theme_${currentSong.id}`, fallbackTheme);
+                    void saveSyncedThemeForSong(currentSong, fallbackTheme, 'fallback');
                 }
 
                 if (!shouldApply) {

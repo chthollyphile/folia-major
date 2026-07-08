@@ -770,7 +770,7 @@ const readStoredVolume = () => {
     return Number.isFinite(parsed) ? parsed : 1;
 };
 
-type SettingsUiState = {
+export type SettingsUiState = {
     statusSetter: StatusSetter | null;
     audioQuality: AudioQuality;
     useCoverColorBg: boolean;

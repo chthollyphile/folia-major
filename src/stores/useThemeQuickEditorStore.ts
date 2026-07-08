@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DualTheme, ThemeMode } from '../types';
+import type { DualTheme, SongResult, ThemeMode } from '../types';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 
 // src/stores/useThemeQuickEditorStore.ts
@@ -12,6 +12,7 @@ type ThemeQuickEditorContext = {
     customTheme: DualTheme | null;
     bgMode: ThemeMode;
     coverUrl: string | null;
+    song: SongResult | null;
     songKey: ThemeCacheSongKey | null;
     isDaylight: boolean;
     promptSourceText: string | null;
@@ -57,6 +58,7 @@ export const useThemeQuickEditorStore = create<ThemeQuickEditorState>((set, get)
     customTheme: null,
     bgMode: 'default',
     coverUrl: null,
+    song: null,
     songKey: null,
     isDaylight: false,
     promptSourceText: null,

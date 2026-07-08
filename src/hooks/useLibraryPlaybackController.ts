@@ -82,7 +82,7 @@ type UseLibraryPlaybackControllerParams = {
     setStarredNavidromeSongIds: Dispatch<SetStateAction<Set<string>>>;
     navigateToPlayer: () => void;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
-    restoreCachedThemeForSong: (songId: ThemeCacheSongKey, options?: {
+    restoreCachedThemeForSong: (songOrId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
     }) => Promise<unknown>;
@@ -635,7 +635,7 @@ export function useLibraryPlaybackController({
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'success', text: '本地音乐已加载' });
-        void restoreCachedThemeForSong(initialMeta.unifiedSong.id).catch((error) => {
+        void restoreCachedThemeForSong(initialMeta.unifiedSong).catch((error) => {
             console.warn('Theme load error', error);
         });
 
@@ -662,7 +662,7 @@ export function useLibraryPlaybackController({
                     setManagedCachedCoverUrl(null);
                 }
 
-                void restoreCachedThemeForSong(updatedMeta.unifiedSong.id).catch((error) => {
+                void restoreCachedThemeForSong(updatedMeta.unifiedSong).catch((error) => {
                     console.warn('Theme load error', error);
                 });
             } catch (error) {
@@ -906,7 +906,7 @@ export function useLibraryPlaybackController({
             }
             setPlayerState(PlayerState.IDLE);
             setStatusMsg({ type: 'success', text: 'Navidrome 歌曲已加载' });
-            void restoreCachedThemeForSong(unifiedSong.id).catch((error) => {
+            void restoreCachedThemeForSong(unifiedSong).catch((error) => {
                 console.warn('Theme load error', error);
             });
         } catch (error) {

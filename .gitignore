@@ -33,6 +33,8 @@ packaging/aur/folia-major-bin/FIRST_RELEASE.md
 packaging/aur/folia-major-bin/README.md
 .codex
 .codex-tmp
+.wrangler/tmp
+wrangler.local.toml
 
 test/test-song/*
 test/test-ReplayGain

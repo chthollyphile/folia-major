@@ -76,7 +76,7 @@ type UsePlaybackQueueControllerParams = {
     openLocalArtistByName: (artistName: string) => void;
     openLocalAlbumByName: (albumName: string) => void;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
-    restoreCachedThemeForSong: (songId: ThemeCacheSongKey, options?: {
+    restoreCachedThemeForSong: (songOrId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
     }) => Promise<unknown>;
@@ -627,7 +627,7 @@ export function usePlaybackQueueController({
         }
 
         try {
-            await restoreCachedThemeForSong(song.id);
+            await restoreCachedThemeForSong(song);
             if (currentSongRef.current !== song.id) return;
         } catch (error) {
             console.warn('Theme load error', error);
