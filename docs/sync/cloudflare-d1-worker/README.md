@@ -100,6 +100,9 @@ CREATE TABLE themes (
   source TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE INDEX idx_themes_updated_at ON themes(updated_at);
+CREATE INDEX idx_themes_bucket_id ON themes(bucket_id);
 ```
 
 Worker 会额外维护 256 个主题 bucket 摘要：
@@ -124,6 +127,8 @@ CREATE TABLE settings (
   updated_at TEXT NOT NULL
 );
 ```
+
+写入数据（如 `PUT /settings`、`POST /themes/put`）时，Worker 会比较传入数据的 `updated_at` 和数据库中的现有值，只有当传入的时间戳更新或相等时才会执行覆盖，以防止旧数据覆盖新数据。
 
 ## 手动全库导入导出
 
