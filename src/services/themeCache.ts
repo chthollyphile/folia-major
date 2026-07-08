@@ -46,8 +46,6 @@ export async function getCachedThemeStateForSong(song: SongResult | null): Promi
         const syncedLocalTheme = await getFromCache<DualTheme>(registryRecord.cacheKey);
         if (syncedLocalTheme) {
             const sanitizedTheme = sanitizeDualTheme(syncedLocalTheme);
-            await saveToCache(`dual_theme_${song.id}`, sanitizedTheme);
-            registerThemeSyncRecordForSongIfMissing(song, registryRecord.source);
             return { kind: 'dual', theme: sanitizedTheme };
         }
     }
