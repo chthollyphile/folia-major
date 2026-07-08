@@ -13,6 +13,21 @@ import {
     pushSyncLibraryBundleToRemote,
     saveSyncLibraryBundleToLocalCache,
 } from './syncRepository';
+import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { getSyncConfig, isSyncConfigured, setSyncStatus } from './syncConfig';
+import { getRemoteState, testSyncConnection } from './syncClient';
+import type { SyncProviderConfig } from './syncTypes';
+import { applySyncedVisualSettings, buildSyncedSettingsRecord, getSyncedSettingsSignature } from './settingsSnapshot';
+import {
+    fetchRemoteSyncState,
+    fetchRemoteSettingsIfNewer,
+    listAllRemoteThemeRecords,
+    mergeLocalThemesIntoRecords,
+    pushMissingLocalThemesToRemote,
+    pushRemoteSettings,
+    pushSyncLibraryBundleToRemote,
+    saveSyncLibraryBundleToLocalCache,
+} from './syncRepository';
 import type { SyncLibraryExportBundle, SyncRemoteState } from './syncTypes';
 import { SYNC_SCHEMA_VERSION } from './syncTypes';
 
@@ -75,26 +90,11 @@ const scheduleSettingsUpload = () => {
 };
 
 export const initializeSyncCoordinator = () => {
-    if (unsubscribeSettings) {
-        return unsubscribeSettings;
-    }
-
     lastSettingsSignature = getSyncedSettingsSignature(useSettingsUiStore.getState());
-    unsubscribeSettings = useSettingsUiStore.subscribe((state) => {
-        const nextSignature = getSyncedSettingsSignature(state);
-        if (nextSignature !== lastSettingsSignature) {
-            lastSettingsSignature = nextSignature;
-            scheduleSettingsUpload();
-        }
-    });
 
-    void syncNow({ applyRemoteSettings: true, pushSettings: false });
+    void syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
 
-    return () => {
-        unsubscribeSettings?.();
-        unsubscribeSettings = null;
-        clearSettingsUploadTimer();
-    };
+    return () => {};
 };
 
 export const testSyncProviderConnection = async (config: SyncProviderConfig) => {
@@ -127,31 +127,51 @@ export const pullRemoteVisualSettings = async (remoteState?: SyncRemoteState | n
     }
 };
 
-export const syncNow = async (options: { applyRemoteSettings?: boolean; pushSettings?: boolean } = {}) => {
+export type SyncNowResult = {
+    uploadedThemeCount: number;
+    downloadedThemeCount: number;
+    checkedLocalThemeCount: number;
+    diffBucketCount: number;
+    skippedRemoteThemeScan: boolean;
+    appliedRemoteSettings: boolean;
+    pushedLocalSettings: boolean;
+};
+
+export const syncNow = async (options: { syncThemes?: boolean; applyRemoteSettings?: boolean; pushSettings?: boolean } = {}): Promise<SyncNowResult | null> => {
     if (isSyncingInProgress) {
-        return false;
+        return null;
     }
 
     const config = getSyncConfig();
     if (!isSyncConfigured(config)) {
-        return false;
+        return null;
     }
 
     isSyncingInProgress = true;
     setSyncStatus({ state: 'syncing', lastError: null });
     try {
         const remoteState = await fetchRemoteSyncState();
-        const themeSyncResult = await pushMissingLocalThemesToRemote(remoteState);
+        let themeSyncResult = {
+            uploadedCount: 0,
+            downloadedCount: 0,
+            checkedLocalThemeCount: 0,
+            diffBucketCount: 0,
+            skippedRemoteThemeScan: true,
+        };
+        if (options.syncThemes ?? true) {
+            themeSyncResult = await pushMissingLocalThemesToRemote(remoteState);
+        }
+        
         let appliedRemoteSettings = false;
         let pushedLocalSettings = false;
-        if (options.applyRemoteSettings ?? true) {
+        if (options.applyRemoteSettings) {
             appliedRemoteSettings = await pullRemoteVisualSettings(remoteState);
         }
-        if (options.pushSettings ?? true) {
+        if (options.pushSettings) {
             pushedLocalSettings = await pushCurrentSettings();
         }
         setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
-        console.info('[sync] Sync completed', {
+        const summary = {
             uploadedThemeCount: themeSyncResult.uploadedCount,
             downloadedThemeCount: themeSyncResult.downloadedCount,
             checkedLocalThemeCount: themeSyncResult.checkedLocalThemeCount,
@@ -159,12 +179,13 @@ export const syncNow = async (options: { applyRemoteSettings?: boolean; pushSett
             skippedRemoteThemeScan: themeSyncResult.skippedRemoteThemeScan,
             appliedRemoteSettings,
             pushedLocalSettings,
-        });
-        return true;
+        };
+        console.info('[sync] Sync completed', summary);
+        return summary;
     } catch (error) {
         console.error('[sync] Sync failed:', error);
         setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
-        return false;
+        return null;
     } finally {
         isSyncingInProgress = false;
     }

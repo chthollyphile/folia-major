@@ -164,6 +164,7 @@ export function useThemeController({
     const [bgMode, setBgMode] = useState<ThemeMode>(() => (
         initialCustomTheme && initialThemePreferenceState.isCustomThemePreferred ? 'custom' : 'default'
     ));
+    const [currentSongHasLocalAiTheme, setCurrentSongHasLocalAiTheme] = useState(false);
     const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
     const activeThemeGenerationCountRef = useRef(0);
     const themeGenerationSongKeysRef = useRef(new Set<string>());
@@ -176,7 +177,8 @@ export function useThemeController({
         isDaylight,
         defaultTheme,
         daylightTheme,
-    }), [aiTheme, bgMode, customTheme, daylightTheme, defaultTheme, isDaylight, legacyTheme]);
+        currentSongHasLocalAiTheme,
+    }), [aiTheme, bgMode, customTheme, daylightTheme, defaultTheme, isDaylight, legacyTheme, currentSongHasLocalAiTheme]);
 
     const getPreferenceSwitchState = (): ThemePreferenceSwitchState => ({
         isCustomThemePreferred,
@@ -499,14 +501,18 @@ export function useThemeController({
             : await getCachedThemeState(songOrId);
 
         if (cachedTheme.kind === 'dual') {
+            setCurrentSongHasLocalAiTheme(true);
             applyDualTheme(cachedTheme.theme, { respectCustomPreference: false });
             return 'dual' as const;
         }
 
         if (cachedTheme.kind === 'legacy') {
+            setCurrentSongHasLocalAiTheme(true);
             applyLegacyTheme(cachedTheme.theme, { respectCustomPreference: false });
             return 'legacy' as const;
         }
+
+        setCurrentSongHasLocalAiTheme(false);
 
         if (options?.allowLastUsedFallback) {
             const lastDualTheme = await getLastDualTheme();
@@ -565,6 +571,7 @@ export function useThemeController({
             if (currentSong) {
                 await saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
                 void saveSyncedThemeForSong(currentSong, normalizedDualTheme, source === 'auto' ? 'auto' : 'manual');
+                setCurrentSongHasLocalAiTheme(true);
             }
 
             const shouldApply = options.shouldApply?.() ?? true;
