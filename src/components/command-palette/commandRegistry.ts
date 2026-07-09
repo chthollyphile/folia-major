@@ -263,9 +263,12 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         id: 'sync-now',
         group: 'settings',
         title: 'Sync now',
-        description: 'Sync settings and AI themes',
+        description: 'Sync AI themes',
         keywords: ['sync now', 'd1 sync now', 'cloud sync now', '立即同步', '马上同步', 'd1同步', 'lijitongbu', 'mashangtongbu', 'ljtb', 'mstb'],
-        execute: async () => await syncNow({ applyRemoteSettings: true, pushSettings: true }),
+        execute: async () => {
+            await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
+            return true;
+        },
     },
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端', 'zhuomian', 'zhuomianduan', 'zm', 'zmd'], 'options', 'desktop'),
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室', 'shiyan', 'shiyanshi', 'sy', 'sys'], 'options', 'lab'),
