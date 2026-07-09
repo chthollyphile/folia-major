@@ -45,7 +45,7 @@ database_id = "你的 database_id"
 
 Wrangler 输出里的 `binding` 可能是 `folia_sync`，不要直接照抄这个字段。Worker 代码读取的是 `env.FOLIA_SYNC_DB`，所以这里必须使用 `FOLIA_SYNC_DB`。
 
-5. 在**当前目录** (`folia-major/docs/sync/cloudflare-d1-worker`) 设置同步 token：
+5. 在**当前目录** (`folia-major/sync-server/cloudflare-d1-worker`) 设置同步 token：
 
 ```bash
 wrangler secret put SYNC_TOKEN --config wrangler.local.toml

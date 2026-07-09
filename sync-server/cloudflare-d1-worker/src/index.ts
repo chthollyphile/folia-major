@@ -15,7 +15,7 @@ type Env = {
   SYNC_TOKEN: string;
 };
 
-// docs/sync/cloudflare-d1-worker/src/index.ts
+// sync-server/cloudflare-d1-worker/src/index.ts
 // Minimal user-hosted Worker for Folia Sync API backed by Cloudflare D1.
 
 const SCHEMA_VERSION = 1;
