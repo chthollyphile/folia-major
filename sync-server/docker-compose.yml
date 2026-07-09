@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sync-server:
+    build: .
+    # Or use the pre-built image once you publish it:
+    # image: your-dockerhub-username/folia-sync-server:latest
+    container_name: folia-sync
+    restart: unless-stopped
+    ports:
+      # Maps host port 13000 to container port 3000
+      - "13000:3000"
+    volumes:
+      # Persists database to the local ./data folder
+      - ./data:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/folia-sync.db
+      # - SYNC_TOKEN=YOUR_SECRET_TOKEN # You can set it here or in a .env file
+    env_file:
+      - .env

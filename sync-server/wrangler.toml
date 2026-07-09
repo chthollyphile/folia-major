@@ -3,7 +3,7 @@
 # wrangler deploy --config wrangler.local.toml
 
 name = "folia-sync"
-main = "src/index.ts"
+main = "src/cloudflare.ts"
 compatibility_date = "2026-07-01"
 
 [[d1_databases]]

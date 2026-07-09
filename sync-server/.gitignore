@@ -1,0 +1,29 @@
+# Logs
+*.log
+npm-debug.log*
+
+# Node modules
+node_modules/
+
+# Build output
+dist/
+*.js
+!postcss.config.js
+!tailwind.config.js
+!vite.config.ts
+
+# Ignore TS compiled output if any, but better just ignore .env and DB
+.env
+.env.*
+
+# Wrangler
+.wrangler/
+wrangler.local.toml
+
+# SQLite Database
+*.db
+*.db-shm
+*.db-wal
+folia-sync.db
+folia-sync.db-shm
+folia-sync.db-wal
