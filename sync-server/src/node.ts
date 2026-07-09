@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
-import { D1Emulator } from './d1-emulator';
-import app from './app';
+import { D1Emulator } from './d1-emulator.js';
+import app from './app.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { D1Database, D1PreparedStatement } from './app';
+import type { D1Database, D1PreparedStatement } from './app.js';
 
 export class D1Emulator implements D1Database {
   private db: Database.Database;
