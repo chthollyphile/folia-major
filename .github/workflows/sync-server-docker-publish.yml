@@ -1,10 +1,11 @@
-name: Docker
+name: sync-server-docker-publish
 
 on:
   push:
     branches: [ "main" ]
     paths:
       - 'sync-server/package.json'
+  workflow_dispatch:
 
 env:
   # Use docker.io for Docker Hub if empty
