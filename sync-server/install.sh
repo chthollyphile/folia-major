@@ -18,10 +18,18 @@ setup_env_token() {
     if [ ! -f .env ]; then
         echo "=========================================="
         read -p "Enter a secure SYNC_TOKEN for your server: " sync_token
+        # Generate a 32-character hex dashboard token
+        dashboard_token=$(node -e "console.log(require('crypto').randomBytes(16).toString('hex'))" 2>/dev/null || echo $RANDOM$RANDOM$RANDOM$RANDOM)
         echo "SYNC_TOKEN=$sync_token" > .env
+        echo "DASHBOARD_TOKEN=$dashboard_token" >> .env
         echo "PORT=3000" >> .env
         echo "DB_PATH=./folia-sync.db" >> .env
         echo "[*] .env file created successfully."
+        echo "=========================================="
+        echo "[!] Automatically generated DASHBOARD_TOKEN:"
+        echo "[!] $dashboard_token"
+        echo "[!] Please save this token. You will need it to access the web dashboard."
+        echo "=========================================="
     else
         echo "[*] .env file already exists, skipping creation."
     fi
@@ -170,6 +178,10 @@ case $deploy_choice in
         echo "[*] Setting SYNC_TOKEN secret..."
         echo "$cf_sync_token" | npx wrangler secret put SYNC_TOKEN --config wrangler.local.toml
         
+        echo "[*] Generating and setting DASHBOARD_TOKEN secret..."
+        dashboard_token=$(node -e "console.log(require('crypto').randomBytes(16).toString('hex'))" 2>/dev/null || echo $RANDOM$RANDOM$RANDOM$RANDOM)
+        echo "$dashboard_token" | npx wrangler secret put DASHBOARD_TOKEN --config wrangler.local.toml
+        
         echo "[*] Deploying to Cloudflare Workers..."
         npm run deploy:cf -- --config wrangler.local.toml
         
@@ -177,6 +189,11 @@ case $deploy_choice in
         echo "    Setup Complete!                       "
         echo "=========================================="
         echo "Your server has been deployed to Cloudflare Workers."
+        echo "=========================================="
+        echo "[!] Automatically generated DASHBOARD_TOKEN:"
+        echo "[!] $dashboard_token"
+        echo "[!] Please save this token. You will need it to access the web dashboard."
+        echo "Access URL format: https://<your-worker-url>/?token=$dashboard_token"
         ;;
     *)
         echo "[!] Invalid choice. Exiting."
