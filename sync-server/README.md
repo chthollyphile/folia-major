@@ -2,8 +2,9 @@
 
 这是 Folia 的官方同步服务端实现。本服务以“多端同构”为目标设计，底层逻辑完全一致。
 
-目前支持两种部署方案，你可以根据自己的需求任选其一：
-- **自托管部署 (Node.js)**: 使用 SQLite，适合有自己服务器或 VPS 的用户。
+目前支持三种部署方案，你可以根据自己的需求任选其一：
+- **Docker 部署 (推荐)**: 适合有自己服务器或 VPS 的用户，一键启动，开箱即用。
+- **自托管部署 (Node.js)**: 使用 SQLite，适合在本地或不方便使用 Docker 的环境运行。
 - **Cloudflare D1 部署 (Serverless)**: 免费、免运维、高可用，依托 Cloudflare 全球边缘网络。
 
 ## 🔐 Token 指南
@@ -46,7 +47,53 @@ openssl rand -hex 16
 
 ---
 
-## 方案一：Node.js 自托管部署
+## 方案一：Docker 部署 (推荐)
+
+使用官方提供的 Docker 镜像，只需几步即可完成私有化部署。
+
+### 1. 准备配置
+
+创建一个空文件夹，在其中新建 `docker-compose.yml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  sync-server:
+    image: papersman/folia-sync-server:latest
+    container_name: folia-sync
+    restart: unless-stopped
+    ports:
+      - "13000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/folia-sync.db
+    env_file:
+      - .env
+```
+
+在同级目录下新建 `.env` 文件，配置 Token：
+
+```env
+# 必填：客户端鉴权 Token (至少 8 位)
+SYNC_TOKEN="你的_SYNC_TOKEN"
+
+# 选填：网页看板访问 Token (至少 16 位)
+DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
+```
+
+### 2. 启动服务
+
+```bash
+docker compose up -d
+```
+启动后，数据库文件会自动持久化保存在当前目录下的 `./data` 文件夹中。
+
+---
+
+## 方案二：Node.js 自托管部署
 
 使用 Node.js 运行，底层使用 `better-sqlite3`。
 
@@ -84,7 +131,7 @@ npm run start:node
 
 ---
 
-## 方案二：Cloudflare D1 部署
+## 方案三：Cloudflare D1 部署
 
 零成本、免服务器的 Serverless 部署。
 
