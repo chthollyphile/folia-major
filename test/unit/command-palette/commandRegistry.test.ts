@@ -8,6 +8,7 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     localSongs: [],
     playerState: PlayerState.PAUSED,
     t: (_key, fallback) => fallback ?? '',
+    setStatusMsg: vi.fn(),
     openSettings: vi.fn(),
     navigateToHome: vi.fn(),
     navigateToPlayer: vi.fn(),
@@ -82,6 +83,18 @@ describe('command palette registry', () => {
     it('matches sync server settings and manual sync commands', () => {
         expect(getCommandPaletteMatches('sync server')[0].command.id).toBe('settings-r2-sync');
         expect(getCommandPaletteMatches('立即同步')[0].command.id).toBe('sync-now');
+    });
+
+    it('shows a toast instead of syncing when sync is not configured', async () => {
+        const context = createContext();
+        const [match] = getCommandPaletteMatches('立即同步');
+
+        await match.command.execute(match.input, context);
+
+        expect(context.setStatusMsg).toHaveBeenCalledWith({
+            type: 'info',
+            text: 'Sync is not enabled. Configure and enable it in Storage settings first.',
+        });
     });
 
     it('opens general settings and executes direct language switch commands', async () => {

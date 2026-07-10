@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { SearchReturnView } from '../../stores/useSearchNavigationStore';
-import type { HomeViewTab, LocalSong, PlayerState, SongResult, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { HomeViewTab, LocalSong, PlayerState, SongResult, StatusMessage, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
@@ -36,6 +36,7 @@ export type CommandPaletteContext = {
     localSongs: LocalSong[];
     playerState: PlayerState;
     t: (key: string, fallback?: string) => string;
+    setStatusMsg: React.Dispatch<React.SetStateAction<StatusMessage | null>>;
     openSettings: (initialTab?: SettingsModalInitialTab, initialSubview?: SettingsSubviewId | null) => void;
     navigateToHome: () => void;
     navigateToPlayer: () => void;

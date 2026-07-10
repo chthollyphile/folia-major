@@ -171,6 +171,7 @@ export default {
     "destination": "命令台",
     "close": "关闭命令台",
     "empty": "没有匹配的命令",
+    "syncNotConfigured": "同步服务尚未开启，请先在存储设置中完成配置并启用同步。",
     "run": "执行",
     "recognized": "识别结果",
     "previewSearch": "搜索{{source}}歌曲：{{query}}",

@@ -1,12 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, RotateCcw, Cone, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, ArrowUpDown, Check, RefreshCw, Cone, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { syncNow } from '../../services/sync/syncCoordinator';
 
 // Controls tab keeps the visualizer picker local so it can expand into a full-tab overlay
 // without changing the rest of the player state flow.
@@ -25,7 +26,6 @@ interface ControlsTabProps {
     onBgModeChange: (mode: ThemeMode) => void;
     hasCustomTheme: boolean;
     themeSourceModel: ThemeSourceModel;
-    onResetTheme: () => void;
     defaultTheme: Theme;
     daylightTheme: Theme;
     visualizerMode: VisualizerMode;
@@ -57,7 +57,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     onBgModeChange,
     hasCustomTheme,
     themeSourceModel,
-    onResetTheme,
     defaultTheme,
     daylightTheme,
     visualizerMode,
@@ -82,10 +81,38 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const setMonetBackgroundTuning = useSettingsUiStore(state => state.handleSetMonetBackgroundTuning);
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
     const [isVisualizerOverlayOpen, setIsVisualizerOverlayOpen] = useState(false);
+    const [themeSyncState, setThemeSyncState] = useState<'idle' | 'syncing' | 'complete'>('idle');
     const isDraggingRef = useRef(false);
+    const themeSyncCompleteTimerRef = useRef<number | null>(null);
     const pendingVolumeRef = useRef(sliderVolume);
     const visualizerTriggerRef = useRef<HTMLButtonElement>(null);
     const [visualizerOverlayLeft, setVisualizerOverlayLeft] = useState(0);
+
+    useEffect(() => () => {
+        if (themeSyncCompleteTimerRef.current !== null) {
+            window.clearTimeout(themeSyncCompleteTimerRef.current);
+        }
+    }, []);
+
+    const handleThemeSync = async () => {
+        if (themeSyncState === 'syncing') return;
+
+        if (themeSyncCompleteTimerRef.current !== null) {
+            window.clearTimeout(themeSyncCompleteTimerRef.current);
+        }
+        setThemeSyncState('syncing');
+        const result = await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
+        if (!result) {
+            setThemeSyncState('idle');
+            return;
+        }
+
+        setThemeSyncState('complete');
+        themeSyncCompleteTimerRef.current = window.setTimeout(() => {
+            setThemeSyncState('idle');
+            themeSyncCompleteTimerRef.current = null;
+        }, 1600);
+    };
 
     useEffect(() => {
         if (!isDraggingRef.current) {
@@ -434,11 +461,33 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         )}
                         {themeSourceModel.activeSource !== 'default' && (
                             <button
-                                onClick={onResetTheme}
-                                className={`p-1 rounded-full ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'} transition-colors`}
-                                title={t('ui.resetToDefaultTheme')}
+                                onClick={() => void handleThemeSync()}
+                                disabled={themeSyncState === 'syncing'}
+                                className={`p-1 rounded-full ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'} transition-colors disabled:cursor-wait`}
+                                title={themeSyncState === 'syncing'
+                                    ? t('options.syncing')
+                                    : themeSyncState === 'complete'
+                                        ? t('ui.synced')
+                                        : t('commandPalette.commands.sync-now.title')}
                             >
-                                <RotateCcw size={12} />
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.span
+                                        key={themeSyncState}
+                                        initial={{ opacity: 0, scale: 0.55, rotate: -35 }}
+                                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                        exit={{ opacity: 0, scale: 0.55, rotate: 35 }}
+                                        transition={{ duration: 0.16, ease: 'easeOut' }}
+                                        className="block"
+                                    >
+                                        {themeSyncState === 'syncing' ? (
+                                            <RefreshCw size={12} className="animate-spin" />
+                                        ) : themeSyncState === 'complete' ? (
+                                            <Check size={12} className="text-green-500" strokeWidth={3} />
+                                        ) : (
+                                            <ArrowUpDown size={12} />
+                                        )}
+                                    </motion.span>
+                                </AnimatePresence>
                             </button>
                         )}
                     </div>

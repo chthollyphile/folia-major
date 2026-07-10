@@ -2,6 +2,7 @@ import { PlayerState, type HomeViewTab, type SongResult, type VisualizerMode, ty
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import { syncNow } from '../../services/sync/syncCoordinator';
+import { isSyncConfigured } from '../../services/sync/syncConfig';
 import type {
     CommandPaletteCommand,
     CommandPaletteContext,
@@ -265,7 +266,14 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         title: 'Sync now',
         description: 'Sync AI themes',
         keywords: ['sync now', 'd1 sync now', 'cloud sync now', '立即同步', '马上同步', 'd1同步', 'lijitongbu', 'mashangtongbu', 'ljtb', 'mstb'],
-        execute: async () => {
+        execute: async (_input, context) => {
+            if (!isSyncConfigured()) {
+                context.setStatusMsg({
+                    type: 'info',
+                    text: context.t('commandPalette.syncNotConfigured', 'Sync is not enabled. Configure and enable it in Storage settings first.'),
+                });
+                return true;
+            }
             await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
             return true;
         },

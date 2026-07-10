@@ -1663,6 +1663,7 @@ export default function App() {
         localSongs,
         playerState,
         t: (key: string, fallback?: string) => t(key, fallback ?? ''),
+        setStatusMsg,
         openSettings,
         navigateToHome,
         navigateToPlayer,

@@ -171,6 +171,7 @@ export default {
     "destination": "Command",
     "close": "Close command palette",
     "empty": "No matching command",
+    "syncNotConfigured": "Sync is not enabled. Configure and enable it in Storage settings first.",
     "run": "Run",
     "recognized": "Recognized",
     "previewSearch": "Search {{source}} songs: {{query}}",

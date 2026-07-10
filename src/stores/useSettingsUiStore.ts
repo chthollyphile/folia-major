@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type React from 'react';
 import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
-import { DEFAULT_VISUALIZER_MODE, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
+import { DEFAULT_VISUALIZER_MODE, getVisualizerModeLabel, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 import { buildStoredCappellaAvatar, clearCustomCappellaAvatar, isSupportedCappellaAvatarFile, saveCustomCappellaAvatar } from '../services/cappellaAvatarPack';
@@ -1387,7 +1387,6 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
     },
     handleSetVisualizerMode: (mode, options) => {
-        const entry = getVisualizerRegistryEntry(mode);
         if (typeof window !== 'undefined') {
             localStorage.setItem('visualizer_mode', mode);
         }
@@ -1395,7 +1394,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         if (options?.notify !== false) {
             notify(get, {
                 type: 'info',
-                text: i18n.t('notifications.visualizerSwitched', { mode: entry.labelFallback }),
+                text: i18n.t('notifications.visualizerSwitched', {
+                    mode: getVisualizerModeLabel(mode, key => i18n.t(key)),
+                }),
             });
         }
     },

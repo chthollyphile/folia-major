@@ -160,7 +160,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onBgModeChange,
         hasCustomTheme,
         themeSourceModel,
-        onResetTheme,
         defaultTheme,
         daylightTheme,
         visualizerMode,
@@ -788,7 +787,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             onBgModeChange={onBgModeChange}
                                             hasCustomTheme={hasCustomTheme}
                                             themeSourceModel={themeSourceModel}
-                                            onResetTheme={onResetTheme}
                                             defaultTheme={defaultTheme}
                                             daylightTheme={daylightTheme}
                                             visualizerMode={visualizerMode}
