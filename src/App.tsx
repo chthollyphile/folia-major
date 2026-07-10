@@ -66,6 +66,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume } from './utils/appPlaybackHelpers';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong, resolveNavidromePlaybackCarrier } from './utils/appPlaybackGuards';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
+import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
@@ -171,6 +172,8 @@ export default function App() {
             setLastSeenGuideVersion(__APP_VERSION__);
         }
     }, [lastSeenGuideVersion, setLastSeenGuideVersion, setIsUserGuideModalOpen]);
+
+    useEffect(() => initializeSyncCoordinator(), []);
 
     const loadNavidromeFavorites = useCallback(async () => {
         if (!navidromeEnabled) {
@@ -673,6 +676,17 @@ export default function App() {
     } = themeController;
 
     useEffect(() => {
+        const handleSyncCompleted = () => {
+            if (currentSong) {
+                void restoreCachedThemeForSong(currentSong, { allowLastUsedFallback: true });
+            }
+        };
+
+        window.addEventListener('folia-themes-synced', handleSyncCompleted);
+        return () => window.removeEventListener('folia-themes-synced', handleSyncCompleted);
+    }, [currentSong, restoreCachedThemeForSong]);
+
+    useEffect(() => {
         const isPureMusic = Boolean(currentSong?.isPureMusic);
         const songTitle = currentSong?.name;
         const allText = lyrics?.lines.map(l => l.fullText).join('\n') || null;
@@ -683,13 +697,14 @@ export default function App() {
             customTheme,
             bgMode,
             coverUrl,
+            song: currentSong,
             songKey: currentSong?.id ?? null,
             isDaylight,
             promptSourceText,
             isPureMusic,
             songTitle,
         });
-    }, [aiTheme, bgMode, coverUrl, currentSong?.id, currentSong?.isPureMusic, currentSong?.name, customTheme, isDaylight, lyrics, setThemeQuickEditorContext]);
+    }, [aiTheme, bgMode, coverUrl, currentSong, currentSong?.id, currentSong?.isPureMusic, currentSong?.name, customTheme, isDaylight, lyrics, setThemeQuickEditorContext]);
 
     // Navigation and Library Hooks
     // manages current view, selected items, and navigation functions across the app

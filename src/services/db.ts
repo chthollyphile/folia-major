@@ -284,6 +284,48 @@ export const getFromCache = async <T>(key: string): Promise<T | null> => {
   }
 };
 
+export const getCacheEntriesByPrefix = async <T>(prefix: string): Promise<Array<{ key: string; data: T; timestamp: number }>> => {
+  try {
+    const db = await openDB();
+    const storeNames = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
+    const entryMap = new Map<string, { key: string; data: T; timestamp: number }>();
+
+    await Promise.all(storeNames.map(storeName => new Promise<void>((resolve, reject) => {
+      if (!db.objectStoreNames.contains(storeName)) {
+        resolve();
+        return;
+      }
+
+      const tx = db.transaction([storeName], 'readonly');
+      const store = tx.objectStore(storeName);
+      const req = store.openCursor();
+      req.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+        if (!cursor) {
+          return;
+        }
+
+        const value = cursor.value as CacheData | undefined;
+        if (typeof value?.key === 'string' && value.key.startsWith(prefix)) {
+          entryMap.set(value.key, {
+            key: value.key,
+            data: value.data as T,
+            timestamp: typeof value.timestamp === 'number' ? value.timestamp : 0,
+          });
+        }
+        cursor.continue();
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    })));
+
+    return Array.from(entryMap.values());
+  } catch (e) {
+    console.error("Cache prefix scan failed", e);
+    return [];
+  }
+};
+
 export const getFromCacheWithMigration = async <T>(
   key: string,
   migrate: (data: T) => MigrationResult<T>

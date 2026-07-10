@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
@@ -219,9 +219,17 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     <button
                         onClick={onGenerateAITheme}
                         disabled={isGeneratingTheme || !canGenerateAITheme}
-                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${isGeneratingTheme ? 'bg-blue-500/20 text-blue-300' : buttonBg}`}
+                        className={`h-12 rounded-xl flex items-center justify-center transition-colors ${
+                            isGeneratingTheme
+                                ? 'bg-blue-500/20 text-blue-300'
+                                : buttonBg
+                        }`}
                     >
-                        <Sparkles size={20} className={isGeneratingTheme ? 'animate-pulse' : ''} />
+                        {themeSourceModel.hasLocalAiTheme && !isGeneratingTheme ? (
+                            <Sparkles size={20} />
+                        ) : (
+                            <Sparkle size={20} className={isGeneratingTheme ? 'animate-pulse' : ''} />
+                        )}
                     </button>
                 </div>
 

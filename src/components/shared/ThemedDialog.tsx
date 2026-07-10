@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 
@@ -27,6 +27,17 @@ const ThemedDialog: React.FC<ThemedDialogProps> = ({
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
     const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
     const closeBtnHover = isDaylight ? 'hover:bg-zinc-200/60' : 'hover:bg-white/10';
+    const isMouseDownOnOverlayRef = useRef(false);
+
+    const handleOverlayMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
+    };
+
+    const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget && isMouseDownOnOverlayRef.current) {
+            onClose();
+        }
+    };
 
     return (
         <AnimatePresence>
@@ -37,7 +48,8 @@ const ThemedDialog: React.FC<ThemedDialogProps> = ({
                     exit={{ opacity: 0 }}
                     data-folia-keyboard-window="true"
                     className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
-                    onClick={onClose}
+                    onMouseDown={handleOverlayMouseDown}
+                    onClick={handleBackdropClick}
                 >
                     <motion.div
                         initial={{ scale: 0.94, opacity: 0 }}

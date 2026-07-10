@@ -1,6 +1,7 @@
 import { PlayerState, type HomeViewTab, type SongResult, type VisualizerMode, type VisualizerBackgroundMode, type MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
+import { syncNow } from '../../services/sync/syncCoordinator';
 import type {
     CommandPaletteCommand,
     CommandPaletteContext,
@@ -257,6 +258,18 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createSettingsCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'bofangzhuangtai', 'dc', 'zt'], 'options', 'integration'),
     createSettingsCommand('settings-obs-browser-source', 'OBS browser source', 'Open OBS browser source settings', ['obs', 'browser source', 'live source', '直播源', '浏览器源', 'zhiboyuan', 'liulanqiyuan', 'zby', 'llqy'], 'options', 'integration'),
     createSettingsCommand('settings-storage', 'Storage settings', 'Open cache and storage settings', ['storage', 'cache', '存储', '缓存', 'cunchu', 'huancun', 'cc', 'hc'], 'options', 'storage'),
+    createSettingsCommand('settings-r2-sync', 'Sync server settings', 'Open sync server settings', ['sync server', 'd1 sync', 'cloud sync', 'sync settings', '同步', '云同步', 'd1同步', 'tongbu', 'yuntongbu', 'tb', 'ytb'], 'options', 'storage'),
+    {
+        id: 'sync-now',
+        group: 'settings',
+        title: 'Sync now',
+        description: 'Sync AI themes',
+        keywords: ['sync now', 'd1 sync now', 'cloud sync now', '立即同步', '马上同步', 'd1同步', 'lijitongbu', 'mashangtongbu', 'ljtb', 'mstb'],
+        execute: async () => {
+            await syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
+            return true;
+        },
+    },
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端', 'zhuomian', 'zhuomianduan', 'zm', 'zmd'], 'options', 'desktop'),
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室', 'shiyan', 'shiyanshi', 'sy', 'sys'], 'options', 'lab'),
     createSettingsCommand('settings-visualizer', 'Visualizer settings', 'Open lyrics animation workbench', ['visualizer settings', 'visualizer workbench', '可视化', '歌词动画', 'keshihua', 'gecidonghua', 'ksh', 'gcdh'], 'options', 'visualizer'),

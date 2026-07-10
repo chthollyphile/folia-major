@@ -77,6 +77,11 @@ describe('command palette registry', () => {
         expect(context.openSettings).toHaveBeenCalledWith('options', 'integration');
     });
 
+    it('matches sync server settings and manual sync commands', () => {
+        expect(getCommandPaletteMatches('sync server')[0].command.id).toBe('settings-r2-sync');
+        expect(getCommandPaletteMatches('立即同步')[0].command.id).toBe('sync-now');
+    });
+
     it('opens general settings and executes direct language switch commands', async () => {
         const context = createContext();
 

@@ -103,6 +103,7 @@ describe('themeControllerState', () => {
             isDaylight: false,
             defaultTheme,
             daylightTheme,
+            currentSongHasLocalAiTheme: false,
         });
 
         expect(model.activeSource).toBe('ai');
@@ -124,6 +125,7 @@ describe('themeControllerState', () => {
             isDaylight: true,
             defaultTheme,
             daylightTheme,
+            currentSongHasLocalAiTheme: false,
         });
 
         expect(model.activeSource).toBe('ai');
@@ -146,6 +148,7 @@ describe('themeControllerState', () => {
             isDaylight: false,
             defaultTheme,
             daylightTheme,
+            currentSongHasLocalAiTheme: false,
         });
 
         expect(model.activeSource).toBe('ai');
@@ -168,6 +171,7 @@ describe('themeControllerState', () => {
             isDaylight: true,
             defaultTheme,
             daylightTheme,
+            currentSongHasLocalAiTheme: false,
         });
 
         expect(model.activeSource).toBe('custom');

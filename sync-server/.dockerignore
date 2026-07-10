@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+.wrangler
+wrangler.local.toml

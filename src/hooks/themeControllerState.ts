@@ -20,6 +20,7 @@ export type ThemeSourceModel = {
     options: Record<ThemeSourceKind, ThemeSourceOption>;
     editableSource: EditableThemeSourceKind | null;
     canOpenQuickEditor: boolean;
+    hasLocalAiTheme: boolean;
 };
 
 interface RgbColor {
@@ -271,6 +272,7 @@ export const buildThemeSourceModel = ({
     isDaylight,
     defaultTheme,
     daylightTheme,
+    currentSongHasLocalAiTheme,
 }: {
     bgMode: ThemeSourceKind;
     aiTheme: DualTheme | null;
@@ -279,6 +281,7 @@ export const buildThemeSourceModel = ({
     isDaylight: boolean;
     defaultTheme: Theme;
     daylightTheme: Theme;
+    currentSongHasLocalAiTheme: boolean;
 }): ThemeSourceModel => {
     const defaultSourceTheme = getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
     const aiSourceTheme = aiTheme
@@ -305,6 +308,7 @@ export const buildThemeSourceModel = ({
         options,
         editableSource,
         canOpenQuickEditor: options.ai.editable || options.custom.editable,
+        hasLocalAiTheme: currentSongHasLocalAiTheme,
     };
 };
 

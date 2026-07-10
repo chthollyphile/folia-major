@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Music, Search, X } from 'lucide-react';
 import type { OnlineLyricsState, SongResult } from '../../types';
@@ -27,6 +27,7 @@ interface OnlineLyricMatchModalProps {
 
 const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onClose, onMatch, isDaylight }) => {
     const { t } = useTranslation();
+    const isMouseDownOnOverlayRef = useRef(false);
     const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
     const bgClass = isDaylight ? 'bg-white/90 border-white/20' : 'bg-zinc-900/95 border-white/10';
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
@@ -161,8 +162,18 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         }
     };
 
+    const handleOverlayMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
+    };
+
+    const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget && isMouseDownOnOverlayRef.current) {
+            onClose();
+        }
+    };
+
     return (
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onMouseDown={handleOverlayMouseDown} onClick={handleBackdropClick}>
             <div
                 className={`w-full max-w-5xl max-h-[85vh] overflow-hidden rounded-3xl border ${bgClass} shadow-2xl flex flex-col`}
                 onClick={event => event.stopPropagation()}

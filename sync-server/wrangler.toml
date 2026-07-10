@@ -1,0 +1,12 @@
+# Example config. Do not deploy this file directly.
+# Copy it to wrangler.local.toml, fill database_id, then use:
+# wrangler deploy --config wrangler.local.toml
+
+name = "folia-sync"
+main = "src/cloudflare.ts"
+compatibility_date = "2026-07-01"
+
+[[d1_databases]]
+binding = "FOLIA_SYNC_DB"
+database_name = "folia-sync"
+database_id = "replace-with-your-d1-database-id"

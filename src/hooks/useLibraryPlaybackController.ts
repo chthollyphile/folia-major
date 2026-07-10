@@ -82,7 +82,7 @@ type UseLibraryPlaybackControllerParams = {
     setStarredNavidromeSongIds: Dispatch<SetStateAction<Set<string>>>;
     navigateToPlayer: () => void;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
-    restoreCachedThemeForSong: (songId: ThemeCacheSongKey, options?: {
+    restoreCachedThemeForSong: (songOrId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
     }) => Promise<unknown>;
@@ -634,7 +634,7 @@ export function useLibraryPlaybackController({
 
         navigateToPlayer();
         setPlayerState(PlayerState.IDLE);
-        setStatusMsg({ type: 'success', text: t('status.localMusicLoaded') || '' });
+        setStatusMsg({ type: 'success', text: t('status.localMusicLoaded')});
         void restoreCachedThemeForSong(initialMeta.unifiedSong.id).catch((error) => {
             console.warn('Theme load error', error);
         });
@@ -662,7 +662,7 @@ export function useLibraryPlaybackController({
                     setManagedCachedCoverUrl(null);
                 }
 
-                void restoreCachedThemeForSong(updatedMeta.unifiedSong.id).catch((error) => {
+                void restoreCachedThemeForSong(updatedMeta.unifiedSong).catch((error) => {
                     console.warn('Theme load error', error);
                 });
             } catch (error) {
@@ -905,13 +905,13 @@ export function useLibraryPlaybackController({
                 navigateToPlayer();
             }
             setPlayerState(PlayerState.IDLE);
-            setStatusMsg({ type: 'success', text: t('status.navidromeSongLoaded') || '' });
+            setStatusMsg({ type: 'success', text: t('status.navidromeSongLoaded')});
             void restoreCachedThemeForSong(unifiedSong.id).catch((error) => {
                 console.warn('Theme load error', error);
             });
         } catch (error) {
             console.error('[App] Failed to play Navidrome song:', error);
-            setStatusMsg({ type: 'error', text: t('status.playbackFailed') || '' });
+            setStatusMsg({ type: 'error', text: t('status.playbackFailed')});
             setIsLyricsLoading(false);
         }
     }, [
@@ -935,7 +935,7 @@ export function useLibraryPlaybackController({
     ]);
 
     const onMatchNavidromeSong = useCallback(async () => {
-        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics') || '' });
+        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics')});
     }, [setStatusMsg, t]);
 
     const handleUpdateLocalLyrics = useCallback(async (content: string, isTranslation: boolean, fileName?: string) => {
@@ -992,7 +992,7 @@ export function useLibraryPlaybackController({
                 : prev
             );
             await loadLocalSongs();
-            setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched') || '' });
+            setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched')});
         } catch (error) {
             console.error('Failed to save lyrics source', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
