@@ -99,46 +99,7 @@ const mapThemeRow = (row: { fingerprint: string; theme_json: string; source: str
   updatedAt: row.updated_at,
 });
 
-const buildThemeBucketSummary = (bucketId: number, rows: Array<{ fingerprint: string; updated_at: string }>) => {
-  const tokens = rows.map(row => `${row.fingerprint}\u0000${row.updated_at}`).sort();
-  const updatedAt = rows.reduce<string | null>((latest, row) => (
-    !latest || Date.parse(row.updated_at) > Date.parse(latest) ? row.updated_at : latest
-  ), null);
-  return {
-    bucketId,
-    count: rows.length,
-    hash: tokens.length > 0 ? String(hashSyncString(tokens.join('\u0001'))) : '0',
-    updatedAt,
-  };
-};
 
-const refreshThemeBuckets = async (db: D1Database, bucketIds: number[]) => {
-  const uniqueBucketIds = Array.from(new Set(bucketIds.filter(id => (
-    Number.isInteger(id) && id >= 0 && id < THEME_BUCKET_COUNT
-  ))));
-  if (uniqueBucketIds.length === 0) return;
-
-  const summaries = await Promise.all(
-    uniqueBucketIds.map(async (bucketId) => {
-      const rows = await db
-        .prepare('SELECT fingerprint, updated_at FROM themes WHERE bucket_id = ?')
-        .bind(bucketId)
-        .all<{ fingerprint: string; updated_at: string }>();
-      return buildThemeBucketSummary(bucketId, rows.results ?? []);
-    }),
-  );
-
-  await db.batch(summaries.map(summary => db
-    .prepare(`
-      INSERT INTO theme_buckets (bucket_id, count, hash, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(bucket_id) DO UPDATE SET
-        count = excluded.count,
-        hash = excluded.hash,
-        updated_at = excluded.updated_at
-    `)
-    .bind(summary.bucketId, summary.count, summary.hash, summary.updatedAt)));
-};
 
 const getThemeManifest = async (db: D1Database) => {
   const rows = await db
@@ -198,7 +159,7 @@ app.get('/', async (c) => {
     .first<{ updated_at: string }>();
     
   const themesRow = await c.env.FOLIA_SYNC_DB
-    .prepare('SELECT MAX(updated_at) AS themesUpdatedAt, COUNT(*) AS themeCount FROM themes')
+    .prepare('SELECT MAX(updated_at) AS themesUpdatedAt, SUM(count) AS themeCount FROM theme_buckets')
     .first<{ themesUpdatedAt: string | null; themeCount: number }>();
 
   const html = `<!DOCTYPE html>
@@ -368,7 +329,7 @@ api.get('/state', async (c) => {
     .bind('visual')
     .first<{ updated_at: string }>();
   const themesRow = await c.env.FOLIA_SYNC_DB
-    .prepare('SELECT MAX(updated_at) AS themesUpdatedAt, COUNT(*) AS themeCount FROM themes')
+    .prepare('SELECT MAX(updated_at) AS themesUpdatedAt, SUM(count) AS themeCount FROM theme_buckets')
     .first<{ themesUpdatedAt: string | null; themeCount: number }>();
   return c.json({
     schemaVersion: SCHEMA_VERSION,
@@ -431,8 +392,48 @@ api.post('/themes/put', async (c) => {
     return c.json({ ok: false, error: 'invalid_themes' }, 400);
   }
 
-  await c.env.FOLIA_SYNC_DB.batch(themes.map(theme => c.env.FOLIA_SYNC_DB
-    .prepare(`
+  const validThemes = themes as NonNullable<ReturnType<typeof parseThemeInput>>[];
+  if (validThemes.length === 0) {
+    return c.json({ ok: true, savedCount: 0 });
+  }
+
+  const fingerprints = validThemes.map(t => t.fingerprint);
+  const placeholders = fingerprints.map(() => '?').join(',');
+  
+  const oldRows = await c.env.FOLIA_SYNC_DB
+    .prepare(`SELECT fingerprint, updated_at FROM themes WHERE fingerprint IN (${placeholders})`)
+    .bind(...fingerprints)
+    .all<{ fingerprint: string; updated_at: string }>();
+    
+  const oldThemesMap = new Map(oldRows.results?.map(r => [r.fingerprint, r.updated_at]) ?? []);
+  const bucketDiffs = new Map<number, { countDelta: number; hashDelta: number; maxUpdatedAt: string }>();
+
+  validThemes.forEach(theme => {
+    const bucketId = getThemeBucketId(theme.fingerprint);
+    let bucketDiff = bucketDiffs.get(bucketId);
+    if (!bucketDiff) {
+      bucketDiff = { countDelta: 0, hashDelta: 0, maxUpdatedAt: theme.updatedAt };
+      bucketDiffs.set(bucketId, bucketDiff);
+    }
+    
+    const oldUpdatedAt = oldThemesMap.get(theme.fingerprint);
+    if (!oldUpdatedAt) {
+      bucketDiff.countDelta += 1;
+      bucketDiff.hashDelta ^= hashSyncString(`${theme.fingerprint}\u0000${theme.updatedAt}`);
+    } else if (theme.updatedAt >= oldUpdatedAt) {
+      bucketDiff.hashDelta ^= hashSyncString(`${theme.fingerprint}\u0000${oldUpdatedAt}`);
+      bucketDiff.hashDelta ^= hashSyncString(`${theme.fingerprint}\u0000${theme.updatedAt}`);
+    }
+
+    if (Date.parse(theme.updatedAt) > Date.parse(bucketDiff.maxUpdatedAt)) {
+       bucketDiff.maxUpdatedAt = theme.updatedAt;
+    }
+  });
+
+  const batchStatements: D1PreparedStatement[] = [];
+
+  validThemes.forEach(theme => {
+    batchStatements.push(c.env.FOLIA_SYNC_DB.prepare(`
       INSERT INTO themes (fingerprint, bucket_id, theme_json, source, updated_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(fingerprint) DO UPDATE SET
@@ -441,18 +442,35 @@ api.post('/themes/put', async (c) => {
         source = excluded.source,
         updated_at = excluded.updated_at
       WHERE excluded.updated_at >= themes.updated_at
-    `)
-    .bind(
-      theme!.fingerprint,
-      getThemeBucketId(theme!.fingerprint),
-      JSON.stringify(theme!.theme),
-      theme!.source,
-      theme!.updatedAt,
-    )));
-  await refreshThemeBuckets(c.env.FOLIA_SYNC_DB, themes.map(theme => getThemeBucketId(theme!.fingerprint)));
+    `).bind(
+      theme.fingerprint,
+      getThemeBucketId(theme.fingerprint),
+      JSON.stringify(theme.theme),
+      theme.source,
+      theme.updatedAt,
+    ));
+  });
+
+  bucketDiffs.forEach((diff, bucketId) => {
+    batchStatements.push(c.env.FOLIA_SYNC_DB.prepare(`
+      INSERT INTO theme_buckets (bucket_id, count, hash, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(bucket_id) DO UPDATE SET
+        count = theme_buckets.count + excluded.count,
+        hash = CAST((CAST(theme_buckets.hash AS INTEGER) ^ CAST(excluded.hash AS INTEGER)) AS TEXT),
+        updated_at = MAX(theme_buckets.updated_at, excluded.updated_at)
+    `).bind(
+      bucketId,
+      diff.countDelta,
+      String(diff.hashDelta >>> 0),
+      diff.maxUpdatedAt,
+    ));
+  });
+
+  await c.env.FOLIA_SYNC_DB.batch(batchStatements);
   
-  console.log(`[Sync] Saved ${themes.length} themes (batch update)`);
-  return c.json({ ok: true, savedCount: themes.length });
+  console.log(`[Sync] Saved ${validThemes.length} themes (batch update)`);
+  return c.json({ ok: true, savedCount: validThemes.length });
 });
 
 api.post('/themes/bucket', async (c) => {

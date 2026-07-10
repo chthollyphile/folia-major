@@ -29,7 +29,7 @@ const createEmptyBucket = (bucketId: number) => ({
 
 export const buildThemeBucketSummaries = (records: ThemeBucketInput[]) => {
     const buckets = Array.from({ length: THEME_BUCKET_COUNT }, (_, bucketId) => createEmptyBucket(bucketId));
-    const tokensByBucket = Array.from({ length: THEME_BUCKET_COUNT }, () => [] as string[]);
+    const hashesByBucket = new Uint32Array(THEME_BUCKET_COUNT);
 
     records.forEach((record) => {
         const bucketId = getThemeBucketId(record.fingerprint);
@@ -38,13 +38,11 @@ export const buildThemeBucketSummaries = (records: ThemeBucketInput[]) => {
         if (!bucket.updatedAt || Date.parse(record.updatedAt) > Date.parse(bucket.updatedAt)) {
             bucket.updatedAt = record.updatedAt;
         }
-        tokensByBucket[bucketId].push(`${record.fingerprint}\u0000${record.updatedAt}`);
+        hashesByBucket[bucketId] ^= hashSyncString(`${record.fingerprint}\u0000${record.updatedAt}`);
     });
 
-    tokensByBucket.forEach((tokens, bucketId) => {
-        buckets[bucketId].hash = tokens.length > 0
-            ? String(hashSyncString(tokens.sort().join('\u0001')))
-            : '0';
+    buckets.forEach((bucket, bucketId) => {
+        bucket.hash = bucket.count > 0 ? String(hashesByBucket[bucketId]) : '0';
     });
 
     return buckets;
