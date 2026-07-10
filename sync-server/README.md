@@ -3,9 +3,9 @@
 这是 Folia 的官方同步服务端实现。本服务以“多端同构”为目标设计，底层逻辑完全一致。
 
 目前支持三种部署方案，你可以根据自己的需求任选其一：
-- **Docker 部署 (推荐)**: 适合有自己服务器或 VPS 的用户，一键启动，开箱即用。
+- **Cloudflare D1 / Workers 部署 (推荐)**: 免费、免运维、高可用，依托 Cloudflare 全球边缘网络。
+- **Docker 部署**: 适合有自己服务器或 VPS 的用户，一键启动，开箱即用。
 - **自托管部署 (Node.js)**: 使用 SQLite，适合在本地或不方便使用 Docker 的环境运行。
-- **Cloudflare D1 部署 (Serverless)**: 免费、免运维、高可用，依托 Cloudflare 全球边缘网络。
 
 ## 🔐 Token 指南
 
@@ -47,109 +47,41 @@ openssl rand -hex 16
 
 ---
 
-## 方案一：Docker 部署 (推荐)
+## 方案一：Cloudflare Workers 部署 (推荐)
 
-使用官方提供的 Docker 镜像，只需几步即可完成私有化部署。
-
-### 1. 准备配置
-
-创建一个空文件夹，在其中新建 `docker-compose.yml` 文件：
-
-```yaml
-version: '3.8'
-
-services:
-  sync-server:
-    image: papersman/folia-sync-server:latest
-    container_name: folia-sync
-    restart: unless-stopped
-    ports:
-      - "13000:3000"
-    volumes:
-      - ./data:/app/data
-    environment:
-      - PORT=3000
-      - DB_PATH=/app/data/folia-sync.db
-    env_file:
-      - .env
-```
-
-在同级目录下新建 `.env` 文件，配置 Token：
-
-```env
-# 必填：客户端鉴权 Token (至少 8 位)
-SYNC_TOKEN="你的_SYNC_TOKEN"
-
-# 选填：网页看板访问 Token (至少 16 位)
-DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
-```
-
-### 2. 启动服务
-
-```bash
-docker compose up -d
-```
-启动后，数据库文件会自动持久化保存在当前目录下的 `./data` 文件夹中。
-
----
-
-## 方案二：Node.js 自托管部署
-
-使用 Node.js 运行，底层使用 `better-sqlite3`。
-
-### 前置要求
-- Node.js >= 18
-- npm / pnpm
-
-### 1. 配置环境变量
-
-在 `sync-server` 目录下创建一个 `.env` 文件，填入你的 Token 和配置：
-
-```env
-# 必填：客户端同步密钥（最少 8 位）
-SYNC_TOKEN="你的_SYNC_TOKEN"
-
-# 选填：网页看板的访问密钥
-DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
-
-# 选填：服务运行端口（默认 3000）
-PORT=3000
-
-# 选填：SQLite 数据库保存路径（默认在当前目录生成 folia-sync.db）
-DB_PATH="./folia-sync.db"
-```
-
-### 2. 安装并启动
-
-```bash
-cd sync-server
-npm install
-npm run start:node
-```
-
-你可以使用 PM2 或 Docker 来进行持久化管理。
-
----
-
-## 方案三：Cloudflare Workers 部署
-
-零成本、免服务器的 Serverless 部署。当前仓库已经提供 `install.sh`，可以自动完成 D1 创建、`wrangler.local.toml` 生成、Secret 注入和最终部署，推荐优先使用这个脚本。
+零成本、免服务器的 Serverless 部署。当前仓库已经提供安装脚本，可以自动完成 D1 创建、`wrangler.local.toml` 生成、Secret 注入和最终部署，推荐优先使用脚本。
 
 ### 前置要求
 - 注册 Cloudflare 账号
-- 使用 Linux / macOS / WSL / Git Bash 一类可运行 `bash` 的终端
 - 本机可用 `npm`
 
 ### 1. 运行安装脚本
 
-进入 `sync-server` 目录后执行：
+进入 `sync-server` 目录后，根据你的系统执行：
 
 ```bash
 cd sync-server
+```
+
+Linux / macOS / WSL / Git Bash:
+
+```bash
 bash ./install.sh
 ```
 
-脚本启动后会显示部署菜单：
+Windows PowerShell / PowerShell 7:
+
+```powershell
+.\install.ps1
+```
+
+如果遇到执行策略拦截，可以改用：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+脚本启动后都会显示部署菜单：
 
 ```text
 1) Node (PM2)
@@ -273,6 +205,92 @@ https://<你的Worker域名>/?token=<DASHBOARD_TOKEN>
 ```bash
 npm run deploy:cf -- --config wrangler.local.toml
 ```
+
+---
+
+## 方案二：Docker 部署
+
+使用官方提供的 Docker 镜像，只需几步即可完成私有化部署。
+
+### 1. 准备配置
+
+创建一个空文件夹，在其中新建 `docker-compose.yml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  sync-server:
+    image: papersman/folia-sync-server:latest
+    container_name: folia-sync
+    restart: unless-stopped
+    ports:
+      - "13000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/app/data/folia-sync.db
+    env_file:
+      - .env
+```
+
+在同级目录下新建 `.env` 文件，配置 Token：
+
+```env
+# 必填：客户端鉴权 Token (至少 8 位)
+SYNC_TOKEN="你的_SYNC_TOKEN"
+
+# 选填：网页看板访问 Token (至少 16 位)
+DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
+```
+
+### 2. 启动服务
+
+```bash
+docker compose up -d
+```
+启动后，数据库文件会自动持久化保存在当前目录下的 `./data` 文件夹中。
+
+---
+
+## 方案三：Node.js 自托管部署
+
+使用 Node.js 运行，底层使用 `better-sqlite3`。
+
+### 前置要求
+- Node.js >= 18
+- npm / pnpm
+
+### 1. 配置环境变量
+
+在 `sync-server` 目录下创建一个 `.env` 文件，填入你的 Token 和配置：
+
+```env
+# 必填：客户端同步密钥（最少 8 位）
+SYNC_TOKEN="你的_SYNC_TOKEN"
+
+# 选填：网页看板的访问密钥
+DASHBOARD_TOKEN="你的_DASHBOARD_TOKEN"
+
+# 选填：服务运行端口（默认 3000）
+PORT=3000
+
+# 选填：SQLite 数据库保存路径（默认在当前目录生成 folia-sync.db）
+DB_PATH="./folia-sync.db"
+```
+
+### 2. 安装并启动
+
+```bash
+cd sync-server
+npm install
+npm run start:node
+```
+
+你可以使用 PM2 或 Docker 来进行持久化管理。
+
+---
 
 ---
 

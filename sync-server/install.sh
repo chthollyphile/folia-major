@@ -13,6 +13,18 @@ echo -e "${CYAN}${BOLD}       Folia 同步服务端安装向导           ${RESE
 echo -e "${CYAN}${BOLD}==========================================${RESET}"
 echo ""
 
+print_sync_token_reminder() {
+    local token="$1"
+    if [ -n "$token" ]; then
+        echo -e "${CYAN}==========================================${RESET}"
+        echo -e "${BOLD}${YELLOW}[!] 请注意：Folia 客户端连接密码 (SYNC_TOKEN) 为：${RESET}"
+        echo -e "${BOLD}${GREEN}[!] $token${RESET}"
+        echo -e "${BOLD}${RED}[!] 这是你在 Folia 客户端中连接同步服务端所需的密码。${RESET}"
+        echo -e "${BOLD}${RED}[!] 由于安全原因，这是最后一次在此显示，请务必妥善保存！${RESET}"
+        echo -e "${CYAN}==========================================${RESET}"
+    fi
+}
+
 echo -e "${BOLD}请选择部署方式：${RESET}"
 echo -e "  ${YELLOW}1)${RESET} Node (PM2)"
 echo -e "  ${YELLOW}2)${RESET} Docker"
@@ -116,6 +128,12 @@ case $deploy_choice in
         echo -e "${CYAN}你的同步服务端已在 3000 端口运行。${RESET}"
         echo -e "使用此命令查看日志： ${BOLD}pm2 logs folia-sync-server${RESET}"
         echo -e "若要确保开机自启，请运行： ${BOLD}pm2 startup${RESET}"
+        
+        local_sync_token=""
+        if [ -f .env ]; then
+            local_sync_token=$(grep '^SYNC_TOKEN=' .env | cut -d '=' -f2-)
+        fi
+        print_sync_token_reminder "$local_sync_token"
         ;;
     2)
         echo -e "${CYAN}[*] 开始进行 Docker 部署...${RESET}"
@@ -143,6 +161,12 @@ case $deploy_choice in
         echo -e "${GREEN}${BOLD}==========================================${RESET}"
         echo -e "${CYAN}你的同步服务端已映射到本地 13000 端口（容器内 3000）。${RESET}"
         echo -e "使用此命令查看日志： ${BOLD}docker logs -f folia-sync${RESET}"
+        
+        local_sync_token=""
+        if [ -f .env ]; then
+            local_sync_token=$(grep '^SYNC_TOKEN=' .env | cut -d '=' -f2-)
+        fi
+        print_sync_token_reminder "$local_sync_token"
         ;;
     3)
         echo -e "${CYAN}[*] 开始进行 Cloudflare Workers 部署...${RESET}"
@@ -204,6 +228,8 @@ case $deploy_choice in
         echo -e "${BOLD}${GREEN}[!] $dashboard_token${RESET}"
         echo -e "${BOLD}${RED}[!] 请务必妥善保存该 Token，你将需要它来访问网页看板。${RESET}"
         echo -e "${CYAN}访问链接格式: https://<你的Worker域名>/?token=$dashboard_token${RESET}"
+        
+        print_sync_token_reminder "$cf_sync_token"
         ;;
     *)
         echo -e "${RED}[!] 无效的选择。退出脚本。${RESET}"
