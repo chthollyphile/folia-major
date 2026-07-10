@@ -457,7 +457,7 @@ api.post('/themes/put', async (c) => {
       VALUES (?, ?, ?, ?)
       ON CONFLICT(bucket_id) DO UPDATE SET
         count = theme_buckets.count + excluded.count,
-        hash = CAST((CAST(theme_buckets.hash AS INTEGER) ^ CAST(excluded.hash AS INTEGER)) AS TEXT),
+        hash = CAST(((CAST(theme_buckets.hash AS INTEGER) | CAST(excluded.hash AS INTEGER)) - (CAST(theme_buckets.hash AS INTEGER) & CAST(excluded.hash AS INTEGER))) AS TEXT),
         updated_at = MAX(theme_buckets.updated_at, excluded.updated_at)
     `).bind(
       bucketId,
