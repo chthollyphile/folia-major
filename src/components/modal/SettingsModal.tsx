@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, CircleHelp, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -103,6 +103,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     customTheme,
 }) => {
     const { t } = useTranslation();
+    const isMouseDownOnOverlayRef = useRef(false);
     const {
         useCoverColorBg,
         staticMode,
@@ -742,9 +743,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         animate: { opacity: 1, x: 0 },
         exit: { opacity: 0, x: -18 },
     };
+
+    const handleOverlayMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
+    };
+
     // Close only the active overlay layer when its own backdrop is clicked.
     const handleBackdropClose = (event: React.MouseEvent<HTMLDivElement>, onCloseOverlay: () => void) => {
-        if (event.target !== event.currentTarget) {
+        if (event.target !== event.currentTarget || !isMouseDownOnOverlayRef.current) {
             return;
         }
 
@@ -857,6 +863,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     transition={shellTransition}
                     className="fixed inset-0 p-3 sm:p-5"
                     style={{ backgroundColor: overlayBackground, zIndex }}
+                    onMouseDown={handleOverlayMouseDown}
                     onClick={(event) => handleBackdropClose(event, handleClose)}
                 >
                     <motion.div
@@ -967,6 +974,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             data-folia-keyboard-window="true"
             className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-5 sm:pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
             style={{ backgroundColor: overlayBackground }}
+            onMouseDown={handleOverlayMouseDown}
             onClick={(event) => handleBackdropClose(event, onClose)}
         >
             <motion.div

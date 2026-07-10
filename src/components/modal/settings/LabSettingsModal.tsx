@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight, Cpu, GamepadDirectional, Monitor, PlayCircle, RotateCcw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +33,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
     theme,
 }) => {
     const { t } = useTranslation();
+    const isMouseDownOnOverlayRef = useRef(false);
     const {
         disableHomeDynamicBackground,
         hidePlayerProgressBar,
@@ -117,6 +118,15 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         const nextIndex = Math.min(VISUALIZER_FRAME_RATE_OPTIONS.length - 1, Math.max(0, Number(value)));
         onVisualizerFrameRateChange(VISUALIZER_FRAME_RATE_OPTIONS[nextIndex]);
     };
+    const handleOverlayMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
+    };
+
+    const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget && isMouseDownOnOverlayRef.current) {
+            onClose();
+        }
+    };
 
     return (
         <AnimatePresence>
@@ -128,7 +138,8 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                     transition={shellTransition}
                     className="fixed inset-0 z-[136] backdrop-blur-xl p-3 sm:p-5"
                     style={{ backgroundColor: overlayBackground }}
-                    onClick={onClose}
+                    onMouseDown={handleOverlayMouseDown}
+                    onClick={handleBackdropClick}
                 >
                     <motion.div
                         {...panelMotion}
