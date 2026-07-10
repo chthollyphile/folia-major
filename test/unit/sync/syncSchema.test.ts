@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildThemeBucketSummaries, getThemeBucketId } from '@/services/sync/syncMerkle';
 import {
     parseSyncRemoteState,
+    parseSyncLibraryExportBundle,
     parseSyncThemeManifest,
     parseSyncedSettingsRecord,
     parseSyncedThemeRecord,
@@ -63,6 +64,47 @@ describe('sync schema parsing', () => {
             { fingerprint: '', updatedAt: '2026-07-08T00:00:00.000Z' },
             { fingerprint: 'netease:id:123', updatedAt: 'bad' },
         ])).toEqual([]);
+    });
+
+    it('validates every nested record in sync library exports', () => {
+        const exportedAt = '2026-07-08T00:00:00.000Z';
+        const bundle = parseSyncLibraryExportBundle({
+            kind: 'folia-sync-export',
+            schemaVersion: 1,
+            exportedAt,
+            settings: null,
+            themes: [{
+                fingerprint: 'netease:id:123',
+                updatedAt: exportedAt,
+                source: 'manual',
+                theme: {
+                    light: { name: 'Light', backgroundColor: '#fff', primaryColor: '#111', secondaryColor: '#333', accentColor: '#555', fontStyle: 'sans', animationIntensity: 'normal' },
+                    dark: { name: 'Dark', backgroundColor: '#111', primaryColor: '#fff', secondaryColor: '#ddd', accentColor: '#aaa', fontStyle: 'sans', animationIntensity: 'normal' },
+                },
+            }],
+        });
+
+        expect(bundle?.themes).toHaveLength(1);
+        expect(bundle?.themes[0].fingerprint).toBe('netease:id:123');
+    });
+
+    it('rejects sync library exports with malformed nested records', () => {
+        const baseBundle = {
+            kind: 'folia-sync-export',
+            schemaVersion: 1,
+            exportedAt: '2026-07-08T00:00:00.000Z',
+            settings: null,
+        };
+
+        expect(parseSyncLibraryExportBundle({
+            ...baseBundle,
+            themes: [{ fingerprint: 'netease:id:123', updatedAt: '2026-07-08T00:00:00.000Z' }],
+        })).toBeNull();
+        expect(parseSyncLibraryExportBundle({
+            ...baseBundle,
+            settings: {},
+            themes: [],
+        })).toBeNull();
     });
 
     it('parses remote state watermarks', () => {

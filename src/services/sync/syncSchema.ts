@@ -1,6 +1,7 @@
 import { sanitizeDualTheme } from '../themeSanitizer';
 import {
     SYNC_SCHEMA_VERSION,
+    type SyncLibraryExportBundle,
     type SyncRemoteState,
     type SyncThemeBucketSummary,
     type SyncThemeManifest,
@@ -53,7 +54,8 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (isStringArray(value.lyricsFontFallbackFamilies)) settings.lyricsFontFallbackFamilies = value.lyricsFontFallbackFamilies;
     if (typeof value.subtitleFontInheritsLyrics === 'boolean') settings.subtitleFontInheritsLyrics = value.subtitleFontInheritsLyrics;
     if (isFontStyle(value.subtitleFontStyle)) settings.subtitleFontStyle = value.subtitleFontStyle;
-    if (value.subtitleFontFamily === null || typeof value.subtitleFontFamily === 'string') settings.subtitleFontFamily = value.subtitleFontFamily;
+    if (value.subtitleFontFamily === null) settings.subtitleFontFamily = null;
+    else if (typeof value.subtitleFontFamily === 'string') settings.subtitleFontFamily = value.subtitleFontFamily;
     if (isStringArray(value.subtitleFontFallbackFamilies)) settings.subtitleFontFallbackFamilies = value.subtitleFontFallbackFamilies;
     if (value.classicTuning !== undefined) settings.classicTuning = value.classicTuning;
     if (value.cadenzaTuning !== undefined) settings.cadenzaTuning = value.cadenzaTuning;
@@ -65,7 +67,8 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (value.monetBackgroundTuning !== undefined) settings.monetBackgroundTuning = value.monetBackgroundTuning;
     if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
     if (Array.isArray(value.urlBackgroundList)) settings.urlBackgroundList = value.urlBackgroundList;
-    if (value.urlBackgroundSelectedId === null || typeof value.urlBackgroundSelectedId === 'string') settings.urlBackgroundSelectedId = value.urlBackgroundSelectedId;
+    if (value.urlBackgroundSelectedId === null) settings.urlBackgroundSelectedId = null;
+    else if (typeof value.urlBackgroundSelectedId === 'string') settings.urlBackgroundSelectedId = value.urlBackgroundSelectedId;
     if (value.homeLayoutStyle === 'carousel' || value.homeLayoutStyle === 'grid') settings.homeLayoutStyle = value.homeLayoutStyle;
     if (value.grid3dCardStyle === 'image' || value.grid3dCardStyle === 'card') settings.grid3dCardStyle = value.grid3dCardStyle;
 
@@ -85,7 +88,12 @@ export const parseSyncedSettingsRecord = (value: unknown): SyncedSettingsRecord 
 };
 
 export const parseSyncedThemeRecord = (value: unknown): SyncedThemeRecord | null => {
-    if (!isRecord(value) || typeof value.fingerprint !== 'string' || !value.fingerprint || !isIsoDateString(value.updatedAt)) {
+    if (!isRecord(value)
+        || typeof value.fingerprint !== 'string'
+        || !value.fingerprint
+        || !isIsoDateString(value.updatedAt)
+        || !isRecord(value.theme)
+    ) {
         return null;
     }
 
@@ -107,6 +115,37 @@ export const parseSyncedThemeRecords = (value: unknown): SyncedThemeRecord[] => 
     return value
         .map(parseSyncedThemeRecord)
         .filter((record): record is SyncedThemeRecord => Boolean(record));
+};
+
+export const parseSyncLibraryExportBundle = (value: unknown): SyncLibraryExportBundle | null => {
+    if (!isRecord(value)
+        || value.kind !== 'folia-sync-export'
+        || !isSchemaCompatible(value.schemaVersion)
+        || !isIsoDateString(value.exportedAt)
+        || !Array.isArray(value.themes)
+    ) {
+        return null;
+    }
+
+    const themes = value.themes.map(parseSyncedThemeRecord);
+    if (themes.some(theme => !theme)) {
+        return null;
+    }
+
+    const settings = value.settings === null
+        ? null
+        : parseSyncedSettingsRecord(value.settings);
+    if (value.settings !== null && !settings) {
+        return null;
+    }
+
+    return {
+        kind: 'folia-sync-export',
+        schemaVersion: SYNC_SCHEMA_VERSION,
+        exportedAt: value.exportedAt,
+        settings,
+        themes: themes as SyncedThemeRecord[],
+    };
 };
 
 export const parseSyncRemoteState = (value: unknown): SyncRemoteState | null => {

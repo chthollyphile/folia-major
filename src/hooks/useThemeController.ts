@@ -43,6 +43,13 @@ export type GenerateAIThemeResult =
     | { status: 'failed' };
 
 const CUSTOM_DUAL_THEME_KEY = 'custom_dual_theme';
+
+// Keeps local theme operations successful when the optional sync server is unavailable.
+const saveSyncedThemeWithoutBlocking = (...args: Parameters<typeof saveSyncedThemeForSong>) => {
+    void saveSyncedThemeForSong(...args).catch((error) => {
+        console.warn('[sync] Failed to upload theme:', error);
+    });
+};
 const CUSTOM_THEME_PREFERRED_KEY = 'custom_theme_preferred';
 
 const sanitizeCustomTheme = (
@@ -404,7 +411,7 @@ export function useThemeController({
             void saveToCache(`dual_theme_${songKey}`, sanitized);
         }
         if (syncSong) {
-            void saveSyncedThemeForSong(syncSong, sanitized, 'edited');
+            saveSyncedThemeWithoutBlocking(syncSong, sanitized, 'edited');
         }
         setStatusMsg({
             type: 'success',
@@ -570,7 +577,7 @@ export function useThemeController({
             const normalizedDualTheme = applyStoredAnimationIntensityToDualTheme(sanitizeDualTheme(dualTheme));
             if (currentSong) {
                 await saveToCache(`dual_theme_${currentSong.id}`, normalizedDualTheme);
-                void saveSyncedThemeForSong(currentSong, normalizedDualTheme, source === 'auto' ? 'auto' : 'manual');
+                saveSyncedThemeWithoutBlocking(currentSong, normalizedDualTheme, source === 'auto' ? 'auto' : 'manual');
                 setCurrentSongHasLocalAiTheme(true);
             }
 
@@ -599,7 +606,7 @@ export function useThemeController({
 
                 if (currentSong) {
                     await saveToCache(`dual_theme_${currentSong.id}`, fallbackTheme);
-                    void saveSyncedThemeForSong(currentSong, fallbackTheme, 'fallback');
+                    saveSyncedThemeWithoutBlocking(currentSong, fallbackTheme, 'fallback');
                 }
 
                 if (!shouldApply) {

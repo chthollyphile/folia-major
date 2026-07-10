@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { parseSyncedSettingsRecord, parseSyncedThemeRecords } from './syncSchema';
+import { parseSyncLibraryExportBundle } from './syncSchema';
 import type { SyncLibraryExportBundle } from './syncTypes';
 import { SYNC_SCHEMA_VERSION } from './syncTypes';
 
@@ -43,11 +43,15 @@ export const readSyncLibraryZipFile = async (file: File): Promise<SyncLibraryExp
         throw new Error('Invalid Folia sync zip export');
     }
 
-    return {
+    const bundle = parseSyncLibraryExportBundle({
         kind: 'folia-sync-export',
         schemaVersion: SYNC_SCHEMA_VERSION,
         exportedAt: meta.exportedAt,
-        settings: parseSyncedSettingsRecord(parseZipJson(files, 'settings/current.json')),
-        themes: parseSyncedThemeRecords(parseZipJson(files, 'themes/themes.json')),
-    };
+        settings: files['settings/current.json'] ? parseZipJson(files, 'settings/current.json') : null,
+        themes: parseZipJson(files, 'themes/themes.json'),
+    });
+    if (!bundle) {
+        throw new Error('Invalid Folia sync zip export');
+    }
+    return bundle;
 };

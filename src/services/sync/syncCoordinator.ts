@@ -2,7 +2,7 @@ import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { getSyncConfig, isSyncConfigured, setSyncStatus } from './syncConfig';
 import { getRemoteState, testSyncConnection } from './syncClient';
 import type { SyncProviderConfig } from './syncTypes';
-import { applySyncedVisualSettings, buildSyncedSettingsRecord, getSyncedSettingsSignature } from './settingsSnapshot';
+import { applySyncedVisualSettings, buildSyncedSettingsRecord } from './settingsSnapshot';
 import {
     fetchRemoteSyncState,
     fetchRemoteSettingsIfNewer,
@@ -13,33 +13,14 @@ import {
     pushSyncLibraryBundleToRemote,
     saveSyncLibraryBundleToLocalCache,
 } from './syncRepository';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
-import { getSyncConfig, isSyncConfigured, setSyncStatus } from './syncConfig';
-import { getRemoteState, testSyncConnection } from './syncClient';
-import type { SyncProviderConfig } from './syncTypes';
-import { applySyncedVisualSettings, buildSyncedSettingsRecord, getSyncedSettingsSignature } from './settingsSnapshot';
-import {
-    fetchRemoteSyncState,
-    fetchRemoteSettingsIfNewer,
-    listAllRemoteThemeRecords,
-    mergeLocalThemesIntoRecords,
-    pushMissingLocalThemesToRemote,
-    pushRemoteSettings,
-    pushSyncLibraryBundleToRemote,
-    saveSyncLibraryBundleToLocalCache,
-} from './syncRepository';
+import { parseSyncLibraryExportBundle } from './syncSchema';
 import type { SyncLibraryExportBundle, SyncRemoteState } from './syncTypes';
 import { SYNC_SCHEMA_VERSION } from './syncTypes';
 
 // src/services/sync/syncCoordinator.ts
-// Coordinates startup sync, settings auto-upload, and manual sync commands.
+// Coordinates startup theme sync and user-triggered manual sync commands.
 
 const LOCAL_SETTINGS_UPDATED_AT_KEY = 'folia_sync_local_settings_updated_at_v1';
-const SETTINGS_UPLOAD_DEBOUNCE_MS = 2500;
-
-let unsubscribeSettings: (() => void) | null = null;
-let settingsUploadTimer: number | null = null;
-let lastSettingsSignature: string | null = null;
 let applyingRemoteSettings = false;
 let isSyncingInProgress = false;
 
@@ -55,13 +36,6 @@ const setLocalSettingsUpdatedAt = (updatedAt: string) => {
     }
 };
 
-const clearSettingsUploadTimer = () => {
-    if (settingsUploadTimer != null && isBrowser()) {
-        window.clearTimeout(settingsUploadTimer);
-    }
-    settingsUploadTimer = null;
-};
-
 const pushCurrentSettings = async () => {
     if (!isSyncConfigured()) {
         return false;
@@ -70,28 +44,10 @@ const pushCurrentSettings = async () => {
     const updatedAt = new Date().toISOString();
     const record = buildSyncedSettingsRecord(useSettingsUiStore.getState(), updatedAt);
     setLocalSettingsUpdatedAt(updatedAt);
-    lastSettingsSignature = getSyncedSettingsSignature(useSettingsUiStore.getState());
     return await pushRemoteSettings(record);
 };
 
-const scheduleSettingsUpload = () => {
-    if (!isBrowser() || !isSyncConfigured() || applyingRemoteSettings) {
-        return;
-    }
-
-    clearSettingsUploadTimer();
-    settingsUploadTimer = window.setTimeout(() => {
-        settingsUploadTimer = null;
-        void pushCurrentSettings().catch((error) => {
-            console.error('[sync] Failed to upload settings:', error);
-            setSyncStatus({ state: 'error', lastError: error instanceof Error ? error.message : String(error) });
-        });
-    }, SETTINGS_UPLOAD_DEBOUNCE_MS);
-};
-
 export const initializeSyncCoordinator = () => {
-    lastSettingsSignature = getSyncedSettingsSignature(useSettingsUiStore.getState());
-
     void syncNow({ syncThemes: true, applyRemoteSettings: false, pushSettings: false });
 
     return () => {};
@@ -120,7 +76,6 @@ export const pullRemoteVisualSettings = async (remoteState?: SyncRemoteState | n
     try {
         applySyncedVisualSettings(useSettingsUiStore.getState(), remoteSettings.data);
         setLocalSettingsUpdatedAt(remoteSettings.updatedAt);
-        lastSettingsSignature = getSyncedSettingsSignature(useSettingsUiStore.getState());
         return true;
     } finally {
         applyingRemoteSettings = false;
@@ -218,42 +173,38 @@ export const exportSyncLibraryBundle = async (): Promise<SyncLibraryExportBundle
 };
 
 export const isSyncLibraryExportBundle = (value: unknown): value is SyncLibraryExportBundle => (
-    Boolean(value)
-    && typeof value === 'object'
-    && (value as SyncLibraryExportBundle).kind === 'folia-sync-export'
-    && (value as SyncLibraryExportBundle).schemaVersion === SYNC_SCHEMA_VERSION
-    && Array.isArray((value as SyncLibraryExportBundle).themes)
+    parseSyncLibraryExportBundle(value) !== null
 );
 
 export const importSyncLibraryBundle = async (
-    bundle: SyncLibraryExportBundle,
+    bundle: unknown,
     options: { pushRemote?: boolean } = {},
 ) => {
-    if (!isSyncLibraryExportBundle(bundle)) {
+    const validatedBundle = parseSyncLibraryExportBundle(bundle);
+    if (!validatedBundle) {
         throw new Error('Invalid Folia sync export');
     }
 
     setSyncStatus({ state: 'syncing', lastError: null });
     try {
-        await saveSyncLibraryBundleToLocalCache(bundle);
-        if (bundle.settings) {
+        await saveSyncLibraryBundleToLocalCache(validatedBundle);
+        if (validatedBundle.settings) {
             applyingRemoteSettings = true;
             try {
-                applySyncedVisualSettings(useSettingsUiStore.getState(), bundle.settings.data);
-                setLocalSettingsUpdatedAt(bundle.settings.updatedAt);
-                lastSettingsSignature = getSyncedSettingsSignature(useSettingsUiStore.getState());
+                applySyncedVisualSettings(useSettingsUiStore.getState(), validatedBundle.settings.data);
+                setLocalSettingsUpdatedAt(validatedBundle.settings.updatedAt);
             } finally {
                 applyingRemoteSettings = false;
             }
         }
         if (options.pushRemote ?? true) {
-            await pushSyncLibraryBundleToRemote(bundle);
+            await pushSyncLibraryBundleToRemote(validatedBundle);
         }
         setSyncStatus({ state: 'success', lastSyncAt: new Date().toISOString(), lastError: null });
         console.info('[sync] Import completed', {
             pushedRemote: options.pushRemote ?? true,
-            themeCount: bundle.themes.length,
-            appliedSettings: Boolean(bundle.settings),
+            themeCount: validatedBundle.themes.length,
+            appliedSettings: Boolean(validatedBundle.settings),
         });
         return true;
     } catch (error) {
