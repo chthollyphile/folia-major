@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Command, CornerDownLeft, Loader2, Search, X } from 'lucide-react';
+import { ArrowLeft, CircleHelp, Command, CornerDownLeft, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
 import type { CommandPaletteMatch, CommandPaletteCommand } from './types';
@@ -12,6 +12,7 @@ type CommandPaletteProps = {
     activeIndex: number;
     activePreview: string | null;
     activeCommand: CommandPaletteCommand | null;
+    availableCommands: CommandPaletteCommand[];
     isDaylight: boolean;
     isComposing: boolean;
     isExecuting: boolean;
@@ -38,10 +39,19 @@ const groupLabelKey: Record<string, string> = {
     visualizer: 'commandPalette.groupVisualizer',
 };
 
+const IDLE_PLACEHOLDER_COUNT = 5;
+const IDLE_PLACEHOLDER_INTERVAL_MS = 2800;
+
+const pickNextPlaceholderIndex = (currentIndex: number) => {
+    const offset = 1 + Math.floor(Math.random() * (IDLE_PLACEHOLDER_COUNT - 1));
+    return (currentIndex + offset) % IDLE_PLACEHOLDER_COUNT;
+};
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
     activeIndex,
     activePreview,
     activeCommand,
+    availableCommands,
     isDaylight,
     isComposing,
     isExecuting,
@@ -60,12 +70,15 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
     const { t } = useTranslation();
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const [idlePlaceholderIndex, setIdlePlaceholderIndex] = useState(() => Math.floor(Math.random() * IDLE_PLACEHOLDER_COUNT));
+    const [isShowingAllCommands, setIsShowingAllCommands] = useState(false);
     const panelBg = isDaylight ? 'bg-white/70 text-zinc-950' : 'bg-zinc-950/70 text-white';
     const itemActiveBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const itemIdleBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
 
     useEffect(() => {
         if (!isOpen) {
+            setIsShowingAllCommands(false);
             return;
         }
 
@@ -77,6 +90,19 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }, [isOpen]);
 
     useEffect(() => {
+        if (!isOpen || query !== '' || activeCommand) {
+            return;
+        }
+
+        setIdlePlaceholderIndex(Math.floor(Math.random() * IDLE_PLACEHOLDER_COUNT));
+        const interval = window.setInterval(() => {
+            setIdlePlaceholderIndex(currentIndex => pickNextPlaceholderIndex(currentIndex));
+        }, IDLE_PLACEHOLDER_INTERVAL_MS);
+
+        return () => window.clearInterval(interval);
+    }, [activeCommand, isOpen, query]);
+
+    useEffect(() => {
         if (!isOpen) {
             return;
         }
@@ -84,7 +110,15 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
+                if (isShowingAllCommands) {
+                    setIsShowingAllCommands(false);
+                    return;
+                }
                 onClose();
+                return;
+            }
+
+            if (isShowingAllCommands) {
                 return;
             }
 
@@ -125,7 +159,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeIndex, isOpen, matches.length, onActiveIndexChange, onClose, onExecuteActive, query, activeCommand, onActiveCommandChange, onQueryChange, isExecuting, isComposing]);
+    }, [activeIndex, isOpen, isShowingAllCommands, matches.length, onActiveIndexChange, onClose, onExecuteActive, query, activeCommand, onActiveCommandChange, onQueryChange, isExecuting, isComposing]);
 
     return (
         <AnimatePresence>
@@ -193,13 +227,16 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 ref={inputRef}
                                 type="text"
                                 value={query}
-                                onChange={(event) => onQueryChange(event.target.value)}
+                                onChange={(event) => {
+                                    setIsShowingAllCommands(false);
+                                    onQueryChange(event.target.value);
+                                }}
                                 onCompositionStart={onCompositionStart}
                                 onCompositionEnd={(event) => onCompositionEnd(event.currentTarget.value)}
                                 placeholder={
                                     activeCommand
                                         ? (activeCommand.placeholder || t(`commandPalette.commands.${activeCommand.id}.description`, activeCommand.description))
-                                        : (t('commandPalette.placeholder') || 'Type a command or search...')
+                                        : t(`commandPalette.idlePlaceholders.${idlePlaceholderIndex}`, 'Type anything — there are plenty of commands to try')
                                 }
                                 autoComplete="off"
                                 autoCorrect="off"
@@ -213,6 +250,15 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:opacity-45 disabled:opacity-50"
                                 style={{ color: 'var(--text-primary)' }}
                             />
+                            <button
+                                type="button"
+                                onClick={() => setIsShowingAllCommands(current => !current)}
+                                className={`rounded-full p-2 transition-colors ${isShowingAllCommands ? itemActiveBg : (isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10')}`}
+                                aria-label={t('commandPalette.showAllCommands') || 'Show all commands'}
+                                title={t('commandPalette.showAllCommands') || 'Show all commands'}
+                            >
+                                <CircleHelp size={17} />
+                            </button>
                             <button
                                 type="button"
                                 onClick={onClose}
@@ -229,7 +275,48 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                             className="max-h-[50vh] overflow-y-auto p-2"
                             onTouchStart={() => inputRef.current?.blur()}
                         >
-                            {matches.length === 0 ? (
+                            {isShowingAllCommands ? (
+                                <div>
+                                    <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium opacity-60">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsShowingAllCommands(false)}
+                                            className={`rounded-full p-1 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
+                                            aria-label={t('commandPalette.backToSearch') || 'Back to search'}
+                                        >
+                                            <ArrowLeft size={14} />
+                                        </button>
+                                        <span>{t('commandPalette.allCommands') || 'All commands'}</span>
+                                        <span className="ml-auto tabular-nums opacity-60">{availableCommands.length}</span>
+                                    </div>
+                                    {availableCommands.map(command => {
+                                        const groupLabel = t(groupLabelKey[command.group] || 'commandPalette.groupOther') || command.group;
+                                        const title = t(`commandPalette.commands.${command.id}.title`, command.title);
+                                        const description = t(`commandPalette.commands.${command.id}.description`, command.description);
+                                        return (
+                                            <button
+                                                key={command.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    onQueryChange(command.keywords[0] ?? command.title);
+                                                    onActiveIndexChange(0);
+                                                    setIsShowingAllCommands(false);
+                                                    window.requestAnimationFrame(() => inputRef.current?.focus());
+                                                }}
+                                                className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${itemIdleBg}`}
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate text-sm font-medium">{title}</span>
+                                                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] opacity-50">{groupLabel}</span>
+                                                    </div>
+                                                    <div className="mt-0.5 truncate text-xs opacity-50">{description}</div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : matches.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center opacity-50">
                                     <Command size={26} />
                                     <div className="text-sm">{t('commandPalette.empty') || 'No matching command'}</div>

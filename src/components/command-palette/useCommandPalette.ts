@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCommandPaletteMatches, getQueueSongMatches, COMMAND_PALETTE_COMMANDS } from './commandRegistry';
+import { getAvailableCommandPaletteCommands, getCommandPaletteMatches, getQueueSongMatches, COMMAND_PALETTE_COMMANDS } from './commandRegistry';
 import { isRecordableRecentCommand, readRecentCommandIds, recordRecentCommandId } from './recentCommands';
 import type { CommandPaletteContext, CommandPaletteCommand, CommandPaletteMatch } from './types';
 
@@ -37,6 +37,7 @@ export const useCommandPalette = ({
     const [activeCommand, setActiveCommand] = useState<CommandPaletteCommand | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     const [recentCommandIds, setRecentCommandIds] = useState<string[]>(() => readRecentCommandIds());
+    const availableCommands = useMemo(() => getAvailableCommandPaletteCommands(context), [context]);
 
     const matches = useMemo(() => {
         let list: CommandPaletteMatch[];
@@ -214,6 +215,7 @@ export const useCommandPalette = ({
         activeIndex,
         activePreview,
         activeCommand,
+        availableCommands,
         setActiveCommand,
         isExecuting,
         close,

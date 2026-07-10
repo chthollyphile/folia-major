@@ -168,6 +168,16 @@ export default {
   },
   "commandPalette": {
     "placeholder": "Type a command or search...",
+    "showAllCommands": "Show all commands",
+    "allCommands": "All commands",
+    "backToSearch": "Back to search",
+    "idlePlaceholders": [
+      "Type anything — there are plenty of commands to try",
+      "Try searching for a song, setting, or action",
+      "Not sure where to start? Just type what you want",
+      "Explore freely — commands, navigation, and playback are all here",
+      "Give it a try: type a feature or command"
+    ],
     "destination": "Command",
     "close": "Close command palette",
     "empty": "No matching command",

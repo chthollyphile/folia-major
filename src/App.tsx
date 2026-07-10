@@ -2928,6 +2928,7 @@ export default function App() {
                 activeIndex={commandPalette.activeIndex}
                 activePreview={commandPalette.activePreview}
                 activeCommand={commandPalette.activeCommand}
+                availableCommands={commandPalette.availableCommands}
                 isDaylight={isDaylight}
                 isComposing={commandPalette.isComposing}
                 isExecuting={commandPalette.isExecuting}

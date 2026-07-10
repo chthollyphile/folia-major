@@ -163,6 +163,16 @@ export default {
   },
   "commandPalette": {
     "placeholder": "Ketik perintah atau cari...",
+    "showAllCommands": "Tampilkan semua perintah",
+    "allCommands": "Semua perintah",
+    "backToSearch": "Kembali ke pencarian",
+    "idlePlaceholders": [
+      "Ketik apa saja — banyak perintah bisa dicoba",
+      "Coba cari lagu, pengaturan, atau tindakan",
+      "Belum tahu harus mulai dari mana? Ketik saja yang Anda inginkan",
+      "Jelajahi dengan bebas — navigasi, pemutaran, dan pengaturan ada di sini",
+      "Cobalah mengetik fitur atau perintah"
+    ],
     "destination": "Perintah",
     "close": "Tutup palette perintah",
     "empty": "Tidak ada perintah yang cocok",

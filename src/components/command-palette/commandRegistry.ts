@@ -606,6 +606,34 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
 
 ];
 
+export const getAvailableCommandPaletteCommands = (context?: CommandPaletteContext) => COMMAND_PALETTE_COMMANDS.filter(command => {
+    if (command.id === 'settings-desktop') {
+        const isWebBrowser = typeof window !== 'undefined';
+        const isElectron = isWebBrowser && Boolean((window as any).electron);
+        if (isWebBrowser && !isElectron) {
+            return false;
+        }
+    }
+
+    if (command.id === 'playback-auto-match-best-lyric') {
+        return Boolean(context?.enableAlternativeLyricSources);
+    }
+
+    if (command.id === 'theme-generate-current') {
+        return context ? context.canGenerateAITheme && !context.isGeneratingTheme : true;
+    }
+
+    if (command.id === 'theme-quick-editor') {
+        return context ? context.canOpenThemeQuickEditor : true;
+    }
+
+    if (command.group === 'search' && command.id !== 'search-current' && context) {
+        return false;
+    }
+
+    return true;
+});
+
 export const getQueueSongMatches = (query: string, context: CommandPaletteContext): CommandPaletteMatch[] => {
     const normalizedQuery = normalize(query);
 
@@ -662,35 +690,7 @@ export const getCommandPaletteMatches = (
 ): CommandPaletteMatch[] => {
     const normalizedQuery = normalize(query);
 
-    const filteredCommands = COMMAND_PALETTE_COMMANDS.filter(command => {
-        if (command.id === 'settings-desktop') {
-            const isWebBrowser = typeof window !== 'undefined';
-            const isElectron = isWebBrowser && Boolean((window as any).electron);
-            if (isWebBrowser && !isElectron) {
-                return false;
-            }
-        }
-
-        if (command.id === 'playback-auto-match-best-lyric') {
-            return Boolean(context?.enableAlternativeLyricSources);
-        }
-
-        if (command.id === 'theme-generate-current') {
-            return context ? context.canGenerateAITheme && !context.isGeneratingTheme : true;
-        }
-
-        if (command.id === 'theme-quick-editor') {
-            return context ? context.canOpenThemeQuickEditor : true;
-        }
-
-        if (command.group === 'search') {
-            if (command.id === 'search-current') return true;
-            if (context) {
-                return false;
-            }
-        }
-        return true;
-    });
+    const filteredCommands = getAvailableCommandPaletteCommands(context);
 
     if (!normalizedQuery) {
         const recentCommands = recentCommandIds

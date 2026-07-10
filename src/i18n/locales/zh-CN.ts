@@ -168,6 +168,16 @@ export default {
   },
   "commandPalette": {
     "placeholder": "输入命令或搜索内容...",
+    "showAllCommands": "查看全部命令",
+    "allCommands": "全部命令",
+    "backToSearch": "返回搜索",
+    "idlePlaceholders": [
+      "随便输入试试，这里有很多命令可以使用",
+      "试着输入歌词动画名称、设置或想执行的操作",
+      "不知道从哪里开始？直接输入你想做的事",
+      "英文，汉字，拼音，都可以",
+      "输入一个功能或命令试试看"
+    ],
     "destination": "命令台",
     "close": "关闭命令台",
     "empty": "没有匹配的命令",
