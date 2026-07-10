@@ -106,6 +106,7 @@ export const buildSettingsDialogModel = ({
         onToggleTransparentPlayerBackground,
         initialTab: state.initialTab,
         initialSubview: state.initialSubview ?? null,
+        initialVisualizerSection: state.initialVisualizerSection ?? null,
         onClose,
         onToggleStageMode: async (enabled) => {
             try {

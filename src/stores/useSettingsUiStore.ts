@@ -26,10 +26,12 @@ const LAST_SEEN_GUIDE_VERSION_STORAGE_KEY = 'folia_last_seen_guide_version';
 export type AudioQuality = 'exhigh' | 'lossless' | 'hires';
 export type SettingsModalInitialTab = 'help' | 'options';
 export type SettingsSubviewId = 'appearance' | 'general' | 'playback' | 'integration' | 'storage' | 'desktop' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
+export type VisualizerSettingsSection = 'common' | 'background' | 'visualizer' | 'subtitle';
 export type SettingsModalState = {
     isOpen: boolean;
     initialTab: SettingsModalInitialTab;
     initialSubview?: SettingsSubviewId | null;
+    initialVisualizerSection?: VisualizerSettingsSection | null;
 };
 
 export const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
@@ -879,7 +881,7 @@ export type SettingsUiState = {
     setIsLoadingMonetPortraitImage: (loading: boolean) => void;
     clearLyricsCustomFontAfterRestoreFailure: (message: StatusMessage) => void;
     setIsSubSettingsViewOpen: (open: boolean) => void;
-    openSettings: (initialTab?: SettingsModalInitialTab, initialSubview?: SettingsSubviewId | null) => void;
+    openSettings: (initialTab?: SettingsModalInitialTab, initialSubview?: SettingsSubviewId | null, initialVisualizerSection?: VisualizerSettingsSection | null) => void;
     closeSettings: () => void;
     handleToggleCoverColorBg: (enable: boolean) => void;
     handleToggleStaticMode: (enable: boolean) => void;
@@ -1046,6 +1048,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         isOpen: false,
         initialTab: 'help',
         initialSubview: null,
+        initialVisualizerSection: null,
     },
     lastSeenGuideVersion: typeof window !== 'undefined' ? localStorage.getItem(LAST_SEEN_GUIDE_VERSION_STORAGE_KEY) : null,
     isUserGuideModalOpen: false,
@@ -1114,11 +1117,12 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, message);
     },
     setIsSubSettingsViewOpen: (open) => set({ isSubSettingsViewOpen: open }),
-    openSettings: (initialTab = 'help', initialSubview = null) => set({
+    openSettings: (initialTab = 'help', initialSubview = null, initialVisualizerSection = null) => set({
         settingsModalState: {
             isOpen: true,
             initialTab,
             initialSubview,
+            initialVisualizerSection,
         },
     }),
     closeSettings: () => set(state => ({

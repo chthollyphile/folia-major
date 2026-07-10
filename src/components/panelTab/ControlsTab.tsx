@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, RotateCcw, Cone, Sun, Moon, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, RotateCcw, Cone, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme, ThemeMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
@@ -77,6 +77,9 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const { t } = useTranslation();
     const openThemeQuickEditor = useThemeQuickEditorStore(state => state.openEditor);
     const openSettings = useSettingsUiStore(state => state.openSettings);
+    const visualizerBackgroundMode = useSettingsUiStore(state => state.visualizerBackgroundMode);
+    const monetBackgroundTuning = useSettingsUiStore(state => state.monetBackgroundTuning);
+    const setMonetBackgroundTuning = useSettingsUiStore(state => state.handleSetMonetBackgroundTuning);
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
     const [isVisualizerOverlayOpen, setIsVisualizerOverlayOpen] = useState(false);
     const isDraggingRef = useRef(false);
@@ -187,6 +190,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const themeDisplayName = formatThemeDisplayName(activeThemeSource.label || theme.name);
     const aiSwatchColor = aiThemeSource.theme?.backgroundColor ?? 'rgba(114,119,134,0.4)';
     const customSwatchColor = customThemeSource.theme?.accentColor ?? 'rgba(114,119,134,0.4)';
+    const resolvedVisualizerBackgroundMode = visualizerBackgroundMode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
     const openCurrentThemeQuickEditor = () => {
         if (currentEditableSource) {
             openThemeQuickEditor(currentEditableSource);
@@ -272,17 +276,31 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                openSettings('options', 'visualizer');
-                                onClosePanel?.();
-                            }}
-                            className="text-[10px] font-bold opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest text-left"
-                            title={t('ui.openVisualizerSettings') || 'Open Visualizer Settings'}
-                        >
-                            {t('ui.animationMode')}
-                        </button>
+                        <div className="flex items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    openSettings('options', 'visualizer', 'common');
+                                    onClosePanel?.();
+                                }}
+                                className="text-[10px] font-bold opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest text-left"
+                                title={t('ui.openVisualizerSettings') || 'Open Visualizer Settings'}
+                            >
+                                {t('ui.animationMode')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    openSettings('options', 'visualizer', 'visualizer');
+                                    onClosePanel?.();
+                                }}
+                                className="rounded-md p-1 opacity-40 transition-opacity hover:opacity-100"
+                                title={t('options.openLyricsStyleSettings')}
+                                aria-label={t('options.openLyricsStyleSettings')}
+                            >
+                                <Settings size={13} />
+                            </button>
+                        </div>
                         <div className="flex items-center gap-2">
                             <button
                                 ref={visualizerTriggerRef}
@@ -305,9 +323,31 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
 
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
-                                {t('ui.background')}
-                            </label>
+                            <div className="flex items-center gap-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        openSettings('options', 'visualizer', 'background');
+                                        onClosePanel?.();
+                                    }}
+                                    className="text-[10px] font-bold opacity-40 uppercase tracking-widest transition-opacity hover:opacity-100"
+                                    title={t('options.previewBackgroundSettings')}
+                                >
+                                    {t('ui.background')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        openSettings('options', 'visualizer', 'background');
+                                        onClosePanel?.();
+                                    }}
+                                    className="rounded-md p-1 opacity-40 transition-opacity hover:opacity-100"
+                                    title={t('options.previewBackgroundSettings')}
+                                    aria-label={t('options.previewBackgroundSettings')}
+                                >
+                                    <Settings size={13} />
+                                </button>
+                            </div>
                             <div className="flex items-center gap-1">
                                 <button
                                     onClick={onToggleDaylight}
@@ -316,13 +356,33 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                                 >
                                     {isDaylight ? <Sun size={14} /> : <Moon size={14} />}
                                 </button>
-                                <button
-                                    onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
-                                    className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
-                                    title={useCoverColorBg ? t('theme.addCoverColor') : t('theme.useDefaultColor')}
-                                >
-                                    <Cone size={14} />
-                                </button>
+                                {resolvedVisualizerBackgroundMode === 'common' && (
+                                    <button
+                                        onClick={() => onToggleCoverColorBg(!useCoverColorBg)}
+                                        className={`p-1 rounded-md transition-all ${useCoverColorBg ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                                        title={useCoverColorBg ? t('theme.addCoverColor') : t('theme.useDefaultColor')}
+                                    >
+                                        <Cone size={14} />
+                                    </button>
+                                )}
+                                {resolvedVisualizerBackgroundMode === 'monet' && (
+                                    <>
+                                        <button
+                                            onClick={() => setMonetBackgroundTuning({ backgroundLayout: 'half-pane-gradient' })}
+                                            className={`rounded-md px-1.5 py-1 text-[10px] font-bold transition-all ${monetBackgroundTuning.backgroundLayout === 'half-pane-gradient' ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                                            title={t('options.monetLayoutHalfPane')}
+                                        >
+                                            {t('options.monetLayoutHalfPane')}
+                                        </button>
+                                        <button
+                                            onClick={() => setMonetBackgroundTuning({ backgroundLayout: 'full-overlay' })}
+                                            className={`rounded-md px-1.5 py-1 text-[10px] font-bold transition-all ${monetBackgroundTuning.backgroundLayout === 'full-overlay' ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                                            title={t('options.monetLayoutFullOverlay')}
+                                        >
+                                            {t('options.monetLayoutFullOverlay')}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className={`flex ${wellBg} p-1 rounded-xl`}>

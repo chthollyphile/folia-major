@@ -52,6 +52,7 @@ interface VisPlaygroundProps {
     theme?: Theme;
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
+    initialEditSection?: VisPlaygroundEditSection;
     backgroundOpacity?: number;
     visualizerOpacity?: number;
     useCoverColorBg?: boolean;
@@ -269,6 +270,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     theme,
     isDaylight,
     visualizerMode,
+    initialEditSection = 'common',
     backgroundOpacity = 0.75,
     visualizerOpacity = 1,
     useCoverColorBg = false,
@@ -388,7 +390,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [draftTiltTuning, setDraftTiltTuning] = useState<TiltTuning>(tiltTuning);
     const [draftMonetBackgroundTuning, setDraftMonetBackgroundTuning] = useState<MonetBackgroundTuning>(monetBackgroundTuning);
     const [draftMonetTuning, setDraftMonetTuning] = useState<MonetTuning>(monetTuning);
-    const [activeEditSection, setActiveEditSection] = useState<VisPlaygroundEditSection>('common');
+    const [activeEditSection, setActiveEditSection] = useState<VisPlaygroundEditSection>(initialEditSection);
     const fontListRef = React.useRef<HTMLDivElement>(null);
     const fontVirtualListRef = useListRef(null);
     const fontUploadInputRef = React.useRef<HTMLInputElement>(null);
@@ -504,6 +506,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => { setDraftTiltTuning(tiltTuning); }, [tiltTuning]);
     useEffect(() => { setDraftMonetBackgroundTuning(monetBackgroundTuning); }, [monetBackgroundTuning]);
     useEffect(() => { setDraftMonetTuning(monetTuning); }, [monetTuning]);
+    useEffect(() => { setActiveEditSection(initialEditSection); }, [initialEditSection]);
 
     useEffect(() => {
         let frameId = 0;

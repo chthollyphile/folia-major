@@ -20,7 +20,7 @@ import StorageSettingsSection from './settings/StorageSettingsSection';
 import { AiHelpPromptModal } from './AiHelpPromptModal';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
-import { selectSettingsUiSnapshot, type SettingsSubviewId, useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { selectSettingsUiSnapshot, type SettingsSubviewId, type VisualizerSettingsSection, useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ObsBrowserSourceStatus } from '../../types/obsBrowserSource';
 
@@ -29,6 +29,7 @@ interface SettingsModalProps {
     onClose: () => void;
     initialTab?: 'help' | 'options';
     initialSubview?: SettingsSubviewId | null;
+    initialVisualizerSection?: VisualizerSettingsSection | null;
     theme?: Theme;
     bgMode: ThemeMode;
     onApplyDefaultTheme: () => void;
@@ -69,6 +70,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
     initialTab = 'help',
     initialSubview = null,
+    initialVisualizerSection = null,
     theme,
     bgMode,
     onApplyDefaultTheme,
@@ -2226,6 +2228,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         theme={theme}
                         isDaylight={isDaylight}
                         visualizerMode={visualizerMode}
+                        initialEditSection={initialVisualizerSection ?? 'common'}
                         backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
                         visualizerBackgroundMode={visualizerBackgroundMode}
