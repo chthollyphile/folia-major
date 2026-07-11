@@ -239,6 +239,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "SXP-Simon",
+      "name": "Helian Nuits",
+      "avatar_url": "https://avatars.githubusercontent.com/u/177809507?v=4",
+      "profile": "https://github.com/SXP-Simon",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commit": false,
