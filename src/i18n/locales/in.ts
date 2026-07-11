@@ -507,6 +507,7 @@ export default {
     "autoUpdateGithubNotice": "Pembaruan otomatis butuh akses ke GitHub; jika jaringan tidak stabil, aktifkan proxy sistem.",
     "openReleasePage": "Buka Halaman Rilis",
     "downloadChina": "Unduh CN",
+    "downloadChina": "Unduh CN",
     "downloadUpdate": "Unduh Pembaruan",
     "restartToInstallUpdate": "Restart untuk Instal",
     "staticMode": "Mode Statis",
@@ -911,10 +912,6 @@ export default {
       "themeJsonCopy": {
         "title": "Salin JSON Tema",
         "description": "Salin tema AI atau tema kustom sebagai JSON langsung dari editor tema cepat."
-      },
-      "indonesianLanguage": {
-        "title": "Antarmuka Bahasa Indonesia",
-        "description": "Folia kini dapat ditampilkan dalam Bahasa Indonesia."
       }
     }
   },

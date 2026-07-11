@@ -1,4 +1,4 @@
-import { Cloud, Copy, Languages, ListMusic, Shuffle } from 'lucide-react';
+import { Cloud, Copy, ListMusic, Shuffle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // src/components/modal/newFeaturesRelease.ts
@@ -23,6 +23,5 @@ export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
         { id: 'queueManagement', icon: ListMusic, daylightIconClassName: 'text-rose-500', darkIconClassName: 'text-rose-400' },
         { id: 'randomVisualizer', icon: Shuffle, daylightIconClassName: 'text-purple-500', darkIconClassName: 'text-purple-400' },
         { id: 'themeJsonCopy', icon: Copy, daylightIconClassName: 'text-emerald-500', darkIconClassName: 'text-emerald-400' },
-        { id: 'indonesianLanguage', icon: Languages, daylightIconClassName: 'text-amber-500', darkIconClassName: 'text-amber-400' },
     ],
 };

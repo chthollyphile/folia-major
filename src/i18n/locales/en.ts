@@ -943,10 +943,6 @@ export default {
       "themeJsonCopy": {
         "title": "Copy Theme JSON",
         "description": "Copy an AI or custom theme as JSON directly from the quick theme editor."
-      },
-      "indonesianLanguage": {
-        "title": "Indonesian Interface",
-        "description": "Folia can now be displayed in Bahasa Indonesia."
       }
     }
   },

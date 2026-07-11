@@ -3,7 +3,6 @@ import { Command, Keyboard, Lock, Palette, Search, Sparkles, WandSparkles } from
 import { useTranslation } from 'react-i18next';
 import type { CommandPaletteCommand } from '../command-palette/types';
 import { UserGuideFeatureCard } from './UserGuideFeatureCard';
-import { UserGuideFooter } from './UserGuideFooter';
 import { UserGuideTipCard } from './UserGuideTipCard';
 import { PLAYER_PAGE_SHORTCUTS, type GuidePage, type UserGuideShortcut } from './userGuideContent';
 import { NewFeaturesIntro } from './NewFeaturesIntro';
@@ -17,8 +16,6 @@ type UserGuideClassNames = {
     keyBg: string;
     tipCardBg: string;
     iconTileBg: string;
-    btnClass: string;
-    secondaryBtnClass: string;
 };
 
 type UserGuidePageContentProps = {
@@ -27,8 +24,6 @@ type UserGuidePageContentProps = {
     isDaylight: boolean;
     classes: UserGuideClassNames;
     guideCommands: CommandPaletteCommand[];
-    onBack: () => void;
-    onNext: () => void;
 };
 
 export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
@@ -37,8 +32,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
     isDaylight,
     classes,
     guideCommands,
-    onBack,
-    onNext,
 }) => {
     const { t } = useTranslation();
     const {
@@ -48,8 +41,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
         keyBg,
         tipCardBg,
         iconTileBg,
-        btnClass,
-        secondaryBtnClass,
     } = classes;
     const tipCardClasses = { iconTileBg, tipCardBg, textPrimary, textSecondary };
     const featureCardClasses = { iconTileBg, cardBg, textPrimary, textSecondary };
@@ -64,21 +55,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
             ))}
         </div>
     );
-
-    const footer = (
-        <UserGuideFooter
-            page={page}
-            pageCount={pageCount}
-            btnClass={btnClass}
-            secondaryBtnClass={secondaryBtnClass}
-            backLabel={t('userGuide.back', 'Back')}
-            nextLabel={t('userGuide.next', 'Next')}
-            doneLabel={t('userGuide.gotIt', 'Got it')}
-            onBack={onBack}
-            onNext={onNext}
-        />
-    );
-
     if (page === 1) {
         return (
             <>
@@ -86,7 +62,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                     isDaylight={isDaylight} 
                     classes={{ textPrimary, textSecondary, tipCardBg, iconTileBg, cardBg }} 
                 />
-                {footer}
             </>
         );
     }
@@ -117,7 +92,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                         description={t('userGuide.clickThrough.lockDesc', 'Move to the top titlebar hotspot to reveal the lock button, then click it to turn click-through off.')}
                     />
                 </div>
-                {footer}
             </>
         );
     }
@@ -153,7 +127,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                         </div>
                     </div>
                 </div>
-                {footer}
             </>
         );
     }
@@ -168,7 +141,7 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                     title={t('userGuide.shortcutsPageTitle', 'Player shortcuts')}
                     description={t('userGuide.shortcutsPageSubtitle', 'Keyboard controls available on the player page.')}
                 />
-                <div className="mt-5 overflow-y-auto custom-scrollbar max-h-[44vh] pr-4 pb-2">
+                <div className="mt-5">
                     <ul className="space-y-2 text-sm">
                         {PLAYER_PAGE_SHORTCUTS.map(shortcut => (
                             <li key={shortcut.id} className={`flex items-center justify-between gap-4 p-3.5 rounded-xl transition-colors ${cardBg}`}>
@@ -178,7 +151,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                         ))}
                     </ul>
                 </div>
-                {footer}
             </>
         );
     }
@@ -193,7 +165,7 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                     title={t('userGuide.commandPalette.title', 'Command Palette')}
                     description={t('userGuide.commandPalette.desc', 'Press the "s" key on the playback page to open the Command Palette and access commands quickly.')}
                 />
-                <div className="mt-5 overflow-y-auto custom-scrollbar max-h-[44vh] pr-4 pb-2">
+                <div className="mt-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {guideCommands.map(cmd => (
                             <div key={cmd.id} className={`p-3.5 rounded-xl transition-colors ${cardBg}`}>
@@ -203,7 +175,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                         ))}
                     </div>
                 </div>
-                {footer}
             </>
         );
     }
@@ -233,7 +204,6 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                     description={t('userGuide.theme.aiDesc', 'When AI theme settings are configured, Folia can create song-aware colors and optionally auto-apply cached song themes.')}
                 />
             </div>
-            {footer}
         </>
     );
 };

@@ -1,4 +1,5 @@
-import type React from 'react';
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // src/components/modal/UserGuideFooter.tsx
 
@@ -14,6 +15,13 @@ type UserGuideFooterProps = {
     onNext: () => void;
 };
 
+const springTransition = {
+    type: 'spring' as const,
+    stiffness: 500,
+    damping: 22,
+    mass: 0.8,
+};
+
 export const UserGuideFooter: React.FC<UserGuideFooterProps> = ({
     page,
     pageCount,
@@ -25,20 +33,34 @@ export const UserGuideFooter: React.FC<UserGuideFooterProps> = ({
     onBack,
     onNext,
 }) => (
-    <div className="mt-8 pt-4 flex justify-center gap-4 relative">
-        {page > 1 && (
-            <button
-                onClick={onBack}
-                className={`py-3.5 px-8 rounded-full font-bold text-sm transition-all ${secondaryBtnClass}`}
+    <div className="flex justify-center gap-4 relative" style={{ minHeight: 48 }}>
+        <AnimatePresence mode="popLayout">
+            {page > 1 && (
+                <motion.button
+                    key="back"
+                    layout
+                    initial={{ opacity: 0, x: -40, scale: 0.85 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -40, scale: 0.85 }}
+                    transition={springTransition}
+                    onClick={onBack}
+                    className={`py-3.5 px-8 rounded-full font-bold text-sm transition-colors ${secondaryBtnClass}`}
+                >
+                    {backLabel}
+                </motion.button>
+            )}
+            <motion.button
+                key="next"
+                layout
+                initial={{ opacity: 0, x: 30, scale: 0.85 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 30, scale: 0.85 }}
+                transition={springTransition}
+                onClick={onNext}
+                className={`py-3.5 px-10 rounded-full font-bold text-sm transition-colors hover:scale-105 active:scale-95 ${btnClass}`}
             >
-                {backLabel}
-            </button>
-        )}
-        <button
-            onClick={onNext}
-            className={`py-3.5 px-10 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95 ${btnClass}`}
-        >
-            {page === pageCount ? doneLabel : nextLabel}
-        </button>
+                {page === pageCount ? doneLabel : nextLabel}
+            </motion.button>
+        </AnimatePresence>
     </div>
 );

@@ -1,24 +1,23 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Variants } from 'framer-motion';
-import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { COMMAND_PALETTE_COMMANDS } from '../command-palette/commandRegistry';
 import type { Theme } from '../../types';
 import { UserGuidePageContent } from './UserGuidePageContent';
+import { UserGuideFooter } from './UserGuideFooter';
 import { USER_GUIDE_PAGE_COUNT, type GuidePage } from './userGuideContent';
 
 export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) => {
+    const { t } = useTranslation();
     const isUserGuideModalOpen = useSettingsUiStore(state => state.isUserGuideModalOpen);
     const setIsUserGuideModalOpen = useSettingsUiStore(state => state.setIsUserGuideModalOpen);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
     const [page, setPage] = useState<GuidePage>(1);
-    const [direction, setDirection] = useState(1);
 
     const bgClass = isDaylight ? 'bg-white border-zinc-200' : 'bg-[#18181b] border-zinc-800';
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-zinc-50';
     const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
-    const closeBtnHover = isDaylight ? 'hover:bg-zinc-200/50' : 'hover:bg-white/10';
     const btnClass = isDaylight
         ? 'bg-gradient-to-r from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 text-white shadow-xl shadow-zinc-900/10'
         : 'bg-gradient-to-r from-zinc-100 to-white hover:from-white hover:to-zinc-100 text-zinc-900 shadow-xl shadow-white/10';
@@ -26,15 +25,14 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
         ? 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/50'
         : 'text-zinc-400 hover:text-zinc-50 hover:bg-white/10';
     const cardBg = isDaylight
-        ? 'bg-zinc-50 border border-zinc-100 hover:bg-zinc-100'
-        : 'bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800';
+        ? 'bg-zinc-50 border border-zinc-100'
+        : 'bg-zinc-800/50 border border-zinc-700/50';
     const keyBg = isDaylight ? 'bg-white border border-zinc-200' : 'bg-white/10';
     const tipCardBg = isDaylight ? 'bg-zinc-50/90 border-zinc-100' : 'bg-white/[0.04] border-white/10';
     const iconTileBg = isDaylight ? 'bg-white shadow-sm' : 'bg-white/10';
     const guideCommands = COMMAND_PALETTE_COMMANDS.filter(c => c.id !== 'queue' && !c.id.startsWith('navigate'));
 
     const goToPage = (nextPage: GuidePage) => {
-        setDirection(nextPage > page ? 1 : -1);
         setPage(nextPage);
     };
 
@@ -55,26 +53,6 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
         goToPage((page - 1) as GuidePage);
     };
 
-    const pageVariants: Variants = {
-        initial: (direction: number) => ({
-            x: direction > 0 ? 30 : -30,
-            opacity: 0,
-            scale: 0.98
-        }),
-        animate: {
-            x: 0,
-            opacity: 1,
-            scale: 1,
-            transition: { type: 'spring', stiffness: 300, damping: 25 }
-        },
-        exit: (direction: number) => ({
-            x: direction < 0 ? 30 : -30,
-            opacity: 0,
-            scale: 0.98,
-            transition: { duration: 0.2 }
-        })
-    };
-
     return (
         <AnimatePresence>
             {isUserGuideModalOpen && (
@@ -92,7 +70,7 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
                         exit={{ scale: 0.95, opacity: 0, y: 10 }}
                         transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
                         onClick={(e) => e.stopPropagation()}
-                        className={`${bgClass} border rounded-[2rem] max-w-xl w-full p-8 shadow-2xl relative overflow-hidden`}
+                        className={`${bgClass} border rounded-[2rem] max-w-lg w-full max-h-[85vh] p-8 shadow-2xl relative overflow-hidden flex flex-col`}
                     >
                         <div className="absolute inset-0 pointer-events-none z-0">
                             <div
@@ -105,44 +83,42 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
                             />
                         </div>
 
-                        <button
-                            onClick={() => setIsUserGuideModalOpen(false)}
-                            className={`absolute top-4 right-4 p-1.5 rounded-full transition-colors opacity-50 hover:opacity-100 z-50 ${closeBtnHover} ${textPrimary}`}
-                        >
-                            <X size={18} />
-                        </button>
+                        <div className="relative z-10 flex-1 overflow-y-auto min-h-0 custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
+                            <motion.div
+                                key={`page-${page}`}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ duration: 0.12 }}
+                            >
+                                <UserGuidePageContent
+                                    page={page}
+                                    pageCount={USER_GUIDE_PAGE_COUNT}
+                                    isDaylight={isDaylight}
+                                    classes={{
+                                        textPrimary,
+                                        textSecondary,
+                                        cardBg,
+                                        keyBg,
+                                        tipCardBg,
+                                        iconTileBg,
+                                    }}
+                                    guideCommands={guideCommands}
+                                />
+                            </motion.div>
+                        </div>
 
-                        <div className="relative z-10">
-                            <AnimatePresence mode="wait" custom={direction}>
-                                <motion.div
-                                    key={`page-${page}`}
-                                    custom={direction}
-                                    variants={pageVariants}
-                                    initial="initial"
-                                    animate="animate"
-                                    exit="exit"
-                                    className="flex flex-col h-full"
-                                >
-                                    <UserGuidePageContent
-                                        page={page}
-                                        pageCount={USER_GUIDE_PAGE_COUNT}
-                                        isDaylight={isDaylight}
-                                        classes={{
-                                            textPrimary,
-                                            textSecondary,
-                                            cardBg,
-                                            keyBg,
-                                            tipCardBg,
-                                            iconTileBg,
-                                            btnClass,
-                                            secondaryBtnClass,
-                                        }}
-                                        guideCommands={guideCommands}
-                                        onBack={goBack}
-                                        onNext={goNext}
-                                    />
-                                </motion.div>
-                            </AnimatePresence>
+                        <div className="relative z-10 shrink-0 pt-5">
+                            <UserGuideFooter
+                                page={page}
+                                pageCount={USER_GUIDE_PAGE_COUNT}
+                                btnClass={btnClass}
+                                secondaryBtnClass={secondaryBtnClass}
+                                backLabel={t('userGuide.back', 'Back')}
+                                nextLabel={t('userGuide.next', 'Next')}
+                                doneLabel={t('userGuide.gotIt', 'Got it')}
+                                onBack={goBack}
+                                onNext={goNext}
+                            />
                         </div>
                     </motion.div>
                 </motion.div>

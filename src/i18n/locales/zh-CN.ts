@@ -533,6 +533,7 @@ export default {
     "autoUpdateGithubNotice": "自动更新需要能够访问 GitHub；网络不稳定时可能无法下载更新。",
     "openReleasePage": "打开发布页",
     "downloadChina": "国内下载",
+    "downloadChina": "国内下载",
     "downloadUpdate": "下载更新",
     "restartToInstallUpdate": "重启安装",
     "staticMode": "静态模式",
@@ -944,10 +945,6 @@ export default {
       "themeJsonCopy": {
         "title": "主题 JSON 复制",
         "description": "可从主题快速编辑面板直接复制 AI 或自定义主题的 JSON。"
-      },
-      "indonesianLanguage": {
-        "title": "新增印度尼西亚语界面",
-        "description": "现在可以将 Folia 的界面语言切换为印度尼西亚语。"
       }
     }
   },

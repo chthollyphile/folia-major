@@ -356,7 +356,7 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                 style={{ color: 'var(--text-primary)' }}
                             >
                                 <ExternalLink size={14} />
-                                {t('options.downloadChina') || 'CN Download'}
+                                {t('options.downloadChina')}
                             </button>
                             {!electronSettings.ENABLE_AUTO_UPDATE && (
                                 <button

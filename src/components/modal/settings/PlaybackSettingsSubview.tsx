@@ -184,15 +184,16 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
         <div className="space-y-5">
             <section>
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                    <PlayCircle size={14} /> 播放队列
+                    <PlayCircle size={14} />                    {t('options.queueSettings')}
+
                 </h3>
                 <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
                     <div className="space-y-1">
                         <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                            加入队列的默认位置
+                            {t('options.queueDefaultBehavior')}
                         </div>
                         <div className="text-[11px] opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                            加入播放队列按钮的默认行为。
+                            {t('options.queueDefaultBehaviorDesc')}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
