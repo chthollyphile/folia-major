@@ -1046,7 +1046,7 @@ export const GridView: React.FC<GridViewProps> = ({
             }
 
             const trackId = Number(track.id);
-            const isLiked = collection.isLiked || collection.name === '我喜欢的音乐' || collection.specialType === 'liked';
+            const isLiked = collection.isLiked || collection.specialType === 'liked';
             if (isLiked) {
                 await neteaseApi.likeSong(trackId, false);
             } else {

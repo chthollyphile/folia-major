@@ -6,6 +6,7 @@ import { UserGuideFeatureCard } from './UserGuideFeatureCard';
 import { UserGuideTipCard } from './UserGuideTipCard';
 import { PLAYER_PAGE_SHORTCUTS, type GuidePage, type UserGuideShortcut } from './userGuideContent';
 import { NewFeaturesIntro } from './NewFeaturesIntro';
+import foliaIcon from '../../../build/icon.png';
 
 // src/components/modal/UserGuidePageContent.tsx
 
@@ -179,31 +180,47 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
         );
     }
 
-    return (
-        <>
-            <UserGuideTipCard
-                {...tipCardClasses}
-                icon={Palette}
-                iconClassName={isDaylight ? 'text-rose-500' : 'text-rose-300'}
-                title={t('userGuide.theme.title', 'Color themes')}
-                description={t('userGuide.theme.desc', 'Customize Folia with your own light and dark color themes, or generate an AI theme from the current song.')}
-            />
-            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <UserGuideFeatureCard
-                    {...featureCardClasses}
+    if (page === 6) {
+        return (
+            <>
+                <UserGuideTipCard
+                    {...tipCardClasses}
                     icon={Palette}
                     iconClassName={isDaylight ? 'text-rose-500' : 'text-rose-300'}
-                    title={t('options.openThemePark', 'Open Theme Park')}
-                    description={t('userGuide.theme.customDesc', 'Open Theme Park from visual settings or the command palette to edit and save custom light and dark colors.')}
+                    title={t('userGuide.theme.title', 'Color themes')}
+                    description={t('userGuide.theme.desc', 'Customize Folia with your own light and dark color themes, or generate an AI theme from the current song.')}
                 />
-                <UserGuideFeatureCard
-                    {...featureCardClasses}
-                    icon={WandSparkles}
-                    iconClassName={isDaylight ? 'text-purple-500' : 'text-purple-300'}
-                    title={t('ui.generateAITheme', 'Generate AI Theme')}
-                    description={t('userGuide.theme.aiDesc', 'When AI theme settings are configured, Folia can create song-aware colors and optionally auto-apply cached song themes.')}
-                />
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <UserGuideFeatureCard
+                        {...featureCardClasses}
+                        icon={Palette}
+                        iconClassName={isDaylight ? 'text-rose-500' : 'text-rose-300'}
+                        title={t('options.openThemePark', 'Open Theme Park')}
+                        description={t('userGuide.theme.customDesc', 'Open Theme Park from visual settings or the command palette to edit and save custom light and dark colors.')}
+                    />
+                    <UserGuideFeatureCard
+                        {...featureCardClasses}
+                        icon={WandSparkles}
+                        iconClassName={isDaylight ? 'text-purple-500' : 'text-purple-300'}
+                        title={t('ui.generateAITheme', 'Generate AI Theme')}
+                        description={t('userGuide.theme.aiDesc', 'When AI theme settings are configured, Folia can create song-aware colors and optionally auto-apply cached song themes.')}
+                    />
+                </div>
+            </>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[320px] text-center">
+            <div className={`w-24 h-24 rounded-3xl ${isDaylight ? 'bg-black/[0.03]' : 'bg-white/5'} border ${isDaylight ? 'border-black/10' : 'border-white/10'} flex items-center justify-center mb-6 shadow-lg`}>
+                <img src={foliaIcon} alt="Folia" className="w-16 h-16" />
             </div>
-        </>
+            <h2 className={`text-3xl font-bold mb-3 ${textPrimary}`}>
+                {t('userGuide.ready.title', 'Selamat Menggunakan')}
+            </h2>
+            <p className={`text-sm ${textSecondary} max-w-xs leading-relaxed`}>
+                {t('userGuide.ready.subtitle', 'Nikmati perjalanan musik Anda dengan Folia.')}
+            </p>
+        </div>
     );
 };

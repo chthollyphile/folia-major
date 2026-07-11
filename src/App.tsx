@@ -1050,6 +1050,7 @@ export default function App() {
         setHomeViewTab,
         setLocalMusicState,
         navigateDirectHome,
+        t,
     });
     const handleSaveLyricFilterPattern = createLyricFilterPatternSaver({
         handleSetLyricFilterPattern,

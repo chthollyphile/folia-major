@@ -332,9 +332,9 @@ const Home: React.FC<HomeProps> = ({
 
             const fmItem = {
                 id: 'personal_fm',
-                name: '私人FM',
+                name: t('home.personalFm'),
                 coverUrl: fmCoverUrl,
-                description: 'Personal FM',
+                description: t('home.personalFm'),
                 isFm: true,
             };
 
@@ -821,10 +821,22 @@ const Home: React.FC<HomeProps> = ({
                 </div>
 
                     {/* Login Modal */}
-                    {
-                        showLoginModal && (
-                            <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4">
-                                <div className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl">
+                    <AnimatePresence>
+                        {showLoginModal && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4"
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.92, opacity: 0, y: 24 }}
+                                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                                    exit={{ scale: 0.92, opacity: 0, y: 12 }}
+                                    transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
+                                    className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl"
+                                >
                                     <button
                                         onClick={() => {
                                             setShowLoginModal(false);
@@ -854,10 +866,10 @@ const Home: React.FC<HomeProps> = ({
                                     <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>
                                         {t('home.loginNote')}
                                     </p>
-                                </div>
-                            </div>
-                        )
-                    }
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* User Avatar - Back to Player */}
                     {

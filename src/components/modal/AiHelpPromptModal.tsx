@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Copy, X } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
 
@@ -44,7 +44,6 @@ export const AiHelpPromptModal: React.FC<AiHelpPromptModalProps> = ({
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-zinc-50';
     const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
     const panelBg = isDaylight ? 'bg-zinc-50 border-zinc-200' : 'bg-white/[0.04] border-white/10';
-    const closeBtnHover = isDaylight ? 'hover:bg-zinc-200/60' : 'hover:bg-white/10';
     const primaryBtnClass = isDaylight
         ? 'bg-zinc-900 text-white hover:bg-zinc-700'
         : 'bg-white text-zinc-950 hover:bg-zinc-200';
@@ -87,14 +86,7 @@ export const AiHelpPromptModal: React.FC<AiHelpPromptModalProps> = ({
                             style={{ backgroundColor: theme?.accentColor ?? '#60a5fa', opacity: isDaylight ? 0.2 : 0.12 }}
                         />
 
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className={`absolute right-4 top-4 z-50 rounded-full p-2 opacity-60 transition hover:opacity-100 ${closeBtnHover}`}
-                            aria-label={t('common.close', 'Close')}
-                        >
-                            <X size={18} />
-                        </button>
+
 
                         <div className="relative z-10 space-y-5">
                             <div className="pr-10">

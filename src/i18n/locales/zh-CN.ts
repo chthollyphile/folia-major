@@ -401,6 +401,7 @@ export default {
     "allAlbums": "全部",
     "popular": "时下流行",
     "radio": "电台",
+    "personalFm": "私人FM",
     "stage": "舞台"
   },
   "animation": {
@@ -532,7 +533,6 @@ export default {
     "enableAutoUpdateDesc": "发现新版本后自动下载更新。",
     "autoUpdateGithubNotice": "自动更新需要能够访问 GitHub；网络不稳定时可能无法下载更新。",
     "openReleasePage": "打开发布页",
-    "downloadChina": "国内下载",
     "downloadChina": "国内下载",
     "downloadUpdate": "下载更新",
     "restartToInstallUpdate": "重启安装",
@@ -1186,7 +1186,11 @@ export default {
     "commandsPageTitle": "命令面板",
     "shortcuts": "播放页快捷键",
     "commands": "全部命令",
-    "commandsDesc": "输入任意命令的拼音、汉字或英文均可快速触发。"
+    "commandsDesc": "输入任意命令的拼音、汉字或英文均可快速触发。",
+    "ready": {
+      "title": "准备就绪",
+      "subtitle": "尽情享受您的音乐之旅。"
+    }
   },
   "remote": {
     "backgroundDefault": "默认背景",

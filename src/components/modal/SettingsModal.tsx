@@ -230,6 +230,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const setIsSubSettingsViewOpen = useSettingsUiStore(state => state.setIsSubSettingsViewOpen);
     const setIsUserGuideModalOpen = useSettingsUiStore(state => state.setIsUserGuideModalOpen);
     const [activeTab, setActiveTab] = useState<'help' | 'options'>(initialTab);
+    const [tabDirection, setTabDirection] = useState<'left' | 'right'>('right');
+    const handleTabChange = (tab: 'help' | 'options') => {
+        setTabDirection(tab === 'options' ? 'left' : 'right');
+        setActiveTab(tab);
+    };
     const [showVisPlayground, setShowVisPlayground] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showAppearanceSettings, setShowAppearanceSettings] = useState(false);
@@ -743,10 +748,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         animate: { opacity: 1, y: 0, scale: 1 },
         exit: { opacity: 0, y: 16, scale: 0.985 },
     };
-    const contentMotion = {
-        initial: { opacity: 0, x: 18 },
-        animate: { opacity: 1, x: 0 },
-        exit: { opacity: 0, x: -18 },
+    const tabVariants = {
+        enter: (direction: 'left' | 'right') => ({
+            x: direction === 'right' ? 60 : -60,
+            opacity: 0,
+        }),
+        center: {
+            x: 0,
+            opacity: 1,
+        },
+        exit: (direction: 'left' | 'right') => ({
+            x: direction === 'right' ? -60 : 60,
+            opacity: 0,
+        }),
     };
 
     const handleOverlayMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -993,7 +1007,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             <motion.div
                 {...panelMotion}
                 transition={shellTransition}
-                className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl overflow-hidden flex flex-col max-h-[85vh]`}
+                className={`${glassBg} border ${borderColor} p-8 rounded-3xl max-w-lg w-full relative shadow-2xl overflow-hidden flex flex-col h-[85vh]`}
                 onClick={(event) => event.stopPropagation()}
             >
                 {/* Decorative background blobs */}
@@ -1017,28 +1031,51 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
 
                 {/* Header / Tabs */}
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-4 shrink-0 relative z-10" style={{ color: 'var(--text-primary)' }}>
-                    <span
-                        className={`cursor-pointer transition-opacity ${activeTab === 'help' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                        onClick={() => setActiveTab('help')}
-                    >
-                        {t('help.title') || "Help"}
-                    </span>
-                    <span className="opacity-20">/</span>
-                    <span
-                        className={`cursor-pointer transition-opacity ${activeTab === 'options' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                        onClick={() => setActiveTab('options')}
-                    >
-                        {t('ui.options') || "Options"}
-                    </span>
-                </h2>
+                <div className="relative shrink-0 z-10 mb-6">
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={() => handleTabChange('help')}
+                            className={`relative text-2xl font-bold transition-colors pb-2 ${activeTab === 'help' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {t('help.title') || "Help"}
+                            {activeTab === 'help' && (
+                                <motion.div
+                                    layoutId="active-tab-underline"
+                                    className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full"
+                                    style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#18181b' : '#f4f4f5') }}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => handleTabChange('options')}
+                            className={`relative text-2xl font-bold transition-colors pb-2 ${activeTab === 'options' ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {t('ui.options') || "Options"}
+                            {activeTab === 'options' && (
+                                <motion.div
+                                    layoutId="active-tab-underline"
+                                    className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full"
+                                    style={{ backgroundColor: theme?.accentColor || (isDaylight ? '#18181b' : '#f4f4f5') }}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                            )}
+                        </button>
+                    </div>
+                </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative z-10">
-                    <AnimatePresence mode="wait" initial={false}>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pr-2 relative z-10">
+                    <AnimatePresence mode="popLayout" initial={false}>
                         {activeTab === 'help' ? (
                             <motion.div
                                 key="help-tab"
-                                {...contentMotion}
+                                custom={tabDirection}
+                                variants={tabVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
                                 transition={shellTransition}
                                 className="space-y-6"
                             >
@@ -1230,7 +1267,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         ) : (
                             <motion.div
                                 key="options-tab"
-                                {...contentMotion}
+                                custom={tabDirection}
+                                variants={tabVariants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
                                 transition={shellTransition}
                                 className="space-y-8"
                             >

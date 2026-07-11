@@ -32,7 +32,9 @@ export const createLocalLibraryNavigation = ({
     setHomeViewTab,
     setLocalMusicState,
     navigateDirectHome,
-}: CreateLocalLibraryNavigationParams) => {
+}: CreateLocalLibraryNavigationParams & {
+    t: (key: string, fallback?: string) => string;
+}) => {
     const openLocalLibraryGroup = (group: LocalLibraryGroup, row: 0 | 1 | 2 | 3) => {
         setHomeViewTab('local');
         setLocalMusicState(prev => ({
@@ -107,7 +109,7 @@ export const createLocalLibraryNavigation = ({
             name: artistName,
             songs,
             coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl,
-            description: `${songs.length} 首歌曲`,
+            description: `${songs.length} ${t('home.songs')}`,
         }, 2);
     };
 
@@ -156,7 +158,7 @@ export const createLocalLibraryNavigation = ({
             name: artistName,
             songs,
             coverUrl: songs.find(song => song.matchedCoverUrl)?.matchedCoverUrl,
-            description: `${songs.length} 首歌曲`,
+            description: `${songs.length} ${t('home.songs')}`,
         }, 2);
     };
 

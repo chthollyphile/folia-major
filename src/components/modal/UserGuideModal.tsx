@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
@@ -14,6 +14,13 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
     const setIsUserGuideModalOpen = useSettingsUiStore(state => state.setIsUserGuideModalOpen);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
     const [page, setPage] = useState<GuidePage>(1);
+
+    // Reset to page 1 whenever the modal is reopened
+    useEffect(() => {
+        if (isUserGuideModalOpen) {
+            setPage(1);
+        }
+    }, [isUserGuideModalOpen]);
 
     const bgClass = isDaylight ? 'bg-white border-zinc-200' : 'bg-[#18181b] border-zinc-800';
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-zinc-50';

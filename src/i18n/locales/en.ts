@@ -400,6 +400,7 @@ export default {
     "allAlbums": "All",
     "popular": "Popular",
     "radio": "Radio",
+    "personalFm": "Personal FM",
     "stage": "Stage"
   },
   "animation": {
@@ -1184,7 +1185,11 @@ export default {
     "commandsPageTitle": "Command palette",
     "shortcuts": "Shortcuts",
     "commands": "All Commands",
-    "commandsDesc": "You can trigger commands by typing English, Chinese characters, or Pinyin."
+    "commandsDesc": "You can trigger commands by typing English, Chinese characters, or Pinyin.",
+    "ready": {
+      "title": "Ready to Go",
+      "subtitle": "Enjoy your music journey with Folia."
+    }
   },
   "remote": {
     "backgroundDefault": "Default Background",
