@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { ChevronLeft, Heart, Lock, LockOpen, Pause, Pin, PinOff, Play, SkipBack, SkipForward, Video, MirrorRectangular, X, Check, Sliders, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayerState } from '../../types';
@@ -460,7 +460,7 @@ const RemoteControlApp: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            title="Close"
+                            title={t('remote.close')}
                             tabIndex={windowControlsRevealed ? 0 : -1}
                             onClick={() => void window.electron?.closeRemoteControl?.()}
                             className={`flex h-6 w-6 items-center justify-center rounded-full transition ${isDaylight
@@ -493,7 +493,7 @@ const RemoteControlApp: React.FC = () => {
                             {activePanel !== 'playback' && (
                                 <button
                                     type="button"
-                                    title="Back"
+                                    title={t('remote.back')}
                                     onClick={() => {
                                         setActivePanel('playback');
                                         setPresetSelectorOpen(false);
@@ -621,7 +621,7 @@ const RemoteControlApp: React.FC = () => {
                                                                 <div className="flex items-center gap-1.5">
                                                                     <button
                                                                         type="button"
-                                                                        title="Previous"
+                                                                         title={t('remote.previous')}
                                                                         disabled={primaryDisabled || !snapshot.canGoPrevious}
                                                                         onClick={() => sendCommand({ type: 'previous' })}
                                                                         className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${isDaylight
@@ -632,9 +632,9 @@ const RemoteControlApp: React.FC = () => {
                                                                         <SkipBack size={16} strokeWidth={2} />
                                                                     </button>
                                                                     <button
-                                                                        type="button"
-                                                                        title={isPlaying ? 'Pause' : 'Play'}
-                                                                        disabled={primaryDisabled}
+                                                                       type="button"
+                                                                        title={isPlaying ? t('remote.pause') : t('remote.play')}
+                                                                       disabled={primaryDisabled}
                                                                         onClick={() => sendCommand({ type: 'play-pause' })}
                                                                         className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${isDaylight
                                                                             ? 'bg-zinc-900 text-white hover:bg-zinc-800'
@@ -645,7 +645,7 @@ const RemoteControlApp: React.FC = () => {
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        title="Next"
+                                                                         title={t('remote.next')}
                                                                         disabled={primaryDisabled || !snapshot.canGoNext}
                                                                         onClick={() => sendCommand({ type: 'next' })}
                                                                         className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${isDaylight
@@ -671,7 +671,7 @@ const RemoteControlApp: React.FC = () => {
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        title="Transparent controls"
+                                                                         title={t('remote.transparentControls')}
                                                                         onClick={() => {
                                                                             setPresetSelectorOpen(false);
                                                                             setActivePanel('transparent-controls');
@@ -683,7 +683,7 @@ const RemoteControlApp: React.FC = () => {
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        title="Video export"
+                                                                         title={t('remote.videoExport')}
                                                                         disabled={!snapshot.hasTrack}
                                                                         onClick={() => setActivePanel('export')}
                                                                         className={`flex h-8 w-8 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-35 ${exportState.status === 'recording'

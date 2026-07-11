@@ -1201,8 +1201,17 @@ export default {
     "saved": "Disimpan",
     "error": "Kesalahan",
     "saving": "Menyimpan...",
+    "close": "Tutup",
+    "back": "Kembali",
     "preparing": "Menyiapkan",
     "noLyrics": "Tidak Ada Lirik"
+,
+    "previous": "Sebelumnya",
+    "next": "Selanjutnya",
+    "play": "Putar",
+    "pause": "Jeda",
+    "transparentControls": "Kontrol Transparan",
+    "videoExport": "Ekspor Video",
   },
   "aiHelp": {
     "openButton": "Butuh bantuan?",
