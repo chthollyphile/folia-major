@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
     forEachCubeInRadius,
+    getHexCubicAtIndex,
+    getHexCubicSpiral,
     pixelToCubeCenter,
+    resizeHexGridCoords,
     resolveVisibleHexIndexes,
     roundCube,
     toCubeKey,
@@ -23,6 +26,11 @@ const buildCoords = (radius: number, spacingX = 250, spacingY = 320): HexGridCoo
 };
 
 describe('hexViewport', () => {
+    it('resolves direct spiral indexes identically to the legacy sequential generator', () => {
+        const spiral = getHexCubicSpiral(300);
+        expect(spiral.map((_, index) => getHexCubicAtIndex(index))).toEqual(spiral);
+    });
+
     it('rounds fractional cube coordinates while preserving x + y + z = 0', () => {
         expect(roundCube({ x: 1.2, y: -2.1, z: 0.9 })).toEqual({ x: 1, y: -2, z: 1 });
         expect(roundCube({ x: -1.49, y: 0.52, z: 0.97 })).toEqual({ x: -2, y: 1, z: 1 });
@@ -74,5 +82,19 @@ describe('hexViewport', () => {
             const coord = coords[index]!;
             expect(coord.baseX * coord.baseX + coord.baseY * coord.baseY).toBeLessThanOrEqual(330 * 330);
         }
+    });
+
+    it('extends a stable coordinate prefix and rebuilds it when spacing changes', () => {
+        const first = resizeHexGridCoords([], 25, 250, 320);
+        const extended = resizeHexGridCoords(first, 80, 250, 320);
+        expect(extended.slice(0, first.length)).toEqual(first);
+        expect(new Set(extended.map(coord => toCubeKey(coord.cube))).size).toBe(extended.length);
+
+        const trimmed = resizeHexGridCoords(extended, 12, 250, 320);
+        expect(trimmed).toEqual(first.slice(0, 12));
+
+        const resized = resizeHexGridCoords(extended, 80, 285, 365);
+        expect(resized[1]?.baseX).not.toBe(extended[1]?.baseX);
+        expect(resized[1]?.baseY).not.toBe(extended[1]?.baseY);
     });
 });

@@ -1,6 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
-import { ChevronLeft, Disc, Loader2, Search, X } from 'lucide-react';
+import { ChevronLeft, Disc, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
@@ -16,6 +16,8 @@ import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
 import { CollectionListItem, SidePanelList } from './shared/SidePanelList';
 import { GridListSearchButton } from './shared/GridListSearchButton';
 import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
+import { appendUniqueByKey, deriveProgressiveLoadingState } from './folia-grid/progressiveGrid';
+import { useProgressiveItemEntrance } from './folia-grid/useProgressiveItemEntrance';
 
 /*
  * ArtistGridView.tsx
@@ -302,6 +304,8 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const [topSongs, setTopSongs] = useState<SongResult[]>([]);
     const [albums, setAlbums] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [backgroundLoading, setBackgroundLoading] = useState(false);
+    const [backgroundLoadFailed, setBackgroundLoadFailed] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
     const [showSidePanel, setShowSidePanel] = useState(false);
@@ -311,6 +315,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const isComposingSearchRef = useRef(false);
     const localAlbumCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
+    const loadGenerationRef = useRef(0);
 
     // Coordinate motion values mapping grid drags
     const dragX = useMotionValue(0);
@@ -377,27 +382,54 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         return url;
     }, []);
 
+    // Appends Netease album pages without replacing already rendered artist content.
+    const loadNeteaseAlbumPages = async (artistId: number, generation: number, startOffset = 0) => {
+        setBackgroundLoading(true);
+        setBackgroundLoadFailed(false);
+        try {
+            for (let offset = startOffset; offset < 10000; offset += 50) {
+                const response = await neteaseApi.getArtistAlbums(artistId, 50, offset);
+                if (generation !== loadGenerationRef.current) return;
+                const pageAlbums = Array.isArray(response?.hotAlbums) ? response.hotAlbums : [];
+                setAlbums(current => appendUniqueByKey(current, pageAlbums, album => String(album.id)));
+                if (!response?.more || pageAlbums.length === 0) break;
+                await new Promise(resolve => setTimeout(resolve, 60));
+            }
+        } catch (error) {
+            console.error('[ArtistGridView] Failed to progressively load albums', error);
+            if (generation === loadGenerationRef.current) setBackgroundLoadFailed(true);
+        } finally {
+            if (generation === loadGenerationRef.current) setBackgroundLoading(false);
+        }
+    };
+
     // Fetch and sync artist details
     const loadArtistData = async () => {
+        const generation = ++loadGenerationRef.current;
         setLoading(true);
+        setBackgroundLoading(false);
+        setBackgroundLoadFailed(false);
+        setArtistInfo(null);
+        setTopSongs([]);
+        setAlbums([]);
         try {
             const artistId = collection.id;
             const source = collection.source;
 
             if (source === 'netease') {
-                const [detailRes, topSongsRes, allAlbums] = await Promise.all([
+                const [detailRes, topSongsRes] = await Promise.all([
                     neteaseApi.getArtistDetail(Number(artistId)),
                     neteaseApi.getArtistTopSongs(Number(artistId)),
-                    neteaseApi.getAllArtistAlbums(Number(artistId)),
                 ]);
-
+                if (generation !== loadGenerationRef.current) return;
                 if (detailRes?.data?.artist) {
                     setArtistInfo(detailRes.data.artist);
                 }
                 if (topSongsRes?.songs) {
                     setTopSongs(topSongsRes.songs.slice(0, 10));
                 }
-                setAlbums(allAlbums);
+                setLoading(false);
+                await loadNeteaseAlbumPages(Number(artistId), generation);
             } else if (source === 'navidrome') {
                 const config = getNavidromeConfig();
                 if (config) {
@@ -412,19 +444,21 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                         albumSize: albumsList.length,
                     });
 
-                    setAlbums(albumsList.map(alb => ({
+                    const mappedAlbums = albumsList.map(alb => ({
                         id: alb.id,
                         name: alb.name,
                         picUrl: alb.coverArt ? navidromeApi.getCoverArtUrl(config, alb.coverArt, 600) : undefined,
                         publishTime: alb.year ? new Date(alb.year, 0, 1).getTime() : undefined,
-                    })));
+                    }));
 
                     // Load songs from first few albums to form the topSongs list
                     const albumsForSongs = albumsList.slice(0, 5);
                     const albumDetails = await Promise.all(albumsForSongs.map(alb => navidromeApi.getAlbum(config, alb.id)));
                     const subsonicSongs = albumDetails.flatMap(d => d?.song || []);
                     const naviSongs = subsonicSongs.map(song => navidromeApi.toNavidromeSong(config, song));
+                    if (generation !== loadGenerationRef.current) return;
                     setTopSongs(naviSongs.slice(0, 10));
+                    setAlbums(mappedAlbums);
                 }
             } else if (source === 'local') {
                 const artistName = collection.name || '';
@@ -463,14 +497,17 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         } catch (error) {
             console.error('[ArtistGridView] Failed to load artist grid data', error);
         } finally {
-            setLoading(false);
+            if (generation === loadGenerationRef.current) setLoading(false);
         }
     };
 
     useEffect(() => {
         clearLocalAlbumCoverObjectUrls();
         void loadArtistData();
-        return clearLocalAlbumCoverObjectUrls;
+        return () => {
+            loadGenerationRef.current++;
+            clearLocalAlbumCoverObjectUrls();
+        };
     }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source]);
 
     useEffect(() => {
@@ -574,6 +611,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
         return itemsList;
     }, [albumGridItems, artistInfo, topSongs]);
+    const shouldAnimateItemEntrance = useProgressiveItemEntrance(
+        `${String(collection.source)}:${String(collection.id)}`
+    );
 
     // Spacing coordinates matching
     const baseCoords = useMemo(() => {
@@ -1002,6 +1042,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             // Index 2..: Song & Album Polaroid cards
             const isSongCard = !!item.rawTrack;
             const cardMode = isSongCard ? 'tracks' : 'collection';
+            const animateEntrance = shouldAnimateItemEntrance(String(item.id));
 
             return (
                 <div
@@ -1017,6 +1058,11 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                         zIndex: initialZ,
                     }}
                 >
+                    <motion.div
+                        initial={animateEntrance ? { opacity: 0, scale: 0.96 } : false}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    >
                     <PolaroidCard
                         item={item}
                         isDaylight={isDaylight}
@@ -1045,6 +1091,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             }
                         }}
                     />
+                    </motion.div>
                 </div>
             );
         });
@@ -1066,7 +1113,14 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         onSelectAlbum,
         onAddTrackToQueue,
         persistNavigationState,
+        shouldAnimateItemEntrance,
     ]);
+
+    const progressiveLoading = deriveProgressiveLoadingState(
+        gridItems.length,
+        loading,
+        backgroundLoading
+    );
 
     return (
         <motion.div
@@ -1168,6 +1222,23 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 )}
             </AnimatePresence>
 
+            {(progressiveLoading.backgroundLoading || backgroundLoadFailed) && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (!backgroundLoadFailed || collection.source !== 'netease') return;
+                        const generation = ++loadGenerationRef.current;
+                        void loadNeteaseAlbumPages(Number(collection.id), generation, albums.length);
+                    }}
+                    className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs backdrop-blur-md"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}
+                    title={t('playlist.loading')}
+                >
+                    <RefreshCw size={14} className={progressiveLoading.backgroundLoading ? 'animate-spin' : ''} />
+                    {backgroundLoadFailed ? t('ui.retry') : t('playlist.loading')}
+                </button>
+            )}
+
             {/* Draggable Viewport Canvas */}
             <div
                 ref={containerRef}
@@ -1180,7 +1251,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 className="w-full flex-1 relative z-10 flex items-center justify-center cursor-grab active:cursor-grabbing overflow-hidden"
                 style={{ touchAction: 'none' }}
             >
-                {loading && !artistInfo ? (
+                {progressiveLoading.initialLoading ? (
                     <div className="flex flex-col items-center gap-4 opacity-50">
                         <Loader2 className="animate-spin" size={32} />
                         <span className="text-sm font-semibold">{t('playlist.loading') || 'Loading...'}</span>

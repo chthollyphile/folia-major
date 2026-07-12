@@ -332,7 +332,8 @@ export default {
     },
     "backToHome": "返回主页",
     "cancel": "取消",
-    "apply": "应用"
+    "apply": "应用",
+    "retry": "重试"
   },
   "panel": {
     "cover": "封面",

@@ -331,7 +331,8 @@ export default {
     },
     "backToHome": "Back to Home",
     "cancel": "Cancel",
-    "apply": "Apply"
+    "apply": "Apply",
+    "retry": "Retry"
   },
   "panel": {
     "cover": "Cover",

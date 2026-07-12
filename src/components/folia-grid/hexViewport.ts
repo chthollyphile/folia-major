@@ -103,18 +103,70 @@ export const getHexCubicSpiral = (count: number): CubeCoord[] => {
     return results;
 };
 
+// Returns one stable cell from the same center-out spiral without rebuilding its prefix.
+export const getHexCubicAtIndex = (index: number): CubeCoord => {
+    if (index <= 0) return { x: 0, y: 0, z: 0 };
+
+    let radius = 1;
+    while (index >= 1 + 3 * radius * (radius + 1)) radius++;
+
+    const ringStart = 1 + 3 * (radius - 1) * radius;
+    const ringOffset = index - ringStart;
+    const side = Math.floor(ringOffset / radius);
+    const stepsOnSide = ringOffset % radius + 1;
+    const dirs = [
+        { x: 0, y: 1, z: -1 },
+        { x: -1, y: 1, z: 0 },
+        { x: -1, y: 0, z: 1 },
+        { x: 0, y: -1, z: 1 },
+        { x: 1, y: -1, z: 0 },
+        { x: 1, y: 0, z: -1 },
+    ];
+    const cube = { x: radius, y: -radius, z: 0 };
+
+    for (let completedSide = 0; completedSide < side; completedSide++) {
+        cube.x += dirs[completedSide].x * radius;
+        cube.y += dirs[completedSide].y * radius;
+        cube.z += dirs[completedSide].z * radius;
+    }
+    cube.x += dirs[side].x * stepsOnSide;
+    cube.y += dirs[side].y * stepsOnSide;
+    cube.z += dirs[side].z * stepsOnSide;
+    return cube;
+};
+
+// Extends or trims a stable coordinate prefix; spacing changes intentionally rebuild it.
+export const resizeHexGridCoords = (
+    previous: readonly HexGridCoord[],
+    count: number,
+    spacingX: number,
+    spacingY: number
+): HexGridCoord[] => {
+    const safeCount = Math.max(0, count);
+    const spacingMatches = previous.length === 0 || previous.every((coord) => (
+        coord.baseX === coord.cube.x * spacingX + (coord.cube.z * spacingX) / 2
+        && coord.baseY === coord.cube.z * spacingY
+    ));
+    const prefix = spacingMatches ? previous.slice(0, safeCount) : [];
+
+    for (let index = prefix.length; index < safeCount; index++) {
+        const cube = getHexCubicAtIndex(index);
+        prefix.push({
+            index,
+            cube,
+            baseX: cube.x * spacingX + (cube.z * spacingX) / 2,
+            baseY: cube.z * spacingY,
+        });
+    }
+    return prefix;
+};
+
 export const buildHexGridCoords = (
     count: number,
     spacingX: number,
     spacingY: number
 ): HexGridCoord[] => {
-    const cubics = getHexCubicSpiral(count);
-    return cubics.map((cubic, index) => ({
-        index,
-        cube: cubic,
-        baseX: cubic.x * spacingX + (cubic.z * spacingX) / 2,
-        baseY: cubic.z * spacingY,
-    }));
+    return resizeHexGridCoords([], count, spacingX, spacingY);
 };
 
 // Resolves mounted card indexes by combining hex-ring lookup with pixel-radius filtering.

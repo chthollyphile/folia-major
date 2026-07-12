@@ -1,8 +1,8 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
     areIndexListsEqual,
-    buildHexGridCoords,
     pixelToCubeCenter,
+    resizeHexGridCoords,
     resolveVisibleHexIndexes,
     toCubeKey,
 } from './hexViewport';
@@ -28,14 +28,44 @@ export const useFoliaHexViewport = ({
     fallbackIndexRef,
     coords: customCoords,
 }: UseFoliaHexViewportOptions) => {
-    const coords = useMemo<HexGridCoord[]>(
-        () => customCoords || buildHexGridCoords(itemCount, spacingX, spacingY),
-        [customCoords, itemCount, spacingX, spacingY]
-    );
+    const generatedCoordsRef = useRef<HexGridCoord[]>([]);
+    const generatedSpacingRef = useRef({ x: spacingX, y: spacingY });
+    const coords = useMemo<HexGridCoord[]>(() => {
+        if (customCoords) return customCoords;
+        if (generatedSpacingRef.current.x !== spacingX || generatedSpacingRef.current.y !== spacingY) {
+            generatedCoordsRef.current = [];
+            generatedSpacingRef.current = { x: spacingX, y: spacingY };
+        }
+        generatedCoordsRef.current = resizeHexGridCoords(
+            generatedCoordsRef.current,
+            itemCount,
+            spacingX,
+            spacingY
+        );
+        return generatedCoordsRef.current;
+    }, [customCoords, itemCount, spacingX, spacingY]);
 
-    const coordByKey = useMemo(() => (
-        new Map(coords.map((coord) => [toCubeKey(coord.cube), coord.index]))
-    ), [coords]);
+    const coordIndexRef = useRef<{ coords: HexGridCoord[]; map: Map<string, number>; }>({
+        coords: [],
+        map: new Map(),
+    });
+    const coordByKey = useMemo(() => {
+        const previous = coordIndexRef.current;
+        const extendsStablePrefix = coords.length >= previous.coords.length
+            && previous.coords.every((coord, index) => toCubeKey(coord.cube) === toCubeKey(coords[index].cube));
+
+        if (extendsStablePrefix) {
+            for (let index = previous.coords.length; index < coords.length; index++) {
+                previous.map.set(toCubeKey(coords[index].cube), coords[index].index);
+            }
+            coordIndexRef.current = { coords, map: previous.map };
+            return previous.map;
+        }
+
+        const map = new Map(coords.map((coord) => [toCubeKey(coord.cube), coord.index]));
+        coordIndexRef.current = { coords, map };
+        return map;
+    }, [coords]);
 
     const [renderedIndexes, setRenderedIndexes] = useState<number[]>([]);
     const renderedIndexesRef = useRef<number[]>([]);

@@ -21,6 +21,13 @@ import TextInputDialog from './shared/TextInputDialog';
 import { SidePanelList, TrackListItem } from './shared/SidePanelList';
 import { GridListSearchButton } from './shared/GridListSearchButton';
 import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
+import {
+    appendUniqueByKey,
+    deriveProgressiveLoadingState,
+    GRID_BACKGROUND_BATCH_SIZE,
+    GRID_INITIAL_BATCH_SIZE,
+} from './folia-grid/progressiveGrid';
+import { useProgressiveItemEntrance } from './folia-grid/useProgressiveItemEntrance';
 
 export interface GridViewSourceActions {
     local?: {
@@ -599,6 +606,8 @@ export const GridView: React.FC<GridViewProps> = ({
     // Self-loading track states for tracks mode
     const [tracks, setTracks] = useState<SongResult[]>([]);
     const [loading, setLoading] = useState(false);
+    const [backgroundLoading, setBackgroundLoading] = useState(false);
+    const [backgroundLoadFailed, setBackgroundLoadFailed] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [offset, setOffset] = useState(0);
     const [loadedAlbumInfo, setLoadedAlbumInfo] = useState<any>(null);
@@ -839,7 +848,11 @@ export const GridView: React.FC<GridViewProps> = ({
                     setTracks(cachedTracks);
                     setOffset(cachedTracks.length);
                     setLoading(false);
-                    setHasMore(cachedTracks.length < (collection.trackCount || collection.size || 0));
+                    const cachedHasMore = cachedTracks.length < (collection.trackCount || collection.size || 0);
+                    setHasMore(cachedHasMore);
+                    if (cachedHasMore) {
+                        void fetchRemainingTracks(cachedTracks, targetTime);
+                    }
                     return;
                 }
 
@@ -863,8 +876,8 @@ export const GridView: React.FC<GridViewProps> = ({
                     }
                 } else {
                     const res = isCloudDrive
-                        ? await neteaseApi.getUserCloud(150, 0)
-                        : await neteaseApi.getPlaylistTracks(Number(collection.id), 150, 0);
+                        ? await neteaseApi.getUserCloud(GRID_INITIAL_BATCH_SIZE, 0)
+                        : await neteaseApi.getPlaylistTracks(Number(collection.id), GRID_INITIAL_BATCH_SIZE, 0);
                     responseTracks = res.songs || [];
                     hasMoreSync = isCloudDrive ? Boolean(res.hasMore) : responseTracks.length < (collection.trackCount || 0);
                 }
@@ -910,6 +923,8 @@ export const GridView: React.FC<GridViewProps> = ({
     };
 
     const fetchRemainingTracks = async (initialTracks: SongResult[], targetTime: number) => {
+        setBackgroundLoading(true);
+        setBackgroundLoadFailed(false);
         let currentTracks = [...initialTracks];
         let currentOffset = initialTracks.length;
         let fetching = true;
@@ -923,12 +938,17 @@ export const GridView: React.FC<GridViewProps> = ({
             try {
                 await new Promise(r => setTimeout(r, 100));
                 const res = isCloudDrive
-                    ? await neteaseApi.getUserCloud(1000, currentOffset)
-                    : await neteaseApi.getPlaylistTracks(Number(collection.id), 1000, currentOffset);
+                    ? await neteaseApi.getUserCloud(GRID_BACKGROUND_BATCH_SIZE, currentOffset)
+                    : await neteaseApi.getPlaylistTracks(Number(collection.id), GRID_BACKGROUND_BATCH_SIZE, currentOffset);
                 if (res.songs && res.songs.length > 0) {
-                    const newChunk = res.songs;
-                    currentTracks = [...currentTracks, ...newChunk];
-                    currentOffset += newChunk.length;
+                    const previousLength = currentTracks.length;
+                    currentTracks = appendUniqueByKey(
+                        currentTracks,
+                        res.songs,
+                        (song, index) => String(song.id ?? index)
+                    );
+                    const addedCount = currentTracks.length - previousLength;
+                    currentOffset += res.songs.length;
                     const nextTracks = [...currentTracks];
                     if (isDraggingRef.current) {
                         pendingBackgroundTracksRef.current = nextTracks;
@@ -939,7 +959,9 @@ export const GridView: React.FC<GridViewProps> = ({
                     }
                     saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
 
-                    if ((isCloudDrive && !res.hasMore) || (!isCloudDrive && newChunk.length < 1000)) {
+                    if (addedCount === 0
+                        || (isCloudDrive && !res.hasMore)
+                        || (!isCloudDrive && res.songs.length < GRID_BACKGROUND_BATCH_SIZE)) {
                         fetching = false;
                     }
                 } else {
@@ -947,10 +969,12 @@ export const GridView: React.FC<GridViewProps> = ({
                 }
             } catch (e) {
                 console.error("GridView background sync failed:", e);
+                setBackgroundLoadFailed(true);
                 fetching = false;
             }
         }
         setHasMore(false);
+        setBackgroundLoading(false);
     };
 
     useEffect(() => {
@@ -1114,6 +1138,9 @@ export const GridView: React.FC<GridViewProps> = ({
             return searchableText.includes(query);
         });
     }, [allGridItems, deferredSearchQuery]);
+    const shouldAnimateItemEntrance = useProgressiveItemEntrance(
+        `${mode}:${String(collection?.source ?? '')}:${String(collection?.id ?? title)}`
+    );
 
     // Coordinate motion values mapping grid drags
     const dragX = useMotionValue(0);
@@ -1369,6 +1396,7 @@ export const GridView: React.FC<GridViewProps> = ({
             const initialDy = dragY.get();
             const initialFrame = computeHexCardFrame(coord, initialDx, initialDy, cardFrameOptions);
 
+            const animateEntrance = shouldAnimateItemEntrance(String(item.id));
             return (
                 <div
                     key={`${mode}-${idx}-${item.id}`}
@@ -1394,6 +1422,11 @@ export const GridView: React.FC<GridViewProps> = ({
                         '--play-pe': initialFrame.playPointerEvents,
                     } as React.CSSProperties}
                 >
+                    <motion.div
+                        initial={animateEntrance ? { opacity: 0, scale: 0.96 } : false}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    >
                     <PolaroidCard
                         item={item}
                         isDaylight={isDaylight}
@@ -1429,6 +1462,7 @@ export const GridView: React.FC<GridViewProps> = ({
                             }
                         }}
                     />
+                    </motion.div>
                 </div>
             );
         });
@@ -1451,7 +1485,8 @@ export const GridView: React.FC<GridViewProps> = ({
         onSelectAlbum,
         onAddTrackToQueue,
         handleRemoveTrack,
-        persistNavigationState
+        persistNavigationState,
+        shouldAnimateItemEntrance,
     ]);
 
     // Refs for direct DOM manipulation — eliminates per-card useTransform subscriptions
@@ -1566,7 +1601,12 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [focusedIndex, baseCoords, gridItems.length]);
 
-    const showLoading = isLoading || externalTracksLoading || (mode === 'tracks' && loading && displayTracks.length === 0);
+    const progressiveLoading = deriveProgressiveLoadingState(
+        gridItems.length,
+        isLoading || externalTracksLoading || (mode === 'tracks' && loading),
+        backgroundLoading
+    );
+    const showLoading = progressiveLoading.initialLoading;
     const hasSearchQuery = deferredSearchQuery.trim().length > 0;
 
     const coverUrl = neteaseAlbumInfo?.picUrl || collection?.coverImgUrl || collection?.coverUrl || collection?.picUrl || '';
@@ -1614,6 +1654,22 @@ export const GridView: React.FC<GridViewProps> = ({
             >
                 <ChevronLeft size={20} />
             </button>
+
+            {(progressiveLoading.backgroundLoading || backgroundLoadFailed) && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (!backgroundLoadFailed || !collection) return;
+                        void fetchRemainingTracks(tracks, collection.trackUpdateTime || collection.updateTime || 0);
+                    }}
+                    className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs backdrop-blur-md"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}
+                    title={t('playlist.loading')}
+                >
+                    <RefreshCw size={14} className={progressiveLoading.backgroundLoading ? 'animate-spin' : ''} />
+                    {backgroundLoadFailed ? t('ui.retry') : t('playlist.loading')}
+                </button>
+            )}
 
             {/* Center Clickable Area */}
             <div
