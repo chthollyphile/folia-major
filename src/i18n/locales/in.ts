@@ -923,7 +923,8 @@ export default {
     "nowPlayingStatusLabel": "Status koneksi: {{status}}",
     "nowPlayingStatusHint": "Terhubung ke ws://localhost:9863/api/ws/lyric. Mulai layanan now-playing terlebih dahulu.",
     "lyricFilterRegex": "Filter Lirik Regex",
-    "lyricFilterRegexDesc": "Konfigurasikan aturan filter baris demi baris untuk teks lirik yang diurai."
+    "lyricFilterRegexDesc": "Konfigurasikan aturan filter baris demi baris untuk teks lirik yang diurai.",
+    "noDescription": "Tidak ada deskripsi tersedia",
   },
   "releaseNotes": {
     "v0_5_25": {

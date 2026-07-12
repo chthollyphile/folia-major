@@ -44,7 +44,7 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
             const [detailRes, topSongsRes, albumsRes] = await Promise.all([
                 neteaseApi.getArtistDetail(artistId),
                 neteaseApi.getArtistTopSongs(artistId),
-                neteaseApi.getArtistAlbums(artistId, 50, 0)
+                neteaseApi.getAllArtistAlbums(artistId)
             ]);
 
             if (detailRes && detailRes.data && detailRes.data.artist) {
@@ -56,9 +56,7 @@ const ArtistView: React.FC<ArtistViewProps> = ({ artistId, onBack, onPlaySong, o
                 setTopSongs(topSongsRes.songs.slice(0, 10));
             }
 
-            if (albumsRes && albumsRes.hotAlbums) {
-                setAlbums(albumsRes.hotAlbums);
-            }
+            setAlbums(albumsRes);
 
         } catch (error) {
             console.error("Failed to load artist data", error);

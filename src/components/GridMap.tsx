@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
-import { ChevronLeft, Disc, Search, X, List } from 'lucide-react';
+import { ChevronLeft, Disc, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../types';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
 import { SidePanelList, CollectionListItem } from './shared/SidePanelList';
+import { GridListSearchButton } from './shared/GridListSearchButton';
+import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
 
 // src/components/GridMap.tsx
 // Hexagonal honeycomb layout showing all collections (playlists, albums, radios).
@@ -191,10 +193,9 @@ export const GridMap: React.FC<GridMapProps> = ({
                 return;
             }
 
-            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && /[a-zA-Z0-9\u4e00-\u9fa5]/.test(event.key)) {
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                event.preventDefault();
                 setShowSearchPanel(true);
-                setDraftSearchQuery(event.key);
-                setSearchQuery(event.key);
             }
         };
 
@@ -723,10 +724,7 @@ export const GridMap: React.FC<GridMapProps> = ({
                 <AnimatePresence>
                     {showSearchPanel && (
                         <motion.div
-                            initial={{ opacity: 0, y: -12, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            {...gridSearchPanelMotion}
                             className="absolute top-24 left-1/2 z-[85] w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 pointer-events-auto"
                         >
                             <div className="relative rounded-full border shadow-2xl backdrop-blur-2xl theme-glass-panel">
@@ -815,19 +813,14 @@ export const GridMap: React.FC<GridMapProps> = ({
 
             {/* Bottom Right Floating Button */}
             {items.length > 0 && (
-                <button
-                    onClick={() => setShowSidePanel(true)}
-                    className="fixed bottom-6 right-6 z-[80] w-12 h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 pointer-events-auto border"
-                    style={{
-                        backgroundColor: isDaylight ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.5)',
-                        backdropFilter: 'blur(12px)',
-                        borderColor: isDaylight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-                        color: 'var(--text-primary)'
-                    }}
-                    title={t('playlist.viewCollections') || 'View Collections'}
-                >
-                    <List size={22} />
-                </button>
+                <GridListSearchButton
+                    isDaylight={isDaylight}
+                    accentColor={theme.accentColor}
+                    listTitle={t('playlist.viewCollections') || 'View Collections'}
+                    searchTitle={t('home.gridSearchPlaceholder')}
+                    onOpenList={() => setShowSidePanel(true)}
+                    onOpenSearch={() => setShowSearchPanel(true)}
+                />
             )}
 
             {/* Collections Cut-in Side Panel */}

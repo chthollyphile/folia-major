@@ -1,6 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
-import { ChevronLeft, Disc, Play, Plus, Loader2, Heart, ListPlus, Pencil, Search, X, RefreshCw, Trash2, Star, List } from 'lucide-react';
+import { ChevronLeft, Disc, Play, Plus, Loader2, Heart, ListPlus, Pencil, Search, X, RefreshCw, Trash2, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { isSongMarkedUnavailable, getSongUnavailableTagText, neteaseApi } from '../services/netease';
@@ -19,6 +19,8 @@ import {
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import { SidePanelList, TrackListItem } from './shared/SidePanelList';
+import { GridListSearchButton } from './shared/GridListSearchButton';
+import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
 
 export interface GridViewSourceActions {
     local?: {
@@ -1346,8 +1348,6 @@ export const GridView: React.FC<GridViewProps> = ({
 
             event.preventDefault();
             setShowSearchPanel(true);
-            setDraftSearchQuery(event.key);
-            setSearchQuery(event.key);
         };
 
         window.addEventListener('keydown', handleSearchTyping);
@@ -1674,10 +1674,7 @@ export const GridView: React.FC<GridViewProps> = ({
                 <AnimatePresence>
                     {showSearchPanel && (
                         <motion.div
-                            initial={{ opacity: 0, y: -12, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            {...gridSearchPanelMotion}
                             className="absolute top-24 left-1/2 z-[85] w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 pointer-events-auto"
                         >
                             <div className="relative rounded-full border shadow-2xl backdrop-blur-2xl theme-glass-panel">
@@ -2012,19 +2009,14 @@ export const GridView: React.FC<GridViewProps> = ({
 
             {/* Bottom Right Floating Button */}
             {mode === 'tracks' && displayTracks.length > 0 && (
-                <button
-                    onClick={() => setShowSidePanel(true)}
-                    className="fixed bottom-6 right-6 z-[80] w-12 h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 pointer-events-auto border"
-                    style={{
-                        backgroundColor: isDaylight ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.5)',
-                        backdropFilter: 'blur(12px)',
-                        borderColor: isDaylight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
-                        color: 'var(--text-primary)'
-                    }}
-                    title={t('playlist.viewTracks')}
-                >
-                    <List size={22} />
-                </button>
+                <GridListSearchButton
+                    isDaylight={isDaylight}
+                    accentColor={theme.accentColor}
+                    listTitle={t('playlist.viewTracks')}
+                    searchTitle={t('home.gridSearchPlaceholder')}
+                    onOpenList={() => setShowSidePanel(true)}
+                    onOpenSearch={() => setShowSearchPanel(true)}
+                />
             )}
 
             {/* Tracks Cut-in Side Panel */}

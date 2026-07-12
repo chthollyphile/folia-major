@@ -216,7 +216,7 @@ export default {
       "settings-obs-browser-source": { "title": "OBS browser source", "description": "Open OBS browser source settings" },
       "settings-storage": { "title": "Storage settings", "description": "Open cache and storage settings" },
       "settings-r2-sync": { "title": "Sync server settings", "description": "Open sync server settings" },
-      "sync-now": { "title": "Sync now", "description": "Sync settings and AI themes" },
+      "sync-now": { "title": "Sync now", "description": "Sync AI themes" },
       "settings-desktop": { "title": "Desktop settings", "description": "Open desktop app settings" },
       "settings-lab": { "title": "Lab settings", "description": "Open experimental settings" },
       "visualizer-toggle-random-per-song": { "title": "Random visualizer for every song", "description": "Toggle a random lyric animation mode whenever the song changes" },
@@ -925,6 +925,7 @@ export default {
     "copyStageAddress": "Copy Address",
     "stageAddressCopied": "Copied",
     "visualizerMode": "Mode",
+    "noDescription": "No description available",
   },
   "releaseNotes": {
     "v0_5_25": {
@@ -1109,6 +1110,8 @@ export default {
     "localArtist": "Local Artist: {{artistName}}",
     "popularSongs": "Popular / POPULAR",
     "artistAlbums": "Albums / ALBUMS",
+    "searchAlbums": "Search albums...",
+    "viewAlbums": "View albums",
   },
   "obs": {
     "connecting": "Connecting to Folia",

@@ -627,6 +627,29 @@ export const neteaseApi = {
     return res;
   },
 
+  getAllArtistAlbums: async (id: number) => {
+    const limit = 50;
+    const albums: any[] = [];
+    const seenIds = new Set<string>();
+
+    // Follow the API's `more` flag while guarding against malformed repeated pages.
+    for (let page = 0; page < 200; page++) {
+      const res = await neteaseApi.getArtistAlbums(id, limit, page * limit);
+      const pageAlbums = Array.isArray(res?.hotAlbums) ? res.hotAlbums : [];
+      let added = 0;
+      for (const album of pageAlbums) {
+        const key = String(album?.id ?? `${page}:${added}`);
+        if (seenIds.has(key)) continue;
+        seenIds.add(key);
+        albums.push(album);
+        added++;
+      }
+      if (!res?.more || pageAlbums.length === 0 || added === 0) break;
+    }
+
+    return albums;
+  },
+
   getArtistTopSongs: async (id: number) => {
     const res = await fetchWithCreds(`/artist/top/song?id=${id}`);
     res.songs = mergeSongsWithPrivileges(res.songs, res.privileges);

@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, useMotionValue, animate, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Disc, Loader2 } from 'lucide-react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
+import { ChevronLeft, Disc, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
@@ -13,6 +13,9 @@ import { getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
 import { PolaroidCard } from './GridView';
 import { HexGridCoord, CubeCoord, getHexCubicSpiral } from './folia-grid/hexViewport';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
+import { CollectionListItem, SidePanelList } from './shared/SidePanelList';
+import { GridListSearchButton } from './shared/GridListSearchButton';
+import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
 
 /*
  * ArtistGridView.tsx
@@ -63,19 +66,19 @@ export const buildArtistGridCoords = (
 ): HexGridCoord[] => {
     const coords: HexGridCoord[] = [];
 
-    // Index 0: Avatar Card (offset left: baseX = -spacingX * 1.35, baseY = 0)
+    // Keep the avatar and biography visually grouped around the grid origin.
     coords.push({
         index: 0,
         cube: { x: -1, y: 1, z: 0 },
-        baseX: -spacingX * 1.35,
+        baseX: -spacingX * 0.95,
         baseY: 0,
     });
 
-    // Index 1: Bio Card (offset right: baseX = spacingX * 0.75, baseY = 0)
+    // Index 1: Biography Card
     coords.push({
         index: 1,
         cube: { x: 0, y: 0, z: 0 },
-        baseX: spacingX * 0.75,
+        baseX: spacingX * 0.65,
         baseY: 0,
     });
 
@@ -284,11 +287,19 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const [albums, setAlbums] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
+    const [showSearchPanel, setShowSearchPanel] = useState(false);
+    const [showSidePanel, setShowSidePanel] = useState(false);
+    const [draftSearchQuery, setDraftSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const deferredSearchQuery = useDeferredValue(searchQuery);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const isComposingSearchRef = useRef(false);
     const localAlbumCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
 
     // Coordinate motion values mapping grid drags
     const dragX = useMotionValue(0);
     const dragY = useMotionValue(0);
+    const dragControls = useDragControls();
     const isDraggingRef = useRef(false);
     const wheelTargetRef = useRef({ x: 0, y: 0 });
     const focusedIndexRef = useRef(0);
@@ -334,10 +345,10 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             const source = collection.source;
 
             if (source === 'netease') {
-                const [detailRes, topSongsRes, albumsRes] = await Promise.all([
+                const [detailRes, topSongsRes, allAlbums] = await Promise.all([
                     neteaseApi.getArtistDetail(Number(artistId)),
                     neteaseApi.getArtistTopSongs(Number(artistId)),
-                    neteaseApi.getArtistAlbums(Number(artistId), 50, 0),
+                    neteaseApi.getAllArtistAlbums(Number(artistId)),
                 ]);
 
                 if (detailRes?.data?.artist) {
@@ -346,9 +357,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 if (topSongsRes?.songs) {
                     setTopSongs(topSongsRes.songs.slice(0, 10));
                 }
-                if (albumsRes?.hotAlbums) {
-                    setAlbums(albumsRes.hotAlbums);
-                }
+                setAlbums(allAlbums);
             } else if (source === 'navidrome') {
                 const config = getNavidromeConfig();
                 if (config) {
@@ -424,6 +433,63 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         return clearLocalAlbumCoverObjectUrls;
     }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source]);
 
+    useEffect(() => {
+        if (!showSearchPanel) return;
+        const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
+        return () => cancelAnimationFrame(frame);
+    }, [showSearchPanel]);
+
+    useEffect(() => {
+        const handleSearchTyping = (event: KeyboardEvent) => {
+            const target = event.target;
+            if (
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                (target instanceof HTMLElement && target.isContentEditable)
+            ) return;
+
+            if (event.key === 'Escape' && showSearchPanel) {
+                setShowSearchPanel(false);
+                setDraftSearchQuery('');
+                setSearchQuery('');
+                return;
+            }
+            if (event.altKey || event.ctrlKey || event.metaKey) return;
+            if (event.key === 'Process' || event.key === 'Unidentified') {
+                setShowSearchPanel(true);
+                return;
+            }
+            if (event.key.length !== 1) return;
+            event.preventDefault();
+            setShowSearchPanel(true);
+        };
+
+        window.addEventListener('keydown', handleSearchTyping);
+        return () => window.removeEventListener('keydown', handleSearchTyping);
+    }, [showSearchPanel]);
+
+    const filteredAlbums = useMemo(() => {
+        const query = deferredSearchQuery.trim().toLowerCase();
+        if (!query) return albums;
+        return albums.filter((album) => String(album.name || '').toLowerCase().includes(query));
+    }, [albums, deferredSearchQuery]);
+
+    const albumGridItems = useMemo<GridItem[]>(() => filteredAlbums.map((album) => ({
+        id: album.id,
+        name: album.name,
+        coverUrl: album.picUrl,
+        description: album.publishTime ? new Date(album.publishTime).getFullYear().toString() : '',
+        rawCollection: {
+            id: album.id,
+            name: album.name,
+            picUrl: album.picUrl,
+            coverImgUrl: album.picUrl,
+            coverUrl: album.picUrl,
+            type: 'album',
+            source: collection.source,
+        },
+    })), [collection.source, filteredAlbums]);
+
     // Mapping items:
     // Index 0: Avatar
     // Index 1: Bio
@@ -464,31 +530,15 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         });
 
         // 4. Albums
-        albums.forEach((album) => {
-            itemsList.push({
-                id: album.id,
-                name: album.name,
-                coverUrl: album.picUrl,
-                description: album.publishTime ? new Date(album.publishTime).getFullYear().toString() : '',
-                rawCollection: {
-                    id: album.id,
-                    name: album.name,
-                    picUrl: album.picUrl,
-                    coverImgUrl: album.picUrl,
-                    coverUrl: album.picUrl,
-                    type: 'album',
-                    source: collection.source,
-                },
-            });
-        });
+        itemsList.push(...albumGridItems);
 
         return itemsList;
-    }, [artistInfo, topSongs, albums, collection.source]);
+    }, [albumGridItems, artistInfo, topSongs]);
 
     // Spacing coordinates matching
     const baseCoords = useMemo(() => {
-        return buildArtistGridCoords(topSongs.length, albums.length, layoutConfig.spacingX, layoutConfig.spacingY);
-    }, [topSongs.length, albums.length, layoutConfig.spacingX, layoutConfig.spacingY]);
+        return buildArtistGridCoords(topSongs.length, albumGridItems.length, layoutConfig.spacingX, layoutConfig.spacingY);
+    }, [topSongs.length, albumGridItems.length, layoutConfig.spacingX, layoutConfig.spacingY]);
 
     const backgroundCoverUrl = topSongs[0]?.al?.picUrl || topSongs[0]?.album?.picUrl || '';
 
@@ -513,24 +563,22 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         let maxX = -Infinity;
         let minY = Infinity;
         let maxY = -Infinity;
-
-        baseCoords.forEach((c) => {
-            if (c.baseX < minX) minX = c.baseX;
-            if (c.baseX > maxX) maxX = c.baseX;
-            if (c.baseY < minY) minY = c.baseY;
-            if (c.baseY > maxY) maxY = c.baseY;
+        baseCoords.forEach((coord) => {
+            minX = Math.min(minX, coord.baseX);
+            maxX = Math.max(maxX, coord.baseX);
+            minY = Math.min(minY, coord.baseY);
+            maxY = Math.max(maxY, coord.baseY);
         });
 
         const bufferX = Math.max(0, containerSize.width / 2 - 2 * layoutConfig.spacingX);
         const bufferY = Math.max(0, containerSize.height / 2 - 2 * layoutConfig.spacingY);
-
         return {
             left: -maxX - bufferX,
             right: -minX + bufferX,
             top: -maxY - bufferY,
             bottom: -minY + bufferY,
         };
-    }, [baseCoords, containerSize]);
+    }, [baseCoords, containerSize, layoutConfig.spacingX, layoutConfig.spacingY]);
 
     const centerOnIndex = (index: number, snap = true) => {
         if (index < 0 || index >= baseCoords.length) return;
@@ -800,7 +848,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             }}
                         >
                             {item.coverUrl ? (
-                                <img src={item.coverUrl} alt="avatar" className="w-full h-full object-cover" />
+                                <img src={item.coverUrl} alt="avatar" draggable={false} className="w-full h-full object-cover select-none" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-white/5">
                                     <Disc size={48} className="opacity-20 animate-spin" style={{ animationDuration: '4s' }} />
@@ -983,10 +1031,70 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 <p className="text-xs opacity-50 mt-0.5">{t('navidrome.artists') || 'Artists'}</p>
             </div>
 
+            <AnimatePresence>
+                {showSearchPanel && (
+                    <motion.div
+                        {...gridSearchPanelMotion}
+                        className="absolute top-24 left-1/2 z-[85] w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 pointer-events-auto"
+                    >
+                        <div className="relative rounded-full border shadow-2xl backdrop-blur-2xl theme-glass-panel">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4" />
+                            <input
+                                ref={searchInputRef}
+                                value={draftSearchQuery}
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setDraftSearchQuery(value);
+                                    if (!isComposingSearchRef.current) setSearchQuery(value);
+                                }}
+                                onCompositionStart={() => { isComposingSearchRef.current = true; }}
+                                onCompositionEnd={(event) => {
+                                    isComposingSearchRef.current = false;
+                                    setDraftSearchQuery(event.currentTarget.value);
+                                    setSearchQuery(event.currentTarget.value);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') {
+                                        setShowSearchPanel(false);
+                                        setDraftSearchQuery('');
+                                        setSearchQuery('');
+                                    }
+                                }}
+                                placeholder={t('artistGrid.searchAlbums')}
+                                className="w-full rounded-full bg-transparent py-3 pl-11 pr-11 text-sm font-medium outline-none placeholder:text-current placeholder:opacity-40"
+                                style={{ color: 'var(--text-primary)' }}
+                            />
+                            <button
+                                onClick={() => {
+                                    if (draftSearchQuery) {
+                                        setDraftSearchQuery('');
+                                        setSearchQuery('');
+                                        searchInputRef.current?.focus();
+                                    } else {
+                                        setShowSearchPanel(false);
+                                    }
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 opacity-45 transition-opacity hover:opacity-90 cursor-pointer"
+                                aria-label={draftSearchQuery ? t('ui.clear') : t('ui.close')}
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Draggable Viewport Canvas */}
             <div
                 ref={containerRef}
+                onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, input, a, textarea')) return;
+                    dragControls.start(event);
+                }}
                 className="w-full flex-1 relative z-10 flex items-center justify-center cursor-grab active:cursor-grabbing overflow-hidden"
+                style={{ touchAction: 'none' }}
             >
                 {loading && !artistInfo ? (
                     <div className="flex flex-col items-center gap-4 opacity-50">
@@ -998,6 +1106,8 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 ) : (
                     <motion.div
                         drag
+                        dragListener={false}
+                        dragControls={dragControls}
                         dragConstraints={dragBounds}
                         dragElastic={0.05}
                         dragTransition={{ power: 0.16, timeConstant: 220 }}
@@ -1009,7 +1119,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                                 isDraggingRef.current = false;
                             }, 50);
                         }}
-                        style={{ x: dragX, y: dragY, background: 'rgba(0,0,0,0)' }}
+                        style={{ x: dragX, y: dragY, background: 'rgba(0,0,0,0)', touchAction: 'none' }}
                         className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing bg-transparent"
                     >
                         {/* Spatial visual separator texts anchored around the artist avatar. */}
@@ -1044,6 +1154,44 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     </motion.div>
                 )}
             </div>
+
+            {albumGridItems.length > 0 && (
+                <GridListSearchButton
+                    isDaylight={isDaylight}
+                    accentColor={theme.accentColor}
+                    listTitle={t('artistGrid.viewAlbums')}
+                    searchTitle={t('artistGrid.searchAlbums')}
+                    onOpenList={() => setShowSidePanel(true)}
+                    onOpenSearch={() => setShowSearchPanel(true)}
+                />
+            )}
+
+            <SidePanelList
+                isOpen={showSidePanel}
+                onClose={() => setShowSidePanel(false)}
+                title={t('artistGrid.artistAlbums')}
+                items={albumGridItems}
+                itemHeight={60}
+                isDaylight={isDaylight}
+                focusedIndex={Math.max(0, focusedIndex - 2 - topSongs.length)}
+                renderItem={(item, index, style) => (
+                    <CollectionListItem
+                        key={`${item.id}-${index}`}
+                        item={item}
+                        index={index}
+                        style={style}
+                        isActive={focusedIndex === 2 + topSongs.length + index}
+                        onClick={() => {
+                            const gridIndex = 2 + topSongs.length + index;
+                            centerOnIndex(gridIndex, true);
+                            setShowSidePanel(false);
+                            window.setTimeout(() => {
+                                if (item.rawCollection) onSelectAlbum?.(item.rawCollection.id, item.rawCollection);
+                            }, 320);
+                        }}
+                    />
+                )}
+            />
 
             {/* Biography Full Text Modal */}
             <AnimatePresence>

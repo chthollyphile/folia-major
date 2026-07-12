@@ -216,7 +216,7 @@ export default {
       "settings-obs-browser-source": { "title": "OBS 浏览器源", "description": "打开 OBS 浏览器源设置" },
       "settings-storage": { "title": "存储设置", "description": "打开缓存和存储设置" },
       "settings-r2-sync": { "title": "同步服务设置", "description": "打开同步服务设置" },
-      "sync-now": { "title": "立即同步", "description": "同步设置和 AI 主题" },
+      "sync-now": { "title": "立即同步", "description": "同步 AI 主题" },
       "settings-desktop": { "title": "桌面端设置", "description": "打开桌面应用设置" },
       "settings-lab": { "title": "实验设置", "description": "打开实验功能设置" },
       "visualizer-toggle-random-per-song": { "title": "每首歌随机歌词动画", "description": "歌曲切换时随机使用一种歌词动画模式" },
@@ -926,6 +926,7 @@ export default {
     "nowPlayingStatusHint": "固定连接 ws://localhost:9863/api/ws/lyric，请先在本机启动 now-playing 服务。",
     "lyricFilterRegex": "歌词过滤正则",
     "lyricFilterRegexDesc": "为歌词解析后的完整文本列表配置逐行过滤规则。",
+    "noDescription": "暂无详细介绍",
   },
   "releaseNotes": {
     "v0_5_25": {
@@ -1110,6 +1111,8 @@ export default {
     "localArtist": "本地歌手: {{artistName}}",
     "popularSongs": "时下流行 / POPULAR",
     "artistAlbums": "歌手专辑 / ALBUMS",
+    "searchAlbums": "搜索专辑...",
+    "viewAlbums": "查看专辑",
   },
   "obs": {
     "connecting": "正在连接 Folia",
