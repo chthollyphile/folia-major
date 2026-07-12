@@ -445,6 +445,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         subtitleFontInheritsLyrics,
         subtitleFontStyle,
     ]);
+    const activePickerFontFamily = fontPickerTarget === 'subtitle' ? subtitleFontFamily : customFontFamily;
+    const activePickerTheme = fontPickerTarget === 'subtitle' ? previewSubtitleTheme : previewTheme;
     const resolvedPartitaTuning = useMemo<PartitaTuning>(() => {
         const rawMin = clampPartitaStagger(draftPartitaTuning.staggerMin ?? DEFAULT_PARTITA_TUNING.staggerMin);
         const rawMax = clampPartitaStagger(draftPartitaTuning.staggerMax ?? DEFAULT_PARTITA_TUNING.staggerMax);
@@ -716,7 +718,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem"; };
     }) => {
         const font = filteredSystemFonts[index];
-        const isActive = customFontFamily?.toLocaleLowerCase() === font.family.toLocaleLowerCase();
+        const isActive = activePickerFontFamily?.toLocaleLowerCase() === font.family.toLocaleLowerCase();
 
         return (
             <div style={style} {...ariaAttributes}>
@@ -738,7 +740,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                         className="text-lg font-medium"
                         style={{
                             fontFamily: resolveThemeFontStack({
-                                fontStyle,
+                                fontStyle: activePickerTheme.fontStyle,
                                 fontFamily: font.family,
                             }),
                         }}
@@ -751,7 +753,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                 </button>
             </div>
         );
-    }, [customFontFamily, filteredSystemFonts, fontStyle, handleChooseSystemFont, isDaylight]);
+    }, [activePickerFontFamily, activePickerTheme.fontStyle, filteredSystemFonts, handleChooseSystemFont, isDaylight]);
 
     const handleSelectFontStyle = (next: Theme['fontStyle'] | 'custom') => {
         if (next === 'custom') {
@@ -1181,7 +1183,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             label={t('options.fontFallbackFamilies')}
                                             value={fontPickerTarget === 'subtitle' ? subtitleFontFallbackFamilies : fontFallbackFamilies}
                                             onChange={fontPickerTarget === 'subtitle' ? onSubtitleFontFallbackFamiliesChange : onFontFallbackFamiliesChange}
-                                            theme={previewTheme}
+                                            theme={activePickerTheme}
                                             placeholder={t('options.fontFallbackFamiliesPlaceholder') || 'Songti SC, SimSun, serif'}
                                         />
                                         {fontPickerError && (
@@ -1204,7 +1206,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                                 ? (t('options.uploadingCustomFont'))
                                                 : t('options.uploadCustomFont')}
                                         </button>
-                                        {customFontFamily && (
+                                        {activePickerFontFamily && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1258,7 +1260,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                                             label={t('options.fontFallbackFamilies')}
                                             value={fontPickerTarget === 'subtitle' ? subtitleFontFallbackFamilies : fontFallbackFamilies}
                                             onChange={fontPickerTarget === 'subtitle' ? onSubtitleFontFallbackFamiliesChange : onFontFallbackFamiliesChange}
-                                            theme={previewTheme}
+                                            theme={activePickerTheme}
                                             placeholder={t('options.fontFallbackFamiliesPlaceholder') || 'Songti SC, SimSun, serif'}
                                         />
                                         <div className="min-h-0 flex-1">
