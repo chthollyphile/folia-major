@@ -15,13 +15,24 @@ describe('buildHomeSurfacePresentation', () => {
         });
     });
 
-    it('keeps Home mounted but hidden behind player panel overlays', () => {
+    it('does not remount Home behind player panel overlays', () => {
         expect(buildHomeSurfacePresentation({
             currentView: 'player',
             isSettingsModalOpen: false,
             isPanelOpen: true,
         })).toEqual({
-            shouldKeepHomeMounted: true,
+            shouldKeepHomeMounted: false,
+            shouldShowHomeSurface: false,
+        });
+    });
+
+    it('does not remount Home behind settings opened from the player view', () => {
+        expect(buildHomeSurfacePresentation({
+            currentView: 'player',
+            isSettingsModalOpen: true,
+            isPanelOpen: false,
+        })).toEqual({
+            shouldKeepHomeMounted: false,
             shouldShowHomeSurface: false,
         });
     });

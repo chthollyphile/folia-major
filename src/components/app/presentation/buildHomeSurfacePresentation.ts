@@ -12,7 +12,8 @@ export const buildHomeSurfacePresentation = ({
     isSettingsModalOpen,
     isPanelOpen,
 }: BuildHomeSurfacePresentationInput) => {
-    const shouldKeepHomeMounted = currentView === 'home' || isSettingsModalOpen || isPanelOpen;
+    // Overlays may hide Home while it is active, but must not remount it from the player view.
+    const shouldKeepHomeMounted = currentView === 'home';
     const shouldShowHomeSurface = currentView === 'home' && !isSettingsModalOpen && !isPanelOpen;
 
     return {
