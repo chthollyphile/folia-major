@@ -76,6 +76,12 @@ const CAPPELLA_LAYOUT_CACHE_LIMIT = 32;
 // 让横向扩展先于字符出现启动，避免临界换行时字符短暂掉到下一行。
 const CAPPELLA_WIDTH_LOOKAHEAD_SECONDS = 0.2;
 const CAPPELLA_BUBBLE_TEXT_OPTIONS = { whiteSpace: 'pre-wrap' } satisfies PrepareOptions;
+// ActiveCappellaText 渲染时把每个字拆成独立的 inline-block 放进 flex-wrap 行，
+// 失去字距且每字宽度各自向上取整，所以 DOM 实际行宽比下面 canvas 连续文本的量度略大。
+// 差值足以令「量度为一行」的歌词在渲染时把最后一个字挤到第二行，而气泡高度只按量度
+// 的行数预留，第二行便被 overflow:hidden 裁掉半个字（QRC 全角日文/中文尤其明显）。
+// 预留一点横向安全余量，让渲染行始终容得下其高度所对应的宽度。
+const cappellaBubbleRenderSafetyPx = (fontSize: number) => Math.max(6, Math.ceil(fontSize * 0.35));
 
 interface BubbleSize {
     width: number;
@@ -846,6 +852,7 @@ const measureBubbleText = ({
     return {
         width: Math.ceil(
             Math.min(textWidth, maxTextWidth)
+            + cappellaBubbleRenderSafetyPx(fontSize)
             + paddingX * 2
             + bubbleBorderWidth * 2
         ),
@@ -1431,7 +1438,7 @@ const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessageRowPr
                                 color: bubbleColors.textColor,
                                 fontSize: bubbleFontSize,
                                 lineHeight: 1.45,
-                                maxWidth: maxTextWidth + bubblePaddingX * 2,
+                                maxWidth: maxTextWidth + bubblePaddingX * 2 + cappellaBubbleRenderSafetyPx(bubbleFontSize) + 2,
                                 minHeight: Math.max(
                                     isActiveMessage ? motionConfig.activeMinHeight : motionConfig.inactiveMinHeight,
                                     bubbleFontSize * 1.45 + bubblePaddingY * 2
