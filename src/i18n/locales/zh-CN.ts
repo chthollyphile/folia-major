@@ -458,12 +458,6 @@ export default {
     "previewFallback": "预览当前播放歌曲的歌词过滤效果",
     "clear": "清空",
     "save": "保存",
-    "entityInfo": "实体信息",
-    "entityDisplayName": "展示名称",
-    "mergeEntity": "合并实体",
-    "splitEntity": "拆分实体",
-    "selectEntity": "选择实体",
-    "newEntityName": "新实体名称",
     "saving": "保存中...",
     "preview": "预览",
     "filteredCount": "已过滤 {{removed}} / 总计 {{total}}",
@@ -1089,7 +1083,13 @@ export default {
     "noPlaylistsFound": "还没有歌单",
     "editPlaylist": "编辑歌单",
     "finishEditing": "完成编辑",
-    "deletePlaylist": "删除歌单"
+    "deletePlaylist": "删除歌单",
+    "entityInfo": "实体信息",
+    "entityDisplayName": "展示名称",
+    "mergeEntity": "合并实体",
+    "splitEntity": "拆分实体",
+    "selectEntity": "选择实体",
+    "newEntityName": "新实体名称"
   },
   "navidrome": {
     "title": "Navi",

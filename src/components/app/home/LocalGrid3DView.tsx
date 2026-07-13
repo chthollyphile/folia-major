@@ -81,7 +81,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
             },
             coverSourceMap: sourceMap,
         };
-    }, [catalog, localPlaylists, localSongs, t]);
+    }, [catalog.assignments, catalog.entities, catalog.ready, localPlaylists, localSongs, t]);
 
     const [localFolderIndex, setLocalFolderIndex] = useDebouncedFocusSync(focusedFolderIndex, setFocusedFolderIndex);
     const [localAlbumIndex, setLocalAlbumIndex] = useDebouncedFocusSync(focusedAlbumIndex, setFocusedAlbumIndex);
@@ -110,7 +110,12 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
             }
         }
 
-        setGroupCoverObjectUrls(nextObjectUrls);
+        setGroupCoverObjectUrls(current => {
+            if (createdUrls.length === 0 && Object.keys(current).length === 0) {
+                return current;
+            }
+            return nextObjectUrls;
+        });
 
         return () => {
             createdUrls.forEach(url => URL.revokeObjectURL(url));

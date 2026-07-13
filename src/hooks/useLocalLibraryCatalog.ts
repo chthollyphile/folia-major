@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../types/localLibrary';
 import { ensureLocalLibraryInitialized } from '../services/localLibraryCatalogService';
 import { getLocalLibraryAssignments, getLocalLibraryEntities } from '../services/localLibraryEntityRepository';
@@ -44,5 +44,5 @@ export const useLocalLibraryCatalog = (refreshKey: unknown): LocalLibraryCatalog
     };
   }, [refreshKey, reload]);
 
-  return { ...catalog, reload };
+  return useMemo(() => ({ ...catalog, reload }), [catalog, reload]);
 };
