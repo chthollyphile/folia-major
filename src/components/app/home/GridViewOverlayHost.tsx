@@ -25,6 +25,7 @@ import {
 import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
 import { LocalLibraryEntityPanel } from '../../modal/LocalLibraryEntityPanel';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
+import { applyLocalSongCoverDisplay } from '../../../services/playbackAdapters';
 
 // src/components/app/home/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
@@ -51,12 +52,6 @@ export const GRID_VIEW_ACTIVE_COLLECTION_KEY = 'folia_gridview_active_collection
 const getPersistentCoverUrl = (url?: string) => (
     url && !url.startsWith('blob:') ? url : undefined
 );
-
-const withLocalTrackCoverUrl = (track: UnifiedSong, coverUrl: string): UnifiedSong => ({
-    ...track,
-    al: track.al ? { ...track.al, picUrl: coverUrl } : { id: 0, name: '', picUrl: coverUrl },
-    album: track.album ? { ...track.album, picUrl: coverUrl } : { id: 0, name: '', picUrl: coverUrl },
-});
 
 const getLocalTrackCoverObjectUrlSignature = (song: LocalSong): string | null => {
     if (!isBlob(song.embeddedCover)) {
@@ -474,7 +469,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                 const url = getOrCreateLocalTrackCoverObjectUrl(localData);
                 if (url) {
                     activeTrackCoverSongIds.add(localData.id);
-                    return withLocalTrackCoverUrl(track, url);
+                    return applyLocalSongCoverDisplay(track, url);
                 }
             }
 

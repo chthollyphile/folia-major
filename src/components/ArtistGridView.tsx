@@ -4,7 +4,7 @@ import { ChevronLeft, Disc, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
-import { buildLocalQueue } from '../services/playbackAdapters';
+import { applyLocalSongCoverDisplay, buildLocalQueue } from '../services/playbackAdapters';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { neteaseApi } from '../services/netease';
 import { createCoverPlaceholder } from '../utils/coverPlaceholders';
@@ -321,7 +321,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const deferredSearchQuery = useDeferredValue(searchQuery);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const isComposingSearchRef = useRef(false);
-    const localAlbumCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
+    const localCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
     const loadGenerationRef = useRef(0);
 
     // Coordinate motion values mapping grid drags
@@ -359,12 +359,12 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         }
     }, [navigationStorageKey]);
 
-    const clearLocalAlbumCoverObjectUrls = useCallback(() => {
-        localAlbumCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
-        localAlbumCoverObjectUrlsRef.current.clear();
+    const clearLocalCoverObjectUrls = useCallback(() => {
+        localCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
+        localCoverObjectUrlsRef.current.clear();
     }, []);
 
-    const getOrCreateLocalAlbumCoverObjectUrl = useCallback((song: LocalSong) => {
+    const getOrCreateLocalCoverObjectUrl = useCallback((song: LocalSong) => {
         if (!isBlob(song.embeddedCover)) {
             return undefined;
         }
@@ -375,7 +375,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             song.fileSize,
             song.fileLastModified,
         ]);
-        const cached = localAlbumCoverObjectUrlsRef.current.get(song.id);
+        const cached = localCoverObjectUrlsRef.current.get(song.id);
         if (cached?.signature === signature) {
             return cached.url;
         }
@@ -385,9 +385,16 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         }
 
         const url = URL.createObjectURL(song.embeddedCover);
-        localAlbumCoverObjectUrlsRef.current.set(song.id, { signature, url });
+        localCoverObjectUrlsRef.current.set(song.id, { signature, url });
         return url;
     }, []);
+
+    const resolveLocalSongCoverUrl = useCallback((song: LocalSong) => {
+        const embeddedCoverUrl = getOrCreateLocalCoverObjectUrl(song);
+        return song.useOnlineCover
+            ? (song.matchedCoverUrl || embeddedCoverUrl)
+            : (embeddedCoverUrl || song.matchedCoverUrl);
+    }, [getOrCreateLocalCoverObjectUrl]);
 
     // Appends Netease album pages without replacing already rendered artist content.
     const loadNeteaseAlbumPages = async (artistId: number, generation: number, startOffset = 0) => {
@@ -495,26 +502,35 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     const albumEntity = albumEntityId ? catalogIndex.entitiesById.get(albumEntityId) : undefined;
                     const albumKey = albumEntity?.id || '__unknown-album__';
                     const albumName = albumEntity?.displayName || t('localMusic.unknownAlbum');
+                    const coverUrl = resolveLocalSongCoverUrl(song);
                     if (!albumMap.has(albumKey)) {
-                        let coverUrl = song.matchedCoverUrl || undefined;
-                        if (!coverUrl) {
-                            coverUrl = getOrCreateLocalAlbumCoverObjectUrl(song);
-                        }
                         albumMap.set(albumKey, {
                             id: albumKey,
                             name: albumName,
                             picUrl: coverUrl,
                             publishTime: undefined,
                         });
+                    } else if (coverUrl && !albumMap.get(albumKey)?.picUrl) {
+                        albumMap.get(albumKey)!.picUrl = coverUrl;
                     }
                 });
 
                 const albumsList = Array.from(albumMap.values());
+                const topLocalSongs = artistSongs.slice(0, 10);
                 const formattedTopSongs = buildLocalQueue(
-                    artistSongs.slice(0, 10),
+                    topLocalSongs,
                     undefined,
                     localLibraryCatalog,
-                ) as SongResult[];
+                ).map((track, index) => {
+                    const localSong = topLocalSongs[index];
+                    const assignment = catalogIndex.assignmentsBySongId.get(localSong.id);
+                    const albumEntityId = assignment?.albumEntityId
+                        ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
+                        : undefined;
+                    const albumKey = albumEntityId || '__unknown-album__';
+                    const coverUrl = resolveLocalSongCoverUrl(localSong) || albumMap.get(albumKey)?.picUrl;
+                    return coverUrl ? applyLocalSongCoverDisplay(track, coverUrl) : track;
+                }) as SongResult[];
 
                 setArtistInfo({
                     name: artistName,
@@ -534,13 +550,13 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     };
 
     useEffect(() => {
-        clearLocalAlbumCoverObjectUrls();
+        clearLocalCoverObjectUrls();
         void loadArtistData();
         return () => {
             loadGenerationRef.current++;
-            clearLocalAlbumCoverObjectUrls();
+            clearLocalCoverObjectUrls();
         };
-    }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source, localLibraryCatalog]);
+    }, [clearLocalCoverObjectUrls, collection.id, collection.source, localLibraryCatalog, resolveLocalSongCoverUrl]);
 
     useEffect(() => {
         if (!showSearchPanel) return;

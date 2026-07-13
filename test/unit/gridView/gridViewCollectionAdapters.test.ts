@@ -9,6 +9,7 @@ import {
 import { buildLocalGrid3DGroups } from '../../../src/components/app/home/localGrid3DModel';
 import type { LocalLibraryGroup, LocalSong } from '../../../src/types';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../src/types/localLibrary';
+import { applyLocalSongCoverDisplay } from '../../../src/services/playbackAdapters';
 
 // test/unit/gridView/gridViewCollectionAdapters.test.ts
 // Verifies that GridView descriptors stay serializable and resolve local queues by id.
@@ -125,6 +126,22 @@ describe('gridViewCollectionAdapters', () => {
             { id: 0, entityId: 'artist-b', name: '三森すずこ' },
         ]);
         expect(track.artists).toEqual(track.ar);
+    });
+
+    it('applies a resolved local cover even when the track has no album metadata', () => {
+        const song = { ...buildLocalSong('song-a', 'A'), album: undefined };
+        const descriptor = createLocalGridViewCollection({
+            id: 'folder-music',
+            name: 'Music',
+            type: 'folder',
+            songs: [song],
+        });
+        const [track] = resolveLocalGridViewTracks(descriptor, [song]);
+
+        const coveredTrack = applyLocalSongCoverDisplay(track, 'blob:local-cover');
+
+        expect(coveredTrack.al?.picUrl).toBe('blob:local-cover');
+        expect(coveredTrack.album.picUrl).toBe('blob:local-cover');
     });
 
     it('refreshes virtual all songs descriptors from the current local song list', () => {

@@ -48,6 +48,13 @@ export const applyLocalLibraryArtistDisplay = <T extends SongResult>(
     };
 };
 
+// Applies a resolved local cover URL to both API-compatible album fields used by song cards.
+export const applyLocalSongCoverDisplay = <T extends SongResult>(song: T, coverUrl: string): T => ({
+    ...song,
+    al: song.al ? { ...song.al, picUrl: coverUrl } : { id: 0, name: song.album?.name || '', picUrl: coverUrl },
+    album: song.album ? { ...song.album, picUrl: coverUrl } : { id: 0, name: '', picUrl: coverUrl },
+});
+
 export const getLocalSongId = (localSong: LocalSong): number => {
     // Generate a reliable 52-bit hash from the string ID to avoid parsing long digits and losing precision or colliding.
     // DJB2 style hash into two parts to create a safe integer
