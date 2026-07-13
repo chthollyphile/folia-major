@@ -9,6 +9,7 @@ import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { normalizeLyricMatchText } from '../utils/lyrics/matchScore';
 import { isBlob } from '../utils/blobGuards';
 import { resolveExplicitFileTimedLyricFormat, type ExplicitFileTimedLyricFormat } from '../utils/lyrics/formatDetection';
+import { applyMatchedMetadata } from './localLibraryCatalogService';
 
 
 type EmbeddedMetadata = EmbeddedMetadataResult;
@@ -1338,7 +1339,12 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             if (coverUrl) {
                 song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
             }
-            await saveLocalSong(song);
+            await applyMatchedMetadata(song.id, {
+                songId: matchedSong.id,
+                artists: matchedSong.ar || matchedSong.artists,
+                album: matchedSong.al || matchedSong.album,
+                coverUrl: song.matchedCoverUrl,
+            }, { songPatch: song });
 
             // Return null to indicate no NEW lyrics were fetched (local lyrics are used)
             return null;
@@ -1382,7 +1388,19 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
                     song.matchedIsPureMusic = false;
                 }
 
-                await saveLocalSong(song);
+                const structuredArtists = song.matchedArtistEntities
+                    || (song.matchedArtists ? [{ name: song.matchedArtists }] : undefined);
+                await applyMatchedMetadata(song.id, {
+                    songId: song.matchedSongId,
+                    artists: structuredArtists,
+                    album: song.matchedAlbumName
+                        ? { id: song.matchedAlbumId, name: song.matchedAlbumName }
+                        : undefined,
+                    coverUrl: song.matchedCoverUrl,
+                }, {
+                    lyricsOnly: !song.matchedAlbumName && !structuredArtists?.length,
+                    songPatch: song,
+                });
                 return bestMatch.lyrics;
             }
         }
@@ -1409,7 +1427,12 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
         }
 
-        await saveLocalSong(song);
+        await applyMatchedMetadata(song.id, {
+            songId: matchedSong.id,
+            artists: matchedSong.ar || matchedSong.artists,
+            album: matchedSong.al || matchedSong.album,
+            coverUrl: song.matchedCoverUrl,
+        }, { songPatch: song });
         return processed.lyrics;
     } catch (error) {
         console.error('[LocalMusic] Failed to match lyrics:', error);

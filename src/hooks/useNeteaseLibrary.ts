@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { clearCache, getCacheUsage, getFromCache, openDB, saveToCache } from '../services/db';
+import {
+    clearCache,
+    getCacheKeysByPrefix,
+    getCacheUsage,
+    getFromCache,
+    removeCacheEntries,
+    saveToCache,
+} from '../services/db';
 import { neteaseApi } from '../services/netease';
 import { NeteasePlaylist, NeteaseUser, StatusMessage } from '../types';
 
@@ -124,20 +131,12 @@ export function useNeteaseLibrary({
         setLikedSongIds(new Set());
 
         try {
-            const db = await openDB();
-            const tx = db.transaction(['user_cache', 'api_cache'], 'readwrite');
-            const userStore = tx.objectStore('user_cache');
-            const legacyStore = tx.objectStore('api_cache');
-
-            ['user_profile', 'user_playlists', 'user_liked_songs', 'user_cloud_playlist'].forEach((key) => {
-                userStore.delete(key);
-                legacyStore.delete(key);
-            });
-
-            await new Promise<void>((resolve, reject) => {
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            });
+            await removeCacheEntries([
+                'user_profile',
+                'user_playlists',
+                'user_liked_songs',
+                'user_cloud_playlist',
+            ]);
         } catch (error) {
             console.warn('Failed to clear auth cache', error);
         }
@@ -292,24 +291,10 @@ export function useNeteaseLibrary({
 
             if (changedPlaylistIds.length > 0) {
                 try {
-                    const db = await openDB();
-                    const tx = db.transaction(['metadata_cache'], 'readwrite');
-                    const store = tx.objectStore('metadata_cache');
-
-                    const deletePromises = changedPlaylistIds.flatMap(playlistId => [
-                        new Promise<void>((resolve, reject) => {
-                            const req = store.delete(`playlist_tracks_${playlistId}`);
-                            req.onsuccess = () => resolve();
-                            req.onerror = () => reject(req.error);
-                        }),
-                        new Promise<void>((resolve, reject) => {
-                            const req = store.delete(`playlist_detail_${playlistId}`);
-                            req.onsuccess = () => resolve();
-                            req.onerror = () => reject(req.error);
-                        })
-                    ]);
-
-                    await Promise.all(deletePromises);
+                    await removeCacheEntries(changedPlaylistIds.flatMap(playlistId => [
+                        `playlist_tracks_${playlistId}`,
+                        `playlist_detail_${playlistId}`,
+                    ]));
                 } catch (error) {
                     console.error('[PlaylistSync] Failed to clear cache', error);
                 }
@@ -343,18 +328,10 @@ export function useNeteaseLibrary({
         const preserveKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'user_cloud_playlist', 'last_song', 'last_queue', 'last_theme'];
 
         try {
-            const db = await openDB();
-            const tx = db.transaction(['metadata_cache'], 'readonly');
-            const store = tx.objectStore('metadata_cache');
-            const allKeys = await new Promise<string[]>((resolve, reject) => {
-                const request = store.getAllKeys();
-                request.onsuccess = () => resolve(request.result as string[]);
-                request.onerror = () => reject(request.error);
-            });
-
-            const playlistKeys = allKeys.filter(key =>
-                key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')
-            );
+            const playlistKeys = await getCacheKeysByPrefix([
+                'playlist_tracks_',
+                'playlist_detail_',
+            ]);
 
             await clearCache([...preserveKeys, ...playlistKeys]);
             updateCacheSize();

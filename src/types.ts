@@ -794,6 +794,9 @@ export interface LocalSong {
   // Lyrics matching result
   matchedSongId?: number; // Netease song ID
   matchedArtists?: string; // Matched artist names (joined string)
+  matchedArtistEntities?: Array<{ id?: number | string; name: string }>;
+  manualArtistNames?: string[];
+  manualAlbumName?: string;
   matchedAlbumId?: number; // Netease album ID
   matchedAlbumName?: string; // Netease album name
   matchedLyrics?: LyricData;
@@ -868,8 +871,16 @@ export interface LocalLibraryGroup {
   trackCount?: number;
   description?: string;
   albumId?: number;
+  entityId?: string;
   playlistId?: string;
 }
+
+export type {
+  LocalLibraryAssignment,
+  LocalLibraryAssignmentOrigin,
+  LocalLibraryEntity,
+  LocalLibraryEntityKind,
+} from './types/localLibrary';
 
 // Extend SongResult to support local files and Navidrome files
 export interface UnifiedSong extends SongResult {

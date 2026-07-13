@@ -18,6 +18,8 @@ import { GridListSearchButton } from './shared/GridListSearchButton';
 import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
 import { appendUniqueByKey, deriveProgressiveLoadingState } from './folia-grid/progressiveGrid';
 import { useProgressiveItemEntrance } from './folia-grid/useProgressiveItemEntrance';
+import { useLocalLibraryCatalog } from '../hooks/useLocalLibraryCatalog';
+import { buildLocalLibraryIndex, followEntityRedirect } from '../utils/localLibraryIndex';
 
 /*
  * ArtistGridView.tsx
@@ -39,6 +41,7 @@ interface ArtistGridViewProps {
     theme: Theme;
     isDaylight: boolean;
     localSongs?: LocalSong[];
+    onEditEntity?: (entityId: string) => void;
 }
 
 interface GridItem {
@@ -186,8 +189,10 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     theme,
     isDaylight,
     localSongs = [],
+    onEditEntity,
 }) => {
     const { t } = useTranslation();
+    const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
     const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
     const cardBg = isDaylight ? 'bg-white/60 border border-white/30' : 'bg-zinc-900/60 border border-white/10';
 
@@ -461,20 +466,41 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     setAlbums(mappedAlbums);
                 }
             } else if (source === 'local') {
-                const artistName = collection.name || '';
-                const artistSongs = localSongs.filter(song => (song.matchedArtists || song.artist || '').toLowerCase() === artistName.toLowerCase());
+                if (!localLibraryCatalog.ready) return;
+                const catalogIndex = buildLocalLibraryIndex(
+                    localLibraryCatalog.entities,
+                    localLibraryCatalog.assignments,
+                );
+                const artistEntityId = followEntityRedirect(
+                    String(collection.entityId || collection.id),
+                    catalogIndex.entitiesById,
+                );
+                const artistEntity = artistEntityId ? catalogIndex.entitiesById.get(artistEntityId) : undefined;
+                if (!artistEntity || artistEntity.kind !== 'artist') return;
+                const artistName = artistEntity.displayName;
+                const artistAssignments = localLibraryCatalog.assignments.filter(assignment => (
+                    assignment.artistEntityIds.includes(artistEntity.id)
+                ));
+                const artistSongIds = new Set(artistAssignments.map(assignment => assignment.songId));
+                const artistSongs = localSongs.filter(song => artistSongIds.has(song.id));
 
                 const albumMap = new Map<string, { id: string, name: string, picUrl?: string, publishTime?: number; }>();
                 artistSongs.forEach(song => {
-                    const albName = song.album || t('localMusic.unknownAlbum');
-                    if (!albumMap.has(albName)) {
+                    const assignment = catalogIndex.assignmentsBySongId.get(song.id);
+                    const albumEntityId = assignment?.albumEntityId
+                        ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
+                        : undefined;
+                    const albumEntity = albumEntityId ? catalogIndex.entitiesById.get(albumEntityId) : undefined;
+                    const albumKey = albumEntity?.id || '__unknown-album__';
+                    const albumName = albumEntity?.displayName || t('localMusic.unknownAlbum');
+                    if (!albumMap.has(albumKey)) {
                         let coverUrl = song.matchedCoverUrl || undefined;
                         if (!coverUrl) {
                             coverUrl = getOrCreateLocalAlbumCoverObjectUrl(song);
                         }
-                        albumMap.set(albName, {
-                            id: albName, // Just use name as id
-                            name: albName,
+                        albumMap.set(albumKey, {
+                            id: albumKey,
+                            name: albumName,
                             picUrl: coverUrl,
                             publishTime: undefined,
                         });
@@ -508,7 +534,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             loadGenerationRef.current++;
             clearLocalAlbumCoverObjectUrls();
         };
-    }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source]);
+    }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source, localLibraryCatalog]);
 
     useEffect(() => {
         if (!showSearchPanel) return;
@@ -1165,7 +1191,14 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     color: 'var(--text-primary)',
                 }}
             >
-                <h2 className="text-lg font-bold tracking-tight">{artistInfo?.name || collection.name}</h2>
+                <button
+                    type="button"
+                    disabled={collection.source !== 'local' || !collection.entityId || !onEditEntity}
+                    onClick={() => onEditEntity?.(String(collection.entityId))}
+                    className="text-lg font-bold tracking-tight disabled:cursor-default"
+                >
+                    {artistInfo?.name || collection.name}
+                </button>
                 <p className="text-xs opacity-50 mt-0.5">{t('navidrome.artists') || 'Artists'}</p>
             </div>
 

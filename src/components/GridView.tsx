@@ -39,6 +39,7 @@ export interface GridViewSourceActions {
         onRenamePlaylist?: (playlistId: string, name: string) => Promise<void> | void;
         onDeletePlaylist?: (playlistId: string) => Promise<void> | void;
         onRemovePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
+        onEditEntity?: (entityId: string) => Promise<void> | void;
     };
     navidrome?: {
         availablePlaylists?: Array<{ id: string | number; name: string; description?: string; }>;
@@ -677,6 +678,7 @@ export const GridView: React.FC<GridViewProps> = ({
     const isLocalFolderCollection = isLocalCollection && collection?.type === 'folder' && !collection?.isVirtual;
     const isLocalAllSongsCollection = isLocalCollection && collection?.type === 'folder' && Boolean(collection?.isVirtual);
     const isLocalPlaylistCollection = isLocalCollection && collection?.type === 'playlist' && Boolean(collection?.playlistId) && !collection?.isVirtual;
+    const isLocalEntityCollection = isLocalCollection && Boolean(collection?.entityId);
     const isNavidromePlaylistCollection = isNavidromeCollection && collection?.type === 'playlist' && Boolean(collection?.editable);
     const canAddNavidromeToPlaylist = isNavidromeCollection
         && collection?.type !== 'playlist'
@@ -2078,7 +2080,14 @@ export const GridView: React.FC<GridViewProps> = ({
                                             autoFocus
                                         />
                                     ) : (
-                                        <h3 className="text-xl font-bold line-clamp-2 leading-snug">{collection.name}</h3>
+                                        <button
+                                            type="button"
+                                            disabled={!isLocalEntityCollection || !sourceActions?.local?.onEditEntity}
+                                            onClick={() => void sourceActions?.local?.onEditEntity?.(String(collection.entityId))}
+                                            className="text-left text-xl font-bold line-clamp-2 leading-snug disabled:cursor-default"
+                                        >
+                                            {collection.name}
+                                        </button>
                                     )}
                                     {collection.creator && (
                                         <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
@@ -2244,6 +2253,15 @@ export const GridView: React.FC<GridViewProps> = ({
                                         {isDailyRecommendationsCollection
                                             ? (isEditMode ? t('home.finishManagingRecommendations') : t('home.manageRecommendations'))
                                             : (isEditMode ? t('localMusic.finishEditing') : t('localMusic.editPlaylist'))}
+                                    </button>
+                                )}
+                                {isLocalEntityCollection && sourceActions?.local?.onEditEntity && (
+                                    <button
+                                        onClick={() => void sourceActions.local?.onEditEntity?.(String(collection.entityId))}
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Pencil size={14} />
+                                        {t('localMusic.entityInfo')}
                                     </button>
                                 )}
                                 {(isLocalFolderCollection || isLocalPlaylistCollection || isNavidromePlaylistCollection) && (

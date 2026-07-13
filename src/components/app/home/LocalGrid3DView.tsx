@@ -6,6 +6,7 @@ import { LocalLibraryGroup, LocalPlaylist, LocalSong, Theme } from '../../../typ
 import { GridViewCollectionDescriptor, createLocalGridViewCollection } from './gridViewCollectionAdapters';
 import { buildLocalGrid3DGroups } from './localGrid3DModel';
 import { useDebouncedFocusSync } from '../../../hooks/useDebouncedFocusSync';
+import { useLocalLibraryCatalog } from '../../../hooks/useLocalLibraryCatalog';
 
 // src/components/app/home/LocalGrid3DView.tsx
 // Desktop-only local music Grid3D overview that opens GridView instead of legacy carousel details.
@@ -58,8 +59,9 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     hasFloatingPlayer = false,
 }) => {
     const { t } = useTranslation();
+    const catalog = useLocalLibraryCatalog(localSongs);
     const { groups, coverSourceMap } = useMemo(() => {
-        const rawGroups = buildLocalGrid3DGroups(localSongs, localPlaylists, t);
+        const rawGroups = buildLocalGrid3DGroups(localSongs, localPlaylists, t, catalog.ready ? catalog : undefined);
         const sourceMap = new Map<string, Blob | string | undefined>();
 
         const processItems = (items: LocalLibraryGroup[]) => items.map(item => {
@@ -79,7 +81,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
             },
             coverSourceMap: sourceMap,
         };
-    }, [localPlaylists, localSongs, t]);
+    }, [catalog, localPlaylists, localSongs, t]);
 
     const [localFolderIndex, setLocalFolderIndex] = useDebouncedFocusSync(focusedFolderIndex, setFocusedFolderIndex);
     const [localAlbumIndex, setLocalAlbumIndex] = useDebouncedFocusSync(focusedAlbumIndex, setFocusedAlbumIndex);

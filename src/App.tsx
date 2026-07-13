@@ -53,6 +53,7 @@ import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackControll
 import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReporter';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
 import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
+import { useLocalLibraryCatalog } from './hooks/useLocalLibraryCatalog';
 import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge';
 import { useRandomVisualizerMode } from './hooks/useRandomVisualizerMode';
 import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
@@ -1060,6 +1061,7 @@ export default function App() {
         canRestoreSession: windowPlaybackHandoffRestoreStatus === 'none',
     });
 
+    const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
     const {
         openCurrentLocalAlbum,
         openCurrentLocalArtist,
@@ -1069,6 +1071,7 @@ export default function App() {
         currentView,
         currentSong,
         localSongs,
+        localLibraryCatalog,
         setHomeViewTab,
         setLocalMusicState,
         navigateDirectHome,

@@ -8,6 +8,7 @@ import {
 } from '../../../src/components/app/home/gridViewCollectionAdapters';
 import { buildLocalGrid3DGroups } from '../../../src/components/app/home/localGrid3DModel';
 import type { LocalLibraryGroup, LocalSong } from '../../../src/types';
+import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../src/types/localLibrary';
 
 // test/unit/gridView/gridViewCollectionAdapters.test.ts
 // Verifies that GridView descriptors stay serializable and resolve local queues by id.
@@ -135,6 +136,54 @@ describe('gridViewCollectionAdapters', () => {
 
         expect(refreshed.songIds).toEqual(['song-b']);
         expect(refreshed.trackCount).toBe(1);
+    });
+
+    it('refreshes entity descriptors from live UUID assignments and follows redirects', () => {
+        const songs = [buildLocalSong('song-a', 'A'), buildLocalSong('song-b', 'B')];
+        const entities: LocalLibraryEntity[] = [
+            {
+                id: 'old-album',
+                kind: 'album',
+                displayName: 'Old',
+                aliases: ['Old'],
+                normalizedAliases: ['old'],
+                mergedInto: 'album-1',
+                createdAt: 1,
+                updatedAt: 2,
+            },
+            {
+                id: 'album-1',
+                kind: 'album',
+                displayName: 'Current Album',
+                aliases: ['Current Album'],
+                normalizedAliases: ['current album'],
+                createdAt: 1,
+                updatedAt: 2,
+            },
+        ];
+        const assignments: LocalLibraryAssignment[] = [{
+            songId: 'song-b',
+            artistEntityIds: [],
+            artistOrigin: 'import',
+            albumEntityId: 'album-1',
+            albumOrigin: 'import',
+            updatedAt: 1,
+        }];
+        const descriptor = createLocalGridViewCollection({
+            id: 'old-album',
+            entityId: 'old-album',
+            name: 'Old',
+            type: 'album',
+            songs: [songs[0]],
+        });
+
+        expect(refreshLocalGridViewCollection(descriptor, songs, { entities, assignments })).toMatchObject({
+            id: 'album-1',
+            entityId: 'album-1',
+            name: 'Current Album',
+            songIds: ['song-b'],
+            trackCount: 1,
+        });
     });
 
     it('ignores non-Blob embedded covers when resolving local collection covers', () => {

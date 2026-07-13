@@ -29,6 +29,7 @@ import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState, getOnlineLyricsStateCacheKey } from '../utils/onlineLyricsState';
 import { getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
+import { applyMatchedMetadata } from '../services/localLibraryCatalogService';
 
 // src/hooks/useLibraryPlaybackController.ts
 
@@ -1255,7 +1256,10 @@ export function useLibraryPlaybackController({
                         ? bestMatch.id as number
                         : localData.matchedSongId,
                 };
-                await saveLocalSong(updatedLocalSong);
+                await applyMatchedMetadata(localData.id, {}, {
+                    lyricsOnly: true,
+                    songPatch: updatedLocalSong,
+                });
                 const updatedSong = { ...currentSong, localData: updatedLocalSong };
                 setCurrentSong(prev => prev?.id === currentSong.id ? updatedSong : prev);
                 setLyrics(bestMatch.lyrics);

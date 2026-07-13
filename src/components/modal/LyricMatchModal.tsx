@@ -2,7 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
 import { LocalSong, SongResult, LyricData } from '../../types';
-import { saveLocalSong, removeFromCache, saveToCache } from '../../services/db';
+import { removeFromCache, saveToCache } from '../../services/db';
+import {
+    applyManualMetadata,
+    applyMatchedMetadata,
+    restoreImportedMetadata,
+} from '../../services/localLibraryCatalogService';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore, normalizeLyricMatchText } from '../../utils/lyrics/matchScore';
@@ -252,7 +257,30 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
             song.lyricsSource = lyricsSource;
             song.hasManualLyricSelection = true;
-            await saveLocalSong(song);
+            const onlineArtist = getMatchResultArtists(selectedResult);
+            const onlineAlbum = getMatchResultAlbumName(selectedResult);
+            const selectedArtists = selectedResult.ar || selectedResult.artists || [];
+            const songPatch = { ...song };
+
+            if (!useOnlineMetadata) {
+                await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch });
+                await restoreImportedMetadata(song.id);
+            } else if (editArtist !== onlineArtist || editAlbum !== onlineAlbum) {
+                await applyMatchedMetadata(song.id, {
+                    songId: selectedResult.id,
+                    artists: selectedArtists,
+                    album: onlineAlbum ? { id: getMatchResultAlbumId(selectedResult), name: onlineAlbum } : undefined,
+                    coverUrl: song.matchedCoverUrl,
+                }, { lyricsOnly: true, songPatch });
+                await applyManualMetadata(song.id, editArtist ? [editArtist] : [], editAlbum);
+            } else {
+                await applyMatchedMetadata(song.id, {
+                    songId: selectedResult.id,
+                    artists: selectedArtists,
+                    album: onlineAlbum ? { id: getMatchResultAlbumId(selectedResult), name: onlineAlbum } : undefined,
+                    coverUrl: song.matchedCoverUrl,
+                }, { songPatch });
+            }
 
             // Remove old cached cover to force refresh
             await removeFromCache(`cover_local_${song.id}`);
@@ -286,17 +314,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             song.useOnlineCover = false;
             song.useOnlineMetadata = false;
 
-            // Clear all matched data to restore original local state
-            delete song.matchedSongId;
-            delete song.matchedArtists;
-            delete song.matchedAlbumId;
-            delete song.matchedAlbumName;
-            delete song.matchedLyrics;
-            delete song.matchedCoverUrl;
-            delete song.matchedLyricsSource;
-            delete song.matchedLyricsProviderPlatform;
-
-            await saveLocalSong(song);
+            await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+            await restoreImportedMetadata(song.id);
             // Clear cached online cover so embedded cover is used
             await removeFromCache(`cover_local_${song.id}`);
             onMatch(); // Trigger refresh so the change applies

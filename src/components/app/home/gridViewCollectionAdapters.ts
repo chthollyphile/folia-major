@@ -5,6 +5,8 @@ import { buildLocalQueue, buildNavidromeQueue } from '../../../services/playback
 import { SubsonicSong } from '../../../types/navidrome';
 import { isBlob } from '../../../utils/blobGuards';
 import { sortLocalFolderSongs } from '../../../utils/localSongSorting';
+import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
+import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 
 // src/components/app/home/gridViewCollectionAdapters.ts
 // Converts home-surface collections into small GridView descriptors and resolves non-Netease tracks outside GridView.
@@ -36,6 +38,7 @@ export interface LocalGridViewCollectionDescriptor extends BaseGridViewCollectio
     type: LocalLibraryGroup['type'];
     id: string;
     songIds: string[];
+    entityId?: string;
     playlistId?: string;
     isVirtual?: boolean;
 }
@@ -77,6 +80,7 @@ export const createLocalGridViewCollection = (group: LocalLibraryGroup): LocalGr
     description: group.description,
     trackCount: group.trackCount ?? group.songs.length,
     songIds: group.songs.map(song => song.id),
+    ...(group.entityId ? { entityId: group.entityId } : {}),
     playlistId: group.playlistId,
     isVirtual: group.isVirtual,
 });
@@ -111,8 +115,34 @@ export const createNavidromeGridViewCollection = (
 
 export const refreshLocalGridViewCollection = (
     descriptor: LocalGridViewCollectionDescriptor,
-    localSongs: LocalSong[]
+    localSongs: LocalSong[],
+    catalog?: { entities: LocalLibraryEntity[]; assignments: LocalLibraryAssignment[]; },
 ): LocalGridViewCollectionDescriptor => {
+    if (descriptor.entityId && catalog) {
+        const index = buildLocalLibraryIndex(catalog.entities, catalog.assignments);
+        const entityId = followEntityRedirect(descriptor.entityId, index.entitiesById);
+        const entity = entityId ? index.entitiesById.get(entityId) : undefined;
+        if (!entity || entity.mergedInto) {
+            return { ...descriptor, songIds: [], trackCount: 0 };
+        }
+        const songIds = catalog.assignments
+            .filter(assignment => entity.kind === 'artist'
+                ? assignment.artistEntityIds.includes(entity.id)
+                : assignment.albumEntityId === entity.id)
+            .map(assignment => assignment.songId);
+        const songIdSet = new Set(songIds);
+        const currentSongs = localSongs.filter(song => songIdSet.has(song.id));
+        const refreshedSongs = entity.kind === 'album' ? sortLocalFolderSongs(currentSongs) : currentSongs;
+        return {
+            ...descriptor,
+            id: entity.id,
+            entityId: entity.id,
+            name: entity.displayName,
+            songIds: refreshedSongs.map(song => song.id),
+            trackCount: refreshedSongs.length,
+        };
+    }
+
     if (descriptor.playlistId || descriptor.type !== 'folder') {
         return descriptor;
     }

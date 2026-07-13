@@ -22,6 +22,8 @@ import {
     resolveLocalGridViewTracks,
     resolveNavidromeGridViewTracks,
 } from './gridViewCollectionAdapters';
+import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
+import { LocalLibraryEntityPanel } from '../../modal/LocalLibraryEntityPanel';
 
 // src/components/app/home/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
@@ -101,10 +103,15 @@ const resolveLocalCollectionCoverUrlFromTracks = (
 
 const resolveLiveLocalCollection = (
     collection: LocalGridViewCollectionDescriptor,
-    legacyProps: LegacyHomeProps
+    legacyProps: LegacyHomeProps,
+    catalog: LocalLibraryCatalogSnapshot,
 ): LocalGridViewCollectionDescriptor | null => {
     if (!collection.playlistId) {
-        return refreshLocalGridViewCollection(collection, legacyProps.localSongs);
+        return refreshLocalGridViewCollection(
+            collection,
+            legacyProps.localSongs,
+            catalog.ready ? catalog : undefined,
+        );
     }
 
     const playlist = legacyProps.localPlaylists.find(item => item.id === collection.playlistId);
@@ -129,6 +136,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
     const setActiveGridViewCollection = useSettingsUiStore(state => state.setActiveGridViewCollection);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
     const onBackToPlayer = legacyProps.onBackToPlayer;
+    const localLibraryCatalog = useLocalLibraryCatalog(legacyProps.localSongs);
     const { homeViewTab, setHomeViewTab } = useSearchNavigationStore(useShallow(state => ({
         homeViewTab: state.homeViewTab,
         setHomeViewTab: state.setHomeViewTab,
@@ -141,6 +149,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
     const [externalTracksLoading, setExternalTracksLoading] = useState(false);
     const [resolvedLocalCollectionCoverUrl, setResolvedLocalCollectionCoverUrl] = useState<string | undefined>(undefined);
     const [navidromePlaylistItems, setNavidromePlaylistItems] = useState<Array<{ id: string | number; name: string; description?: string; }>>([]);
+    const [editingEntityId, setEditingEntityId] = useState<string | null>(null);
     const localTrackCoverObjectUrlsRef = useRef(new Map<string, LocalTrackCoverObjectUrlEntry>());
     const selectedCollectionKey = selectedCollection
         ? `${selectedCollection.source}:${selectedCollection.type}:${String(selectedCollection.id)}`
@@ -150,8 +159,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
             return selectedCollection;
         }
 
-        return resolveLiveLocalCollection(selectedCollection, legacyProps);
-    }, [legacyProps.localPlaylists, legacyProps.localSongs, selectedCollection]);
+        return resolveLiveLocalCollection(selectedCollection, legacyProps, localLibraryCatalog);
+    }, [legacyProps.localPlaylists, legacyProps.localSongs, localLibraryCatalog, selectedCollection]);
     const displaySelectedCollection = useMemo(() => {
         if (!liveSelectedCollection) {
             return null;
@@ -290,6 +299,20 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         }
     }, [collectionHistory, closeGridView, homeViewTab, setActiveGridViewCollection]);
 
+    useEffect(() => {
+        if (
+            localLibraryCatalog.ready &&
+            selectedCollection &&
+            isLocalGridViewCollection(selectedCollection) &&
+            selectedCollection.entityId &&
+            liveSelectedCollection &&
+            isLocalGridViewCollection(liveSelectedCollection) &&
+            liveSelectedCollection.trackCount === 0
+        ) {
+            handleBackCollection();
+        }
+    }, [handleBackCollection, liveSelectedCollection, localLibraryCatalog.ready, selectedCollection]);
+
     const handlePushAlbumCollection = useCallback((albumId: number | string, album?: any) => {
         if (!selectedCollection) return;
 
@@ -317,12 +340,20 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                 picUrl: albumCoverUrl,
             });
         } else if (source === 'local') {
-            const localAlbumName = album?.name || String(albumId);
+            const localAlbumEntity = localLibraryCatalog.entities.find(entity => (
+                entity.kind === 'album' && !entity.mergedInto && (entity.id === String(albumId) || entity.displayName === album?.name)
+            ));
+            if (!localAlbumEntity) return;
+            const localAlbumName = localAlbumEntity.displayName;
             const localCoverUrl = albumCoverUrl;
-            const albumSongs = legacyProps.localSongs.filter(song => (song.album || '').toLowerCase() === localAlbumName.toLowerCase());
+            const memberIds = new Set(localLibraryCatalog.assignments
+                .filter(assignment => assignment.albumEntityId === localAlbumEntity.id)
+                .map(assignment => assignment.songId));
+            const albumSongs = legacyProps.localSongs.filter(song => memberIds.has(song.id));
             handlePushCollection({
                 source: 'local',
-                id: localAlbumName,
+                id: localAlbumEntity.id,
+                entityId: localAlbumEntity.id,
                 name: localAlbumName,
                 type: 'album',
                 coverImgUrl: localCoverUrl,
@@ -331,7 +362,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                 songIds: albumSongs.map(song => song.id),
             });
         }
-    }, [handlePushCollection, legacyProps.localSongs, selectedCollection]);
+    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection]);
 
     useEffect(() => {
         if (!selectedCollection) {
@@ -506,6 +537,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
     const sourceActions = useMemo<GridViewSourceActions>(() => ({
         local: {
             onRefresh: legacyProps.onRefreshLocalSongs,
+            onEditEntity: async (entityId) => setEditingEntityId(entityId),
             onResyncFolder: async (collection) => {
                 const importedSongs = await resyncFolder(collection.name);
                 if (importedSongs !== null) {
@@ -588,6 +620,16 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         },
     }), [legacyProps, navidromePlaylistItems, refreshNavidromePlaylists]);
 
+    const editingEntity = editingEntityId
+        ? localLibraryCatalog.entities.find(entity => entity.id === editingEntityId)
+        : undefined;
+    const editingEntityMemberIds = new Set(localLibraryCatalog.assignments
+        .filter(assignment => editingEntity?.kind === 'artist'
+            ? assignment.artistEntityIds.includes(editingEntity.id)
+            : assignment.albumEntityId === editingEntity?.id)
+        .map(assignment => assignment.songId));
+    const editingEntitySongs = legacyProps.localSongs.filter(song => editingEntityMemberIds.has(song.id));
+
     return (
         <>
             <div
@@ -628,6 +670,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                             theme={legacyProps.theme}
                             isDaylight={isDaylight}
                             localSongs={legacyProps.localSongs}
+                            onEditEntity={(entityId) => setEditingEntityId(entityId)}
                         />
                     ) : (
                         <GridView
@@ -659,11 +702,21 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                                         type: 'artist',
                                     });
                                 } else if (source === 'local') {
-                                    const artistSongs = legacyProps.localSongs.filter(song => (song.matchedArtists || song.artist || '').toLowerCase() === String(artistId).toLowerCase());
+                                    const artistEntity = localLibraryCatalog.entities.find(entity => (
+                                        entity.kind === 'artist' && !entity.mergedInto && (
+                                            entity.id === String(artistId) || entity.displayName === String(artistId)
+                                        )
+                                    ));
+                                    if (!artistEntity) return;
+                                    const memberIds = new Set(localLibraryCatalog.assignments
+                                        .filter(assignment => assignment.artistEntityIds.includes(artistEntity.id))
+                                        .map(assignment => assignment.songId));
+                                    const artistSongs = legacyProps.localSongs.filter(song => memberIds.has(song.id));
                                     handlePushCollection({
                                         source: 'local',
-                                        id: String(artistId),
-                                        name: String(artistId),
+                                        id: artistEntity.id,
+                                        entityId: artistEntity.id,
+                                        name: artistEntity.displayName,
                                         type: 'artist',
                                         songIds: artistSongs.map(song => song.id),
                                     });
@@ -681,6 +734,19 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
                     )
                 )}
             </AnimatePresence>
+            {editingEntity && (
+                <LocalLibraryEntityPanel
+                    entity={editingEntity}
+                    sameKindEntities={localLibraryCatalog.entities.filter(entity => entity.kind === editingEntity.kind)}
+                    memberSongs={editingEntitySongs}
+                    isDaylight={isDaylight}
+                    onClose={() => setEditingEntityId(null)}
+                    onChanged={async () => {
+                        await localLibraryCatalog.reload();
+                        await legacyProps.onRefreshLocalSongs();
+                    }}
+                />
+            )}
         </>
     );
 };

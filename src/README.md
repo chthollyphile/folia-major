@@ -133,7 +133,10 @@ src/
   队列邻近歌曲的预取。
 
 - `services/db.ts`
-  IndexedDB 封装。缓存、用户数据、本地歌曲、目录句柄、快照和 `theme_registry` 主题同步注册表都在这里。
+  Dexie 存储兼容入口。保留既有缓存、用户数据、本地歌曲、目录句柄、快照和主题 registry API；类型化 schema 位于 `services/appDatabase.ts`，具体访问按 `services/repositories/*` 拆分。
+
+- `services/localLibraryCatalogService.ts` / `localLibraryEntityRepository.ts`
+  本地艺术家、专辑实体及歌曲 assignment 的事务入口。标签负责初始关联，目录只参与专辑解析；在线匹配、手动修改、恢复本地、合并和拆分都通过这里写入。
 
 - `services/coverCache.ts` / `themeCache.ts`
   封面和主题缓存；`themeCache.ts` 通过稳定歌曲 fingerprint 与同步 registry 对接远端主题。
@@ -222,6 +225,7 @@ src/
 - `PlayerPanel.tsx` 是当前 app-level 面板入口，`UnifiedPanel.tsx` 是 legacy 实现；不要重新把面板逻辑塞回单个大组件。
 - 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/*` 下与功能相邻的 `build*.ts` / `create*.ts`。
 - 本地音乐导入是增量快照式，不是单次全量扫描。
+- 本地曲库数据库已由 Dexie 全面管理，并保留原生 IndexedDB v6 数据兼容。艺术家/专辑 UUID 与显示名称、文件路径和在线来源 ID 相互独立；GridView 按 assignment 中的实体 UUID 导航。
 - 主题同步 registry 已从 legacy localStorage 迁移到 IndexedDB 的 `theme_registry` store；首次读取时会做一次性迁移，不要在业务组件里直接维护 registry。
 - 同步服务的主题同步与视觉设置同步是两个动作：`sync-now` 只同步 AI 主题；完整视觉设置的拉取/推送和 zip library 导入导出位于 `StorageSettingsSection.tsx`。
 - 歌词解析优先从 `parserCore.ts` 理解，不要从旧兼容层反推。
