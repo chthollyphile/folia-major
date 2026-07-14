@@ -752,7 +752,7 @@ export function useStagePlaybackController({
             setCurrentLineIndex(-1);
             setStatusMsg({
                 type: 'error',
-                text: t('status.spotifyNoSynchronizedLyrics').replace('{{title}}', track.title),
+text: t('status.spotifyNoSynchronizedLyrics', { title: track.title }),
             });
             return;
         }
