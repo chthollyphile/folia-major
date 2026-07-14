@@ -5,16 +5,19 @@ import type { LocalLibraryGroup, LocalSong } from '../../../src/types';
 // test/unit/regression/issue125ObjectUrlRepro.test.ts
 // Captures the bad cover payload shape behind issue #125.
 
-const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => ({
-    id: patch.id,
-    fileName: `${patch.id}.mp3`,
-    filePath: `/music/${patch.id}.mp3`,
-    duration: 180000,
-    fileSize: 1024,
-    mimeType: 'audio/mpeg',
-    addedAt: 1,
-    ...patch,
-});
+const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => {
+    const { id, ...songPatch } = patch;
+    return {
+        id,
+        fileName: `${id}.mp3`,
+        filePath: `/music/${id}.mp3`,
+        duration: 180000,
+        fileSize: 1024,
+        mimeType: 'audio/mpeg',
+        addedAt: 1,
+        ...songPatch,
+    };
+};
 
 describe('issue #125 object URL repro', () => {
     it('shows the native failure when createObjectURL receives a plain object', () => {

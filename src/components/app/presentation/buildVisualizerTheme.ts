@@ -29,7 +29,9 @@ export const buildVisualizerTheme = ({
     currentSongId?: number | null;
     visualizerMode: VisualizerMode;
 }) => {
-    const visualizerBackgroundColor = String(appStyle['--bg-color']);
+    const visualizerBackgroundColor = String(
+        (appStyle as CSSProperties & { '--bg-color'?: string })['--bg-color'] ?? theme.backgroundColor,
+    );
     const visualizerTheme: Theme = {
         ...theme,
         fontStyle: lyricsFontStyle,

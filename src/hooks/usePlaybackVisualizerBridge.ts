@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { findLatestActiveLineIndex } from '../utils/appPlaybackHelpers';
 import { PlayerState } from '../types';
-import type { LyricData } from '../types';
+import type { AudioBands, LyricData } from '../types';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -13,14 +13,7 @@ type UsePlaybackVisualizerBridgeParams = {
     animationFrameRef: MutableRefObject<number>;
     activePlaybackContext: 'main' | 'stage';
     audioPower: MotionValue<number>;
-    audioBands: {
-        bass: MotionValue<number>;
-        lowMid: MotionValue<number>;
-        mid: MotionValue<number>;
-        vocal: MotionValue<number>;
-        treble: MotionValue<number>;
-        spectrum?: MotionValue<Uint8Array>;
-    };
+    audioBands: AudioBands;
     currentTime: MotionValue<number>;
     lyrics: LyricData | null;
     playerState: PlayerState;

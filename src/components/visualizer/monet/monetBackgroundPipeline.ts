@@ -79,11 +79,8 @@ const resolveCanvasImageDimension = (
     dimension: 'width' | 'height',
     fallback: number,
 ) => {
-    if (!(dimension in image)) {
-        return fallback;
-    }
-
-    const value = image[dimension];
+    const dimensions = image as CanvasImageSource & Partial<Record<'width' | 'height', unknown>>;
+    const value = dimensions[dimension];
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 };
 

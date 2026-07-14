@@ -124,8 +124,8 @@ describe('createLyricsSetter', () => {
 
     it('resets cached chorus ranges when song changes', () => {
         const setLyricsStateMock = vi.fn();
-        const songA = { id: 101, name: 'Song A', artists: [], album: { name: 'A' }, duration: 100 } as SongResult;
-        const songB = { id: 102, name: 'Song B', artists: [], album: { name: 'B' }, duration: 100 } as SongResult;
+        const songA = { id: 101, name: 'Song A', artists: [], album: { id: 201, name: 'A' }, duration: 100 } as SongResult;
+        const songB = { id: 102, name: 'Song B', artists: [], album: { id: 202, name: 'B' }, duration: 100 } as SongResult;
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: songA };
         
         const setter = createLyricsSetter(setLyricsStateMock, '', currentSongFullRef);

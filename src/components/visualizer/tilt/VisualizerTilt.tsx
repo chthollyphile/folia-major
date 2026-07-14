@@ -394,6 +394,8 @@ const TiltLine: React.FC<{
     }, [graphemes]);
 
     useInsertionEffect(() => {
+        if (!currentTime) return;
+
         const handler = (latest: number) => {
             if (!visible) return;
             const mvs = charScaleMvs.current;

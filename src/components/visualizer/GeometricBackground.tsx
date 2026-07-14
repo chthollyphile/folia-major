@@ -419,10 +419,11 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo((prop
     previousTheme.secondaryColor === nextTheme.secondaryColor &&
     previousTheme.accentColor === nextTheme.accentColor;
 
-  const iconsEqual =
+  const iconsEqual = Boolean(
     previousTheme.lyricsIcons === nextTheme.lyricsIcons ||
     (previousTheme.lyricsIcons?.length === nextTheme.lyricsIcons?.length &&
-      previousTheme.lyricsIcons?.every((value, index) => value === nextTheme.lyricsIcons?.[index]));
+      previousTheme.lyricsIcons?.every((value, index) => value === nextTheme.lyricsIcons?.[index]))
+  );
 
   return colorsEqual && iconsEqual;
 });

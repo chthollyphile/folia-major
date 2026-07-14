@@ -8,7 +8,7 @@ import { getOnlineSongCacheKey, isSongMarkedUnavailable, neteaseApi } from '../s
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
-import { PlayerState, type HomeViewTab, type StagePlayerQueueDiffOp, type StagePlayerSnapshot } from '../types';
+import { PlayerState, type HomeViewTab, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
@@ -457,24 +457,21 @@ export function usePlaybackQueueController({
         }
 
         if (isLocal) {
-            let localData = song.localData ?? null;
-
-            if (!localData) {
-                localData = localSongs.find(ls =>
+            const localData = song.localData ?? localSongs.find(ls =>
                     (ls.title || ls.fileName) === song.name &&
                     Math.abs(ls.duration - song.duration) < 1000
                 ) ?? null;
-            }
 
             if (!localData) {
                 setStatusMsg({ type: 'error', text: t('status.localFilePlaybackError') });
                 return;
             }
+            const resolvedLocalData = localData;
 
             const localQueue = queueContext
                 .map(queuedSong => (queuedSong as SongResult & { localData?: LocalSong }).localData)
                 .filter((queuedSong): queuedSong is LocalSong => Boolean(queuedSong));
-            await onPlayLocalSong(localData, localQueue, { shouldNavigateToPlayer });
+            await onPlayLocalSong(resolvedLocalData, localQueue, { shouldNavigateToPlayer });
             return;
         }
 
@@ -1018,20 +1015,25 @@ export function usePlaybackQueueController({
         }
     }, [appendNeteaseSongsToMainQueue, buildStageQueueAddDiffDraft, buildStageQueueOperationSnapshot, currentSong, playQueue, playSong]);
 
-    const resolveStageQueueIndex = useCallback((queue: SongResult[], request: { queueItemId?: string; fromQueueItemId?: string; index?: number; fromIndex?: number; }) => {
-        const requestedIndex = Number.isInteger(request.index) ? request.index : request.fromIndex;
-        if (Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < queue.length) {
+    const resolveStageQueueIndex = useCallback((queue: SongResult[], request: StagePlayerQueueRequest): number => {
+        const requestedIndex = typeof request.index === 'number' && Number.isInteger(request.index)
+            ? request.index
+            : request.fromIndex;
+        if (typeof requestedIndex === 'number' && Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < queue.length) {
             return requestedIndex;
         }
 
         return resolveStagePlayerQueueItemIndex(queue, request.queueItemId || request.fromQueueItemId);
     }, []);
 
-    const loadStageQueueSongs = useCallback(async (request: { songId?: number; songIds?: number[]; }) => {
+    const loadStageQueueSongs = useCallback(async (request: StagePlayerQueueRequest) => {
+        const singleSongId = typeof request.songId === 'number' && Number.isInteger(request.songId) && request.songId > 0
+            ? request.songId
+            : null;
         const songIds = Array.isArray(request.songIds) && request.songIds.length > 0
             ? request.songIds
-            : Number.isInteger(request.songId) && request.songId > 0
-                ? [request.songId]
+            : singleSongId !== null
+                ? [singleSongId]
                 : [];
 
         if (songIds.length === 0) {
@@ -1054,17 +1056,7 @@ export function usePlaybackQueueController({
         return songs;
     }, []);
 
-    const handleStagePlayerQueueRequest = useCallback(async (request: {
-        requestId: string;
-        action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-        songId?: number;
-        songIds?: number[];
-        queueItemId?: string;
-        fromQueueItemId?: string;
-        fromIndex?: number;
-        toIndex?: number;
-        index?: number;
-    }) => {
+    const handleStagePlayerQueueRequest = useCallback(async (request: StagePlayerQueueRequest) => {
         const complete = async (ok: boolean, error?: unknown, result?: any, snapshot?: StagePlayerSnapshot) => {
             await window.electron?.completeStagePlayerQueueRequest?.({
                 requestId: request.requestId,
@@ -1114,12 +1106,17 @@ export function usePlaybackQueueController({
                 diffDraft = { ops: [{ op: 'remove', index: removeIndex }] };
             } else if (request.action === 'move') {
                 const fromIndex = resolveStageQueueIndex(baseQueue, request);
-                const toIndex = Number.isInteger(request.toIndex) ? request.toIndex : -1;
+                const toIndex = typeof request.toIndex === 'number' && Number.isInteger(request.toIndex)
+                    ? request.toIndex
+                    : -1;
                 if (fromIndex < 0 || toIndex < 0 || toIndex >= baseQueue.length) {
                     throw new Error('Queue move requires valid from and to indexes.');
                 }
                 nextQueue = [...baseQueue];
                 const [movedSong] = nextQueue.splice(fromIndex, 1);
+                if (!movedSong) {
+                    throw new Error('Queue item was not found.');
+                }
                 nextQueue.splice(toIndex, 0, movedSong);
                 diffDraft = fromIndex === toIndex ? { ops: [] } : { ops: [{ op: 'move', from: fromIndex, to: toIndex }] };
             } else if (request.action === 'select') {
@@ -1128,6 +1125,9 @@ export function usePlaybackQueueController({
                     throw new Error('Queue select requires a valid queueItemId or index.');
                 }
                 const selectedSong = baseQueue[selectIndex];
+                if (!selectedSong) {
+                    throw new Error('Queue item was not found.');
+                }
                 await playSong(selectedSong, baseQueue, isFmMode, { shouldNavigateToPlayer: true });
                 await complete(
                     true,

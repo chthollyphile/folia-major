@@ -1,4 +1,4 @@
-import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode } from '../types';
+import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode, type SongResult } from '../types';
 import { saveLocalSong, saveLocalSongs, deleteLocalSong as dbDeleteLocalSong, deleteLocalSongs as dbDeleteLocalSongs, saveDirHandles, getDirHandles, deleteDirHandle, getLocalSongs, getLocalLibrarySnapshot, saveLocalLibrarySnapshot, deleteLocalLibrarySnapshot } from './db';
 import { neteaseApi } from './netease';
 import { getLocalPlaylists, saveLocalPlaylists } from './localPlaylistService';
@@ -1314,7 +1314,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         // Try to find a song with matching title
         const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-        let matchedSong = searchRes.result.songs.find(s => isTitleMatch(localTitle, s.name));
+        const matchedSong = (searchRes.result.songs as SongResult[]).find(candidate => isTitleMatch(localTitle, candidate.name));
 
         // If no exact title match found, return null to trigger manual selection
         if (!matchedSong) {
@@ -1458,10 +1458,10 @@ function getRootFolderName(song: LocalSong): string | null {
 async function resolveFileHandleFromDirHandle(
     dirHandle: FileSystemDirectoryHandle,
     relativePathFromRoot: string
-): Promise<FileSystemFileHandle | null> {
+): Promise<FileSystemFileHandle> {
     const pathSegments = relativePathFromRoot.split('/').filter(Boolean);
     if (pathSegments.length === 0) {
-        return null;
+        throw new Error('Cannot resolve a file handle from an empty path.');
     }
 
     const fileName = pathSegments[pathSegments.length - 1];

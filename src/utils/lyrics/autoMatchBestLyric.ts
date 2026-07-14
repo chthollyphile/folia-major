@@ -175,14 +175,17 @@ export async function autoMatchBestLyric(
         return qqBestCandidate;
     };
 
-    const getNeteaseProcessed = async (song: any) => {
-        return String(options.neteaseCandidate?.id) === String(song.id)
-            ? {
-                lyrics: options.neteaseCandidate.lyrics,
-                isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
-                chorusRanges: options.neteaseCandidate.chorusRanges ?? []
-            }
-            : await withTimeout(
+    const getNeteaseProcessed = async (song: SongResult) => {
+        const candidate = options.neteaseCandidate;
+        if (candidate && String(candidate.id) === String(song.id)) {
+            return {
+                lyrics: candidate.lyrics,
+                isPureMusic: candidate.isPureMusic ?? false,
+                chorusRanges: candidate.chorusRanges ?? [],
+            };
+        }
+
+        return await withTimeout(
                 (async () => {
                     const lyricRes = await neteaseApi.getLyric(song.id);
                     return processNeteaseLyrics(

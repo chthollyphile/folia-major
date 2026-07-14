@@ -83,7 +83,7 @@ type UnifiedPanelPlaybackProps = {
 type UnifiedPanelQueueProps = {
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
-    queueScrollRef: React.RefObject<HTMLDivElement>;
+    queueScrollRef: React.RefObject<HTMLDivElement | null>;
     onShuffle: () => void;
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;

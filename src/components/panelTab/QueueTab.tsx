@@ -11,7 +11,7 @@ interface QueueTabProps {
     playQueue: SongResult[];
     currentSong: SongResult | null;
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
-    queueScrollRef: React.RefObject<HTMLDivElement>;
+    queueScrollRef: React.RefObject<HTMLDivElement | null>;
     shouldScrollToCurrent?: boolean;
     onShuffle?: () => void;
     onRemoveSong: (index: number) => void;

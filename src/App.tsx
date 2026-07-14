@@ -529,16 +529,16 @@ export default function App() {
         let shouldPauseBeforeSwitch = normalizedTargetDeviceId === 'default' || normalizedTargetDeviceId === 'communications';
 
         while (attempt <= maxRetryCount) {
-            const wasPlaying = !audioElement.paused && !audioElement.ended;
+            const wasPlaying = Boolean(audioElement && !audioElement.paused && !audioElement.ended);
             try {
-                if (shouldPauseBeforeSwitch && wasPlaying) {
+                if (audioElement && shouldPauseBeforeSwitch && wasPlaying) {
                     audioElement.pause();
                 }
 
                 await audioSinkTarget.setSinkId(normalizedTargetDeviceId);
                 persistAudioOutputDeviceId(targetDeviceId);
 
-                if (shouldPauseBeforeSwitch && wasPlaying) {
+                if (audioElement && shouldPauseBeforeSwitch && wasPlaying) {
                     try {
                         await audioElement.play();
                     } catch (resumeError) {
@@ -554,7 +554,7 @@ export default function App() {
             } catch (error) {
                 const isAbortError = error instanceof DOMException && error.name === 'AbortError';
                 if (isAbortError && attempt < maxRetryCount) {
-                    if (wasPlaying && audioElement.paused) {
+                    if (audioElement && wasPlaying && audioElement.paused) {
                         try {
                             await audioElement.play();
                         } catch {
@@ -573,7 +573,7 @@ export default function App() {
                     sinkTarget: audioSinkTarget === audioContext ? 'audio-context' : 'audio-element',
                 });
 
-                if (wasPlaying && audioElement.paused) {
+                if (audioElement && wasPlaying && audioElement.paused) {
                     try {
                         await audioElement.play();
                     } catch {

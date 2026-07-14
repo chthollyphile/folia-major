@@ -2,7 +2,7 @@ import { getFromCache, removeFromCache, saveToCache } from './db';
 
 interface ElectronAudioCacheEntry {
   found: boolean;
-  data?: Uint8Array | ArrayBuffer;
+  data?: Uint8Array | ArrayBuffer | null;
   mimeType?: string | null;
 }
 
@@ -20,7 +20,8 @@ const toBlob = (entry: ElectronAudioCacheEntry): Blob | null => {
   }
 
   const mimeType = entry.mimeType || 'audio/mpeg';
-  return new Blob([entry.data], { type: mimeType });
+  const blobData = entry.data instanceof ArrayBuffer ? entry.data : new Uint8Array(entry.data);
+  return new Blob([blobData], { type: mimeType });
 };
 
 export async function getCachedAudioBlob(cacheKey: string): Promise<Blob | null> {

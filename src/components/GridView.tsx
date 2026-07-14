@@ -285,7 +285,7 @@ export const PolaroidCard = React.memo<{
                             <div className="text-[10px] opacity-55 max-w-full font-medium line-clamp-3 whitespace-normal break-words">
                                 {mode === 'tracks' && onSelectArtist && item.rawTrack?.ar ? (
                                     <span className="flex gap-1 flex-wrap">
-                                        {item.rawTrack.ar.map((artist, idx) => (
+                                        {item.rawTrack.ar.map((artist, idx, artists) => (
                                             <span
                                                 key={`${artist.id ?? 'artist'}-${idx}-${artist.name}`}
                                                 onClick={(e) => {
@@ -298,7 +298,7 @@ export const PolaroidCard = React.memo<{
                                                 }}
                                                 className="hover:underline hover:opacity-100 cursor-pointer text-current font-semibold"
                                             >
-                                                {artist.name}{idx < item.rawTrack.ar.length - 1 ? ',' : ''}
+                                                {artist.name}{idx < artists.length - 1 ? ',' : ''}
                                             </span>
                                         ))}
                                     </span>

@@ -76,12 +76,12 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     classicTuning = DEFAULT_CLASSIC_TUNING,
     onClassicTuningChange,
 }) => {
-    const resolvedClassicTuning: ClassicTuning = {
+    const resolvedClassicTuning: Required<ClassicTuning> = {
         enableWordRotation: classicTuning.enableWordRotation ?? DEFAULT_CLASSIC_TUNING.enableWordRotation,
         breathingFloatMultiplier: clampClassicBreathingFloatMultiplier(
             classicTuning.breathingFloatMultiplier ?? DEFAULT_CLASSIC_TUNING.breathingFloatMultiplier,
         ),
-        useLegacyLayout: classicTuning.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
+        useLegacyLayout: classicTuning.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout ?? false,
         wordSpacing: clampClassicWordSpacing(
             classicTuning.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7
         ),
@@ -860,7 +860,7 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     tiltTuning = DEFAULT_TILT_TUNING,
     onTiltTuningChange,
 }) => {
-    const resolvedTuning: TiltTuning = {
+    const resolvedTuning: Required<TiltTuning> = {
         splitProbability: Math.min(1, Math.max(0, tiltTuning.splitProbability ?? DEFAULT_TILT_TUNING.splitProbability)),
         tiltStyleProbability: Math.min(1, Math.max(0, tiltTuning.tiltStyleProbability ?? DEFAULT_TILT_TUNING.tiltStyleProbability)),
         colorScheme: tiltTuning?.colorScheme ?? DEFAULT_TILT_TUNING.colorScheme ?? 'default',

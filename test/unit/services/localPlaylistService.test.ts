@@ -12,18 +12,21 @@ vi.mock('@/services/db', () => ({
     saveToCache: vi.fn(),
 }));
 
-const createSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id' | 'filePath' | 'folderName'>): LocalSong => ({
-    id: patch.id,
-    fileName: patch.fileName || patch.filePath.split('/').pop() || 'song.mp3',
-    filePath: patch.filePath,
-    duration: patch.duration ?? 0,
-    fileSize: patch.fileSize ?? 1234,
-    fileLastModified: patch.fileLastModified ?? 1000,
-    mimeType: patch.mimeType || 'audio/mpeg',
-    addedAt: patch.addedAt ?? 100,
-    folderName: patch.folderName,
-    ...patch,
-});
+const createSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id' | 'filePath' | 'folderName'>): LocalSong => {
+    const { id, filePath, folderName, ...songPatch } = patch;
+    return {
+        id,
+        fileName: songPatch.fileName || filePath.split('/').pop() || 'song.mp3',
+        filePath,
+        duration: songPatch.duration ?? 0,
+        fileSize: songPatch.fileSize ?? 1234,
+        fileLastModified: songPatch.fileLastModified ?? 1000,
+        mimeType: songPatch.mimeType || 'audio/mpeg',
+        addedAt: songPatch.addedAt ?? 100,
+        folderName,
+        ...songPatch,
+    };
+};
 
 describe('localPlaylistService', () => {
     beforeEach(() => {

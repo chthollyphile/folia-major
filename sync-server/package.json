@@ -14,14 +14,14 @@
   "dependencies": {
     "@hono/node-server": "^2.0.8",
     "better-sqlite3": "^12.11.1",
-    "hono": "^4.12.28"
+    "hono": "^4.12.30"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260708.1",
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/node": "^22.9.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3",
-    "wrangler": "^4.109.0"
+    "@cloudflare/workers-types": "^5.20260714.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.110.0"
   }
 }

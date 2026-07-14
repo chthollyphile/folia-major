@@ -369,7 +369,7 @@ const getClassicBodyMix = (time: number, lineTiming: ResolvedLineRenderTiming, w
     return 1 - fadeOut;
 };
 
-const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: ResolvedLineRenderTiming | null) => {
+const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: ResolvedLineRenderTiming) => {
     if (!line) {
         return {
             opacity: 1,
@@ -378,9 +378,9 @@ const getClassicLineEnvelope = (time: number, line: Line | null, lineTiming: Res
         };
     }
 
-    const renderHints = lineTiming?.renderHints ?? null;
-    const lineEndTime = lineTiming?.lineRenderEndTime ?? line.endTime;
-    const linePassStart = Math.max(lineTiming?.lastWordEndTime ?? line.endTime, line.startTime) + (lineTiming?.linePassHold ?? 0);
+    const renderHints = lineTiming.renderHints;
+    const lineEndTime = lineTiming.lineRenderEndTime;
+    const linePassStart = Math.max(lineTiming.lastWordEndTime, line.startTime) + lineTiming.linePassHold;
 
     if (renderHints?.lineTransitionMode === 'none') {
         return {
@@ -1379,7 +1379,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
     }, []);
 
     const preparedState = useMemo<PreparedState | null>(() => {
-        const getOrPrepareState = (line: Line | null) => {
+        const getOrPrepareState = (line: Line | null | undefined) => {
             if (!line) {
                 return null;
             }

@@ -96,7 +96,7 @@ class FakeDirectoryHandle {
         return 'granted' as PermissionState;
     }
 
-    async isSameEntry(other: FileSystemHandle) {
+    async isSameEntry(other: FileSystemHandle): Promise<boolean> {
         return other instanceof FakeDirectoryHandle && other.sameEntryToken === this.sameEntryToken;
     }
 }

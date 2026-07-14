@@ -410,7 +410,8 @@ export function useLibraryPlaybackController({
                                 localSong.artist ? `${localSong.artist} ${localSong.title}` : localSong.title || localSong.fileName,
                             );
                             if (searchRes.result?.songs) {
-                                matchedSongResult = searchRes.result.songs.find(song => song.id === found.matchedSongId) || searchRes.result.songs[0];
+                                const searchSongs = searchRes.result.songs as SongResult[];
+                                matchedSongResult = searchSongs.find(song => song.id === found.matchedSongId) ?? searchSongs[0] ?? null;
                             }
                         } catch (error) {
                             console.warn('Failed to get matched song details:', error);
@@ -848,7 +849,7 @@ export function useLibraryPlaybackController({
             }
 
             const mutableSong = navidromeSong as NavidromeSong & {
-                matchedLyrics?: LyricData | null;
+                matchedLyrics?: LyricData;
                 matchedIsPureMusic?: boolean;
                 useOnlineLyrics?: boolean;
                 lyricsSource?: string;
@@ -856,13 +857,13 @@ export function useLibraryPlaybackController({
                 matchedLyricsProviderPlatform?: SongResult['matchedLyricsProviderPlatform'];
             };
             if (isAutoMatched) {
-                mutableSong.matchedLyrics = autoMatchedLyrics;
+                mutableSong.matchedLyrics = autoMatchedLyrics ?? undefined;
                 mutableSong.useOnlineLyrics = true;
                 mutableSong.lyricsSource = 'online';
                 mutableSong.matchedLyricsSource = matchedLyricsSource;
                 mutableSong.matchedLyricsProviderPlatform = matchedLyricsProviderPlatform;
             } else {
-                mutableSong.matchedLyrics = matchData?.matchedLyrics ?? null;
+                mutableSong.matchedLyrics = matchData?.matchedLyrics;
                 mutableSong.matchedIsPureMusic = matchData?.matchedIsPureMusic;
                 mutableSong.useOnlineLyrics = matchData?.useOnlineLyrics;
                 mutableSong.lyricsSource = matchData?.lyricsSource === 'online'

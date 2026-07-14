@@ -904,5 +904,5 @@ export interface AudioBands {
     mid: MotionValue<number>;     // 400-1200Hz (Triangles)
     vocal: MotionValue<number>;   // 1000-3500Hz (Icons)
     treble: MotionValue<number>;  // 3500Hz+ (Crosses)
-    spectrum?: MotionValue<Uint8Array>; // Raw analyser FFT magnitude bins for full-spectrum visualizers
+    spectrum?: MotionValue<Uint8Array<ArrayBuffer>>; // Raw analyser FFT magnitude bins for full-spectrum visualizers
   }

@@ -70,7 +70,7 @@ export async function searchAmllDbLyricCandidates(
     ]);
 
     const neteaseSongs = neteaseResult.status === 'fulfilled'
-        ? (neteaseResult.value.result?.songs ?? []).map(song => withAmllDbPlatform(song, 'ncm'))
+        ? ((neteaseResult.value.result?.songs as SongResult[] | undefined) ?? []).map(song => withAmllDbPlatform(song, 'ncm'))
         : [];
     const qqSongs = qqResult.status === 'fulfilled'
         ? qqResult.value.map(song => withAmllDbPlatform(song, 'qq'))
@@ -112,7 +112,7 @@ export async function searchLyricsByMatchSource(
 ): Promise<SongResult[]> {
     if (source === 'netease') {
         const response = await neteaseApi.cloudSearch(query);
-        return sortByMatchScore(response.result?.songs ?? [], target);
+        return sortByMatchScore((response.result?.songs as SongResult[] | undefined) ?? [], target);
     }
     if (source === 'qq') {
         return sortByMatchScore(await searchQQLyrics(query), target);

@@ -713,7 +713,7 @@ export const getCommandPaletteMatches = (
     if (!normalizedQuery) {
         const recentCommands = recentCommandIds
             .map(commandId => filteredCommands.find(command => command.id === commandId))
-            .filter((command): command is CommandPaletteCommand => Boolean(command) && !command.requiresInput);
+            .filter((command): command is CommandPaletteCommand => command !== undefined && !command.requiresInput);
         const recentCommandIdSet = new Set(recentCommands.map(command => command.id));
         const defaultCommands = filteredCommands.filter(command => !recentCommandIdSet.has(command.id));
 

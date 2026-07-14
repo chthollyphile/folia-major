@@ -586,8 +586,10 @@ const evaluateDurationCalibration = (
         const candidateDurationDeltaSec = from && to
             ? round((to.candidate.durationMs - from.candidate.durationMs) / 1000)
             : null;
-        const lyricTimelineDeltaSec = from?.lyrics.timelineSpanSec !== null && to?.lyrics.timelineSpanSec !== null
-            ? round((to.lyrics.timelineSpanSec ?? 0) - (from.lyrics.timelineSpanSec ?? 0))
+        const fromTimelineSpanSec = from?.lyrics.timelineSpanSec;
+        const toTimelineSpanSec = to?.lyrics.timelineSpanSec;
+        const lyricTimelineDeltaSec = typeof fromTimelineSpanSec === 'number' && typeof toTimelineSpanSec === 'number'
+            ? round(toTimelineSpanSec - fromTimelineSpanSec)
             : null;
         const medianOffsetSec = pair.startDeltaSec?.median ?? null;
         const durationCanExplainOffset = medianOffsetSec !== null

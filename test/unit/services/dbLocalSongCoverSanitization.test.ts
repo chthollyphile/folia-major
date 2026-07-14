@@ -7,16 +7,19 @@ import type { LocalSong } from '../../../src/types';
 // test/unit/services/dbLocalSongCoverSanitization.test.ts
 // Verifies real Dexie persistence never keeps non-Blob local cover payloads.
 
-const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => ({
-    id: patch.id,
-    fileName: `${patch.id}.mp3`,
-    filePath: `/music/${patch.id}.mp3`,
-    duration: 180000,
-    fileSize: 1024,
-    mimeType: 'audio/mpeg',
-    addedAt: 1,
-    ...patch,
-});
+const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => {
+    const { id, ...songPatch } = patch;
+    return {
+        id,
+        fileName: `${id}.mp3`,
+        filePath: `/music/${id}.mp3`,
+        duration: 180000,
+        fileSize: 1024,
+        mimeType: 'audio/mpeg',
+        addedAt: 1,
+        ...songPatch,
+    };
+};
 
 describe('db local song cover sanitization', () => {
     beforeEach(async () => {

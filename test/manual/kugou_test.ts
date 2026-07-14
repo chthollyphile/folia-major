@@ -1,3 +1,5 @@
+import type { Word } from '../../src/types';
+
 // test/manual/kugou_test.ts
 // Hack to force requestKugou to make direct URLs instead of relative proxy URLs
 (globalThis as any).window = { electron: true };
@@ -32,7 +34,7 @@ async function main() {
         console.log('  Translation: (none)');
       }
       console.log('  Words:');
-      line.words.forEach((w, wIdx) => {
+      line.words.forEach((w: Word, wIdx: number) => {
         console.log(`    Word ${wIdx}: "${w.text}" [${w.startTime.toFixed(3)} --> ${w.endTime.toFixed(3)}]`);
       });
     }

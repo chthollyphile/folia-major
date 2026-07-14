@@ -3,6 +3,20 @@ import path from 'node:path';
 
 // test/manual/lyric-audit/lyric_duration_diff_plot.ts
 
+type DurationDiffRow = {
+    index: number;
+    text: string;
+    neteaseDur: number;
+    qqDur: number;
+    diff: number;
+    neteaseStart: number;
+    qqStart: number;
+    startDiff: number;
+    neteaseEnd: number;
+    qqEnd: number;
+    endDiff: number;
+};
+
 /**
  * 根据歌词比对报告的 JSON 数据，生成终端 Markdown 差异表格并输出交互式 ECharts HTML 仪表盘。
  * @param songId 歌曲 ID 字符串
@@ -45,7 +59,7 @@ export function runPlot(songId: string, customJsonPath?: string) {
     }
 
     // Map matched lines details
-    const data = commonLines.map((l: any, idx: number) => {
+    const data: DurationDiffRow[] = commonLines.map((l: any, idx: number) => {
         const neteaseDur = l.netease.duration;
         const qqDur = l.qq.duration;
         const diff = qqDur - neteaseDur;

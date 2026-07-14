@@ -174,8 +174,8 @@ const readStoredClassicTuning = (): ClassicTuning => {
             ),
             useLegacyLayout: parsed.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
             wordSpacing: clampClassicWordSpacing(
-                parsed.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing,
-                DEFAULT_CLASSIC_TUNING.wordSpacing,
+                parsed.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
+                DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
             ),
         };
     } catch {
@@ -1451,8 +1451,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             ),
             useLegacyLayout: patch.useLegacyLayout ?? prev.useLegacyLayout,
             wordSpacing: clampClassicWordSpacing(
-                patch.wordSpacing ?? prev.wordSpacing,
-                prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing!,
+                patch.wordSpacing ?? prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
+                prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
             ),
         };
         if (typeof window !== 'undefined') {
