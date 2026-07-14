@@ -255,7 +255,8 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createSettingsCommand('settings-appearance', 'Appearance settings', 'Open visual and appearance settings', ['appearance', 'visual settings', '外观', '视觉', 'waiguan', 'shijue', 'wg', 'sj'], 'options', 'appearance'),
     createSettingsCommand('settings-general', 'General settings', 'Open general app preferences', ['general', 'language settings', 'locale', '通用', '语言', 'tongyong', 'yuyan', 'ty', 'yy'], 'options', 'general'),
     createSettingsCommand('settings-playback', 'Playback settings', 'Open playback behavior settings', ['playback settings', 'playback', '播放', '播放设置', 'bofang', 'bofangshezhi', 'bf', 'bfsz'], 'options', 'playback'),
-    createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Now Playing, and Navidrome settings', ['integration', 'stage', 'now playing', 'navidrome settings', '集成', '连接', 'jicheng', 'lianjie', 'jc', 'lj'], 'options', 'integration'),
+    createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Spotify, Now Playing, and Navidrome settings', ['integration', 'stage', 'spotify', 'now playing', 'navidrome settings', '集成', '连接', 'spotify设置', 'jicheng', 'lianjie', 'jc', 'lj'], 'options', 'integration'),
+    createSettingsCommand('settings-spotify', 'Spotify integration', 'Configure and connect Spotify', ['spotify', 'spotify connect', 'spotify settings', 'Spotify', 'Spotify连接', 'Spotify设置', '连接Spotify', 'lianjie spotify', 'sz spotify'], 'options', 'integration'),
     createSettingsCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'bofangzhuangtai', 'dc', 'zt'], 'options', 'integration'),
     createSettingsCommand('settings-obs-browser-source', 'OBS browser source', 'Open OBS browser source settings', ['obs', 'browser source', 'live source', '直播源', '浏览器源', 'zhiboyuan', 'liulanqiyuan', 'zby', 'llqy'], 'options', 'integration'),
     createSettingsCommand('settings-storage', 'Storage settings', 'Open cache and storage settings', ['storage', 'cache', '存储', '缓存', 'cunchu', 'huancun', 'cc', 'hc'], 'options', 'storage'),
@@ -613,6 +614,30 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         ],
         execute: (_input, context) => {
             context.toggleSubtitleTranslation();
+            return true;
+        },
+    },
+    {
+        id: 'settings-toggle-traditional-lyrics',
+        group: 'settings',
+        title: 'Toggle Traditional Chinese lyrics',
+        description: 'Convert displayed Simplified Chinese lyrics to Traditional Chinese locally',
+        keywords: [
+            'traditional lyrics',
+            'traditional chinese',
+            'simplified to traditional',
+            'convert lyrics',
+            '繁體歌詞',
+            '繁体歌词',
+            '簡轉繁',
+            '简转繁',
+            'fantigeci',
+            'jianzhuanfan',
+            'ftgc',
+            'jzf',
+        ],
+        execute: (_input, context) => {
+            context.toggleSimplifiedLyricsToTraditional();
             return true;
         },
     },

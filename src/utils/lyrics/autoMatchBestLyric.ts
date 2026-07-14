@@ -26,6 +26,7 @@ const hasChorusMarkers = (lyrics: LyricData | null): boolean => (
 export interface AutoMatchBestLyricOptions {
     album?: string;
     preferredSource?: LyricProviderSource;
+    allowLineSyncedFallback?: boolean;
     neteaseCandidate?: {
         id: number | string;
         lyrics: LyricData | null;
@@ -49,6 +50,44 @@ export type AutoMatchBestLyricPureMusic = {
 };
 
 export type AutoMatchBestLyricResult = AutoMatchBestLyricMatch | AutoMatchBestLyricPureMusic | null;
+
+export const hasSynchronizedLyricTimeline = (lyrics: LyricData | null): lyrics is LyricData => {
+    if (!lyrics || lyrics.lines.length === 0) {
+        return false;
+    }
+
+    const timedLines = lyrics.lines.filter(line => (
+        Number.isFinite(line.startTime)
+        && Number.isFinite(line.endTime)
+        && line.startTime >= 0
+        && line.endTime > line.startTime
+        && line.fullText.trim().length > 0
+    ));
+    const timedWords = timedLines.flatMap(line => line.words).filter(word => (
+        Number.isFinite(word.startTime)
+        && Number.isFinite(word.endTime)
+        && word.endTime > word.startTime
+    ));
+    if (timedWords.length >= 2) {
+        const firstWordStart = Math.min(...timedWords.map(word => word.startTime));
+        const lastWordEnd = Math.max(...timedWords.map(word => word.endTime));
+        if (lastWordEnd - firstWordStart >= 0.5) {
+            return true;
+        }
+    }
+
+    if (timedLines.length < 2) {
+        return false;
+    }
+
+    const firstLineStart = Math.min(...timedLines.map(line => line.startTime));
+    const lastLineEnd = Math.max(...timedLines.map(line => line.endTime));
+    if (lastLineEnd - firstLineStart >= 1) {
+        return true;
+    }
+
+    return false;
+};
 
 function selectBestCandidate(
     source: LyricProviderSource,
@@ -134,6 +173,13 @@ export async function autoMatchBestLyric(
     let neteaseChorusRanges: NeteaseChorusRange[] = options.neteaseCandidate?.chorusRanges ?? [];
     let neteaseCandidateSongs: any[] | null = null;
     let qqBestCandidate: SongResult | null | undefined;
+    let synchronizedFallback: AutoMatchBestLyricMatch | null = null;
+
+    const captureSynchronizedFallback = (candidate: AutoMatchBestLyricMatch) => {
+        if (options.allowLineSyncedFallback && !synchronizedFallback && hasSynchronizedLyricTimeline(candidate.lyrics)) {
+            synchronizedFallback = candidate;
+        }
+    };
 
     const defaultOrder = ['netease', 'amll', 'qq', 'kugou'] as const;
     const searchOrder = options.preferredSource
@@ -215,6 +261,13 @@ export async function autoMatchBestLyric(
             return null;
         }
         if (!lyrics.isWordByWord) {
+            captureSynchronizedFallback({
+                lyrics,
+                source: 'amll',
+                id: song.id,
+                matchedLyricsProviderPlatform: platform,
+                ...(platform === 'qq' ? { qqMid: song.qqMid } : {}),
+            });
             console.log(`[autoMatchBestLyric] AMLLDB ${platform}/${song.id} returned lyrics but they are not word-by-word. Continuing with the next source.`);
             return null;
         }
@@ -266,6 +319,13 @@ export async function autoMatchBestLyric(
                             id: song.id
                         };
                     }
+                    if (processed.lyrics) {
+                        captureSynchronizedFallback({
+                            lyrics: processed.lyrics,
+                            source: 'netease',
+                            id: song.id,
+                        });
+                    }
                 }
             } catch (error) {
                 console.error(`[autoMatchBestLyric] NetEase search/fetch failed:`, error);
@@ -311,6 +371,14 @@ export async function autoMatchBestLyric(
                             qqMid: song.qqMid
                         };
                     }
+                    if (parsedLyrics) {
+                        captureSynchronizedFallback({
+                            lyrics: parsedLyrics,
+                            source: 'qq',
+                            id: song.id,
+                            qqMid: song.qqMid,
+                        });
+                    }
                 }
             } catch (error) {
                 console.error(`[autoMatchBestLyric] QQ search/fetch failed:`, error);
@@ -344,6 +412,14 @@ export async function autoMatchBestLyric(
                             kgHash: song.kgHash
                         };
                     }
+                    if (parsedLyrics) {
+                        captureSynchronizedFallback({
+                            lyrics: parsedLyrics,
+                            source: 'kugou',
+                            id: song.id,
+                            kgHash: song.kgHash,
+                        });
+                    }
                 }
             } catch (error) {
                 console.error(`[autoMatchBestLyric] Kugou search/fetch failed:`, error);
@@ -351,6 +427,11 @@ export async function autoMatchBestLyric(
         }
     }
 
-    console.log(`[autoMatchBestLyric] No perfect word-by-word lyric match found across any source.`);
+    if (synchronizedFallback) {
+        console.log('[autoMatchBestLyric] Using a verified line-synchronized lyric fallback.');
+        return synchronizedFallback;
+    }
+
+    console.log(`[autoMatchBestLyric] No synchronized lyric match found across any source.`);
     return null;
 }

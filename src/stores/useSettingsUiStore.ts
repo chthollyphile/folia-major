@@ -40,6 +40,7 @@ export const REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY = 'remote_control_skip_task
 export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 export const SUBTITLE_OVERLAY_OPACITY_STORAGE_KEY = 'subtitle_overlay_opacity';
 export const SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY = 'show_subtitle_translation';
+export const CONVERT_SIMPLIFIED_LYRICS_TO_TRADITIONAL_STORAGE_KEY = 'convert_simplified_lyrics_to_traditional';
 const LYRICS_FONT_FALLBACK_FAMILIES_STORAGE_KEY = 'lyrics_font_fallback_families';
 const SUBTITLE_FONT_INHERITS_LYRICS_STORAGE_KEY = 'subtitle_font_inherits_lyrics';
 const SUBTITLE_FONT_STYLE_STORAGE_KEY = 'subtitle_font_style';
@@ -822,6 +823,7 @@ export type SettingsUiState = {
     hidePlayerProgressBar: boolean;
     hidePlayerTranslationSubtitle: boolean;
     showSubtitleTranslation: boolean;
+    convertSimplifiedLyricsToTraditional: boolean;
     hidePlayerRightPanelButton: boolean;
     transparentPlayerBackground: boolean;
     enablePlayerPageNativeBlur: boolean;
@@ -922,6 +924,7 @@ export type SettingsUiState = {
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
     handleToggleHidePlayerTranslationSubtitle: (enable: boolean) => void;
     handleToggleShowSubtitleTranslation: (enable: boolean) => void;
+    handleToggleConvertSimplifiedLyricsToTraditional: (enable: boolean) => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
     handleToggleTransparentPlayerBackground: (enable: boolean) => void;
     handleToggleAutoHidePlayerChrome: (enable: boolean) => void;
@@ -1012,6 +1015,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
     hidePlayerTranslationSubtitle: getStoredBoolean('hide_player_translation_subtitle', false),
     showSubtitleTranslation: getStoredBoolean(SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY, true),
+    convertSimplifiedLyricsToTraditional: getStoredBoolean(CONVERT_SIMPLIFIED_LYRICS_TO_TRADITIONAL_STORAGE_KEY, false),
     hidePlayerRightPanelButton: getStoredBoolean('hide_player_right_panel_button', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
     enablePlayerPageNativeBlur: getStoredBoolean('enable_player_page_native_blur', false),
@@ -1236,6 +1240,14 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, {
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'translationShown' : 'translationHidden')),
+        });
+    },
+    handleToggleConvertSimplifiedLyricsToTraditional: (enable) => {
+        setStoredBoolean(CONVERT_SIMPLIFIED_LYRICS_TO_TRADITIONAL_STORAGE_KEY, enable);
+        set({ convertSimplifiedLyricsToTraditional: enable });
+        notify(get, {
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'traditionalLyricsOn' : 'traditionalLyricsOff')),
         });
     },
     handleToggleHidePlayerRightPanelButton: (enable) => {
@@ -2005,6 +2017,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     hidePlayerProgressBar: state.hidePlayerProgressBar,
     hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: state.showSubtitleTranslation,
+    convertSimplifiedLyricsToTraditional: state.convertSimplifiedLyricsToTraditional,
     hidePlayerRightPanelButton: state.hidePlayerRightPanelButton,
     transparentPlayerBackground: state.transparentPlayerBackground,
     autoHidePlayerChrome: state.autoHidePlayerChrome,
@@ -2074,6 +2087,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
     handleToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
     handleToggleShowSubtitleTranslation: state.handleToggleShowSubtitleTranslation,
+    handleToggleConvertSimplifiedLyricsToTraditional: state.handleToggleConvertSimplifiedLyricsToTraditional,
     handleToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
     handleToggleTransparentPlayerBackground: state.handleToggleTransparentPlayerBackground,
     enablePlayerPageNativeBlur: state.enablePlayerPageNativeBlur,

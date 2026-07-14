@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { NowPlayingConnectionStatus, StageSource, StageStatus, Theme } from '../../../types';
 import type { NavidromeServerProfile } from '../../../types/navidrome';
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
+import SpotifySettingsCard from './SpotifySettingsCard';
 
 // src/components/modal/settings/IntegrationSettingsSubview.tsx
 // Integration settings for Discord, Stage, Now Playing, OBS, and Navidrome.
@@ -307,10 +308,11 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                         Source
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {([
                                             { value: 'stage-api', label: 'Stage API' },
                                             { value: 'now-playing', label: 'Now Playing' },
+                                            { value: 'spotify', label: 'Spotify' },
                                         ] as Array<{ value: StageSource; label: string }>).map((option) => {
                                             const selected = stageSource === option.value;
                                             return (
@@ -328,7 +330,12 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     </div>
                                 </div>
 
-                                {stageSource === 'now-playing' ? (
+                                {stageSource === 'spotify' ? (
+                                    <SpotifySettingsCard
+                                        settingsCardClass={settingsCardClass}
+                                        onCopyText={onCopyText}
+                                    />
+                                ) : stageSource === 'now-playing' ? (
                                     <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
                                         <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                             Now Playing

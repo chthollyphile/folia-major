@@ -217,7 +217,10 @@ function createStageApi({
 
   const getStageModeSource = () => {
     const configuredSource = store.get(stageModeSourceSettingKey);
-    return configuredSource === 'now-playing' ? 'now-playing' : 'stage-api';
+    if (configuredSource === 'now-playing' || configuredSource === 'spotify') {
+      return configuredSource;
+    }
+    return 'stage-api';
   };
 
   const isStageEnabled = () => isStageModeEnabled() && getStageModeSource() === 'stage-api';

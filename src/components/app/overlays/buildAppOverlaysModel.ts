@@ -65,6 +65,7 @@ type BuildAppOverlaysModelParams = {
     audioSrc: string | null;
     canToggleCurrentPlayback: boolean;
     isNowPlayingControlDisabled: boolean;
+    isSpotifyStageActive: boolean;
     lyrics: LyricData | null;
     activePlaybackContext: 'main' | 'stage';
     stageActiveEntryKind: string | null;
@@ -77,6 +78,7 @@ type BuildAppOverlaysModelParams = {
     isPlayerChromeHidden: boolean;
     shouldHidePlayerProgressBar: boolean;
     onSeekMainAudio: (time: number) => void;
+    onSeekSpotify: (time: number) => Promise<void>;
     onStagePlayerSeek: () => Promise<unknown>;
     noTrackText: string;
 };
@@ -118,6 +120,7 @@ export const buildAppOverlaysModel = ({
     audioSrc,
     canToggleCurrentPlayback,
     isNowPlayingControlDisabled,
+    isSpotifyStageActive,
     lyrics,
     activePlaybackContext,
     stageActiveEntryKind,
@@ -130,6 +133,7 @@ export const buildAppOverlaysModel = ({
     isPlayerChromeHidden,
     shouldHidePlayerProgressBar,
     onSeekMainAudio,
+    onSeekSpotify,
     onStagePlayerSeek,
     noTrackText,
 }: BuildAppOverlaysModelParams): AppOverlaysModel => ({
@@ -232,7 +236,9 @@ export const buildAppOverlaysModel = ({
                     return;
                 }
 
-                if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                if (isSpotifyStageActive) {
+                    void onSeekSpotify(time);
+                } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
                     syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                     currentTime.set(time);
                     if (playerState !== PlayerState.PLAYING) {

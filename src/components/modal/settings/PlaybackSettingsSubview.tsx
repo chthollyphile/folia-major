@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Monitor, PlayCircle, RefreshCw, Settings2 } from 'lucide-react';
+import { Languages, Monitor, PlayCircle, RefreshCw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { QueueAddBehavior, Theme } from '../../../types';
@@ -45,21 +45,25 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
     const {
         audioOutputDeviceId,
         autoUseBestLyric,
+        convertSimplifiedLyricsToTraditional,
         enableAlternativeLyricSources,
         preferredAlternativeLyricSource,
         queueAddBehavior,
         onToggleAlternativeLyricSources,
         onToggleAutoUseBestLyric,
+        onToggleConvertSimplifiedLyricsToTraditional,
         onPreferredAlternativeLyricSourceChange,
         onQueueAddBehaviorChange,
     } = useSettingsUiStore(useShallow(state => ({
         audioOutputDeviceId: state.audioOutputDeviceId,
         autoUseBestLyric: state.autoUseBestLyric,
+        convertSimplifiedLyricsToTraditional: state.convertSimplifiedLyricsToTraditional,
         enableAlternativeLyricSources: state.enableAlternativeLyricSources,
         preferredAlternativeLyricSource: state.preferredAlternativeLyricSource,
         queueAddBehavior: state.queueAddBehavior,
         onToggleAlternativeLyricSources: state.handleToggleAlternativeLyricSources,
         onToggleAutoUseBestLyric: state.handleToggleAutoUseBestLyric,
+        onToggleConvertSimplifiedLyricsToTraditional: state.handleToggleConvertSimplifiedLyricsToTraditional,
         onPreferredAlternativeLyricSourceChange: state.handleSetPreferredAlternativeLyricSource,
         onQueueAddBehaviorChange: state.handleSetQueueAddBehavior,
     })));
@@ -229,6 +233,18 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                 </h3>
                 <div className={`rounded-xl border overflow-hidden ${settingsCardClass}`}>
                     <div className="p-4 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                <Languages size={14} />
+                                {t('options.convertSimplifiedLyricsToTraditional')}
+                            </div>
+                            <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.convertSimplifiedLyricsToTraditionalDesc')}
+                            </div>
+                        </div>
+                        {renderToggle(convertSimplifiedLyricsToTraditional, () => onToggleConvertSimplifiedLyricsToTraditional(!convertSimplifiedLyricsToTraditional))}
+                    </div>
+                    <div className="p-4 flex items-center justify-between gap-4 border-t" style={{ borderColor: 'var(--border-primary, rgba(255,255,255,0.06))' }}>
                         <div className="space-y-1">
                             <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                                 <Settings2 size={14} />

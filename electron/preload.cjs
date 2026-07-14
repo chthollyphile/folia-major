@@ -68,6 +68,16 @@ contextBridge.exposeInMainWorld('electron', {
     getDiscordPresenceStatus: () => ipcRenderer.invoke('discord-presence-get-status'),
     publishDiscordPresenceSnapshot: (snapshot) => ipcRenderer.invoke('discord-presence-publish-snapshot', snapshot),
     getPlaybackSyncBridgeStatus: () => ipcRenderer.invoke('playback-sync-bridge-get-status'),
+    getSpotifyStatus: () => ipcRenderer.invoke('spotify-get-status'),
+    connectSpotify: (clientId) => ipcRenderer.invoke('spotify-connect', clientId),
+    disconnectSpotify: () => ipcRenderer.invoke('spotify-disconnect'),
+    getSpotifyPlayback: () => ipcRenderer.invoke('spotify-get-playback'),
+    controlSpotifyPlayback: (command) => ipcRenderer.invoke('spotify-control-playback', command),
+    onSpotifyStatusChanged: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('spotify-status-changed', listener);
+        return () => ipcRenderer.removeListener('spotify-status-changed', listener);
+    },
     onPlaybackSyncBridgeStatusChanged: (callback) => {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('playback-sync-bridge-status-changed', listener);

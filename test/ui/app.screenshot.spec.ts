@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import packageJson from '../../package.json' with { type: 'json' };
 
 type MockNeteaseMode = 'logged-in' | 'guest';
 
@@ -187,6 +188,7 @@ async function installBaseState(
     navidromeEnabled: boolean;
     navidromeConfig: typeof navidromeFixtures.config;
     localImportFixture?: typeof localImportFixture;
+    appVersion: string;
   }) => {
     const createMatchMediaResult = (query: string) => ({
       matches: query.includes('light'),
@@ -219,6 +221,7 @@ async function installBaseState(
     localStorage.setItem('static_mode', 'true');
     localStorage.setItem('last_app_view', 'home');
     localStorage.setItem('last_home_view_tab', 'playlist');
+    localStorage.setItem('folia_last_seen_guide_version', payload.appVersion);
 
     if (payload.navidromeEnabled) {
       localStorage.setItem('navidrome_enabled', 'true');
@@ -369,6 +372,7 @@ async function installBaseState(
     navidromeEnabled: options.navidromeEnabled ?? false,
     navidromeConfig: navidromeFixtures.config,
     localImportFixture: options.localImportFixture,
+    appVersion: packageJson.version,
   });
 }
 

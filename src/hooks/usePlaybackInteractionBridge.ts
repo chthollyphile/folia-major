@@ -18,6 +18,7 @@ type UsePlaybackInteractionBridgeParams = {
     activePlaybackContext: 'main' | 'stage';
     stageActiveEntryKind: string | null;
     isNowPlayingStageActive: boolean;
+    isSpotifyStageActive: boolean;
     isPanelOpen: boolean;
     isFmMode: boolean;
     playerState: PlayerState;
@@ -38,6 +39,8 @@ type UsePlaybackInteractionBridgeParams = {
     handleNextTrack: () => Promise<void> | void;
     handlePrevTrack: () => void;
     handleToggleLoopMode: () => void;
+    seekSpotify: (timeSec: number) => Promise<void>;
+    toggleSpotifyLoop: () => Promise<void>;
     pausePlayback: () => void;
     resumePlayback: () => Promise<void>;
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
@@ -52,6 +55,7 @@ export function usePlaybackInteractionBridge({
     activePlaybackContext,
     stageActiveEntryKind,
     isNowPlayingStageActive,
+    isSpotifyStageActive,
     isPanelOpen,
     isFmMode,
     playerState,
@@ -67,6 +71,8 @@ export function usePlaybackInteractionBridge({
     handleNextTrack,
     handlePrevTrack,
     handleToggleLoopMode,
+    seekSpotify,
+    toggleSpotifyLoop,
     pausePlayback,
     resumePlayback,
     syncStageLyricsClock,
@@ -74,7 +80,16 @@ export function usePlaybackInteractionBridge({
     const togglePlay = useCallback((event?: React.MouseEvent | KeyboardEvent) => {
         event?.stopPropagation();
 
-        if (isNowPlayingStageActive) {
+        if (isNowPlayingStageActive && !isSpotifyStageActive) {
+            return;
+        }
+
+        if (isSpotifyStageActive) {
+            if (playerState === PlayerState.PLAYING) {
+                pausePlayback();
+            } else {
+                void resumePlayback();
+            }
             return;
         }
 
@@ -94,16 +109,22 @@ export function usePlaybackInteractionBridge({
                 void resumePlayback();
             }
         }
-    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, pausePlayback, playerState, resumePlayback, stageActiveEntryKind]);
+    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, isSpotifyStageActive, pausePlayback, playerState, resumePlayback, stageActiveEntryKind]);
 
     const toggleLoop = useCallback((event?: React.MouseEvent) => {
         event?.stopPropagation();
-        if (isNowPlayingStageActive) {
+        if (isNowPlayingStageActive && !isSpotifyStageActive) {
+            return;
+        }
+
+
+        if (isSpotifyStageActive) {
+            void toggleSpotifyLoop();
             return;
         }
 
         handleToggleLoopMode();
-    }, [handleToggleLoopMode, isNowPlayingStageActive]);
+    }, [handleToggleLoopMode, isNowPlayingStageActive, isSpotifyStageActive, toggleSpotifyLoop]);
 
     const handleChangeReplayGainMode = useCallback((mode: ReplayGainMode) => {
         setReplayGainMode(mode);
@@ -155,7 +176,7 @@ export function usePlaybackInteractionBridge({
                 case 'Space':
                     if (currentSong && (audioSrc || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
                         event.preventDefault();
-                        if (isNowPlayingStageActive) {
+                        if (isNowPlayingStageActive && !isSpotifyStageActive) {
                             return;
                         }
                         togglePlay(event);
@@ -169,7 +190,7 @@ export function usePlaybackInteractionBridge({
                     if (isPrevTrackKey) {
                         if (currentSong) {
                             event.preventDefault();
-                            if (isNowPlayingStageActive) {
+                            if (isNowPlayingStageActive && !isSpotifyStageActive) {
                                 return;
                             }
                             handlePrevTrack();
@@ -179,7 +200,12 @@ export function usePlaybackInteractionBridge({
 
                     if (currentView !== 'player') return;
                     event.preventDefault();
-                    if (isNowPlayingStageActive) {
+                    if (isNowPlayingStageActive && !isSpotifyStageActive) {
+                        return;
+                    }
+
+                    if (isSpotifyStageActive) {
+                        void seekSpotify(Math.max(0, currentTime.get() - 5));
                         return;
                     }
 
@@ -200,7 +226,7 @@ export function usePlaybackInteractionBridge({
                     if (isNextTrackKey) {
                         if (currentSong) {
                             event.preventDefault();
-                            if (isNowPlayingStageActive) {
+                            if (isNowPlayingStageActive && !isSpotifyStageActive) {
                                 return;
                             }
                             void handleNextTrack();
@@ -210,7 +236,12 @@ export function usePlaybackInteractionBridge({
 
                     if (currentView !== 'player') return;
                     event.preventDefault();
-                    if (isNowPlayingStageActive) {
+                    if (isNowPlayingStageActive && !isSpotifyStageActive) {
+                        return;
+                    }
+
+                    if (isSpotifyStageActive) {
+                        void seekSpotify(Math.min(duration, currentTime.get() + 5));
                         return;
                     }
 
@@ -252,12 +283,14 @@ export function usePlaybackInteractionBridge({
         handlePrevTrack,
         isDev,
         isNowPlayingStageActive,
+        isSpotifyStageActive,
         isPanelOpen,
         pausePlayback,
         playerState,
         resumePlayback,
         setIsDevDebugOverlayVisible,
         setIsPanelOpen,
+        seekSpotify,
         cyclePlayerChromeVisibilityMode,
         stageActiveEntryKind,
         stageLyricsClockRef,
