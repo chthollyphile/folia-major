@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
@@ -41,10 +41,10 @@ export const LocalLibraryEntityPanel = ({
     ? t('localMusic.artistLabel')
     : t('localMusic.albumLabel');
   const panelTheme = isDaylight
-    ? 'bg-white/90 border-white/20 text-zinc-900'
-    : 'bg-zinc-900/95 border-white/10 text-white';
-  const borderTheme = isDaylight ? 'border-black/5' : 'border-white/10';
-  const closeButtonTheme = isDaylight ? 'hover:bg-zinc-200/50' : 'hover:bg-white/10';
+    ? 'bg-white/80 border-white/40 text-zinc-900 shadow-2xl shadow-black/5 backdrop-saturate-150'
+    : 'bg-zinc-950/80 border-white/10 text-white shadow-2xl shadow-black/50 backdrop-saturate-150';
+  const borderTheme = isDaylight ? 'border-zinc-200/60' : 'border-white/10';
+  const closeButtonTheme = isDaylight ? 'hover:bg-zinc-200/50 text-zinc-500 hover:text-zinc-900' : 'hover:bg-white/10 text-zinc-400 hover:text-white';
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<EntityEditorFeedback | null>(null);
 
@@ -86,36 +86,47 @@ export const LocalLibraryEntityPanel = ({
         aria-labelledby="local-library-entity-title"
         className={`${panelTheme} flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md`}
       >
-        <header className={`flex shrink-0 items-center justify-between gap-5 border-b px-6 py-4 ${borderTheme}`}>
+        <header className={`flex shrink-0 items-center justify-between gap-5 border-b px-8 py-6 ${borderTheme}`}>
           <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] opacity-50">
               <span>{entity.kind === 'artist' ? t('localMusic.artistLabel') : t('localMusic.albumLabel')}</span>
               <span>·</span>
               <span>{t('localMusic.entityMemberCount', { count: memberSongs.length })}</span>
             </div>
-            <h2 id="local-library-entity-title" className="truncate text-lg font-bold">{entity.displayName}</h2>
+            <h2 id="local-library-entity-title" className="truncate text-xl font-bold tracking-tight">{entity.displayName}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`shrink-0 rounded-lg p-2 transition-colors ${closeButtonTheme}`}
+            className={`shrink-0 rounded-full p-2.5 transition-colors ${closeButtonTheme}`}
             aria-label={t('localMusic.cancel')}
           >
-            <X size={19} />
+            <X size={22} />
           </button>
         </header>
 
-        {feedback && (
-          <div
-            className={`mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-semibold md:mx-7 ${
-              feedback.type === 'success' ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-rose-500/25 bg-rose-500/10'
-            }`}
-            role="status"
-          >
-            {feedback.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-            {feedback.text}
-          </div>
-        )}
+        <AnimatePresence>
+          {feedback && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden px-8"
+            >
+              <div
+                className={`mt-6 flex shrink-0 items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm backdrop-blur-md ${
+                  feedback.type === 'success'
+                    ? (isDaylight ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400')
+                    : (isDaylight ? 'border-rose-500/30 bg-rose-50 text-rose-700' : 'border-rose-500/30 bg-rose-500/10 text-rose-400')
+                }`}
+                role="status"
+              >
+                {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                {feedback.text}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <main className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
           <EntityEditorWorkspace

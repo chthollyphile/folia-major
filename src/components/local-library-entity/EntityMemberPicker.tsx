@@ -28,22 +28,22 @@ const SongRow = ({ index, style, ariaAttributes, songs, selectedSongIds, onToggl
             <button
                 type="button"
                 onClick={() => onToggle(song.id)}
-                className={`flex h-full w-full items-center gap-3 rounded-lg border px-3 text-left transition-colors ${selected
-                    ? isDaylight ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-500/20 border-blue-500/50'
-                    : isDaylight ? 'bg-black/5 hover:bg-black/10 border-black/5' : 'bg-white/5 hover:bg-white/10 border-white/5'
+                className={`flex h-full w-full items-center gap-4 rounded-xl border px-4 text-left transition-all duration-200 ${selected
+                    ? isDaylight ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-blue-500/15 border-blue-500/40 shadow-sm'
+                    : isDaylight ? 'bg-white border-black/5 hover:border-black/15 hover:shadow-md' : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10'
                 }`}
             >
                 <span
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected
+                    className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors ${selected
                         ? 'border-blue-500 bg-blue-500 text-white'
                         : isDaylight ? 'border-black/20' : 'border-white/20'
                     }`}
                 >
-                    {selected && <Check size={11} />}
+                    {selected && <Check size={12} strokeWidth={3} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold">{song.title || song.fileName}</span>
-                    <span className="block truncate text-[10px] opacity-40">{song.artist || song.album || song.fileName}</span>
+                    <span className={`block truncate text-[13px] font-semibold ${selected ? (isDaylight ? 'text-blue-900' : 'text-blue-100') : ''}`}>{song.title || song.fileName}</span>
+                    <span className={`block truncate text-[11px] opacity-50 ${selected ? (isDaylight ? 'text-blue-800' : 'text-blue-200') : ''}`}>{song.artist || song.album || song.fileName}</span>
                 </span>
             </button>
         </div>
@@ -61,19 +61,19 @@ export const EntityMemberPicker = ({ memberSongs, selectedSongIds, onToggle, isD
         isDaylight,
     }), [isDaylight, onToggle, selectedSongIds, songs]);
     const inputTheme = isDaylight
-        ? 'bg-black/5 focus-within:bg-black/10 border-black/10 focus-within:border-black/20'
-        : 'bg-white/5 focus-within:bg-white/10 border-white/10 focus-within:border-white/20';
+        ? 'bg-white/60 focus-within:bg-white border-black/10 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:shadow-sm'
+        : 'bg-black/20 focus-within:bg-black/40 border-white/10 focus-within:border-blue-500/50 focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:shadow-sm';
 
     return (
         <div className="min-w-0">
-            <div className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 transition-colors ${inputTheme}`}>
-                <Search size={14} className="opacity-35" />
+            <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 ${inputTheme}`}>
+                <Search size={16} className="text-blue-500 opacity-80" />
                 <input
                     value={query}
                     onChange={event => setQuery(event.target.value)}
                     placeholder={t('localMusic.searchEntitySongs')}
                     aria-label={t('localMusic.searchEntitySongs')}
-                    className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
             </div>
 
@@ -82,7 +82,7 @@ export const EntityMemberPicker = ({ memberSongs, selectedSongIds, onToggle, isD
                     <VirtualList
                         style={{ height: '100%', width: '100%' }}
                         rowCount={songs.length}
-                        rowHeight={52}
+                        rowHeight={56}
                         rowProps={rowProps}
                         rowComponent={SongRow}
                         className="custom-scrollbar"

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, GitMerge, Pencil, Scissors, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
@@ -38,19 +39,19 @@ export const EntityEditorWorkspace = ({
     const entityKindLabel = entity.kind === 'artist'
         ? t('localMusic.artistLabel')
         : t('localMusic.albumLabel');
-    const borderTheme = isDaylight ? 'border-black/5' : 'border-white/10';
+    const borderTheme = isDaylight ? 'border-zinc-200/60' : 'border-white/10';
     const inputTheme = isDaylight
-        ? 'bg-black/5 focus-within:bg-black/10 border-black/10 focus-within:border-black/20'
-        : 'bg-white/5 focus-within:bg-white/10 border-white/10 focus-within:border-white/20';
+        ? 'bg-white/60 focus-within:bg-white border-black/10 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:shadow-sm'
+        : 'bg-black/20 focus-within:bg-black/40 border-white/10 focus-within:border-blue-500/50 focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:shadow-sm';
     const resultTheme = isDaylight
-        ? 'bg-black/5 hover:bg-black/10 border-black/5'
-        : 'bg-white/5 hover:bg-white/10 border-white/5';
+        ? 'bg-white border-black/5 hover:border-black/15 shadow-sm hover:shadow-md'
+        : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10 shadow-sm';
     const selectedTheme = isDaylight
-        ? 'bg-blue-500/10 border-blue-500/30'
-        : 'bg-blue-500/20 border-blue-500/50';
+        ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm'
+        : 'bg-blue-500/15 border-blue-500/40 text-blue-100 shadow-sm';
     const secondaryButtonTheme = isDaylight
-        ? 'bg-zinc-100/80 hover:bg-zinc-200'
-        : 'bg-white/5 hover:bg-white/10';
+        ? 'bg-zinc-100 hover:bg-zinc-200/80 text-zinc-700'
+        : 'bg-white/10 hover:bg-white/15 text-white';
     const [identityInput, setIdentityInput] = useState(entity.displayName);
     const [splitInput, setSplitInput] = useState('');
     const [splitMode, setSplitMode] = useState(false);
@@ -131,13 +132,21 @@ export const EntityEditorWorkspace = ({
     };
 
     return (
-        <div className={`grid gap-5 p-6 ${splitMode ? 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : ''}`}>
-            <section className="min-w-0">
-                <label className="mb-2 block text-xs font-bold opacity-60">
-                    {splitMode ? t('localMusic.newEntityName', { kind: entityKindLabel }) : t('localMusic.entityDisplayName')}
-                </label>
-                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${inputTheme}`}>
-                    {splitMode ? <Scissors size={18} className="opacity-40" /> : <Pencil size={18} className="opacity-40" />}
+        <motion.div className={`grid gap-6 p-8 ${splitMode ? 'lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : ''}`}>
+            <motion.section className="min-w-0">
+                <div className="mb-4">
+                    <label className="mb-1.5 block text-[12px] font-bold uppercase tracking-wider text-blue-500">
+                        {splitMode ? `新建${entityKindLabel}并拆分` : `重命名或合并${entityKindLabel}`}
+                    </label>
+                    <p className="text-[13px] opacity-60 leading-relaxed">
+                        {splitMode
+                            ? `从右侧勾选需要拆分出去的歌曲，然后在此输入新的${entityKindLabel}名称，它们将从当前实体中独立出来。`
+                            : `输入新的名称以重命名当前${entityKindLabel}，或输入库中已有的${entityKindLabel}名称进行合并。`
+                        }
+                    </p>
+                </div>
+                <div className={`flex items-center gap-3 rounded-2xl border px-5 py-4 transition-all duration-200 ${inputTheme}`}>
+                    {splitMode ? <Scissors size={20} className="text-blue-500 opacity-80" /> : <Pencil size={20} className="text-blue-500 opacity-80" />}
                     <input
                         value={inputValue}
                         onChange={event => {
@@ -155,62 +164,68 @@ export const EntityEditorWorkspace = ({
                         placeholder={splitMode ? t('localMusic.newEntityName', { kind: entityKindLabel }) : t('localMusic.searchEntity', { kind: entityKindLabel })}
                         aria-label={splitMode ? t('localMusic.newEntityName', { kind: entityKindLabel }) : t('localMusic.entityDisplayName')}
                         autoFocus
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+                        className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none"
                     />
                 </div>
 
                 {nameSuggestions.length > 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <Sparkles size={13} className="mr-0.5 opacity-35" />
+                    <motion.div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Sparkles size={14} className="mr-1 text-blue-500 opacity-60" />
                         {nameSuggestions.map(suggestion => (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
                                 key={suggestion.name}
                                 type="button"
                                 onClick={() => chooseSuggestedName(suggestion.name)}
-                                className={`max-w-full truncate rounded-lg border px-3 py-1.5 text-xs transition-colors ${resultTheme}`}
+                                className={`max-w-full truncate rounded-full border px-4 py-1.5 text-xs font-medium transition-colors ${resultTheme}`}
                             >
-                                {suggestion.name} <span className="opacity-35">· {suggestion.count}</span>
-                            </button>
+                                {suggestion.name} <span className="ml-1 opacity-40 text-[10px]">· {suggestion.count}</span>
+                            </motion.button>
                         ))}
-                    </div>
+                    </motion.div>
                 )}
 
                 {!splitMode && mergeSource && (
-                    <div className={`mt-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${selectedTheme}`}>
-                        <GitMerge size={15} className="shrink-0 opacity-45" />
-                        <span className="min-w-0 flex-1 truncate">{mergeSource.displayName}</span>
-                        <ArrowRight size={14} className="shrink-0 opacity-35" />
-                        <span className="min-w-0 flex-1 truncate text-right font-bold">{entity.displayName}</span>
-                    </div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`mt-5 flex items-center gap-4 rounded-xl border px-5 py-4 text-sm ${selectedTheme}`}>
+                        <GitMerge size={18} className="shrink-0 opacity-60 text-blue-500" />
+                        <span className="min-w-0 flex-1 truncate font-medium">{mergeSource.displayName}</span>
+                        <ArrowRight size={16} className="shrink-0 opacity-40" />
+                        <span className="min-w-0 flex-1 truncate text-right font-bold text-lg">{entity.displayName}</span>
+                    </motion.div>
                 )}
 
                 {!splitMode && !mergeSource && mergeSuggestions.length > 0 && (
-                    <div className="mt-4 space-y-1.5">
+                    <motion.div className="mt-5 space-y-2">
                         {mergeSuggestions.map(candidate => (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
                                 key={candidate.id}
                                 type="button"
                                 onClick={() => {
                                     setMergeSourceId(candidate.id);
                                     setIdentityInput(candidate.displayName);
                                 }}
-                                className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${resultTheme}`}
+                                className={`flex w-full items-center gap-4 rounded-xl border px-5 py-4 text-left text-sm transition-colors ${resultTheme}`}
                             >
-                                <GitMerge size={14} className="shrink-0 opacity-35" />
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
+                                    <GitMerge size={14} />
+                                </div>
                                 <span className="min-w-0 flex-1 truncate font-semibold">{candidate.displayName}</span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider opacity-35">
+                                <span className="text-[10px] font-bold uppercase tracking-wider opacity-40">
                                     {t('localMusic.mergeIntoCurrent', { kind: entityKindLabel })}
                                 </span>
-                            </button>
+                            </motion.button>
                         ))}
-                    </div>
+                    </motion.div>
                 )}
 
-            </section>
+            </motion.section>
 
             {splitMode && (
-                <section className={`min-w-0 border-t pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0 ${borderTheme}`}>
-                    <div className="mb-3 text-xs font-bold opacity-60">
+                <motion.section initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`min-w-0 border-t pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 ${borderTheme}`}>
+                    <div className="mb-4 text-[11px] font-bold uppercase tracking-wider opacity-60">
                         {t('localMusic.selectedSongCount', { count: selectedSongIds.size })}
                     </div>
                     <EntityMemberPicker
@@ -219,35 +234,39 @@ export const EntityEditorWorkspace = ({
                         onToggle={toggleSong}
                         isDaylight={isDaylight}
                     />
-                </section>
+                </motion.section>
             )}
 
-            <footer className={`-mx-6 -mb-6 mt-1 flex flex-wrap items-center justify-end gap-3 border-t px-6 py-4 ${borderTheme} ${splitMode ? 'lg:col-span-2' : ''}`}>
+            <motion.footer className={`-mx-8 -mb-8 mt-2 flex flex-wrap items-center justify-end gap-3 border-t px-8 py-5 ${borderTheme} ${splitMode ? 'lg:col-span-2' : ''}`}>
                 <button
                     type="button"
                     onClick={() => {
                         setSplitMode(current => !current);
                         setMergeSourceId('');
                     }}
-                    className={`mr-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors ${secondaryButtonTheme}`}
+                    className={`mr-auto flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors ${secondaryButtonTheme}`}
                 >
-                    {splitMode ? <ArrowLeft size={14} /> : <Scissors size={14} />}
+                    {splitMode ? <ArrowLeft size={16} /> : <Scissors size={16} />}
                     {splitMode ? t('localMusic.backToEntityEditing') : t('localMusic.chooseSongsToSplit')}
                 </button>
                 <button
                     type="button"
                     disabled={!canSubmit || pending}
                     onClick={() => void submit()}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-2 text-sm text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-500 hover:bg-blue-600 active:bg-blue-700 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none"
                 >
-                    {splitMode ? <Scissors size={14} /> : mergeSource ? <GitMerge size={14} /> : <Check size={14} />}
+                    {splitMode ? <Scissors size={16} /> : mergeSource ? <GitMerge size={16} /> : <Check size={16} />}
                     {splitMode
-                        ? t('localMusic.splitSelectedAction', { count: selectedSongIds.size, kind: entityKindLabel })
+                        ? (selectedSongIds.size > 0 && splitInput.trim() 
+                            ? `拆分 ${selectedSongIds.size} 首歌曲` 
+                            : t('localMusic.splitSelectedAction', { count: selectedSongIds.size, kind: entityKindLabel }))
                         : mergeSource
-                            ? t('localMusic.mergeEntity', { kind: entityKindLabel })
-                            : t('localMusic.save')}
+                            ? `确认合并`
+                            : canRename 
+                                ? `确认重命名`
+                                : t('localMusic.save')}
                 </button>
-            </footer>
-        </div>
+            </motion.footer>
+        </motion.div>
     );
 };
