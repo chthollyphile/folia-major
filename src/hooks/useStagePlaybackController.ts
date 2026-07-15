@@ -178,6 +178,8 @@ export function useStagePlaybackController({
     const nowPlayingLyricPayloadRef = useRef<NowPlayingLyricPayload | null>(null);
     const nowPlayingProgressMsRef = useRef(0);
     const nowPlayingProgressQualityRef = useRef<'precise' | 'coarse'>('coarse');
+    // Provider callbacks own this ref even while Stage is inactive; mirroring unpublished React
+    // state here would overwrite the live Spotify pause state before the Stage view opens.
     const nowPlayingPausedRef = useRef(nowPlayingPaused);
     const applyNowPlayingPreciseAnchorRef = useRef<((
         progressMs: number,
@@ -188,7 +190,6 @@ export function useStagePlaybackController({
     const lastNowPlayingPauseStateRef = useRef(nowPlayingPaused);
     const currentLineIndexRef = useRef(currentLineIndex);
 
-    nowPlayingPausedRef.current = nowPlayingPaused;
     currentLineIndexRef.current = currentLineIndex;
 
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
@@ -1136,8 +1137,9 @@ text: t('status.spotifyNoSynchronizedLyrics', { title: track.title }),
                 if (quality === 'precise' && isExternalPlaybackSource) {
                     void applyNowPlayingPreciseAnchorRef.current?.(progressMs, nowPlayingPausedRef.current, {
                         rttMs,
-                        // Spotify's small RTT correction is intentional even below the generic drift threshold.
-                        onlyIfDrifted: stageSource !== 'spotify',
+                        // Preserve the continuous local clock between polls; snapping every Spotify response
+                        // into the MotionValue makes word highlighting visibly stutter once per second.
+                        onlyIfDrifted: true,
                         source: 'progress',
                     });
                 }
