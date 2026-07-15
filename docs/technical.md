@@ -2,7 +2,7 @@
 
 这份文档收纳仓库 README 中较细的部署、开发、桌面端和技术栈说明。更完整的使用指南也可以访问专门的文档站点：
 
-- [Folia Guide](https://folia-site.vercel.app/guide/)
+- [Folia Guide](https://folia-site.cielaniska.top/guide/)
 - [Stage API 文档](../test/manual/stage-client/README.md)
 
 ## 桌面端说明

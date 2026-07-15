@@ -6,7 +6,7 @@ import type { Theme } from '../../types';
 
 // src/components/modal/AiHelpPromptModal.tsx
 
-const FOLIA_GUIDE_URL = 'https://folia-site.vercel.app/guide/llm-routing';
+const FOLIA_GUIDE_URL = 'https://folia-site.cielaniska.top/guide/llm-routing';
 const FOLIA_REPOSITORY_URL = 'https://github.com/chthollyphile/folia-major';
 
 type AiHelpPromptModalProps = {
