@@ -8,6 +8,7 @@ export const buildPlayerViewFlags = ({
     hidePlayerTranslationSubtitle,
     hidePlayerRightPanelButton,
     isNowPlayingControlDisabled,
+    isSpotifyStageActive,
     activePlaybackContext,
     stageActiveEntryKind,
     audioSrc,
@@ -19,6 +20,7 @@ export const buildPlayerViewFlags = ({
     hidePlayerTranslationSubtitle: boolean;
     hidePlayerRightPanelButton: boolean;
     isNowPlayingControlDisabled: boolean;
+    isSpotifyStageActive: boolean;
     activePlaybackContext: 'main' | 'stage';
     stageActiveEntryKind: string | null;
     audioSrc: string | null;
@@ -32,7 +34,9 @@ export const buildPlayerViewFlags = ({
         shouldHidePlayerTranslationSubtitle: isPlayerView && hidePlayerTranslationSubtitle,
         shouldHidePlayerRightPanelButton: isPlayerView && hidePlayerRightPanelButton,
         canToggleCurrentPlayback: !isNowPlayingControlDisabled && Boolean(
-            audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
+            isSpotifyStageActive
+            || audioSrc
+            || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
         ),
     };
 };

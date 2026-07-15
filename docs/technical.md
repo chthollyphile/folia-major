@@ -9,6 +9,19 @@
 
 桌面版内置前后端运行环境，适合希望即装即用的用户。最新版本请前往 [Releases 页面](https://github.com/chthollyphile/folia-major/releases)。
 
+### Windows Spotify 接入
+
+Spotify 作为桌面端 Stage 来源运行：Spotify 官方客户端负责音频，Folia 通过 Spotify Web API 读取当前歌曲和播放时间、控制播放/暂停/进度/切歌/循环，并复用项目现有的多来源歌词自动匹配。控制功能需要 Spotify Premium 和一个可用的 Spotify Connect 播放设备。
+
+1. 在 [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) 创建应用并取得 Client ID；不需要 Client Secret。
+2. 在应用的 Redirect URIs 中加入 `http://127.0.0.1:43827/callback`。
+3. 在 Folia 的“设置 → 集成 → Stage Mode”中选择 Spotify，粘贴 Client ID 并完成浏览器授权。如果是从只读版本升级，需要点击“重新连接”并批准新的播放控制权限。
+4. 在 Spotify 官方客户端开始播放，然后从 Folia 首页进入 Stage。
+
+Folia 会优先匹配逐字歌词，并允许带真实时间轴的逐行歌词作为降级方案。静态文本、无时间戳歌词或完全没有歌词的曲目不会被加载为当前歌曲；Stage 会保持未激活并明确提示“未找到同步歌词”，避免出现空白歌词动画或错误高亮。播放中的歌词时钟会把实测 Spotify 请求往返时间的一半计入锚点，减少 API 返回造成的轻微落后。
+
+授权使用 Authorization Code with PKCE，刷新令牌由 Electron 主进程单独保存，并在 Windows 可用时通过系统安全存储加密。此功能请求 `user-read-playback-state` 与 `user-modify-playback-state`，不会接收或重新分发 Spotify 音频。
+
 ### Linux 获取方式
 
 1. Arch Linux / Manjaro：通过 AUR 安装 `folia-major-bin`

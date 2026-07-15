@@ -10,6 +10,7 @@ type UseMediaSessionBridgeOptions = {
     cachedCoverUrl: string | null;
     playerState: PlayerState;
     isNowPlayingStageActive: boolean;
+    isSpotifyStageActive: boolean;
     t: (key: string) => string;
     mediaSessionPlayRef: RefObject<() => Promise<void>>;
     mediaSessionPauseRef: RefObject<() => void>;
@@ -24,6 +25,7 @@ export const useMediaSessionBridge = ({
     cachedCoverUrl,
     playerState,
     isNowPlayingStageActive,
+    isSpotifyStageActive,
     t,
     mediaSessionPlayRef,
     mediaSessionPauseRef,
@@ -129,7 +131,7 @@ export const useMediaSessionBridge = ({
         }
 
         try {
-            navigator.mediaSession.playbackState = isNowPlayingStageActive
+            navigator.mediaSession.playbackState = isNowPlayingStageActive && !isSpotifyStageActive
                 ? 'none'
                 : currentSong
                     ? (playerState === PlayerState.PLAYING ? 'playing' : 'paused')
@@ -137,5 +139,5 @@ export const useMediaSessionBridge = ({
         } catch (e) {
             console.warn('[MediaSession] Failed to update playback state', e);
         }
-    }, [currentSong, isNowPlayingStageActive, playerState]);
+    }, [currentSong, isNowPlayingStageActive, isSpotifyStageActive, playerState]);
 };

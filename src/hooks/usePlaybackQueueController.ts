@@ -47,6 +47,8 @@ type UsePlaybackQueueControllerParams = {
     loopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
     isNowPlayingStageActive: boolean;
+    onExternalNextTrack?: () => Promise<void> | void;
+    onExternalPreviousTrack?: () => Promise<void> | void;
     queueAddBehavior: QueueAddBehavior;
     searchQuery: string;
     searchSourceTab: HomeViewTab;
@@ -137,6 +139,8 @@ export function usePlaybackQueueController({
     loopMode,
     isFmMode,
     isNowPlayingStageActive,
+    onExternalNextTrack,
+    onExternalPreviousTrack,
     queueAddBehavior,
     searchQuery,
     searchSourceTab,
@@ -807,7 +811,10 @@ export function usePlaybackQueueController({
     }, [handleAlbumSelect, hideSearchOverlay, openLocalAlbumByName, setHomeViewTab, setPendingNavidromeSelection]);
 
     const handleNextTrack = useCallback(async (options?: NextTrackOptions) => {
-        if (isNowPlayingStageActive) return;
+        if (isNowPlayingStageActive) {
+            await onExternalNextTrack?.();
+            return;
+        }
         if (!currentSong || playQueue.length === 0) return;
 
         const shouldNavigateToPlayer = options?.shouldNavigateToPlayer ?? true;
@@ -851,10 +858,13 @@ export function usePlaybackQueueController({
             }
             setPlayerState(PlayerState.IDLE);
         }
-    }, [audioRef, currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState]);
+    }, [audioRef, currentSong, isFmMode, isNowPlayingStageActive, loopMode, onExternalNextTrack, playQueue, playSong, setPlayQueue, setPlayerState]);
 
     const handlePrevTrack = useCallback(() => {
-        if (isNowPlayingStageActive) return;
+        if (isNowPlayingStageActive) {
+            void onExternalPreviousTrack?.();
+            return;
+        }
         if (!currentSong || playQueue.length === 0) return;
 
         const currentIndex = playQueue.findIndex(song => song.id === currentSong.id);
@@ -869,7 +879,7 @@ export function usePlaybackQueueController({
         if (prevIndex >= 0) {
             void playSong(playQueue[prevIndex], playQueue, isFmMode);
         }
-    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong]);
+    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, onExternalPreviousTrack, playQueue, playSong]);
 
     const skipAfterPlaybackFailure = useCallback(() => {
         clearPendingUnavailableSkip();

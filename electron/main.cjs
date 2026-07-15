@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, desktopCapturer, Menu, Tray, nativeTheme, safeStorage } = require('electron');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
+const { createSpotifyController } = require('./spotify.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
@@ -47,6 +48,7 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
 }
 
 const store = new Store({ projectName: 'Folia' });
+const spotifyPrivateStore = new Store({ projectName: 'Folia', name: 'spotify-auth' });
 
 // --- Electron main process locale map ---
 const APP_LOCALE_KEY = 'APP_LOCALE';
@@ -330,6 +332,13 @@ const stageApi = createStageApi({
   stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
   getNeteasePort: () => assignedPort,
+});
+
+const spotify = createSpotifyController({
+  privateStore: spotifyPrivateStore,
+  shell,
+  safeStorage,
+  getMainWindow: () => mainWindow,
 });
 
 const discordPresence = createDiscordPresenceController({
@@ -2764,6 +2773,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   clearPendingWindowPlaybackHandoffRequests();
+  spotify.stop();
   void discordPresence.destroy();
 });
 
@@ -3204,6 +3214,41 @@ ipcMain.handle('playback-sync-bridge-get-status', (event) => {
   }
 
   return buildPlaybackSyncBridgeStatus();
+});
+
+ipcMain.handle('spotify-get-status', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read Spotify status.');
+  }
+  return spotify.buildStatus();
+});
+
+ipcMain.handle('spotify-connect', (event, clientId) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to start Spotify authorization.');
+  }
+  return spotify.connect(clientId);
+});
+
+ipcMain.handle('spotify-disconnect', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to disconnect Spotify.');
+  }
+  return spotify.disconnect();
+});
+
+ipcMain.handle('spotify-get-playback', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read Spotify playback.');
+  }
+  return spotify.getPlayback();
+});
+
+ipcMain.handle('spotify-control-playback', (event, command) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to control Spotify playback.');
+  }
+  return spotify.controlPlayback(command);
 });
 
 ipcMain.handle('stage-get-status', () => {

@@ -77,6 +77,8 @@ export type CommandPaletteContext = {
     toggleBottomSubtitleOverlay: () => void;
     showSubtitleTranslation: boolean;
     toggleSubtitleTranslation: () => void;
+    convertSimplifiedLyricsToTraditional: boolean;
+    toggleSimplifiedLyricsToTraditional: () => void;
     toggleDaylightMode: () => void;
     setAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void> | void;
     enableAlternativeLyricSources: boolean;

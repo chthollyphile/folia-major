@@ -29,6 +29,7 @@ import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerV
 import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
 import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
 import { createLyricsSetter } from './components/app/playback/createLyricsSetter';
+import { useTraditionalChineseLyrics } from './hooks/useTraditionalChineseLyrics';
 import { createOnlineRecoveryController } from './components/app/playback/createOnlineRecoveryController';
 import { persistPlaybackCache } from './components/app/playback/persistPlaybackCache';
 import { buildAppOverlaysModel } from './components/app/overlays/buildAppOverlaysModel';
@@ -59,6 +60,7 @@ import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublish
 import { ObsBrowserSourceLyrics } from './components/obs/ObsBrowserSourceLyrics';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
+import { useSpotifyPlaybackControls } from './hooks/useSpotifyPlaybackControls';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useThemeQuickEditorStore } from './stores/useThemeQuickEditorStore';
@@ -114,7 +116,7 @@ export default function App() {
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
-    const [lyrics, setLyricsState] = useState<LyricData | null>(null);
+    const [sourceLyrics, setLyricsState] = useState<LyricData | null>(null);
     const [lyricTimelineOffsetMs, setLyricTimelineOffsetMs] = useState(0);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
     const [activePlaybackContext, setActivePlaybackContext] = useState<PlaybackContext>('main');
@@ -302,6 +304,7 @@ export default function App() {
         hidePlayerProgressBar,
         hidePlayerTranslationSubtitle,
         showSubtitleTranslation,
+        convertSimplifiedLyricsToTraditional,
         hidePlayerRightPanelButton,
         transparentPlayerBackground,
         enablePlayerPageNativeBlur,
@@ -358,6 +361,7 @@ export default function App() {
         handleToggleHidePlayerProgressBar,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleShowSubtitleTranslation,
+        handleToggleConvertSimplifiedLyricsToTraditional,
         handleToggleHidePlayerRightPanelButton,
         handleToggleTransparentPlayerBackground,
         handleToggleDisableVisualizerVignette,
@@ -401,6 +405,8 @@ export default function App() {
         handleToggleMute,
         handleToggleLoopMode,
     } = appPreferences;
+
+    const lyrics = useTraditionalChineseLyrics(sourceLyrics, convertSimplifiedLyricsToTraditional);
 
     const visualizerTunings = useMemo(() => ({
         classic: classicTuning,
@@ -743,7 +749,7 @@ export default function App() {
     useEffect(() => {
         const isPureMusic = Boolean(currentSong?.isPureMusic);
         const songTitle = currentSong?.name;
-        const allText = lyrics?.lines.map(l => l.fullText).join('\n') || null;
+        const allText = sourceLyrics?.lines.map(l => l.fullText).join('\n') || null;
         const promptSourceText = (isPureMusic ? songTitle : allText) || allText;
 
         setThemeQuickEditorContext({
@@ -758,7 +764,7 @@ export default function App() {
             isPureMusic,
             songTitle,
         });
-    }, [aiTheme, bgMode, coverUrl, currentSong, currentSong?.id, currentSong?.isPureMusic, currentSong?.name, customTheme, isDaylight, lyrics, setThemeQuickEditorContext]);
+    }, [aiTheme, bgMode, coverUrl, currentSong, currentSong?.id, currentSong?.isPureMusic, currentSong?.name, customTheme, isDaylight, setThemeQuickEditorContext, sourceLyrics]);
 
     // Navigation and Library Hooks
     // manages current view, selected items, and navigation functions across the app
@@ -850,6 +856,7 @@ export default function App() {
         nowPlayingPaused,
         nowPlayingDebugInfo,
         isNowPlayingStageActive,
+        isSpotifyStageActive,
         mainPlaybackSnapshotRef,
         stageLyricsClockRef,
         syncStageLyricsClock,
@@ -871,7 +878,7 @@ export default function App() {
         activePlaybackContext,
         setActivePlaybackContext,
         currentSong,
-        lyrics,
+        lyrics: sourceLyrics,
         cachedCoverUrl,
         audioSrc,
         playQueue,
@@ -901,6 +908,27 @@ export default function App() {
     });
 
     const {
+        resumeSpotify,
+        pauseSpotify,
+        seekSpotify,
+        nextSpotify,
+        previousSpotify,
+        toggleSpotifyLoop,
+    } = useSpotifyPlaybackControls({
+        active: isSpotifyStageActive,
+        currentTime,
+        duration,
+        playerState,
+        loopMode: effectiveLoopMode,
+        setPlayerState,
+        setStatusMsg,
+        handleToggleLoopMode,
+        syncNowPlayingClock,
+        getNowPlayingDisplayTime,
+        t: (key, options) => String(t(key, options as any)),
+    });
+
+    const {
         restoreStatus: windowPlaybackHandoffRestoreStatus,
         toggleTransparentModeWithHandoff,
     } = useElectronWindowPlaybackHandoff({
@@ -912,7 +940,7 @@ export default function App() {
         currentView,
         navigateToPlayer,
         currentSong,
-        lyrics,
+        lyrics: sourceLyrics,
         cachedCoverUrl,
         audioSrc,
         playQueue,
@@ -1012,7 +1040,7 @@ export default function App() {
         audioQuality,
         queueAddBehavior,
         currentSong,
-        lyrics,
+        lyrics: sourceLyrics,
         playQueue,
         likedSongIds,
         userId: user?.userId,
@@ -1124,6 +1152,8 @@ export default function App() {
         loopMode,
         isFmMode,
         isNowPlayingStageActive,
+        onExternalNextTrack: isSpotifyStageActive ? nextSpotify : undefined,
+        onExternalPreviousTrack: isSpotifyStageActive ? previousSpotify : undefined,
         queueAddBehavior,
         searchQuery,
         searchSourceTab,
@@ -1217,6 +1247,9 @@ export default function App() {
         activePlaybackContext,
         stageActiveEntryKind,
         isNowPlayingStageActive,
+        isSpotifyStageActive,
+        onSpotifyResume: resumeSpotify,
+        onSpotifyPause: pauseSpotify,
         audioSrc,
         duration,
         audioRef,
@@ -1276,6 +1309,7 @@ export default function App() {
         cachedCoverUrl,
         playerState,
         isNowPlayingStageActive,
+        isSpotifyStageActive,
         t: (key) => t(key),
         mediaSessionPlayRef,
         mediaSessionPauseRef,
@@ -1397,6 +1431,7 @@ export default function App() {
         activePlaybackContext,
         stageActiveEntryKind,
         isNowPlayingStageActive,
+        isSpotifyStageActive,
         isPanelOpen,
         isFmMode,
         playerState,
@@ -1412,6 +1447,8 @@ export default function App() {
         handleNextTrack,
         handlePrevTrack,
         handleToggleLoopMode,
+        seekSpotify,
+        toggleSpotifyLoop,
         pausePlayback,
         resumePlayback,
         syncStageLyricsClock,
@@ -1453,7 +1490,7 @@ export default function App() {
         theme,
         visualizerMode,
     ]);
-    const isNowPlayingControlDisabled = isNowPlayingStageActive;
+    const isNowPlayingControlDisabled = isNowPlayingStageActive && !isSpotifyStageActive;
 
     useEffect(() => {
         localStorage.setItem(PLAYER_CHROME_HIDDEN_STORAGE_KEY, String(isPlayerChromeHidden));
@@ -1573,6 +1610,7 @@ export default function App() {
         hidePlayerTranslationSubtitle,
         hidePlayerRightPanelButton,
         isNowPlayingControlDisabled,
+        isSpotifyStageActive,
         activePlaybackContext,
         stageActiveEntryKind,
         audioSrc,
@@ -1587,6 +1625,7 @@ export default function App() {
         hidePlayerRightPanelButton,
         hidePlayerTranslationSubtitle,
         isNowPlayingControlDisabled,
+        isSpotifyStageActive,
         stageActiveEntryKind,
     ]);
     const isSettingsModalOpen = settingsModalState.isOpen;
@@ -1633,10 +1672,10 @@ export default function App() {
         urlBackgroundList,
         urlBackgroundSelectedId,
     });
-    const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
+    const canGenerateAITheme = Boolean((sourceLyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const generateCurrentSongTheme = useCallback(() => {
-        void generateAITheme(lyrics, currentSong);
-    }, [currentSong, generateAITheme, lyrics]);
+        void generateAITheme(sourceLyrics, currentSong);
+    }, [currentSong, generateAITheme, sourceLyrics]);
     const toggleDaylightMode = useCallback(() => {
         handleToggleDaylight(!isDaylight);
     }, [handleToggleDaylight, isDaylight]);
@@ -1736,6 +1775,10 @@ export default function App() {
         toggleSubtitleTranslation: () => {
             handleToggleShowSubtitleTranslation(!showSubtitleTranslation);
         },
+        convertSimplifiedLyricsToTraditional,
+        toggleSimplifiedLyricsToTraditional: () => {
+            handleToggleConvertSimplifiedLyricsToTraditional(!convertSimplifiedLyricsToTraditional);
+        },
         enablePlayerPageNativeBlur,
         toggleDaylightMode,
         setAppLanguagePreference: handleSetAppLanguagePreference,
@@ -1758,6 +1801,7 @@ export default function App() {
         handleSetMonetBackgroundTuning,
         handleToggleHidePlayerTranslationSubtitle,
         handleToggleShowSubtitleTranslation,
+        handleToggleConvertSimplifiedLyricsToTraditional,
         hidePlayerTranslationSubtitle,
         isGeneratingTheme,
         localSongs,
@@ -1784,6 +1828,7 @@ export default function App() {
         toggleTransparentModeWithHandoff,
         toggleDaylightMode,
         showSubtitleTranslation,
+        convertSimplifiedLyricsToTraditional,
         handleToggleAlternativeLyricSources,
         setIsUserGuideModalOpen,
         openThemeQuickEditor,
@@ -1800,7 +1845,7 @@ export default function App() {
         context: commandPaletteContext,
     });
     const nowPlayingDebugSnapshot = useMemo(() => (
-        stageSource === 'now-playing'
+        (stageSource === 'now-playing' || stageSource === 'spotify')
             ? {
                 connectionStatus: nowPlayingConnectionStatus,
                 isActive: isNowPlayingStageActive,
@@ -1875,7 +1920,7 @@ export default function App() {
     useSongThemeAutoGeneration({
         enabled: songThemeAutoSwitchEnabled && songThemeAutoGenerateEnabled,
         currentSong,
-        lyrics,
+        lyrics: sourceLyrics,
         isLyricsLoading,
         generateAITheme,
     });
@@ -1896,7 +1941,9 @@ export default function App() {
         }
 
         const playbackTime = Math.max(0, lyricTimeSec + currentTime.get() - lyricCurrentTime.get());
-        if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+        if (isSpotifyStageActive) {
+            void seekSpotify(playbackTime);
+        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             syncStageLyricsClock(playbackTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
             currentTime.set(playbackTime);
             if (playerState !== PlayerState.PLAYING) {
@@ -1912,10 +1959,12 @@ export default function App() {
         currentTime,
         duration,
         isNowPlayingControlDisabled,
+        isSpotifyStageActive,
         lyricCurrentTime,
         playerState,
         publishStagePlayerPlaybackUpdate,
         seekMainAudio,
+        seekSpotify,
         setPlayerState,
         stageActiveEntryKind,
         stageLyricsClockRef,
@@ -2488,6 +2537,7 @@ export default function App() {
         audioSrc,
         canToggleCurrentPlayback,
         isNowPlayingControlDisabled,
+        isSpotifyStageActive,
         lyrics,
         activePlaybackContext,
         stageActiveEntryKind,
@@ -2500,6 +2550,7 @@ export default function App() {
         isPlayerChromeHidden,
         shouldHidePlayerProgressBar,
         onSeekMainAudio: seekMainAudio,
+        onSeekSpotify: seekSpotify,
         onStagePlayerSeek: publishStagePlayerPlaybackUpdate,
         noTrackText: t('ui.noTrack'),
     }), [
@@ -2526,6 +2577,7 @@ export default function App() {
         isDev,
         isDevDebugOverlayVisible,
         isNowPlayingControlDisabled,
+        isSpotifyStageActive,
         isOverlayVisible,
         isSearchOpen,
         isPlayerChromeHidden,
@@ -2540,6 +2592,7 @@ export default function App() {
         publishStagePlayerPlaybackUpdate,
         refreshUserData,
         seekMainAudio,
+        seekSpotify,
         setPlayerState,
         shouldHidePlayerProgressBar,
         stageActiveEntryKind,
@@ -2925,19 +2978,27 @@ export default function App() {
                 />
             )}
 
-            {currentView === 'player' && activePlaybackContext === 'stage' && (!stageActiveEntryKind || stageSource === 'now-playing') && !currentSong && (
+            {currentView === 'player' && activePlaybackContext === 'stage' && (!stageActiveEntryKind || stageSource === 'now-playing' || stageSource === 'spotify') && !currentSong && (
                 <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center px-6">
                     <div className={`max-w-lg rounded-3xl border px-6 py-5 text-center backdrop-blur-md ${isDaylight ? 'border-black/10 bg-white/50 text-zinc-800' : 'border-white/10 bg-black/30 text-white'}`}>
                         <div className="text-xs uppercase tracking-[0.22em] opacity-50">
-                            {stageSource === 'now-playing' ? 'Stage · Now Playing' : 'Stage · Stage API'}
+                            {stageSource === 'spotify' ? 'Stage · Spotify' : stageSource === 'now-playing' ? 'Stage · Now Playing' : 'Stage · Stage API'}
                         </div>
                         <div className="mt-3 text-2xl font-semibold">
-                            {stageSource === 'now-playing'
+                            {stageSource === 'spotify'
+                                ? (nowPlayingTrack ? t('options.spotifyNoSyncedLyricsTitle') : t('options.spotifyWaitingTitle'))
+                                : stageSource === 'now-playing'
                                 ? t('options.stageSessionEmpty')
                                 : t('options.stageSessionEmpty')}
                         </div>
                         <div className="mt-2 text-sm opacity-70">
-                            {stageSource === 'now-playing'
+                            {stageSource === 'spotify'
+                                ? (nowPlayingTrack
+                                    ? t('options.spotifyNoSyncedLyricsDescription')
+                                    : nowPlayingConnectionStatus === 'error'
+                                    ? t('options.spotifyConnectionError')
+                                    : t('options.spotifyNoPlayback'))
+                                : stageSource === 'now-playing'
                                 ? (nowPlayingConnectionStatus === 'error'
                                     ? t('options.stageConnectionError')
                                     : t('options.stageNotRunning'))

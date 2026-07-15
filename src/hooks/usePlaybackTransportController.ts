@@ -8,6 +8,9 @@ type UsePlaybackTransportControllerParams = {
     activePlaybackContext: 'main' | 'stage';
     stageActiveEntryKind: string | null;
     isNowPlayingStageActive: boolean;
+    isSpotifyStageActive: boolean;
+    onSpotifyResume: () => Promise<void>;
+    onSpotifyPause: () => Promise<void>;
     audioSrc: string | null;
     duration: number;
     audioRef: RefObject<HTMLAudioElement | null>;
@@ -40,6 +43,9 @@ export function usePlaybackTransportController({
     activePlaybackContext,
     stageActiveEntryKind,
     isNowPlayingStageActive,
+    isSpotifyStageActive,
+    onSpotifyResume,
+    onSpotifyPause,
     audioSrc,
     duration,
     audioRef,
@@ -58,6 +64,10 @@ export function usePlaybackTransportController({
     t,
 }: UsePlaybackTransportControllerParams) {
     const resumePlayback = useCallback(async () => {
+        if (isSpotifyStageActive) {
+            await onSpotifyResume();
+            return;
+        }
         if (isNowPlayingStageActive) {
             return;
         }
@@ -121,9 +131,13 @@ export function usePlaybackTransportController({
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }
-    }, [activePlaybackContext, audioContextRef, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock, t]);
+    }, [activePlaybackContext, audioContextRef, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, isSpotifyStageActive, onSpotifyResume, recoverOnlinePlaybackSource, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
+        if (isSpotifyStageActive) {
+            void onSpotifyPause();
+            return;
+        }
         if (isNowPlayingStageActive) {
             return;
         }
@@ -143,7 +157,7 @@ export function usePlaybackTransportController({
         audioRef.current.pause();
         syncOutputGain(getTargetPlaybackVolume(), 0);
         setPlayerState(PlayerState.PAUSED);
-    }, [activePlaybackContext, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, setPlayerState, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock]);
+    }, [activePlaybackContext, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, isSpotifyStageActive, onSpotifyPause, setPlayerState, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock]);
 
     return {
         resumePlayback,

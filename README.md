@@ -29,7 +29,7 @@ Lyrics Reimagined // 辞曲新境
 
 ## 项目简介
 
-Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云，navidrome和本地音乐库，通过智能歌词匹配，AI生成配色主题，以及多种全屏歌词动画为用户提供独特的听歌体验。
+Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云、Spotify（Windows 桌面端）、navidrome和本地音乐库，通过智能歌词匹配，AI生成配色主题，以及多种全屏歌词动画为用户提供独特的听歌体验。
 
 提供基于Electron的 windows/ macOS/ Linux 桌面端版本与基于 Node.js 的 Web 版本，支持多平台部署。
 
@@ -95,6 +95,7 @@ https://github.com/user-attachments/assets/704f195a-2194-434b-86e8-8f36290e5cc4
 | 智能歌词匹配 | 本地歌曲可自动匹配在线歌词与封面，也支持手动修正匹配结果。 |
 | 本地歌词文件识别 | 自动加载同目录同名 `.lrc`、`.vtt`、`.ttml`、`.qrc`、`.yrc`、`.krc` 歌词文件，或歌词文件内嵌 LRC 歌词。适配 LDDC 生成的增强型逐字歌词格式。 |
 | Now Playing 接入 | 支持通过本机 [Now Playing](https://github.com/Widdit/now-playing-service/) 服务接入外部播放器的歌曲、时间轴与歌词信息，并驱动 Folia 的舞台视图与全屏歌词渲染。 |
+| Spotify 接入 | Windows 桌面端可通过 Spotify Web API 的 PKCE 授权读取并控制当前播放（播放/暂停、跳转进度、上一首/下一首、循环）；音频保留在 Spotify 官方客户端播放，控制功能需要 Spotify Premium。Folia 会用请求往返时间修正歌词时钟，并且只有在匹配到真实时间轴歌词后才会激活舞台，静态或缺失歌词不会进入空白/损坏的播放视图。 |
 | AI 主题生成 | 基于歌曲情绪与歌词内容生成沉浸式背景与视觉参数。 |
 | 多端体验 | 提供 Web 部署方式，同时支持桌面端打包分发。 |
 

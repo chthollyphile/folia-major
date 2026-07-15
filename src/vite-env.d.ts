@@ -201,7 +201,61 @@ declare global {
   }
 
   type StageActiveEntryKind = 'lyrics' | 'media';
-  type StageSource = 'stage-api' | 'now-playing';
+  type StageSource = 'stage-api' | 'now-playing' | 'spotify';
+
+  interface ElectronSpotifyStatus {
+    configured: boolean;
+    authenticated: boolean;
+    controlsAuthorized: boolean;
+    requiresReauthorization: boolean;
+    authorizationPending: boolean;
+    clientId: string;
+    redirectUri: string;
+    expiresAt: number | null;
+    scopes: string[];
+    error: string | null;
+  }
+
+  interface ElectronSpotifyPlayback {
+    id: string | null;
+    uri: string | null;
+    type: string;
+    title: string;
+    artist: string;
+    album: string;
+    coverUrl: string | null;
+    durationMs: number;
+    progressMs: number;
+    isPlaying: boolean;
+    sampledAtMs: number;
+    device: {
+      id: string | null;
+      name: string;
+      type: string;
+      isRestricted: boolean;
+    } | null;
+  }
+
+  interface ElectronSpotifyPlaybackResponse {
+    playback: ElectronSpotifyPlayback | null;
+    retryAfterMs: number | null;
+    error?: string;
+  }
+
+  type ElectronSpotifyPlaybackControlCommand =
+    | { action: 'resume' }
+    | { action: 'pause' }
+    | { action: 'next' }
+    | { action: 'previous' }
+    | { action: 'seek'; positionMs: number }
+    | { action: 'repeat'; state: 'off' | 'context' | 'track' }
+    | { action: 'shuffle'; state: boolean };
+
+  interface ElectronSpotifyPlaybackControlResponse {
+    ok: boolean;
+    retryAfterMs: number | null;
+    error?: string;
+  }
 
   interface StageEmbeddedUsltTag {
     language?: string;
@@ -502,6 +556,12 @@ declare global {
       getDiscordPresenceStatus: () => Promise<ElectronDiscordPresenceStatus>;
       publishDiscordPresenceSnapshot: (snapshot: ElectronDiscordPresenceSnapshot) => Promise<ElectronDiscordPresenceStatus>;
       getPlaybackSyncBridgeStatus: () => Promise<ElectronPlaybackSyncBridgeStatus>;
+      getSpotifyStatus: () => Promise<ElectronSpotifyStatus>;
+      connectSpotify: (clientId: string) => Promise<ElectronSpotifyStatus>;
+      disconnectSpotify: () => Promise<ElectronSpotifyStatus>;
+      getSpotifyPlayback: () => Promise<ElectronSpotifyPlaybackResponse>;
+      controlSpotifyPlayback: (command: ElectronSpotifyPlaybackControlCommand) => Promise<ElectronSpotifyPlaybackControlResponse>;
+      onSpotifyStatusChanged: (callback: (status: ElectronSpotifyStatus) => void) => () => void;
       onPlaybackSyncBridgeStatusChanged: (callback: (status: ElectronPlaybackSyncBridgeStatus) => void) => () => void;
       onDiscordPresenceStatusChanged: (callback: (status: ElectronDiscordPresenceStatus) => void) => () => void;
       onObsBrowserSourceStatusChanged: (callback: (status: ElectronObsBrowserSourceStatus) => void) => () => void;

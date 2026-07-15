@@ -266,6 +266,7 @@ export const compressConfig = (config: any): string => {
     if (config.visualizerOpacity !== undefined) minified.vo = config.visualizerOpacity;
     if (config.hidePlayerTranslationSubtitle !== undefined) minified.hpts = config.hidePlayerTranslationSubtitle;
     if (config.showSubtitleTranslation !== undefined) minified.sst = config.showSubtitleTranslation;
+    if (config.convertSimplifiedLyricsToTraditional !== undefined) minified.s2t = config.convertSimplifiedLyricsToTraditional;
     if (config.lyricsFontStyle) minified.lfs = config.lyricsFontStyle;
     if (config.lyricsFontScale !== undefined) minified.lfn = config.lyricsFontScale;
     if (config.lyricsFontFallbackFamilies?.length) minified.lff = config.lyricsFontFallbackFamilies;
@@ -333,6 +334,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.vo !== undefined) decompressed.visualizerOpacity = parsed.vo;
         if (parsed.hpts !== undefined) decompressed.hidePlayerTranslationSubtitle = parsed.hpts;
         if (parsed.sst !== undefined) decompressed.showSubtitleTranslation = parsed.sst;
+        if (parsed.s2t !== undefined) decompressed.convertSimplifiedLyricsToTraditional = parsed.s2t;
         if (parsed.lfs) decompressed.lyricsFontStyle = parsed.lfs;
         if (parsed.lfn !== undefined) decompressed.lyricsFontScale = parsed.lfn;
         if (parsed.lff) decompressed.lyricsFontFallbackFamilies = parsed.lff;
@@ -362,6 +364,7 @@ export const decompressConfig = (str: string): any => {
         const validKeys = [
             'theme', 'visualizerMode', 'randomVisualizerModePerSong', 'visualizerBackgroundMode', 'backgroundOpacity',
             'visualizerOpacity', 'hidePlayerTranslationSubtitle', 'showSubtitleTranslation',
+            'convertSimplifiedLyricsToTraditional',
             'lyricsFontStyle', 'lyricsFontScale', 'lyricsFontFallbackFamilies',
             'subtitleFontInheritsLyrics', 'subtitleFontStyle', 'subtitleFontFamily',
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
@@ -455,6 +458,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         visualizerOpacity: state.visualizerOpacity,
         hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
         showSubtitleTranslation: state.showSubtitleTranslation,
+        convertSimplifiedLyricsToTraditional: state.convertSimplifiedLyricsToTraditional,
         lyricsFontStyle: state.lyricsFontStyle,
         lyricsFontScale: state.lyricsFontScale,
         lyricsFontFallbackFamilies: state.lyricsFontFallbackFamilies,
@@ -482,6 +486,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetVisualizerOpacity: state.handleSetVisualizerOpacity,
         handleToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
         handleToggleShowSubtitleTranslation: state.handleToggleShowSubtitleTranslation,
+        handleToggleConvertSimplifiedLyricsToTraditional: state.handleToggleConvertSimplifiedLyricsToTraditional,
         handleSetLyricsFontStyle: state.handleSetLyricsFontStyle,
         handleSetLyricsFontScale: state.handleSetLyricsFontScale,
         handleSetLyricsFontFallbackFamilies: state.handleSetLyricsFontFallbackFamilies,
@@ -534,6 +539,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             visualizerOpacity: store.visualizerOpacity,
             hidePlayerTranslationSubtitle: store.hidePlayerTranslationSubtitle,
             showSubtitleTranslation: store.showSubtitleTranslation,
+            convertSimplifiedLyricsToTraditional: store.convertSimplifiedLyricsToTraditional,
             lyricsFontStyle: store.lyricsFontStyle,
             lyricsFontScale: store.lyricsFontScale,
             lyricsFontFallbackFamilies: store.lyricsFontFallbackFamilies,
@@ -617,6 +623,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (config.showSubtitleTranslation !== undefined) {
                 store.handleToggleShowSubtitleTranslation(Boolean(config.showSubtitleTranslation));
+            }
+            if (config.convertSimplifiedLyricsToTraditional !== undefined) {
+                store.handleToggleConvertSimplifiedLyricsToTraditional(Boolean(config.convertSimplifiedLyricsToTraditional));
             }
             if (config.lyricsFontStyle) {
                 store.handleSetLyricsFontStyle(config.lyricsFontStyle);

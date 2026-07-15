@@ -14,6 +14,7 @@ import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
 import GeneralSettingsSubview from './settings/GeneralSettingsSubview';
 import IntegrationSettingsSubview from './settings/IntegrationSettingsSubview';
+import SpotifySettingsCard from './settings/SpotifySettingsCard';
 import LabSettingsModal from './settings/LabSettingsModal';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
 import StorageSettingsSection from './settings/StorageSettingsSection';
@@ -676,6 +677,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             : enableNowPlayingStage
     );
     const nowPlayingConnected = nowPlayingEnabled && nowPlayingConnectionStatus === 'connected';
+    const spotifyEnabled = Boolean(isElectron && stageStatus?.modeEnabled && activeStageSource === 'spotify');
+    const spotifyConnected = spotifyEnabled && nowPlayingConnectionStatus === 'connected';
     const stageConnected = stageEnabled && activeStageSource === 'stage-api';
     const integrationStatusItems = [
         ...(stageConnected
@@ -690,6 +693,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 key: 'now-playing',
                 label: nowPlayingConnected ? t('options.nowPlayingConnectedStatus') : t('options.nowPlayingDisconnectedStatus'),
                 tone: nowPlayingConnected ? 'success' as const : 'error' as const,
+            }]
+            : []),
+        ...(spotifyEnabled
+            ? [{
+                key: 'spotify',
+                label: spotifyConnected ? t('options.spotifyConnected') : t('options.spotifyDisconnected'),
+                tone: spotifyConnected ? 'success' as const : 'error' as const,
             }]
             : []),
     ];
@@ -1668,10 +1678,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                                                 舞台来源
                                                             </div>
-                                                            <div className="grid grid-cols-2 gap-2">
+                                                            <div className="grid grid-cols-3 gap-2">
                                                                 {([
                                                                     { value: 'stage-api', label: 'Stage API' },
                                                                     { value: 'now-playing', label: 'Now Playing' },
+                                                                    { value: 'spotify', label: 'Spotify' },
                                                                 ] as Array<{ value: StageSource; label: string; }>).map((option) => {
                                                                     const selected = stageSource === option.value;
                                                                     return (
@@ -1689,7 +1700,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             </div>
                                                         </div>
 
-                                                        {stageSource === 'now-playing' ? (
+                                                        {stageSource === 'spotify' ? (
+                                                            <SpotifySettingsCard
+                                                                settingsCardClass={settingsCardClass}
+                                                                onCopyText={copyText}
+                                                            />
+                                                        ) : stageSource === 'now-playing' ? (
                                                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
                                                                 <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                                                     Now Playing
