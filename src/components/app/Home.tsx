@@ -15,7 +15,12 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden }) => {
     }
 
     return (
-        <GridViewOverlayHost legacyProps={model.legacyProps}>
+        <GridViewOverlayHost
+            legacyProps={model.legacyProps}
+            onOpenCollection={model.onOpenCollection}
+            onPushCollection={model.onPushCollection}
+            onBackCollection={model.onBackCollection}
+        >
             {(openGridView) => (
                 <Grid3D
                     {...model.legacyProps}

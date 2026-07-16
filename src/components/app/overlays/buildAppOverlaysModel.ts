@@ -1,58 +1,35 @@
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
 import type FloatingPlayerControls from '../../FloatingPlayerControls';
-import type SearchResultsOverlay from '../../SearchResultsOverlay';
+import type SearchWorkspace from '../search/SearchWorkspace';
 import type DevDebugOverlay from '../../DevDebugOverlay';
-import type PlaylistView from '../views/PlaylistView';
-import type AlbumView from '../views/AlbumView';
-import type ArtistView from '../views/ArtistView';
 import { PlayerState } from '../../../types';
 import type { SongResult, UnifiedSong, LyricData } from '../../../types';
 
 // src/components/app/overlays/buildAppOverlaysModel.ts
 
-type SearchOverlayProps = React.ComponentProps<typeof SearchResultsOverlay>;
+type SearchOverlayProps = React.ComponentProps<typeof SearchWorkspace>;
 type FloatingControlsProps = React.ComponentProps<typeof FloatingPlayerControls>;
 type DebugOverlayProps = React.ComponentProps<typeof DevDebugOverlay>;
-type PlaylistOverlayProps = React.ComponentProps<typeof PlaylistView>;
-type AlbumOverlayProps = React.ComponentProps<typeof AlbumView>;
-type ArtistOverlayProps = React.ComponentProps<typeof ArtistView>;
 
 export type AppOverlaysModel = {
     searchOverlay?: SearchOverlayProps | null;
-    detailOverlay?: (
-        | { type: 'playlist'; props: PlaylistOverlayProps }
-        | { type: 'album'; props: AlbumOverlayProps }
-        | { type: 'artist'; props: ArtistOverlayProps }
-    ) | null;
     debugOverlay?: DebugOverlayProps | null;
     floatingControls?: FloatingControlsProps | null;
 };
 
 type BuildAppOverlaysModelParams = {
     currentView: FloatingControlsProps['currentView'];
-    isOverlayVisible: boolean;
     isSearchOpen: boolean;
-    topOverlay: any;
-    overlayStack: any[];
     theme: any;
     isDaylight: boolean;
     closeSearchView: () => void;
-    handleSearchOverlaySubmit: () => Promise<void>;
+    handleSearchOverlaySubmit: SearchOverlayProps['onSubmitSearch'];
     handleSearchLoadMore: () => Promise<void>;
     handleSearchResultPlay: (track: UnifiedSong) => void;
-    handleSearchResultArtistSelect: (track: UnifiedSong, artistName: string, artistId?: number) => void;
-    handleSearchResultAlbumSelect: (track: UnifiedSong, albumName: string, albumId?: number) => void;
-    popOverlay: () => void;
-    playSong: (song: SongResult, queue?: SongResult[], isFmCall?: boolean) => Promise<void>;
-    playOnlineQueueFromStart: (songs: SongResult[]) => void;
-    addNeteaseSongsToQueue: (songs: SongResult[]) => void;
-    addNeteaseSongToQueue: (song: SongResult) => void;
-    handleAlbumSelect: (albumId: number) => void;
-    handleArtistSelect: (artistId: number) => void;
-    userId?: number;
-    playlists: Array<{ id: number }>;
-    refreshUserData: () => Promise<unknown>;
+    handleSearchResultAddToQueue: (track: UnifiedSong) => void;
+    handleSearchResultArtistOpen: SearchOverlayProps['onOpenArtist'];
+    handleSearchResultAlbumOpen: SearchOverlayProps['onOpenAlbum'];
     isDev: boolean;
     isDevDebugOverlayVisible: boolean;
     devDebugSnapshot: any;
@@ -84,28 +61,16 @@ type BuildAppOverlaysModelParams = {
 // Builds the full overlay model, including detail overlays and floating playback controls.
 export const buildAppOverlaysModel = ({
     currentView,
-    isOverlayVisible,
     isSearchOpen,
-    topOverlay,
-    overlayStack,
     theme,
     isDaylight,
     closeSearchView,
     handleSearchOverlaySubmit,
     handleSearchLoadMore,
     handleSearchResultPlay,
-    handleSearchResultArtistSelect,
-    handleSearchResultAlbumSelect,
-    popOverlay,
-    playSong,
-    playOnlineQueueFromStart,
-    addNeteaseSongsToQueue,
-    addNeteaseSongToQueue,
-    handleAlbumSelect,
-    handleArtistSelect,
-    userId,
-    playlists,
-    refreshUserData,
+    handleSearchResultAddToQueue,
+    handleSearchResultArtistOpen,
+    handleSearchResultAlbumOpen,
     isDev,
     isDevDebugOverlayVisible,
     devDebugSnapshot,
@@ -141,70 +106,10 @@ export const buildAppOverlaysModel = ({
             onSubmitSearch: handleSearchOverlaySubmit,
             onLoadMore: handleSearchLoadMore,
             onPlayTrack: handleSearchResultPlay,
-            onAddSongToQueue: addNeteaseSongToQueue,
-            onSelectArtist: handleSearchResultArtistSelect,
-            onSelectAlbum: handleSearchResultAlbumSelect,
+            onAddTrackToQueue: handleSearchResultAddToQueue,
+            onOpenArtist: handleSearchResultArtistOpen,
+            onOpenAlbum: handleSearchResultAlbumOpen,
         }
-        : null,
-    detailOverlay: isOverlayVisible && topOverlay
-        ? (topOverlay.type === 'playlist'
-            ? {
-                type: 'playlist' as const,
-                props: {
-                    playlist: topOverlay.playlist,
-                    onBack: popOverlay,
-                    onPlaySong: (song, ctx) => {
-                        void playSong(song, ctx, false);
-                    },
-                    onPlayAll: songs => {
-                        playOnlineQueueFromStart(songs);
-                    },
-                    onAddAllToQueue: addNeteaseSongsToQueue,
-                    onAddSongToQueue: addNeteaseSongToQueue,
-                    onSelectAlbum: handleAlbumSelect,
-                    onSelectArtist: handleArtistSelect,
-                    currentUserId: userId,
-                    isLikedSongsPlaylist: playlists[0]?.id === topOverlay.playlist.id,
-                    onPlaylistMutated: async () => {
-                        await refreshUserData();
-                    },
-                    theme,
-                    isDaylight,
-                },
-            }
-            : topOverlay.type === 'album'
-                ? {
-                    type: 'album' as const,
-                    props: {
-                        albumId: topOverlay.id,
-                        onBack: popOverlay,
-                        onPlaySong: (song, ctx) => {
-                            void playSong(song, ctx, false);
-                        },
-                        onPlayAll: songs => {
-                            playOnlineQueueFromStart(songs);
-                        },
-                        onAddAllToQueue: addNeteaseSongsToQueue,
-                        onAddSongToQueue: addNeteaseSongToQueue,
-                        onSelectArtist: handleArtistSelect,
-                        theme,
-                        isDaylight,
-                    },
-                }
-                : {
-                    type: 'artist' as const,
-                    props: {
-                        artistId: topOverlay.id,
-                        onBack: popOverlay,
-                        onPlaySong: (song, ctx) => {
-                            void playSong(song, ctx, false);
-                        },
-                        onAddSongToQueue: addNeteaseSongToQueue,
-                        onSelectAlbum: handleAlbumSelect,
-                        theme,
-                        isDaylight,
-                    },
-                })
         : null,
     debugOverlay: isDev && currentView === 'player' && isDevDebugOverlayVisible
         ? {

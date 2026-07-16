@@ -47,6 +47,10 @@ src/
   App 装配层的参数组装与功能邻近文件。
   负责用 `build*.ts` / `create*.ts` 聚合底层 hook / state / action，生成给顶层 app 组件消费的模型和动作。
 
+- `components/app/search/*`
+  搜索工作台、虚拟化结果列表和搜索结果到 GridView 集合描述符的适配层。
+  搜索结果保持高密度列表；歌手与专辑详情统一进入 GridView 集合导航栈。
+
 - `components/app/navigation/*` / `playback/*` / `presentation/*`
   App 装配层的纯函数辅助目录。
   分别承接顶层导航辅助、播放装配辅助、展示派生计算，避免这些实现回流到 `App.tsx`。
@@ -56,12 +60,6 @@ src/
 
 - `components/Home.tsx`
   首页 legacy 实现，属于弃用路径；新首页功能不要继续放入此处。
-
-- `components/app/views/*`
-  旧列表详情页包装入口，仅保留给搜索结果跳转，随旧列表视图一起移除。
-
-- `components/PlaylistView.tsx` / `AlbumView.tsx` / `ArtistView.tsx`
-  网易云列表式详情 legacy 实现，仅保留给搜索结果跳转，计划移除。
 
 - `components/LocalMusicView.tsx`
   本地音乐 legacy 总览页，随旧首页移除；新本地库导航走 GridView。
@@ -193,6 +191,8 @@ src/
 - 改设置 UI：优先看 `components/modal/settings/*`；不要继续把新设置堆进 `SettingsModal.tsx`
 - 改可执行命令或功能性设置入口：`components/command-palette/commandRegistry.ts`
 - 改跨页面状态或导航：`hooks/*`
+- 改搜索状态：`stores/useSearchNavigationStore.ts`
+- 改 GridView 集合栈和来源返回语义：`stores/useCollectionNavigationStore.ts`
 - 改共享偏好、visualizer tuning、设置持久化：`stores/useSettingsUiStore.ts`
 - 改 API、缓存、导入、播放数据流：`services/*`
 - 改解析、纯逻辑、格式转换：`utils/*`

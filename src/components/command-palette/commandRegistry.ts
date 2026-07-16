@@ -9,6 +9,7 @@ import type {
     CommandPaletteMatch,
     CommandPaletteSearchSource,
 } from './types';
+import type { SearchSource } from '../../stores/useSearchNavigationStore';
 
 // src/components/command-palette/commandRegistry.ts
 // Defines command palette entries and the lightweight matching used for autocomplete.
@@ -38,7 +39,7 @@ const buildQueueSongDescription = (song: SongResult, index: number, context: Com
     return metadata || context.t('commandPalette.queueIndex', 'Queue #{{index}}').replace('{{index}}', String(index + 1));
 };
 
-const getSearchSourceLabel = (sourceTab: HomeViewTab, context: CommandPaletteContext) => {
+const getSearchSourceLabel = (sourceTab: SearchSource, context: CommandPaletteContext) => {
     if (sourceTab === 'local') {
         return context.t('commandPalette.sourceLocal', 'local library');
     }
@@ -50,7 +51,7 @@ const getSearchSourceLabel = (sourceTab: HomeViewTab, context: CommandPaletteCon
 
 const buildSearchPreview = (
     input: string,
-    sourceTab: HomeViewTab,
+    sourceTab: SearchSource,
     context: CommandPaletteContext,
     isCurrentSource: boolean
 ) => {
@@ -83,6 +84,7 @@ const runSearch = async (
         sourceTab,
         deps: {
             localSongs: context.localSongs,
+            localLibraryCatalog: context.localLibraryCatalog,
             t: context.t,
         },
         returnView: 'player',
@@ -105,7 +107,7 @@ const createSearchCommand = (
     title: string,
     description: string,
     keywords: string[],
-    resolveSource: (context: CommandPaletteContext) => HomeViewTab
+    resolveSource: (context: CommandPaletteContext) => SearchSource
 ): CommandPaletteCommand => ({
     id,
     group: 'search',
@@ -236,7 +238,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createSearchCommand('search-current', 'Search songs', 'Search songs in the current source', ['search', 'find', 'song', '搜索', '搜歌', 'sousuo', 'souge', 'ss', 'sg'], context => context.currentSearchSourceTab),
     createSearchCommand('search-local', 'Search local songs', 'Search local library', ['local', 'local search', 'search local', '本地', '本地音乐', 'bendi', 'bendiyinyue', 'bd', 'bdyy'], () => 'local'),
     createSearchCommand('search-navidrome', 'Search Navidrome songs', 'Search Navidrome library', ['navi', 'navidrome', 'search navidrome', '导航', '服务器', 'fuwuqi', 'fwq'], () => 'navidrome'),
-    createSearchCommand('search-netease', 'Search NetEase songs', 'Search NetEase Cloud Music', ['netease', 'cloud', 'search netease', '网易云', '网抑云', 'wangyiyun', 'wyy'], () => 'playlist'),
+    createSearchCommand('search-netease', 'Search NetEase songs', 'Search NetEase Cloud Music', ['netease', 'cloud', 'search netease', '网易云', '网抑云', 'wangyiyun', 'wyy'], () => 'netease'),
     createQueueSearchCommand(),
 
     createSettingsCommand('settings-help', 'Open Help', 'Open help and shortcuts', ['help', '帮助', 'bangzhu', 'bz'], 'help'),

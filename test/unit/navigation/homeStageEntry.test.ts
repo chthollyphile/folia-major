@@ -50,6 +50,12 @@ const createBaseParams = () => {
         openLocalAlbumByName: vi.fn(),
         openLocalArtistByName: vi.fn(),
         localSongs: [],
+        localLibraryCatalog: {
+            entities: [],
+            assignments: [],
+            ready: true,
+            reload: vi.fn().mockResolvedValue(undefined),
+        },
         localPlaylists: [],
         onRefreshLocalSongs: vi.fn(),
         onPlayLocalSong: vi.fn(),
@@ -78,6 +84,9 @@ const createBaseParams = () => {
         playAll: vi.fn(),
         addAllToQueue: vi.fn(),
         addSongToQueue: vi.fn(),
+        onOpenCollection: vi.fn(),
+        onPushCollection: vi.fn(),
+        onBackCollection: vi.fn(),
     };
 };
 

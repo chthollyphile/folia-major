@@ -4,8 +4,9 @@ import { getCommandPaletteMatches } from '../../../src/components/command-palett
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 
 const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandPaletteContext => ({
-    currentSearchSourceTab: 'playlist',
+    currentSearchSourceTab: 'netease',
     localSongs: [],
+    localLibraryCatalog: { entities: [], assignments: [] },
     playerState: PlayerState.PAUSED,
     t: (_key, fallback) => fallback ?? '',
     setStatusMsg: vi.fn(),

@@ -16,8 +16,7 @@ type CreateLocalLibraryNavigationParams = {
     localSongs: LocalSong[];
     localLibraryCatalog: LocalLibraryCatalogSnapshot;
     setHomeViewTab: (tab: HomeViewTab) => void;
-    navigateDirectHome: (options?: { clearContext?: boolean }) => void;
-    setActiveGridViewCollection: (collection: GridViewCollectionDescriptor | null) => void;
+    onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
 };
 
 // Creates local library navigation helpers for album and artist drill-in flows.
@@ -26,8 +25,7 @@ export const createLocalLibraryNavigation = ({
     localSongs,
     localLibraryCatalog,
     setHomeViewTab,
-    navigateDirectHome,
-    setActiveGridViewCollection,
+    onOpenCollection,
     t,
 }: CreateLocalLibraryNavigationParams & {
     t: (key: string) => string;
@@ -62,8 +60,7 @@ export const createLocalLibraryNavigation = ({
             description: `${songs.length} ${t('home.songs')}`,
         };
         setHomeViewTab('local');
-        setActiveGridViewCollection(createLocalGridViewCollection(group));
-        navigateDirectHome({ clearContext: false });
+        onOpenCollection(createLocalGridViewCollection(group));
     };
 
     const findEntityByName = (kind: LocalLibraryEntity['kind'], name: string) => {

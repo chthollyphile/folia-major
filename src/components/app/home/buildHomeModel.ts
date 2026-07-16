@@ -1,6 +1,8 @@
 import type React from 'react';
-import { PlayerState, type HomeViewTab, type SongResult } from '../../../types';
+import { PlayerState, type SongResult } from '../../../types';
 import type LegacyHome from '../../Home';
+import type { GridViewCollectionDescriptor } from './gridViewCollectionAdapters';
+import { resolveSearchSource, type SearchSource } from '../../../stores/useSearchNavigationStore';
 
 // src/components/app/home/buildHomeModel.ts
 
@@ -8,6 +10,9 @@ type LegacyHomeProps = React.ComponentProps<typeof LegacyHome>;
 
 export type HomeViewModel = {
     legacyProps: LegacyHomeProps;
+    onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
+    onPushCollection: (collection: GridViewCollectionDescriptor) => void;
+    onBackCollection: () => void;
 };
 
 type BuildHomeModelParams = {
@@ -29,10 +34,11 @@ type BuildHomeModelParams = {
     focusedRadioIndex?: LegacyHomeProps['focusedRadioIndex'];
     setFocusedRadioIndex?: LegacyHomeProps['setFocusedRadioIndex'];
     openSettings: NonNullable<LegacyHomeProps['onOpenSettings']>;
-    navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean }) => void;
+    navigateToSearch: (args: { query: string; sourceTab: SearchSource; replace?: boolean }) => void;
     openLocalAlbumByName?: LegacyHomeProps['onSelectLocalAlbum'];
     openLocalArtistByName?: LegacyHomeProps['onSelectLocalArtist'];
     localSongs: LegacyHomeProps['localSongs'];
+    localLibraryCatalog: LegacyHomeProps['localLibraryCatalog'];
     localPlaylists: LegacyHomeProps['localPlaylists'];
     onRefreshLocalSongs: LegacyHomeProps['onRefreshLocalSongs'];
     onPlayLocalSong: LegacyHomeProps['onPlayLocalSong'];
@@ -62,6 +68,9 @@ type BuildHomeModelParams = {
     addAllToQueue: (songs: SongResult[]) => void;
     addSongToQueue: (song: SongResult) => void;
     onStatusMessage?: LegacyHomeProps['onStatusMessage'];
+    onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
+    onPushCollection: (collection: GridViewCollectionDescriptor) => void;
+    onBackCollection: () => void;
 };
 
 // Builds the full Home model from raw app dependencies so App.tsx no longer assembles nested props inline.
@@ -88,6 +97,7 @@ export const buildHomeModel = ({
     openLocalAlbumByName,
     openLocalArtistByName,
     localSongs,
+    localLibraryCatalog,
     localPlaylists,
     onRefreshLocalSongs,
     onPlayLocalSong,
@@ -117,8 +127,14 @@ export const buildHomeModel = ({
     addAllToQueue,
     addSongToQueue,
     onStatusMessage,
+    onOpenCollection,
+    onPushCollection,
+    onBackCollection,
 }: BuildHomeModelParams): HomeViewModel => {
     return {
+        onOpenCollection,
+        onPushCollection,
+        onBackCollection,
         legacyProps: {
             onPlaySong: playSong,
             onBackToPlayer: navigateToPlayer,
@@ -143,11 +159,12 @@ export const buildHomeModel = ({
             setFocusedRadioIndex,
             onOpenSettings: openSettings,
             onSearchCommitted: (query, sourceTab, replace = false) => {
-                navigateToSearch({ query, sourceTab, replace });
+                navigateToSearch({ query, sourceTab: resolveSearchSource(sourceTab), replace });
             },
             onSelectLocalAlbum: openLocalAlbumByName,
             onSelectLocalArtist: openLocalArtistByName,
             localSongs,
+            localLibraryCatalog,
             localPlaylists,
             onRefreshLocalSongs,
             onPlayLocalSong,

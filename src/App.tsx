@@ -20,7 +20,6 @@ import { buildAppDialogsModel } from './components/app/dialogs/buildAppDialogsMo
 import { buildHomeModel } from './components/app/home/buildHomeModel';
 import { createLyricFilterPatternSaver } from './components/app/home/createLyricFilterPatternSaver';
 import { createLocalLibraryNavigation } from './components/app/navigation/createLocalLibraryNavigation';
-import { createNavidromeNavigation } from './components/app/navigation/createNavidromeNavigation';
 import { createPanelNavigation } from './components/app/navigation/createPanelNavigation';
 import { buildAppStyle } from './components/app/presentation/buildAppStyle';
 import { buildDebugSnapshot } from './components/app/presentation/buildDebugSnapshot';
@@ -32,9 +31,13 @@ import { createLyricsSetter } from './components/app/playback/createLyricsSetter
 import { createOnlineRecoveryController } from './components/app/playback/createOnlineRecoveryController';
 import { persistPlaybackCache } from './components/app/playback/persistPlaybackCache';
 import { buildAppOverlaysModel } from './components/app/overlays/buildAppOverlaysModel';
+import {
+    createSearchAlbumCollection,
+    createSearchArtistCollection,
+} from './components/app/search/searchCollectionAdapters';
 import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
-import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode } from './types';
+import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong, NeteasePlaylist } from './types';
 import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -63,7 +66,8 @@ import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useThemeQuickEditorStore } from './stores/useThemeQuickEditorStore';
-import { useSearchNavigationStore } from './stores/useSearchNavigationStore';
+import { resolveSearchSource, useSearchNavigationStore } from './stores/useSearchNavigationStore';
+import { useCollectionNavigationStore } from './stores/useCollectionNavigationStore';
 import { useSettingsUiStore } from './stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume } from './utils/appPlaybackHelpers';
@@ -146,7 +150,6 @@ export default function App() {
         openSettings,
         settingsModalState,
         homeLayoutStyle,
-        setActiveGridViewCollection,
         enableAlternativeLyricSources,
         handleToggleAlternativeLyricSources,
         lastSeenGuideVersion,
@@ -158,7 +161,6 @@ export default function App() {
         openSettings: state.openSettings,
         settingsModalState: state.settingsModalState,
         homeLayoutStyle: state.homeLayoutStyle,
-        setActiveGridViewCollection: state.setActiveGridViewCollection,
         enableAlternativeLyricSources: state.enableAlternativeLyricSources,
         handleToggleAlternativeLyricSources: state.handleToggleAlternativeLyricSources,
         lastSeenGuideVersion: state.lastSeenGuideVersion,
@@ -763,10 +765,6 @@ export default function App() {
     // manages current view, selected items, and navigation functions across the app
     const {
         currentView,
-        overlayStack,
-        isOverlayVisible,
-        topOverlay,
-        hasOverlay,
         focusedPlaylistIndex,
         setFocusedPlaylistIndex,
         focusedFavoriteAlbumIndex,
@@ -784,11 +782,11 @@ export default function App() {
         navigateDirectHome,
         navigateToSearch,
         closeSearchView,
-        handlePlaylistSelect,
-        handleAlbumSelect: navigateToNeteaseAlbum,
-        handleArtistSelect: navigateToNeteaseArtist,
-        popOverlay,
+        navigateToCollection,
+        pushCollection,
+        backCollection,
     } = useAppNavigation();
+    const hasCollection = useCollectionNavigationStore(state => Boolean(state.snapshot?.stack.length));
 
     // Auto-close the player panel when leaving the player view
     useEffect(() => {
@@ -801,16 +799,17 @@ export default function App() {
         isSearchOpen,
         searchQuery,
         searchSourceTab,
+        searchReturnView,
         submitSearch,
         loadMoreSearchResults,
     } = useSearchNavigationStore(useShallow(state => ({
         isSearchOpen: state.isSearchOpen,
         searchQuery: state.searchQuery,
         searchSourceTab: state.searchSourceTab,
+        searchReturnView: state.searchReturnView,
         submitSearch: state.submitSearch,
         loadMoreSearchResults: state.loadMoreSearchResults,
     })));
-    const hideSearchOverlay = useSearchNavigationStore(state => state.hideSearchOverlay);
 
     // Netease Library Hook
     // manages user data, playlists, liked songs, and related actions
@@ -829,7 +828,7 @@ export default function App() {
         setLikedSongIds,
     } = useNeteaseLibrary({
         currentView,
-        hasOverlay,
+        hasOverlay: hasCollection,
         setStatusMsg,
         t,
     });
@@ -958,13 +957,6 @@ export default function App() {
         persistLastPlaybackCache,
     });
 
-    const { openCurrentNavidromeAlbum, openCurrentNavidromeArtist } = createNavidromeNavigation({
-        currentSong,
-        setPendingNavidromeSelection,
-        setHomeViewTab,
-        navigateDirectHome,
-    });
-
     const { handleDirectHomeFromPanel } = createPanelNavigation(navigateDirectHome);
 
     // --- Local Music Functions ---
@@ -1061,8 +1053,6 @@ export default function App() {
 
     const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
     const {
-        openCurrentLocalAlbum,
-        openCurrentLocalArtist,
         openLocalAlbumByName,
         openLocalArtistByName,
     } = createLocalLibraryNavigation({
@@ -1070,8 +1060,7 @@ export default function App() {
         localSongs,
         localLibraryCatalog,
         setHomeViewTab,
-        navigateDirectHome,
-        setActiveGridViewCollection,
+        onOpenCollection: collection => navigateToCollection(collection, 'home'),
         t,
     });
     const handleSaveLyricFilterPattern = createLyricFilterPatternSaver({
@@ -1106,9 +1095,8 @@ export default function App() {
         handleSearchOverlaySubmit,
         handleSearchLoadMore,
         handleSearchResultPlay,
+        handleSearchResultAddToQueue,
         handleUnavailableReplacementConfirm,
-        handleSearchResultArtistSelect,
-        handleSearchResultAlbumSelect,
         handleNextTrack,
         handlePrevTrack,
         skipAfterPlaybackFailure,
@@ -1127,7 +1115,9 @@ export default function App() {
         queueAddBehavior,
         searchQuery,
         searchSourceTab,
+        searchReturnView,
         localSongs,
+        localLibraryCatalog,
         userId: user?.userId,
         currentTime,
         setCurrentSong,
@@ -1145,18 +1135,13 @@ export default function App() {
         setIsPanelOpen,
         navigateToPlayer,
         navigateToSearch,
-        hideSearchOverlay,
-        setHomeViewTab,
-        setPendingNavidromeSelection,
-        handleArtistSelect: navigateToNeteaseArtist,
-        handleAlbumSelect: navigateToNeteaseAlbum,
-        openLocalArtistByName,
-        openLocalAlbumByName,
         persistLastPlaybackCache,
         restoreCachedThemeForSong,
         interruptStagePlaybackForMainTransition,
         onPlayLocalSong,
         onPlayNavidromeSong,
+        onAddLocalSongToQueue: handleLocalQueueAdd,
+        onAddNavidromeSongsToQueue: addNavidromeSongsToQueue,
         searchDeps: {
             submitSearch,
             loadMoreSearchResults,
@@ -1174,6 +1159,28 @@ export default function App() {
         currentOnlineAudioUrlFetchedAtRef,
         lastAudioRecoverySourceRef,
     });
+    const handleSearchResultArtistOpen = useCallback((
+        track: UnifiedSong,
+        artistName: string,
+        artistId?: number,
+        entityId?: string,
+    ) => {
+        const collection = createSearchArtistCollection(track, artistName, artistId, entityId);
+        if (collection) {
+            navigateToCollection(collection, 'search');
+        }
+    }, [navigateToCollection]);
+    const handleSearchResultAlbumOpen = useCallback((
+        track: UnifiedSong,
+        albumName: string,
+        albumId?: number,
+        entityId?: string,
+    ) => {
+        const collection = createSearchAlbumCollection(track, albumName, albumId, entityId);
+        if (collection) {
+            navigateToCollection(collection, 'search');
+        }
+    }, [navigateToCollection]);
 
     usePlaybackUiEffects({
         statusMsg,
@@ -1649,7 +1656,7 @@ export default function App() {
             if (isNavidromePlaybackSong(currentSong)) {
                 return 'navidrome';
             }
-            return 'playlist';
+            return 'netease';
         }
         return searchSourceTab;
     }, [currentSong, searchSourceTab]);
@@ -1694,6 +1701,7 @@ export default function App() {
     const commandPaletteContext = useMemo(() => ({
         currentSearchSourceTab: currentSearchSourceTabInPalette,
         localSongs,
+        localLibraryCatalog,
         playerState,
         t: (key: string, fallback?: string) => t(key, fallback ?? ''),
         setStatusMsg,
@@ -1761,6 +1769,7 @@ export default function App() {
         handleToggleShowSubtitleTranslation,
         hidePlayerTranslationSubtitle,
         isGeneratingTheme,
+        localLibraryCatalog,
         localSongs,
         navigateToHome,
         navigateToPlayer,
@@ -1923,63 +1932,50 @@ export default function App() {
         syncStageLyricsClock,
     ]);
 
+    const handlePlaylistSelect = useCallback((playlist: NeteasePlaylist) => {
+        navigateToCollection({
+            ...playlist,
+            source: 'netease',
+            type: 'playlist',
+            coverUrl: playlist.coverImgUrl,
+        }, 'home');
+    }, [navigateToCollection]);
+
     const handleUnifiedAlbumSelect = useCallback((albumId: number) => {
-        if (homeLayoutStyle === 'grid') {
-            setActiveGridViewCollection({
-                source: 'netease',
-                id: albumId,
-                type: 'album',
-                name: t('home.albums'),
-            });
-            navigateDirectHome({ clearContext: false });
-        } else {
-            navigateToNeteaseAlbum(albumId);
-        }
-    }, [homeLayoutStyle, navigateToNeteaseAlbum, navigateDirectHome, setActiveGridViewCollection]);
+        navigateToCollection({
+            source: 'netease',
+            id: albumId,
+            type: 'album',
+            name: t('home.albums'),
+        }, 'home');
+    }, [navigateToCollection, t]);
 
     const handleUnifiedArtistSelect = useCallback((artistId: number) => {
-        if (homeLayoutStyle === 'grid') {
-            setActiveGridViewCollection({
-                source: 'netease',
-                id: artistId,
-                type: 'artist',
-                name: t('navidrome.artists'),
-            });
-            navigateDirectHome({ clearContext: false });
-        } else {
-            navigateToNeteaseArtist(artistId);
-        }
-    }, [homeLayoutStyle, navigateToNeteaseArtist, navigateDirectHome, setActiveGridViewCollection]);
+        navigateToCollection({
+            source: 'netease',
+            id: artistId,
+            type: 'artist',
+            name: t('navidrome.artists'),
+        }, 'home');
+    }, [navigateToCollection, t]);
 
     const handlePlayerPanelAlbumSelect = useCallback((albumId: number) => {
-        if (homeLayoutStyle === 'grid') {
-            setActiveGridViewCollection({
-                source: 'netease',
-                id: albumId,
-                type: 'album',
-                name: t('home.albums'),
-                returnToPlayerOnClose: true,
-            });
-            navigateDirectHome({ clearContext: false });
-        } else {
-            navigateToNeteaseAlbum(albumId);
-        }
-    }, [homeLayoutStyle, navigateToNeteaseAlbum, navigateDirectHome, setActiveGridViewCollection]);
+        navigateToCollection({
+            source: 'netease',
+            id: albumId,
+            type: 'album',
+            name: t('home.albums'),
+        }, 'player');
+    }, [navigateToCollection, t]);
 
     const handlePlayerPanelArtistSelect = useCallback((artistId: number) => {
-        if (homeLayoutStyle === 'grid') {
-            setActiveGridViewCollection({
-                source: 'netease',
-                id: artistId,
-                type: 'artist',
-                name: t('navidrome.artists'),
-                returnToPlayerOnClose: true,
-            });
-            navigateDirectHome({ clearContext: false });
-        } else {
-            navigateToNeteaseArtist(artistId);
-        }
-    }, [homeLayoutStyle, navigateToNeteaseArtist, navigateDirectHome, setActiveGridViewCollection]);
+        navigateToCollection({
+            source: 'netease',
+            id: artistId,
+            type: 'artist',
+            name: t('navidrome.artists'),
+        }, 'player');
+    }, [navigateToCollection, t]);
 
     const homeModel = useMemo(() => buildHomeModel({
         playSong,
@@ -2004,6 +2000,7 @@ export default function App() {
         openLocalAlbumByName,
         openLocalArtistByName,
         localSongs,
+        localLibraryCatalog,
         localPlaylists,
         onRefreshLocalSongs,
         onPlayLocalSong,
@@ -2033,6 +2030,9 @@ export default function App() {
         addAllToQueue: addNeteaseSongsToQueue,
         addSongToQueue: addNeteaseSongToQueue,
         onStatusMessage: setStatusMsg,
+        onOpenCollection: collection => navigateToCollection(collection, 'home'),
+        onPushCollection: pushCollection,
+        onBackCollection: backCollection,
     }), [
         activePlaybackContext,
         addNavidromeSongsToQueue,
@@ -2060,8 +2060,6 @@ export default function App() {
         focusedPlaylistIndex,
         focusedRadioIndex,
         fumeTuning,
-        navigateToNeteaseAlbum,
-        navigateToNeteaseArtist,
         handleClearCustomCappellaEmojiPack,
         handleCustomThemePreferenceChange,
         handleHomeMatchSong,
@@ -2262,130 +2260,106 @@ export default function App() {
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         openCurrentLocalAlbum: () => {
-            if (homeLayoutStyle === 'grid') {
-                if (currentSong && isLocalPlaybackSong(currentSong)) {
-                    const catalogIndex = buildLocalLibraryIndex(
-                        localLibraryCatalog.entities,
-                        localLibraryCatalog.assignments,
-                    );
-                    const assignment = catalogIndex.assignmentsBySongId.get(currentSong.localRef.songId);
-                    const albumEntityId = assignment?.albumEntityId
-                        ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
-                        : undefined;
-                    const albumEntity = albumEntityId
-                        ? catalogIndex.entitiesById.get(albumEntityId)
-                        : undefined;
-                    if (albumEntity?.kind === 'album') {
-                        const memberIds = new Set(localLibraryCatalog.assignments
-                            .filter(item => item.albumEntityId && (
-                                followEntityRedirect(item.albumEntityId, catalogIndex.entitiesById) === albumEntity.id
-                            ))
-                            .map(item => item.songId));
-                        const songs = localSongs.filter(song => memberIds.has(song.id));
-                        if (songs.length > 0) {
-                            setActiveGridViewCollection({
-                                source: 'local',
-                                id: albumEntity.id,
-                                entityId: albumEntity.id,
-                                name: albumEntity.displayName,
-                                type: 'album',
-                                coverUrl: playerDisplayCurrentSong?.al?.picUrl || playerDisplayCurrentSong?.album?.picUrl || undefined,
-                                description: playerDisplayCurrentSong?.ar?.map(artist => artist.name).join(', '),
-                                trackCount: songs.length,
-                                songIds: songs.map(song => song.id),
-                                returnToPlayerOnClose: true,
-                            });
-                            navigateDirectHome({ clearContext: false });
-                        }
+            if (currentSong && isLocalPlaybackSong(currentSong)) {
+                const catalogIndex = buildLocalLibraryIndex(
+                    localLibraryCatalog.entities,
+                    localLibraryCatalog.assignments,
+                );
+                const assignment = catalogIndex.assignmentsBySongId.get(currentSong.localRef.songId);
+                const albumEntityId = assignment?.albumEntityId
+                    ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
+                    : undefined;
+                const albumEntity = albumEntityId
+                    ? catalogIndex.entitiesById.get(albumEntityId)
+                    : undefined;
+                if (albumEntity?.kind === 'album') {
+                    const memberIds = new Set(localLibraryCatalog.assignments
+                        .filter(item => item.albumEntityId && (
+                            followEntityRedirect(item.albumEntityId, catalogIndex.entitiesById) === albumEntity.id
+                        ))
+                        .map(item => item.songId));
+                    const songs = localSongs.filter(song => memberIds.has(song.id));
+                    if (songs.length > 0) {
+                        navigateToCollection({
+                            source: 'local',
+                            id: albumEntity.id,
+                            entityId: albumEntity.id,
+                            name: albumEntity.displayName,
+                            type: 'album',
+                            coverUrl: playerDisplayCurrentSong?.al?.picUrl || playerDisplayCurrentSong?.album?.picUrl || undefined,
+                            description: playerDisplayCurrentSong?.ar?.map(artist => artist.name).join(', '),
+                            trackCount: songs.length,
+                            songIds: songs.map(song => song.id),
+                        }, 'player');
                     }
                 }
-            } else {
-                openCurrentLocalAlbum();
             }
         },
         openCurrentLocalArtist: (requestedEntityId?: string) => {
-            if (homeLayoutStyle === 'grid') {
-                if (currentSong && isLocalPlaybackSong(currentSong)) {
-                    const catalogIndex = buildLocalLibraryIndex(
-                        localLibraryCatalog.entities,
-                        localLibraryCatalog.assignments,
-                    );
-                    const assignment = catalogIndex.assignmentsBySongId.get(currentSong.localRef.songId);
-                    const sourceEntityId = requestedEntityId || assignment?.artistEntityIds[0];
-                    const artistEntityId = sourceEntityId
-                        ? followEntityRedirect(sourceEntityId, catalogIndex.entitiesById)
-                        : undefined;
-                    const artistEntity = artistEntityId
-                        ? catalogIndex.entitiesById.get(artistEntityId)
-                        : undefined;
-                    if (artistEntity?.kind === 'artist') {
-                        const memberIds = new Set(localLibraryCatalog.assignments
-                            .filter(item => item.artistEntityIds.some(entityId => (
-                                followEntityRedirect(entityId, catalogIndex.entitiesById) === artistEntity.id
-                            )))
-                            .map(item => item.songId));
-                        const songs = localSongs.filter(song => memberIds.has(song.id));
-                        if (songs.length > 0) {
-                            setActiveGridViewCollection({
-                                source: 'local',
-                                id: artistEntity.id,
-                                entityId: artistEntity.id,
-                                name: artistEntity.displayName,
-                                type: 'artist',
-                                coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl || undefined,
-                                description: `${songs.length} ${t('home.songs')}`,
-                                trackCount: songs.length,
-                                songIds: songs.map(song => song.id),
-                                returnToPlayerOnClose: true,
-                            });
-                            navigateDirectHome({ clearContext: false });
-                        }
+            if (currentSong && isLocalPlaybackSong(currentSong)) {
+                const catalogIndex = buildLocalLibraryIndex(
+                    localLibraryCatalog.entities,
+                    localLibraryCatalog.assignments,
+                );
+                const assignment = catalogIndex.assignmentsBySongId.get(currentSong.localRef.songId);
+                const sourceEntityId = requestedEntityId || assignment?.artistEntityIds[0];
+                const artistEntityId = sourceEntityId
+                    ? followEntityRedirect(sourceEntityId, catalogIndex.entitiesById)
+                    : undefined;
+                const artistEntity = artistEntityId
+                    ? catalogIndex.entitiesById.get(artistEntityId)
+                    : undefined;
+                if (artistEntity?.kind === 'artist') {
+                    const memberIds = new Set(localLibraryCatalog.assignments
+                        .filter(item => item.artistEntityIds.some(entityId => (
+                            followEntityRedirect(entityId, catalogIndex.entitiesById) === artistEntity.id
+                        )))
+                        .map(item => item.songId));
+                    const songs = localSongs.filter(song => memberIds.has(song.id));
+                    if (songs.length > 0) {
+                        navigateToCollection({
+                            source: 'local',
+                            id: artistEntity.id,
+                            entityId: artistEntity.id,
+                            name: artistEntity.displayName,
+                            type: 'artist',
+                            coverUrl: currentSong.al?.picUrl || currentSong.album?.picUrl || undefined,
+                            description: `${songs.length} ${t('home.songs')}`,
+                            trackCount: songs.length,
+                            songIds: songs.map(song => song.id),
+                        }, 'player');
                     }
                 }
-            } else {
-                openCurrentLocalArtist(requestedEntityId);
             }
         },
         openCurrentNavidromeAlbum: () => {
-            if (homeLayoutStyle === 'grid') {
-                const currentNavidromeSong = (currentSong as any)?.navidromeData;
-                const playbackCarrier = currentNavidromeSong?.navidromeData;
-                const albumId = currentNavidromeSong?.albumId || playbackCarrier?.albumId;
-                if (albumId) {
-                    const albumName = currentSong?.al?.name || currentSong?.album?.name || t('localMusic.unknownAlbum');
-                    setActiveGridViewCollection({
-                        source: 'navidrome',
-                        id: albumId,
-                        name: albumName,
-                        type: 'album',
-                        coverUrl: currentSong?.al?.picUrl || currentSong?.album?.picUrl || undefined,
-                        returnToPlayerOnClose: true,
-                    });
-                    navigateDirectHome({ clearContext: false });
-                }
-            } else {
-                openCurrentNavidromeAlbum();
+            const currentNavidromeSong = (currentSong as any)?.navidromeData;
+            const playbackCarrier = currentNavidromeSong?.navidromeData;
+            const albumId = currentNavidromeSong?.albumId || playbackCarrier?.albumId;
+            if (albumId) {
+                const albumName = currentSong?.al?.name || currentSong?.album?.name || t('localMusic.unknownAlbum');
+                navigateToCollection({
+                    source: 'navidrome',
+                    id: albumId,
+                    name: albumName,
+                    type: 'album',
+                    coverUrl: currentSong?.al?.picUrl || currentSong?.album?.picUrl || undefined,
+                }, 'player');
             }
         },
         openCurrentNavidromeArtist: () => {
-            if (homeLayoutStyle === 'grid') {
-                const currentNavidromeSong = (currentSong as any)?.navidromeData;
-                const playbackCarrier = currentNavidromeSong?.navidromeData;
-                const artistId = currentNavidromeSong?.artistId || playbackCarrier?.artistId;
-                if (artistId) {
-                    const artistName = currentSong?.ar?.[0]?.name || currentSong?.artists?.[0]?.name || t('localMusic.unknownArtist');
-                    setActiveGridViewCollection({
-                        source: 'navidrome',
-                        id: artistId,
-                        name: artistName,
-                        type: 'artist',
-                        coverUrl: currentSong?.al?.picUrl || currentSong?.album?.picUrl || undefined,
-                        returnToPlayerOnClose: true,
-                    });
-                    navigateDirectHome({ clearContext: false });
-                }
-            } else {
-                openCurrentNavidromeArtist();
+            const currentNavidromeSong = (currentSong as any)?.navidromeData;
+            const playbackCarrier = currentNavidromeSong?.navidromeData;
+            const artistId = currentNavidromeSong?.artistId || playbackCarrier?.artistId;
+            if (artistId) {
+                const artistName = currentSong?.ar?.[0]?.name || currentSong?.artists?.[0]?.name || t('localMusic.unknownArtist');
+                navigateToCollection({
+                    source: 'navidrome',
+                    id: artistId,
+                    name: artistName,
+                    type: 'artist',
+                    coverUrl: currentSong?.al?.picUrl || currentSong?.album?.picUrl || undefined,
+                }, 'player');
             }
         },
         handleCopySongInfoSuccess: createCopySongInfoSuccessHandler({ setStatusMsg, t }),
@@ -2419,8 +2393,6 @@ export default function App() {
         playerDisplayQueue,
         effectiveLoopMode,
         generateCurrentSongTheme,
-        navigateToNeteaseAlbum,
-        navigateToNeteaseArtist,
         localLibraryCatalog,
         handleBgModeChange,
         handleChangeOnlineLyricsSource,
@@ -2457,10 +2429,6 @@ export default function App() {
         lyricTimelineOffsetMs,
         navigateToHome,
         openSettings,
-        openCurrentLocalAlbum,
-        openCurrentLocalArtist,
-        openCurrentNavidromeAlbum,
-        openCurrentNavidromeArtist,
         panelTab,
         playSong,
         playerState,
@@ -2487,7 +2455,6 @@ export default function App() {
         visualizerMode,
         volume,
         homeLayoutStyle,
-        setActiveGridViewCollection,
         localSongs,
         handlePlayerPanelAlbumSelect,
         handlePlayerPanelArtistSelect,
@@ -2495,28 +2462,16 @@ export default function App() {
     ]);
     const appOverlaysModel = useMemo(() => buildAppOverlaysModel({
         currentView,
-        isOverlayVisible,
         isSearchOpen,
-        topOverlay,
-        overlayStack,
         theme,
         isDaylight,
         closeSearchView,
         handleSearchOverlaySubmit,
         handleSearchLoadMore,
         handleSearchResultPlay,
-        handleSearchResultArtistSelect,
-        handleSearchResultAlbumSelect,
-        popOverlay,
-        playSong,
-        playOnlineQueueFromStart,
-        addNeteaseSongsToQueue,
-        addNeteaseSongToQueue,
-        handleAlbumSelect: handleUnifiedAlbumSelect,
-        handleArtistSelect: handleUnifiedArtistSelect,
-        userId: user?.userId,
-        playlists,
-        refreshUserData,
+        handleSearchResultAddToQueue,
+        handleSearchResultArtistOpen,
+        handleSearchResultAlbumOpen,
         isDev,
         isDevDebugOverlayVisible,
         devDebugSnapshot,
@@ -2545,8 +2500,6 @@ export default function App() {
         noTrackText: t('ui.noTrack'),
     }), [
         activePlaybackContext,
-        addNeteaseSongToQueue,
-        addNeteaseSongsToQueue,
         audioSrc,
         canToggleCurrentPlayback,
         closeSearchView,
@@ -2556,30 +2509,22 @@ export default function App() {
         devDebugSnapshot,
         duration,
         effectiveLoopMode,
-        handleUnifiedAlbumSelect,
-        handleUnifiedArtistSelect,
+        handleSearchResultAddToQueue,
+        handleSearchResultAlbumOpen,
+        handleSearchResultArtistOpen,
         handleSearchLoadMore,
         handleSearchOverlaySubmit,
-        handleSearchResultAlbumSelect,
-        handleSearchResultArtistSelect,
         handleSearchResultPlay,
         isDaylight,
         isDev,
         isDevDebugOverlayVisible,
         isNowPlayingControlDisabled,
-        isOverlayVisible,
         isSearchOpen,
         isPlayerChromeHidden,
         lyrics,
         navigateToPlayer,
-        overlayStack,
         playerState,
-        playlists,
-        playOnlineQueueFromStart,
-        playSong,
-        popOverlay,
         publishStagePlayerPlaybackUpdate,
-        refreshUserData,
         seekMainAudio,
         setPlayerState,
         shouldHidePlayerProgressBar,
@@ -2589,8 +2534,6 @@ export default function App() {
         theme,
         toggleLoop,
         togglePlay,
-        topOverlay,
-        user?.userId,
     ]);
     const settingsDialog = useMemo(() => buildSettingsDialogModel({
         state: settingsModalState,

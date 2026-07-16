@@ -365,6 +365,15 @@ export default {
     "headerTime": "时长",
     "loading": "加载中"
   },
+  "search": {
+    "placeholder": "搜索歌曲...",
+    "sourceNetease": "网易云",
+    "sourceLocal": "本地",
+    "sourceNavidrome": "Navidrome",
+    "playTrack": "播放歌曲",
+    "error": "搜索失败，请重试。",
+    "retry": "重试"
+  },
   "home": {
     "welcome": "欢迎使用 Folia",
     "loginPrompt": "登录网易云音乐以访问您的歌单。",

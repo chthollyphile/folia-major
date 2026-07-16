@@ -9,7 +9,8 @@ import LocalMusicView from './LocalMusicView';
 import NavidromeMusicView from './navidrome/NavidromeMusicView';
 import { motion, AnimatePresence } from 'framer-motion';
 import Carousel3D from './Carousel3D';
-import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+import { resolveSearchSource, useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+import type { LocalLibraryCatalogSnapshot } from '../hooks/useLocalLibraryCatalog';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -32,6 +33,7 @@ interface HomeProps {
     onSelectLocalAlbum?: (albumName: string) => void;
     onSelectLocalArtist?: (artistName: string) => void;
     localSongs: LocalSong[];
+    localLibraryCatalog: LocalLibraryCatalogSnapshot;
     localPlaylists: LocalPlaylist[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
@@ -104,6 +106,7 @@ const Home: React.FC<HomeProps> = ({
     onSelectLocalAlbum,
     onSelectLocalArtist,
     localSongs,
+    localLibraryCatalog,
     localPlaylists,
     onRefreshLocalSongs,
     onPlayLocalSong,
@@ -413,9 +416,10 @@ const Home: React.FC<HomeProps> = ({
 
         const didSearch = await submitSearch({
             query,
-            sourceTab: viewTab,
+            sourceTab: resolveSearchSource(viewTab),
             deps: {
                 localSongs,
+                localLibraryCatalog,
                 t: (key, fallback) => t(key, fallback ?? ''),
             },
         });

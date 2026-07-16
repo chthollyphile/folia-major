@@ -364,6 +364,15 @@ export default {
     "headerTime": "Time",
     "loading": "Loading"
   },
+  "search": {
+    "placeholder": "Search songs...",
+    "sourceNetease": "NetEase",
+    "sourceLocal": "Local",
+    "sourceNavidrome": "Navidrome",
+    "playTrack": "Play track",
+    "error": "Search failed. Please try again.",
+    "retry": "Retry"
+  },
   "home": {
     "welcome": "Welcome to Folia",
     "loginPrompt": "Login with Netease Cloud Music to access your playlists.",

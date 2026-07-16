@@ -41,27 +41,26 @@ describe('createLocalLibraryNavigation', () => {
             { songId: 'song-a', artistEntityIds: ['artist-a'], albumEntityId: 'album-a', artistOrigin: 'import', albumOrigin: 'import', updatedAt: 1 },
             { songId: 'song-b', artistEntityIds: ['artist-b'], albumEntityId: 'album-b', artistOrigin: 'import', albumOrigin: 'import', updatedAt: 1 },
         ];
-        const setActiveGridViewCollection = vi.fn();
+        const onOpenCollection = vi.fn();
         const navigation = createLocalLibraryNavigation({
             currentSong: null,
             localSongs: songs,
             localLibraryCatalog: { entities, assignments, ready: true, reload: vi.fn() },
             setHomeViewTab: vi.fn(),
-            navigateDirectHome: vi.fn(),
-            setActiveGridViewCollection,
+            onOpenCollection,
             t: key => key,
         });
 
         navigation.openLocalArtistByName('Shared Artist', 'song-b');
         navigation.openLocalAlbumByName('Shared Album', 'song-b');
 
-        expect(setActiveGridViewCollection).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        expect(onOpenCollection).toHaveBeenNthCalledWith(1, expect.objectContaining({
             id: 'artist-b',
             entityId: 'artist-b',
             type: 'artist',
             songIds: ['song-b'],
         }));
-        expect(setActiveGridViewCollection).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        expect(onOpenCollection).toHaveBeenNthCalledWith(2, expect.objectContaining({
             id: 'album-b',
             entityId: 'album-b',
             type: 'album',
@@ -84,28 +83,25 @@ describe('createLocalLibraryNavigation', () => {
             updatedAt: 1,
         }];
         const setHomeViewTab = vi.fn();
-        const setActiveGridViewCollection = vi.fn();
-        const navigateDirectHome = vi.fn();
+        const onOpenCollection = vi.fn();
         const navigation = createLocalLibraryNavigation({
             currentSong: null,
             localSongs: songs,
             localLibraryCatalog: { entities, assignments, ready: true, reload: vi.fn() },
             setHomeViewTab,
-            navigateDirectHome,
-            setActiveGridViewCollection,
+            onOpenCollection,
             t: key => key,
         });
 
         navigation.openLocalAlbumByName('Shared Album', 'song-a');
 
         expect(setHomeViewTab).toHaveBeenCalledWith('local');
-        expect(setActiveGridViewCollection).toHaveBeenCalledWith(expect.objectContaining({
+        expect(onOpenCollection).toHaveBeenCalledWith(expect.objectContaining({
             source: 'local',
             id: 'album-a',
             entityId: 'album-a',
             type: 'album',
             songIds: ['song-a'],
         }));
-        expect(navigateDirectHome).toHaveBeenCalledWith({ clearContext: false });
     });
 });

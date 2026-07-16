@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, User, Loader2, Settings, ChevronRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+import { resolveSearchSource, useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
+import type { LocalLibraryCatalogSnapshot } from '../hooks/useLocalLibraryCatalog';
 import { useShallow } from 'zustand/react/shallow';
 import { SongResult, NeteaseUser, NeteasePlaylist, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, PlayerState } from '../types';
 import { neteaseApi, isSongMarkedUnavailable } from '../services/netease';
@@ -34,6 +35,7 @@ interface Grid3DProps {
     onSelectLocalAlbum?: (albumName: string) => void;
     onSelectLocalArtist?: (artistName: string) => void;
     localSongs: LocalSong[];
+    localLibraryCatalog: LocalLibraryCatalogSnapshot;
     localPlaylists: LocalPlaylist[];
     onRefreshLocalSongs: () => void;
     onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => void;
@@ -89,6 +91,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         cloudPlaylist = null,
         currentTrack,
         localSongs,
+        localLibraryCatalog,
         localPlaylists,
         onRefreshLocalSongs,
         localMusicState,
@@ -465,9 +468,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
         const didSearch = await submitSearch({
             query,
-            sourceTab: homeViewTab,
+            sourceTab: resolveSearchSource(homeViewTab),
             deps: {
                 localSongs,
+                localLibraryCatalog,
                 t: (key, fallback) => t(key, fallback ?? ''),
             },
         });

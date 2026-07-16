@@ -576,10 +576,19 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 (target instanceof HTMLElement && target.isContentEditable)
             ) return;
 
-            if (event.key === 'Escape' && showSearchPanel) {
-                setShowSearchPanel(false);
-                setDraftSearchQuery('');
-                setSearchQuery('');
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (showSearchPanel) {
+                    setShowSearchPanel(false);
+                    setDraftSearchQuery('');
+                    setSearchQuery('');
+                } else if (showSidePanel) {
+                    setShowSidePanel(false);
+                } else if (showCutInPanel) {
+                    setShowCutInPanel(false);
+                } else {
+                    onBack();
+                }
                 return;
             }
             if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -594,7 +603,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
         window.addEventListener('keydown', handleSearchTyping);
         return () => window.removeEventListener('keydown', handleSearchTyping);
-    }, [showSearchPanel]);
+    }, [onBack, showCutInPanel, showSearchPanel, showSidePanel]);
 
     const filteredAlbums = useMemo(() => {
         const query = deferredSearchQuery.trim().toLowerCase();

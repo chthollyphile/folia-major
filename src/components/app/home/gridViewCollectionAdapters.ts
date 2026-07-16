@@ -30,7 +30,6 @@ export interface BaseGridViewCollectionDescriptor {
     albumDuration?: number;
     albumCompany?: string;
     albumPublishTime?: number;
-    returnToPlayerOnClose?: boolean;
 }
 
 export interface LocalGridViewCollectionDescriptor extends BaseGridViewCollectionDescriptor {

@@ -8,13 +8,16 @@ import { getOnlineSongCacheKey, isSongMarkedUnavailable, neteaseApi } from '../s
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
-import { PlayerState, type HomeViewTab, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
+import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../utils/stagePlayerSnapshot';
+import type { LocalLibraryDisplayCatalog } from '../services/playbackAdapters';
+import type { SearchReturnView, SearchSource } from '../stores/useSearchNavigationStore';
+import { dispatchSearchTrackAction } from '../components/app/search/searchTrackActions';
 
 // src/hooks/usePlaybackQueueController.ts
 
@@ -23,15 +26,18 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 type SearchDeps = {
     submitSearch: (args: {
         query: string;
-        sourceTab: HomeViewTab;
+        sourceTab: SearchSource;
         deps: {
             localSongs: LocalSong[];
+            localLibraryCatalog?: LocalLibraryDisplayCatalog;
             t: (key: string, fallback?: string) => string;
         };
+        returnView?: SearchReturnView;
     }) => Promise<boolean>;
     loadMoreSearchResults: (args: {
         deps: {
             localSongs: LocalSong[];
+            localLibraryCatalog?: LocalLibraryDisplayCatalog;
             t: (key: string, fallback?: string) => string;
         };
     }) => Promise<void>;
@@ -49,8 +55,10 @@ type UsePlaybackQueueControllerParams = {
     isNowPlayingStageActive: boolean;
     queueAddBehavior: QueueAddBehavior;
     searchQuery: string;
-    searchSourceTab: HomeViewTab;
+    searchSourceTab: SearchSource;
+    searchReturnView: SearchReturnView;
     localSongs: LocalSong[];
+    localLibraryCatalog: LocalLibraryDisplayCatalog;
     userId?: number;
     currentTime: MotionValue<number>;
     setCurrentSong: SetState<SongResult | null>;
@@ -67,14 +75,12 @@ type UsePlaybackQueueControllerParams = {
     setPanelTab: SetState<'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics'>;
     setIsPanelOpen: SetState<boolean>;
     navigateToPlayer: () => void;
-    navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean }) => void;
-    hideSearchOverlay: () => void;
-    setHomeViewTab: (tab: HomeViewTab) => void;
-    setPendingNavidromeSelection: (selection: { type: 'artist'; artistId: string } | { type: 'album'; albumId: string }) => void;
-    handleArtistSelect: (artistId: number) => void;
-    handleAlbumSelect: (albumId: number) => void;
-    openLocalArtistByName: (artistName: string, songId?: string, entityId?: string) => void;
-    openLocalAlbumByName: (albumName: string, songId?: string, entityId?: string) => void;
+    navigateToSearch: (args: {
+        query: string;
+        sourceTab: SearchSource;
+        replace?: boolean;
+        returnView?: SearchReturnView;
+    }) => void;
     persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     restoreCachedThemeForSong: (songOrId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
@@ -87,6 +93,8 @@ type UsePlaybackQueueControllerParams = {
         queue?: NavidromeSong[],
         options?: PlaybackNavigationOptions,
     ) => Promise<void>;
+    onAddLocalSongToQueue: (localSong: LocalSong) => void;
+    onAddNavidromeSongsToQueue: (songs: NavidromeSong[]) => void;
     searchDeps: SearchDeps;
     audioRef: MutableRefObject<HTMLAudioElement | null>;
     blobUrlRef: MutableRefObject<string | null>;
@@ -140,7 +148,9 @@ export function usePlaybackQueueController({
     queueAddBehavior,
     searchQuery,
     searchSourceTab,
+    searchReturnView,
     localSongs,
+    localLibraryCatalog,
     userId,
     currentTime,
     setCurrentSong,
@@ -158,18 +168,13 @@ export function usePlaybackQueueController({
     setIsPanelOpen,
     navigateToPlayer,
     navigateToSearch,
-    hideSearchOverlay,
-    setHomeViewTab,
-    setPendingNavidromeSelection,
-    handleArtistSelect,
-    handleAlbumSelect,
-    openLocalArtistByName,
-    openLocalAlbumByName,
     persistLastPlaybackCache,
     restoreCachedThemeForSong,
     interruptStagePlaybackForMainTransition,
     onPlayLocalSong,
     onPlayNavidromeSong,
+    onAddLocalSongToQueue,
+    onAddNavidromeSongsToQueue,
     searchDeps,
     audioRef,
     blobUrlRef,
@@ -696,53 +701,64 @@ export function usePlaybackQueueController({
         void playSong(song, nextQueue, false);
     }, [playQueue, playSong]);
 
-    const handleSearchOverlaySubmit = useCallback(async () => {
+    const handleSearchOverlaySubmit = useCallback(async (requestedSource?: SearchSource) => {
         const trimmedQuery = searchQuery.trim();
         if (!trimmedQuery) {
             return;
         }
+        const sourceTab = requestedSource ?? searchSourceTab;
 
         const didSearch = await searchDeps.submitSearch({
             query: trimmedQuery,
-            sourceTab: searchSourceTab,
+            sourceTab,
             deps: {
                 localSongs,
+                localLibraryCatalog,
                 t: (key, fallback) => t(key, fallback ?? ''),
             },
+            returnView: searchReturnView,
         });
 
         if (didSearch) {
             navigateToSearch({
                 query: trimmedQuery,
-                sourceTab: searchSourceTab,
+                sourceTab,
                 replace: Boolean(window.history.state?.search),
+                returnView: searchReturnView,
             });
         }
-    }, [localSongs, navigateToSearch, searchDeps, searchQuery, searchSourceTab, t]);
+    }, [
+        localLibraryCatalog,
+        localSongs,
+        navigateToSearch,
+        searchDeps,
+        searchQuery,
+        searchReturnView,
+        searchSourceTab,
+        t,
+    ]);
 
     const handleSearchLoadMore = useCallback(async () => {
         await searchDeps.loadMoreSearchResults({
             deps: {
                 localSongs,
+                localLibraryCatalog,
                 t: (key, fallback) => t(key, fallback ?? ''),
             },
         });
-    }, [localSongs, searchDeps, t]);
+    }, [localLibraryCatalog, localSongs, searchDeps, t]);
 
     const handleSearchResultPlay = useCallback((track: UnifiedSong) => {
-        const localSongId = track.localRef?.songId;
-        const localSong = localSongId ? localSongs.find(song => song.id === localSongId) : undefined;
-        if (track.isLocal && localSong) {
-            void onPlayLocalSong(localSong);
-            return;
-        }
-
-        if (track.isNavidrome && track.navidromeData) {
-            void onPlayNavidromeSong(track as NavidromeSong);
-            return;
-        }
-
-        handleQueueAddAndPlay(track);
+        dispatchSearchTrackAction(track, {
+            localSongs,
+            onLocal: localSong => {
+                void onPlayLocalSong(localSong);
+            },
+            onNavidrome: navidromeSong => {
+                void onPlayNavidromeSong(navidromeSong);
+            },
+            onNetease: handleQueueAddAndPlay,
+        });
     }, [handleQueueAddAndPlay, localSongs, onPlayLocalSong, onPlayNavidromeSong]);
 
     const handleUnavailableReplacementConfirm = useCallback(async () => {
@@ -767,48 +783,19 @@ export function usePlaybackQueueController({
         }
     }, [buildQueueWithReplacementSong, pendingUnavailableReplacement, playSong, setStatusMsg, t]);
 
-    const handleSearchResultArtistSelect = useCallback((track: UnifiedSong, artistName: string, artistId?: number) => {
-        if (track.isLocal) {
-            hideSearchOverlay();
-            const entityId = track.ar?.find(artist => artist.name === artistName)?.entityId;
-            openLocalArtistByName(artistName, track.localRef?.songId, entityId);
-            return;
-        }
-
-        if (track.isNavidrome && track.navidromeData?.artistId) {
-            hideSearchOverlay();
-            setHomeViewTab('navidrome');
-            setPendingNavidromeSelection({ type: 'artist', artistId: track.navidromeData.artistId });
-            return;
-        }
-
-        if (artistId) {
-            handleArtistSelect(artistId);
-        }
-    }, [handleArtistSelect, hideSearchOverlay, openLocalArtistByName, setHomeViewTab, setPendingNavidromeSelection]);
-
-    const handleSearchResultAlbumSelect = useCallback((track: UnifiedSong, albumName: string, albumId?: number) => {
-        if (track.isLocal) {
-            hideSearchOverlay();
-            openLocalAlbumByName(
-                albumName,
-                track.localRef?.songId,
-                track.al?.entityId || track.album?.entityId,
-            );
-            return;
-        }
-
-        if (track.isNavidrome && track.navidromeData?.albumId) {
-            hideSearchOverlay();
-            setHomeViewTab('navidrome');
-            setPendingNavidromeSelection({ type: 'album', albumId: track.navidromeData.albumId });
-            return;
-        }
-
-        if (albumId) {
-            handleAlbumSelect(albumId);
-        }
-    }, [handleAlbumSelect, hideSearchOverlay, openLocalAlbumByName, setHomeViewTab, setPendingNavidromeSelection]);
+    const handleSearchResultAddToQueue = useCallback((track: UnifiedSong) => {
+        dispatchSearchTrackAction(track, {
+            localSongs,
+            onLocal: onAddLocalSongToQueue,
+            onNavidrome: navidromeSong => onAddNavidromeSongsToQueue([navidromeSong]),
+            onNetease: addNeteaseSongToQueue,
+        });
+    }, [
+        addNeteaseSongToQueue,
+        localSongs,
+        onAddLocalSongToQueue,
+        onAddNavidromeSongsToQueue,
+    ]);
 
     const handleNextTrack = useCallback(async (options?: NextTrackOptions) => {
         if (isNowPlayingStageActive) return;
@@ -1219,9 +1206,8 @@ export function usePlaybackQueueController({
         handleSearchOverlaySubmit,
         handleSearchLoadMore,
         handleSearchResultPlay,
+        handleSearchResultAddToQueue,
         handleUnavailableReplacementConfirm,
-        handleSearchResultArtistSelect,
-        handleSearchResultAlbumSelect,
         handleNextTrack,
         handlePrevTrack,
         skipAfterPlaybackFailure,

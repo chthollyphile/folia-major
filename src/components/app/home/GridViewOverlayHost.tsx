@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useShallow } from 'zustand/react/shallow';
 import LegacyHome from '../../Home';
 import GridView, { GridViewSourceActions } from '../../GridView';
 import ArtistGridView from '../../ArtistGridView';
-import { useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
+import { getActiveGridViewCollection, useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
 import { LocalSong, SongResult, UnifiedSong } from '../../../types';
 import { NavidromeSong } from '../../../types/navidrome';
 import { resolveNavidromePlaybackCarrier } from '../../../utils/appPlaybackGuards';
@@ -23,7 +22,7 @@ import {
     resolveLocalGridViewTracks,
     resolveNavidromeGridViewTracks,
 } from './gridViewCollectionAdapters';
-import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
+import type { LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
 import { LocalLibraryEntityPanel } from '../../modal/LocalLibraryEntityPanel';
 import { LocalFolderSongInfoPanel } from '../../modal/LocalFolderSongInfoPanel';
 import { LocalSongMetadataMatchDialog } from '../../modal/LocalSongMetadataMatchDialog';
@@ -37,20 +36,16 @@ type LegacyHomeProps = React.ComponentProps<typeof LegacyHome>;
 
 type GridViewOverlayHostProps = {
     legacyProps: LegacyHomeProps;
+    onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
+    onPushCollection: (collection: GridViewCollectionDescriptor) => void;
+    onBackCollection: () => void;
     children: (openGridView: (collection: GridViewCollectionDescriptor) => void) => React.ReactNode;
-};
-
-type StoredGridViewCollection = {
-    collection: GridViewCollectionDescriptor;
-    homeViewTab: string;
 };
 
 type LocalTrackCoverObjectUrlEntry = {
     signature: string;
     url: string;
 };
-
-export const GRID_VIEW_ACTIVE_COLLECTION_KEY = 'folia_gridview_active_collection';
 
 const getPersistentCoverUrl = (url?: string) => (
     url && !url.startsWith('blob:') ? url : undefined
@@ -132,20 +127,17 @@ const resolveLiveLocalCollection = (
     };
 };
 
-const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, children }) => {
-    const activeGridViewCollection = useSettingsUiStore(state => state.activeGridViewCollection);
-    const setActiveGridViewCollection = useSettingsUiStore(state => state.setActiveGridViewCollection);
+const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
+    legacyProps,
+    onOpenCollection,
+    onPushCollection,
+    onBackCollection,
+    children,
+}) => {
+    const collectionSnapshot = useCollectionNavigationStore(state => state.snapshot);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
-    const onBackToPlayer = legacyProps.onBackToPlayer;
-    const localLibraryCatalog = useLocalLibraryCatalog(legacyProps.localSongs);
-    const { homeViewTab, setHomeViewTab } = useSearchNavigationStore(useShallow(state => ({
-        homeViewTab: state.homeViewTab,
-        setHomeViewTab: state.setHomeViewTab,
-    })));
-    const [collectionHistory, setCollectionHistory] = useState<GridViewCollectionDescriptor[]>(() => (
-        activeGridViewCollection ? [activeGridViewCollection] : []
-    ));
-    const selectedCollection = collectionHistory[collectionHistory.length - 1] || null;
+    const localLibraryCatalog = legacyProps.localLibraryCatalog;
+    const selectedCollection = getActiveGridViewCollection(collectionSnapshot);
     const [externalTracks, setExternalTracks] = useState<SongResult[] | undefined>(undefined);
     const [externalTracksLoading, setExternalTracksLoading] = useState(false);
     const [resolvedLocalCollectionCoverUrl, setResolvedLocalCollectionCoverUrl] = useState<string | undefined>(undefined);
@@ -223,85 +215,17 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
 
     useEffect(() => clearLocalTrackCoverObjectUrls, [clearLocalTrackCoverObjectUrls]);
 
-    useEffect(() => {
-        if (collectionHistory.length > 0) return;
-
-        try {
-            const saved = sessionStorage.getItem(GRID_VIEW_ACTIVE_COLLECTION_KEY);
-            if (!saved) return;
-
-            const parsed = JSON.parse(saved) as StoredGridViewCollection;
-            if (parsed?.collection?.id === undefined || parsed.collection.id === null || !parsed.collection.name) return;
-
-            setCollectionHistory([parsed.collection]);
-            setActiveGridViewCollection(parsed.collection);
-            if (parsed.homeViewTab) {
-                setHomeViewTab(parsed.homeViewTab as any);
-            }
-        } catch {
-            sessionStorage.removeItem(GRID_VIEW_ACTIVE_COLLECTION_KEY);
-        }
-    }, [collectionHistory.length, setHomeViewTab, setActiveGridViewCollection]);
-
-    useEffect(() => {
-        if (activeGridViewCollection) {
-            const currentTop = collectionHistory[collectionHistory.length - 1];
-            if (currentTop?.id === activeGridViewCollection.id && currentTop?.source === activeGridViewCollection.source) {
-                return;
-            }
-            setCollectionHistory([activeGridViewCollection]);
-            sessionStorage.setItem(
-                GRID_VIEW_ACTIVE_COLLECTION_KEY,
-                JSON.stringify({ collection: activeGridViewCollection, homeViewTab })
-            );
-        } else {
-            setCollectionHistory([]);
-            sessionStorage.removeItem(GRID_VIEW_ACTIVE_COLLECTION_KEY);
-        }
-    }, [activeGridViewCollection, homeViewTab]);
-
     const openGridView = useCallback((collection: GridViewCollectionDescriptor) => {
-        setCollectionHistory([collection]);
-        setActiveGridViewCollection(collection);
-        sessionStorage.setItem(
-            GRID_VIEW_ACTIVE_COLLECTION_KEY,
-            JSON.stringify({ collection, homeViewTab })
-        );
-    }, [homeViewTab, setActiveGridViewCollection]);
-
-    const closeGridView = useCallback(() => {
-        const shouldReturnToPlayer = Boolean(selectedCollection?.returnToPlayerOnClose);
-        sessionStorage.removeItem(GRID_VIEW_ACTIVE_COLLECTION_KEY);
-        setCollectionHistory([]);
-        setActiveGridViewCollection(null);
-        if (shouldReturnToPlayer) {
-            onBackToPlayer();
-        }
-    }, [onBackToPlayer, selectedCollection?.returnToPlayerOnClose, setActiveGridViewCollection]);
+        onOpenCollection(collection);
+    }, [onOpenCollection]);
 
     const handlePushCollection = useCallback((col: GridViewCollectionDescriptor) => {
-        setCollectionHistory(prev => [...prev, col]);
-        setActiveGridViewCollection(col);
-        sessionStorage.setItem(
-            GRID_VIEW_ACTIVE_COLLECTION_KEY,
-            JSON.stringify({ collection: col, homeViewTab })
-        );
-    }, [homeViewTab, setActiveGridViewCollection]);
+        onPushCollection(col);
+    }, [onPushCollection]);
 
     const handleBackCollection = useCallback(() => {
-        if (collectionHistory.length > 1) {
-            const nextHistory = collectionHistory.slice(0, -1);
-            setCollectionHistory(nextHistory);
-            const newTop = nextHistory[nextHistory.length - 1];
-            setActiveGridViewCollection(newTop);
-            sessionStorage.setItem(
-                GRID_VIEW_ACTIVE_COLLECTION_KEY,
-                JSON.stringify({ collection: newTop, homeViewTab })
-            );
-        } else {
-            closeGridView();
-        }
-    }, [collectionHistory, closeGridView, homeViewTab, setActiveGridViewCollection]);
+        onBackCollection();
+    }, [onBackCollection]);
 
     useEffect(() => {
         if (
@@ -466,7 +390,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         }
 
         if (!liveSelectedCollection || !isLocalGridViewCollection(liveSelectedCollection)) {
-            closeGridView();
+            handleBackCollection();
             return;
         }
 
@@ -476,7 +400,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
             localLibraryCatalog,
         ) as UnifiedSong[];
         if (liveSelectedCollection.songIds.length > 0 && resolvedTracks.length === 0) {
-            closeGridView();
+            handleBackCollection();
             return;
         }
 
@@ -513,7 +437,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({ legacyProps, 
         setExternalTracks(processedTracks);
         setExternalTracksLoading(false);
     }, [
-        closeGridView,
+        handleBackCollection,
         getOrCreateLocalTrackCoverObjectUrl,
         legacyProps.localSongs,
         liveSelectedCollection,
