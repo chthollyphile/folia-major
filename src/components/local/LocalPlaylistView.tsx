@@ -77,15 +77,18 @@ const LocalPlaylistRow = React.memo(({ song, index, songs, onPlaySong, onAddToQu
                                 return;
                             }
                             event.stopPropagation();
-                            const artistName = song.matchedArtists || song.artist;
+                            const artistName = song.onlineMetadata?.artists.map(artist => artist.name).join(', ')
+                                || song.importedMetadata.artistNames.join(', ');
                             if (artistName) {
                                 onSelectArtist(artistName);
                             }
                         }}
                     >
-                        {song.matchedArtists || song.artist || t('localMusic.unknownArtist')}
+                        {song.onlineMetadata?.artists.map(artist => artist.name).join(', ')
+                            || song.importedMetadata.artistNames.join(', ')
+                            || t('localMusic.unknownArtist')}
                     </span>
-                    {(song.matchedAlbumName || song.album) && (
+                    {(song.onlineMetadata?.album?.name || song.importedMetadata.albumName) && (
                         <>
                             <span className="mx-1.5">•</span>
                             <span
@@ -95,13 +98,13 @@ const LocalPlaylistRow = React.memo(({ song, index, songs, onPlaySong, onAddToQu
                                         return;
                                     }
                                     event.stopPropagation();
-                                    const albumName = song.matchedAlbumName || song.album;
+                                    const albumName = song.onlineMetadata?.album?.name || song.importedMetadata.albumName;
                                     if (albumName) {
                                         onSelectAlbum(albumName);
                                     }
                                 }}
                             >
-                                {song.matchedAlbumName || song.album}
+                                {song.onlineMetadata?.album?.name || song.importedMetadata.albumName}
                             </span>
                         </>
                     )}

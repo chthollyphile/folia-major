@@ -1,4 +1,4 @@
-import type { SyncedThemeRecord } from './syncTypes';
+import type { SyncedThemeRecord, SyncThemeBucketSummary } from './syncTypes';
 
 // src/services/sync/syncMerkle.ts
 // Builds deterministic bucket summaries for theme sync diffing.
@@ -20,14 +20,14 @@ export const getThemeBucketId = (fingerprint: string) => (
     hashSyncString(fingerprint) % THEME_BUCKET_COUNT
 );
 
-const createEmptyBucket = (bucketId: number) => ({
+const createEmptyBucket = (bucketId: number): SyncThemeBucketSummary => ({
     bucketId,
     count: 0,
     hash: '0',
     updatedAt: null,
 });
 
-export const buildThemeBucketSummaries = (records: ThemeBucketInput[]) => {
+export const buildThemeBucketSummaries = (records: ThemeBucketInput[]): SyncThemeBucketSummary[] => {
     const buckets = Array.from({ length: THEME_BUCKET_COUNT }, (_, bucketId) => createEmptyBucket(bucketId));
     const hashesByBucket = new Uint32Array(THEME_BUCKET_COUNT);
 

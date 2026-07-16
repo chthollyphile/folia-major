@@ -95,7 +95,7 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
           if (anonRes && typeof anonRes.cookie === 'string' && anonRes.cookie) {
             anonCookie = anonRes.cookie;
             if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
-              localStorage.setItem('netease_anonymous_cookie', anonCookie);
+              localStorage.setItem('netease_anonymous_cookie', anonRes.cookie);
             }
           }
         } catch (e) {

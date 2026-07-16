@@ -1,510 +1,143 @@
+import type { LocalLibrarySnapshot, LocalSong } from '../types';
+import type { MigrationResult } from '../utils/lyrics/renderHints';
+import { appDatabase } from './appDatabase';
+import type { CacheData, SessionData } from './dbTypes';
+import {
+  assignImportedSongs,
+  deleteSongAssignment,
+  deleteSongAssignments,
+  ensureLocalLibraryInitialized,
+} from './localLibraryCatalogService';
+import {
+  clearBrowserCacheByCategory,
+  clearCacheTables,
+  getBrowserCacheUsage,
+  getBrowserCacheUsageByCategory,
+  getCacheKeysByPrefix,
+  putCacheEntry,
+  readCacheEntriesByPrefix,
+  readCacheEntry,
+  removeCacheEntries,
+  removeCacheEntriesByPrefix,
+  removeCacheEntry,
+  type CacheCategory,
+} from './repositories/cacheRepository';
+import {
+  readLocalSongs,
+} from './repositories/localSongRepository';
+import { clearSessionValues, putSessionValue, readSession } from './repositories/sessionRepository';
+import { readThemeRegistryEntries, writeThemeRegistryEntries } from './repositories/themeRegistryRepository';
+import { clearCoverAssets, getCoverAssetUsage } from './binaryAssetStore';
 
-import { LyricData, Theme, NeteaseUser, NeteasePlaylist, SongResult, LocalSong, LocalLibrarySnapshot } from "../types";
-import { migrateLocalSongsRenderHints, migrateMatchedLyricsCarrierRenderHints } from "../utils/lyrics/storageMigration";
-import type { MigrationResult } from "../utils/lyrics/renderHints";
-import { isBlob } from "../utils/blobGuards";
+// src/services/db.ts
+// Keeps the historical storage API stable while delegating every IndexedDB operation to Dexie repositories.
 
-const DB_NAME = 'KineticPlayerDB';
-const DB_VERSION = 6; // Adds the dedicated AI theme sync registry store.
-const STORE_NAME = 'session';
-const CACHE_STORE = 'api_cache';
-const USER_CACHE_STORE = 'user_cache';
-const MEDIA_CACHE_STORE = 'media_cache';
-const METADATA_CACHE_STORE = 'metadata_cache';
-const LOCAL_MUSIC_STORE = 'local_music';
-const THEME_REGISTRY_STORE = 'theme_registry';
+export type { CacheData, SessionData } from './dbTypes';
+export { getCacheKeysByPrefix, removeCacheEntries, removeCacheEntriesByPrefix };
 
-export interface SessionData {
-  audioFile?: File | Blob;
-  fileName?: string;
-  lyricId?: string;
-  lyrics?: LyricData;
-  theme?: Theme;
-  cachedAiBg?: string;
-  coverUrl?: string;
-  timestamp?: number;
-}
-
-export interface CacheData {
-  key: string;
-  data: any;
-  timestamp: number;
-}
-
-const hasElectronAudioCacheBridge = () =>
+const hasElectronAudioCacheBridge = () => (
   typeof window !== 'undefined' &&
-  Boolean(window.electron?.getAudioCacheUsage && window.electron?.clearAudioCache);
+  Boolean(window.electron?.getAudioCacheUsage && window.electron?.clearAudioCache)
+);
 
-const hasElectronAudioCacheStatsBridge = () =>
-  typeof window !== 'undefined' &&
-  Boolean(window.electron?.getAudioCacheStats);
+const hasElectronAudioCacheStatsBridge = () => (
+  typeof window !== 'undefined' && Boolean(window.electron?.getAudioCacheStats)
+);
 
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = (event) => reject("IndexedDB error");
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      const oldVersion = event.oldVersion || 0;
-
-      // Create session store
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-
-      // Create api_cache store (for backward compatibility: last_song, last_queue, last_theme)
-      if (!db.objectStoreNames.contains(CACHE_STORE)) {
-        db.createObjectStore(CACHE_STORE, { keyPath: 'key' });
-      }
-
-      // Create new stores for table separation (version 3+)
-      if (oldVersion < 3) {
-        // Create user_cache store
-        if (!db.objectStoreNames.contains(USER_CACHE_STORE)) {
-          db.createObjectStore(USER_CACHE_STORE, { keyPath: 'key' });
-        }
-
-        // Create media_cache store
-        if (!db.objectStoreNames.contains(MEDIA_CACHE_STORE)) {
-          db.createObjectStore(MEDIA_CACHE_STORE, { keyPath: 'key' });
-        }
-
-        // Create metadata_cache store
-        if (!db.objectStoreNames.contains(METADATA_CACHE_STORE)) {
-          db.createObjectStore(METADATA_CACHE_STORE, { keyPath: 'key' });
-        }
-
-        // Migrate user data from api_cache to user_cache
-        if (oldVersion > 0 && db.objectStoreNames.contains(CACHE_STORE)) {
-          const transaction = (event.target as IDBOpenDBRequest).transaction!;
-          const oldStore = transaction.objectStore(CACHE_STORE);
-          const newStore = transaction.objectStore(USER_CACHE_STORE);
-
-          const userKeys = ['user_profile', 'user_playlists', 'user_liked_songs', 'user_cloud_playlist'];
-          let migratedCount = 0;
-
-          userKeys.forEach(userKey => {
-            const req = oldStore.get(userKey);
-            req.onsuccess = () => {
-              if (req.result) {
-                newStore.put(req.result);
-                oldStore.delete(userKey);
-              }
-              migratedCount++;
-            };
-            req.onerror = () => {
-              migratedCount++;
-            };
-          });
-        }
-      }
-
-      // Create local_music store (version 4+)
-      // Always check if it exists, regardless of version, to handle edge cases
-      if (!db.objectStoreNames.contains(LOCAL_MUSIC_STORE)) {
-        db.createObjectStore(LOCAL_MUSIC_STORE, { keyPath: 'id' });
-      }
-
-      if (!db.objectStoreNames.contains(THEME_REGISTRY_STORE)) {
-        db.createObjectStore(THEME_REGISTRY_STORE, { keyPath: 'fingerprint' });
-      }
-    };
-
-    request.onsuccess = (event) => {
-      resolve((event.target as IDBOpenDBRequest).result);
-    };
-  });
-};
-
-export { openDB };
-
-const sanitizeLocalSongForStorage = (song: LocalSong): LocalSong => {
-  const normalizedSong = migrateMatchedLyricsCarrierRenderHints(song).value ?? song;
-  const { fileHandle, embeddedCover, ...persistedSong } = normalizedSong;
-  return isBlob(embeddedCover) ? { ...persistedSong, embeddedCover } : persistedSong;
-};
-
-const normalizeLocalSongFromStorage = (song: LocalSong): { value: LocalSong; changed: boolean } => {
-  if (song.embeddedCover === undefined || isBlob(song.embeddedCover)) {
-    return { value: song, changed: false };
-  }
-
-  const { embeddedCover, ...normalizedSong } = song;
-  return { value: normalizedSong, changed: true };
-};
-
-export const saveSessionData = async (key: keyof SessionData, value: any): Promise<void> => {
+export const saveSessionData = async (key: keyof SessionData, value: unknown): Promise<void> => {
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(value, key);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  } catch (e) {
-    console.error("Failed to save to DB", e);
+    await putSessionValue(key, value);
+  } catch (error) {
+    console.error('Failed to save to DB', error);
   }
 };
 
 export const getSessionData = async (): Promise<SessionData> => {
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-
-      const keys: (keyof SessionData)[] = ['audioFile', 'fileName', 'lyricId', 'lyrics', 'theme', 'cachedAiBg', 'coverUrl'];
-      const result: SessionData = {};
-      let completed = 0;
-
-      keys.forEach(key => {
-        const request = store.get(key);
-        request.onsuccess = () => {
-          if (request.result) {
-            // @ts-ignore
-            result[key] = request.result;
-          }
-          completed++;
-          if (completed === keys.length) resolve(result);
-        };
-        request.onerror = () => {
-          completed++;
-          if (completed === keys.length) resolve(result);
-        };
-      });
-    });
-  } catch (e) {
-    console.error("Failed to read DB", e);
+    return await readSession();
+  } catch (error) {
+    console.error('Failed to read DB', error);
     return {};
   }
 };
 
 export const clearSession = async (): Promise<void> => {
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.clear();
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  } catch (e) {
-    console.error("Failed to clear DB", e);
+    await clearSessionValues();
+  } catch (error) {
+    console.error('Failed to clear DB', error);
   }
 };
 
-// --- Caching Methods ---
-
-// Helper function to determine which store to use based on key
-const getStoreName = (key: string): string => {
-  // User data -> user_cache
-  if (key === 'user_profile' || key === 'user_playlists' || key === 'user_liked_songs' || key === 'user_cloud_playlist') {
-    return USER_CACHE_STORE;
-  }
-
-  // Session data -> api_cache (backward compatibility)
-  if (key === 'last_song' || key === 'last_queue' || key === 'last_theme') {
-    return CACHE_STORE;
-  }
-
-  // Media files -> media_cache
-  if (key.startsWith('audio_') || key.startsWith('cover_')) {
-    return MEDIA_CACHE_STORE;
-  }
-
-  // Metadata and playlists -> metadata_cache
-  if (key.startsWith('lyric_') || key.startsWith('theme_') ||
-    key.startsWith('playlist_tracks_') || key.startsWith('playlist_detail_')) {
-    return METADATA_CACHE_STORE;
-  }
-
-  // Default to api_cache for backward compatibility
-  return CACHE_STORE;
-};
-
-export const saveToCache = async (key: string, data: any): Promise<void> => {
+export const saveToCache = async (key: string, data: unknown): Promise<void> => {
   try {
-    const db = await openDB();
-    const storeName = getStoreName(key);
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([storeName], 'readwrite');
-      const store = tx.objectStore(storeName);
-      // If data is a blob, it stores efficiently. If object, IDB handles structured clone.
-      store.put({ key, data, timestamp: Date.now() });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Cache save failed", e);
+    await putCacheEntry(key, data);
+  } catch (error) {
+    console.error('Cache save failed', error);
   }
 };
 
 export const getFromCache = async <T>(key: string): Promise<T | null> => {
   try {
-    const db = await openDB();
-    const storeName = getStoreName(key);
-
-    // For backward compatibility, also check api_cache if not found in the primary store
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([storeName], 'readonly');
-      const store = tx.objectStore(storeName);
-      const req = store.get(key);
-      req.onsuccess = () => {
-        if (req.result) {
-          resolve(req.result.data as T);
-        } else {
-          // If not found and it's a user data key, check old api_cache for migration
-          if ((key === 'user_profile' || key === 'user_playlists' || key === 'user_liked_songs' || key === 'user_cloud_playlist') &&
-            storeName === USER_CACHE_STORE) {
-            const oldTx = db.transaction([CACHE_STORE], 'readonly');
-            const oldStore = oldTx.objectStore(CACHE_STORE);
-            const oldReq = oldStore.get(key);
-            oldReq.onsuccess = () => {
-              if (oldReq.result) {
-                // Migrate to new store
-                saveToCache(key, oldReq.result.data).then(() => {
-                  resolve(oldReq.result.data as T);
-                });
-              } else {
-                resolve(null);
-              }
-            };
-            oldReq.onerror = () => resolve(null);
-          } else {
-            resolve(null);
-          }
-        }
-      };
-      req.onerror = () => reject(req.error);
-    });
-  } catch (e) {
+    return await readCacheEntry<T>(key);
+  } catch {
     return null;
   }
 };
 
 export const getCacheEntriesByPrefix = async <T>(prefix: string): Promise<Array<{ key: string; data: T; timestamp: number }>> => {
   try {
-    const db = await openDB();
-    const storeNames = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
-    const entryMap = new Map<string, { key: string; data: T; timestamp: number }>();
-
-    await Promise.all(storeNames.map(storeName => new Promise<void>((resolve, reject) => {
-      if (!db.objectStoreNames.contains(storeName)) {
-        resolve();
-        return;
-      }
-
-      const tx = db.transaction([storeName], 'readonly');
-      const store = tx.objectStore(storeName);
-      const req = store.openCursor();
-      req.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
-        if (!cursor) {
-          return;
-        }
-
-        const value = cursor.value as CacheData | undefined;
-        if (typeof value?.key === 'string' && value.key.startsWith(prefix)) {
-          entryMap.set(value.key, {
-            key: value.key,
-            data: value.data as T,
-            timestamp: typeof value.timestamp === 'number' ? value.timestamp : 0,
-          });
-        }
-        cursor.continue();
-      };
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    })));
-
-    return Array.from(entryMap.values());
-  } catch (e) {
-    console.error("Cache prefix scan failed", e);
+    return await readCacheEntriesByPrefix<T>(prefix);
+  } catch (error) {
+    console.error('Cache prefix scan failed', error);
     return [];
   }
 };
 
 export const getFromCacheWithMigration = async <T>(
   key: string,
-  migrate: (data: T) => MigrationResult<T>
+  migrate: (data: T) => MigrationResult<T>,
 ): Promise<T | null> => {
   const cached = await getFromCache<T>(key);
-  if (!cached) {
-    return null;
-  }
-
+  if (!cached) return null;
   const migration = migrate(cached);
   if (migration.changed) {
     void saveToCache(key, migration.value).catch(error => {
       console.warn(`[DB] Failed to write back migrated cache entry: ${key}`, error);
     });
   }
-
   return migration.value;
 };
 
 export const removeFromCache = async (key: string): Promise<void> => {
   try {
-    const db = await openDB();
-    const storeName = getStoreName(key);
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([storeName], 'readwrite');
-      const store = tx.objectStore(storeName);
-      const req = store.delete(key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-  } catch (e) {
-    console.error("Cache remove failed", e);
+    await removeCacheEntry(key);
+  } catch (error) {
+    console.error('Cache remove failed', error);
   }
 };
 
-export const getThemeRegistryEntries = async <T>(): Promise<T[]> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction([THEME_REGISTRY_STORE], 'readonly');
-    const request = tx.objectStore(THEME_REGISTRY_STORE).getAll();
-    request.onsuccess = () => resolve(request.result as T[]);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-export const upsertThemeRegistryEntries = async <T extends { fingerprint: string }>(entries: T[]): Promise<void> => {
-  if (entries.length === 0) {
-    return;
-  }
-
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction([THEME_REGISTRY_STORE], 'readwrite');
-    const store = tx.objectStore(THEME_REGISTRY_STORE);
-    entries.forEach(entry => store.put(entry));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-};
+export const getThemeRegistryEntries = readThemeRegistryEntries;
+export const upsertThemeRegistryEntries = writeThemeRegistryEntries;
 
 export const clearCache = async (preserveKeys: string[] = []): Promise<void> => {
   try {
-    const db = await openDB();
-
-    // Group preserve keys by store
-    const storeKeys: Record<string, string[]> = {
-      [CACHE_STORE]: [],
-      [USER_CACHE_STORE]: [],
-      [MEDIA_CACHE_STORE]: [],
-      [METADATA_CACHE_STORE]: []
-    };
-
-    preserveKeys.forEach(key => {
-      const storeName = getStoreName(key);
-      storeKeys[storeName].push(key);
-    });
-
-    // Clear each store
-    const clearPromises = Object.entries(storeKeys).map(([storeName, keys]) => {
-      return new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([storeName], 'readwrite');
-        const store = tx.objectStore(storeName);
-
-        if (keys.length > 0) {
-          // Selective clear
-          const req = store.openCursor();
-          req.onsuccess = (event) => {
-            const cursor = (event.target as IDBRequest).result;
-            if (cursor) {
-              const key = cursor.key as string;
-              if (!keys.includes(key)) {
-                cursor.delete();
-              }
-              cursor.continue();
-            } else {
-              resolve();
-            }
-          };
-          req.onerror = () => reject(req.error);
-        } else {
-          // Clear all
-          store.clear();
-          tx.oncomplete = () => resolve();
-        }
-      });
-    });
-
-    await Promise.all(clearPromises);
-
+    await clearCacheTables(preserveKeys);
     if (hasElectronAudioCacheBridge() && !preserveKeys.some(key => key.startsWith('audio_'))) {
       await window.electron!.clearAudioCache();
     }
-  } catch (e) {
-    console.error("Clear cache failed", e);
+    if (!preserveKeys.some(key => key.startsWith('cover_'))) await clearCoverAssets();
+  } catch (error) {
+    console.error('Clear cache failed', error);
   }
 };
 
 export const getCacheUsage = async (): Promise<number> => {
   try {
-    const db = await openDB();
-    const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
-
-    let totalSize = 0;
-    let completed = 0;
-
-    return new Promise((resolve, reject) => {
-      stores.forEach(storeName => {
-        const tx = db.transaction([storeName], 'readonly');
-        const store = tx.objectStore(storeName);
-        let storeSize = 0;
-        const req = store.openCursor();
-
-        req.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest).result;
-          if (cursor) {
-            const value = cursor.value;
-            if (value.data instanceof Blob) {
-              storeSize += value.data.size;
-            } else {
-              // Approximate size for JSON objects
-              const json = JSON.stringify(value.data);
-              storeSize += json.length;
-            }
-            cursor.continue();
-          } else {
-            totalSize += storeSize;
-            completed++;
-            if (completed === stores.length) {
-              if (hasElectronAudioCacheBridge()) {
-                window.electron!.getAudioCacheUsage()
-                  .then(audioCacheSize => resolve(totalSize + audioCacheSize))
-                  .catch(() => resolve(totalSize));
-              } else {
-                resolve(totalSize);
-              }
-            }
-          }
-        };
-        req.onerror = () => {
-          completed++;
-          if (completed === stores.length) {
-            if (hasElectronAudioCacheBridge()) {
-              window.electron!.getAudioCacheUsage()
-                .then(audioCacheSize => resolve(totalSize + audioCacheSize))
-                .catch(() => resolve(totalSize));
-            } else {
-              resolve(totalSize);
-            }
-          }
-        };
-      });
-    });
-  } catch (e) {
+    const browserSize = await getBrowserCacheUsage();
+    const audioSize = hasElectronAudioCacheBridge() ? await window.electron!.getAudioCacheUsage() : 0;
+    return browserSize + audioSize + await getCoverAssetUsage();
+  } catch {
     return 0;
   }
 };
@@ -517,282 +150,85 @@ export const getCacheUsageByCategory = async (): Promise<{
   mediaCount: number;
 }> => {
   try {
-    const db = await openDB();
-    const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
-
-    const usage = {
-      playlist: 0,
-      lyrics: 0,
-      cover: 0,
-      media: 0,
-      mediaCount: 0
-    };
-
-    return new Promise((resolve, reject) => {
-      let completed = 0;
-
-      stores.forEach(storeName => {
-        const tx = db.transaction([storeName], 'readonly');
-        const store = tx.objectStore(storeName);
-        const req = store.openCursor();
-
-        req.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest).result;
-          if (cursor) {
-            const key = cursor.key as string;
-            const value = cursor.value;
-            let size = 0;
-
-            if (value.data instanceof Blob) {
-              size = value.data.size;
-            } else {
-              size = JSON.stringify(value.data).length;
-            }
-
-            // Categorize
-            if (key === 'user_playlists' || key.startsWith('playlist_')) {
-              usage.playlist += size;
-            } else if (key.startsWith('lyric_')) {
-              usage.lyrics += size;
-            } else if (key.startsWith('cover_')) {
-              usage.cover += size;
-            } else if (key.startsWith('audio_')) {
-              usage.media += size;
-              usage.mediaCount++;
-            } else if (key === 'user_liked_songs' || key === 'user_profile' || key === 'user_cloud_playlist') {
-              // Consider user profile as playlist data mostly
-              usage.playlist += size;
-            }
-
-            cursor.continue();
-          } else {
-            completed++;
-            if (completed === stores.length) {
-              if (hasElectronAudioCacheStatsBridge()) {
-                window.electron!.getAudioCacheStats()
-                  .then(audioCacheStats => {
-                    usage.media += audioCacheStats.size;
-                    usage.mediaCount += audioCacheStats.count;
-                    resolve(usage);
-                  })
-                  .catch(() => resolve(usage));
-              } else if (hasElectronAudioCacheBridge()) {
-                window.electron!.getAudioCacheUsage()
-                  .then(audioCacheSize => {
-                    usage.media += audioCacheSize;
-                    resolve(usage);
-                  })
-                  .catch(() => resolve(usage));
-              } else {
-                resolve(usage);
-              }
-            }
-          }
-        };
-        req.onerror = () => {
-          completed++;
-          if (completed === stores.length) {
-            if (hasElectronAudioCacheStatsBridge()) {
-              window.electron!.getAudioCacheStats()
-                .then(audioCacheStats => {
-                  usage.media += audioCacheStats.size;
-                  usage.mediaCount += audioCacheStats.count;
-                  resolve(usage);
-                })
-                .catch(() => resolve(usage));
-            } else if (hasElectronAudioCacheBridge()) {
-              window.electron!.getAudioCacheUsage()
-                .then(audioCacheSize => {
-                  usage.media += audioCacheSize;
-                  resolve(usage);
-                })
-                .catch(() => resolve(usage));
-            } else {
-              resolve(usage);
-            }
-          }
-        };
-      });
-    });
-  } catch (e) {
+    const usage = await getBrowserCacheUsageByCategory();
+    if (hasElectronAudioCacheStatsBridge()) {
+      const stats = await window.electron!.getAudioCacheStats();
+      usage.media += stats.size;
+      usage.mediaCount += stats.count;
+    } else if (hasElectronAudioCacheBridge()) {
+      usage.media += await window.electron!.getAudioCacheUsage();
+    }
+    usage.cover += await getCoverAssetUsage();
+    return usage;
+  } catch {
     return { playlist: 0, lyrics: 0, cover: 0, media: 0, mediaCount: 0 };
   }
 };
 
-export const clearCacheByCategory = async (category: 'playlist' | 'lyrics' | 'cover' | 'media'): Promise<void> => {
+export const clearCacheByCategory = async (category: CacheCategory): Promise<void> => {
   try {
-    const db = await openDB();
-    const stores = [CACHE_STORE, USER_CACHE_STORE, MEDIA_CACHE_STORE, METADATA_CACHE_STORE];
-
-    const clearPromises = stores.map(storeName => {
-      return new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([storeName], 'readwrite');
-        const store = tx.objectStore(storeName);
-        const req = store.openCursor();
-
-        req.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest).result;
-          if (cursor) {
-            const key = cursor.key as string;
-            let shouldDelete = false;
-
-            if (category === 'playlist') {
-              if (key === 'user_playlists' || key.startsWith('playlist_')) shouldDelete = true;
-            } else if (category === 'lyrics') {
-              if (key.startsWith('lyric_')) shouldDelete = true;
-            } else if (category === 'cover') {
-              if (key.startsWith('cover_')) shouldDelete = true;
-            } else if (category === 'media') {
-              if (key.startsWith('audio_')) shouldDelete = true;
-            }
-
-            if (shouldDelete) {
-              cursor.delete();
-            }
-            cursor.continue();
-          } else {
-            resolve();
-          }
-        };
-        req.onerror = () => reject(req.error);
-      });
-    });
-
-    await Promise.all(clearPromises);
-
+    await clearBrowserCacheByCategory(category);
     if (category === 'media' && hasElectronAudioCacheBridge()) {
       await window.electron!.clearAudioCache();
     }
-  } catch (e) {
-    console.error("Failed to clear cache by category", e);
+    if (category === 'cover') await clearCoverAssets();
+  } catch (error) {
+    console.error('Failed to clear cache by category', error);
   }
 };
 
-// --- Local Music Methods ---
-
 export const saveLocalSong = async (song: LocalSong): Promise<void> => {
   try {
-    const db = await openDB();
-    const persistedSong = sanitizeLocalSongForStorage(song);
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
-      const store = tx.objectStore(LOCAL_MUSIC_STORE);
-      store.put(persistedSong);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Failed to save local song", e);
+    await ensureLocalLibraryInitialized();
+    await assignImportedSongs([song]);
+  } catch (error) {
+    console.error('Failed to save local song', error);
   }
 };
 
 export const saveLocalSongs = async (songs: LocalSong[]): Promise<void> => {
-  if (songs.length === 0) return;
-
   try {
-    const db = await openDB();
-    const persistedSongs = songs.map(sanitizeLocalSongForStorage);
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
-      const store = tx.objectStore(LOCAL_MUSIC_STORE);
-      persistedSongs.forEach(song => store.put(song));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Failed to save local songs", e);
+    await ensureLocalLibraryInitialized();
+    await assignImportedSongs(songs);
+  } catch (error) {
+    console.error('Failed to save local songs', error);
   }
 };
 
 export const getLocalSongs = async (): Promise<LocalSong[]> => {
   try {
-    const db = await openDB();
-    const songs = await new Promise<LocalSong[]>((resolve, reject) => {
-      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readonly');
-      const store = tx.objectStore(LOCAL_MUSIC_STORE);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-
-    const normalized = songs.map(normalizeLocalSongFromStorage);
-    const normalizedSongs = normalized.map(item => item.value);
-    const sanitizedSongs = normalized.filter(item => item.changed).map(item => item.value);
-    if (sanitizedSongs.length > 0) {
-      void saveLocalSongs(sanitizedSongs).catch(error => {
-        console.warn('[DB] Failed to write back sanitized local song covers', error);
-      });
-    }
-
-    const migration = migrateLocalSongsRenderHints(normalizedSongs);
-    if (migration.changedSongs.length > 0) {
-      void saveLocalSongs(migration.changedSongs).catch(error => {
-        console.warn('[DB] Failed to write back migrated local song lyrics', error);
-      });
-    }
-
-    return migration.value;
-  } catch (e) {
-    console.error("Failed to get local songs", e);
+    await ensureLocalLibraryInitialized();
+    return await readLocalSongs();
+  } catch (error) {
+    console.error('Failed to get local songs', error);
     return [];
   }
 };
 
 export const deleteLocalSong = async (id: string): Promise<void> => {
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
-      const store = tx.objectStore(LOCAL_MUSIC_STORE);
-      store.delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Failed to delete local song", e);
+    await deleteSongAssignment(id);
+  } catch (error) {
+    console.error('Failed to delete local song', error);
   }
 };
 
 export const deleteLocalSongs = async (ids: string[]): Promise<void> => {
-  if (ids.length === 0) return;
-
   try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([LOCAL_MUSIC_STORE], 'readwrite');
-      const store = tx.objectStore(LOCAL_MUSIC_STORE);
-      ids.forEach(id => store.delete(id));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Failed to delete local songs", e);
+    await deleteSongAssignments(ids);
+  } catch (error) {
+    console.error('Failed to delete local songs', error);
   }
 };
 
 export const clearAllData = async (): Promise<void> => {
   try {
-    if (hasElectronAudioCacheBridge()) {
-      await window.electron!.clearAudioCache();
-    }
-
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.deleteDatabase(DB_NAME);
-      request.onsuccess = () => {
-        console.log("Database deleted successfully");
-        resolve();
-      };
-      request.onerror = () => {
-        console.error("Failed to delete database");
-        reject(request.error);
-      };
-      request.onblocked = () => {
-        console.warn("Database deletion blocked - closing connections");
-        resolve();
-      };
-    });
-  } catch (e) {
-    console.error("Failed to clear all data", e);
+    if (hasElectronAudioCacheBridge()) await window.electron!.clearAudioCache();
+    await clearCoverAssets();
+    await appDatabase.delete();
+    await appDatabase.open();
+  } catch (error) {
+    console.error('Failed to clear all data', error);
   }
 };
 
@@ -800,16 +236,13 @@ export const saveDirHandles = async (handles: Record<string, FileSystemDirectory
   await saveToCache('local_dir_handles', handles);
 };
 
-export const getDirHandles = async (): Promise<Record<string, FileSystemDirectoryHandle>> => {
-  return (await getFromCache<Record<string, FileSystemDirectoryHandle>>('local_dir_handles')) || {};
-};
+export const getDirHandles = async (): Promise<Record<string, FileSystemDirectoryHandle>> => (
+  (await getFromCache<Record<string, FileSystemDirectoryHandle>>('local_dir_handles')) || {}
+);
 
 export const deleteDirHandle = async (rootFolderName: string): Promise<void> => {
   const handles = await getDirHandles();
-  if (!(rootFolderName in handles)) {
-    return;
-  }
-
+  if (!(rootFolderName in handles)) return;
   delete handles[rootFolderName];
   await saveDirHandles(handles);
 };
@@ -820,21 +253,10 @@ export const saveLocalLibrarySnapshot = async (snapshot: LocalLibrarySnapshot): 
   await saveToCache(getLocalSnapshotCacheKey(snapshot.rootFolderName), snapshot);
 };
 
-export const getLocalLibrarySnapshot = async (rootFolderName: string): Promise<LocalLibrarySnapshot | null> => {
-  return await getFromCache<LocalLibrarySnapshot>(getLocalSnapshotCacheKey(rootFolderName));
-};
+export const getLocalLibrarySnapshot = async (rootFolderName: string): Promise<LocalLibrarySnapshot | null> => (
+  await getFromCache<LocalLibrarySnapshot>(getLocalSnapshotCacheKey(rootFolderName))
+);
 
 export const deleteLocalLibrarySnapshot = async (rootFolderName: string): Promise<void> => {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([METADATA_CACHE_STORE], 'readwrite');
-      const store = tx.objectStore(METADATA_CACHE_STORE);
-      store.delete(getLocalSnapshotCacheKey(rootFolderName));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.error("Failed to delete local library snapshot", e);
-  }
+  await removeFromCache(getLocalSnapshotCacheKey(rootFolderName));
 };

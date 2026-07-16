@@ -67,7 +67,7 @@ describe('frameRateLimiter', () => {
                 reportedErrors.push(error);
             }
             return 1 as unknown as ReturnType<typeof setTimeout>;
-        }) as typeof setTimeout;
+        }) as unknown as typeof setTimeout;
 
         try {
             const limiter = createFrameRateLimitedRaf(

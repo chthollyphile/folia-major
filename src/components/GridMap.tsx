@@ -7,6 +7,11 @@ import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
 import { SidePanelList, CollectionListItem } from './shared/SidePanelList';
 import { GridListSearchButton } from './shared/GridListSearchButton';
 import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
+import {
+    resolveGridMapDisplayIndex,
+    resolveGridMapSourceIndex,
+    shouldSuppressGridMapSelection,
+} from './folia-grid/gridMapNavigation';
 
 // src/components/GridMap.tsx
 // Hexagonal honeycomb layout showing all collections (playlists, albums, radios).
@@ -25,6 +30,7 @@ interface GridMapProps {
     title: string;
     subtitle?: string;
     items: GridMapItem[];
+    initialFocusedIndex?: number;
     onBack: () => void;
     onSelectCollection: (collection: any, index: number) => void;
     theme: Theme;
@@ -135,7 +141,8 @@ const MapCard = React.memo<{
             prev.item.summary === next.item.summary &&
             prev.isDaylight === next.isDaylight &&
             prev.cardWidth === next.cardWidth &&
-            prev.cardHeight === next.cardHeight
+            prev.cardHeight === next.cardHeight &&
+            prev.onSelect === next.onSelect
         );
     }
 );
@@ -144,6 +151,7 @@ export const GridMap: React.FC<GridMapProps> = ({
     title,
     subtitle,
     items = [],
+    initialFocusedIndex = 0,
     onBack,
     onSelectCollection,
     theme,
@@ -153,10 +161,11 @@ export const GridMap: React.FC<GridMapProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const dragControls = useDragControls();
     const [focusedIndex, setFocusedIndex] = useState(0);
+    const initialFocusedItemRef = useRef<GridMapItem | undefined>(items[initialFocusedIndex]);
     const focusedIndexRef = useRef(0);
     const lastUpdateRef = useRef(0);
     const pendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isDraggingRef = useRef(false);
+    const suppressSelectionRef = useRef(false);
     const wheelTargetRef = useRef({ x: 0, y: 0 });
 
     const [showSearchPanel, setShowSearchPanel] = useState(false);
@@ -167,6 +176,11 @@ export const GridMap: React.FC<GridMapProps> = ({
     const isComposingSearchRef = useRef(false);
 
     const [showSidePanel, setShowSidePanel] = useState(false);
+
+    const selectDisplayedItem = useCallback((item: GridMapItem, displayIndex: number) => {
+        const sourceIndex = resolveGridMapSourceIndex(items, item, displayIndex);
+        onSelectCollection(item.rawCollection || item, sourceIndex);
+    }, [items, onSelectCollection]);
 
     useEffect(() => {
         if (!showSearchPanel) return;
@@ -444,12 +458,15 @@ export const GridMap: React.FC<GridMapProps> = ({
         }
     };
 
-    // Center on the first item initially
+    // Restore the source Grid3D focus when opening the map, or use the first filtered result.
     useEffect(() => {
         if (displayItems.length > 0) {
-            centerOnIndex(0, false);
+            centerOnIndex(
+                resolveGridMapDisplayIndex(displayItems, initialFocusedItemRef.current),
+                false,
+            );
         }
-    }, [displayItems.length]);
+    }, [displayItems.length, deferredSearchQuery]);
 
     useEffect(() => {
         updateRenderedIndexesForViewport(dragX.get(), dragY.get(), true);
@@ -493,8 +510,8 @@ export const GridMap: React.FC<GridMapProps> = ({
                         cardWidth={layoutConfig.cardWidth}
                         cardHeight={layoutConfig.cardHeight}
                         onSelect={() => {
-                            if (isDraggingRef.current) return;
-                            onSelectCollection(item.rawCollection || item, idx);
+                            if (suppressSelectionRef.current) return;
+                            selectDisplayedItem(item, idx);
                         }}
                     />
                 </div>
@@ -509,7 +526,7 @@ export const GridMap: React.FC<GridMapProps> = ({
         layoutConfig.cardHeight,
         layoutConfig.maxDistance,
         clipRadius,
-        onSelectCollection,
+        selectDisplayedItem,
     ]);
 
     useEffect(() => {
@@ -708,15 +725,7 @@ export const GridMap: React.FC<GridMapProps> = ({
                         return;
                     }
 
-                    // 向上遍历判断是否在卡片内部点击了具有 cursor-pointer 的非卡片元素
-                    let current: HTMLElement | null = target;
-                    while (current && !current.classList.contains('theme-polaroid-card')) {
-                        if (current.classList.contains('cursor-pointer')) {
-                            return;
-                        }
-                        current = current.parentElement;
-                    }
-
+                    suppressSelectionRef.current = false;
                     dragControls.start(event);
                 }}
                 className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing overflow-hidden"
@@ -797,12 +806,18 @@ export const GridMap: React.FC<GridMapProps> = ({
                         dragElastic={0.05}
                         dragTransition={{ power: 0.16, timeConstant: 220 }}
                         onDragStart={() => {
-                            isDraggingRef.current = true;
+                            suppressSelectionRef.current = false;
                         }}
-                        onDragEnd={() => {
-                            setTimeout(() => {
-                                isDraggingRef.current = false;
-                            }, 50);
+                        onDrag={(_, info) => {
+                            if (shouldSuppressGridMapSelection(info.offset.x, info.offset.y)) {
+                                suppressSelectionRef.current = true;
+                            }
+                        }}
+                        onDragEnd={(_, info) => {
+                            suppressSelectionRef.current = shouldSuppressGridMapSelection(
+                                info.offset.x,
+                                info.offset.y,
+                            );
                         }}
                         style={{ x: dragX, y: dragY, background: 'rgba(0,0,0,0)', touchAction: 'none' }}
                         className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing bg-transparent"
@@ -841,7 +856,7 @@ export const GridMap: React.FC<GridMapProps> = ({
                         style={style}
                         isActive={index === focusedIndex}
                         onClick={() => {
-                            onSelectCollection(item.rawCollection || item, index);
+                            selectDisplayedItem(item, index);
                             setShowSidePanel(false);
                         }}
                     />

@@ -53,7 +53,7 @@ openssl rand -hex 16
 
 ### 前置要求
 - 注册 Cloudflare 账号
-- 本机可用 `npm`
+- 本机可用 Node.js 24 或更高版本以及 `npm`
 
 ### 1. 运行安装脚本
 

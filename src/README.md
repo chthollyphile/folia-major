@@ -47,21 +47,19 @@ src/
   App 装配层的参数组装与功能邻近文件。
   负责用 `build*.ts` / `create*.ts` 聚合底层 hook / state / action，生成给顶层 app 组件消费的模型和动作。
 
+- `components/app/search/*`
+  搜索工作台、虚拟化结果列表和搜索结果到 GridView 集合描述符的适配层。
+  搜索结果保持高密度列表；歌手与专辑详情统一进入 GridView 集合导航栈。
+
 - `components/app/navigation/*` / `playback/*` / `presentation/*`
   App 装配层的纯函数辅助目录。
   分别承接顶层导航辅助、播放装配辅助、展示派生计算，避免这些实现回流到 `App.tsx`。
 
 - `components/app/Home.tsx`
-  首页 app-level 入口。负责消费 `buildHomeModel.ts` 生成的模型，并按 `homeLayoutStyle` 选择 Grid3D/GridView 流程或 legacy `Home.tsx`。
+  首页 app-level 入口。负责消费 `buildHomeModel.ts` 生成的模型，并统一进入 Grid3D/GridView 流程；`carousel` 首页布局已弃用，历史设置会迁移到 `grid`。
 
 - `components/Home.tsx`
   首页 legacy 实现，属于弃用路径；新首页功能不要继续放入此处。
-
-- `components/app/views/*`
-  旧列表详情页包装入口，仅保留给搜索结果跳转，随旧列表视图一起移除。
-
-- `components/PlaylistView.tsx` / `AlbumView.tsx` / `ArtistView.tsx`
-  网易云列表式详情 legacy 实现，仅保留给搜索结果跳转，计划移除。
 
 - `components/LocalMusicView.tsx`
   本地音乐 legacy 总览页，随旧首页移除；新本地库导航走 GridView。
@@ -93,9 +91,9 @@ src/
 
 - `components/visualizer/*`
   歌词可视化层。
-  根目录保留共享壳层、背景层、runtime、registry、视觉设置卡片和预览入口；
+  根目录保留共享壳层、runtime、registry、视觉设置卡片和预览入口；
   `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` 子目录分别负责各模式实现。
-  shell 背景还支持通用、Monet、URL 和 Sora 模式。
+  shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用、Monet、漫游像素画、隐现双着色器、URL 和 Sora 模式。
 
 ### Hooks
 
@@ -133,7 +131,10 @@ src/
   队列邻近歌曲的预取。
 
 - `services/db.ts`
-  IndexedDB 封装。缓存、用户数据、本地歌曲、目录句柄、快照和 `theme_registry` 主题同步注册表都在这里。
+  Dexie 存储兼容入口。保留既有缓存、用户数据、本地歌曲、目录句柄、快照和主题 registry API；类型化 schema 位于 `services/appDatabase.ts`，具体访问按 `services/repositories/*` 拆分。
+
+- `services/localLibraryCatalogService.ts` / `localLibraryEntityRepository.ts`
+  本地艺术家、专辑实体及歌曲 assignment 的事务入口。标签负责初始关联，目录只参与专辑解析；在线匹配、手动修改、恢复本地、合并和拆分都通过这里写入。
 
 - `services/coverCache.ts` / `themeCache.ts`
   封面和主题缓存；`themeCache.ts` 通过稳定歌曲 fingerprint 与同步 registry 对接远端主题。
@@ -190,6 +191,8 @@ src/
 - 改设置 UI：优先看 `components/modal/settings/*`；不要继续把新设置堆进 `SettingsModal.tsx`
 - 改可执行命令或功能性设置入口：`components/command-palette/commandRegistry.ts`
 - 改跨页面状态或导航：`hooks/*`
+- 改搜索状态：`stores/useSearchNavigationStore.ts`
+- 改 GridView 集合栈和来源返回语义：`stores/useCollectionNavigationStore.ts`
 - 改共享偏好、visualizer tuning、设置持久化：`stores/useSettingsUiStore.ts`
 - 改 API、缓存、导入、播放数据流：`services/*`
 - 改解析、纯逻辑、格式转换：`utils/*`
@@ -217,11 +220,13 @@ src/
 ## 6. Project-Specific Notes
 
 - 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
+- 主播放队列支持网易云 / 本地 / Navidrome 混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
 - `SettingsModal.tsx` 是设置中心，不只是帮助说明。
 - 新增设置时先判断是否适用 `settings-feature-integration`：视觉相关设置必须接入视觉配置导入导出；功能性设置或可执行动作必须接入 command palette。
 - `PlayerPanel.tsx` 是当前 app-level 面板入口，`UnifiedPanel.tsx` 是 legacy 实现；不要重新把面板逻辑塞回单个大组件。
 - 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/*` 下与功能相邻的 `build*.ts` / `create*.ts`。
 - 本地音乐导入是增量快照式，不是单次全量扫描。
+- 本地曲库数据库已由 Dexie 全面管理，并保留原生 IndexedDB v6 数据兼容。艺术家/专辑 UUID 与显示名称、文件路径和在线来源 ID 相互独立；GridView 按 assignment 中的实体 UUID 导航。
 - 主题同步 registry 已从 legacy localStorage 迁移到 IndexedDB 的 `theme_registry` store；首次读取时会做一次性迁移，不要在业务组件里直接维护 registry。
 - 同步服务的主题同步与视觉设置同步是两个动作：`sync-now` 只同步 AI 主题；完整视觉设置的拉取/推送和 zip library 导入导出位于 `StorageSettingsSection.tsx`。
 - 歌词解析优先从 `parserCore.ts` 理解，不要从旧兼容层反推。

@@ -110,7 +110,7 @@ const prefetchSong = async (
     if (signal.aborted) return;
 
     // Prefetch currently only supports Netease songs.
-    if ((song as any).isLocal || (song as any).localData || (song as any).isNavidrome) {
+    if ((song as any).isLocal || (song as any).localRef || (song as any).localData || (song as any).isNavidrome) {
         console.log(`[Prefetch] Skipping non-Netease song: ${song.name}`);
         return;
     }

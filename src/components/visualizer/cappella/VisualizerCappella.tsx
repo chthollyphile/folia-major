@@ -361,29 +361,34 @@ const buildCappellaMessages = (
         const isShortLine = countCompactChars(line.fullText) <= SHORT_LINE_CHAR_LIMIT;
         const agentSender = agentSenderResolver?.resolve(line) ?? null;
         const shouldForceRight = !agentSender && (lineIndex + 1) % config.sequencing.forceRightEveryLines === 0;
-        const shouldCarrySender = !agentSender
+        const shouldCarrySender = Boolean(!agentSender
             && isShortLine
             && lastLyricSender
-            && seededUnit('carry', line.startTime, lineIndex) <= config.sequencing.shortLineCarryChance;
+            && seededUnit('carry', line.startTime, lineIndex) <= config.sequencing.shortLineCarryChance);
         const baseSide = config.sequencing.sideSequence[sideSequenceCursor % config.sequencing.sideSequence.length];
         const shouldFlipSide = !shouldForceRight
             && seededUnit('flip', line.startTime, lineIndex) < config.sequencing.sideFlipChance;
         const resolvedSide = shouldFlipSide
             ? (baseSide === 'left' ? 'right' : 'left')
             : baseSide;
-        const sender = agentSender ?? (shouldForceRight
-            ? {
+        let sender: CappellaMessageSender;
+        if (agentSender) {
+            sender = agentSender;
+        } else if (shouldForceRight) {
+            sender = {
                 side: 'right' as const,
                 avatarIndex: RIGHT_AVATAR_INDEX,
-            }
-            : shouldCarrySender
-                ? lastLyricSender
-                : {
-                    side: resolvedSide,
-                    avatarIndex: resolvedSide === 'left'
-                        ? nextLeftAvatarCursor
-                        : RIGHT_AVATAR_INDEX,
-                });
+            };
+        } else if (shouldCarrySender && lastLyricSender) {
+            sender = lastLyricSender;
+        } else {
+            sender = {
+                side: resolvedSide,
+                avatarIndex: resolvedSide === 'left'
+                    ? nextLeftAvatarCursor
+                    : RIGHT_AVATAR_INDEX,
+            };
+        }
 
         const isInterlude = line.fullText === INTERLUDE_TEXT;
         const emoImage = isInterlude && showEmoMessages
@@ -1485,6 +1490,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
         seed,
         lyricsFontScale = 1,
         subtitleOverlayOpacity,
+        subtitleOverlayBackground,
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
         showSubtitleTranslation = true,
@@ -1657,6 +1663,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
                 translationFontSize={`${Math.max(14, 16 * lyricsFontScale)}px`}
                 upcomingFontSize={`${Math.max(12, 14 * lyricsFontScale)}px`}
                 subtitleOverlayOpacity={subtitleOverlayOpacity}
+                subtitleOverlayBackground={subtitleOverlayBackground}
                 isPlayerChromeHidden={isPlayerChromeHidden}
                 hideTranslationSubtitle={hideTranslationSubtitle}
                 showSubtitleTranslation={showSubtitleTranslation}

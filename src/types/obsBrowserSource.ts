@@ -11,18 +11,16 @@ import type {
     MonetBackgroundImage,
     MonetBackgroundTuning,
     MonetPortraitImage,
-    MonetTuning,
-    PartitaTuning,
     PlayerState,
     SongResult,
     StageSource,
     Theme,
-    TiltTuning,
     UrlBackgroundItem,
     VisualizerBackgroundMode,
     VisualizerMode,
 } from '../types';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
+import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 
 // src/types/obsBrowserSource.ts
 // Shared contracts for the local OBS browser source renderer.
@@ -49,26 +47,38 @@ export interface ObsBrowserSourceConfig {
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     visualizerTunings?: VisualizerTuningBundle;
-    visualizerBackgroundMode: VisualizerBackgroundMode | null;
+    background?: VisualizerBackgroundConfig;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    backgroundOpacity?: number;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    transparentBackground?: boolean;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    useCoverColorBg?: boolean;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    disableGeometricBackground?: boolean;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    disableVignette?: boolean;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    monetBackgroundTuning?: MonetBackgroundTuning;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    monetBackgroundImage?: MonetBackgroundImage | null;
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    urlBackgroundList?: UrlBackgroundItem[];
+    /** @deprecated Kept for OBS pages loaded before the background registry refactor. */
+    urlBackgroundSelectedId?: string | null;
     lyricsFontScale: number;
-    backgroundOpacity: number;
     visualizerOpacity: number;
     subtitleOverlayOpacity: number;
-    transparentBackground: boolean;
-    useCoverColorBg: boolean;
+    subtitleOverlayBackground?: boolean;
     staticMode: boolean;
-    disableGeometricBackground: boolean;
-    disableVignette: boolean;
     hideTranslationSubtitle: boolean;
     showSubtitleTranslation?: boolean;
     seed: string | number;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
-    monetBackgroundTuning?: MonetBackgroundTuning;
-    monetBackgroundImage?: MonetBackgroundImage | null;
     monetPortraitImage?: MonetPortraitImage | null;
-    urlBackgroundList?: UrlBackgroundItem[];
-    urlBackgroundSelectedId?: string | null;
     updatedAt: number;
 }
 

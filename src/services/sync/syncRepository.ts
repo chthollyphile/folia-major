@@ -62,9 +62,12 @@ const getConfiguredSync = () => {
     return isSyncConfigured(config) ? config : null;
 };
 
-const isRemoteNewer = (remoteUpdatedAt: string | null | undefined, localUpdatedAt: string | null | undefined) => (
-    Boolean(remoteUpdatedAt) && (!localUpdatedAt || Date.parse(remoteUpdatedAt) > Date.parse(localUpdatedAt))
-);
+const isRemoteNewer = (remoteUpdatedAt: string | null | undefined, localUpdatedAt: string | null | undefined) => {
+    if (!remoteUpdatedAt) {
+        return false;
+    }
+    return !localUpdatedAt || Date.parse(remoteUpdatedAt) > Date.parse(localUpdatedAt);
+};
 
 const readThemeSyncWatermark = (): ThemeSyncWatermark | null => {
     if (!isBrowser()) {
@@ -133,7 +136,7 @@ const isThemeWatermarkFresh = (
     remoteState: SyncRemoteState,
     localRegistrySignature: string,
 ) => (
-    Boolean(watermark)
+    watermark !== null
     && watermark.remoteThemesUpdatedAt === remoteState.themesUpdatedAt
     && watermark.remoteThemeCount === remoteState.themeCount
     && watermark.localRegistrySignature === localRegistrySignature
@@ -431,7 +434,7 @@ export const pushMissingLocalThemesToRemote = async (
         const nextLocalBuckets = buildThemeBucketSummaries(nextLocalRecords);
         const bucketsAreNowEqual = diffBucketIds.every((bucketId) => {
             const remoteBucket = remoteBuckets.get(bucketId);
-            return Boolean(remoteBucket) && areThemeBucketsEqual(nextLocalBuckets[bucketId], remoteBucket);
+            return remoteBucket !== undefined && areThemeBucketsEqual(nextLocalBuckets[bucketId], remoteBucket);
         });
         if (bucketsAreNowEqual) {
             writeThemeSyncWatermark({

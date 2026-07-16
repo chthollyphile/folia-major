@@ -1,4 +1,5 @@
 import { sanitizeDualTheme } from '../themeSanitizer';
+import { hasVisualizerBackgroundMode } from '../../components/visualizer/backgrounds/registry';
 import {
     SYNC_SCHEMA_VERSION,
     type SyncLibraryExportBundle,
@@ -36,7 +37,7 @@ const isFontStyle = (value: unknown): value is SyncedVisualSettings['lyricsFontS
 );
 
 const isVisualizerBackgroundMode = (value: unknown): value is NonNullable<SyncedVisualSettings['visualizerBackgroundMode']> => (
-    value === 'common' || value === 'monet' || value === 'url' || value === 'sora'
+    hasVisualizerBackgroundMode(value)
 );
 
 const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisualSettings => {
@@ -49,6 +50,7 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (isFiniteNumber(value.visualizerOpacity)) settings.visualizerOpacity = value.visualizerOpacity;
     if (typeof value.hidePlayerTranslationSubtitle === 'boolean') settings.hidePlayerTranslationSubtitle = value.hidePlayerTranslationSubtitle;
     if (typeof value.showSubtitleTranslation === 'boolean') settings.showSubtitleTranslation = value.showSubtitleTranslation;
+    if (typeof value.subtitleOverlayBackground === 'boolean') settings.subtitleOverlayBackground = value.subtitleOverlayBackground;
     if (isFontStyle(value.lyricsFontStyle)) settings.lyricsFontStyle = value.lyricsFontStyle;
     if (isFiniteNumber(value.lyricsFontScale)) settings.lyricsFontScale = value.lyricsFontScale;
     if (isStringArray(value.lyricsFontFallbackFamilies)) settings.lyricsFontFallbackFamilies = value.lyricsFontFallbackFamilies;
@@ -67,11 +69,13 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (value.tiltTuning !== undefined) settings.tiltTuning = value.tiltTuning;
     if (value.dioramaTuning !== undefined) settings.dioramaTuning = value.dioramaTuning;
     if (value.monetBackgroundTuning !== undefined) settings.monetBackgroundTuning = value.monetBackgroundTuning;
+    if (value.nomandBackgroundTuning !== undefined) settings.nomandBackgroundTuning = value.nomandBackgroundTuning;
+    if (value.latentBackgroundTuning !== undefined) settings.latentBackgroundTuning = value.latentBackgroundTuning;
     if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
     if (Array.isArray(value.urlBackgroundList)) settings.urlBackgroundList = value.urlBackgroundList;
     if (value.urlBackgroundSelectedId === null) settings.urlBackgroundSelectedId = null;
     else if (typeof value.urlBackgroundSelectedId === 'string') settings.urlBackgroundSelectedId = value.urlBackgroundSelectedId;
-    if (value.homeLayoutStyle === 'carousel' || value.homeLayoutStyle === 'grid') settings.homeLayoutStyle = value.homeLayoutStyle;
+    if (value.homeLayoutStyle === 'carousel' || value.homeLayoutStyle === 'grid') settings.homeLayoutStyle = 'grid';
     if (value.grid3dCardStyle === 'image' || value.grid3dCardStyle === 'card') settings.grid3dCardStyle = value.grid3dCardStyle;
 
     return settings;

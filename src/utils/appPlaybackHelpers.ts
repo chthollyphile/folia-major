@@ -101,20 +101,7 @@ export const resolveDebugLyricsSource = (
     }
 
     if (isLocalPlaybackSong(song)) {
-        const localData = song.localData;
-        if (localData.lyricsSource) {
-            return localData.lyricsSource;
-        }
-        if (localData.hasLocalLyrics && localData.localLyricsContent) {
-            return 'local';
-        }
-        if (localData.hasEmbeddedLyrics && localData.embeddedLyricsContent) {
-            return 'embedded';
-        }
-        if (localData.matchedLyrics) {
-            return 'online';
-        }
-        return 'none';
+        return lyrics ? 'online' : 'none';
     }
 
     if (isNavidromePlaybackSong(song)) {

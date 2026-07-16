@@ -1,31 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CaptionsOff, Languages, Monitor, RotateCcw, type LucideIcon } from 'lucide-react';
+import { CaptionsOff, Languages, Monitor, PanelTop, RotateCcw, type LucideIcon } from 'lucide-react';
 import {
-    DEFAULT_MONET_BACKGROUND_TUNING,
     type CappellaAvatarImage,
     type CappellaEmojiImage,
     type CappellaTuning,
     type ClassicTuning,
     type CladdaghTuning,
     type FumeTuning,
-    type MonetBackgroundImage,
-    type MonetBackgroundTuning,
     type MonetPortraitImage,
     type MonetTuning,
     type PartitaTuning,
     type Theme,
     type TiltTuning,
     type DioramaTuning,
-    type UrlBackgroundItem,
-    type VisualizerBackgroundMode,
     type VisualizerMode,
 } from '../../types';
 import { colorWithAlpha } from './colorMix';
-import { MonetBackgroundSettingsCard } from './MonetBackgroundSettingsCard';
-import { UrlBackgroundSettingsCard } from './backgrounds/UrlBackgroundSettingsCard';
 import FontFallbackStackControl from './FontFallbackStackControl';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEntry } from './registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
+import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
+import {
+    getVisualizerBackgroundModeLabel,
+    getVisualizerBackgroundRegistryEntry,
+    VISUALIZER_BACKGROUND_REGISTRY,
+} from './backgrounds/registry';
 
 // src/components/visualizer/VisPlaygroundSettingsPanel.tsx
 // Right-side settings panel for the click-to-edit visualizer playground.
@@ -65,19 +64,10 @@ interface VisPlaygroundSettingsPanelProps {
     onResetVisualizerTuning?: () => void;
     controlCardBg: string;
     rangeInputClass: string;
-    backgroundOpacity: number;
-    onBackgroundOpacityChange?: (opacity: number) => void;
     visualizerOpacity: number;
     onVisualizerOpacityChange?: (opacity: number) => void;
-    useCoverColorBg: boolean;
-    onToggleCoverColorBg?: (enabled: boolean) => void;
-    disableVisualizerVignette: boolean;
-    onToggleDisableVisualizerVignette?: (disabled: boolean) => void;
-    disableVisualizerGeometricBackground: boolean;
-    onToggleDisableVisualizerGeometricBackground?: (disabled: boolean) => void;
-    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
-    onVisualizerBackgroundModeChange?: (mode: VisualizerBackgroundMode) => void;
-    onResetBackgroundSettings?: () => void;
+    backgroundConfig?: VisualizerBackgroundConfig;
+    backgroundActions?: VisualizerBackgroundActions;
     fontStyleValue: Theme['fontStyle'] | 'custom';
     builtinFontOptions: PresetOption<Theme['fontStyle']>[];
     fontStyleOptions: PresetOption<Theme['fontStyle'] | 'custom'>[];
@@ -109,31 +99,21 @@ interface VisPlaygroundSettingsPanelProps {
     onTiltTuningChange?: (patch: Partial<TiltTuning>) => void;
     dioramaTuning?: DioramaTuning;
     onDioramaTuningChange?: (patch: Partial<DioramaTuning>) => void;
-    monetBackgroundTuning?: MonetBackgroundTuning;
-    onMonetBackgroundTuningChange?: (patch: Partial<MonetBackgroundTuning>) => void;
     monetTuning: MonetTuning;
     onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
     onResetMonetTuning?: () => void;
-    monetBackgroundImage?: MonetBackgroundImage | null;
-    onUploadMonetBackgroundImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
-    onClearMonetBackgroundImage?: () => Promise<void> | void;
-    isLoadingMonetBackgroundImage?: boolean;
     monetPortraitImage?: MonetPortraitImage | null;
     onUploadMonetPortraitImage?: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     onClearMonetPortraitImage?: () => Promise<void> | void;
     isLoadingMonetPortraitImage?: boolean;
-    urlBackgroundList?: UrlBackgroundItem[];
-    urlBackgroundSelectedId?: string | null;
-    onAddUrlBackgroundItem?: (item: UrlBackgroundItem) => void;
-    onUpdateUrlBackgroundItem?: (id: string, patch: Partial<Omit<UrlBackgroundItem, 'id'>>) => void;
-    onDeleteUrlBackgroundItem?: (id: string) => void;
-    onSetUrlBackgroundSelectedId?: (id: string | null) => void;
     hideTranslationSubtitle: boolean;
     onToggleHideTranslationSubtitle?: (hidden: boolean) => void;
     showSubtitleTranslation: boolean;
     onToggleShowSubtitleTranslation?: (shown: boolean) => void;
     subtitleOverlayOpacity: number;
     onSubtitleOverlayOpacityChange?: (opacity: number) => void;
+    subtitleOverlayBackground: boolean;
+    onToggleSubtitleOverlayBackground?: (enabled: boolean) => void;
     subtitleFontInheritsLyrics: boolean;
     onSubtitleFontInheritsLyricsChange?: (inheritsLyrics: boolean) => void;
     subtitleFontStyle: Theme['fontStyle'];
@@ -306,19 +286,10 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         onResetVisualizerTuning,
         controlCardBg,
         rangeInputClass,
-        backgroundOpacity,
-        onBackgroundOpacityChange,
         visualizerOpacity,
         onVisualizerOpacityChange,
-        useCoverColorBg,
-        onToggleCoverColorBg,
-        disableVisualizerVignette,
-        onToggleDisableVisualizerVignette,
-        disableVisualizerGeometricBackground,
-        onToggleDisableVisualizerGeometricBackground,
-        visualizerBackgroundMode,
-        onVisualizerBackgroundModeChange,
-        onResetBackgroundSettings,
+        backgroundConfig,
+        backgroundActions,
         fontStyleValue,
         builtinFontOptions,
         fontStyleOptions,
@@ -350,30 +321,20 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         onTiltTuningChange,
         dioramaTuning,
         onDioramaTuningChange,
-        monetBackgroundTuning = DEFAULT_MONET_BACKGROUND_TUNING,
-        onMonetBackgroundTuningChange,
         monetTuning,
         onMonetTuningChange,
-        monetBackgroundImage,
-        onUploadMonetBackgroundImage,
-        onClearMonetBackgroundImage,
-        isLoadingMonetBackgroundImage,
         monetPortraitImage,
         onUploadMonetPortraitImage,
         onClearMonetPortraitImage,
         isLoadingMonetPortraitImage,
-        urlBackgroundList = [],
-        urlBackgroundSelectedId = null,
-        onAddUrlBackgroundItem,
-        onUpdateUrlBackgroundItem,
-        onDeleteUrlBackgroundItem,
-        onSetUrlBackgroundSelectedId,
         hideTranslationSubtitle,
         onToggleHideTranslationSubtitle,
         showSubtitleTranslation,
         onToggleShowSubtitleTranslation,
         subtitleOverlayOpacity,
         onSubtitleOverlayOpacityChange,
+        subtitleOverlayBackground,
+        onToggleSubtitleOverlayBackground,
         subtitleFontInheritsLyrics,
         onSubtitleFontInheritsLyricsChange,
         subtitleFontStyle,
@@ -400,13 +361,14 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         setSubtitleFontFamilyDraft(subtitleFontFamily ?? '');
     }, [subtitleFontFamily]);
 
-    const resolvedBackgroundMode: VisualizerBackgroundMode = visualizerBackgroundMode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
-    const backgroundModeOptions = useMemo<PresetOption<VisualizerBackgroundMode>[]>(() => ([
-        { value: 'common', label: t('options.visualizerBackgroundModeCommon') },
-        { value: 'monet', label: t('options.visualizerBackgroundModeMonet') },
-        { value: 'url', label: t('options.visualizerBackgroundModeUrl') || 'URL' },
-        { value: 'sora', label: t('options.visualizerBackgroundModeSora') },
-    ]), [t]);
+    const resolvedBackgroundMode = backgroundConfig?.mode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
+    const backgroundEntry = getVisualizerBackgroundRegistryEntry(resolvedBackgroundMode);
+    const backgroundModeOptions = useMemo(() => (
+        VISUALIZER_BACKGROUND_REGISTRY.map(entry => ({
+            value: entry.mode,
+            label: getVisualizerBackgroundModeLabel(entry.mode, t),
+        }))
+    ), [t]);
 
     return (
         <div className="min-h-0 flex flex-col gap-4">
@@ -512,7 +474,9 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 </div>
                                 <ResetSectionButton
                                     label={t('ui.default')}
-                                    onClick={onResetBackgroundSettings}
+                                    onClick={backgroundEntry.resetSettings
+                                        ? () => backgroundEntry.resetSettings?.(backgroundActions)
+                                        : undefined}
                                     theme={theme}
                                 />
                             </div>
@@ -521,98 +485,23 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 label={t('options.visualizerBackgroundMode')}
                                 value={resolvedBackgroundMode}
                                 options={backgroundModeOptions}
-                                onChange={(mode) => onVisualizerBackgroundModeChange?.(mode)}
+                                onChange={(mode) => backgroundActions?.onModeChange?.(mode)}
                                 isDaylight={isDaylight}
                                 theme={theme}
                             />
                         </div>
 
-                        {resolvedBackgroundMode === 'common' ? (
-                            <>
-                                <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
-                                    <ToggleRow
-                                        label={t('options.disableVisualizerVignette')}
-                                        description={t('options.disableVisualizerVignetteDesc')}
-                                        checked={disableVisualizerVignette}
-                                        onChange={onToggleDisableVisualizerVignette}
-                                        theme={theme}
-                                    />
-                                    <ToggleRow
-                                        label={t('options.disableVisualizerGeometricBackground')}
-                                        description={t('options.disableVisualizerGeometricBackgroundDesc')}
-                                        checked={disableVisualizerGeometricBackground}
-                                        onChange={onToggleDisableVisualizerGeometricBackground}
-                                        theme={theme}
-                                    />
-                                </div>
-
-                                <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
-                                    <div className="space-y-2">
-                                            <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
-                                                {t('options.previewCoverBackgroundSettings')}
-                                            </div>
-                                            <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
-                                                {t('options.previewCoverBackgroundSettingsDesc')}
-                                            </div>
-
-                                        <ToggleRow
-                                            label={t('theme.addCoverColor')}
-                                            description={t('options.coverColorBackgroundDesc')}
-                                            checked={useCoverColorBg}
-                                            onChange={onToggleCoverColorBg}
-                                            theme={theme}
-                                        />
-
-                                        <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
-                                            <span>{t('options.previewCoverBackgroundOpacity')}</span>
-                                            <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
-                                                {Math.round(backgroundOpacity * 100)}%
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.05"
-                                            value={backgroundOpacity}
-                                            onChange={(event) => onBackgroundOpacityChange?.(parseFloat(event.target.value))}
-                                            onPointerDown={onSliderPointerDown}
-                                            onPointerUp={onSliderCommit}
-                                            className={rangeInputClass}
-                                        />
-                                    </div>
-                                </div>
-                            </>
-                        ) : resolvedBackgroundMode === 'url' ? (
-                            <UrlBackgroundSettingsCard
-                                t={t}
-                                isDaylight={isDaylight}
-                                theme={theme}
-                                controlCardBg={controlCardBg}
-                                urlBackgroundList={urlBackgroundList}
-                                urlBackgroundSelectedId={urlBackgroundSelectedId}
-                                onAddUrlBackgroundItem={onAddUrlBackgroundItem}
-                                onUpdateUrlBackgroundItem={onUpdateUrlBackgroundItem}
-                                onDeleteUrlBackgroundItem={onDeleteUrlBackgroundItem}
-                                onSetUrlBackgroundSelectedId={onSetUrlBackgroundSelectedId}
-                            />
-                        ) : resolvedBackgroundMode === 'monet' ? (
-                            <MonetBackgroundSettingsCard
-                                t={t}
-                                isDaylight={isDaylight}
-                                theme={theme}
-                                controlCardBg={controlCardBg}
-                                rangeInputClass={rangeInputClass}
-                                tuning={monetBackgroundTuning}
-                                onTuningChange={onMonetBackgroundTuningChange}
-                                monetBackgroundImage={monetBackgroundImage}
-                                onUploadMonetBackgroundImage={onUploadMonetBackgroundImage}
-                                onClearMonetBackgroundImage={onClearMonetBackgroundImage}
-                                isLoadingMonetBackgroundImage={isLoadingMonetBackgroundImage}
-                                onSliderPointerDown={onSliderPointerDown}
-                                onSliderCommit={onSliderCommit}
-                                />
-                        ) : null}
+                        {backgroundEntry.renderSettingsPanel?.({
+                            config: backgroundConfig,
+                            actions: backgroundActions,
+                            t,
+                            isDaylight,
+                            theme,
+                            controlCardBg,
+                            rangeInputClass,
+                            onSliderPointerDown,
+                            onSliderCommit,
+                        })}
                     </>
                 )}
 
@@ -722,6 +611,15 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             onChange={onToggleShowSubtitleTranslation}
                             theme={theme}
                             icon={Languages}
+                        />
+
+                        <ToggleRow
+                            label={t('options.subtitleOverlayBackground')}
+                            description={t('options.subtitleOverlayBackgroundDesc')}
+                            checked={subtitleOverlayBackground}
+                            onChange={onToggleSubtitleOverlayBackground}
+                            theme={theme}
+                            icon={PanelTop}
                         />
 
                         <ToggleRow

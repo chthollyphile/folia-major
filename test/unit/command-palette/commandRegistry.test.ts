@@ -4,8 +4,9 @@ import { getCommandPaletteMatches } from '../../../src/components/command-palett
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 
 const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandPaletteContext => ({
-    currentSearchSourceTab: 'playlist',
+    currentSearchSourceTab: 'netease',
     localSongs: [],
+    localLibraryCatalog: { entities: [], assignments: [] },
     playerState: PlayerState.PAUSED,
     t: (_key, fallback) => fallback ?? '',
     setStatusMsg: vi.fn(),
@@ -33,11 +34,14 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     toggleRandomVisualizerModePerSong: vi.fn(),
     setVisualizerBackgroundMode: vi.fn(),
     setMonetBackgroundTuning: vi.fn(),
+    setLatentBackgroundTuning: vi.fn(),
     toggleTransparentBackground: vi.fn(),
     hideBottomSubtitleOverlay: false,
     toggleBottomSubtitleOverlay: vi.fn(),
     showSubtitleTranslation: true,
     toggleSubtitleTranslation: vi.fn(),
+    subtitleOverlayBackground: false,
+    toggleSubtitleOverlayBackground: vi.fn(),
     toggleDaylightMode: vi.fn(),
     setAppLanguagePreference: vi.fn(async () => undefined),
     enableAlternativeLyricSources: false,
@@ -173,6 +177,11 @@ describe('command palette registry', () => {
         expect(matchSubtitleTranslation.command.id).toBe('settings-toggle-subtitle-translation');
         matchSubtitleTranslation.command.execute(matchSubtitleTranslation.input, context);
         expect(context.toggleSubtitleTranslation).toHaveBeenCalled();
+
+        const [matchSubtitleBackground] = getCommandPaletteMatches('字幕背景');
+        expect(matchSubtitleBackground.command.id).toBe('settings-toggle-subtitle-background');
+        matchSubtitleBackground.command.execute(matchSubtitleBackground.input, context);
+        expect(context.toggleSubtitleOverlayBackground).toHaveBeenCalled();
     });
 
     it('executes the current song AI theme generation command', () => {
@@ -372,6 +381,21 @@ describe('command palette registry', () => {
         expect(matchCommon.command.id).toBe('background-common');
         matchCommon.command.execute('', context);
         expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('common');
+
+        const [matchNomand] = getCommandPaletteMatches('像素画');
+        expect(matchNomand.command.id).toBe('background-nomand');
+        matchNomand.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('nomand');
+
+        const [matchLatent] = getCommandPaletteMatches('隐现背景');
+        expect(matchLatent.command.id).toBe('background-latent');
+        matchLatent.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('latent');
+
+        const [matchLatentFluid] = getCommandPaletteMatches('隐现流体');
+        expect(matchLatentFluid.command.id).toBe('background-latent-mesh');
+        matchLatentFluid.command.execute('', context);
+        expect(context.setLatentBackgroundTuning).toHaveBeenCalledWith({ displayMode: 'mesh' });
     });
 
     it('matches and executes the Diorama visualizer command', () => {

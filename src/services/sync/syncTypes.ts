@@ -32,6 +32,7 @@ export type SyncedVisualSettings = {
     visualizerOpacity?: number;
     hidePlayerTranslationSubtitle?: boolean;
     showSubtitleTranslation?: boolean;
+    subtitleOverlayBackground?: boolean;
     lyricsFontStyle?: Theme['fontStyle'];
     lyricsFontScale?: number;
     lyricsFontFallbackFamilies?: string[];
@@ -49,6 +50,8 @@ export type SyncedVisualSettings = {
     tiltTuning?: unknown;
     dioramaTuning?: unknown;
     monetBackgroundTuning?: unknown;
+    nomandBackgroundTuning?: unknown;
+    latentBackgroundTuning?: unknown;
     monetTuning?: unknown;
     urlBackgroundList?: unknown[];
     urlBackgroundSelectedId?: string | null;

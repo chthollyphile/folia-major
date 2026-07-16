@@ -6,6 +6,8 @@ import { LocalLibraryGroup, LocalPlaylist, LocalSong, Theme } from '../../../typ
 import { GridViewCollectionDescriptor, createLocalGridViewCollection } from './gridViewCollectionAdapters';
 import { buildLocalGrid3DGroups } from './localGrid3DModel';
 import { useDebouncedFocusSync } from '../../../hooks/useDebouncedFocusSync';
+import { useLocalLibraryCatalog } from '../../../hooks/useLocalLibraryCatalog';
+import { createSafeObjectUrl, isBlob } from '../../../utils/blobGuards';
 
 // src/components/app/home/LocalGrid3DView.tsx
 // Desktop-only local music Grid3D overview that opens GridView instead of legacy carousel details.
@@ -58,8 +60,9 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     hasFloatingPlayer = false,
 }) => {
     const { t } = useTranslation();
+    const catalog = useLocalLibraryCatalog(localSongs);
     const { groups, coverSourceMap } = useMemo(() => {
-        const rawGroups = buildLocalGrid3DGroups(localSongs, localPlaylists, t);
+        const rawGroups = buildLocalGrid3DGroups(localSongs, localPlaylists, t, catalog.ready ? catalog : undefined);
         const sourceMap = new Map<string, Blob | string | undefined>();
 
         const processItems = (items: LocalLibraryGroup[]) => items.map(item => {
@@ -79,7 +82,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
             },
             coverSourceMap: sourceMap,
         };
-    }, [localPlaylists, localSongs, t]);
+    }, [catalog.assignments, catalog.entities, catalog.ready, localPlaylists, localSongs, t]);
 
     const [localFolderIndex, setLocalFolderIndex] = useDebouncedFocusSync(focusedFolderIndex, setFocusedFolderIndex);
     const [localAlbumIndex, setLocalAlbumIndex] = useDebouncedFocusSync(focusedAlbumIndex, setFocusedAlbumIndex);
@@ -101,14 +104,20 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
 
         for (const group of allGroups) {
             const source = coverSourceMap.get(group.id);
-            if (source instanceof Blob) {
-                const url = URL.createObjectURL(source);
+            if (isBlob(source)) {
+                const url = createSafeObjectUrl(source);
+                if (!url) continue;
                 nextObjectUrls[group.id] = url;
                 createdUrls.push(url);
             }
         }
 
-        setGroupCoverObjectUrls(nextObjectUrls);
+        setGroupCoverObjectUrls(current => {
+            if (createdUrls.length === 0 && Object.keys(current).length === 0) {
+                return current;
+            }
+            return nextObjectUrls;
+        });
 
         return () => {
             createdUrls.forEach(url => URL.revokeObjectURL(url));

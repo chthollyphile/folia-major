@@ -26,6 +26,11 @@ const hasChorusMarkers = (lyrics: LyricData | null): boolean => (
 export interface AutoMatchBestLyricOptions {
     album?: string;
     preferredSource?: LyricProviderSource;
+    metadataCandidate?: {
+        source: 'netease' | 'qq';
+        songId: number | string;
+    };
+    exactMatchOnly?: boolean;
     neteaseCandidate?: {
         id: number | string;
         lyrics: LyricData | null;
@@ -46,9 +51,28 @@ export type AutoMatchBestLyricMatch = {
 
 export type AutoMatchBestLyricPureMusic = {
     isPureMusic: true;
+    source?: LyricProviderSource;
+    id?: number | string;
 };
 
 export type AutoMatchBestLyricResult = AutoMatchBestLyricMatch | AutoMatchBestLyricPureMusic | null;
+
+const getNumericNeteaseId = (id: number | string): number | null => {
+    const numericId = typeof id === 'number' ? id : Number(id);
+    return Number.isSafeInteger(numericId) && numericId > 0 ? numericId : null;
+};
+
+const isSelectedMetadataCandidate = (
+    source: 'netease' | 'qq',
+    song: SongResult,
+    candidate?: AutoMatchBestLyricOptions['metadataCandidate'],
+): boolean => {
+    if (!candidate || candidate.source !== source) return false;
+    if (source === 'qq') {
+        return String(song.qqMid ?? song.id) === String(candidate.songId);
+    }
+    return String(song.id) === String(candidate.songId);
+};
 
 function selectBestCandidate(
     source: LyricProviderSource,
@@ -135,10 +159,14 @@ export async function autoMatchBestLyric(
     let neteaseCandidateSongs: any[] | null = null;
     let qqBestCandidate: SongResult | null | undefined;
 
-    const defaultOrder = ['netease', 'amll', 'qq', 'kugou'] as const;
-    const searchOrder = options.preferredSource
-        ? [options.preferredSource, ...defaultOrder.filter(s => s !== options.preferredSource)]
-        : defaultOrder;
+    const defaultOrder: LyricProviderSource[] = ['netease', 'amll', 'qq', 'kugou'];
+    const prioritizedSources: LyricProviderSource[] = [
+        ...(options.preferredSource ? [options.preferredSource] : []),
+        ...defaultOrder,
+    ];
+    const searchOrder = options.exactMatchOnly && options.metadataCandidate
+        ? [options.metadataCandidate.source]
+        : prioritizedSources.filter((source, index) => prioritizedSources.indexOf(source) === index);
 
     const getNeteaseCandidateSongs = async (): Promise<any[]> => {
         if (neteaseCandidateSongs) {
@@ -146,6 +174,17 @@ export async function autoMatchBestLyric(
         }
         if (options.neteaseCandidate) {
             neteaseCandidateSongs = [{ id: options.neteaseCandidate.id, name: title, ar: artist ? [{ name: artist }] : [] }];
+            return neteaseCandidateSongs;
+        }
+        if (options.metadataCandidate?.source === 'netease') {
+            const songId = getNumericNeteaseId(options.metadataCandidate.songId);
+            neteaseCandidateSongs = songId ? [{
+                id: songId,
+                name: title,
+                ar: artist ? [{ id: 0, name: artist }] : [],
+                al: options.album ? { id: 0, name: options.album } : undefined,
+                dt: normalizedDurationMs,
+            }] : [];
             return neteaseCandidateSongs;
         }
 
@@ -171,18 +210,28 @@ export async function autoMatchBestLyric(
             'QQ search',
             []
         );
+        if (options.metadataCandidate?.source === 'qq') {
+            const exactCandidate = qqSongs.find(song => isSelectedMetadataCandidate('qq', song, options.metadataCandidate));
+            if (exactCandidate || options.exactMatchOnly) {
+                qqBestCandidate = exactCandidate ?? null;
+                return qqBestCandidate;
+            }
+        }
         qqBestCandidate = selectBestCandidate('qq', qqSongs, targetSong);
         return qqBestCandidate;
     };
 
-    const getNeteaseProcessed = async (song: any) => {
-        return String(options.neteaseCandidate?.id) === String(song.id)
-            ? {
-                lyrics: options.neteaseCandidate.lyrics,
-                isPureMusic: options.neteaseCandidate.isPureMusic ?? false,
-                chorusRanges: options.neteaseCandidate.chorusRanges ?? []
-            }
-            : await withTimeout(
+    const getNeteaseProcessed = async (song: SongResult) => {
+        const candidate = options.neteaseCandidate;
+        if (candidate && String(candidate.id) === String(song.id)) {
+            return {
+                lyrics: candidate.lyrics,
+                isPureMusic: candidate.isPureMusic ?? false,
+                chorusRanges: candidate.chorusRanges ?? [],
+            };
+        }
+
+        return await withTimeout(
                 (async () => {
                     const lyricRes = await neteaseApi.getLyric(song.id);
                     return processNeteaseLyrics(
@@ -251,15 +300,19 @@ export async function autoMatchBestLyric(
 
                     if (processed.isPureMusic) {
                         console.log(`[autoMatchBestLyric] NetEase candidate "${song.name}" is pure music. Skipping alternative lyric sources.`);
-                        return { isPureMusic: true };
+                        return isSelectedMetadataCandidate('netease', song, options.metadataCandidate)
+                            ? { isPureMusic: true, source: 'netease', id: song.id }
+                            : { isPureMusic: true };
                     }
 
                     if (processed.chorusRanges && processed.chorusRanges.length > 0) {
                         neteaseChorusRanges = processed.chorusRanges;
                     }
 
-                    if (processed.lyrics && processed.lyrics.isWordByWord) {
-                        console.log(`[autoMatchBestLyric] Found perfect NetEase word-by-word lyric match!`);
+                    const acceptsExactNonWordByWord = options.exactMatchOnly
+                        && isSelectedMetadataCandidate('netease', song, options.metadataCandidate);
+                    if (processed.lyrics && (processed.lyrics.isWordByWord || acceptsExactNonWordByWord)) {
+                        console.log(`[autoMatchBestLyric] Found accepted NetEase lyric match!`);
                         return {
                             lyrics: processed.lyrics,
                             source: 'netease',
@@ -272,6 +325,16 @@ export async function autoMatchBestLyric(
             }
         } else if (searchSource === 'amll') {
             try {
+                if (options.metadataCandidate?.source === 'qq') {
+                    const qqCandidate = await getQqBestCandidate();
+                    if (qqCandidate && isSelectedMetadataCandidate('qq', qqCandidate, options.metadataCandidate)) {
+                        const result = await tryAmllDbCandidate('qq', qqCandidate);
+                        if (result) {
+                            return result;
+                        }
+                    }
+                }
+
                 const neteaseCandidates = await getNeteaseCandidateSongs();
                 if (neteaseCandidates.length === 0) {
                     console.log('[autoMatchBestLyric] Skipping AMLLDB auto probe because no reliable NetEase candidate id was found.');
@@ -302,8 +365,10 @@ export async function autoMatchBestLyric(
                         `QQ lyric fetch for ${song.id}`,
                         null
                     );
-                    if (parsedLyrics && parsedLyrics.isWordByWord) {
-                        console.log(`[autoMatchBestLyric] Found perfect QQ word-by-word lyric match!`);
+                    const acceptsExactNonWordByWord = options.exactMatchOnly
+                        && isSelectedMetadataCandidate('qq', song, options.metadataCandidate);
+                    if (parsedLyrics && (parsedLyrics.isWordByWord || acceptsExactNonWordByWord)) {
+                        console.log(`[autoMatchBestLyric] Found accepted QQ lyric match!`);
                         return {
                             lyrics: parsedLyrics,
                             source: 'qq',

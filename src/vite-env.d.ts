@@ -456,6 +456,11 @@ declare global {
       getAudioCacheUsage: () => Promise<number>;
       getAudioCacheStats: () => Promise<ElectronAudioCacheStats>;
       clearAudioCache: () => Promise<boolean>;
+      getCoverCache: (cacheKey: string) => Promise<ElectronAudioCacheEntry>;
+      saveCoverCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string) => Promise<boolean>;
+      removeCoverCache: (cacheKey: string) => Promise<boolean>;
+      getCoverCacheUsage: () => Promise<number>;
+      clearCoverCache: () => Promise<boolean>;
       generateTheme: (lyricsText: string, options?: { isPureMusic?: boolean; songTitle?: string }) => Promise<any>;
       fetchLyricProxy: (
         url: string,

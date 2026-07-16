@@ -11,6 +11,7 @@ import { parseLyricsAsync } from '../utils/lyrics/workerClient';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
+import { createSafeObjectUrl } from '../utils/blobGuards';
 
 const normalizeAudioUrl = (url?: string | null) => {
     if (!url) return null;
@@ -36,8 +37,8 @@ export async function loadOnlineSongAudioSource(
     const audioCacheKey = getOnlineSongCacheKey('audio', song);
     const cachedAudioBlob = await getCachedAudioBlob(audioCacheKey);
     if (cachedAudioBlob) {
-        const blobUrl = URL.createObjectURL(cachedAudioBlob);
-        return { kind: 'ok', audioSrc: blobUrl, blobUrl };
+        const blobUrl = createSafeObjectUrl(cachedAudioBlob);
+        if (blobUrl) return { kind: 'ok', audioSrc: blobUrl, blobUrl };
     }
 
     if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {

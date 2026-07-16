@@ -528,6 +528,10 @@ function getAudioCacheDirectory() {
   return path.join(getConfiguredCacheDirectory(), 'audio');
 }
 
+function getCoverCacheDirectory() {
+  return path.join(getConfiguredCacheDirectory(), 'cover');
+}
+
 function getAudioCacheBaseName(cacheKey) {
   return crypto.createHash('sha256').update(cacheKey).digest('hex');
 }
@@ -535,6 +539,17 @@ function getAudioCacheBaseName(cacheKey) {
 function getAudioCachePaths(cacheKey) {
   const baseName = getAudioCacheBaseName(cacheKey);
   const directory = getAudioCacheDirectory();
+
+  return {
+    directory,
+    dataPath: path.join(directory, `${baseName}.bin`),
+    metaPath: path.join(directory, `${baseName}.json`),
+  };
+}
+
+function getCoverCachePaths(cacheKey) {
+  const baseName = getAudioCacheBaseName(cacheKey);
+  const directory = getCoverCacheDirectory();
 
   return {
     directory,
@@ -865,6 +880,7 @@ function setupCorsBypassHandlers() {
       isTargetDomain =
         hostname === 'qq.com' ||
         hostname.endsWith('.qq.com') ||
+        hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
         hostname === 'amll-ttml-db.stevexmh.net';
@@ -900,6 +916,7 @@ function isAllowedLyricProxyHost(hostname) {
   return (
     hostname === 'qq.com' ||
     hostname.endsWith('.qq.com') ||
+    hostname === 'y.gtimg.cn' ||
     hostname === 'kugou.com' ||
     hostname.endsWith('.kugou.com') ||
     hostname === 'amll-ttml-db.stevexmh.net'
@@ -1946,6 +1963,87 @@ async function clearAudioCacheDirectory() {
   }
 }
 
+async function ensureCoverCacheDirectory() {
+  await fsp.mkdir(getCoverCacheDirectory(), { recursive: true });
+}
+
+async function readCoverCacheEntry(cacheKey) {
+  const { dataPath, metaPath } = getCoverCachePaths(cacheKey);
+  try {
+    const [dataBuffer, rawMeta] = await Promise.all([
+      fsp.readFile(dataPath),
+      fsp.readFile(metaPath, 'utf-8').catch(() => null),
+    ]);
+    if (dataBuffer.byteLength === 0) {
+      await Promise.allSettled([fsp.rm(dataPath, { force: true }), fsp.rm(metaPath, { force: true })]);
+      return { found: false, data: null, mimeType: null };
+    }
+    try {
+      const parsedMeta = rawMeta ? JSON.parse(rawMeta) : null;
+      const validMeta = parsedMeta
+        && parsedMeta.cacheKey === cacheKey
+        && typeof parsedMeta.mimeType === 'string'
+        && parsedMeta.mimeType.startsWith('image/')
+        && parsedMeta.size === dataBuffer.byteLength;
+      if (!validMeta) throw new Error('Invalid cover cache metadata');
+      return { found: true, data: dataBuffer, mimeType: parsedMeta.mimeType };
+    } catch {
+      await Promise.allSettled([fsp.rm(dataPath, { force: true }), fsp.rm(metaPath, { force: true })]);
+      return { found: false, data: null, mimeType: null };
+    }
+  } catch {
+    return { found: false, data: null, mimeType: null };
+  }
+}
+
+async function writeCoverCacheEntry(cacheKey, data, mimeType) {
+  const { dataPath, metaPath } = getCoverCachePaths(cacheKey);
+  await ensureCoverCacheDirectory();
+  const buffer = Buffer.isBuffer(data)
+    ? data
+    : Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data);
+  if (buffer.byteLength === 0) throw new Error('Cannot persist an empty cover payload');
+  if (typeof mimeType !== 'string' || !mimeType.startsWith('image/')) {
+    throw new Error('Cover cache only accepts image payloads');
+  }
+  await Promise.all([
+    fsp.writeFile(dataPath, buffer),
+    fsp.writeFile(metaPath, JSON.stringify({
+      cacheKey,
+      mimeType: mimeType || 'application/octet-stream',
+      size: buffer.byteLength,
+      updatedAt: Date.now(),
+    }), 'utf-8'),
+  ]);
+}
+
+async function removeCoverCacheEntry(cacheKey) {
+  const { dataPath, metaPath } = getCoverCachePaths(cacheKey);
+  await Promise.allSettled([fsp.rm(dataPath, { force: true }), fsp.rm(metaPath, { force: true })]);
+}
+
+async function getCoverCacheUsageBytes() {
+  try {
+    const entries = await fsp.readdir(getCoverCacheDirectory(), { withFileTypes: true });
+    let total = 0;
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.bin')) continue;
+      total += (await fsp.stat(path.join(getCoverCacheDirectory(), entry.name))).size;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+async function clearCoverCacheDirectory() {
+  try {
+    await fsp.rm(getCoverCacheDirectory(), { recursive: true, force: true });
+  } catch (error) {
+    console.warn('[CoverCache] Failed to clear cache directory', error);
+  }
+}
+
 const { register_anonimous } = require('@neteasecloudmusicapienhanced/api/main');
 const { getXeapiPublicKey } = require('@neteasecloudmusicapienhanced/api/util/xeapiKey');
 const {
@@ -2975,6 +3073,29 @@ ipcMain.handle('get-audio-cache-stats', async () => {
 
 ipcMain.handle('clear-audio-cache', async () => {
   await clearAudioCacheDirectory();
+  return true;
+});
+
+ipcMain.handle('get-cover-cache', async (event, cacheKey) => {
+  return readCoverCacheEntry(cacheKey);
+});
+
+ipcMain.handle('save-cover-cache', async (event, cacheKey, data, mimeType) => {
+  await writeCoverCacheEntry(cacheKey, data, mimeType);
+  return true;
+});
+
+ipcMain.handle('remove-cover-cache', async (event, cacheKey) => {
+  await removeCoverCacheEntry(cacheKey);
+  return true;
+});
+
+ipcMain.handle('get-cover-cache-usage', async () => {
+  return getCoverCacheUsageBytes();
+});
+
+ipcMain.handle('clear-cover-cache', async () => {
+  await clearCoverCacheDirectory();
   return true;
 });
 

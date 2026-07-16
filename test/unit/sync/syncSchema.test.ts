@@ -24,6 +24,7 @@ describe('sync schema parsing', () => {
                 visualizerOpacity: 0.7,
                 hidePlayerTranslationSubtitle: 'false',
                 showSubtitleTranslation: true,
+                subtitleOverlayBackground: true,
                 lyricsFontStyle: 'fantasy',
                 subtitleFontStyle: 'serif',
                 lyricsFontFallbackFamilies: ['Inter', 'Arial'],
@@ -40,6 +41,7 @@ describe('sync schema parsing', () => {
             visualizerMode: 'classic',
             visualizerOpacity: 0.7,
             showSubtitleTranslation: true,
+            subtitleOverlayBackground: true,
             subtitleFontStyle: 'serif',
             lyricsFontFallbackFamilies: ['Inter', 'Arial'],
             subtitleFontFallbackFamilies: ['Noto Sans'],
@@ -48,6 +50,74 @@ describe('sync schema parsing', () => {
             },
             grid3dCardStyle: 'image',
         });
+    });
+
+    it('migrates the deprecated carousel home layout to grid', () => {
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                homeLayoutStyle: 'carousel',
+            },
+        });
+
+        expect(record?.data.homeLayoutStyle).toBe('grid');
+    });
+
+    it('accepts the Nomand background mode and tuning', () => {
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                visualizerBackgroundMode: 'nomand',
+                nomandBackgroundTuning: {
+                    imageSource: 'cover-derived',
+                    ditheringType: '8x8',
+                    size: 2,
+                    colorSteps: 2,
+                    overlayEnabled: true,
+                    overlayOpacity: 0.35,
+                },
+            },
+        });
+
+        expect(record?.data.visualizerBackgroundMode).toBe('nomand');
+        expect(record?.data.nomandBackgroundTuning).toEqual({
+            imageSource: 'cover-derived',
+            ditheringType: '8x8',
+            size: 2,
+            colorSteps: 2,
+            overlayEnabled: true,
+            overlayOpacity: 0.35,
+        });
+    });
+
+    it('accepts the Latent background mode and tuning', () => {
+        const latentBackgroundTuning = {
+            displayMode: 'both',
+            dynamicOnlyInPlayer: true,
+            ditheringSpeed: 0.35,
+            ditheringAudioSpeed: 2,
+            ditheringSize: 2.5,
+            ditheringOpacity: 0.55,
+            meshSpeed: 0.3,
+            meshAudioSpeed: 2,
+            meshDistortion: 0.8,
+            meshSwirl: 0.1,
+            overlayEnabled: true,
+            overlayOpacity: 0.35,
+        };
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                visualizerBackgroundMode: 'latent',
+                latentBackgroundTuning,
+            },
+        });
+
+        expect(record?.data.visualizerBackgroundMode).toBe('latent');
+        expect(record?.data.latentBackgroundTuning).toEqual(latentBackgroundTuning);
     });
 
     it('parses theme records and normalizes invalid sources', () => {

@@ -176,7 +176,7 @@ const ObsBrowserSourceApp: React.FC = () => {
                 width: obsDimensions.width,
                 height: obsDimensions.height,
                 zoom: obsScale,
-                backgroundColor: config.transparentBackground ? 'transparent' : config.theme.backgroundColor,
+                backgroundColor: config.background?.transparent ? 'transparent' : config.theme.backgroundColor,
                 color: config.theme.primaryColor,
             }}
         >
@@ -196,28 +196,20 @@ const ObsBrowserSourceApp: React.FC = () => {
                 songAlbum={config.songAlbum}
                 coverUrl={config.coverUrl}
                 showText={true}
-                useCoverColorBg={config.useCoverColorBg}
                 seed={config.seed}
                 staticMode={config.staticMode}
                 paused={playbackState !== PlayerState.PLAYING}
-                backgroundOpacity={config.backgroundOpacity}
                 visualizerOpacity={config.visualizerOpacity}
-                transparentBackground={config.transparentBackground}
-                disableGeometricBackground={config.disableGeometricBackground}
-                disableVignette={config.disableVignette}
-                visualizerBackgroundMode={config.visualizerBackgroundMode}
+                background={config.background}
                 lyricsFontScale={config.lyricsFontScale}
                 subtitleOverlayOpacity={config.subtitleOverlayOpacity}
+                subtitleOverlayBackground={config.subtitleOverlayBackground ?? false}
                 isPlayerChromeHidden={true}
                 hideTranslationSubtitle={config.hideTranslationSubtitle}
                 showSubtitleTranslation={config.showSubtitleTranslation ?? true}
                 cappellaCustomEmojiImages={config.cappellaCustomEmojiImages}
                 cappellaCustomAvatarImages={config.cappellaCustomAvatarImages}
-                monetBackgroundTuning={config.monetBackgroundTuning}
-                monetBackgroundImage={config.monetBackgroundImage}
                 monetPortraitImage={config.monetPortraitImage}
-                urlBackgroundList={config.urlBackgroundList}
-                urlBackgroundSelectedId={config.urlBackgroundSelectedId}
             />
         </div>
     );

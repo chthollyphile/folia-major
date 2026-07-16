@@ -4,12 +4,12 @@ import { ChevronLeft, Disc, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
-import { buildLocalQueue } from '../services/playbackAdapters';
+import { applyLocalSongCoverDisplay, buildLocalQueue } from '../services/playbackAdapters';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { neteaseApi } from '../services/netease';
 import { createCoverPlaceholder } from '../utils/coverPlaceholders';
 import { getSizedCoverUrl } from '../utils/coverUrl';
-import { getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
+import { createSafeObjectUrl, getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
 import { PolaroidCard } from './GridView';
 import { HexGridCoord, CubeCoord, getHexCubicSpiral } from './folia-grid/hexViewport';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
@@ -18,6 +18,9 @@ import { GridListSearchButton } from './shared/GridListSearchButton';
 import { gridSearchPanelMotion } from './shared/gridSearchPanelMotion';
 import { appendUniqueByKey, deriveProgressiveLoadingState } from './folia-grid/progressiveGrid';
 import { useProgressiveItemEntrance } from './folia-grid/useProgressiveItemEntrance';
+import { useLocalLibraryCatalog } from '../hooks/useLocalLibraryCatalog';
+import { buildLocalLibraryIndex, followEntityRedirect } from '../utils/localLibraryIndex';
+import { ArtistGridInfoCutInPanel } from './artist-grid/ArtistGridInfoCutInPanel';
 
 /*
  * ArtistGridView.tsx
@@ -34,11 +37,13 @@ interface ArtistGridViewProps {
     onSelectTrack?: (track: SongResult, queue: SongResult[]) => void;
     onAddTrackToQueue?: (track: SongResult) => void;
     onSelectAlbum?: (albumId: number | string, album?: any) => void;
+    onSelectArtist?: (artistId: number | string, artist?: any) => void;
     onPlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[]) => void;
     theme: Theme;
     isDaylight: boolean;
     localSongs?: LocalSong[];
+    onEditEntity?: (entityId: string) => void;
 }
 
 interface GridItem {
@@ -183,11 +188,14 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     onSelectTrack,
     onAddTrackToQueue,
     onSelectAlbum,
+    onSelectArtist,
     theme,
     isDaylight,
     localSongs = [],
+    onEditEntity,
 }) => {
     const { t } = useTranslation();
+    const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
     const closeBtnBg = isDaylight ? 'bg-black/5 hover:bg-black/10 text-black/60' : 'bg-black/20 hover:bg-white/10 text-white/60';
     const cardBg = isDaylight ? 'bg-white/60 border border-white/30' : 'bg-zinc-900/60 border border-white/10';
 
@@ -309,12 +317,13 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     const [showFullBio, setShowFullBio] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
     const [showSidePanel, setShowSidePanel] = useState(false);
+    const [showCutInPanel, setShowCutInPanel] = useState(false);
     const [draftSearchQuery, setDraftSearchQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const deferredSearchQuery = useDeferredValue(searchQuery);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const isComposingSearchRef = useRef(false);
-    const localAlbumCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
+    const localCoverObjectUrlsRef = useRef<Map<string, LocalArtistCoverObjectUrlEntry>>(new Map());
     const loadGenerationRef = useRef(0);
 
     // Coordinate motion values mapping grid drags
@@ -352,12 +361,12 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         }
     }, [navigationStorageKey]);
 
-    const clearLocalAlbumCoverObjectUrls = useCallback(() => {
-        localAlbumCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
-        localAlbumCoverObjectUrlsRef.current.clear();
+    const clearLocalCoverObjectUrls = useCallback(() => {
+        localCoverObjectUrlsRef.current.forEach(entry => URL.revokeObjectURL(entry.url));
+        localCoverObjectUrlsRef.current.clear();
     }, []);
 
-    const getOrCreateLocalAlbumCoverObjectUrl = useCallback((song: LocalSong) => {
+    const getOrCreateLocalCoverObjectUrl = useCallback((song: LocalSong) => {
         if (!isBlob(song.embeddedCover)) {
             return undefined;
         }
@@ -368,7 +377,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             song.fileSize,
             song.fileLastModified,
         ]);
-        const cached = localAlbumCoverObjectUrlsRef.current.get(song.id);
+        const cached = localCoverObjectUrlsRef.current.get(song.id);
         if (cached?.signature === signature) {
             return cached.url;
         }
@@ -377,10 +386,18 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             URL.revokeObjectURL(cached.url);
         }
 
-        const url = URL.createObjectURL(song.embeddedCover);
-        localAlbumCoverObjectUrlsRef.current.set(song.id, { signature, url });
+        const url = createSafeObjectUrl(song.embeddedCover);
+        if (!url) return null;
+        localCoverObjectUrlsRef.current.set(song.id, { signature, url });
         return url;
     }, []);
+
+    const resolveLocalSongCoverUrl = useCallback((song: LocalSong) => {
+        const embeddedCoverUrl = getOrCreateLocalCoverObjectUrl(song);
+        return song.useOnlineCover
+            ? (song.onlineMetadata?.coverUrl || embeddedCoverUrl)
+            : embeddedCoverUrl;
+    }, [getOrCreateLocalCoverObjectUrl]);
 
     // Appends Netease album pages without replacing already rendered artist content.
     const loadNeteaseAlbumPages = async (artistId: number, generation: number, startOffset = 0) => {
@@ -461,28 +478,62 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     setAlbums(mappedAlbums);
                 }
             } else if (source === 'local') {
-                const artistName = collection.name || '';
-                const artistSongs = localSongs.filter(song => (song.matchedArtists || song.artist || '').toLowerCase() === artistName.toLowerCase());
+                if (!localLibraryCatalog.ready) return;
+                const catalogIndex = buildLocalLibraryIndex(
+                    localLibraryCatalog.entities,
+                    localLibraryCatalog.assignments,
+                );
+                const artistEntityId = followEntityRedirect(
+                    String(collection.entityId || collection.id),
+                    catalogIndex.entitiesById,
+                );
+                const artistEntity = artistEntityId ? catalogIndex.entitiesById.get(artistEntityId) : undefined;
+                if (!artistEntity || artistEntity.kind !== 'artist') return;
+                const artistName = artistEntity.displayName;
+                const artistAssignments = localLibraryCatalog.assignments.filter(assignment => (
+                    assignment.artistEntityIds.includes(artistEntity.id)
+                ));
+                const artistSongIds = new Set(artistAssignments.map(assignment => assignment.songId));
+                const artistSongs = localSongs.filter(song => artistSongIds.has(song.id));
 
                 const albumMap = new Map<string, { id: string, name: string, picUrl?: string, publishTime?: number; }>();
                 artistSongs.forEach(song => {
-                    const albName = song.album || t('localMusic.unknownAlbum');
-                    if (!albumMap.has(albName)) {
-                        let coverUrl = song.matchedCoverUrl || undefined;
-                        if (!coverUrl) {
-                            coverUrl = getOrCreateLocalAlbumCoverObjectUrl(song);
-                        }
-                        albumMap.set(albName, {
-                            id: albName, // Just use name as id
-                            name: albName,
-                            picUrl: coverUrl,
+                    const assignment = catalogIndex.assignmentsBySongId.get(song.id);
+                    const albumEntityId = assignment?.albumEntityId
+                        ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
+                        : undefined;
+                    const albumEntity = albumEntityId ? catalogIndex.entitiesById.get(albumEntityId) : undefined;
+                    const albumKey = albumEntity?.id || '__unknown-album__';
+                    const albumName = albumEntity?.displayName || t('localMusic.unknownAlbum');
+                    const coverUrl = resolveLocalSongCoverUrl(song);
+                    if (!albumMap.has(albumKey)) {
+                        albumMap.set(albumKey, {
+                            id: albumKey,
+                            name: albumName,
+                            picUrl: coverUrl || undefined,
                             publishTime: undefined,
                         });
+                    } else if (coverUrl && !albumMap.get(albumKey)?.picUrl) {
+                        albumMap.get(albumKey)!.picUrl = coverUrl;
                     }
                 });
 
                 const albumsList = Array.from(albumMap.values());
-                const formattedTopSongs = buildLocalQueue(artistSongs.slice(0, 10)) as SongResult[];
+                const topLocalSongs = artistSongs.slice(0, 10);
+                const formattedTopSongs = buildLocalQueue(
+                    topLocalSongs,
+                    undefined,
+                    localLibraryCatalog,
+                ).map((track, index) => {
+                    const localSong = topLocalSongs[index];
+                    const assignment = catalogIndex.assignmentsBySongId.get(localSong.id);
+                    const albumEntityId = assignment?.albumEntityId
+                        ? followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById)
+                        : undefined;
+                    const albumKey = albumEntityId || '__unknown-album__';
+                    const coverUrl = resolveLocalSongCoverUrl(localSong) || albumMap.get(albumKey)?.picUrl;
+                    return coverUrl ? applyLocalSongCoverDisplay(track, coverUrl) : track;
+                }) as SongResult[];
 
                 setArtistInfo({
                     name: artistName,
@@ -502,13 +553,13 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     };
 
     useEffect(() => {
-        clearLocalAlbumCoverObjectUrls();
+        clearLocalCoverObjectUrls();
         void loadArtistData();
         return () => {
             loadGenerationRef.current++;
-            clearLocalAlbumCoverObjectUrls();
+            clearLocalCoverObjectUrls();
         };
-    }, [clearLocalAlbumCoverObjectUrls, collection.id, collection.source]);
+    }, [clearLocalCoverObjectUrls, collection.id, collection.source, localLibraryCatalog, resolveLocalSongCoverUrl]);
 
     useEffect(() => {
         if (!showSearchPanel) return;
@@ -525,10 +576,19 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 (target instanceof HTMLElement && target.isContentEditable)
             ) return;
 
-            if (event.key === 'Escape' && showSearchPanel) {
-                setShowSearchPanel(false);
-                setDraftSearchQuery('');
-                setSearchQuery('');
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (showSearchPanel) {
+                    setShowSearchPanel(false);
+                    setDraftSearchQuery('');
+                    setSearchQuery('');
+                } else if (showSidePanel) {
+                    setShowSidePanel(false);
+                } else if (showCutInPanel) {
+                    setShowCutInPanel(false);
+                } else {
+                    onBack();
+                }
                 return;
             }
             if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -543,7 +603,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
         window.addEventListener('keydown', handleSearchTyping);
         return () => window.removeEventListener('keydown', handleSearchTyping);
-    }, [showSearchPanel]);
+    }, [onBack, showCutInPanel, showSearchPanel, showSidePanel]);
 
     const filteredAlbums = useMemo(() => {
         const query = deferredSearchQuery.trim().toLowerCase();
@@ -1085,6 +1145,8 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             if (isDraggingRef.current) return;
                             centerOnIndex(idx, true);
                         }}
+                        onSelectArtist={onSelectArtist}
+                        onSelectAlbum={onSelectAlbum}
                         onAddQueue={() => {
                             if (isSongCard && onAddTrackToQueue && item.rawTrack) {
                                 onAddTrackToQueue(item.rawTrack);
@@ -1111,6 +1173,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         topSongs,
         onSelectTrack,
         onSelectAlbum,
+        onSelectArtist,
         onAddTrackToQueue,
         persistNavigationState,
         shouldAnimateItemEntrance,
@@ -1159,15 +1222,41 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
             {/* Title display inside viewport header */}
             <div
-                className="absolute left-1/2 top-5 -translate-x-1/2 z-[30] text-center flex flex-col items-center select-none px-5 py-2 rounded-2xl backdrop-blur-md"
+                onClick={() => {
+                    setShowSearchPanel(false);
+                    setShowSidePanel(false);
+                    setShowCutInPanel(current => !current);
+                }}
+                className="absolute left-1/2 top-5 -translate-x-1/2 z-[70] text-center flex flex-col items-center select-none cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl backdrop-blur-md"
                 style={{
                     backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
                     color: 'var(--text-primary)',
                 }}
             >
-                <h2 className="text-lg font-bold tracking-tight">{artistInfo?.name || collection.name}</h2>
+                <button
+                    type="button"
+                    className="text-lg font-bold tracking-tight cursor-pointer"
+                    aria-expanded={showCutInPanel}
+                >
+                    {artistInfo?.name || collection.name}
+                </button>
                 <p className="text-xs opacity-50 mt-0.5">{t('navidrome.artists') || 'Artists'}</p>
             </div>
+
+            <ArtistGridInfoCutInPanel
+                isOpen={showCutInPanel}
+                artistName={artistInfo?.name || collection.name}
+                coverUrl={artistInfo?.cover}
+                description={artistInfo?.briefDesc}
+                musicSize={artistInfo?.musicSize}
+                albumSize={artistInfo?.albumSize}
+                entityId={collection.source === 'local' ? collection.entityId : undefined}
+                onClose={() => setShowCutInPanel(false)}
+                onEditEntity={onEditEntity ? (entityId) => {
+                    setShowCutInPanel(false);
+                    onEditEntity(entityId);
+                } : undefined}
+            />
 
             <AnimatePresence>
                 {showSearchPanel && (

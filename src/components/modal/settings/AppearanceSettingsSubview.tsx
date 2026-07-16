@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check, TriangleAlert } from 'lucide-react';
+import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
     DEFAULT_CLADDAGH_TUNING,
+    DEFAULT_LATENT_BACKGROUND_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
+    DEFAULT_NOMAND_BACKGROUND_TUNING,
     type DualTheme,
     type Theme,
     type ThemeMode,
@@ -43,8 +45,6 @@ type AppearanceSettingsSubviewProps = {
     transparentPlayerBackground: boolean;
     autoHidePlayerChrome: boolean;
     utilityGhostButtonClass: string;
-    homeLayoutStyle: 'carousel' | 'grid';
-    onChangeHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     grid3dCardStyle: 'image' | 'card';
     onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
     aiTheme?: DualTheme | null;
@@ -230,6 +230,60 @@ const decompressMonetBackground = (o: any): any => ({
     backgroundWashCustomColor: o.mbwcc || DEFAULT_MONET_BACKGROUND_TUNING.backgroundWashCustomColor,
 });
 
+const compressNomandBackground = (t: any): any => ({
+    is: t.imageSource,
+    dt: t.ditheringType,
+    s: t.size,
+    cs: t.colorSteps,
+    oc: t.originalColors,
+    i: t.inverted,
+    oe: t.overlayEnabled,
+    oo: t.overlayOpacity,
+});
+const decompressNomandBackground = (o: any): any => ({
+    imageSource: o.is || DEFAULT_NOMAND_BACKGROUND_TUNING.imageSource,
+    ditheringType: o.dt === '2x2' || o.dt === '4x4' || o.dt === '8x8'
+        ? o.dt
+        : DEFAULT_NOMAND_BACKGROUND_TUNING.ditheringType,
+    size: o.s !== undefined ? o.s : DEFAULT_NOMAND_BACKGROUND_TUNING.size,
+    colorSteps: o.cs !== undefined ? o.cs : DEFAULT_NOMAND_BACKGROUND_TUNING.colorSteps,
+    originalColors: o.oc !== undefined ? o.oc : DEFAULT_NOMAND_BACKGROUND_TUNING.originalColors,
+    inverted: o.i !== undefined ? o.i : DEFAULT_NOMAND_BACKGROUND_TUNING.inverted,
+    overlayEnabled: o.oe !== undefined ? o.oe : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: o.oo !== undefined ? o.oo : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayOpacity,
+});
+
+const compressLatentBackground = (t: any): any => ({
+    dm: t.displayMode,
+    dopv: t.dynamicOnlyInPlayer,
+    ds: t.ditheringSpeed,
+    das: t.ditheringAudioSpeed,
+    dz: t.ditheringSize,
+    dop: t.ditheringOpacity,
+    ms: t.meshSpeed,
+    mas: t.meshAudioSpeed,
+    md: t.meshDistortion,
+    mw: t.meshSwirl,
+    oe: t.overlayEnabled,
+    oo: t.overlayOpacity,
+});
+const decompressLatentBackground = (o: any): any => ({
+    displayMode: o.dm || DEFAULT_LATENT_BACKGROUND_TUNING.displayMode,
+    dynamicOnlyInPlayer: o.dopv !== undefined
+        ? o.dopv
+        : DEFAULT_LATENT_BACKGROUND_TUNING.dynamicOnlyInPlayer,
+    ditheringSpeed: o.ds !== undefined ? o.ds : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed,
+    ditheringAudioSpeed: o.das !== undefined ? o.das : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed,
+    ditheringSize: o.dz !== undefined ? o.dz : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSize,
+    ditheringOpacity: o.dop !== undefined ? o.dop : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringOpacity,
+    meshSpeed: o.ms !== undefined ? o.ms : DEFAULT_LATENT_BACKGROUND_TUNING.meshSpeed,
+    meshAudioSpeed: o.mas !== undefined ? o.mas : DEFAULT_LATENT_BACKGROUND_TUNING.meshAudioSpeed,
+    meshDistortion: o.md !== undefined ? o.md : DEFAULT_LATENT_BACKGROUND_TUNING.meshDistortion,
+    meshSwirl: o.mw !== undefined ? o.mw : DEFAULT_LATENT_BACKGROUND_TUNING.meshSwirl,
+    overlayEnabled: o.oe !== undefined ? o.oe : DEFAULT_LATENT_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: o.oo !== undefined ? o.oo : DEFAULT_LATENT_BACKGROUND_TUNING.overlayOpacity,
+});
+
 const compressMonet = (t: any): any => ({
     kce: t.keywordColoringEnabled,
     msd: t.showDescription,
@@ -266,6 +320,7 @@ export const compressConfig = (config: any): string => {
     if (config.visualizerOpacity !== undefined) minified.vo = config.visualizerOpacity;
     if (config.hidePlayerTranslationSubtitle !== undefined) minified.hpts = config.hidePlayerTranslationSubtitle;
     if (config.showSubtitleTranslation !== undefined) minified.sst = config.showSubtitleTranslation;
+    if (config.subtitleOverlayBackground !== undefined) minified.sob = config.subtitleOverlayBackground;
     if (config.lyricsFontStyle) minified.lfs = config.lyricsFontStyle;
     if (config.lyricsFontScale !== undefined) minified.lfn = config.lyricsFontScale;
     if (config.lyricsFontFallbackFamilies?.length) minified.lff = config.lyricsFontFallbackFamilies;
@@ -284,6 +339,8 @@ export const compressConfig = (config: any): string => {
     if (config.tiltTuning) minified.tt = compressTilt(config.tiltTuning);
     if (config.dioramaTuning) minified.dot = compressDiorama(config.dioramaTuning);
     if (config.monetBackgroundTuning) minified.mbt = compressMonetBackground(config.monetBackgroundTuning);
+    if (config.nomandBackgroundTuning) minified.nbt = compressNomandBackground(config.nomandBackgroundTuning);
+    if (config.latentBackgroundTuning) minified.lbt = compressLatentBackground(config.latentBackgroundTuning);
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
@@ -317,7 +374,18 @@ export const decompressConfig = (str: string): any => {
         throw new Error('Invalid format');
     }
 
-    const isMinified = parsed.t !== undefined || parsed.vm !== undefined || parsed.rvms !== undefined || parsed.ct !== undefined || parsed.cat !== undefined || parsed.hpts !== undefined || parsed.sst !== undefined || parsed.lff !== undefined || parsed.sfi !== undefined;
+    const isMinified = parsed.t !== undefined
+        || parsed.vm !== undefined
+        || parsed.rvms !== undefined
+        || parsed.ct !== undefined
+        || parsed.cat !== undefined
+        || parsed.nbt !== undefined
+        || parsed.lbt !== undefined
+        || parsed.hpts !== undefined
+        || parsed.sst !== undefined
+        || parsed.sob !== undefined
+        || parsed.lff !== undefined
+        || parsed.sfi !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -333,6 +401,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.vo !== undefined) decompressed.visualizerOpacity = parsed.vo;
         if (parsed.hpts !== undefined) decompressed.hidePlayerTranslationSubtitle = parsed.hpts;
         if (parsed.sst !== undefined) decompressed.showSubtitleTranslation = parsed.sst;
+        if (parsed.sob !== undefined) decompressed.subtitleOverlayBackground = parsed.sob;
         if (parsed.lfs) decompressed.lyricsFontStyle = parsed.lfs;
         if (parsed.lfn !== undefined) decompressed.lyricsFontScale = parsed.lfn;
         if (parsed.lff) decompressed.lyricsFontFallbackFamilies = parsed.lff;
@@ -351,6 +420,8 @@ export const decompressConfig = (str: string): any => {
         if (parsed.tt) decompressed.tiltTuning = decompressTilt(parsed.tt);
         if (parsed.dot) decompressed.dioramaTuning = decompressDiorama(parsed.dot);
         if (parsed.mbt) decompressed.monetBackgroundTuning = decompressMonetBackground(parsed.mbt);
+        if (parsed.nbt) decompressed.nomandBackgroundTuning = decompressNomandBackground(parsed.nbt);
+        if (parsed.lbt) decompressed.latentBackgroundTuning = decompressLatentBackground(parsed.lbt);
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
@@ -362,11 +433,12 @@ export const decompressConfig = (str: string): any => {
         const validKeys = [
             'theme', 'visualizerMode', 'randomVisualizerModePerSong', 'visualizerBackgroundMode', 'backgroundOpacity',
             'visualizerOpacity', 'hidePlayerTranslationSubtitle', 'showSubtitleTranslation',
+            'subtitleOverlayBackground',
             'lyricsFontStyle', 'lyricsFontScale', 'lyricsFontFallbackFamilies',
             'subtitleFontInheritsLyrics', 'subtitleFontStyle', 'subtitleFontFamily',
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
-            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'monetTuning',
+            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'monetTuning',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
         ];
@@ -418,8 +490,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     transparentPlayerBackground,
     autoHidePlayerChrome,
     utilityGhostButtonClass,
-    homeLayoutStyle,
-    onChangeHomeLayoutStyle,
     grid3dCardStyle,
     onChangeGrid3dCardStyle,
     aiTheme,
@@ -455,6 +525,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         visualizerOpacity: state.visualizerOpacity,
         hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
         showSubtitleTranslation: state.showSubtitleTranslation,
+        subtitleOverlayBackground: state.subtitleOverlayBackground,
         lyricsFontStyle: state.lyricsFontStyle,
         lyricsFontScale: state.lyricsFontScale,
         lyricsFontFallbackFamilies: state.lyricsFontFallbackFamilies,
@@ -471,6 +542,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         tiltTuning: state.tiltTuning,
         dioramaTuning: state.dioramaTuning,
         monetBackgroundTuning: state.monetBackgroundTuning,
+        nomandBackgroundTuning: state.nomandBackgroundTuning,
+        latentBackgroundTuning: state.latentBackgroundTuning,
         monetTuning: state.monetTuning,
         urlBackgroundList: state.urlBackgroundList,
         urlBackgroundSelectedId: state.urlBackgroundSelectedId,
@@ -482,6 +555,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetVisualizerOpacity: state.handleSetVisualizerOpacity,
         handleToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
         handleToggleShowSubtitleTranslation: state.handleToggleShowSubtitleTranslation,
+        handleToggleSubtitleOverlayBackground: state.handleToggleSubtitleOverlayBackground,
         handleSetLyricsFontStyle: state.handleSetLyricsFontStyle,
         handleSetLyricsFontScale: state.handleSetLyricsFontScale,
         handleSetLyricsFontFallbackFamilies: state.handleSetLyricsFontFallbackFamilies,
@@ -498,6 +572,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetTiltTuning: state.handleSetTiltTuning,
         handleSetDioramaTuning: state.handleSetDioramaTuning,
         handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
+        handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
+        handleSetLatentBackgroundTuning: state.handleSetLatentBackgroundTuning,
         handleSetMonetTuning: state.handleSetMonetTuning,
         handleAddUrlBackgroundItem: state.handleAddUrlBackgroundItem,
         handleUpdateUrlBackgroundItem: state.handleUpdateUrlBackgroundItem,
@@ -534,6 +610,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             visualizerOpacity: store.visualizerOpacity,
             hidePlayerTranslationSubtitle: store.hidePlayerTranslationSubtitle,
             showSubtitleTranslation: store.showSubtitleTranslation,
+            subtitleOverlayBackground: store.subtitleOverlayBackground,
             lyricsFontStyle: store.lyricsFontStyle,
             lyricsFontScale: store.lyricsFontScale,
             lyricsFontFallbackFamilies: store.lyricsFontFallbackFamilies,
@@ -551,6 +628,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             tiltTuning: store.tiltTuning,
             dioramaTuning: store.dioramaTuning,
             monetBackgroundTuning: store.monetBackgroundTuning,
+            nomandBackgroundTuning: store.nomandBackgroundTuning,
+            latentBackgroundTuning: store.latentBackgroundTuning,
             monetTuning: store.monetTuning,
             urlBackgroundList: store.urlBackgroundList,
             urlBackgroundSelectedId: store.urlBackgroundSelectedId,
@@ -618,6 +697,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             if (config.showSubtitleTranslation !== undefined) {
                 store.handleToggleShowSubtitleTranslation(Boolean(config.showSubtitleTranslation));
             }
+            if (config.subtitleOverlayBackground !== undefined) {
+                store.handleToggleSubtitleOverlayBackground(Boolean(config.subtitleOverlayBackground));
+            }
             if (config.lyricsFontStyle) {
                 store.handleSetLyricsFontStyle(config.lyricsFontStyle);
             }
@@ -670,6 +752,12 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (config.monetBackgroundTuning) {
                 store.handleSetMonetBackgroundTuning(config.monetBackgroundTuning);
+            }
+            if (config.nomandBackgroundTuning) {
+                store.handleSetNomandBackgroundTuning(config.nomandBackgroundTuning);
+            }
+            if (config.latentBackgroundTuning) {
+                store.handleSetLatentBackgroundTuning(config.latentBackgroundTuning);
             }
             if (!config.visualizerTunings && config.monetTuning) {
                 store.handleSetMonetTuning(config.monetTuning);
@@ -888,81 +976,40 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 </div>
             </section>
 
-            {/* Section 3: Home Layout styles */}
+            {/* Section 3: Grid card style */}
             <section>
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                    <LayoutGrid size={14} /> {t('options.homeLayoutStyle')}
+                    <LayoutGrid size={14} /> {t('options.grid3dCardStyle')}
                 </h3>
                 <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
                     <div className="space-y-1">
                         <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                            {t('options.homeLayoutStyle')}
+                            {t('options.grid3dCardStyle')}
                         </div>
                         <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.homeLayoutStyleDesc')}
+                            {t('options.grid3dCardStyleDesc')}
                         </div>
-                    </div>
-                    <div className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-xs leading-relaxed ${
-                        isDaylight
-                            ? 'border-amber-500/25 bg-amber-500/10 text-amber-800'
-                            : 'border-amber-400/20 bg-amber-400/10 text-amber-200'
-                    }`}>
-                        <TriangleAlert size={15} className="mt-0.5 shrink-0" />
-                        <span>{t('options.classicHomeLayoutRemovalNotice')}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <button
-                            onClick={() => onChangeHomeLayoutStyle('carousel')}
+                            onClick={() => onChangeGrid3dCardStyle('image')}
                             className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                            style={getAccentOptionStyle(homeLayoutStyle === 'carousel')}
+                            style={getAccentOptionStyle(grid3dCardStyle === 'image')}
                         >
                             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.homeLayoutStyleCarousel')}
+                                {t('options.grid3dCardStyleImage')}
                             </span>
                         </button>
                         <button
-                            onClick={() => onChangeHomeLayoutStyle('grid')}
+                            onClick={() => onChangeGrid3dCardStyle('card')}
                             className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                            style={getAccentOptionStyle(homeLayoutStyle === 'grid')}
+                            style={getAccentOptionStyle(grid3dCardStyle === 'card')}
                         >
                             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.homeLayoutStyleGrid')}
+                                {t('options.grid3dCardStyleCard')}
                             </span>
                         </button>
                     </div>
-
-                    {homeLayoutStyle === 'grid' && (
-                        <div className="pt-4 border-t border-white/5 space-y-3">
-                            <div className="space-y-1">
-                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                    {t('options.grid3dCardStyle')}
-                                </div>
-                                <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.grid3dCardStyleDesc')}
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 mt-1">
-                                <button
-                                    onClick={() => onChangeGrid3dCardStyle('image')}
-                                    className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                                    style={getAccentOptionStyle(grid3dCardStyle === 'image')}
-                                >
-                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                        {t('options.grid3dCardStyleImage')}
-                                    </span>
-                                </button>
-                                <button
-                                    onClick={() => onChangeGrid3dCardStyle('card')}
-                                    className="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all"
-                                    style={getAccentOptionStyle(grid3dCardStyle === 'card')}
-                                >
-                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                        {t('options.grid3dCardStyleCard')}
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </section>
 

@@ -10,15 +10,6 @@ import type { NeteaseChorusRange } from '../../../utils/lyrics/chorusEffects';
 const getStoredNeteaseLyrics = (song: SongResult | null): LyricData | null => {
     if (!song) return null;
     
-    // Local song
-    const localData = (song as any).localData;
-    if (localData) {
-        if (localData.matchedLyricsSource === 'netease' && localData.matchedLyrics) {
-            return localData.matchedLyrics;
-        }
-        return null;
-    }
-
     // Navidrome song
     if ((song as any).isNavidrome) {
         if ((song as any).matchedLyricsSource === 'netease' && (song as any).matchedLyrics) {

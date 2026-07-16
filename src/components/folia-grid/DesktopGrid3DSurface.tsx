@@ -190,6 +190,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                             summary: item.summary,
                             rawCollection: item,
                         }))}
+                        initialFocusedIndex={focusedIndex}
                         onBack={() => setShowGridMap(false)}
                         onSelectCollection={(_, index) => {
                             setShowGridMap(false);

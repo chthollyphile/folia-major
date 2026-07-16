@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerModeLabel, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
+import { hasVisualizerBackgroundMode } from '../components/visualizer/backgrounds/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
 import { buildStoredCappellaEmojiPack, clearCustomCappellaEmojiPack, isSupportedCappellaEmojiFile, saveCustomCappellaEmojiPack } from '../services/cappellaEmojiPack';
 import { buildStoredCappellaAvatar, clearCustomCappellaAvatar, isSupportedCappellaAvatarFile, saveCustomCappellaAvatar } from '../services/cappellaAvatarPack';
@@ -39,6 +40,7 @@ export const HIDE_TASKBAR_ICON_STORAGE_KEY = 'hide_taskbar_icon';
 export const REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY = 'remote_control_skip_taskbar';
 export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 export const SUBTITLE_OVERLAY_OPACITY_STORAGE_KEY = 'subtitle_overlay_opacity';
+export const SUBTITLE_OVERLAY_BACKGROUND_STORAGE_KEY = 'subtitle_overlay_background';
 export const SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY = 'show_subtitle_translation';
 const LYRICS_FONT_FALLBACK_FAMILIES_STORAGE_KEY = 'lyrics_font_fallback_families';
 const SUBTITLE_FONT_INHERITS_LYRICS_STORAGE_KEY = 'subtitle_font_inherits_lyrics';
@@ -174,8 +176,8 @@ const readStoredClassicTuning = (): ClassicTuning => {
             ),
             useLegacyLayout: parsed.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
             wordSpacing: clampClassicWordSpacing(
-                parsed.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing,
-                DEFAULT_CLASSIC_TUNING.wordSpacing,
+                parsed.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
+                DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
             ),
         };
     } catch {
@@ -511,7 +513,7 @@ const readStoredVisualizerBackgroundMode = (): VisualizerBackgroundMode | null =
     }
 
     const saved = localStorage.getItem('visualizer_background_mode');
-    return saved === 'common' || saved === 'monet' || saved === 'url' || saved === 'sora' ? saved : null;
+    return hasVisualizerBackgroundMode(saved) ? saved : null;
 };
 
 const readStoredUrlBackgroundList = (): UrlBackgroundItem[] => {
@@ -576,6 +578,102 @@ export const resolveStoredMonetBackgroundTuning = (parsed: StoredMonetBackground
         DEFAULT_MONET_BACKGROUND_TUNING.backgroundWashCustomColor,
     ),
 });
+
+const resolveNomandBackgroundSource = (value: NomandBackgroundSource | undefined): NomandBackgroundSource => (
+    value === 'uploaded-global' ? 'uploaded-global' : DEFAULT_NOMAND_BACKGROUND_TUNING.imageSource
+);
+
+const resolveNomandDitheringType = (
+    value: unknown,
+): NomandBackgroundDitheringType => (
+    value === '2x2' || value === '4x4' || value === '8x8'
+        ? value
+        : DEFAULT_NOMAND_BACKGROUND_TUNING.ditheringType
+);
+
+type StoredNomandBackgroundTuningInput = Omit<Partial<NomandBackgroundTuning>, 'ditheringType'> & {
+    ditheringType?: unknown;
+};
+
+export const resolveStoredNomandBackgroundTuning = (
+    parsed: StoredNomandBackgroundTuningInput,
+): NomandBackgroundTuning => ({
+    imageSource: resolveNomandBackgroundSource(parsed.imageSource),
+    ditheringType: resolveNomandDitheringType(parsed.ditheringType),
+    size: Math.min(20, Math.max(0.5, Number.isFinite(parsed.size) ? parsed.size! : DEFAULT_NOMAND_BACKGROUND_TUNING.size)),
+    colorSteps: Math.min(7, Math.max(1, Math.round(Number.isFinite(parsed.colorSteps) ? parsed.colorSteps! : DEFAULT_NOMAND_BACKGROUND_TUNING.colorSteps))),
+    originalColors: parsed.originalColors ?? DEFAULT_NOMAND_BACKGROUND_TUNING.originalColors,
+    inverted: parsed.inverted ?? DEFAULT_NOMAND_BACKGROUND_TUNING.inverted,
+    overlayEnabled: typeof parsed.overlayEnabled === 'boolean'
+        ? parsed.overlayEnabled
+        : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: Math.min(1, Math.max(0,
+        Number.isFinite(parsed.overlayOpacity)
+            ? parsed.overlayOpacity!
+            : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayOpacity
+    )),
+});
+
+const readStoredNomandBackgroundTuning = (): NomandBackgroundTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_NOMAND_BACKGROUND_TUNING;
+    }
+
+    const saved = localStorage.getItem('nomand_background_tuning');
+    if (!saved) return DEFAULT_NOMAND_BACKGROUND_TUNING;
+
+    try {
+        return resolveStoredNomandBackgroundTuning(JSON.parse(saved) as Partial<NomandBackgroundTuning>);
+    } catch {
+        return DEFAULT_NOMAND_BACKGROUND_TUNING;
+    }
+};
+
+const resolveLatentDisplayMode = (value: unknown): LatentBackgroundDisplayMode => (
+    value === 'dithering' || value === 'mesh' || value === 'both'
+        ? value
+        : DEFAULT_LATENT_BACKGROUND_TUNING.displayMode
+);
+
+const clampLatentNumber = (value: unknown, fallback: number, min: number, max: number) => (
+    Math.min(max, Math.max(min, typeof value === 'number' && Number.isFinite(value) ? value : fallback))
+);
+
+export const resolveStoredLatentBackgroundTuning = (
+    parsed: Partial<LatentBackgroundTuning>,
+): LatentBackgroundTuning => ({
+    displayMode: resolveLatentDisplayMode(parsed.displayMode),
+    dynamicOnlyInPlayer: typeof parsed.dynamicOnlyInPlayer === 'boolean'
+        ? parsed.dynamicOnlyInPlayer
+        : DEFAULT_LATENT_BACKGROUND_TUNING.dynamicOnlyInPlayer,
+    ditheringSpeed: clampLatentNumber(parsed.ditheringSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed, 0, 2),
+    ditheringAudioSpeed: clampLatentNumber(parsed.ditheringAudioSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed, 0, 2),
+    ditheringSize: clampLatentNumber(parsed.ditheringSize, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSize, 0.5, 8),
+    ditheringOpacity: clampLatentNumber(parsed.ditheringOpacity, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringOpacity, 0, 1),
+    meshSpeed: clampLatentNumber(parsed.meshSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.meshSpeed, 0, 2),
+    meshAudioSpeed: clampLatentNumber(parsed.meshAudioSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.meshAudioSpeed, 0, 2),
+    meshDistortion: clampLatentNumber(parsed.meshDistortion, DEFAULT_LATENT_BACKGROUND_TUNING.meshDistortion, 0, 2),
+    meshSwirl: clampLatentNumber(parsed.meshSwirl, DEFAULT_LATENT_BACKGROUND_TUNING.meshSwirl, 0, 1),
+    overlayEnabled: typeof parsed.overlayEnabled === 'boolean'
+        ? parsed.overlayEnabled
+        : DEFAULT_LATENT_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: clampLatentNumber(parsed.overlayOpacity, DEFAULT_LATENT_BACKGROUND_TUNING.overlayOpacity, 0, 1),
+});
+
+const readStoredLatentBackgroundTuning = (): LatentBackgroundTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_LATENT_BACKGROUND_TUNING;
+    }
+
+    const saved = localStorage.getItem('latent_background_tuning');
+    if (!saved) return DEFAULT_LATENT_BACKGROUND_TUNING;
+
+    try {
+        return resolveStoredLatentBackgroundTuning(JSON.parse(saved) as Partial<LatentBackgroundTuning>);
+    } catch {
+        return DEFAULT_LATENT_BACKGROUND_TUNING;
+    }
+};
 
 type StoredMonetTuningInput = Partial<MonetTuning> & StoredMonetBackgroundTuningInput;
 export const resolveStoredMonetTuning = (parsed: StoredMonetTuningInput): MonetTuning => ({
@@ -777,8 +875,10 @@ const readStoredHomeLayoutStyle = (): 'carousel' | 'grid' => {
     }
 
     const saved = localStorage.getItem('home_layout_style');
-    if (saved === 'desktop') return 'grid';
-    return saved === 'carousel' ? 'carousel' : 'grid';
+    if (saved === 'carousel' || saved === 'desktop') {
+        localStorage.setItem('home_layout_style', 'grid');
+    }
+    return 'grid';
 };
 
 const readStoredPreferredAlternativeLyricSource = (): LyricProviderSource => {
@@ -835,6 +935,7 @@ export type SettingsUiState = {
     enableMediaCache: boolean;
     backgroundOpacity: number;
     subtitleOverlayOpacity: number;
+    subtitleOverlayBackground: boolean;
     visualizerOpacity: number;
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
     urlBackgroundList: UrlBackgroundItem[];
@@ -852,6 +953,8 @@ export type SettingsUiState = {
     tiltTuning: TiltTuning;
     dioramaTuning: DioramaTuning;
     monetBackgroundTuning: MonetBackgroundTuning;
+    nomandBackgroundTuning: NomandBackgroundTuning;
+    latentBackgroundTuning: LatentBackgroundTuning;
     monetTuning: MonetTuning;
     storedCappellaEmojiPack: StoredCappellaEmojiImage[];
     cappellaCustomEmojiImages: CappellaEmojiImage[];
@@ -884,8 +987,6 @@ export type SettingsUiState = {
     loopMode: 'off' | 'all' | 'one';
     homeLayoutStyle: 'carousel' | 'grid';
     grid3dCardStyle: 'image' | 'card';
-    activeGridViewCollection: any | null;
-    setActiveGridViewCollection: (collection: any | null) => void;
     isSubSettingsViewOpen: boolean;
     settingsModalState: SettingsModalState;
     lastSeenGuideVersion: string | null;
@@ -934,6 +1035,7 @@ export type SettingsUiState = {
     handleToggleMediaCache: (enable: boolean) => void;
     handleSetBackgroundOpacity: (opacity: number) => void;
     handleSetSubtitleOverlayOpacity: (opacity: number) => void;
+    handleToggleSubtitleOverlayBackground: (enabled: boolean) => void;
     handleSetVisualizerOpacity: (opacity: number) => void;
     handleSetVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     handleResetVisualizerBackgroundMode: () => void;
@@ -964,6 +1066,10 @@ export type SettingsUiState = {
     handleResetDioramaTuning: () => void;
     handleSetMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     handleResetMonetBackgroundTuning: () => void;
+    handleSetNomandBackgroundTuning: (patch: Partial<NomandBackgroundTuning>) => void;
+    handleResetNomandBackgroundTuning: () => void;
+    handleSetLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    handleResetLatentBackgroundTuning: () => void;
     handleSetMonetTuning: (patch: Partial<MonetTuning>) => void;
     handleResetMonetTuning: () => void;
     handleUploadMonetBackgroundImage: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
@@ -1025,6 +1131,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     enableMediaCache: getStoredBoolean(ENABLE_MEDIA_CACHE_KEY, false),
     backgroundOpacity: readStoredBackgroundOpacity(),
     subtitleOverlayOpacity: readStoredSubtitleOverlayOpacity(),
+    subtitleOverlayBackground: getStoredBoolean(SUBTITLE_OVERLAY_BACKGROUND_STORAGE_KEY, false),
     visualizerOpacity: readStoredVisualizerOpacity(),
     visualizerBackgroundMode: readStoredVisualizerBackgroundMode(),
     urlBackgroundList: readStoredUrlBackgroundList(),
@@ -1042,6 +1149,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     tiltTuning: readStoredTiltTuning(),
     dioramaTuning: readStoredDioramaTuning(),
     monetBackgroundTuning: readStoredMonetBackgroundTuning(),
+    nomandBackgroundTuning: readStoredNomandBackgroundTuning(),
+    latentBackgroundTuning: readStoredLatentBackgroundTuning(),
     monetTuning: readStoredMonetTuning(),
     storedCappellaEmojiPack: [],
     cappellaCustomEmojiImages: [],
@@ -1074,8 +1183,6 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     loopMode: readStoredLoopMode(),
     homeLayoutStyle: readStoredHomeLayoutStyle(),
     grid3dCardStyle: readStoredGrid3dCardStyle(),
-    activeGridViewCollection: null,
-    setActiveGridViewCollection: (collection) => set({ activeGridViewCollection: collection }),
     isSubSettingsViewOpen: false,
     settingsModalState: {
         isOpen: false,
@@ -1324,6 +1431,10 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ subtitleOverlayOpacity: next });
     },
+    handleToggleSubtitleOverlayBackground: (enabled) => {
+        setStoredBoolean(SUBTITLE_OVERLAY_BACKGROUND_STORAGE_KEY, enabled);
+        set({ subtitleOverlayBackground: enabled });
+    },
     handleSetVisualizerOpacity: (opacity) => {
         const next = Math.min(1, Math.max(0.2, opacity));
         if (typeof window !== 'undefined') {
@@ -1451,8 +1562,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             ),
             useLegacyLayout: patch.useLegacyLayout ?? prev.useLegacyLayout,
             wordSpacing: clampClassicWordSpacing(
-                patch.wordSpacing ?? prev.wordSpacing,
-                prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing!,
+                patch.wordSpacing ?? prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
+                prev.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7,
             ),
         };
         if (typeof window !== 'undefined') {
@@ -1628,6 +1739,40 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ monetBackgroundTuning: DEFAULT_MONET_BACKGROUND_TUNING });
         notify(get, { type: 'info', text: i18n.t('notifications.monetBgReset') });
+    },
+    handleSetNomandBackgroundTuning: (patch) => {
+        const next = resolveStoredNomandBackgroundTuning({
+            ...get().nomandBackgroundTuning,
+            ...patch,
+        });
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('nomand_background_tuning', JSON.stringify(next));
+        }
+        set({ nomandBackgroundTuning: next });
+    },
+    handleResetNomandBackgroundTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('nomand_background_tuning', JSON.stringify(DEFAULT_NOMAND_BACKGROUND_TUNING));
+        }
+        set({ nomandBackgroundTuning: DEFAULT_NOMAND_BACKGROUND_TUNING });
+        notify(get, { type: 'info', text: i18n.t('notifications.nomandBgReset') });
+    },
+    handleSetLatentBackgroundTuning: (patch) => {
+        const next = resolveStoredLatentBackgroundTuning({
+            ...get().latentBackgroundTuning,
+            ...patch,
+        });
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('latent_background_tuning', JSON.stringify(next));
+        }
+        set({ latentBackgroundTuning: next });
+    },
+    handleResetLatentBackgroundTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('latent_background_tuning', JSON.stringify(DEFAULT_LATENT_BACKGROUND_TUNING));
+        }
+        set({ latentBackgroundTuning: DEFAULT_LATENT_BACKGROUND_TUNING });
+        notify(get, { type: 'info', text: i18n.t('notifications.latentBgReset') });
     },
     handleSetMonetTuning: (patch) => {
         const prev = get().monetTuning;
@@ -1974,14 +2119,14 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ loopMode: next });
     },
-    handleSetHomeLayoutStyle: (style) => {
+    handleSetHomeLayoutStyle: () => {
         if (typeof window !== 'undefined') {
-            localStorage.setItem('home_layout_style', style);
+            localStorage.setItem('home_layout_style', 'grid');
         }
-        set({ homeLayoutStyle: style });
+        set({ homeLayoutStyle: 'grid' });
         notify(get, {
             type: 'info',
-            text: i18n.t('notifications.' + (style === 'grid' ? 'homeLayoutGrid' : 'homeLayoutCarousel')),
+            text: i18n.t('notifications.homeLayoutGrid'),
         });
     },
     handleSetGrid3dCardStyle: (style) => {
@@ -2017,6 +2162,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     enableMediaCache: state.enableMediaCache,
     backgroundOpacity: state.backgroundOpacity,
     subtitleOverlayOpacity: state.subtitleOverlayOpacity,
+    subtitleOverlayBackground: state.subtitleOverlayBackground,
     visualizerOpacity: state.visualizerOpacity,
     visualizerBackgroundMode: state.visualizerBackgroundMode,
     urlBackgroundList: state.urlBackgroundList,
@@ -2031,8 +2177,6 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleSetHomeLayoutStyle: state.handleSetHomeLayoutStyle,
     grid3dCardStyle: state.grid3dCardStyle,
     handleSetGrid3dCardStyle: state.handleSetGrid3dCardStyle,
-    activeGridViewCollection: state.activeGridViewCollection,
-    setActiveGridViewCollection: state.setActiveGridViewCollection,
     classicTuning: state.classicTuning,
     cadenzaTuning: state.cadenzaTuning,
     partitaTuning: state.partitaTuning,
@@ -2042,6 +2186,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     tiltTuning: state.tiltTuning,
     dioramaTuning: state.dioramaTuning,
     monetBackgroundTuning: state.monetBackgroundTuning,
+    nomandBackgroundTuning: state.nomandBackgroundTuning,
+    latentBackgroundTuning: state.latentBackgroundTuning,
     monetTuning: state.monetTuning,
     cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
     isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
@@ -2088,6 +2234,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleToggleMediaCache: state.handleToggleMediaCache,
     handleSetBackgroundOpacity: state.handleSetBackgroundOpacity,
     handleSetSubtitleOverlayOpacity: state.handleSetSubtitleOverlayOpacity,
+    handleToggleSubtitleOverlayBackground: state.handleToggleSubtitleOverlayBackground,
     handleSetVisualizerOpacity: state.handleSetVisualizerOpacity,
     handleSetVisualizerBackgroundMode: state.handleSetVisualizerBackgroundMode,
     handleResetVisualizerBackgroundMode: state.handleResetVisualizerBackgroundMode,
@@ -2120,6 +2267,10 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetDioramaTuning: state.handleResetDioramaTuning,
     handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
     handleResetMonetBackgroundTuning: state.handleResetMonetBackgroundTuning,
+    handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
+    handleResetNomandBackgroundTuning: state.handleResetNomandBackgroundTuning,
+    handleSetLatentBackgroundTuning: state.handleSetLatentBackgroundTuning,
+    handleResetLatentBackgroundTuning: state.handleResetLatentBackgroundTuning,
     handleSetMonetTuning: state.handleSetMonetTuning,
     handleResetMonetTuning: state.handleResetMonetTuning,
     handleUploadMonetBackgroundImage: state.handleUploadMonetBackgroundImage,

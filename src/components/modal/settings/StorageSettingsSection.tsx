@@ -6,6 +6,7 @@ import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeS
 import { exportSyncLibraryBundle, importSyncLibraryBundle, isSyncLibraryExportBundle, syncNow, testSyncProviderConnection } from '../../../services/sync/syncCoordinator';
 import { createSyncLibraryZipBlob, readSyncLibraryZipFile } from '../../../services/sync/syncArchive';
 import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from '../../../services/sync/syncTypes';
+import { createSafeObjectUrl } from '../../../utils/blobGuards';
 
 // src/components/modal/settings/StorageSettingsSection.tsx
 // Shared storage and media cache settings used by the main options page and storage subview.
@@ -180,7 +181,8 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
         try {
             const bundle = await exportSyncLibraryBundle();
             const blob = createSyncLibraryZipBlob(bundle);
-            const url = URL.createObjectURL(blob);
+            const url = createSafeObjectUrl(blob);
+            if (!url) throw new TypeError('Sync export must produce a Blob');
             const link = document.createElement('a');
             link.href = url;
             link.download = `folia-sync-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;

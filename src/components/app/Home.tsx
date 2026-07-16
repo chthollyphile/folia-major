@@ -1,7 +1,5 @@
 import React from 'react';
-import LegacyHome from '../Home';
 import Grid3D from '../Grid3D';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import GridViewOverlayHost from './home/GridViewOverlayHost';
 import type { HomeViewModel } from './home/buildHomeModel';
 
@@ -12,25 +10,25 @@ type AppHomeProps = {
 };
 
 const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden }) => {
-    const homeLayoutStyle = useSettingsUiStore(state => state.homeLayoutStyle);
-
     if (isHomeFullyHidden) {
         return null;
     }
 
-    if (homeLayoutStyle === 'grid') {
-        return (
-            <GridViewOverlayHost legacyProps={model.legacyProps}>
-                {(openGridView) => (
-                    <Grid3D
-                        {...model.legacyProps}
-                        onOpenGridView={openGridView}
-                    />
-                )}
-            </GridViewOverlayHost>
-        );
-    }
-    return <LegacyHome {...model.legacyProps} />;
+    return (
+        <GridViewOverlayHost
+            legacyProps={model.legacyProps}
+            onOpenCollection={model.onOpenCollection}
+            onPushCollection={model.onPushCollection}
+            onBackCollection={model.onBackCollection}
+        >
+            {(openGridView) => (
+                <Grid3D
+                    {...model.legacyProps}
+                    onOpenGridView={openGridView}
+                />
+            )}
+        </GridViewOverlayHost>
+    );
 };
 
 export default Home;

@@ -140,4 +140,50 @@ describe('playbackSyncBridge', () => {
             isPlaying: false,
         });
     });
+
+    it('locates the current song by source when numeric ids collide', () => {
+        const localSong = {
+            ...makeSong(-1, 'Local Song'),
+            isLocal: true,
+            localRef: { songId: 'local-1' },
+        } as SongResult;
+        const navidromeSong = {
+            ...makeSong(-1, 'Navidrome Song'),
+            isNavidrome: true,
+            navidromeData: {
+                id: 'navi-1',
+                streamUrl: 'https://example.com/navi-1',
+                albumId: 'album-1',
+                artistId: 'artist-1',
+                path: 'navi-1.flac',
+                suffix: 'flac',
+            },
+        } as SongResult;
+
+        const model = buildPlaybackSyncBridgeModel({
+            activePlaybackContext: 'main',
+            currentSong: navidromeSong,
+            playQueue: [localSong, navidromeSong],
+            currentTimeSec: 0,
+            durationSec: 180,
+            playerState: PlayerState.PAUSED,
+            coverUrl: null,
+            effectiveLoopMode: 'off',
+            isFmMode: false,
+            isStageActive: false,
+            controlsDisabled: false,
+            transparentModeEnabled: false,
+            mainWindowClickThroughEnabled: false,
+            mainWindowBorderVisible: false,
+            playerChromeHidden: false,
+            exportState,
+            isDaylight: false,
+            isLiked: false,
+            mainWindowWidth: 800,
+            mainWindowHeight: 600,
+        });
+
+        expect(model.currentIndex).toBe(1);
+        expect(model.canGoPrevious).toBe(true);
+    });
 });

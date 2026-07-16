@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { getFromCache } from '../services/db';
+import { getFromCache, getLocalSongs } from '../services/db';
+import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRepository';
+import { buildLocalQueue } from '../services/playbackAdapters';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
-import { isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, isStagePlaybackSong } from '../utils/appPlaybackGuards';
 import type { LyricData, SongResult, StatusMessage } from '../types';
 
 // src/hooks/useSessionRestoreController.ts
@@ -76,8 +78,8 @@ export function useSessionRestoreController({
 
         const restoreSession = async () => {
             try {
-                const lastSong = await getFromCache<SongResult>('last_song');
-                const lastQueue = await getFromCache<SongResult[]>('last_queue');
+                let lastSong = await getFromCache<SongResult>('last_song');
+                let lastQueue = await getFromCache<SongResult[]>('last_queue');
 
                 if (isStagePlaybackSong(lastSong) || lastQueue?.some(song => isStagePlaybackSong(song))) {
                     await clearPersistedStagePlaybackCache();
@@ -86,6 +88,34 @@ export function useSessionRestoreController({
 
                 if (!lastSong) {
                     return;
+                }
+
+                const containsLocalSnapshot = [lastSong, ...(lastQueue || [])].some(song => (
+                    Boolean((song as any).isLocal)
+                    || Boolean((song as any).localRef?.songId)
+                    || Boolean((song as any).localData?.id)
+                ));
+                if (containsLocalSnapshot) {
+                    const [localSongs, catalog] = await Promise.all([
+                        getLocalSongs(),
+                        getLocalLibraryCatalogSnapshot(),
+                    ]);
+                    const songsById = new Map(localSongs.map(song => [song.id, song]));
+                    const rebuild = (cached: SongResult): SongResult | null => {
+                        const songId = (cached as any).localRef?.songId || (cached as any).localData?.id;
+                        if (!songId) return cached;
+                        const localSong = songsById.get(songId);
+                        if (!localSong) return null;
+                        return buildLocalQueue([localSong], undefined, catalog)[0] || null;
+                    };
+                    lastSong = rebuild(lastSong);
+                    lastQueue = (lastQueue || []).map(rebuild).filter((song): song is SongResult => Boolean(song));
+                    if (!lastSong) return;
+                    const lastSongKey = getPlaybackSongKey(lastSong);
+                    if (!lastQueue.some(song => getPlaybackSongKey(song) === lastSongKey)) {
+                        lastQueue.unshift(lastSong);
+                    }
+                    await persistLastPlaybackCache(lastSong, lastQueue);
                 }
 
                 console.log('[Session] Restoring last song:', lastSong.name);

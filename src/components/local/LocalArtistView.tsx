@@ -118,13 +118,13 @@ const LocalArtistView: React.FC<LocalArtistViewProps> = ({
                                                     return;
                                                 }
                                                 event.stopPropagation();
-                                                const albumName = song.matchedAlbumName || song.album;
+                                                const albumName = song.onlineMetadata?.album?.name || song.importedMetadata.albumName;
                                                 if (albumName) {
                                                     onSelectAlbum(albumName);
                                                 }
                                             }}
                                         >
-                                            {song.matchedAlbumName || song.album || t('localMusic.unknownAlbum')}
+                                            {song.onlineMetadata?.album?.name || song.importedMetadata.albumName || t('localMusic.unknownAlbum')}
                                         </span>
                                     </div>
                                 </div>

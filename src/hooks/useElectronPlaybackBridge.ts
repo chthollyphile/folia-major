@@ -475,7 +475,9 @@ export const useElectronPlaybackBridge = ({
                 }
 
                 const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : audioElement?.duration;
-                const upperBound = Number.isFinite(safeDuration) && safeDuration > 0 ? safeDuration : command.time;
+                const upperBound = typeof safeDuration === 'number' && Number.isFinite(safeDuration) && safeDuration > 0
+                    ? safeDuration
+                    : command.time;
                 const nextTime = Math.max(0, Math.min(command.time, upperBound));
                 if (audioElement) {
                     audioElement.currentTime = nextTime;

@@ -37,10 +37,6 @@ const getSongArtists = (song: SongResult | null): string => {
         return artistNames.join(', ');
     }
 
-    if (isLocalPlaybackSong(song)) {
-        return song.localData.matchedArtists || song.localData.artist || '';
-    }
-
     const navidromeSong = resolveNavidromePlaybackCarrier(song);
     return navidromeSong?.artists?.map(artist => artist.name).filter(Boolean).join(', ') || '';
 };
@@ -52,10 +48,6 @@ const getSongAlbum = (song: SongResult | null): string => {
 
     if (song.al?.name || song.album?.name) {
         return song.al?.name || song.album?.name || '';
-    }
-
-    if (isLocalPlaybackSong(song)) {
-        return song.localData.matchedAlbumName || song.localData.album || '';
     }
 
     const navidromeSong = resolveNavidromePlaybackCarrier(song);

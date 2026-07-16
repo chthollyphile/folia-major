@@ -1,6 +1,7 @@
 import type React from 'react';
-import type { SearchReturnView } from '../../stores/useSearchNavigationStore';
-import type { HomeViewTab, LocalSong, PlayerState, SongResult, StatusMessage, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
+import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, PlayerState, SongResult, StatusMessage, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
@@ -10,7 +11,7 @@ import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/us
 
 export type CommandPaletteGroup = 'search' | 'settings' | 'navigation' | 'panel' | 'playback' | 'visualizer';
 
-export type CommandPaletteSearchSource = HomeViewTab;
+export type CommandPaletteSearchSource = SearchSource;
 
 export type CommandPaletteCommand = {
     id: string;
@@ -33,15 +34,16 @@ export type CommandPaletteMatch = {
 };
 
 export type CommandPaletteContext = {
-    currentSearchSourceTab: HomeViewTab;
+    currentSearchSourceTab: SearchSource;
     localSongs: LocalSong[];
+    localLibraryCatalog: LocalLibraryDisplayCatalog;
     playerState: PlayerState;
     t: (key: string, fallback?: string) => string;
     setStatusMsg: React.Dispatch<React.SetStateAction<StatusMessage | null>>;
     openSettings: (initialTab?: SettingsModalInitialTab, initialSubview?: SettingsSubviewId | null) => void;
     navigateToHome: () => void;
     navigateToPlayer: () => void;
-    navigateToSearch: (args: { query: string; sourceTab: HomeViewTab; replace?: boolean; returnView?: SearchReturnView; }) => void;
+    navigateToSearch: (args: { query: string; sourceTab: SearchSource; replace?: boolean; returnView?: SearchReturnView; }) => void;
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;
     toggleMainWindowAlwaysOnTop: () => Promise<boolean>;
@@ -50,9 +52,10 @@ export type CommandPaletteContext = {
     setIsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
     submitSearch: (args: {
         query?: string;
-        sourceTab: HomeViewTab;
+        sourceTab: SearchSource;
         deps: {
             localSongs: LocalSong[];
+            localLibraryCatalog?: LocalLibraryDisplayCatalog;
             t: (key: string, fallback?: string) => string;
         };
         returnView?: SearchReturnView;
@@ -72,11 +75,14 @@ export type CommandPaletteContext = {
     toggleRandomVisualizerModePerSong: () => void;
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
+    setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
     toggleTransparentBackground: () => void;
     hideBottomSubtitleOverlay: boolean;
     toggleBottomSubtitleOverlay: () => void;
     showSubtitleTranslation: boolean;
     toggleSubtitleTranslation: () => void;
+    subtitleOverlayBackground: boolean;
+    toggleSubtitleOverlayBackground: () => void;
     toggleDaylightMode: () => void;
     setAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void> | void;
     enableAlternativeLyricSources: boolean;

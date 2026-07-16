@@ -1,10 +1,12 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { UnifiedSong, ReplayGainMode } from '../../types';
 import { FileAudio, RefreshCw, FileText, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
+import { getLocalSongs } from '../../services/db';
+import type { LocalSong } from '../../types';
 
 interface LocalTabProps {
     currentSong: UnifiedSong;
@@ -40,15 +42,20 @@ const LocalTab: React.FC<LocalTabProps> = ({
     const { t } = useTranslation();
     const lrcInputRef = useRef<HTMLInputElement>(null);
 
-    const localData = currentSong.localData;
+    const [localData, setLocalData] = useState<LocalSong | null>(null);
+    const localSongId = currentSong.localRef?.songId;
 
-    if (!currentSong.isLocal || !localData) {
-        return (
-            <div className="flex items-center justify-center h-full opacity-60">
-                {t('localMusic.notALocalSong')}
-            </div>
-        );
-    }
+    useEffect(() => {
+        let active = true;
+        setLocalData(null);
+        if (!localSongId) {
+            return;
+        }
+        void getLocalSongs().then(songs => {
+            if (active) setLocalData(songs.find(song => song.id === localSongId) || null);
+        });
+        return () => { active = false; };
+    }, [localSongId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isTranslation: boolean) => {
         const file = e.target.files?.[0];
@@ -70,6 +77,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
     // Compute available lyrics sources
     const availableSources = useMemo(() => {
         const sources: { key: 'local' | 'embedded' | 'online'; label: string }[] = [];
+        if (!localData) return sources;
         if (localData.hasLocalLyrics) {
             sources.push({ key: 'local', label: t('localMusic.statusLocal') });
         }
@@ -84,6 +92,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
 
     // Determine currently active source
     const activeSource = useMemo(() => {
+        if (!localData) return null;
         if (localData.lyricsSource) return localData.lyricsSource;
         // Default priority: local > embedded > online
         if (localData.hasLocalLyrics) return 'local';
@@ -102,6 +111,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
     ];
     const lyricsStatus = useMemo(() => {
         const states: string[] = [];
+        if (!localData) return t('localMusic.statusNone');
         if (localData.hasLocalLyrics) states.push(t('localMusic.statusLocal'));
         if (localData.hasEmbeddedLyrics) states.push(t('localMusic.statusEmbedded'));
         if ((localData.matchedLyrics?.lines?.length ?? 0) > 0) {
@@ -111,6 +121,7 @@ const LocalTab: React.FC<LocalTabProps> = ({
     }, [localData, t]);
     const replayGainSummary = useMemo(() => {
         const parts: string[] = [];
+        if (!localData) return t('localMusic.replayGainUnavailable');
         if (typeof localData.replayGainTrackGain === 'number') {
             parts.push(`T ${localData.replayGainTrackGain > 0 ? '+' : ''}${localData.replayGainTrackGain.toFixed(1)} dB`);
         }
@@ -119,6 +130,14 @@ const LocalTab: React.FC<LocalTabProps> = ({
         }
         return parts.length > 0 ? parts.join(' / ') : t('localMusic.replayGainUnavailable');
     }, [localData, t]);
+
+    if (!currentSong.isLocal || !localData) {
+        return (
+            <div className="flex items-center justify-center h-full opacity-60">
+                {t('localMusic.notALocalSong')}
+            </div>
+        );
+    }
 
     return (
         <motion.div

@@ -1,21 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCachedCoverUrl, loadCachedOrFetchCover } from '@/services/coverCache';
-import { getFromCache, saveToCache } from '@/services/db';
+import { cacheLocalSongOnlineCover, getCachedCoverUrl, loadCachedOrFetchCover } from '@/services/coverCache';
+import { getFromCache, removeFromCache, saveToCache } from '@/services/db';
+import { readCoverAsset, removeCoverAsset, writeCoverAsset } from '@/services/binaryAssetStore';
 
 vi.mock('@/services/db', () => ({
     getFromCache: vi.fn(),
+    removeFromCache: vi.fn(),
     saveToCache: vi.fn()
+}));
+vi.mock('@/services/binaryAssetStore', () => ({
+    clearCoverAssets: vi.fn(),
+    getCoverAssetUsage: vi.fn(),
+    readCoverAsset: vi.fn(),
+    removeCoverAsset: vi.fn(),
+    writeCoverAsset: vi.fn(),
 }));
 
 describe('coverCache', () => {
     const getFromCacheMock = vi.mocked(getFromCache);
     const saveToCacheMock = vi.mocked(saveToCache);
+    const removeFromCacheMock = vi.mocked(removeFromCache);
+    const readCoverAssetMock = vi.mocked(readCoverAsset);
+    const removeCoverAssetMock = vi.mocked(removeCoverAsset);
+    const writeCoverAssetMock = vi.mocked(writeCoverAsset);
     const originalFetch = globalThis.fetch;
     const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL');
 
     beforeEach(() => {
         getFromCacheMock.mockReset();
         saveToCacheMock.mockReset();
+        removeFromCacheMock.mockReset();
+        readCoverAssetMock.mockReset().mockResolvedValue(null);
+        removeCoverAssetMock.mockReset();
+        writeCoverAssetMock.mockReset().mockResolvedValue(null);
         createObjectUrlSpy.mockReset();
         createObjectUrlSpy.mockReturnValue('blob:cached-cover');
         globalThis.fetch = vi.fn() as typeof fetch;
@@ -46,7 +63,9 @@ describe('coverCache', () => {
     });
 
     it('fetches and saves cover blobs on cache miss', async () => {
-        const blob = new Blob(['fresh']);
+        const blob = new Blob(['fresh'], { type: 'image/png' });
+        const descriptor = { backend: 'opfs' as const, mimeType: 'image/png', size: blob.size, updatedAt: 1 };
+        writeCoverAssetMock.mockResolvedValue(descriptor);
         getFromCacheMock.mockResolvedValueOnce(null);
         const fetchMock = vi.fn().mockResolvedValue({
             blob: vi.fn().mockResolvedValue(blob)
@@ -55,7 +74,8 @@ describe('coverCache', () => {
 
         await expect(loadCachedOrFetchCover('cover_3', 'https://img.test/fresh.png')).resolves.toBe('blob:cached-cover');
         expect(fetchMock).toHaveBeenCalledWith('https://img.test/fresh.png', { mode: 'cors' });
-        expect(saveToCacheMock).toHaveBeenCalledWith('cover_3', blob);
+        expect(writeCoverAssetMock).toHaveBeenCalledWith('cover_3', blob);
+        expect(saveToCacheMock).toHaveBeenCalledWith('cover_3', descriptor);
         expect(createObjectUrlSpy).toHaveBeenCalledWith(blob);
     });
 
@@ -67,6 +87,33 @@ describe('coverCache', () => {
         expect(warnSpy).toHaveBeenCalled();
 
         warnSpy.mockRestore();
+    });
+
+    it('replaces the stable local-song cover cache', async () => {
+        const blob = new Blob(['matched-cover'], { type: 'image/png' });
+        const descriptor = { backend: 'opfs' as const, mimeType: 'image/png', size: blob.size, updatedAt: 1 };
+        writeCoverAssetMock.mockResolvedValue(descriptor);
+        globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(blob) }) as typeof fetch;
+        await expect(cacheLocalSongOnlineCover('song-id', 'https://img.test/matched.png')).resolves.toBe(true);
+        expect(removeFromCacheMock).toHaveBeenCalledWith('cover_local_song-id');
+        expect(removeCoverAssetMock).toHaveBeenCalledWith('cover_local_song-id');
+        expect(saveToCacheMock).toHaveBeenCalledWith('cover_local_song-id', descriptor);
+    });
+
+    it('fetches QQ cover blobs through the same-origin proxy in web builds', async () => {
+        const blob = new Blob(['qq-cover'], { type: 'image/jpeg' });
+        const descriptor = { backend: 'opfs' as const, mimeType: 'image/jpeg', size: blob.size, updatedAt: 1 };
+        writeCoverAssetMock.mockResolvedValue(descriptor);
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(blob) });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        const coverUrl = 'https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg?max_age=2592000';
+
+        await expect(cacheLocalSongOnlineCover('qq-song', coverUrl)).resolves.toBe(true);
+        expect(fetchMock).toHaveBeenCalledWith(
+            `/api/lyric-proxy?url=${encodeURIComponent(coverUrl)}`,
+            { mode: 'cors' },
+        );
+        expect(saveToCacheMock).toHaveBeenCalledWith('cover_local_qq-song', descriptor);
     });
 
     afterEach(() => {

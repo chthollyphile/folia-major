@@ -149,6 +149,23 @@ describe('calculateMatchScore', () => {
         expect(wrongDurationScore).toBeLessThan(75);
     });
 
+    it('marks duration as matched only when the difference is at most three seconds', () => {
+        const target = {
+            title: 'Song Title',
+            artist: 'Artist Name',
+            durationMs: 200000
+        };
+        const result = {
+            id: 303,
+            name: 'Song Title',
+            artists: [{ id: 1, name: 'Artist Name' }],
+            album: { id: 1, name: 'Album Name' }
+        };
+
+        expect(calculateMatchScoreDetails(target, { ...result, duration: 203000 }).durationMatched).toBe(true);
+        expect(calculateMatchScoreDetails(target, { ...result, duration: 203001 }).durationMatched).toBe(false);
+    });
+
     it('strips feat. tags from album and handles partial artist arrays safely', () => {
         const details = calculateMatchScoreDetails(
             {

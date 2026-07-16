@@ -96,7 +96,7 @@ class FakeDirectoryHandle {
         return 'granted' as PermissionState;
     }
 
-    async isSameEntry(other: FileSystemHandle) {
+    async isSameEntry(other: FileSystemHandle): Promise<boolean> {
         return other instanceof FakeDirectoryHandle && other.sameEntryToken === this.sameEntryToken;
     }
 }
@@ -118,6 +118,9 @@ const createSong = (patch: Partial<LocalSong> = {}): LocalSong => ({
     id: 'local-track-01',
     fileName: 'Track 01.mp3',
     filePath: 'Music/Disc 1/Track 01.mp3',
+    title: 'Track 01',
+    titleOrigin: 'import',
+    importedMetadata: { title: 'Track 01', titleSource: 'filename', artistNames: [] },
     duration: 0,
     fileSize: 5,
     fileLastModified: 1000,

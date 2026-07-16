@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Line, Theme } from '../../types';
 import { resolveThemeTranslationFontStack } from '../../utils/fontStacks';
+import { colorWithAlpha } from './colorMix';
 
 // Some songs' lyric data carries pure marker/separator lines ("//", "●●●", dashes, stray slashes from
 // instrumental breaks or credits formatting). Those are timing placeholders, never display text: a
@@ -21,6 +22,7 @@ interface VisualizerSubtitleOverlayProps {
     upcomingFontSize: string;
     opacity?: number;
     subtitleOverlayOpacity?: number;
+    subtitleOverlayBackground?: boolean;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
     showSubtitleTranslation?: boolean;
@@ -65,6 +67,7 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
     upcomingFontSize,
     opacity = 0.6,
     subtitleOverlayOpacity,
+    subtitleOverlayBackground = false,
     isPlayerChromeHidden = false,
     hideTranslationSubtitle = false,
     showSubtitleTranslation = true,
@@ -81,6 +84,16 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
         showSubtitleTranslation,
     });
     const resolvedOpacity = subtitleOverlayOpacity ?? opacity;
+    const contentClassName = subtitleOverlayBackground
+        ? 'inline-block rounded px-1.5 py-0.5'
+        : 'inline-block';
+    const contentStyle = subtitleOverlayBackground
+        ? {
+            backgroundColor: colorWithAlpha(theme.backgroundColor, 0.8),
+            boxShadow: `0 0 20px 5px ${colorWithAlpha(theme.backgroundColor, 0.8)}`,
+        }
+        : undefined;
+    const textShadow = `0 1px 2px ${colorWithAlpha(theme.backgroundColor, 0.24)}`;
 
     return (
         <AnimatePresence>
@@ -101,34 +114,40 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                     className="absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
                 >
                     {translationText ? (
-                        <motion.div
-                            key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            data-font-debug-target="visualizer-translation"
-                            className="font-medium max-w-4xl mx-auto"
-                            style={{
-                                color: theme.secondaryColor,
-                                fontSize: translationFontSize,
-                                fontFamily: resolveThemeTranslationFontStack(subtitleTheme ?? theme),
-                            }}
-                        >
-                            {translationText}
-                        </motion.div>
-                    ) : activeLine ? (
-                        upcomingLines.map((line, index) => (
-                            <p
-                                key={index}
-                                className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
+                        <div className={contentClassName} style={contentStyle}>
+                            <motion.div
+                                key={`trans-${activeLine?.startTime || recentCompletedLine?.startTime}`}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                data-font-debug-target="visualizer-translation"
+                                className="font-medium max-w-4xl mx-auto"
                                 style={{
                                     color: theme.secondaryColor,
-                                    fontSize: upcomingFontSize,
+                                    fontSize: translationFontSize,
+                                    fontFamily: resolveThemeTranslationFontStack(subtitleTheme ?? theme),
+                                    textShadow,
                                 }}
                             >
-                                {line.fullText}
-                            </p>
-                        ))
+                                {translationText}
+                            </motion.div>
+                        </div>
+                    ) : activeLine && upcomingLines.length > 0 ? (
+                        <div className={`${contentClassName} space-y-2`} style={contentStyle}>
+                            {upcomingLines.map((line, index) => (
+                                <p
+                                    key={index}
+                                    className="truncate max-w-2xl mx-auto transition-all duration-500 blur-[1px]"
+                                    style={{
+                                        color: theme.secondaryColor,
+                                        fontSize: upcomingFontSize,
+                                        textShadow,
+                                    }}
+                                >
+                                    {line.fullText}
+                                </p>
+                            ))}
+                        </div>
                     ) : null}
                 </motion.div>
             )}

@@ -9,6 +9,7 @@ import type {
     CommandPaletteMatch,
     CommandPaletteSearchSource,
 } from './types';
+import type { SearchSource } from '../../stores/useSearchNavigationStore';
 
 // src/components/command-palette/commandRegistry.ts
 // Defines command palette entries and the lightweight matching used for autocomplete.
@@ -38,7 +39,7 @@ const buildQueueSongDescription = (song: SongResult, index: number, context: Com
     return metadata || context.t('commandPalette.queueIndex', 'Queue #{{index}}').replace('{{index}}', String(index + 1));
 };
 
-const getSearchSourceLabel = (sourceTab: HomeViewTab, context: CommandPaletteContext) => {
+const getSearchSourceLabel = (sourceTab: SearchSource, context: CommandPaletteContext) => {
     if (sourceTab === 'local') {
         return context.t('commandPalette.sourceLocal', 'local library');
     }
@@ -50,7 +51,7 @@ const getSearchSourceLabel = (sourceTab: HomeViewTab, context: CommandPaletteCon
 
 const buildSearchPreview = (
     input: string,
-    sourceTab: HomeViewTab,
+    sourceTab: SearchSource,
     context: CommandPaletteContext,
     isCurrentSource: boolean
 ) => {
@@ -83,6 +84,7 @@ const runSearch = async (
         sourceTab,
         deps: {
             localSongs: context.localSongs,
+            localLibraryCatalog: context.localLibraryCatalog,
             t: context.t,
         },
         returnView: 'player',
@@ -105,7 +107,7 @@ const createSearchCommand = (
     title: string,
     description: string,
     keywords: string[],
-    resolveSource: (context: CommandPaletteContext) => HomeViewTab
+    resolveSource: (context: CommandPaletteContext) => SearchSource
 ): CommandPaletteCommand => ({
     id,
     group: 'search',
@@ -236,7 +238,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createSearchCommand('search-current', 'Search songs', 'Search songs in the current source', ['search', 'find', 'song', '搜索', '搜歌', 'sousuo', 'souge', 'ss', 'sg'], context => context.currentSearchSourceTab),
     createSearchCommand('search-local', 'Search local songs', 'Search local library', ['local', 'local search', 'search local', '本地', '本地音乐', 'bendi', 'bendiyinyue', 'bd', 'bdyy'], () => 'local'),
     createSearchCommand('search-navidrome', 'Search Navidrome songs', 'Search Navidrome library', ['navi', 'navidrome', 'search navidrome', '导航', '服务器', 'fuwuqi', 'fwq'], () => 'navidrome'),
-    createSearchCommand('search-netease', 'Search NetEase songs', 'Search NetEase Cloud Music', ['netease', 'cloud', 'search netease', '网易云', '网抑云', 'wangyiyun', 'wyy'], () => 'playlist'),
+    createSearchCommand('search-netease', 'Search NetEase songs', 'Search NetEase Cloud Music', ['netease', 'cloud', 'search netease', '网易云', '网抑云', 'wangyiyun', 'wyy'], () => 'netease'),
     createQueueSearchCommand(),
 
     createSettingsCommand('settings-help', 'Open Help', 'Open help and shortcuts', ['help', '帮助', 'bangzhu', 'bz'], 'help'),
@@ -508,6 +510,64 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'background-nomand',
+        group: 'visualizer',
+        title: 'Background: Nomand',
+        description: 'Switch background to theme-colored image dithering',
+        keywords: ['nomand', 'dithering', 'dither', 'shader background', '漫游', '像素画', '像素画背景', '抖动背景', '网点背景', '主题色背景', 'man you', 'xiang su hua', 'dou dong bei jing', 'wang dian bei jing', 'my', 'xsh', 'ddbj', 'wdbj'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('nomand');
+            return true;
+        },
+    },
+    {
+        id: 'background-latent',
+        group: 'visualizer',
+        title: 'Background: Latent',
+        description: 'Switch background to cover-colored audio-reactive shaders',
+        keywords: ['latent', 'latent background', 'shader background', '隐现', '隐现背景', '音频响应背景', 'yin xian', 'yinxian', 'yxbj'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-dithering',
+        group: 'visualizer',
+        title: 'Latent: Pixel',
+        description: 'Show only the Dithering layer in Latent background',
+        keywords: ['latent pixel', 'latent dithering', '隐现像素', '像素层', 'yinxian xiangsu', 'yxxs'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'dithering' });
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-mesh',
+        group: 'visualizer',
+        title: 'Latent: Fluid',
+        description: 'Show only the MeshGradient layer in Latent background',
+        keywords: ['latent fluid', 'latent mesh', 'mesh gradient', '隐现流体', '流体层', 'yinxian liuti', 'yxlt'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'mesh' });
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-both',
+        group: 'visualizer',
+        title: 'Latent: Mixed',
+        description: 'Show both shader layers in Latent background',
+        keywords: ['latent mixed', 'latent both', '隐现混合', '双层背景', 'yinxian hunhe', 'yxhh'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'both' });
+            return true;
+        },
+    },
+    {
         id: 'background-url',
         group: 'visualizer',
         title: 'Background: Embedded Background',
@@ -616,6 +676,37 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
             return true;
         },
     },
+    {
+        id: 'settings-toggle-subtitle-background',
+        group: 'settings',
+        title: 'Toggle subtitle background',
+        description: 'Show or hide the readability background behind visualizer subtitles',
+        keywords: [
+            'subtitle background',
+            'subtitle readability background',
+            'caption background',
+            'show subtitle background',
+            'hide subtitle background',
+            '字幕背景',
+            '切换字幕背景',
+            '显示字幕背景',
+            '隐藏字幕背景',
+            '字幕底色',
+            'zimu beijing',
+            'qiehuan zimu beijing',
+            'xianshi zimu beijing',
+            'yincang zimu beijing',
+            'zimu dise',
+            'zmbj',
+            'qhzmbj',
+            'xszmbj',
+            'yczmbj',
+        ],
+        execute: (_input, context) => {
+            context.toggleSubtitleOverlayBackground();
+            return true;
+        },
+    },
     createAppLanguageCommand('settings-language-system', 'system', 'Follow system language', 'Use the browser or system language', ['system language', 'follow system', 'auto language', '跟随系统', '系统语言', 'gensuixitong', 'xitongyuyan', 'gsxt', 'xtyy']),
     createAppLanguageCommand('settings-language-zh-CN', 'zh-CN', 'Switch language to Chinese', 'Use Simplified Chinese in the interface', ['chinese', 'simplified chinese', '中文', '简体中文', 'zhongwen', 'jiantizhongwen', 'zw', 'jtzw']),
     createAppLanguageCommand('settings-language-en', 'en', 'Switch language to English', 'Use English in the interface', ['english', 'interface english', '英文', 'yingwen', 'yw']),
@@ -713,7 +804,7 @@ export const getCommandPaletteMatches = (
     if (!normalizedQuery) {
         const recentCommands = recentCommandIds
             .map(commandId => filteredCommands.find(command => command.id === commandId))
-            .filter((command): command is CommandPaletteCommand => Boolean(command) && !command.requiresInput);
+            .filter((command): command is CommandPaletteCommand => command !== undefined && !command.requiresInput);
         const recentCommandIdSet = new Set(recentCommands.map(command => command.id));
         const defaultCommands = filteredCommands.filter(command => !recentCommandIdSet.has(command.id));
 

@@ -13,6 +13,7 @@ type UsePlaybackAudioBridgeParams = {
     audioRef: RefObject<HTMLAudioElement | null>;
     audioSrc: string | null;
     currentSong: SongResult | null;
+    localSongs: LocalSong[];
     isLyricsLoading: boolean;
     enableMediaCache: boolean;
     isPanelOpen: boolean;
@@ -38,6 +39,7 @@ export function usePlaybackAudioBridge({
     audioRef,
     audioSrc,
     currentSong,
+    localSongs,
     isLyricsLoading,
     enableMediaCache,
     isPanelOpen,
@@ -135,8 +137,9 @@ export function usePlaybackAudioBridge({
 
         let replayGainDb = 0;
         let replayGainPeak: number | undefined;
-        if ((currentSong as SongResult & { isLocal?: boolean; localData?: LocalSong }).isLocal && (currentSong as SongResult & { localData?: LocalSong }).localData) {
-            const localData = (currentSong as SongResult & { localData: LocalSong }).localData;
+        const localSongId = (currentSong as SongResult & { localRef?: { songId: string } }).localRef?.songId;
+        const localData = localSongId ? localSongs.find(song => song.id === localSongId) : undefined;
+        if ((currentSong as SongResult & { isLocal?: boolean }).isLocal && localData) {
 
             if (replayGainMode === 'track') {
                 replayGainDb = typeof localData.replayGainTrackGain === 'number'
@@ -185,7 +188,7 @@ export function usePlaybackAudioBridge({
         } catch (error) {
             console.warn('[AudioContext] Failed to apply ReplayGain', error);
         }
-    }, [audioContextRef, currentSong, gainNodeRef, getTargetPlaybackVolume, replayGainLinearRef, replayGainMode, syncOutputGain]);
+    }, [audioContextRef, currentSong, gainNodeRef, getTargetPlaybackVolume, localSongs, replayGainLinearRef, replayGainMode, syncOutputGain]);
 
     useEffect(() => {
         const audioElement = audioRef.current;

@@ -1,7 +1,7 @@
 import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlSnapshot } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
-import { isLocalPlaybackSong, resolveNavidromePlaybackCarrier } from './appPlaybackGuards';
+import { getPlaybackSongKey, isLocalPlaybackSong, resolveNavidromePlaybackCarrier } from './appPlaybackGuards';
 import { buildStagePlayerSnapshot } from './stagePlayerSnapshot';
 
 // src/utils/playbackSyncBridge.ts
@@ -102,10 +102,6 @@ const getPlaybackSyncBridgeArtist = (song: SongResult | null): string | null => 
         return primaryArtists.join(', ');
     }
 
-    if (isLocalPlaybackSong(song)) {
-        return song.localData.matchedArtists || song.localData.artist || null;
-    }
-
     const navidromeSong = resolveNavidromePlaybackCarrier(song);
     return navidromeSong?.artists?.map(artist => artist.name).filter(Boolean).join(', ') || null;
 };
@@ -148,7 +144,10 @@ export const buildPlaybackSyncBridgeModel = ({
     sampledAt = Date.now(),
 }: BuildPlaybackSyncBridgeModelArgs): PlaybackSyncBridgeModel => {
     const hasTrack = !isStageActive && Boolean(currentSong);
-    const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
+    const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+    const currentIndex = currentSongKey
+        ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
+        : -1;
     const hasQueueNeighbors = playQueue.length > 1;
     const canGoPrevious = hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
     const canGoNext = hasTrack && (

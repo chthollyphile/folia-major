@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Copy } from 'lucide-react';
+import { BookOpen, Check, Copy, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
 
 // src/components/modal/AiHelpPromptModal.tsx
 
 const FOLIA_GUIDE_URL = 'https://folia-site.cielaniska.top/guide/llm-routing';
+const FOLIA_DOCS_URL = 'https://folia-site.cielaniska.top/guide/';
 const FOLIA_REPOSITORY_URL = 'https://github.com/chthollyphile/folia-major';
 
 type AiHelpPromptModalProps = {
@@ -92,7 +93,35 @@ export const AiHelpPromptModal: React.FC<AiHelpPromptModalProps> = ({
                             <div className="pr-10">
                                 <h2 className="text-xl font-semibold">{t('aiHelp.title', 'Need help?')}</h2>
                                 <p className={`mt-2 text-sm leading-6 ${textSecondary}`}>
-                                    {t('aiHelp.description', 'Describe your issue on the official site of the AI model you use, then paste this prompt so it knows where to find Folia docs and source context.')}
+                                    {t('aiHelp.description', 'Check the Folia documentation first. If the issue remains unresolved, copy the prompt below and ask an AI model for help.')}
+                                </p>
+                            </div>
+
+                            <a
+                                href={FOLIA_DOCS_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`flex items-center gap-3 rounded-xl border p-4 transition hover:-translate-y-0.5 ${panelBg}`}
+                            >
+                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isDaylight ? 'bg-white' : 'bg-white/10'}`}>
+                                    <BookOpen size={19} style={{ color: theme?.accentColor ?? '#60a5fa' }} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold">{t('aiHelp.docsTitle', 'Read the Folia documentation')}</span>
+                                    <span className={`mt-1 block text-xs leading-5 ${textSecondary}`}>
+                                        {t('aiHelp.docsDescription', 'Find usage instructions, configuration details, and troubleshooting guidance.')}
+                                    </span>
+                                </span>
+                                <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${textSecondary}`}>
+                                    {t('aiHelp.openDocs', 'Open docs')}
+                                    <ExternalLink size={14} />
+                                </span>
+                            </a>
+
+                            <div>
+                                <h3 className="text-sm font-semibold">{t('aiHelp.askAiTitle', 'Still need help? Ask AI')}</h3>
+                                <p className={`mt-1 text-xs leading-5 ${textSecondary}`}>
+                                    {t('aiHelp.askAiDescription', 'Describe your issue, then paste this prompt so the AI can use Folia documentation and source code as context.')}
                                 </p>
                             </div>
 
@@ -112,7 +141,7 @@ export const AiHelpPromptModal: React.FC<AiHelpPromptModalProps> = ({
                                     onClick={onClose}
                                     className={`rounded-full border px-4 py-2 text-sm font-medium transition ${secondaryBtnClass}`}
                                 >
-                                    {t('common.cancel', 'Cancel')}
+                                    {t('ui.cancel', 'Cancel')}
                                 </button>
                                 <button
                                     type="button"

@@ -90,7 +90,7 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
                             />
                         </div>
 
-                        <div className="relative z-10 flex-1 overflow-y-auto min-h-0 custom-scrollbar" style={{ scrollbarGutter: 'stable' }}>
+                        <div className="relative z-10 flex-1 overflow-y-auto min-h-0 hide-scrollbar">
                             <motion.div
                                 key={`page-${page}`}
                                 initial={{ opacity: 0 }}
@@ -122,9 +122,11 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
                                 secondaryBtnClass={secondaryBtnClass}
                                 backLabel={t('userGuide.back', 'Back')}
                                 nextLabel={t('userGuide.next', 'Next')}
+                                tipsLabel={t('userGuide.tips', 'Usage tips')}
                                 doneLabel={t('userGuide.gotIt', 'Got it')}
                                 onBack={goBack}
                                 onNext={goNext}
+                                onClose={() => setIsUserGuideModalOpen(false)}
                             />
                         </div>
                     </motion.div>

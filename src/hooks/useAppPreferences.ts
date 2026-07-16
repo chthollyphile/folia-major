@@ -16,6 +16,7 @@ import {
     useSettingsUiStore,
 } from '../stores/useSettingsUiStore';
 import i18n from '../i18n/config';
+import { createSafeObjectUrl } from '../utils/blobGuards';
 
 export { resolveStoredCappellaTuning, resolveStoredCustomLyricsFont, resolveStoredMonetBackgroundTuning, resolveVisualizerBackgroundMode };
 
@@ -248,11 +249,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [clearLyricsCustomFontAfterRestoreFailure, lyricsCustomFont?.fontId, lyricsCustomFont?.source]);
 
     useEffect(() => {
-        const nextImages = storedCappellaEmojiPack.map(image => ({
-            id: image.id,
-            name: image.name,
-            url: URL.createObjectURL(image.blob),
-        }));
+        const nextImages = storedCappellaEmojiPack.flatMap(image => {
+            const url = createSafeObjectUrl(image.blob);
+            return url ? [{ id: image.id, name: image.name, url }] : [];
+        });
         setCappellaCustomEmojiImages(nextImages);
 
         return () => {
@@ -261,11 +261,10 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setCappellaCustomEmojiImages, storedCappellaEmojiPack]);
 
     useEffect(() => {
-        const nextImages = storedCappellaAvatarPack.map(image => ({
-            id: image.id,
-            name: image.name,
-            url: URL.createObjectURL(image.blob),
-        }));
+        const nextImages = storedCappellaAvatarPack.flatMap(image => {
+            const url = createSafeObjectUrl(image.blob);
+            return url ? [{ id: image.id, name: image.name, url }] : [];
+        });
         setCappellaCustomAvatarImages(nextImages);
 
         return () => {
@@ -279,10 +278,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             return;
         }
 
+        const url = createSafeObjectUrl(storedMonetBackgroundImage.blob);
+        if (!url) {
+            setMonetBackgroundImage(null);
+            return;
+        }
         const nextImage = {
             id: storedMonetBackgroundImage.id,
             name: storedMonetBackgroundImage.name,
-            url: URL.createObjectURL(storedMonetBackgroundImage.blob),
+            url,
         };
         setMonetBackgroundImage(nextImage);
 
@@ -297,10 +301,15 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
             return;
         }
 
+        const url = createSafeObjectUrl(storedMonetPortraitImage.blob);
+        if (!url) {
+            setMonetPortraitImage(null);
+            return;
+        }
         const nextImage = {
             id: storedMonetPortraitImage.id,
             name: storedMonetPortraitImage.name,
-            url: URL.createObjectURL(storedMonetPortraitImage.blob),
+            url,
         };
         setMonetPortraitImage(nextImage);
 

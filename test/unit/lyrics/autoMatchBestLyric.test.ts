@@ -78,6 +78,130 @@ describe('autoMatchBestLyric', () => {
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
     });
 
+    it('accepts the selected NetEase lyric directly when best-lyric selection is disabled', async () => {
+        getLyricMock.mockResolvedValue({ lyric: '[00:00.00]selected' });
+        processNeteaseLyricsMock.mockResolvedValue({
+            lyrics: { lines: [], isWordByWord: false },
+            mainLrc: 'selected',
+            yrcLrc: null,
+            transLrc: '',
+            isPureMusic: false,
+            chorusRanges: [],
+        });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            metadataCandidate: { source: 'netease', songId: 987 },
+            exactMatchOnly: true,
+        }) as any;
+
+        expect(result).toMatchObject({ source: 'netease', id: 987 });
+        expect(getLyricMock).toHaveBeenCalledTimes(1);
+        expect(getLyricMock).toHaveBeenCalledWith(987);
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+        expect(searchQQLyricsMock).not.toHaveBeenCalled();
+    });
+
+    it('accepts the selected QQ lyric directly when best-lyric selection is disabled', async () => {
+        searchQQLyricsMock.mockResolvedValue([
+            { id: 201, name: 'Correct title', duration: 200000, artists: [{ id: 1, name: 'Wrong artist' }], album: { id: 2, name: 'Wrong album' }, qqMid: 'distractor-mid' },
+            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+        ]);
+        fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: false });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            metadataCandidate: { source: 'qq', songId: 'selected-mid' },
+            exactMatchOnly: true,
+        }) as any;
+
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(fetchQQLyricsMock).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 202, qqMid: 'selected-mid' }),
+            { chorusRanges: [] },
+        );
+        expect(result).toMatchObject({ source: 'qq', id: 202, qqMid: 'selected-mid' });
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+    });
+
+    it('uses a selected NetEase id to probe preferred AMLLDB before fetching NetEase lyrics', async () => {
+        fetchAmllDbLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            preferredSource: 'amll',
+            metadataCandidate: { source: 'netease', songId: 987 },
+        }) as any;
+
+        expect(result).toMatchObject({ source: 'amll', id: 987, matchedLyricsProviderPlatform: 'ncm' });
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', 987);
+        expect(getLyricMock).not.toHaveBeenCalled();
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the preferred lyric source ahead of the metadata source', async () => {
+        searchQQLyricsMock.mockResolvedValue([
+            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'preferred-mid' },
+        ]);
+        fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            preferredSource: 'qq',
+            metadataCandidate: { source: 'netease', songId: 987 },
+        }) as any;
+
+        expect(result).toMatchObject({ source: 'qq', id: 202, qqMid: 'preferred-mid' });
+        expect(getLyricMock).not.toHaveBeenCalled();
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+    });
+
+    it('continues to other providers when an exact NetEase result is not word-by-word', async () => {
+        getLyricMock.mockResolvedValue({ lyric: '[00:00.00]line lyric' });
+        processNeteaseLyricsMock.mockResolvedValue({
+            lyrics: { lines: [], isWordByWord: false },
+            mainLrc: 'line lyric',
+            yrcLrc: null,
+            transLrc: '',
+            isPureMusic: false,
+            chorusRanges: [],
+        });
+        searchQQLyricsMock.mockResolvedValue([
+            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'word-mid' },
+        ]);
+        fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            preferredSource: 'netease',
+            metadataCandidate: { source: 'netease', songId: 987 },
+        }) as any;
+
+        expect(getLyricMock).toHaveBeenCalledWith(987);
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(result).toMatchObject({ source: 'qq', id: 202, qqMid: 'word-mid' });
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+    });
+
+    it('uses a selected QQ mid to probe preferred QQ AMLLDB lyrics', async () => {
+        searchQQLyricsMock.mockResolvedValue([
+            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+        ]);
+        fetchAmllDbLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
+
+        const result = await autoMatchBestLyric('Correct title', 'Correct artist', 200000, {
+            album: 'Correct album',
+            preferredSource: 'amll',
+            metadataCandidate: { source: 'qq', songId: 'selected-mid' },
+        }) as any;
+
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('qq', 202);
+        expect(result).toMatchObject({ source: 'amll', id: 202, matchedLyricsProviderPlatform: 'qq' });
+        expect(fetchQQLyricsMock).not.toHaveBeenCalled();
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+    });
+
     it('falls back to QQ Music if NetEase match does not have word-by-word lyrics', async () => {
         cloudSearchMock.mockResolvedValue({
             result: {

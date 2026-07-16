@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, X, Music, Check } from 'lucide-react';
-import { LocalSong, SongResult, LyricData } from '../../types';
-import { saveLocalSong, removeFromCache, saveToCache } from '../../services/db';
+import { Search, Loader2, X, Music, Check, FileAudio } from 'lucide-react';
+import { LocalSong, SongResult } from '../../types';
+import { applyLocalSongMatchSelection } from '../../services/localSongMatchSelectionService';
+import { buildLocalSongMetadataSearchTarget, normalizeLyricMatchMetadataCandidate } from '../../services/onlineMetadataSearchService';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
-import { calculateMatchScore, normalizeLyricMatchText } from '../../utils/lyrics/matchScore';
+import { calculateMatchScoreDetails } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
 import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
-import { isBlob } from '../../utils/blobGuards';
+import { createSafeObjectUrl, isBlob } from '../../utils/blobGuards';
+import { getLocalLibraryAssignment } from '../../services/localLibraryEntityRepository';
 import {
     getLyricMatchSourceLabel,
-    getMatchResultAlbumId,
     getMatchResultAlbumName,
     getMatchResultArtists,
     getMatchResultCoverUrl,
@@ -19,6 +20,7 @@ import {
     type LyricMatchSource,
 } from './lyricMatchResultHelpers';
 import { LyricPreviewPanel } from './LyricPreviewPanel';
+import { DurationMatchBadge } from './DurationMatchBadge';
 
 interface LyricMatchModalProps {
     song: LocalSong;
@@ -42,10 +44,8 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     const closeBtnHover = isDaylight ? 'hover:bg-zinc-200/50' : 'hover:bg-white/10';
     const cancelBtnBg = isDaylight ? 'bg-zinc-100/80 hover:bg-zinc-200' : 'bg-white/5 hover:bg-white/10';
     const noMatchBtnBg = isDaylight ? 'bg-red-500/5 hover:bg-red-500/10 border-red-500/10' : 'bg-red-500/10 hover:bg-red-500/20 border-red-500/20';
-    const cardBg = isDaylight ? 'bg-black/[0.03]' : 'bg-white/[0.03]';
     const dotBase = isDaylight ? 'bg-zinc-300' : 'bg-zinc-600';
     const dotActive = isDaylight ? 'bg-blue-500' : 'bg-blue-400';
-    const editInputBg = isDaylight ? 'bg-black/5 border-black/10 focus:border-black/20' : 'bg-white/5 border-white/10 focus:border-white/20';
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -61,45 +61,24 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     // Online data toggle state (dots)
     const [lyricsSource, setLyricsSource] = useState<'local' | 'embedded' | 'online' | undefined>(song.lyricsSource || 'online');
     const [useOnlineCover, setUseOnlineCover] = useState(song.useOnlineCover ?? !isBlob(song.embeddedCover));
-    const [useOnlineMetadata, setUseOnlineMetadata] = useState(song.useOnlineMetadata ?? true);
-
-    // Editable metadata fields
-    const [editArtist, setEditArtist] = useState(song.matchedArtists || song.embeddedArtist || song.artist || '');
-    const [editAlbum, setEditAlbum] = useState(song.matchedAlbumName || song.embeddedAlbum || song.album || '');
+    const [useOnlineMetadata, setUseOnlineMetadata] = useState(song.titleOrigin !== 'import');
 
     // Derive song information for matching
     const songInfo = useMemo(() => {
         const title = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-        const artist = song.artist || '';
+        const artist = song.onlineMetadata?.artists.map(item => item.name).join(', ')
+            || song.importedMetadata.artistNames.join(', ');
         const durationMs = song.duration || 0;
-        const album = song.album || song.embeddedAlbum || '';
+        const album = song.onlineMetadata?.album?.name || song.importedMetadata.albumName || '';
         return { title, artist, album, durationMs };
     }, [song]);
 
-    // When a search result is selected, update the preview
+    // Selecting a result defaults lyrics to online while metadata remains an all-or-nothing bundle.
     useEffect(() => {
         if (selectedResult) {
-            const onlineArtist = getMatchResultArtists(selectedResult);
-            const onlineAlbum = getMatchResultAlbumName(selectedResult);
-            setEditArtist(useOnlineMetadata ? onlineArtist : (song.embeddedArtist || song.artist || onlineArtist));
-            setEditAlbum(useOnlineMetadata ? onlineAlbum : (song.embeddedAlbum || song.album || onlineAlbum));
             setLyricsSource('online');
         }
-    }, [selectedResult, source, useOnlineMetadata, song.embeddedArtist, song.artist, song.embeddedAlbum, song.album]);
-
-    // Update metadata fields when toggling online metadata
-    useEffect(() => {
-        if (!selectedResult) return;
-        const onlineArtist = getMatchResultArtists(selectedResult);
-        const onlineAlbum = getMatchResultAlbumName(selectedResult);
-        if (useOnlineMetadata) {
-            setEditArtist(onlineArtist);
-            setEditAlbum(onlineAlbum);
-        } else {
-            setEditArtist(song.embeddedArtist || song.artist || onlineArtist);
-            setEditAlbum(song.embeddedAlbum || song.album || onlineAlbum);
-        }
-    }, [useOnlineMetadata, selectedResult, song.embeddedArtist, song.artist, song.embeddedAlbum, song.album]);
+    }, [selectedResult]);
 
     // Derive preview cover URL with proper ObjectURL lifecycle management
     const [previewCoverUrl, setPreviewCoverUrl] = useState<string | null>(null);
@@ -109,18 +88,18 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         if (!selectedResult) {
             // Show current state
             if (isBlob(song.embeddedCover)) {
-                objectUrl = URL.createObjectURL(song.embeddedCover);
+                objectUrl = createSafeObjectUrl(song.embeddedCover);
                 setPreviewCoverUrl(objectUrl);
             } else {
-                setPreviewCoverUrl(song.matchedCoverUrl || null);
+                setPreviewCoverUrl(song.useOnlineCover ? song.onlineMetadata?.coverUrl || null : null);
             }
         } else if (useOnlineCover) {
             const selectedCoverUrl = getMatchResultCoverUrl(selectedResult, source);
-            setPreviewCoverUrl(selectedCoverUrl || song.matchedCoverUrl || null);
+            setPreviewCoverUrl(selectedCoverUrl || song.onlineMetadata?.coverUrl || null);
         } else {
             // Local cover
             if (isBlob(song.embeddedCover)) {
-                objectUrl = URL.createObjectURL(song.embeddedCover);
+                objectUrl = createSafeObjectUrl(song.embeddedCover);
                 setPreviewCoverUrl(objectUrl);
             } else {
                 setPreviewCoverUrl(null);
@@ -147,15 +126,6 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         return t('localMusic.statusNone');
     }, [lyricsSource, song, t, source, selectedResult]);
 
-    // Title matching helpers
-    const normalizeTitle = (title: string): string => {
-        return normalizeLyricMatchText(title).replace(/\s+/g, '');
-    };
-
-    const isTitleMatch = (localTitle: string, searchTitle: string): boolean => {
-        return normalizeTitle(localTitle) === normalizeTitle(searchTitle);
-    };
-
     const runSearch = async (query: string, activeSource: LyricMatchSource) => {
         const q = sourceSupportsManualSearch(activeSource)
             ? query.trim()
@@ -172,15 +142,6 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
             if (requestId !== searchRequestIdRef.current) return;
 
             setSearchResults(results);
-
-            const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-            const exactMatch = results.find(s => isTitleMatch(localTitle, s.name));
-
-            if (exactMatch) {
-                setSelectedResult(exactMatch);
-            } else if (results.length > 0) {
-                setSelectedResult(results[0]);
-            }
         } catch (error) {
             console.error('Search failed:', error);
         } finally {
@@ -193,7 +154,11 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     // Initialize the query only when the target song changes.
     useEffect(() => {
         const title = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-        const initialQuery = buildLyricSearchQuery(title, song.artist || '', song.album || song.embeddedAlbum || '');
+        const initialQuery = buildLyricSearchQuery(
+            title,
+            song.onlineMetadata?.artists.map(item => item.name).join(', ') || song.importedMetadata.artistNames.join(', '),
+            song.onlineMetadata?.album?.name || song.importedMetadata.albumName || '',
+        );
         setSearchQuery(initialQuery);
         void runSearch(initialQuery, source);
     }, [song]);
@@ -218,57 +183,56 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
         setIsMatching(true);
         try {
-            // Always fetch lyrics from selected song (we decide whether to save them based on toggle)
-            const processed = await fetchLyricsForMatchSource(source, selectedResult);
-            if (!processed) return;
-            const parsedLyrics: LyricData | null = processed ? processed.lyrics : null;
-
-            // Always save the matched song ID for reference
-            song.matchedSongId = selectedResult.id;
-            song.matchedIsPureMusic = processed.isPureMusic;
-            song.matchedLyricsSource = source;
-            song.matchedLyricsProviderPlatform = processed.matchedLyricsProviderPlatform;
-
-            // Save lyrics if online is selected
+            const candidate = normalizeLyricMatchMetadataCandidate(
+                source,
+                selectedResult,
+                buildLocalSongMetadataSearchTarget(song),
+            );
+            if (useOnlineMetadata) {
+                const assignment = await getLocalLibraryAssignment(song.id);
+                const protectedOrigins = new Set(['manual', 'split']);
+                const replacesProtectedArtist = Boolean(
+                    candidate.artists.length
+                    && assignment
+                    && protectedOrigins.has(assignment.artistOrigin),
+                );
+                const replacesProtectedAlbum = Boolean(
+                    candidate.album?.name
+                    && assignment
+                    && protectedOrigins.has(assignment.albumOrigin),
+                );
+                if ((replacesProtectedArtist || replacesProtectedAlbum)
+                    && !window.confirm(t('localMusic.replaceProtectedEntityConfirm'))) return;
+            }
+            let processed = null;
+            let lyricsFailed = false;
             if (lyricsSource === 'online') {
-                song.matchedLyrics = parsedLyrics || undefined;
-            }
-
-            const selectedCoverUrl = getMatchResultCoverUrl(selectedResult, source);
-            if (useOnlineCover) {
-                if (selectedCoverUrl) {
-                    song.matchedCoverUrl = selectedCoverUrl;
-                }
-            } else {
-                delete song.matchedCoverUrl;
-            }
-
-            // Save metadata - always save the user-edited values.
-            song.matchedArtists = editArtist;
-            song.matchedAlbumId = getMatchResultAlbumId(selectedResult);
-            song.matchedAlbumName = editAlbum;
-            song.useOnlineCover = Boolean(useOnlineCover && (selectedCoverUrl || song.matchedCoverUrl));
-            song.useOnlineMetadata = useOnlineMetadata;
-
-            song.lyricsSource = lyricsSource;
-            song.hasManualLyricSelection = true;
-            await saveLocalSong(song);
-
-            // Remove old cached cover to force refresh
-            await removeFromCache(`cover_local_${song.id}`);
-
-            // Fetch and cache the cover blob so it persists across refreshes.
-            if (song.useOnlineCover && song.matchedCoverUrl) {
                 try {
-                    const coverResponse = await fetch(song.matchedCoverUrl, { mode: 'cors' });
-                    const coverBlob = await coverResponse.blob();
-                    await saveToCache(`cover_local_${song.id}`, coverBlob);
-                } catch (e) {
-                    console.warn('Failed to cache cover blob:', e);
+                    processed = await fetchLyricsForMatchSource(source, selectedResult);
+                    lyricsFailed = !processed?.lyrics;
+                } catch (error) {
+                    console.warn('[LocalMusic] Lyrics failed while applying metadata selection:', error);
+                    lyricsFailed = true;
                 }
             }
-
+            const applied = await applyLocalSongMatchSelection({
+                songId: song.id,
+                candidate,
+                metadata: useOnlineMetadata ? 'online' : 'imported',
+                cover: useOnlineCover && candidate.coverUrl ? 'online' : 'embedded',
+                lyrics: lyricsSource || 'automatic',
+                onlineLyrics: processed?.lyrics ? {
+                    lyrics: processed.lyrics,
+                    songId: selectedResult.id,
+                    source,
+                    providerPlatform: processed.matchedLyricsProviderPlatform,
+                    isPureMusic: processed.isPureMusic,
+                } : undefined,
+                lyricsFailed,
+            });
             onMatch();
+            if (applied.partialLyricsFailure) alert(t('localMusic.lyricsNotAppliedOtherSaved'));
+            else if (applied.coverAttempted && !applied.coverCached) alert(t('localMusic.coverCacheFailed'));
         } catch (error) {
             console.error('Failed to match or save song:', error);
             alert(t('localMusic.matchFailed'));
@@ -279,26 +243,13 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
 
     const handleNoMatch = async () => {
         try {
-            song.noAutoMatch = true;
-            // Set all data sources to local
-            // Set all data sources to local / reset
-            delete song.lyricsSource;
-            song.useOnlineCover = false;
-            song.useOnlineMetadata = false;
-
-            // Clear all matched data to restore original local state
-            delete song.matchedSongId;
-            delete song.matchedArtists;
-            delete song.matchedAlbumId;
-            delete song.matchedAlbumName;
-            delete song.matchedLyrics;
-            delete song.matchedCoverUrl;
-            delete song.matchedLyricsSource;
-            delete song.matchedLyricsProviderPlatform;
-
-            await saveLocalSong(song);
-            // Clear cached online cover so embedded cover is used
-            await removeFromCache(`cover_local_${song.id}`);
+            await applyLocalSongMatchSelection({
+                songId: song.id,
+                metadata: 'imported',
+                cover: 'embedded',
+                lyrics: 'automatic',
+                setNoAutoMatch: true,
+            });
             onMatch(); // Trigger refresh so the change applies
         } catch (error) {
             console.error('Failed to save song:', error);
@@ -306,13 +257,31 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
         }
     };
 
+    const previewTitle = useOnlineMetadata && selectedResult
+        ? formatSongName(selectedResult)
+        : song.importedMetadata.title;
+    const previewArtist = useOnlineMetadata && selectedResult
+        ? getMatchResultArtists(selectedResult)
+        : song.importedMetadata.artistNames.join(', ');
+    const previewAlbum = useOnlineMetadata && selectedResult
+        ? getMatchResultAlbumName(selectedResult)
+        : song.importedMetadata.albumName || '';
+
 
     return (
         <div data-folia-keyboard-window="true" className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex items-center justify-center p-6">
             <div className={`${bgClass} border rounded-2xl max-w-5xl w-full max-h-[80vh] flex flex-col shadow-2xl backdrop-blur-md`}>
                 {/* Header */}
                 <div className={`px-6 py-4 border-b ${borderColor} flex items-center justify-between`}>
-                    <h2 className={`text-lg font-bold ${textPrimary}`}>{t('localMusic.matchLyrics')}</h2>
+                    <div className="min-w-0">
+                        <h2 className={`text-lg font-bold ${textPrimary}`}>{t('localMusic.matchLyrics')}</h2>
+                        <p className={`mt-1 truncate text-xs ${textSecondary}`}>{song.title || song.importedMetadata.title}</p>
+                        <div title={song.fileName} className={`mt-1 flex min-w-0 items-center gap-1 text-[11px] opacity-55 ${textSecondary}`}>
+                            <FileAudio size={12} className="shrink-0" />
+                            <span className="shrink-0">{t('localMusic.filename')}:</span>
+                            <span className="truncate">{song.fileName}</span>
+                        </div>
+                    </div>
                     <button
                         onClick={onClose}
                         className={`p-2 ${closeBtnHover} rounded-lg transition-colors ${textPrimary}`}
@@ -399,6 +368,7 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                         const resultCoverUrl = getMatchResultCoverUrl(result, source);
                                         const resultArtists = getMatchResultArtists(result);
                                         const resultAlbum = getMatchResultAlbumName(result);
+                                        const matchDetails = calculateMatchScoreDetails(songInfo, result);
                                         return (
                                             <div
                                                 key={resultKey}
@@ -425,8 +395,9 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                                                     <div className="flex items-center gap-2">
                                                         <span className={`text-sm font-semibold truncate ${textPrimary}`}>{formatSongName(result)}</span>
                                                         <span className="text-[10px] px-1.5 py-0.2 bg-blue-500/10 text-blue-400 rounded-md font-mono shrink-0">
-                                                            {calculateMatchScore(songInfo, result)}%
+                                                            {matchDetails.score}%
                                                         </span>
+                                                        <DurationMatchBadge matched={matchDetails.durationMatched} />
                                                     </div>
                                                     <div className={`text-xs truncate ${textSecondary}`}>
                                                         {[resultArtists, resultAlbum].filter(Boolean).join(' · ')}
@@ -505,44 +476,21 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                             <div className="w-full space-y-1.5 mt-4 text-center flex-shrink-0">
                                 {/* Title */}
                                 <h3 className={`text-base font-bold line-clamp-2 leading-snug px-2 ${textPrimary}`}>
-                                    {selectedResult
-                                        ? formatSongName(selectedResult)
-                                        : (song.embeddedTitle || song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, ''))
-                                    }
+                                    {previewTitle}
                                 </h3>
 
                                 {/* Artist */}
                                 <div className="flex justify-center w-full">
-                                    {useOnlineMetadata ? (
-                                        <div className={`text-sm opacity-75 font-medium line-clamp-1 ${textPrimary}`}>
-                                            {editArtist}
-                                        </div>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={editArtist}
-                                            onChange={(e) => setEditArtist(e.target.value)}
-                                            className={`w-48 text-center ${editInputBg} border border-white/10 rounded-lg py-1 px-2 text-xs focus:outline-none transition-all ${textPrimary}`}
-                                            placeholder={t('localMusic.artistLabel')}
-                                        />
-                                    )}
+                                    <div className={`text-sm opacity-75 font-medium line-clamp-1 ${textPrimary}`}>
+                                        {previewArtist}
+                                    </div>
                                 </div>
 
                                 {/* Album */}
                                 <div className="flex justify-center w-full">
-                                    {useOnlineMetadata ? (
-                                        <div className={`text-xs opacity-60 line-clamp-1 ${textPrimary}`}>
-                                            {editAlbum}
-                                        </div>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={editAlbum}
-                                            onChange={(e) => setEditAlbum(e.target.value)}
-                                            className={`w-48 text-center ${editInputBg} border border-white/10 rounded-lg py-1 px-2 text-xs focus:outline-none transition-all ${textPrimary}`}
-                                            placeholder={t('localMusic.albumLabel')}
-                                        />
-                                    )}
+                                    <div className={`text-xs opacity-60 line-clamp-1 ${textPrimary}`}>
+                                        {previewAlbum}
+                                    </div>
                                 </div>
 
                                 {/* Lyrics source (display only) */}

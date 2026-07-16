@@ -2,7 +2,11 @@
 // Guards browser Blob values that may have crossed IndexedDB or runtime boundaries.
 
 export const isBlob = (value: unknown): value is Blob => (
-    typeof Blob !== 'undefined' && value instanceof Blob
+  typeof Blob !== 'undefined' && value instanceof Blob
+);
+
+export const createSafeObjectUrl = (value: unknown): string | null => (
+  isBlob(value) ? URL.createObjectURL(value) : null
 );
 
 export const getBlobObjectUrlSignature = (

@@ -1853,10 +1853,10 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         showText = true,
         seed,
         staticMode = false,
-        disableGeometricBackground = false,
         lyricsFontScale = 1,
         fumeTuning,
         subtitleOverlayOpacity,
+        subtitleOverlayBackground,
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
         showSubtitleTranslation = true,
@@ -2974,7 +2974,14 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
             audioBands={audioBands}
             sharedProps={{
                 ...props,
-                disableGeometricBackground: disableGeometricBackground || resolvedFumeTuning.disableGeometricBackground,
+                background: {
+                    ...props.background,
+                    common: {
+                        ...props.background?.common,
+                        disableGeometricBackground: Boolean(props.background?.common?.disableGeometricBackground)
+                            || resolvedFumeTuning.disableGeometricBackground,
+                    },
+                },
             }}
         >
             <div ref={viewportRef} className="relative z-10 h-full w-full pointer-events-none">
@@ -3051,6 +3058,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
                 translationFontSize={translationFontSize}
                 upcomingFontSize={upcomingFontSize}
                 subtitleOverlayOpacity={subtitleOverlayOpacity}
+                subtitleOverlayBackground={subtitleOverlayBackground}
                 isPlayerChromeHidden={isPlayerChromeHidden}
                 hideTranslationSubtitle={hideTranslationSubtitle}
                 showSubtitleTranslation={showSubtitleTranslation}

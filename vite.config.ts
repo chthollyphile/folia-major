@@ -33,6 +33,7 @@ const LYRIC_PROXY_IGNORED_FORWARD_HEADERS = ['host', 'connection', 'content-leng
 
 function isAllowedLyricProxyHost(hostname: string): boolean {
   return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
+    hostname === 'y.gtimg.cn' ||
     hostname === 'kugou.com' || hostname.endsWith('.kugou.com') ||
     hostname === 'amll-ttml-db.stevexmh.net';
 }
@@ -54,11 +55,11 @@ function sendLyricProxyJson(res: import('http').ServerResponse, statusCode: numb
   res.end(JSON.stringify(body));
 }
 
-function readDevRequestBody(req: import('http').IncomingMessage): Promise<Buffer> {
+function readDevRequestBody(req: import('http').IncomingMessage): Promise<Uint8Array<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))));
     req.on('error', reject);
   });
 }
@@ -199,8 +200,8 @@ export default async function viteConfig({ mode }: ConfigEnv): Promise<UserConfi
           // three.js is a large dependency used only by the diorama 3D visualizer. Split it into its
           // own chunk so it doesn't bloat the main bundle past the PWA precache size limit (each file
           // must stay under workbox.maximumFileSizeToCacheInBytes to be cached for offline use).
-          manualChunks: {
-            three: ['three'],
+          manualChunks(id) {
+            return id.includes('/node_modules/three/') ? 'three' : undefined;
           },
         },
       },

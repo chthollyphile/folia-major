@@ -86,24 +86,16 @@ describe('createLyricsSetter', () => {
         expect(result.lines[1].isChorus).toBe(true);
     });
 
-    it('loads NetEase chorus ranges from matched metadata if playing a matched local song from start', () => {
+    it('does not require a full LocalSong carrier for local playback snapshots', () => {
         const setLyricsStateMock = vi.fn();
-        const matchedLyrics: LyricData = {
-            lines: [
-                { fullText: '主歌', startTime: 0, endTime: 10000, words: [] },
-                { fullText: '副歌部分', startTime: 10000, endTime: 30000, words: [], isChorus: true, chorusEffect: 'bars' },
-            ],
-        };
         const currentSong = {
             id: 999,
             name: 'Local Matched Song',
             artists: [],
             album: { name: 'Album' },
             duration: 120000,
-            localData: {
-                matchedLyricsSource: 'netease',
-                matchedLyrics,
-            },
+            isLocal: true,
+            localRef: { songId: 'local-999' },
         } as any as SongResult;
         
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: currentSong };
@@ -119,13 +111,13 @@ describe('createLyricsSetter', () => {
 
         const result = setLyricsStateMock.mock.calls[0][0] as LyricData;
         expect(result.lines[0].isChorus).toBeUndefined();
-        expect(result.lines[1].isChorus).toBe(true);
+        expect(result.lines[1].isChorus).toBeUndefined();
     });
 
     it('resets cached chorus ranges when song changes', () => {
         const setLyricsStateMock = vi.fn();
-        const songA = { id: 101, name: 'Song A', artists: [], album: { name: 'A' }, duration: 100 } as SongResult;
-        const songB = { id: 102, name: 'Song B', artists: [], album: { name: 'B' }, duration: 100 } as SongResult;
+        const songA = { id: 101, name: 'Song A', artists: [], album: { id: 201, name: 'A' }, duration: 100 } as SongResult;
+        const songB = { id: 102, name: 'Song B', artists: [], album: { id: 202, name: 'B' }, duration: 100 } as SongResult;
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: songA };
         
         const setter = createLyricsSetter(setLyricsStateMock, '', currentSongFullRef);

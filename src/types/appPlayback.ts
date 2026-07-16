@@ -15,6 +15,7 @@ import type {
 export type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
     unavailableSkipCount?: number;
+    unifiedQueue?: SongResult[];
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {

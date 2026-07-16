@@ -1,5 +1,122 @@
 import { AmllDbPlatform, LocalSong, LyricProviderSource, SongResult, UnifiedSong } from '../types';
 import { NavidromeSong } from '../types/navidrome';
+import type { LocalLibraryAssignment, LocalLibraryEntity } from '../types/localLibrary';
+import { buildLocalLibraryIndex, followEntityRedirect, type LocalLibraryIndex } from '../utils/localLibraryIndex';
+
+export type LocalLibraryDisplayCatalog = {
+    entities: LocalLibraryEntity[];
+    assignments: LocalLibraryAssignment[];
+};
+
+export type ResolvedLocalSongMetadata = {
+    artists: Array<{ entityId: string; name: string }>;
+    album?: { entityId: string; name: string };
+};
+
+// Resolves the canonical artist and album display from stable entity assignments only.
+export const resolveLocalSongMetadata = (
+    songId: string,
+    catalog: LocalLibraryDisplayCatalog,
+    preparedIndex?: LocalLibraryIndex,
+): ResolvedLocalSongMetadata => {
+    const index = preparedIndex || buildLocalLibraryIndex(catalog.entities, catalog.assignments);
+    const assignment = index.assignmentsBySongId.get(songId);
+    const artists = assignment?.artistEntityIds.flatMap(entityId => {
+        const activeEntityId = followEntityRedirect(entityId, index.entitiesById);
+        const entity = activeEntityId ? index.entitiesById.get(activeEntityId) : undefined;
+        return entity?.kind === 'artist' ? [{ entityId: entity.id, name: entity.displayName }] : [];
+    }) || [];
+    const activeAlbumId = assignment?.albumEntityId
+        ? followEntityRedirect(assignment.albumEntityId, index.entitiesById)
+        : undefined;
+    const albumEntity = activeAlbumId ? index.entitiesById.get(activeAlbumId) : undefined;
+    return {
+        artists,
+        album: albumEntity?.kind === 'album'
+            ? { entityId: albumEntity.id, name: albumEntity.displayName }
+            : undefined,
+    };
+};
+
+const resolveLocalLibraryDisplayArtists = (
+    songId: string,
+    catalog?: LocalLibraryDisplayCatalog,
+    preparedIndex?: LocalLibraryIndex,
+) => {
+    if (!catalog) return [];
+
+    const resolved = resolveLocalSongMetadata(songId, catalog, preparedIndex);
+    const seenEntityIds = new Set<string>();
+    return resolved.artists.flatMap(entity => {
+        if (seenEntityIds.has(entity.entityId)) return [];
+        seenEntityIds.add(entity.entityId);
+        return [{ id: 0, entityId: entity.entityId, name: entity.name }];
+    });
+};
+
+// Replaces legacy joined artist text with the song's stable local-library artist entities.
+export const applyLocalLibraryArtistDisplay = <T extends SongResult>(
+    song: T,
+    catalog?: LocalLibraryDisplayCatalog,
+    preparedIndex?: LocalLibraryIndex,
+): T => {
+    const songId = (song as UnifiedSong).localRef?.songId;
+    if (!songId) return song;
+
+    const artists = resolveLocalLibraryDisplayArtists(songId, catalog, preparedIndex);
+    if (artists.length === 0) return song;
+
+    return {
+        ...song,
+        artists,
+        ar: artists,
+    };
+};
+
+// Maps a local song's album assignment onto both album fields used by GridView and player surfaces.
+const applyLocalLibraryAlbumDisplay = <T extends SongResult>(
+    song: T,
+    catalog?: LocalLibraryDisplayCatalog,
+    preparedIndex?: LocalLibraryIndex,
+): T => {
+    const songId = (song as UnifiedSong).localRef?.songId;
+    if (!songId || !catalog) return song;
+
+    const entity = resolveLocalSongMetadata(songId, catalog, preparedIndex).album;
+    if (!entity) return song;
+
+    return {
+        ...song,
+        album: {
+            ...song.album,
+            entityId: entity.entityId,
+            name: entity.name,
+        },
+        al: {
+            ...(song.al || song.album),
+            entityId: entity.entityId,
+            name: entity.name,
+        },
+    };
+};
+
+// Applies the complete local entity display model used by cards, queues, and CoverTab.
+export const applyLocalLibraryEntityDisplay = <T extends SongResult>(
+    song: T,
+    catalog?: LocalLibraryDisplayCatalog,
+    preparedIndex?: LocalLibraryIndex,
+): T => applyLocalLibraryAlbumDisplay(
+    applyLocalLibraryArtistDisplay(song, catalog, preparedIndex),
+    catalog,
+    preparedIndex,
+);
+
+// Applies a resolved local cover URL to both API-compatible album fields used by song cards.
+export const applyLocalSongCoverDisplay = <T extends SongResult>(song: T, coverUrl: string): T => ({
+    ...song,
+    al: song.al ? { ...song.al, picUrl: coverUrl } : { id: 0, name: song.album?.name || '', picUrl: coverUrl },
+    album: song.album ? { ...song.album, picUrl: coverUrl } : { id: 0, name: '', picUrl: coverUrl },
+});
 
 export const getLocalSongId = (localSong: LocalSong): number => {
     // Generate a reliable 52-bit hash from the string ID to avoid parsing long digits and losing precision or colliding.
@@ -36,22 +153,23 @@ export function buildUnifiedLocalSong({
     const useMatchedLyrics =
         localSong.lyricsSource === 'online'
         || (!localSong.lyricsSource && !localSong.hasLocalLyrics && !localSong.hasEmbeddedLyrics);
-    const displayTitle = localSong.embeddedTitle || localSong.title || localSong.fileName;
-    const displayArtist = preferOnlineMetadata
-        ? (localSong.matchedArtists || localSong.embeddedArtist || localSong.artist)
-        : (localSong.embeddedArtist || localSong.matchedArtists || localSong.artist);
-    const displayAlbum = preferOnlineMetadata
-        ? (localSong.matchedAlbumName || localSong.embeddedAlbum || localSong.album)
-        : (localSong.embeddedAlbum || localSong.matchedAlbumName || localSong.album);
+    const displayTitle = localSong.title;
+    const displayArtists = (localSong.titleOrigin === 'import'
+        ? localSong.importedMetadata.artistNames
+        : localSong.onlineMetadata?.artists.map(artist => artist.name) || localSong.importedMetadata.artistNames)
+        .map(name => ({ id: 0, name }));
+    const displayAlbum = localSong.titleOrigin === 'import'
+        ? localSong.importedMetadata.albumName
+        : localSong.onlineMetadata?.album?.name || localSong.importedMetadata.albumName;
 
     const unifiedSong: UnifiedSong = {
         id: getLocalSongId(localSong),
         name: displayTitle,
-        artists: displayArtist ? [{ id: 0, name: displayArtist }] : [],
+        artists: displayArtists,
         album: displayAlbum ? { id: 0, name: displayAlbum } : { id: 0, name: '' },
         duration: localSong.duration,
         isPureMusic: useMatchedLyrics ? localSong.matchedIsPureMusic : false,
-        ar: displayArtist ? [{ id: 0, name: displayArtist }] : [],
+        ar: displayArtists,
         al: displayAlbum ? {
             id: 0,
             name: displayAlbum,
@@ -63,25 +181,11 @@ export function buildUnifiedLocalSong({
         } : undefined,
         dt: localSong.duration,
         isLocal: true,
-        localData: localSong
+        localRef: { songId: localSong.id },
     };
 
     if (!matchedSong) {
         return unifiedSong;
-    }
-
-    if (!localSong.embeddedTitle) {
-        unifiedSong.name = matchedSong.name;
-    }
-
-    if (preferOnlineMetadata || !localSong.embeddedArtist) {
-        if (matchedSong.ar) unifiedSong.ar = matchedSong.ar;
-        if (matchedSong.artists) unifiedSong.artists = matchedSong.artists;
-    }
-
-    if (preferOnlineMetadata || !localSong.embeddedAlbum) {
-        if (matchedSong.al) unifiedSong.al = matchedSong.al;
-        if (matchedSong.album) unifiedSong.album = matchedSong.album;
     }
 
     if (coverUrl) {
@@ -92,25 +196,21 @@ export function buildUnifiedLocalSong({
     return unifiedSong;
 }
 
-export function buildLocalQueue(queue: LocalSong[], currentSong?: UnifiedSong): UnifiedSong[] {
+export function buildLocalQueue(
+    queue: LocalSong[],
+    currentSong?: UnifiedSong,
+    catalog?: LocalLibraryDisplayCatalog,
+): UnifiedSong[] {
+    const catalogIndex = catalog
+        ? buildLocalLibraryIndex(catalog.entities, catalog.assignments)
+        : undefined;
     const convertedQueue = queue.map(song => {
-        const useMatchedLyrics =
-            song.lyricsSource === 'online'
-            || (!song.lyricsSource && !song.hasLocalLyrics && !song.hasEmbeddedLyrics);
-
-        return {
-            id: getLocalSongId(song),
-            name: song.title || song.fileName,
-            artists: song.artist ? [{ id: 0, name: song.artist }] : [],
-            album: song.album ? { id: 0, name: song.album } : { id: 0, name: '' },
-            duration: song.duration,
-            isPureMusic: useMatchedLyrics ? song.matchedIsPureMusic : false,
-            ar: song.artist ? [{ id: 0, name: song.artist }] : [],
-            al: song.album ? { id: 0, name: song.album, picUrl: song.matchedCoverUrl } : undefined,
-            dt: song.duration,
-            isLocal: true,
-            localData: song
-        } as UnifiedSong;
+        return applyLocalLibraryEntityDisplay(buildUnifiedLocalSong({
+            localSong: song,
+            matchedSong: null,
+            coverUrl: song.useOnlineCover ? song.onlineMetadata?.coverUrl || null : null,
+            preferOnlineMetadata: false,
+        }), catalog, catalogIndex);
     });
 
     if (!currentSong) {
@@ -119,7 +219,7 @@ export function buildLocalQueue(queue: LocalSong[], currentSong?: UnifiedSong): 
 
     return convertedQueue.map(song => {
         if (song.id === currentSong.id) {
-            return currentSong;
+            return applyLocalLibraryEntityDisplay(currentSong, catalog, catalogIndex);
         }
         return song;
     });

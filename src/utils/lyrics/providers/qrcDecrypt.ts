@@ -328,7 +328,7 @@ function tripledes_crypt(data: Uint8Array, keySchedule: number[][][]): Uint8Arra
 async function decompressDeflate(bytes: Uint8Array): Promise<string> {
   const ds = new DecompressionStream('deflate');
   const writer = ds.writable.getWriter();
-  writer.write(bytes).catch(() => {});
+  writer.write(new Uint8Array(bytes)).catch(() => {});
   writer.close().catch(() => {});
   
   const reader = ds.readable.getReader();

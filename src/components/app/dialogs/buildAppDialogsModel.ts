@@ -36,6 +36,7 @@ type BuildAppDialogsModelParams = {
     showNaviLyricMatchModal: boolean;
     showOnlineLyricMatchModal: boolean;
     currentSong: SongResult | null;
+    localSongs: LocalSong[];
     setShowLyricMatchModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowNaviLyricMatchModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowOnlineLyricMatchModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -60,6 +61,7 @@ export const buildAppDialogsModel = ({
     showNaviLyricMatchModal,
     showOnlineLyricMatchModal,
     currentSong,
+    localSongs,
     setShowLyricMatchModal,
     setShowNaviLyricMatchModal,
     setShowOnlineLyricMatchModal,
@@ -78,9 +80,12 @@ export const buildAppDialogsModel = ({
             toastKey: `${statusMsg.type}:${statusMsg.text}:${statusMsg.nonce ?? 0}`,
         }
         : null,
-    lyricMatchDialog: showLyricMatchModal && currentSong && (currentSong as SongResult & { localData?: LocalSong }).localData
+    lyricMatchDialog: showLyricMatchModal
+        && currentSong
+        && isLocalPlaybackSong(currentSong)
+        && localSongs.some(song => song.id === currentSong.localRef.songId)
         ? {
-            song: (currentSong as SongResult & { localData: LocalSong }).localData,
+            song: localSongs.find(song => song.id === currentSong.localRef.songId)!,
             onClose: () => setShowLyricMatchModal(false),
             onMatch: handleLyricMatchComplete,
             isDaylight,

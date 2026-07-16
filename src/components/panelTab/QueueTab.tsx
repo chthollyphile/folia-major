@@ -1,17 +1,20 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { List, useListRef, type ListImperativeAPI } from 'react-window';
+import { List, useListRef, type RowComponentProps } from 'react-window';
 import { ListEnd, ListPlus, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
 import { getSongUnavailableTagText, isSongMarkedUnavailable } from '../../services/netease';
+import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+
+// src/components/panelTab/QueueTab.tsx
 
 interface QueueTabProps {
     playQueue: SongResult[];
     currentSong: SongResult | null;
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
-    queueScrollRef: React.RefObject<HTMLDivElement>;
+    queueScrollRef: React.RefObject<HTMLDivElement | null>;
     shouldScrollToCurrent?: boolean;
     onShuffle?: () => void;
     onRemoveSong: (index: number) => void;
@@ -21,6 +24,90 @@ interface QueueTabProps {
     onSaveCurrentQueueAsPlaylist?: (name: string) => Promise<void>;
     isDaylight?: boolean;
 }
+
+type QueueRowProps = {
+    playQueue: SongResult[];
+    currentSongKey: string | null;
+    onPlaySong: QueueTabProps['onPlaySong'];
+    onMoveSongToNext: QueueTabProps['onMoveSongToNext'];
+    onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
+    onRemoveSong: QueueTabProps['onRemoveSong'];
+    isDaylight: boolean;
+    labels: {
+        unavailable: string;
+        playNext: string;
+        moveToEnd: string;
+        remove: string;
+    };
+};
+
+// Kept outside QueueTab so track changes update row data without remounting hovered action buttons.
+const QueueRow = ({
+    index,
+    style,
+    ariaAttributes,
+    playQueue,
+    currentSongKey,
+    onPlaySong,
+    onMoveSongToNext,
+    onMoveSongToEnd,
+    onRemoveSong,
+    isDaylight,
+    labels,
+}: RowComponentProps<QueueRowProps>): React.ReactElement => {
+    const song = playQueue[index];
+    const isActive = currentSongKey === getPlaybackSongKey(song);
+    const isUnavailable = isSongMarkedUnavailable(song);
+    const unavailableTagText = getSongUnavailableTagText(song, labels.unavailable);
+    const activeRowClass = isDaylight ? 'bg-black/[0.08]' : 'bg-white/20';
+    const activeMarkerClass = isDaylight ? 'bg-zinc-700' : 'bg-white';
+    const hoverRowClass = isDaylight ? 'hover:bg-black/[0.04]' : 'hover:bg-white/5';
+
+    return (
+        <div
+            style={style}
+            onClick={() => onPlaySong(song, playQueue)}
+            data-active={isActive}
+            {...ariaAttributes}
+            className={`group flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
+                ${isActive ? activeRowClass : hoverRowClass} ${isUnavailable ? 'opacity-55' : ''}`}
+        >
+            <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : 'bg-transparent'}`} />
+            <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium truncate">
+                    {song.name}
+                    {isUnavailable && (
+                        <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
+                            {unavailableTagText}
+                        </span>
+                    )}
+                </div>
+                <div className="text-[10px] opacity-40 truncate">{song.ar?.map(artist => artist.name).join(', ')}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
+                {[
+                    { label: labels.playNext, icon: ListPlus, action: onMoveSongToNext },
+                    { label: labels.moveToEnd, icon: ListEnd, action: onMoveSongToEnd },
+                    { label: labels.remove, icon: Trash2, action: onRemoveSong },
+                ].map(({ label, icon: Icon, action }) => (
+                    <button
+                        key={label}
+                        type="button"
+                        title={label}
+                        aria-label={label}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            action(index);
+                        }}
+                        className={`rounded-md p-1.5 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
+                    >
+                        <Icon size={13} />
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const QueueTab: React.FC<QueueTabProps> = ({
     playQueue,
@@ -38,6 +125,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
 }) => {
     const { t } = useTranslation();
     const ITEM_HEIGHT = 50;
+    const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
     // Adjust container height calculation if needed, or rely on flex
     // previously CONTAINER_HEIGHT = 200 was passed to List. 
     // We should make List take available space.
@@ -57,6 +145,30 @@ const QueueTab: React.FC<QueueTabProps> = ({
     const lastScrolledIndexRef = React.useRef<number>(-1);
     const wasOpenRef = React.useRef(false);
     const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
+    const rowProps = React.useMemo<QueueRowProps>(() => ({
+        playQueue,
+        currentSongKey,
+        onPlaySong,
+        onMoveSongToNext,
+        onMoveSongToEnd,
+        onRemoveSong,
+        isDaylight,
+        labels: {
+            unavailable: t('status.songUnavailableTag'),
+            playNext: t('queue.playNext'),
+            moveToEnd: t('queue.moveToEnd'),
+            remove: t('queue.remove'),
+        },
+    }), [
+        currentSongKey,
+        isDaylight,
+        onMoveSongToEnd,
+        onMoveSongToNext,
+        onPlaySong,
+        onRemoveSong,
+        playQueue,
+        t,
+    ]);
 
     // Reset initial mount state when panel is opened
     React.useEffect(() => {
@@ -70,8 +182,8 @@ const QueueTab: React.FC<QueueTabProps> = ({
 
     // Auto-scroll to current song
     React.useEffect(() => {
-        if (shouldScrollToCurrent && currentSong && listRef.current) {
-            const currentIndex = playQueue.findIndex(s => s.id === currentSong.id);
+        if (shouldScrollToCurrent && currentSongKey && listRef.current) {
+            const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
             if (currentIndex >= 0) {
                 const isInitialMount = isInitialMountRef.current;
                 const songChanged = lastScrolledIndexRef.current !== currentIndex && lastScrolledIndexRef.current !== -1;
@@ -92,7 +204,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                 }, delay);
             }
         }
-    }, [shouldScrollToCurrent, currentSong?.id, playQueue, listRef]);
+    }, [shouldScrollToCurrent, currentSongKey, playQueue, listRef]);
 
     const handleSavePlaylist = async () => {
         if (!onSaveCurrentQueueAsPlaylist) {
@@ -100,66 +212,6 @@ const QueueTab: React.FC<QueueTabProps> = ({
         }
         setIsSaveDialogOpen(true);
     };
-
-    // Row component for rendering each item
-    const RowComponent = React.useCallback(({ index, style, ariaAttributes }: {
-        index: number;
-        style: React.CSSProperties;
-        ariaAttributes: { "aria-posinset": number; "aria-setsize": number; role: "listitem"; };
-    }) => {
-        const song = playQueue[index];
-        const isActive = currentSong?.id === song.id;
-        const isUnavailable = isSongMarkedUnavailable(song);
-        const unavailableTagText = getSongUnavailableTagText(song, t('status.songUnavailableTag'));
-        const activeRowClass = isDaylight ? 'bg-black/[0.08]' : 'bg-white/20';
-        const activeMarkerClass = isDaylight ? 'bg-zinc-700' : 'bg-white';
-        const hoverRowClass = isDaylight ? 'hover:bg-black/[0.04]' : 'hover:bg-white/5';
-
-        return (
-            <div
-                style={style}
-                onClick={() => onPlaySong(song, playQueue)}
-                data-active={isActive}
-                {...ariaAttributes}
-                className={`group flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
-                    ${isActive ? activeRowClass : hoverRowClass} ${isUnavailable ? 'opacity-55' : ''}`}
-            >
-                <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : 'bg-transparent'}`} />
-                <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium truncate">
-                        {song.name}
-                        {isUnavailable && (
-                            <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
-                                {unavailableTagText}
-                            </span>
-                        )}
-                    </div>
-                    <div className="text-[10px] opacity-40 truncate">{song.ar?.map(a => a.name).join(', ')}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
-                    {[
-                        { label: t('queue.playNext'), icon: ListPlus, action: onMoveSongToNext },
-                        { label: t('queue.moveToEnd'), icon: ListEnd, action: onMoveSongToEnd },
-                        { label: t('queue.remove'), icon: Trash2, action: onRemoveSong },
-                    ].map(({ label, icon: Icon, action }) => (
-                        <button
-                            key={label}
-                            type="button"
-                            title={label}
-                            aria-label={label}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                action(index);
-                            }}
-                            className={`rounded-md p-1.5 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
-                        >
-                            <Icon size={13} />
-                        </button>
-                    ))}
-                </div>
-            </div>
-        );
-    }, [playQueue, currentSong, onPlaySong, onMoveSongToNext, onMoveSongToEnd, onRemoveSong, isDaylight, t]);
 
     if (playQueue.length === 0) {
         return (
@@ -208,8 +260,8 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         listRef={listRef}
                         rowCount={playQueue.length}
                         rowHeight={ITEM_HEIGHT}
-                        rowComponent={RowComponent}
-                        rowProps={{}}
+                        rowComponent={QueueRow}
+                        rowProps={rowProps}
                         overscanCount={5}
                         className="custom-scrollbar"
                         style={{ height: CONTAINER_HEIGHT, width: '100%' }}

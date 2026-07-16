@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlayerState } from '../../src/types';
 import {
+    buildLegacyObsBrowserSourceBackgroundConfig,
     downsampleObsSpectrum,
     resolveObsBrowserSourceClockTime,
     resolveObsBrowserSourceCoverUrl,
@@ -9,6 +10,58 @@ import {
 } from '../../src/utils/obsBrowserSource';
 
 describe('obsBrowserSource utilities', () => {
+    it('keeps the pre-registry OBS background protocol in sync with nested config', () => {
+        const customImage = {
+            id: 'background',
+            name: 'background.webp',
+            url: 'data:image/webp;base64,Zm9saWE=',
+        };
+        const legacy = buildLegacyObsBrowserSourceBackgroundConfig({
+            mode: 'sora',
+            transparent: true,
+            common: {
+                opacity: 0.6,
+                useCoverColorBg: true,
+                disableGeometricBackground: true,
+                disableVignette: true,
+            },
+            customImage,
+            monet: {
+                tuning: {
+                    backgroundSource: 'uploaded-global',
+                    backgroundLayout: 'full-overlay',
+                    backgroundBlurPx: 6,
+                    backgroundOverlayOpacity: 0.74,
+                    backgroundGrayscale: 0,
+                    backgroundSaturation: 1.05,
+                    backgroundWash: 0.34,
+                    backgroundHalfPaneOffsetX: 0,
+                    backgroundWashColorMode: 'theme',
+                    backgroundWashCustomColor: '#8fb7ff',
+                },
+            },
+            url: {
+                items: [{ id: 'page', url: 'https://example.com', note: 'Example' }],
+                selectedId: 'page',
+            },
+        });
+
+        expect(legacy).toMatchObject({
+            visualizerBackgroundMode: 'sora',
+            backgroundOpacity: 0.6,
+            transparentBackground: true,
+            useCoverColorBg: true,
+            disableGeometricBackground: true,
+            disableVignette: true,
+            monetBackgroundImage: customImage,
+            urlBackgroundSelectedId: 'page',
+        });
+        expect(legacy.monetBackgroundTuning?.backgroundSource).toBe('uploaded-global');
+        expect(legacy.urlBackgroundList).toEqual([
+            { id: 'page', url: 'https://example.com', note: 'Example' },
+        ]);
+    });
+
     it('extrapolates playing clock snapshots', () => {
         expect(resolveObsBrowserSourceClockTime({
             currentTime: 10,

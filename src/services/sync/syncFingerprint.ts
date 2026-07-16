@@ -11,20 +11,19 @@ const normalizeText = (value: unknown) => (
 
 const normalizeArtists = (song: SongResult) => {
     const unified = song as UnifiedSong;
-    const localArtist = unified.localData?.matchedArtists || unified.localData?.artist || unified.localData?.embeddedArtist;
     const navidromeArtist = typeof unified.navidromeData?.artist === 'string'
         ? unified.navidromeData.artist
         : typeof unified.navidromeData?.artistName === 'string'
             ? unified.navidromeData.artistName
             : '';
     const artists = song.ar?.length ? song.ar : song.artists;
-    const artistText = artists?.map(artist => artist.name).filter(Boolean).join(', ') || localArtist || navidromeArtist;
+    const artistText = artists?.map(artist => artist.name).filter(Boolean).join(', ') || navidromeArtist;
     return normalizeText(artistText);
 };
 
 const getSongSourceKind = (song: SongResult) => {
     const unified = song as UnifiedSong;
-    if (unified.isLocal || unified.localData) {
+    if (unified.isLocal || unified.localRef) {
         return 'local';
     }
     if (unified.isNavidrome || unified.navidromeData) {
@@ -37,15 +36,13 @@ const getSongTitle = (song: SongResult) => {
     const unified = song as UnifiedSong;
     return normalizeText(
         song.name
-        || unified.localData?.title
-        || unified.localData?.embeddedTitle
         || unified.navidromeData?.title
     );
 };
 
 const getDurationMs = (song: SongResult) => {
     const unified = song as UnifiedSong;
-    const candidate = song.dt ?? song.duration ?? unified.localData?.duration ?? unified.navidromeData?.durationMs;
+    const candidate = song.dt ?? song.duration ?? unified.navidromeData?.durationMs;
     if (typeof candidate === 'number' && Number.isFinite(candidate)) {
         return candidate < 1000 ? candidate * 1000 : candidate;
     }

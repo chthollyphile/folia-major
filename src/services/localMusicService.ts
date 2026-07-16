@@ -1,4 +1,4 @@
-import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode } from '../types';
+import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode, type SongResult } from '../types';
 import { saveLocalSong, saveLocalSongs, deleteLocalSong as dbDeleteLocalSong, deleteLocalSongs as dbDeleteLocalSongs, saveDirHandles, getDirHandles, deleteDirHandle, getLocalSongs, getLocalLibrarySnapshot, saveLocalLibrarySnapshot, deleteLocalLibrarySnapshot } from './db';
 import { neteaseApi } from './netease';
 import { getLocalPlaylists, saveLocalPlaylists } from './localPlaylistService';
@@ -7,8 +7,14 @@ import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { normalizeLyricMatchText } from '../utils/lyrics/matchScore';
-import { isBlob } from '../utils/blobGuards';
+import { createSafeObjectUrl, isBlob } from '../utils/blobGuards';
 import { resolveExplicitFileTimedLyricFormat, type ExplicitFileTimedLyricFormat } from '../utils/lyrics/formatDetection';
+import { applyMatchedMetadata } from './localLibraryCatalogService';
+import { buildLyricSearchQuery } from '../utils/lyrics/searchQuery';
+import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata } from '../utils/lyrics/localSongMatchContext';
+import { buildImportedMetadataSnapshot } from '../utils/localSongMetadata';
+import { getLocalLibraryCatalogSnapshot } from './localLibraryEntityRepository';
+import { resolveLocalSongMetadata } from './playbackAdapters';
 
 
 type EmbeddedMetadata = EmbeddedMetadataResult;
@@ -221,7 +227,11 @@ export function extractMetadataFromFilename(fileName: string): { title?: string;
 async function getAudioDuration(file: File): Promise<number> {
     return new Promise((resolve) => {
         const audio = new Audio();
-        const url = URL.createObjectURL(file);
+        const url = createSafeObjectUrl(file);
+        if (!url) {
+            resolve(0);
+            return;
+        }
 
         audio.addEventListener('loadedmetadata', () => {
             const duration = audio.duration * 1000; // Convert to milliseconds
@@ -384,11 +394,12 @@ async function extractEmbeddedMetadata(file: File, includeCover = false): Promis
 }
 
 function getImportedAlbumKey(song: LocalSong): string | null {
-    if (!song.album) {
+    const albumName = song.importedMetadata.albumName;
+    if (!albumName) {
         return null;
     }
 
-    return `name-${song.album}`;
+    return `name-${albumName}`;
 }
 
 async function buildSnapshotTree(
@@ -756,6 +767,15 @@ async function buildImportedSong(
     }
 
     const songId = existingSong?.id || generateId();
+    const importedMetadata = buildImportedMetadataSnapshot({
+        fileName: file.name,
+        embeddedTitle: embeddedMetadata.title,
+        fallbackTitle: metadata.title,
+        embeddedArtist: embeddedMetadata.artist,
+        fallbackArtist: metadata.artist,
+        embeddedAlbum: embeddedMetadata.album,
+    });
+    const titleOrigin = existingSong?.titleOrigin || 'import';
     const localSong: LocalSong = {
         ...existingSong,
         id: songId,
@@ -768,14 +788,12 @@ async function buildImportedSong(
         mimeType: file.type,
         bitrate: embeddedMetadata.bitrate || 0,
         addedAt: existingSong?.addedAt || Date.now(),
-        title: embeddedMetadata.title || metadata.title,
-        artist: embeddedMetadata.artist || metadata.artist,
-        album: embeddedMetadata.album,
+        title: titleOrigin === 'import' ? importedMetadata.title : existingSong?.title || importedMetadata.title,
+        titleOrigin,
+        importedMetadata,
+        onlineMetadata: existingSong?.onlineMetadata,
         trackNumber: embeddedMetadata.trackNumber,
         discNumber: embeddedMetadata.discNumber,
-        embeddedTitle: embeddedMetadata.title,
-        embeddedArtist: embeddedMetadata.artist,
-        embeddedAlbum: embeddedMetadata.album,
         embeddedCover: folderCover || embeddedMetadata.cover,
         hasManualLyricSelection: existingSong?.hasManualLyricSelection ?? false,
         folderName: entry.folderName,
@@ -795,15 +813,12 @@ async function buildImportedSong(
         replayGainAlbumPeak: embeddedMetadata.replayGainAlbumPeak,
         matchedLyrics: existingSong?.matchedLyrics,
         matchedIsPureMusic: existingSong?.matchedIsPureMusic,
-        matchedSongId: existingSong?.matchedSongId,
-        matchedArtists: existingSong?.matchedArtists,
-        matchedAlbumId: existingSong?.matchedAlbumId,
-        matchedAlbumName: existingSong?.matchedAlbumName,
-        matchedCoverUrl: existingSong?.matchedCoverUrl,
+        matchedLyricsSongId: existingSong?.matchedLyricsSongId,
+        matchedLyricsSource: existingSong?.matchedLyricsSource,
+        matchedLyricsProviderPlatform: existingSong?.matchedLyricsProviderPlatform,
         noAutoMatch: existingSong?.noAutoMatch,
         lyricsSource: existingSong?.lyricsSource,
         useOnlineCover: existingSong?.useOnlineCover,
-        useOnlineMetadata: existingSong?.useOnlineMetadata
     };
 
     fileHandleMap.set(songId, fileHandle);
@@ -836,15 +851,19 @@ async function hydrateSongMetadata(song: LocalSong): Promise<LocalSong> {
         song.fileSize = file.size;
         song.mimeType = file.type;
         song.bitrate = embeddedMetadata.bitrate || song.bitrate || 0;
-        song.title = embeddedMetadata.title || song.title;
-        song.artist = embeddedMetadata.artist || song.artist;
-        song.album = embeddedMetadata.album || song.album;
+        const filenameMetadata = extractMetadataFromFilename(file.name);
+        song.importedMetadata = buildImportedMetadataSnapshot({
+            fileName: file.name,
+            embeddedTitle: embeddedMetadata.title,
+            fallbackTitle: filenameMetadata.title,
+            embeddedArtist: embeddedMetadata.artist,
+            fallbackArtist: filenameMetadata.artist,
+            embeddedAlbum: embeddedMetadata.album,
+        });
+        if (song.titleOrigin === 'import') song.title = song.importedMetadata.title;
         song.trackNumber = embeddedMetadata.trackNumber;
         song.discNumber = embeddedMetadata.discNumber;
         song.embeddedMetadataVersion = EMBEDDED_METADATA_VERSION;
-        song.embeddedTitle = embeddedMetadata.title;
-        song.embeddedArtist = embeddedMetadata.artist;
-        song.embeddedAlbum = embeddedMetadata.album;
         song.hasEmbeddedLyrics = !!embeddedMetadata.lyrics;
         song.embeddedLyricsContent = embeddedMetadata.lyrics;
         song.hasEmbeddedTranslationLyrics = !!embeddedMetadata.translationLyrics;
@@ -997,7 +1016,7 @@ function getPriorityRepresentativeCoverCandidateIds(songs: LocalSong[]): Set<str
 
     const collectGroupCandidate = (groupSongs: LocalSong[]) => {
         const sortedSongs = [...groupSongs].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
-        const existingPreferredSong = sortedSongs.find(song => isBlob(song.embeddedCover) || song.matchedCoverUrl);
+        const existingPreferredSong = sortedSongs.find(song => isBlob(song.embeddedCover) || song.onlineMetadata?.coverUrl);
         if (!existingPreferredSong && sortedSongs[0]) {
             candidateIds.add(sortedSongs[0].id);
         }
@@ -1292,16 +1311,95 @@ function isTitleMatch(localTitle: string, searchTitle: string): boolean {
 // Match lyrics for a local song using search API
 // If the song has local lyrics, this function will only fetch cover/metadata and skip online lyrics
 export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
-    if (song.matchedIsPureMusic) {
+    if (song.matchedIsPureMusic && !shouldRefreshLocalSongLyricsFromMetadata(song)) {
         return null;
     }
     try {
-        // Build search query from metadata
-        const searchQuery = song.artist
-            ? `${song.artist} ${song.title}`
-            : song.title || song.fileName;
+        const catalog = await getLocalLibraryCatalogSnapshot();
+        const resolvedMetadata = resolveLocalSongMetadata(song.id, catalog);
+        const matchContext = buildLocalSongLyricMatchContext(song, {
+            artistNames: resolvedMetadata.artists.map(artist => artist.name),
+            albumName: resolvedMetadata.album?.name,
+        });
+        const searchQuery = buildLyricSearchQuery(matchContext.title, matchContext.artist, matchContext.album);
+        const hasLocalOrEmbeddedLyrics = Boolean(
+            (song.hasLocalLyrics && song.localLyricsContent)
+            || (song.hasEmbeddedLyrics && song.embeddedLyricsContent)
+        );
 
         console.log(`[LocalMusic] Searching lyrics for: "${searchQuery}"`);
+
+        // A selected GridView metadata identity is authoritative and must not be replaced by lyric fallback metadata.
+        if (!hasLocalOrEmbeddedLyrics) {
+            const settings = useSettingsUiStore.getState();
+            const shouldUseBestLyric = settings.enableAlternativeLyricSources && settings.autoUseBestLyric;
+            if (shouldUseBestLyric || matchContext.metadataCandidate) {
+                const bestMatch = await autoMatchBestLyric(
+                    matchContext.title,
+                    matchContext.artist,
+                    matchContext.durationMs,
+                    {
+                        album: matchContext.album,
+                        preferredSource: shouldUseBestLyric ? settings.preferredAlternativeLyricSource : undefined,
+                        metadataCandidate: matchContext.metadataCandidate,
+                        exactMatchOnly: Boolean(matchContext.metadataCandidate && !shouldUseBestLyric),
+                    },
+                );
+
+                if (bestMatch && 'isPureMusic' in bestMatch) {
+                    song.matchedIsPureMusic = true;
+                    song.matchedLyrics = undefined;
+                    song.matchedLyricsSongId = bestMatch.id ?? matchContext.metadataCandidate?.songId;
+                    song.matchedLyricsSource = bestMatch.source ?? matchContext.metadataCandidate?.source;
+                    await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+                    return null;
+                }
+
+                if (bestMatch && 'lyrics' in bestMatch) {
+                    song.matchedLyricsSongId = bestMatch.id;
+                    song.matchedLyricsSource = bestMatch.source;
+                    song.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
+                    song.matchedLyrics = bestMatch.lyrics;
+                    song.matchedIsPureMusic = false;
+
+                    if (matchContext.metadataCandidate) {
+                        await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+                        return bestMatch.lyrics;
+                    }
+
+                    if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
+                        try {
+                            const detailRes = await neteaseApi.getSongDetail(bestMatch.id as number);
+                            const nSong = detailRes.songs?.[0];
+                            if (nSong) {
+                                const coverUrl = nSong.al?.picUrl || nSong.album?.picUrl;
+                                await applyMatchedMetadata(song.id, {
+                                    source: 'netease',
+                                    songId: bestMatch.id,
+                                    title: nSong.name,
+                                    artists: nSong.ar || nSong.artists,
+                                    album: nSong.al || nSong.album,
+                                    coverUrl: coverUrl?.replace('http:', 'https:'),
+                                }, {
+                                    songPatch: {
+                                        ...song,
+                                        useOnlineCover: Boolean(coverUrl && !isBlob(song.embeddedCover)),
+                                    },
+                                    protectOrigins: ['manual', 'manual-match', 'split'],
+                                });
+                                return bestMatch.lyrics;
+                            }
+                        } catch (error) {
+                            console.error('[LocalMusic] Failed to fetch NetEase song detail for metadata:', error);
+                        }
+                    }
+                    await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+                    return bestMatch.lyrics;
+                }
+            }
+        } else if (matchContext.metadataCandidate) {
+            return null;
+        }
 
         // Search on Netease
         const searchRes = await neteaseApi.cloudSearch(searchQuery);
@@ -1312,8 +1410,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         }
 
         // Try to find a song with matching title
-        const localTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-        let matchedSong = searchRes.result.songs.find(s => isTitleMatch(localTitle, s.name));
+        const localTitle = matchContext.title;
+        const matchedSong = (searchRes.result.songs as SongResult[]).find(candidate => isTitleMatch(localTitle, candidate.name));
 
         // If no exact title match found, return null to trigger manual selection
         if (!matchedSong) {
@@ -1328,63 +1426,21 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             console.log(`[LocalMusic] Local/embedded lyrics exist, skipping online lyrics fetch. Only fetching cover/metadata.`);
 
             // Only update metadata and cover, preserve local lyrics
-            song.matchedSongId = matchedSong.id;
-            song.matchedArtists = matchedSong.ar?.map(a => a.name).join(', ');
-            song.matchedAlbumId = matchedSong.al?.id || matchedSong.album?.id;
-            song.matchedAlbumName = matchedSong.al?.name || matchedSong.album?.name;
-            // DO NOT set song.matchedLyrics - keep local lyrics
-
             const coverUrl = matchedSong.al?.picUrl || matchedSong.album?.picUrl;
-            if (coverUrl) {
-                song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
-            }
-            await saveLocalSong(song);
+            await applyMatchedMetadata(song.id, {
+                source: 'netease',
+                songId: matchedSong.id,
+                title: matchedSong.name,
+                artists: matchedSong.ar || matchedSong.artists,
+                album: matchedSong.al || matchedSong.album,
+                coverUrl: coverUrl?.replace('http:', 'https:'),
+            }, {
+                songPatch: { ...song, useOnlineCover: Boolean(coverUrl && !isBlob(song.embeddedCover)) },
+                protectOrigins: ['manual', 'manual-match', 'split'],
+            });
 
             // Return null to indicate no NEW lyrics were fetched (local lyrics are used)
             return null;
-        }
-
-        // Check if we should automatically match the best word-by-word lyric
-        const settings = useSettingsUiStore.getState();
-        if (settings.enableAlternativeLyricSources && settings.autoUseBestLyric) {
-            const cleanTitle = song.title || song.fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/i, '');
-            const bestMatch = await autoMatchBestLyric(cleanTitle, song.artist || '', song.duration, {
-                album: song.album,
-                preferredSource: settings.preferredAlternativeLyricSource,
-            });
-            if (bestMatch && 'lyrics' in bestMatch) {
-                if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
-                    song.matchedSongId = bestMatch.id as number;
-                    song.matchedLyricsSource = bestMatch.source;
-                    song.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
-                    song.matchedLyrics = bestMatch.lyrics;
-                    song.matchedIsPureMusic = false;
-
-                    try {
-                        const detailRes = await neteaseApi.getSongDetail(bestMatch.id as number);
-                        const nSong = detailRes.songs?.[0];
-                        if (nSong) {
-                            song.matchedArtists = nSong.ar?.map((a: any) => a.name).join(', ');
-                            song.matchedAlbumId = nSong.al?.id || nSong.album?.id;
-                            song.matchedAlbumName = nSong.al?.name || nSong.album?.name;
-                            const coverUrl = nSong.al?.picUrl || nSong.album?.picUrl;
-                            if (coverUrl) {
-                                song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
-                            }
-                        }
-                    } catch (err) {
-                        console.error('[LocalMusic] Failed to fetch NetEase song detail for metadata:', err);
-                    }
-                } else {
-                    song.matchedLyricsSource = bestMatch.source;
-                    song.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
-                    song.matchedLyrics = bestMatch.lyrics;
-                    song.matchedIsPureMusic = false;
-                }
-
-                await saveLocalSong(song);
-                return bestMatch.lyrics;
-            }
         }
 
         // Fetch lyrics (only when NO local lyrics)
@@ -1397,19 +1453,28 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             { songId: matchedSong.id }
         );
 
-        song.matchedSongId = matchedSong.id;
-        song.matchedArtists = matchedSong.ar?.map(a => a.name).join(', ');
-        song.matchedAlbumId = matchedSong.al?.id || matchedSong.album?.id;
-        song.matchedAlbumName = matchedSong.al?.name || matchedSong.album?.name;
+        song.matchedLyricsSongId = matchedSong.id;
+        song.matchedLyricsSource = 'netease';
         song.matchedLyrics = processed.lyrics || undefined;
         song.matchedIsPureMusic = processed.isPureMusic;
 
-        const coverUrl = matchedSong.al?.picUrl || matchedSong.album?.picUrl;
-        if (coverUrl) {
-            song.matchedCoverUrl = coverUrl.replace('http:', 'https:');
+        if (matchContext.metadataCandidate) {
+            await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+            return processed.lyrics;
         }
 
-        await saveLocalSong(song);
+        const coverUrl = matchedSong.al?.picUrl || matchedSong.album?.picUrl;
+        await applyMatchedMetadata(song.id, {
+            source: 'netease',
+            songId: matchedSong.id,
+            title: matchedSong.name,
+            artists: matchedSong.ar || matchedSong.artists,
+            album: matchedSong.al || matchedSong.album,
+            coverUrl: coverUrl?.replace('http:', 'https:'),
+        }, {
+            songPatch: { ...song, useOnlineCover: Boolean(coverUrl && !isBlob(song.embeddedCover)) },
+            protectOrigins: ['manual', 'manual-match', 'split'],
+        });
         return processed.lyrics;
     } catch (error) {
         console.error('[LocalMusic] Failed to match lyrics:', error);
@@ -1435,10 +1500,10 @@ function getRootFolderName(song: LocalSong): string | null {
 async function resolveFileHandleFromDirHandle(
     dirHandle: FileSystemDirectoryHandle,
     relativePathFromRoot: string
-): Promise<FileSystemFileHandle | null> {
+): Promise<FileSystemFileHandle> {
     const pathSegments = relativePathFromRoot.split('/').filter(Boolean);
     if (pathSegments.length === 0) {
-        return null;
+        throw new Error('Cannot resolve a file handle from an empty path.');
     }
 
     const fileName = pathSegments[pathSegments.length - 1];
@@ -1525,7 +1590,7 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
     if (fileHandle) {
         try {
             const file = await fileHandle.getFile();
-            return URL.createObjectURL(file);
+            return createSafeObjectUrl(file);
         } catch (error) {
             console.error('[LocalMusic] Failed to get file from handle:', error);
             // File may have been moved or the stored handle may have become stale.
@@ -1537,7 +1602,7 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
     if (recoveredHandle) {
         try {
             const file = await recoveredHandle.getFile();
-            return URL.createObjectURL(file);
+            return createSafeObjectUrl(file);
         } catch (error) {
             console.error('[LocalMusic] Failed to get file from recovered directory handle:', error);
             fileHandleMap.delete(song.id);
@@ -1615,7 +1680,9 @@ export async function ensureLocalSongEmbeddedCover(song: LocalSong): Promise<Loc
 
 // Get audio blob from File object (for file input imports)
 export async function getAudioFromFile(file: File): Promise<string> {
-    return URL.createObjectURL(file);
+    const url = createSafeObjectUrl(file);
+    if (!url) throw new TypeError('Local audio source must be a File or Blob');
+    return url;
 }
 
 // Delete songs by their specific IDs

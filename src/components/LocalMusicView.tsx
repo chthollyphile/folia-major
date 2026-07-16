@@ -9,7 +9,7 @@ import LocalPlaylistView from './local/LocalPlaylistView';
 import Carousel3D from './Carousel3D';
 import LocalArtistView from './local/LocalArtistView';
 import { deleteLocalPlaylist, updateLocalPlaylist } from '../services/localPlaylistService';
-import { isBlob } from '../utils/blobGuards';
+import { createSafeObjectUrl, isBlob } from '../utils/blobGuards';
 import { sortLocalAlbumSongs, sortLocalFolderSongs } from '../utils/localSongSorting';
 
 /**
@@ -51,13 +51,13 @@ interface LocalMusicViewProps {
  */
 const getGroupCoverSource = (songs: LocalSong[]): Blob | string | undefined => {
     const sortedSongs = [...songs].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
-    const preferredSong = sortedSongs.find(song => isBlob(song.embeddedCover) || song.matchedCoverUrl);
+    const preferredSong = sortedSongs.find(song => isBlob(song.embeddedCover) || song.onlineMetadata?.coverUrl);
 
     if (isBlob(preferredSong?.embeddedCover)) {
         return preferredSong.embeddedCover;
     }
 
-    return preferredSong?.matchedCoverUrl;
+    return preferredSong?.onlineMetadata?.coverUrl;
 };
 
 const LocalMusicView: React.FC<LocalMusicViewProps> = ({
@@ -176,16 +176,16 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             let albumId: number | undefined = undefined;
 
-            if (song.matchedSongId && song.matchedAlbumId) {
+            if (song.onlineMetadata?.songId && song.onlineMetadata.albumId) {
                 // If matched, use the album name from metadata (which might be updated by match)
-                albumName = song.matchedAlbumName || song.album || t('localMusic.unknownAlbum');
+                albumName = song.onlineMetadata.album?.name || song.importedMetadata.albumName || t('localMusic.unknownAlbum');
                 // Use ID as key to distinguish different albums with same name
-                albumKey = `id-${song.matchedAlbumId}`;
-                albumId = song.matchedAlbumId;
-                coverUrl = song.matchedCoverUrl;
-            } else if (song.album) {
-                albumName = song.album;
-                albumKey = `name-${song.album}`;
+                albumKey = `id-${song.onlineMetadata.albumId}`;
+                albumId = typeof song.onlineMetadata.albumId === 'number' ? song.onlineMetadata.albumId : undefined;
+                coverUrl = song.onlineMetadata.coverUrl;
+            } else if (song.importedMetadata.albumName) {
+                albumName = song.importedMetadata.albumName;
+                albumKey = `name-${song.importedMetadata.albumName}`;
             }
 
             if (albumKey !== t('localMusic.unknownAlbum')) {
@@ -193,7 +193,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 albums[albumKey].push(song);
             }
 
-            const artistName = song.matchedArtists || song.artist;
+            const artistName = song.onlineMetadata?.artists.map(artist => artist.name).join(', ')
+                || song.importedMetadata.artistNames.join(', ');
             if (artistName) {
                 if (!artists[artistName]) {
                     artists[artistName] = [];
@@ -235,8 +236,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
         // Sort albums
         const albumList: LocalLibraryGroup[] = Object.entries(albums).map(([key, songs]) => {
             // Try to find a song with matched info to get the best metadata
-            const representative = songs.find(s => s.matchedAlbumId) || songs[0];
-            const name = representative.matchedAlbumName || representative.album || t('localMusic.unknownAlbum');
+            const representative = songs.find(s => s.onlineMetadata?.albumId) || songs[0];
+            const name = representative.onlineMetadata?.album?.name || representative.importedMetadata.albumName || t('localMusic.unknownAlbum');
             const id = `album-${key}`;
             sourceMap.set(id, getGroupCoverSource(songs));
 
@@ -247,8 +248,8 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 type: 'album' as const,
                 coverUrl: undefined,
                 trackCount: songs.length,
-                description: songs[0]?.artist || t('localMusic.unknownArtist'),
-                albumId: representative.matchedAlbumId
+                description: songs[0]?.importedMetadata.artistNames.join(', ') || t('localMusic.unknownArtist'),
+                albumId: typeof representative.onlineMetadata?.albumId === 'number' ? representative.onlineMetadata.albumId : undefined,
             };
         }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -262,7 +263,7 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
                 type: 'artist' as const,
                 coverUrl: undefined,
                 trackCount: songs.length,
-                description: songs[0]?.matchedAlbumName || songs[0]?.album || t('localMusic.unknownAlbum'),
+                description: songs[0]?.onlineMetadata?.album?.name || songs[0]?.importedMetadata.albumName || t('localMusic.unknownAlbum'),
             };
         }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -316,8 +317,9 @@ const LocalMusicView: React.FC<LocalMusicViewProps> = ({
 
         for (const group of allGroups) {
             const source = coverSourceMap.get(group.id);
-            if (source instanceof Blob) {
-                const url = URL.createObjectURL(source);
+            if (isBlob(source)) {
+                const url = createSafeObjectUrl(source);
+                if (!url) continue;
                 nextObjectUrls[group.id] = url;
                 createdUrls.push(url);
             }

@@ -6,11 +6,28 @@ import type {
     MonetPortraitImage,
 } from '../types';
 import type { ObsBrowserSourceClock } from '../types/obsBrowserSource';
+import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 
 // src/utils/obsBrowserSource.ts
 // Pure helpers for the OBS browser source timing and compact audio payloads.
 
 export const OBS_SPECTRUM_BIN_LIMIT = 256;
+
+// Keeps pre-background-registry OBS pages responsive until their browser source is refreshed.
+export const buildLegacyObsBrowserSourceBackgroundConfig = (
+    background: VisualizerBackgroundConfig,
+) => ({
+    visualizerBackgroundMode: background.mode,
+    backgroundOpacity: background.common?.opacity,
+    transparentBackground: background.transparent,
+    useCoverColorBg: background.common?.useCoverColorBg,
+    disableGeometricBackground: background.common?.disableGeometricBackground,
+    disableVignette: background.common?.disableVignette,
+    monetBackgroundTuning: background.monet?.tuning,
+    monetBackgroundImage: background.customImage,
+    urlBackgroundList: background.url?.items,
+    urlBackgroundSelectedId: background.url?.selectedId,
+});
 
 export const resolveObsBrowserSourceClockTime = (
     clock: ObsBrowserSourceClock | null,

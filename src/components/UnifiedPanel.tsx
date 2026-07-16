@@ -15,6 +15,7 @@ import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import type { OnlineLyricsState } from '../types';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
+import { getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics';
 
@@ -83,7 +84,7 @@ type UnifiedPanelPlaybackProps = {
 type UnifiedPanelQueueProps = {
     playQueue: SongResult[];
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
-    queueScrollRef: React.RefObject<HTMLDivElement>;
+    queueScrollRef: React.RefObject<HTMLDivElement | null>;
     onShuffle: () => void;
     onRemoveSong: (index: number) => void;
     onMoveSongToEnd: (index: number) => void;
@@ -115,7 +116,7 @@ type UnifiedPanelLibraryProps = {
     onAddCurrentSongToNavidromePlaylist: (playlistId: string) => Promise<void>;
     onCreateCurrentNavidromePlaylist: (name: string) => Promise<void>;
     onOpenCurrentLocalAlbum: () => void;
-    onOpenCurrentLocalArtist: () => void;
+    onOpenCurrentLocalArtist: (entityId?: string) => void;
     onOpenCurrentNavidromeAlbum: () => void;
     onOpenCurrentNavidromeArtist: () => void;
     onCopySongInfoSuccess: () => void;
@@ -235,7 +236,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 
     const isStage = isStageContext || Boolean(currentSong && (currentSong as any).isStage === true);
     const isNavidrome = currentSong && (currentSong as any).isNavidrome === true;
-    const isLocal = currentSong && !isNavidrome && (((currentSong as any).isLocal === true) || Boolean((currentSong as any).localData));
+    const isLocal = currentSong && !isNavidrome && (((currentSong as any).isLocal === true) || Boolean((currentSong as any).localRef?.songId));
     const isNetease = Boolean(currentSong && !isLocal && !isNavidrome && !isStage);
     const canCreateLocalPlaylist = isLocal;
     const canCreateNavidromePlaylist = isNavidrome;
@@ -757,8 +758,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onOpenCurrentLocalAlbum();
                                                 onToggle();
                                             }}
-                                            onOpenCurrentLocalArtist={() => {
-                                                onOpenCurrentLocalArtist();
+                                            onOpenCurrentLocalArtist={(entityId) => {
+                                                onOpenCurrentLocalArtist(entityId);
                                                 onToggle();
                                             }}
                                             onOpenCurrentNavidromeAlbum={() => {
@@ -836,7 +837,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onRemoveSong={onRemoveSong}
                                                 onMoveSongToEnd={onMoveSongToEnd}
                                                 onMoveSongToNext={onMoveSongToNext}
-                                                canSaveLocalPlaylist={Boolean(isLocal && playQueue.some(song => ((song as any).isLocal === true) || (song as any).localData))}
+                                                // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
+                                                canSaveLocalPlaylist={Boolean(
+                                                    isLocal
+                                                    && !hasMixedPlaybackSources(playQueue)
+                                                    && playQueue.length > 0
+                                                    && playQueue.every(song => getPlaybackSongSource(song) === 'local')
+                                                )}
                                                 onSaveCurrentQueueAsPlaylist={onSaveCurrentQueueAsPlaylist}
                                                 isDaylight={isDaylight}
                                             />

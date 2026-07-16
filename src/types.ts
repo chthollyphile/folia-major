@@ -522,9 +522,13 @@ export const DEFAULT_DIORAMA_TUNING: DioramaTuning = {
 export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetBackgroundWashColorMode = 'theme' | 'custom';
+export type NomandBackgroundSource = 'cover-derived' | 'uploaded-global';
+export type NomandBackgroundDitheringType = '2x2' | '4x4' | '8x8';
+export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type VisualizerBackgroundMode = 'common' | 'monet' | 'url' | 'sora';
+export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
+export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
 export interface UrlBackgroundItem {
   id: string;
@@ -543,6 +547,32 @@ export interface MonetBackgroundTuning {
   backgroundHalfPaneOffsetX: number;
   backgroundWashColorMode: MonetBackgroundWashColorMode;
   backgroundWashCustomColor: string;
+}
+
+export interface NomandBackgroundTuning {
+  imageSource: NomandBackgroundSource;
+  ditheringType: NomandBackgroundDitheringType;
+  size: number;
+  colorSteps: number;
+  originalColors: boolean;
+  inverted: boolean;
+  overlayEnabled: boolean;
+  overlayOpacity: number;
+}
+
+export interface LatentBackgroundTuning {
+  displayMode: LatentBackgroundDisplayMode;
+  dynamicOnlyInPlayer: boolean;
+  ditheringSpeed: number;
+  ditheringAudioSpeed: number;
+  ditheringSize: number;
+  ditheringOpacity: number;
+  meshSpeed: number;
+  meshAudioSpeed: number;
+  meshDistortion: number;
+  meshSwirl: number;
+  overlayEnabled: boolean;
+  overlayOpacity: number;
 }
 
 export interface MonetTuning {
@@ -567,6 +597,32 @@ export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
   backgroundHalfPaneOffsetX: 0,
   backgroundWashColorMode: 'theme',
   backgroundWashCustomColor: '#8fb7ff',
+};
+
+export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
+  imageSource: 'cover-derived',
+  ditheringType: '8x8',
+  size: 2,
+  colorSteps: 2,
+  originalColors: false,
+  inverted: false,
+  overlayEnabled: true,
+  overlayOpacity: 0.35,
+};
+
+export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
+  displayMode: 'both',
+  dynamicOnlyInPlayer: true,
+  ditheringSpeed: 0.35,
+  ditheringAudioSpeed: 2,
+  ditheringSize: 2.5,
+  ditheringOpacity: 0.55,
+  meshSpeed: 0.3,
+  meshAudioSpeed: 2,
+  meshDistortion: 0.8,
+  meshSwirl: 0.1,
+  overlayEnabled: true,
+  overlayOpacity: 0.35,
 };
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {
@@ -676,12 +732,14 @@ export interface NeteasePlaylist {
 export interface Artist {
   id: number;
   name: string;
+  entityId?: string;
 }
 
 export interface Album {
   id: number;
   name: string;
   picUrl?: string;
+  entityId?: string;
 }
 
 export interface SongPrivilege {
@@ -720,6 +778,7 @@ export interface SongResult {
     id: number;
     name: string;
     picUrl?: string;
+    entityId?: string;
   };
   ar?: Artist[];
   dt?: number; // duration in ms
@@ -772,18 +831,15 @@ export interface LocalSong {
   bitrate?: number; // bps
   addedAt: number; // timestamp
 
-  // Extracted metadata from file tags
-  title?: string;
-  artist?: string;
-  album?: string;
+  // Canonical metadata and retained source snapshots
+  title: string;
+  titleOrigin: import('./types/localLibrary').LocalSongTitleOrigin;
+  importedMetadata: import('./types/localLibrary').LocalSongImportedMetadata;
+  onlineMetadata?: import('./types/localLibrary').LocalSongOnlineMetadata;
   trackNumber?: number;
   discNumber?: number;
   embeddedMetadataVersion?: number;
 
-  // Embedded metadata from file tags
-  embeddedTitle?: string;
-  embeddedArtist?: string;
-  embeddedAlbum?: string;
   embeddedCover?: Blob; // Preferred local cover blob (folder cover or embedded art), stored in IndexedDB
   replayGain?: number; // ReplayGain track gain in dB
   replayGainTrackGain?: number; // ReplayGain track gain in dB
@@ -792,13 +848,9 @@ export interface LocalSong {
   replayGainAlbumPeak?: number; // ReplayGain album peak ratio
 
   // Lyrics matching result
-  matchedSongId?: number; // Netease song ID
-  matchedArtists?: string; // Matched artist names (joined string)
-  matchedAlbumId?: number; // Netease album ID
-  matchedAlbumName?: string; // Netease album name
   matchedLyrics?: LyricData;
   matchedIsPureMusic?: boolean;
-  matchedCoverUrl?: string; // Cover image URL from matched song
+  matchedLyricsSongId?: number | string; // Provider-scoped ID used for the saved lyric result
   hasManualLyricSelection?: boolean;
   folderName?: string; // Name of the folder if imported via folder import
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
@@ -808,7 +860,6 @@ export interface LocalSong {
   // User preferences for online data override (set via LyricMatchModal)
   lyricsSource?: 'local' | 'embedded' | 'online';  // Explicit lyrics source selection; undefined = default priority (local > embedded > online)
   useOnlineCover?: boolean;     // Prefer online cover over embedded cover
-  useOnlineMetadata?: boolean;  // Prefer online artist/album over embedded tags
 
   // Local Lyrics (.lrc / .vtt / .ttml / .qrc / .yrc / .krc files)
   hasLocalLyrics?: boolean;
@@ -868,13 +919,26 @@ export interface LocalLibraryGroup {
   trackCount?: number;
   description?: string;
   albumId?: number;
+  entityId?: string;
   playlistId?: string;
 }
+
+export type {
+  LocalLibraryAssignment,
+  LocalLibraryAssignmentOrigin,
+  LocalLibraryEntity,
+  LocalLibraryEntityKind,
+  LocalSongImportedMetadata,
+  LocalSongMetadataSource,
+  LocalSongOnlineMetadata,
+  LocalSongReference,
+  LocalSongTitleOrigin,
+} from './types/localLibrary';
 
 // Extend SongResult to support local files and Navidrome files
 export interface UnifiedSong extends SongResult {
   isLocal?: boolean;
-  localData?: LocalSong;
+  localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;
   navidromeData?: any;
 }
@@ -890,5 +954,5 @@ export interface AudioBands {
     mid: MotionValue<number>;     // 400-1200Hz (Triangles)
     vocal: MotionValue<number>;   // 1000-3500Hz (Icons)
     treble: MotionValue<number>;  // 3500Hz+ (Crosses)
-    spectrum?: MotionValue<Uint8Array>; // Raw analyser FFT magnitude bins for full-spectrum visualizers
+    spectrum?: MotionValue<Uint8Array<ArrayBuffer>>; // Raw analyser FFT magnitude bins for full-spectrum visualizers
   }

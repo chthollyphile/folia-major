@@ -36,6 +36,7 @@ describe('Visual Settings Import and Export', () => {
         visualizerOpacity: 0.95,
         hidePlayerTranslationSubtitle: true,
         showSubtitleTranslation: false,
+        subtitleOverlayBackground: true,
         lyricsFontStyle: 'sans',
         lyricsFontScale: 1.25,
         lyricsFontFallbackFamilies: ['Songti SC', 'SimSun', 'serif'],
@@ -99,6 +100,30 @@ describe('Visual Settings Import and Export', () => {
             backgroundWashColorMode: 'custom' as const,
             backgroundWashCustomColor: '#ff0000',
         },
+        nomandBackgroundTuning: {
+            imageSource: 'uploaded-global' as const,
+            ditheringType: '4x4' as const,
+            size: 3.5,
+            colorSteps: 3,
+            originalColors: false,
+            inverted: true,
+            overlayEnabled: true,
+            overlayOpacity: 0.45,
+        },
+        latentBackgroundTuning: {
+            displayMode: 'mesh' as const,
+            dynamicOnlyInPlayer: false,
+            ditheringSpeed: 0.4,
+            ditheringAudioSpeed: 1.8,
+            ditheringSize: 3,
+            ditheringOpacity: 0.6,
+            meshSpeed: 0.25,
+            meshAudioSpeed: 2,
+            meshDistortion: 1.1,
+            meshSwirl: 0.3,
+            overlayEnabled: false,
+            overlayOpacity: 0.5,
+        },
         monetTuning: {
             keywordColoringEnabled: false,
             showDescription: false,
@@ -122,6 +147,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.backgroundOpacity).toBe(0.85);
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
+        expect(decoded.subtitleOverlayBackground).toBe(true);
         expect(decoded.lyricsFontFallbackFamilies).toEqual(['Songti SC', 'SimSun', 'serif']);
         expect(decoded.subtitleFontInheritsLyrics).toBe(false);
         expect(decoded.subtitleFontStyle).toBe('sans');
@@ -134,6 +160,8 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
+        expect(decoded.nomandBackgroundTuning).toEqual(sampleConfig.nomandBackgroundTuning);
+        expect(decoded.latentBackgroundTuning).toEqual(sampleConfig.latentBackgroundTuning);
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
@@ -158,6 +186,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.backgroundOpacity).toBe(0.85);
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
+        expect(decoded.subtitleOverlayBackground).toBe(true);
         expect(decoded.lyricsFontFallbackFamilies).toEqual(['Songti SC', 'SimSun', 'serif']);
         expect(decoded.subtitleFontInheritsLyrics).toBe(false);
         expect(decoded.subtitleFontStyle).toBe('sans');
@@ -168,6 +197,24 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
         expect(decoded.songThemeAutoGenerateEnabled).toBe(true);
+    });
+
+    it('migrates the removed Nomand random dithering option to 8x8', () => {
+        const encoded = compressConfig({
+            nomandBackgroundTuning: {
+                imageSource: 'cover-derived',
+                ditheringType: 'random',
+                size: 2,
+                colorSteps: 2,
+                originalColors: false,
+                inverted: false,
+            },
+        });
+        const decoded = decompressConfig(encoded);
+
+        expect(decoded.nomandBackgroundTuning.ditheringType).toBe('8x8');
+        expect(decoded.nomandBackgroundTuning.overlayEnabled).toBe(true);
+        expect(decoded.nomandBackgroundTuning.overlayOpacity).toBe(0.35);
     });
 
     it('gracefully throws error on invalid configuration input strings', () => {

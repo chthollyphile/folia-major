@@ -59,7 +59,7 @@ type UseStagePlaybackControllerParams = {
     currentLineIndex: number;
     currentTime: MotionValue<number>;
     audioRef: RefObject<HTMLAudioElement | null>;
-    currentSongRef: MutableRefObject<number | null>;
+    currentSongRef: MutableRefObject<string | number | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
     pendingResumeTimeRef: MutableRefObject<number | null>;
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;

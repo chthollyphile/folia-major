@@ -5,16 +5,22 @@ import type { LocalLibraryGroup, LocalSong } from '../../../src/types';
 // test/unit/regression/issue125ObjectUrlRepro.test.ts
 // Captures the bad cover payload shape behind issue #125.
 
-const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => ({
-    id: patch.id,
-    fileName: `${patch.id}.mp3`,
-    filePath: `/music/${patch.id}.mp3`,
-    duration: 180000,
-    fileSize: 1024,
-    mimeType: 'audio/mpeg',
-    addedAt: 1,
-    ...patch,
-});
+const buildLocalSong = (patch: Partial<LocalSong> & Pick<LocalSong, 'id'>): LocalSong => {
+    const { id, ...songPatch } = patch;
+    return {
+        id,
+        fileName: `${id}.mp3`,
+        filePath: `/music/${id}.mp3`,
+        title: id,
+        titleOrigin: 'import',
+        importedMetadata: { title: id, titleSource: 'filename', artistNames: [] },
+        duration: 180000,
+        fileSize: 1024,
+        mimeType: 'audio/mpeg',
+        addedAt: 1,
+        ...songPatch,
+    };
+};
 
 describe('issue #125 object URL repro', () => {
     it('shows the native failure when createObjectURL receives a plain object', () => {
@@ -27,7 +33,15 @@ describe('issue #125 object URL repro', () => {
                 id: 'bad-cover-song',
                 addedAt: 2,
                 embeddedCover: { size: 20, type: 'image/png' } as unknown as Blob,
-                matchedCoverUrl: 'https://example.com/fallback.jpg',
+                useOnlineCover: true,
+                onlineMetadata: {
+                    source: 'qq',
+                    title: 'bad-cover-song',
+                    artists: [],
+                    coverUrl: 'https://example.com/fallback.jpg',
+                    matchMode: 'manual',
+                    matchedAt: 1,
+                },
             }),
             buildLocalSong({ id: 'plain-song', addedAt: 1 }),
         ];

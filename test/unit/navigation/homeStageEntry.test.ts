@@ -2,13 +2,23 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it, vi } from 'vitest';
-import { PlayerState } from '@/types';
+import { PlayerState, type Theme } from '@/types';
 import { buildHomeModel } from '@/components/app/home/buildHomeModel';
 
 // test/unit/navigation/homeStageEntry.test.ts
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '../../..');
+
+const theme: Theme = {
+    name: 'Test',
+    backgroundColor: '#000',
+    primaryColor: '#fff',
+    secondaryColor: '#999',
+    accentColor: '#fff',
+    fontStyle: 'sans',
+    animationIntensity: 'normal',
+};
 
 const readRepoFile = async (relativePath: string) => {
     return readFile(path.join(repoRoot, relativePath), 'utf8');
@@ -40,6 +50,12 @@ const createBaseParams = () => {
         openLocalAlbumByName: vi.fn(),
         openLocalArtistByName: vi.fn(),
         localSongs: [],
+        localLibraryCatalog: {
+            entities: [],
+            assignments: [],
+            ready: true,
+            reload: vi.fn().mockResolvedValue(undefined),
+        },
         localPlaylists: [],
         onRefreshLocalSongs: vi.fn(),
         onPlayLocalSong: vi.fn(),
@@ -63,11 +79,14 @@ const createBaseParams = () => {
         clearStagePlaybackSession: vi.fn(),
         clearPersistedStagePlaybackCache: vi.fn().mockResolvedValue(undefined),
         loadStageSessionIntoPlayback: vi.fn().mockResolvedValue(undefined),
-        theme: null,
+        theme,
         navidromeEnabled: false,
         playAll: vi.fn(),
         addAllToQueue: vi.fn(),
         addSongToQueue: vi.fn(),
+        onOpenCollection: vi.fn(),
+        onPushCollection: vi.fn(),
+        onBackCollection: vi.fn(),
     };
 };
 

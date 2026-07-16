@@ -7,10 +7,10 @@ import { SongResult } from '../types';
  * @returns React 元素，包含歌曲名称和别名/翻译名
  */
 export const formatSongName = (song: SongResult): React.ReactNode => {
-  const hasAlia = song.alia && song.alia.length > 0;
-  const hasTns = song.tns && song.tns.length > 0;
-  const aliaText = hasAlia ? song.alia[0] : null;
-  const tnsText = hasTns ? song.tns[0] : null;
+  const aliaText = song.alia?.[0] ?? null;
+  const tnsText = song.tns?.[0] ?? null;
+  const hasAlia = aliaText !== null;
+  const hasTns = tnsText !== null;
 
   // 如果都没有，只返回歌曲名
   if (!hasAlia && !hasTns) {
@@ -48,4 +48,3 @@ export const formatSongName = (song: SongResult): React.ReactNode => {
     </span>
   );
 };
-
