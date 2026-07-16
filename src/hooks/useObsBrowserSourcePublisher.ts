@@ -12,7 +12,6 @@ import type {
     FumeTuning,
     LyricData,
     MonetBackgroundImage,
-    MonetBackgroundTuning,
     MonetPortraitImage,
     MonetTuning,
     PartitaTuning,
@@ -22,8 +21,6 @@ import type {
     StageSource,
     Theme,
     TiltTuning,
-    UrlBackgroundItem,
-    VisualizerBackgroundMode,
     VisualizerMode,
 } from '../types';
 import type {
@@ -41,6 +38,7 @@ import {
     resolveObsBrowserSourceImageAssets,
 } from '../utils/obsBrowserSource';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
+import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 
 // src/hooks/useObsBrowserSourcePublisher.ts
 // Publishes the single playback surface to the local OBS browser source.
@@ -65,16 +63,11 @@ type UseObsBrowserSourcePublisherOptions = {
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     visualizerTunings?: VisualizerTuningBundle;
-    visualizerBackgroundMode: VisualizerBackgroundMode | null;
+    background?: VisualizerBackgroundConfig;
     lyricsFontScale: number;
-    backgroundOpacity: number;
     visualizerOpacity: number;
     subtitleOverlayOpacity: number;
-    transparentBackground: boolean;
-    useCoverColorBg: boolean;
     staticMode: boolean;
-    disableGeometricBackground: boolean;
-    disableVignette: boolean;
     hideTranslationSubtitle: boolean;
     showSubtitleTranslation: boolean;
     seed: string | number;
@@ -82,11 +75,7 @@ type UseObsBrowserSourcePublisherOptions = {
     audioBands: AudioBands;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
-    monetBackgroundTuning?: MonetBackgroundTuning;
-    monetBackgroundImage?: MonetBackgroundImage | null;
     monetPortraitImage?: MonetPortraitImage | null;
-    urlBackgroundList?: UrlBackgroundItem[];
-    urlBackgroundSelectedId?: string | null;
 };
 
 const emptyObsStatus = (): ObsBrowserSourceStatus => ({
@@ -121,16 +110,11 @@ export const useObsBrowserSourcePublisher = ({
     isDaylight,
     visualizerMode,
     visualizerTunings,
-    visualizerBackgroundMode,
+    background,
     lyricsFontScale,
-    backgroundOpacity,
     visualizerOpacity,
     subtitleOverlayOpacity,
-    transparentBackground,
-    useCoverColorBg,
     staticMode,
-    disableGeometricBackground,
-    disableVignette,
     hideTranslationSubtitle,
     showSubtitleTranslation,
     seed,
@@ -138,11 +122,7 @@ export const useObsBrowserSourcePublisher = ({
     audioBands,
     cappellaCustomEmojiImages,
     cappellaCustomAvatarImages,
-    monetBackgroundTuning,
-    monetBackgroundImage,
     monetPortraitImage,
-    urlBackgroundList,
-    urlBackgroundSelectedId,
 }: UseObsBrowserSourcePublisherOptions) => {
     const [status, setStatus] = useState<ObsBrowserSourceStatus>(() => emptyObsStatus());
     const [obsCoverUrl, setObsCoverUrl] = useState<string | null>(coverUrl);
@@ -207,7 +187,7 @@ export const useObsBrowserSourcePublisher = ({
         void Promise.all([
             resolveObsBrowserSourceImageAssets(cappellaCustomEmojiImages),
             resolveObsBrowserSourceImageAssets(cappellaCustomAvatarImages),
-            monetBackgroundImage ? resolveObsBrowserSourceImageAsset(monetBackgroundImage) : null,
+            background?.customImage ? resolveObsBrowserSourceImageAsset(background.customImage) : null,
             monetPortraitImage ? resolveObsBrowserSourceImageAsset(monetPortraitImage) : null,
         ]).then(([cappellaEmoji, cappellaAvatar, monetBackground, monetPortrait]) => {
             if (!cancelled) {
@@ -223,7 +203,7 @@ export const useObsBrowserSourcePublisher = ({
         return () => {
             cancelled = true;
         };
-    }, [cappellaCustomAvatarImages, cappellaCustomEmojiImages, monetBackgroundImage, monetPortraitImage]);
+    }, [background?.customImage, cappellaCustomAvatarImages, cappellaCustomEmojiImages, monetPortraitImage]);
 
     const config = useMemo<ObsBrowserSourceConfig>(() => ({
         activePlaybackContext,
@@ -239,39 +219,30 @@ export const useObsBrowserSourcePublisher = ({
         isDaylight,
         visualizerMode,
         visualizerTunings,
-        visualizerBackgroundMode,
+        background: {
+            ...background,
+            customImage: obsCustomImages.monetBackground,
+        },
         lyricsFontScale,
-        backgroundOpacity,
         visualizerOpacity,
         subtitleOverlayOpacity,
-        transparentBackground,
-        useCoverColorBg,
         staticMode,
-        disableGeometricBackground,
-        disableVignette,
         hideTranslationSubtitle,
         showSubtitleTranslation,
         seed,
         cappellaCustomEmojiImages: obsCustomImages.cappellaEmoji,
         cappellaCustomAvatarImages: obsCustomImages.cappellaAvatar,
-        monetBackgroundTuning,
-        monetBackgroundImage: obsCustomImages.monetBackground,
         monetPortraitImage: obsCustomImages.monetPortrait,
-        urlBackgroundList,
-        urlBackgroundSelectedId,
         updatedAt: Date.now(),
     }), [
         activePlaybackContext,
-        backgroundOpacity,
+        background,
         currentSong,
-        disableGeometricBackground,
-        disableVignette,
         hideTranslationSubtitle,
         showSubtitleTranslation,
         isDaylight,
         lyrics,
         lyricsFontScale,
-        monetBackgroundTuning,
         obsCustomImages,
         obsCoverUrl,
         seed,
@@ -280,11 +251,6 @@ export const useObsBrowserSourcePublisher = ({
         subtitleOverlayOpacity,
         theme,
         subtitleTheme,
-        transparentBackground,
-        urlBackgroundList,
-        urlBackgroundSelectedId,
-        useCoverColorBg,
-        visualizerBackgroundMode,
         visualizerMode,
         visualizerTunings,
         visualizerOpacity,

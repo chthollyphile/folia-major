@@ -140,6 +140,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         tiltTuning,
         dioramaTuning,
         monetBackgroundTuning,
+        nomandBackgroundTuning,
         monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
@@ -201,6 +202,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetDioramaTuning: onResetDioramaTuning,
         handleSetMonetBackgroundTuning: onMonetBackgroundTuningChange,
         handleResetMonetBackgroundTuning: onResetMonetBackgroundTuning,
+        handleSetNomandBackgroundTuning: onNomandBackgroundTuningChange,
+        handleResetNomandBackgroundTuning: onResetNomandBackgroundTuning,
         handleSetMonetTuning: onMonetTuningChange,
         handleResetMonetTuning: onResetMonetTuning,
         handleUploadMonetBackgroundImage: onUploadMonetBackgroundImage,
@@ -2273,14 +2276,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         isDaylight={isDaylight}
                         visualizerMode={visualizerMode}
                         initialEditSection={initialVisualizerSection ?? 'common'}
-                        backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
-                        visualizerBackgroundMode={visualizerBackgroundMode}
-                        useCoverColorBg={useCoverColorBg}
                         staticMode={staticMode}
-                        transparentPlayerBackground={transparentPlayerBackground}
-                        disableVisualizerVignette={disableVisualizerVignette}
-                        disableVisualizerGeometricBackground={disableVisualizerGeometricBackground}
+                        backgroundConfig={{
+                            mode: visualizerBackgroundMode,
+                            transparent: transparentPlayerBackground,
+                            common: {
+                                useCoverColorBg,
+                                opacity: backgroundOpacity,
+                                disableVignette: disableVisualizerVignette,
+                                disableGeometricBackground: disableVisualizerGeometricBackground,
+                            },
+                            customImage: monetBackgroundImage,
+                            monet: { tuning: monetBackgroundTuning },
+                            nomand: { tuning: nomandBackgroundTuning },
+                            url: {
+                                items: urlBackgroundList,
+                                selectedId: urlBackgroundSelectedId,
+                            },
+                        }}
+                        backgroundActions={{
+                            onModeChange: onVisualizerBackgroundModeChange,
+                            onResetMode: onResetVisualizerBackgroundMode,
+                            common: {
+                                onCoverColorChange: onToggleCoverColorBg,
+                                onOpacityChange: setBackgroundOpacity,
+                                onDisableVignetteChange: onToggleDisableVisualizerVignette,
+                                onDisableGeometricChange: onToggleDisableVisualizerGeometricBackground,
+                            },
+                            customImage: {
+                                onUpload: onUploadMonetBackgroundImage,
+                                onClear: onClearMonetBackgroundImage,
+                                isLoading: isLoadingMonetBackgroundImage,
+                            },
+                            monet: {
+                                onTuningChange: onMonetBackgroundTuningChange,
+                                onResetTuning: onResetMonetBackgroundTuning,
+                            },
+                            nomand: {
+                                onTuningChange: onNomandBackgroundTuningChange,
+                                onResetTuning: onResetNomandBackgroundTuning,
+                            },
+                            url: {
+                                onAdd: onAddUrlBackgroundItem,
+                                onUpdate: onUpdateUrlBackgroundItem,
+                                onDelete: onDeleteUrlBackgroundItem,
+                                onSelect: onSetUrlBackgroundSelectedId,
+                            },
+                        }}
                         hideTranslationSubtitle={hidePlayerTranslationSubtitle}
                         showSubtitleTranslation={showSubtitleTranslation}
                         subtitleOverlayOpacity={subtitleOverlayOpacity}
@@ -2292,11 +2335,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         cappellaTuning={cappellaTuning}
                         tiltTuning={tiltTuning}
                         dioramaTuning={dioramaTuning}
-                        monetBackgroundTuning={monetBackgroundTuning}
                         monetTuning={monetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
-                        monetBackgroundImage={monetBackgroundImage}
                         monetPortraitImage={monetPortraitImage}
                         fontStyle={lyricsFontStyle}
                         fontScale={lyricsFontScale}
@@ -2317,13 +2358,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onSubtitleFontFamilyChange={onSubtitleFontFamilyChange}
                         onSubtitleFontFallbackFamiliesChange={onSubtitleFontFallbackFamiliesChange}
                         onVisualizerModeChange={onVisualizerModeChange}
-                        onBackgroundOpacityChange={setBackgroundOpacity}
                         onVisualizerOpacityChange={setVisualizerOpacity}
-                        onToggleCoverColorBg={onToggleCoverColorBg}
-                        onToggleDisableVisualizerVignette={onToggleDisableVisualizerVignette}
-                        onToggleDisableVisualizerGeometricBackground={onToggleDisableVisualizerGeometricBackground}
-                        onVisualizerBackgroundModeChange={onVisualizerBackgroundModeChange}
-                        onResetVisualizerBackgroundMode={onResetVisualizerBackgroundMode}
                         onToggleHideTranslationSubtitle={onToggleHidePlayerTranslationSubtitle}
                         onToggleShowSubtitleTranslation={onToggleShowSubtitleTranslation}
                         onSubtitleOverlayOpacityChange={setSubtitleOverlayOpacity}
@@ -2341,22 +2376,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onResetTiltTuning={onResetTiltTuning}
                         onDioramaTuningChange={onDioramaTuningChange}
                         onResetDioramaTuning={onResetDioramaTuning}
-                        onMonetBackgroundTuningChange={onMonetBackgroundTuningChange}
-                        onResetMonetBackgroundTuning={onResetMonetBackgroundTuning}
                         onMonetTuningChange={onMonetTuningChange}
                         onResetMonetTuning={onResetMonetTuning}
-                        onUploadMonetBackgroundImage={onUploadMonetBackgroundImage}
-                        onClearMonetBackgroundImage={onClearMonetBackgroundImage}
-                        isLoadingMonetBackgroundImage={isLoadingMonetBackgroundImage}
                         onUploadMonetPortraitImage={onUploadMonetPortraitImage}
                         onClearMonetPortraitImage={onClearMonetPortraitImage}
                         isLoadingMonetPortraitImage={isLoadingMonetPortraitImage}
-                        urlBackgroundList={urlBackgroundList}
-                        urlBackgroundSelectedId={urlBackgroundSelectedId}
-                        onAddUrlBackgroundItem={onAddUrlBackgroundItem}
-                        onUpdateUrlBackgroundItem={onUpdateUrlBackgroundItem}
-                        onDeleteUrlBackgroundItem={onDeleteUrlBackgroundItem}
-                        onSetUrlBackgroundSelectedId={onSetUrlBackgroundSelectedId}
                         onImportCappellaCustomEmojiPack={onImportCappellaCustomEmojiPack}
                         onClearCappellaCustomEmojiPack={onClearCappellaCustomEmojiPack}
                         isLoadingCappellaCustomEmojiPack={isLoadingCappellaCustomEmojiPack}
@@ -2385,15 +2409,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             monet: monetTuning,
                         }}
                         staticMode={staticMode}
-                        backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
-                        visualizerBackgroundMode={visualizerBackgroundMode}
-                        urlBackgroundList={urlBackgroundList}
-                        urlBackgroundSelectedId={urlBackgroundSelectedId}
-                        monetBackgroundTuning={monetBackgroundTuning}
+                        backgroundConfig={{
+                            mode: visualizerBackgroundMode,
+                            common: {
+                                useCoverColorBg,
+                                opacity: backgroundOpacity,
+                                disableVignette: disableVisualizerVignette,
+                                disableGeometricBackground: disableVisualizerGeometricBackground,
+                            },
+                            customImage: monetBackgroundImage,
+                            monet: { tuning: monetBackgroundTuning },
+                            nomand: { tuning: nomandBackgroundTuning },
+                            url: {
+                                items: urlBackgroundList,
+                                selectedId: urlBackgroundSelectedId,
+                            },
+                        }}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
-                        monetBackgroundImage={monetBackgroundImage}
                         monetPortraitImage={monetPortraitImage}
                         showSubtitleTranslation={showSubtitleTranslation}
                         lyricsFontStyle={lyricsFontStyle}

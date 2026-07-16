@@ -138,6 +138,7 @@
     "@chenglou/pretext": "^0.0.8",
     "@google/genai": "^2.11.0",
     "@neteasecloudmusicapienhanced/api": "^4.36.2",
+    "@paper-design/shaders-react": "^0.0.77",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",

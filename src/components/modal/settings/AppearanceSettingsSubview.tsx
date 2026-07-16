@@ -6,6 +6,7 @@ import {
     DEFAULT_CLADDAGH_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
+    DEFAULT_NOMAND_BACKGROUND_TUNING,
     type DualTheme,
     type Theme,
     type ThemeMode,
@@ -228,6 +229,23 @@ const decompressMonetBackground = (o: any): any => ({
     backgroundWashCustomColor: o.mbwcc || DEFAULT_MONET_BACKGROUND_TUNING.backgroundWashCustomColor,
 });
 
+const compressNomandBackground = (t: any): any => ({
+    is: t.imageSource,
+    dt: t.ditheringType,
+    s: t.size,
+    cs: t.colorSteps,
+    oc: t.originalColors,
+    i: t.inverted,
+});
+const decompressNomandBackground = (o: any): any => ({
+    imageSource: o.is || DEFAULT_NOMAND_BACKGROUND_TUNING.imageSource,
+    ditheringType: o.dt || DEFAULT_NOMAND_BACKGROUND_TUNING.ditheringType,
+    size: o.s !== undefined ? o.s : DEFAULT_NOMAND_BACKGROUND_TUNING.size,
+    colorSteps: o.cs !== undefined ? o.cs : DEFAULT_NOMAND_BACKGROUND_TUNING.colorSteps,
+    originalColors: o.oc !== undefined ? o.oc : DEFAULT_NOMAND_BACKGROUND_TUNING.originalColors,
+    inverted: o.i !== undefined ? o.i : DEFAULT_NOMAND_BACKGROUND_TUNING.inverted,
+});
+
 const compressMonet = (t: any): any => ({
     kce: t.keywordColoringEnabled,
     msd: t.showDescription,
@@ -282,6 +300,7 @@ export const compressConfig = (config: any): string => {
     if (config.tiltTuning) minified.tt = compressTilt(config.tiltTuning);
     if (config.dioramaTuning) minified.dot = compressDiorama(config.dioramaTuning);
     if (config.monetBackgroundTuning) minified.mbt = compressMonetBackground(config.monetBackgroundTuning);
+    if (config.nomandBackgroundTuning) minified.nbt = compressNomandBackground(config.nomandBackgroundTuning);
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
@@ -349,6 +368,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.tt) decompressed.tiltTuning = decompressTilt(parsed.tt);
         if (parsed.dot) decompressed.dioramaTuning = decompressDiorama(parsed.dot);
         if (parsed.mbt) decompressed.monetBackgroundTuning = decompressMonetBackground(parsed.mbt);
+        if (parsed.nbt) decompressed.nomandBackgroundTuning = decompressNomandBackground(parsed.nbt);
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
@@ -364,7 +384,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontInheritsLyrics', 'subtitleFontStyle', 'subtitleFontFamily',
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
-            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'monetTuning',
+            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'monetTuning',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
         ];
@@ -467,6 +487,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         tiltTuning: state.tiltTuning,
         dioramaTuning: state.dioramaTuning,
         monetBackgroundTuning: state.monetBackgroundTuning,
+        nomandBackgroundTuning: state.nomandBackgroundTuning,
         monetTuning: state.monetTuning,
         urlBackgroundList: state.urlBackgroundList,
         urlBackgroundSelectedId: state.urlBackgroundSelectedId,
@@ -494,6 +515,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetTiltTuning: state.handleSetTiltTuning,
         handleSetDioramaTuning: state.handleSetDioramaTuning,
         handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
+        handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
         handleSetMonetTuning: state.handleSetMonetTuning,
         handleAddUrlBackgroundItem: state.handleAddUrlBackgroundItem,
         handleUpdateUrlBackgroundItem: state.handleUpdateUrlBackgroundItem,
@@ -547,6 +569,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             tiltTuning: store.tiltTuning,
             dioramaTuning: store.dioramaTuning,
             monetBackgroundTuning: store.monetBackgroundTuning,
+            nomandBackgroundTuning: store.nomandBackgroundTuning,
             monetTuning: store.monetTuning,
             urlBackgroundList: store.urlBackgroundList,
             urlBackgroundSelectedId: store.urlBackgroundSelectedId,
@@ -666,6 +689,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (config.monetBackgroundTuning) {
                 store.handleSetMonetBackgroundTuning(config.monetBackgroundTuning);
+            }
+            if (config.nomandBackgroundTuning) {
+                store.handleSetNomandBackgroundTuning(config.nomandBackgroundTuning);
             }
             if (!config.visualizerTunings && config.monetTuning) {
                 store.handleSetMonetTuning(config.monetTuning);

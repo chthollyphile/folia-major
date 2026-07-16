@@ -9,10 +9,10 @@ import {
     type MonetBackgroundTuning,
     type MonetBackgroundWashColorMode,
     type Theme,
-} from '../../types';
-import { colorWithAlpha } from './colorMix';
+} from '../../../../types';
+import { colorWithAlpha } from '../../colorMix';
 
-// src/components/visualizer/MonetBackgroundSettingsCard.tsx
+// src/components/visualizer/backgrounds/monet/MonetBackgroundSettingsCard.tsx
 // Background settings for the shell-level Monet image layer.
 interface PresetOption<T> {
     label: string;

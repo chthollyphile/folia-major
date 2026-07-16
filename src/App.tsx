@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
+import type { VisualizerBackgroundConfig } from './components/visualizer/backgrounds/definition';
 import CommandPalette from './components/command-palette/CommandPalette';
 import { useCommandPalette } from './components/command-palette/useCommandPalette';
 import AppShell from './components/app/AppShell';
@@ -334,6 +335,7 @@ export default function App() {
         tiltTuning,
         dioramaTuning,
         monetBackgroundTuning,
+        nomandBackgroundTuning,
         monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
@@ -1598,6 +1600,33 @@ export default function App() {
         isNowPlayingControlDisabled,
         stageActiveEntryKind,
     ]);
+    const visualizerBackgroundConfig = useMemo<VisualizerBackgroundConfig>(() => ({
+        mode: visualizerBackgroundMode,
+        common: {
+            useCoverColorBg,
+            opacity: backgroundOpacity,
+            disableGeometricBackground: disableVisualizerGeometricBackground,
+            disableVignette: disableVisualizerVignette,
+        },
+        customImage: monetBackgroundImage,
+        monet: { tuning: monetBackgroundTuning },
+        nomand: { tuning: nomandBackgroundTuning },
+        url: {
+            items: urlBackgroundList,
+            selectedId: urlBackgroundSelectedId,
+        },
+    }), [
+        backgroundOpacity,
+        disableVisualizerGeometricBackground,
+        disableVisualizerVignette,
+        monetBackgroundImage,
+        monetBackgroundTuning,
+        nomandBackgroundTuning,
+        urlBackgroundList,
+        urlBackgroundSelectedId,
+        useCoverColorBg,
+        visualizerBackgroundMode,
+    ]);
     const isSettingsModalOpen = settingsModalState.isOpen;
     const {
         obsBrowserSourceStatus,
@@ -1619,16 +1648,14 @@ export default function App() {
         isDaylight,
         visualizerMode,
         visualizerTunings,
-        visualizerBackgroundMode,
+        background: {
+            ...visualizerBackgroundConfig,
+            transparent: isPlayerPageTransparent,
+        },
         lyricsFontScale,
-        backgroundOpacity,
         visualizerOpacity,
         subtitleOverlayOpacity,
-        transparentBackground: isPlayerPageTransparent,
-        useCoverColorBg,
         staticMode,
-        disableGeometricBackground: disableVisualizerGeometricBackground,
-        disableVignette: disableVisualizerVignette,
         hideTranslationSubtitle: shouldHidePlayerTranslationSubtitle,
         showSubtitleTranslation,
         seed: visualizerGeometrySeed,
@@ -1636,11 +1663,7 @@ export default function App() {
         audioBands,
         cappellaCustomEmojiImages,
         cappellaCustomAvatarImages,
-        monetBackgroundTuning,
-        monetBackgroundImage,
         monetPortraitImage,
-        urlBackgroundList,
-        urlBackgroundSelectedId,
     });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const generateCurrentSongTheme = useCallback(() => {
@@ -2870,30 +2893,28 @@ export default function App() {
                         songAlbum={currentSongAlbum}
                         coverUrl={getCoverUrl()}
                         showText={currentView === 'player' && !isSettingsModalOpen}
-                        useCoverColorBg={useCoverColorBg}
                         seed={visualizerGeometrySeed}
                         staticMode={staticMode}
                         paused={shouldPauseVisualizerBackground}
-                        backgroundOpacity={backgroundOpacity}
                         visualizerOpacity={visualizerOpacity}
-                        transparentBackground={currentView === 'player' && isPlayerPageTransparent && !isSettingsModalOpen}
-                        disableGeometricBackground={disableVisualizerGeometricBackground || isSettingsSubviewOpen}
-                        disableVignette={disableVisualizerVignette}
-                        visualizerBackgroundMode={visualizerBackgroundMode}
+                        background={{
+                            ...visualizerBackgroundConfig,
+                            transparent: currentView === 'player' && isPlayerPageTransparent && !isSettingsModalOpen,
+                            common: {
+                                ...visualizerBackgroundConfig.common,
+                                disableGeometricBackground: disableVisualizerGeometricBackground || isSettingsSubviewOpen,
+                            },
+                        }}
                         lyricsFontScale={lyricsFontScale}
                         subtitleOverlayOpacity={subtitleOverlayOpacity}
                         isPlayerChromeHidden={isPlayerChromeHidden}
                         hideTranslationSubtitle={shouldHidePlayerTranslationSubtitle}
                         showSubtitleTranslation={showSubtitleTranslation}
                         visualizerTunings={visualizerTunings}
-                        monetBackgroundTuning={monetBackgroundTuning}
                         onMonetTuningChange={handleSetMonetTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
-                        monetBackgroundImage={monetBackgroundImage}
                         monetPortraitImage={monetPortraitImage}
-                        urlBackgroundList={urlBackgroundList}
-                        urlBackgroundSelectedId={urlBackgroundSelectedId}
                         onLyricLineSeek={visualizerMode === 'monet' ? handleMonetLyricLineSeek : undefined}
                         onBack={navigateBackFromPlayer}
                     />

@@ -49,6 +49,7 @@ export type SyncedVisualSettings = {
     tiltTuning?: unknown;
     dioramaTuning?: unknown;
     monetBackgroundTuning?: unknown;
+    nomandBackgroundTuning?: unknown;
     monetTuning?: unknown;
     urlBackgroundList?: unknown[];
     urlBackgroundSelectedId?: string | null;

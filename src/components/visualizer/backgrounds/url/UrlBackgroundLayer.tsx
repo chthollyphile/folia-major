@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import type { UrlBackgroundItem } from '../../../types';
-import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
+import type { UrlBackgroundItem } from '../../../../types';
+import { sanitizeUrlBackgroundItem } from '../../../../utils/urlBackground';
 
-// src/components/visualizer/backgrounds/UrlBackgroundLayer.tsx
+// src/components/visualizer/backgrounds/url/UrlBackgroundLayer.tsx
 // Renders a webpage as background via iframe.
 // Uses key={url} to force full iframe recreation on URL change,
 // avoiding chrome-error://chromewebdata cross-origin navigation errors.

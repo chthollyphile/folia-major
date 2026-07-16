@@ -1,4 +1,5 @@
 import { sanitizeDualTheme } from '../themeSanitizer';
+import { hasVisualizerBackgroundMode } from '../../components/visualizer/backgrounds/registry';
 import {
     SYNC_SCHEMA_VERSION,
     type SyncLibraryExportBundle,
@@ -36,7 +37,7 @@ const isFontStyle = (value: unknown): value is SyncedVisualSettings['lyricsFontS
 );
 
 const isVisualizerBackgroundMode = (value: unknown): value is NonNullable<SyncedVisualSettings['visualizerBackgroundMode']> => (
-    value === 'common' || value === 'monet' || value === 'url' || value === 'sora'
+    hasVisualizerBackgroundMode(value)
 );
 
 const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisualSettings => {
@@ -67,6 +68,7 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (value.tiltTuning !== undefined) settings.tiltTuning = value.tiltTuning;
     if (value.dioramaTuning !== undefined) settings.dioramaTuning = value.dioramaTuning;
     if (value.monetBackgroundTuning !== undefined) settings.monetBackgroundTuning = value.monetBackgroundTuning;
+    if (value.nomandBackgroundTuning !== undefined) settings.nomandBackgroundTuning = value.nomandBackgroundTuning;
     if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
     if (Array.isArray(value.urlBackgroundList)) settings.urlBackgroundList = value.urlBackgroundList;
     if (value.urlBackgroundSelectedId === null) settings.urlBackgroundSelectedId = null;

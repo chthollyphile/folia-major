@@ -510,6 +510,17 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'background-nomand',
+        group: 'visualizer',
+        title: 'Background: Nomand',
+        description: 'Switch background to theme-colored image dithering',
+        keywords: ['nomand', 'dithering', 'dither', 'shader background', '抖动背景', '网点背景', '主题色背景', 'dou dong bei jing', 'wang dian bei jing', 'ddbj', 'wdbj'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('nomand');
+            return true;
+        },
+    },
+    {
         id: 'background-url',
         group: 'visualizer',
         title: 'Background: Embedded Background',

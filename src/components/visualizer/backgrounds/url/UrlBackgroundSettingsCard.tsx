@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { Globe, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
-import type { Theme, UrlBackgroundItem } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
-import { normalizeUrlBackgroundUrl } from '../../../utils/urlBackground';
+import type { Theme, UrlBackgroundItem } from '../../../../types';
+import { colorWithAlpha } from '../../colorMix';
+import { normalizeUrlBackgroundUrl } from '../../../../utils/urlBackground';
 
-// src/components/visualizer/backgrounds/UrlBackgroundSettingsCard.tsx
+// src/components/visualizer/backgrounds/url/UrlBackgroundSettingsCard.tsx
 // Settings card for managing URL background list (add/edit/delete/select).
 
 interface UrlBackgroundSettingsCardProps {

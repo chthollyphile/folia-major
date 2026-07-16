@@ -373,6 +373,11 @@ describe('command palette registry', () => {
         expect(matchCommon.command.id).toBe('background-common');
         matchCommon.command.execute('', context);
         expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('common');
+
+        const [matchNomand] = getCommandPaletteMatches('抖动背景');
+        expect(matchNomand.command.id).toBe('background-nomand');
+        matchNomand.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('nomand');
     });
 
     it('matches and executes the Diorama visualizer command', () => {

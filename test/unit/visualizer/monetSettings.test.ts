@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, type Line, type Theme } from '@/types';
+import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries, measureMonetLineLayout } from '@/components/visualizer/monet/monetLyricsModel';
 import { colorWithAlpha, mixColors, parseColorChannels } from '@/components/visualizer/colorMix';
 import { buildWordColorRanges, prepareWordColorMatchers, resolveTokenColorMap } from '@/components/visualizer/wordColoring';
-import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
+import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveStoredNomandBackgroundTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
 
 // test/unit/visualizer/monetSettings.test.ts
 // Locks Monet tuning normalization, background cache keys, and lyric helper contracts.
@@ -114,6 +114,30 @@ describe('Monet tuning and lyric helpers', () => {
         expect(resolveVisualizerBackgroundMode(null, 'classic')).toBe('common');
         expect(resolveVisualizerBackgroundMode('common', 'monet')).toBe('common');
         expect(resolveVisualizerBackgroundMode('monet', 'classic')).toBe('monet');
+        expect(resolveVisualizerBackgroundMode('nomand', 'classic')).toBe('nomand');
+    });
+
+    it('normalizes persisted Nomand background tuning', () => {
+        expect(resolveStoredNomandBackgroundTuning({
+            imageSource: 'uploaded-global',
+            ditheringType: 'random',
+            size: 99,
+            colorSteps: -4,
+            originalColors: true,
+            inverted: true,
+        })).toEqual({
+            imageSource: 'uploaded-global',
+            ditheringType: 'random',
+            size: 20,
+            colorSteps: 1,
+            originalColors: true,
+            inverted: true,
+        });
+
+        expect(resolveStoredNomandBackgroundTuning({
+            ditheringType: 'invalid' as never,
+            size: Number.NaN,
+        })).toEqual(DEFAULT_NOMAND_BACKGROUND_TUNING);
     });
 
     it('builds stable display tokens without dropping spaces or punctuation', () => {

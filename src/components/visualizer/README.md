@@ -17,11 +17,10 @@
 - `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
-- `GeometricBackground.tsx`: 通用几何背景
 - `FumeBackground.ts`: Fume 专用 canvas 几何背景
-- `FluidBackground.tsx`: 封面取色流体背景
-- `backgrounds/*`: shell 级背景层，例如 Monet 背景图层
-- `MonetBackgroundSettingsCard.tsx`: shell 级 Monet 背景设置卡片
+- `backgrounds/<mode>/`: shell 级背景模式目录，包含 `entry.tsx`、渲染层和可选设置卡
+- `backgrounds/registry.tsx`: 自动发现 `backgrounds/*/entry.tsx`
+- `backgrounds/definition.ts`: 背景统一配置、动作和注册入口契约
 - `VisPlayground.tsx`: 可视化预览和样式设置面板
 - `VisPlaygroundSettingsPanel.tsx`: 预览页的共享设置控制面板
 
@@ -65,18 +64,12 @@ interface VisualizerSharedProps {
     songArtist?: string | null;
     songAlbum?: string | null;
     coverUrl?: string | null;
-    useCoverColorBg?: boolean;
     seed?: string | number;
     staticMode?: boolean;
-    backgroundOpacity?: number;
     visualizerOpacity?: number;
-    transparentBackground?: boolean;
-    disableGeometricBackground?: boolean;
-    disableVignette?: boolean;
+    background?: VisualizerBackgroundConfig;
     lyricsFontScale?: number;
     subtitleOverlayOpacity?: number;
-    visualizerBackgroundMode?: VisualizerBackgroundMode | null;
-    resolvedVisualizerBackgroundMode?: VisualizerBackgroundMode;
     isPlayerChromeHidden?: boolean;
     hideTranslationSubtitle?: boolean;
     showSubtitleTranslation?: boolean;
@@ -94,12 +87,8 @@ interface VisualizerSharedProps {
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
     tiltTuning?: TiltTuning;
-    monetBackgroundTuning?: MonetBackgroundTuning;
     monetTuning?: MonetTuning;
-    monetBackgroundImage?: MonetBackgroundImage | null;
     monetPortraitImage?: MonetPortraitImage | null;
-    urlBackgroundList?: UrlBackgroundItem[];
-    urlBackgroundSelectedId?: string | null;
     onMonetTuningChange?: (patch: Partial<MonetTuning>) => void;
 }
 ```
@@ -149,16 +138,11 @@ export default VisualizerFoo;
 - `showText`: 是否显示歌词文字。预览和播放器里都可能传入。
 - `songTitle`: 当前歌曲标题，主要给会把整首歌词重组成新表现形式的模式使用，例如 `cappella`。
 - `songArtist` / `songAlbum`: 当前歌曲元数据，适合海报式或唱片式 visualizer 使用。
-- `coverUrl`: 封面 URL，主要给 `FluidBackground` 使用。
-- `useCoverColorBg`: 是否启用封面取色背景。
-- `backgroundOpacity`: 当启用封面背景时，叠加底色的透明度。
+- `coverUrl`: 封面 URL，由当前 background entry 按需使用。
+- `background`: shell 背景统一配置。模式、透明背景、通用背景参数、共享自定义图片以及 Monet / Nomand / URL 专属配置都在这里传递。
 - `visualizerOpacity`: 歌词动画整体透明度，不应该由每个 renderer 再各自发明一套全局透明度。
-- `transparentBackground`: 播放页透明背景模式，移除纯色/封面底层但保留可独立控制的 visualizer 图形层。
-- `disableGeometricBackground`: 隐藏 `GeometricBackground` 的通用几何图形和粒子层。
-- `disableVignette`: 关闭 `GeometricBackground` 自带的半透明边缘暗角，不影响几何图形本体。
 - `lyricsFontScale`: 用户字号缩放。新 visualizer 应把它乘进最终字号，而不是忽略。
 - `subtitleOverlayOpacity`: 共享字幕层透明度。
-- `visualizerBackgroundMode` / `resolvedVisualizerBackgroundMode`: shell 级背景模式。`common` 是通用几何/封面背景，`monet` 是 Monet 背景图层。
 - `staticMode`: 静态模式。约定为“禁用重资源背景动画”，不是关闭全部歌词动画。
 - `isPlayerChromeHidden`: 播放器外层 chrome 是否隐藏，适合做边距或字幕策略调整。
 - `hideTranslationSubtitle`: 关闭整个底部 subtitle overlay 时使用，包括翻译和下一句提示；这是旧设置的前向兼容语义。
@@ -169,7 +153,6 @@ export default VisualizerFoo;
 - `seed`: 背景或布局随机种子，保证同一歌曲下布局尽量稳定。
 - `isPreviewMode`: 当前是否处于 `VisPlayground` / `ThemePark` 预览模式。
 - `claddaghTuning` / `onCladdaghTuningChange`: 回环模式的主歌词放大、轨道半径、椭圆倾角、轴线和字符间距参数。
-- `urlBackgroundList` / `urlBackgroundSelectedId`: shell 级嵌入网页背景配置；renderer 不应自行读取 localStorage。
 
 ## 新 visualizer 至少应该处理的场景
 
@@ -230,10 +213,7 @@ export default VisualizerFoo;
 visualizer/
 ├─ colorMix.ts
 ├─ definition.ts
-├─ FluidBackground.tsx
 ├─ FumeBackground.ts
-├─ GeometricBackground.tsx
-├─ MonetBackgroundSettingsCard.tsx
 ├─ PreviewPlaceholder.ts
 ├─ README.md
 ├─ registry.tsx
@@ -245,6 +225,18 @@ visualizer/
 ├─ VisualizerShell.tsx
 ├─ VisualizerSubtitleOverlay.tsx
 ├─ backgrounds/
+│  ├─ definition.ts
+│  ├─ registry.tsx
+│  ├─ VisualizerBackgroundRenderer.tsx
+│  ├─ common/
+│  │  ├─ entry.tsx
+│  │  ├─ FluidBackground.tsx
+│  │  ├─ GeometricBackground.tsx
+│  │  └─ CommonBackgroundSettingsCard.tsx
+│  ├─ monet/
+│  ├─ nomand/
+│  ├─ url/
+│  └─ sora/
 ├─ cappella/
 │  └─ VisualizerCappella.tsx
 ├─ classic/
@@ -270,13 +262,9 @@ visualizer/
   负责：
   - 根容器
   - 返回按钮显隐与点击
-  - `FluidBackground`
-  - `backgrounds/*` shell 级背景层
-  - 背景底色
-  - `GeometricBackground`
+  - 调用 `VisualizerBackgroundRenderer`
   - `visualizerOpacity` 和背景模式的外层协调
-  - 按 renderer 需要关闭默认几何背景
-  - `staticMode` / `useCoverColorBg` / `backgroundOpacity` 这些通用外层行为
+  - `staticMode` 等通用外层行为
 
 ### 2. 共享 runtime
 
@@ -617,7 +605,23 @@ export default defineVisualizer({
 
 `registry.tsx` 会通过 `import.meta.glob('./*/entry.tsx', { eager: true })` 自动发现所有入口。播放器、模式列表、预览面板和主题预览都继续读取同一份 registry，不需要再去手动 import 新组件或改 `VisualizerRenderer.tsx`。
 
-模式专属 tuning 还需要在同目录提供 `tuning.ts`。`tuningRegistry.ts` 会自动发现这些纯数据 adapter，并用统一的 `VisualizerTuningBundle` 在播放器、OBS、ThemePark、预览和设置同步之间传输；adapter 负责把当前模式的强类型 tuning 注入 renderer。`monetBackgroundTuning` 等共享 shell 配置和图片资源不属于模式 tuning bundle，继续使用各自的共享契约。
+模式专属 tuning 还需要在同目录提供 `tuning.ts`。`tuningRegistry.ts` 会自动发现这些纯数据 adapter，并用统一的 `VisualizerTuningBundle` 在播放器、OBS、ThemePark、预览和设置同步之间传输；adapter 负责把当前模式的强类型 tuning 注入 renderer。shell 背景配置统一通过 `VisualizerBackgroundConfig` 传输，不属于 visualizer tuning bundle。
+
+## 接入一个新 background
+
+每种 shell 背景都放在独立目录中，渲染层、设置卡和入口不要散落到 `visualizer/` 或 `backgrounds/` 根目录：
+
+```text
+backgrounds/
+└─ foo/
+   ├─ entry.tsx
+   ├─ FooBackgroundLayer.tsx
+   └─ FooBackgroundSettingsCard.tsx
+```
+
+`backgrounds/registry.tsx` 会自动发现 `backgrounds/*/entry.tsx`。入口通过 `defineVisualizerBackground(...)` 声明模式、排序、渲染函数和可选设置面板；`VisualizerShell`、Playground 背景下拉框和设置区域会读取同一份 registry，因此新增背景不需要再修改这些调用方。
+
+背景模块只接收 `VisualizerBackgroundConfig` 和 `VisualizerBackgroundActions` 中属于自己的字段，不直接读取 `useSettingsUiStore`。这样可以避免 registry 与 store 形成初始化循环，也能让播放器、ThemePark 和 OBS 复用同一份配置。
 
 如果新模式需要预览面板专属设置，可以在 entry 上提供：
 

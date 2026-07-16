@@ -99,6 +99,14 @@ describe('Visual Settings Import and Export', () => {
             backgroundWashColorMode: 'custom' as const,
             backgroundWashCustomColor: '#ff0000',
         },
+        nomandBackgroundTuning: {
+            imageSource: 'uploaded-global' as const,
+            ditheringType: '4x4' as const,
+            size: 3.5,
+            colorSteps: 3,
+            originalColors: false,
+            inverted: true,
+        },
         monetTuning: {
             keywordColoringEnabled: false,
             showDescription: false,
@@ -134,6 +142,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
+        expect(decoded.nomandBackgroundTuning).toEqual(sampleConfig.nomandBackgroundTuning);
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);

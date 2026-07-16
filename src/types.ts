@@ -522,9 +522,12 @@ export const DEFAULT_DIORAMA_TUNING: DioramaTuning = {
 export type MonetBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetBackgroundWashColorMode = 'theme' | 'custom';
+export type NomandBackgroundSource = 'cover-derived' | 'uploaded-global';
+export type NomandBackgroundDitheringType = 'random' | '2x2' | '4x4' | '8x8';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type VisualizerBackgroundMode = 'common' | 'monet' | 'url' | 'sora';
+export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'url' | 'sora';
+export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
 export interface UrlBackgroundItem {
   id: string;
@@ -543,6 +546,15 @@ export interface MonetBackgroundTuning {
   backgroundHalfPaneOffsetX: number;
   backgroundWashColorMode: MonetBackgroundWashColorMode;
   backgroundWashCustomColor: string;
+}
+
+export interface NomandBackgroundTuning {
+  imageSource: NomandBackgroundSource;
+  ditheringType: NomandBackgroundDitheringType;
+  size: number;
+  colorSteps: number;
+  originalColors: boolean;
+  inverted: boolean;
 }
 
 export interface MonetTuning {
@@ -567,6 +579,15 @@ export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
   backgroundHalfPaneOffsetX: 0,
   backgroundWashColorMode: 'theme',
   backgroundWashCustomColor: '#8fb7ff',
+};
+
+export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
+  imageSource: 'cover-derived',
+  ditheringType: '8x8',
+  size: 2,
+  colorSteps: 2,
+  originalColors: false,
+  inverted: false,
 };
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {

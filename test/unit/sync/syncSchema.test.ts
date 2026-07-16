@@ -62,6 +62,30 @@ describe('sync schema parsing', () => {
         expect(record?.data.homeLayoutStyle).toBe('grid');
     });
 
+    it('accepts the Nomand background mode and tuning', () => {
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                visualizerBackgroundMode: 'nomand',
+                nomandBackgroundTuning: {
+                    imageSource: 'cover-derived',
+                    ditheringType: '8x8',
+                    size: 2,
+                    colorSteps: 2,
+                },
+            },
+        });
+
+        expect(record?.data.visualizerBackgroundMode).toBe('nomand');
+        expect(record?.data.nomandBackgroundTuning).toEqual({
+            imageSource: 'cover-derived',
+            ditheringType: '8x8',
+            size: 2,
+            colorSteps: 2,
+        });
+    });
+
     it('parses theme records and normalizes invalid sources', () => {
         const record = parseSyncedThemeRecord({
             fingerprint: 'netease:id:123',

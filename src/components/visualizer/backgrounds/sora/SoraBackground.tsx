@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import * as twgl from 'twgl.js';
-import { Theme } from '../../types';
-import { parseColorChannels } from './colorMix';
+import { Theme } from '../../../../types';
+import { parseColorChannels } from '../../colorMix';
 
+// src/components/visualizer/backgrounds/sora/SoraBackground.tsx
 // SoraBackground component is a shader-based space starfield background.
 // Refactored to use GL_POINTS for massive performance gains, resolving blur CPU usage issues.
 

@@ -8,21 +8,15 @@ import type {
     DioramaTuning,
     FumeTuning,
     LyricData,
-    MonetBackgroundImage,
-    MonetBackgroundTuning,
     MonetPortraitImage,
-    MonetTuning,
-    PartitaTuning,
     PlayerState,
     SongResult,
     StageSource,
     Theme,
-    TiltTuning,
-    UrlBackgroundItem,
-    VisualizerBackgroundMode,
     VisualizerMode,
 } from '../types';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
+import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 
 // src/types/obsBrowserSource.ts
 // Shared contracts for the local OBS browser source renderer.
@@ -49,26 +43,17 @@ export interface ObsBrowserSourceConfig {
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     visualizerTunings?: VisualizerTuningBundle;
-    visualizerBackgroundMode: VisualizerBackgroundMode | null;
+    background?: VisualizerBackgroundConfig;
     lyricsFontScale: number;
-    backgroundOpacity: number;
     visualizerOpacity: number;
     subtitleOverlayOpacity: number;
-    transparentBackground: boolean;
-    useCoverColorBg: boolean;
     staticMode: boolean;
-    disableGeometricBackground: boolean;
-    disableVignette: boolean;
     hideTranslationSubtitle: boolean;
     showSubtitleTranslation?: boolean;
     seed: string | number;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];
-    monetBackgroundTuning?: MonetBackgroundTuning;
-    monetBackgroundImage?: MonetBackgroundImage | null;
     monetPortraitImage?: MonetPortraitImage | null;
-    urlBackgroundList?: UrlBackgroundItem[];
-    urlBackgroundSelectedId?: string | null;
     updatedAt: number;
 }
 
