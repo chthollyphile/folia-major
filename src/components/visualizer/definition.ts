@@ -41,6 +41,7 @@ export interface VisualizerSharedProps {
     coverUrl?: string | null;
     seed?: string | number;
     staticMode?: boolean;
+    backgroundStaticMode?: boolean;
     visualizerOpacity?: number;
     background?: VisualizerBackgroundConfig;
     lyricsFontScale?: number;

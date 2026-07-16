@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { resolveLatentShaderSpeed } from '@/components/visualizer/backgrounds/latent/LatentBackground';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries, measureMonetLineLayout } from '@/components/visualizer/monet/monetLyricsModel';
@@ -177,6 +178,13 @@ describe('Monet tuning and lyric helpers', () => {
             displayMode: 'invalid' as never,
             meshSpeed: Number.NaN,
         })).toEqual(DEFAULT_LATENT_BACKGROUND_TUNING);
+    });
+
+    it('keeps Latent moving slowly during playback pause without overriding explicit zero speed', () => {
+        expect(resolveLatentShaderSpeed(0.35, 1.2, 0.8, true)).toBeCloseTo(0.042);
+        expect(resolveLatentShaderSpeed(0.3, 1.4, 0.9, true)).toBeCloseTo(0.036);
+        expect(resolveLatentShaderSpeed(0, 1.4, 0.9, true)).toBe(0);
+        expect(resolveLatentShaderSpeed(0.3, 1.3, 0.5, false)).toBeCloseTo(0.8);
     });
 
     it('builds stable display tokens without dropping spaces or punctuation', () => {

@@ -145,10 +145,11 @@ export default VisualizerFoo;
 - `subtitleOverlayOpacity`: 共享字幕层透明度。
 - `subtitleOverlayBackground`: 是否为共享字幕层添加主题自适应的半透明背景。
 - `staticMode`: 静态模式。约定为“禁用重资源背景动画”，不是关闭全部歌词动画。
+- `backgroundStaticMode`: 仅要求 shell 背景静止，适合主页动态背景开关等不应影响歌词 renderer 的设置。
 - `isPlayerChromeHidden`: 播放器外层 chrome 是否隐藏，适合做边距或字幕策略调整。
 - `hideTranslationSubtitle`: 关闭整个底部 subtitle overlay 时使用，包括翻译和下一句提示；这是旧设置的前向兼容语义。
 - `showSubtitleTranslation`: 控制翻译文本是否显示，默认 `true`。新 visualizer 中涉及翻译字幕时优先接入这个参数。
-- `paused`: 当前是否暂停，适合暂停持续性动效。
+- `paused`: 当前播放是否暂停；背景可以降至低速而不必完全静止，设置要求的硬静止应使用 `backgroundStaticMode`。
 - `onBack`: 返回按钮回调。播放器全屏/主视图里会用到。
 - `onLyricLineSeek`: 可选的歌词行点击跳转回调；需要让 visualizer 参与时间轴交互时使用，不要在 renderer 里直接操作 audio 元素。
 - `seed`: 背景或布局随机种子，保证同一歌曲下布局尽量稳定。

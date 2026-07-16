@@ -18,6 +18,7 @@ type VisualizerShellSharedProps = Pick<
     | 'visualizerOpacity'
     | 'background'
     | 'staticMode'
+    | 'backgroundStaticMode'
     | 'paused'
     | 'onBack'
 >;
@@ -47,6 +48,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const resolvedIsDaylight = sharedProps?.isDaylight ?? false;
     const resolvedVisualizerOpacity = sharedProps?.visualizerOpacity ?? visualizerOpacity;
     const resolvedStaticMode = sharedProps?.staticMode ?? false;
+    const resolvedBackgroundStaticMode = sharedProps?.backgroundStaticMode ?? false;
     const resolvedPaused = sharedProps?.paused ?? false;
     const resolvedOnBack = sharedProps?.onBack;
 
@@ -114,7 +116,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 audioPower={audioPower}
                 audioBands={audioBands}
                 seed={sharedProps?.seed}
-                staticMode={resolvedStaticMode}
+                staticMode={resolvedStaticMode || resolvedBackgroundStaticMode}
                 paused={resolvedPaused}
             />
 

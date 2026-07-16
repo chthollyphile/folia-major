@@ -2909,15 +2909,15 @@ export default function App() {
                         showText={currentView === 'player' && !isSettingsModalOpen}
                         seed={visualizerGeometrySeed}
                         staticMode={staticMode}
-                        paused={
+                        backgroundStaticMode={
                             shouldPauseVisualizerBackground
-                            || playerState !== PlayerState.PLAYING
                             || (
                                 visualizerBackgroundConfig.mode === 'latent'
                                 && latentBackgroundTuning.dynamicOnlyInPlayer
                                 && currentView !== 'player'
                             )
                         }
+                        paused={playerState !== PlayerState.PLAYING}
                         visualizerOpacity={visualizerOpacity}
                         background={{
                             ...visualizerBackgroundConfig,
