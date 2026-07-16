@@ -2,6 +2,7 @@ import React from 'react';
 import type { MotionValue } from 'framer-motion';
 import type {
     AudioBands,
+    LatentBackgroundTuning,
     MonetBackgroundImage,
     MonetBackgroundTuning,
     NomandBackgroundTuning,
@@ -29,6 +30,9 @@ export interface VisualizerBackgroundConfig {
     nomand?: {
         tuning?: NomandBackgroundTuning;
     };
+    latent?: {
+        tuning?: LatentBackgroundTuning;
+    };
     url?: {
         items?: UrlBackgroundItem[];
         selectedId?: string | null;
@@ -54,6 +58,10 @@ export interface VisualizerBackgroundActions {
     };
     nomand?: {
         onTuningChange?: (patch: Partial<NomandBackgroundTuning>) => void;
+        onResetTuning?: () => void;
+    };
+    latent?: {
+        onTuningChange?: (patch: Partial<LatentBackgroundTuning>) => void;
         onResetTuning?: () => void;
     };
     url?: {

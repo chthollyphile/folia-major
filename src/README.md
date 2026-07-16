@@ -93,7 +93,7 @@ src/
   歌词可视化层。
   根目录保留共享壳层、runtime、registry、视觉设置卡片和预览入口；
   `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` 子目录分别负责各模式实现。
-  shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用、Monet、漫游像素画、URL 和 Sora 模式。
+  shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用、Monet、漫游像素画、隐现双着色器、URL 和 Sora 模式。
 
 ### Hooks
 

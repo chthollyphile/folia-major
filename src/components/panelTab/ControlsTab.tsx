@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, ArrowUpDown, Check, RefreshCw, Cone, Layers, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Theme, ThemeMode, VisualizerMode } from '../../types';
+import { type LatentBackgroundDisplayMode, Theme, ThemeMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
@@ -83,6 +83,8 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const setMonetBackgroundTuning = useSettingsUiStore(state => state.handleSetMonetBackgroundTuning);
     const nomandBackgroundTuning = useSettingsUiStore(state => state.nomandBackgroundTuning);
     const setNomandBackgroundTuning = useSettingsUiStore(state => state.handleSetNomandBackgroundTuning);
+    const latentBackgroundTuning = useSettingsUiStore(state => state.latentBackgroundTuning);
+    const setLatentBackgroundTuning = useSettingsUiStore(state => state.handleSetLatentBackgroundTuning);
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
     const [isVisualizerOverlayOpen, setIsVisualizerOverlayOpen] = useState(false);
     const [themeSyncState, setThemeSyncState] = useState<'idle' | 'syncing' | 'complete'>('idle');
@@ -232,6 +234,14 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const resolvedVisualizerBackgroundMode = visualizerBackgroundMode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
     const isMonetFullOverlay = monetBackgroundTuning.backgroundLayout === 'full-overlay';
     const monetLayoutLabel = t(isMonetFullOverlay ? 'options.monetLayoutFullOverlay' : 'options.monetLayoutHalfPane');
+    const latentDisplayModes: LatentBackgroundDisplayMode[] = ['dithering', 'mesh', 'both'];
+    const latentDisplayLabel = t(`options.latentDisplay${latentBackgroundTuning.displayMode === 'dithering' ? 'Dithering' : latentBackgroundTuning.displayMode === 'mesh' ? 'Mesh' : 'Both'}`);
+    const cycleLatentDisplayMode = () => {
+        const currentIndex = latentDisplayModes.indexOf(latentBackgroundTuning.displayMode);
+        setLatentBackgroundTuning({
+            displayMode: latentDisplayModes[(currentIndex + 1) % latentDisplayModes.length],
+        });
+    };
     const openCurrentThemeQuickEditor = () => {
         if (currentEditableSource) {
             openThemeQuickEditor(currentEditableSource);
@@ -431,6 +441,31 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                                     >
                                         <Layers size={14} />
                                     </button>
+                                )}
+                                {resolvedVisualizerBackgroundMode === 'latent' && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setLatentBackgroundTuning({
+                                                overlayEnabled: !latentBackgroundTuning.overlayEnabled,
+                                            })}
+                                            className={`p-1 rounded-md transition-all ${latentBackgroundTuning.overlayEnabled ? 'text-blue-400' : 'opacity-40 hover:opacity-100'}`}
+                                            title={t('options.nomandBackgroundOverlay')}
+                                            aria-label={t('options.nomandBackgroundOverlay')}
+                                            aria-pressed={latentBackgroundTuning.overlayEnabled}
+                                        >
+                                            <Layers size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={cycleLatentDisplayMode}
+                                            className={`rounded-md px-1.5 py-1 text-[10px] font-bold transition-all ${activeOptionBg}`}
+                                            title={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
+                                            aria-label={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
+                                        >
+                                            {latentDisplayLabel}
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>

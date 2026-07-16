@@ -51,6 +51,7 @@ export type SyncedVisualSettings = {
     dioramaTuning?: unknown;
     monetBackgroundTuning?: unknown;
     nomandBackgroundTuning?: unknown;
+    latentBackgroundTuning?: unknown;
     monetTuning?: unknown;
     urlBackgroundList?: unknown[];
     urlBackgroundSelectedId?: string | null;

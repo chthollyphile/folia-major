@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerModeLabel, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { hasVisualizerBackgroundMode } from '../components/visualizer/backgrounds/registry';
 import { getLyricFilterError } from '../utils/lyrics/filtering';
@@ -629,6 +629,52 @@ const readStoredNomandBackgroundTuning = (): NomandBackgroundTuning => {
     }
 };
 
+const resolveLatentDisplayMode = (value: unknown): LatentBackgroundDisplayMode => (
+    value === 'dithering' || value === 'mesh' || value === 'both'
+        ? value
+        : DEFAULT_LATENT_BACKGROUND_TUNING.displayMode
+);
+
+const clampLatentNumber = (value: unknown, fallback: number, min: number, max: number) => (
+    Math.min(max, Math.max(min, typeof value === 'number' && Number.isFinite(value) ? value : fallback))
+);
+
+export const resolveStoredLatentBackgroundTuning = (
+    parsed: Partial<LatentBackgroundTuning>,
+): LatentBackgroundTuning => ({
+    displayMode: resolveLatentDisplayMode(parsed.displayMode),
+    dynamicOnlyInPlayer: typeof parsed.dynamicOnlyInPlayer === 'boolean'
+        ? parsed.dynamicOnlyInPlayer
+        : DEFAULT_LATENT_BACKGROUND_TUNING.dynamicOnlyInPlayer,
+    ditheringSpeed: clampLatentNumber(parsed.ditheringSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed, 0, 2),
+    ditheringAudioSpeed: clampLatentNumber(parsed.ditheringAudioSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed, 0, 2),
+    ditheringSize: clampLatentNumber(parsed.ditheringSize, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSize, 0.5, 8),
+    ditheringOpacity: clampLatentNumber(parsed.ditheringOpacity, DEFAULT_LATENT_BACKGROUND_TUNING.ditheringOpacity, 0, 1),
+    meshSpeed: clampLatentNumber(parsed.meshSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.meshSpeed, 0, 2),
+    meshAudioSpeed: clampLatentNumber(parsed.meshAudioSpeed, DEFAULT_LATENT_BACKGROUND_TUNING.meshAudioSpeed, 0, 2),
+    meshDistortion: clampLatentNumber(parsed.meshDistortion, DEFAULT_LATENT_BACKGROUND_TUNING.meshDistortion, 0, 2),
+    meshSwirl: clampLatentNumber(parsed.meshSwirl, DEFAULT_LATENT_BACKGROUND_TUNING.meshSwirl, 0, 1),
+    overlayEnabled: typeof parsed.overlayEnabled === 'boolean'
+        ? parsed.overlayEnabled
+        : DEFAULT_LATENT_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: clampLatentNumber(parsed.overlayOpacity, DEFAULT_LATENT_BACKGROUND_TUNING.overlayOpacity, 0, 1),
+});
+
+const readStoredLatentBackgroundTuning = (): LatentBackgroundTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_LATENT_BACKGROUND_TUNING;
+    }
+
+    const saved = localStorage.getItem('latent_background_tuning');
+    if (!saved) return DEFAULT_LATENT_BACKGROUND_TUNING;
+
+    try {
+        return resolveStoredLatentBackgroundTuning(JSON.parse(saved) as Partial<LatentBackgroundTuning>);
+    } catch {
+        return DEFAULT_LATENT_BACKGROUND_TUNING;
+    }
+};
+
 type StoredMonetTuningInput = Partial<MonetTuning> & StoredMonetBackgroundTuningInput;
 export const resolveStoredMonetTuning = (parsed: StoredMonetTuningInput): MonetTuning => ({
     keywordColoringEnabled: parsed.keywordColoringEnabled ?? DEFAULT_MONET_TUNING.keywordColoringEnabled,
@@ -908,6 +954,7 @@ export type SettingsUiState = {
     dioramaTuning: DioramaTuning;
     monetBackgroundTuning: MonetBackgroundTuning;
     nomandBackgroundTuning: NomandBackgroundTuning;
+    latentBackgroundTuning: LatentBackgroundTuning;
     monetTuning: MonetTuning;
     storedCappellaEmojiPack: StoredCappellaEmojiImage[];
     cappellaCustomEmojiImages: CappellaEmojiImage[];
@@ -1021,6 +1068,8 @@ export type SettingsUiState = {
     handleResetMonetBackgroundTuning: () => void;
     handleSetNomandBackgroundTuning: (patch: Partial<NomandBackgroundTuning>) => void;
     handleResetNomandBackgroundTuning: () => void;
+    handleSetLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    handleResetLatentBackgroundTuning: () => void;
     handleSetMonetTuning: (patch: Partial<MonetTuning>) => void;
     handleResetMonetTuning: () => void;
     handleUploadMonetBackgroundImage: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
@@ -1101,6 +1150,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     dioramaTuning: readStoredDioramaTuning(),
     monetBackgroundTuning: readStoredMonetBackgroundTuning(),
     nomandBackgroundTuning: readStoredNomandBackgroundTuning(),
+    latentBackgroundTuning: readStoredLatentBackgroundTuning(),
     monetTuning: readStoredMonetTuning(),
     storedCappellaEmojiPack: [],
     cappellaCustomEmojiImages: [],
@@ -1707,6 +1757,23 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ nomandBackgroundTuning: DEFAULT_NOMAND_BACKGROUND_TUNING });
         notify(get, { type: 'info', text: i18n.t('notifications.nomandBgReset') });
     },
+    handleSetLatentBackgroundTuning: (patch) => {
+        const next = resolveStoredLatentBackgroundTuning({
+            ...get().latentBackgroundTuning,
+            ...patch,
+        });
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('latent_background_tuning', JSON.stringify(next));
+        }
+        set({ latentBackgroundTuning: next });
+    },
+    handleResetLatentBackgroundTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('latent_background_tuning', JSON.stringify(DEFAULT_LATENT_BACKGROUND_TUNING));
+        }
+        set({ latentBackgroundTuning: DEFAULT_LATENT_BACKGROUND_TUNING });
+        notify(get, { type: 'info', text: i18n.t('notifications.latentBgReset') });
+    },
     handleSetMonetTuning: (patch) => {
         const prev = get().monetTuning;
         const next = resolveStoredMonetTuning({
@@ -2120,6 +2187,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     dioramaTuning: state.dioramaTuning,
     monetBackgroundTuning: state.monetBackgroundTuning,
     nomandBackgroundTuning: state.nomandBackgroundTuning,
+    latentBackgroundTuning: state.latentBackgroundTuning,
     monetTuning: state.monetTuning,
     cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
     isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
@@ -2201,6 +2269,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetMonetBackgroundTuning: state.handleResetMonetBackgroundTuning,
     handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
     handleResetNomandBackgroundTuning: state.handleResetNomandBackgroundTuning,
+    handleSetLatentBackgroundTuning: state.handleSetLatentBackgroundTuning,
+    handleResetLatentBackgroundTuning: state.handleResetLatentBackgroundTuning,
     handleSetMonetTuning: state.handleSetMonetTuning,
     handleResetMonetTuning: state.handleResetMonetTuning,
     handleUploadMonetBackgroundImage: state.handleUploadMonetBackgroundImage,

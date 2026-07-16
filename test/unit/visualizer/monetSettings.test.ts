@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
+import { DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries, measureMonetLineLayout } from '@/components/visualizer/monet/monetLyricsModel';
 import { colorWithAlpha, mixColors, parseColorChannels } from '@/components/visualizer/colorMix';
 import { buildWordColorRanges, prepareWordColorMatchers, resolveTokenColorMap } from '@/components/visualizer/wordColoring';
-import { resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveStoredNomandBackgroundTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
+import { resolveStoredLatentBackgroundTuning, resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveStoredNomandBackgroundTuning, resolveVisualizerBackgroundMode } from '@/stores/useSettingsUiStore';
 
 // test/unit/visualizer/monetSettings.test.ts
 // Locks Monet tuning normalization, background cache keys, and lyric helper contracts.
@@ -142,6 +142,41 @@ describe('Monet tuning and lyric helpers', () => {
             ditheringType: 'invalid' as never,
             size: Number.NaN,
         })).toEqual(DEFAULT_NOMAND_BACKGROUND_TUNING);
+    });
+
+    it('normalizes Latent background tuning and clamps shader speed settings to 0-2', () => {
+        expect(resolveStoredLatentBackgroundTuning({
+            displayMode: 'mesh',
+            dynamicOnlyInPlayer: false,
+            ditheringSpeed: -1,
+            ditheringAudioSpeed: 9,
+            ditheringSize: 20,
+            ditheringOpacity: -2,
+            meshSpeed: 4,
+            meshAudioSpeed: -3,
+            meshDistortion: 8,
+            meshSwirl: 4,
+            overlayEnabled: false,
+            overlayOpacity: 4,
+        })).toEqual({
+            displayMode: 'mesh',
+            dynamicOnlyInPlayer: false,
+            ditheringSpeed: 0,
+            ditheringAudioSpeed: 2,
+            ditheringSize: 8,
+            ditheringOpacity: 0,
+            meshSpeed: 2,
+            meshAudioSpeed: 0,
+            meshDistortion: 2,
+            meshSwirl: 1,
+            overlayEnabled: false,
+            overlayOpacity: 1,
+        });
+
+        expect(resolveStoredLatentBackgroundTuning({
+            displayMode: 'invalid' as never,
+            meshSpeed: Number.NaN,
+        })).toEqual(DEFAULT_LATENT_BACKGROUND_TUNING);
     });
 
     it('builds stable display tokens without dropping spaces or punctuation', () => {

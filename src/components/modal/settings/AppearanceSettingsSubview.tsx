@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
     DEFAULT_CLADDAGH_TUNING,
+    DEFAULT_LATENT_BACKGROUND_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
     DEFAULT_NOMAND_BACKGROUND_TUNING,
@@ -252,6 +253,37 @@ const decompressNomandBackground = (o: any): any => ({
     overlayOpacity: o.oo !== undefined ? o.oo : DEFAULT_NOMAND_BACKGROUND_TUNING.overlayOpacity,
 });
 
+const compressLatentBackground = (t: any): any => ({
+    dm: t.displayMode,
+    dopv: t.dynamicOnlyInPlayer,
+    ds: t.ditheringSpeed,
+    das: t.ditheringAudioSpeed,
+    dz: t.ditheringSize,
+    dop: t.ditheringOpacity,
+    ms: t.meshSpeed,
+    mas: t.meshAudioSpeed,
+    md: t.meshDistortion,
+    mw: t.meshSwirl,
+    oe: t.overlayEnabled,
+    oo: t.overlayOpacity,
+});
+const decompressLatentBackground = (o: any): any => ({
+    displayMode: o.dm || DEFAULT_LATENT_BACKGROUND_TUNING.displayMode,
+    dynamicOnlyInPlayer: o.dopv !== undefined
+        ? o.dopv
+        : DEFAULT_LATENT_BACKGROUND_TUNING.dynamicOnlyInPlayer,
+    ditheringSpeed: o.ds !== undefined ? o.ds : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed,
+    ditheringAudioSpeed: o.das !== undefined ? o.das : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed,
+    ditheringSize: o.dz !== undefined ? o.dz : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSize,
+    ditheringOpacity: o.dop !== undefined ? o.dop : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringOpacity,
+    meshSpeed: o.ms !== undefined ? o.ms : DEFAULT_LATENT_BACKGROUND_TUNING.meshSpeed,
+    meshAudioSpeed: o.mas !== undefined ? o.mas : DEFAULT_LATENT_BACKGROUND_TUNING.meshAudioSpeed,
+    meshDistortion: o.md !== undefined ? o.md : DEFAULT_LATENT_BACKGROUND_TUNING.meshDistortion,
+    meshSwirl: o.mw !== undefined ? o.mw : DEFAULT_LATENT_BACKGROUND_TUNING.meshSwirl,
+    overlayEnabled: o.oe !== undefined ? o.oe : DEFAULT_LATENT_BACKGROUND_TUNING.overlayEnabled,
+    overlayOpacity: o.oo !== undefined ? o.oo : DEFAULT_LATENT_BACKGROUND_TUNING.overlayOpacity,
+});
+
 const compressMonet = (t: any): any => ({
     kce: t.keywordColoringEnabled,
     msd: t.showDescription,
@@ -308,6 +340,7 @@ export const compressConfig = (config: any): string => {
     if (config.dioramaTuning) minified.dot = compressDiorama(config.dioramaTuning);
     if (config.monetBackgroundTuning) minified.mbt = compressMonetBackground(config.monetBackgroundTuning);
     if (config.nomandBackgroundTuning) minified.nbt = compressNomandBackground(config.nomandBackgroundTuning);
+    if (config.latentBackgroundTuning) minified.lbt = compressLatentBackground(config.latentBackgroundTuning);
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
@@ -347,6 +380,7 @@ export const decompressConfig = (str: string): any => {
         || parsed.ct !== undefined
         || parsed.cat !== undefined
         || parsed.nbt !== undefined
+        || parsed.lbt !== undefined
         || parsed.hpts !== undefined
         || parsed.sst !== undefined
         || parsed.sob !== undefined
@@ -387,6 +421,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.dot) decompressed.dioramaTuning = decompressDiorama(parsed.dot);
         if (parsed.mbt) decompressed.monetBackgroundTuning = decompressMonetBackground(parsed.mbt);
         if (parsed.nbt) decompressed.nomandBackgroundTuning = decompressNomandBackground(parsed.nbt);
+        if (parsed.lbt) decompressed.latentBackgroundTuning = decompressLatentBackground(parsed.lbt);
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
@@ -403,7 +438,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontInheritsLyrics', 'subtitleFontStyle', 'subtitleFontFamily',
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
-            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'monetTuning',
+            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'monetTuning',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
         ];
@@ -508,6 +543,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         dioramaTuning: state.dioramaTuning,
         monetBackgroundTuning: state.monetBackgroundTuning,
         nomandBackgroundTuning: state.nomandBackgroundTuning,
+        latentBackgroundTuning: state.latentBackgroundTuning,
         monetTuning: state.monetTuning,
         urlBackgroundList: state.urlBackgroundList,
         urlBackgroundSelectedId: state.urlBackgroundSelectedId,
@@ -537,6 +573,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetDioramaTuning: state.handleSetDioramaTuning,
         handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
         handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
+        handleSetLatentBackgroundTuning: state.handleSetLatentBackgroundTuning,
         handleSetMonetTuning: state.handleSetMonetTuning,
         handleAddUrlBackgroundItem: state.handleAddUrlBackgroundItem,
         handleUpdateUrlBackgroundItem: state.handleUpdateUrlBackgroundItem,
@@ -592,6 +629,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             dioramaTuning: store.dioramaTuning,
             monetBackgroundTuning: store.monetBackgroundTuning,
             nomandBackgroundTuning: store.nomandBackgroundTuning,
+            latentBackgroundTuning: store.latentBackgroundTuning,
             monetTuning: store.monetTuning,
             urlBackgroundList: store.urlBackgroundList,
             urlBackgroundSelectedId: store.urlBackgroundSelectedId,
@@ -717,6 +755,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (config.nomandBackgroundTuning) {
                 store.handleSetNomandBackgroundTuning(config.nomandBackgroundTuning);
+            }
+            if (config.latentBackgroundTuning) {
+                store.handleSetLatentBackgroundTuning(config.latentBackgroundTuning);
             }
             if (!config.visualizerTunings && config.monetTuning) {
                 store.handleSetMonetTuning(config.monetTuning);

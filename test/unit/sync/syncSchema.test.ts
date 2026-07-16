@@ -92,6 +92,34 @@ describe('sync schema parsing', () => {
         });
     });
 
+    it('accepts the Latent background mode and tuning', () => {
+        const latentBackgroundTuning = {
+            displayMode: 'both',
+            dynamicOnlyInPlayer: true,
+            ditheringSpeed: 0.35,
+            ditheringAudioSpeed: 2,
+            ditheringSize: 2.5,
+            ditheringOpacity: 0.55,
+            meshSpeed: 0.3,
+            meshAudioSpeed: 2,
+            meshDistortion: 0.8,
+            meshSwirl: 0.1,
+            overlayEnabled: true,
+            overlayOpacity: 0.35,
+        };
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: {
+                visualizerBackgroundMode: 'latent',
+                latentBackgroundTuning,
+            },
+        });
+
+        expect(record?.data.visualizerBackgroundMode).toBe('latent');
+        expect(record?.data.latentBackgroundTuning).toEqual(latentBackgroundTuning);
+    });
+
     it('parses theme records and normalizes invalid sources', () => {
         const record = parseSyncedThemeRecord({
             fingerprint: 'netease:id:123',

@@ -142,6 +142,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         dioramaTuning,
         monetBackgroundTuning,
         nomandBackgroundTuning,
+        latentBackgroundTuning,
         monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
@@ -205,6 +206,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetMonetBackgroundTuning: onResetMonetBackgroundTuning,
         handleSetNomandBackgroundTuning: onNomandBackgroundTuningChange,
         handleResetNomandBackgroundTuning: onResetNomandBackgroundTuning,
+        handleSetLatentBackgroundTuning: onLatentBackgroundTuningChange,
+        handleResetLatentBackgroundTuning: onResetLatentBackgroundTuning,
         handleSetMonetTuning: onMonetTuningChange,
         handleResetMonetTuning: onResetMonetTuning,
         handleUploadMonetBackgroundImage: onUploadMonetBackgroundImage,
@@ -2291,6 +2294,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             customImage: monetBackgroundImage,
                             monet: { tuning: monetBackgroundTuning },
                             nomand: { tuning: nomandBackgroundTuning },
+                            latent: { tuning: latentBackgroundTuning },
                             url: {
                                 items: urlBackgroundList,
                                 selectedId: urlBackgroundSelectedId,
@@ -2316,6 +2320,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             nomand: {
                                 onTuningChange: onNomandBackgroundTuningChange,
                                 onResetTuning: onResetNomandBackgroundTuning,
+                            },
+                            latent: {
+                                onTuningChange: onLatentBackgroundTuningChange,
+                                onResetTuning: onResetLatentBackgroundTuning,
                             },
                             url: {
                                 onAdd: onAddUrlBackgroundItem,
@@ -2423,6 +2431,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             customImage: monetBackgroundImage,
                             monet: { tuning: monetBackgroundTuning },
                             nomand: { tuning: nomandBackgroundTuning },
+                            latent: { tuning: latentBackgroundTuning },
                             url: {
                                 items: urlBackgroundList,
                                 selectedId: urlBackgroundSelectedId,

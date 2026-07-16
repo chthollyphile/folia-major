@@ -34,6 +34,7 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     toggleRandomVisualizerModePerSong: vi.fn(),
     setVisualizerBackgroundMode: vi.fn(),
     setMonetBackgroundTuning: vi.fn(),
+    setLatentBackgroundTuning: vi.fn(),
     toggleTransparentBackground: vi.fn(),
     hideBottomSubtitleOverlay: false,
     toggleBottomSubtitleOverlay: vi.fn(),
@@ -385,6 +386,16 @@ describe('command palette registry', () => {
         expect(matchNomand.command.id).toBe('background-nomand');
         matchNomand.command.execute('', context);
         expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('nomand');
+
+        const [matchLatent] = getCommandPaletteMatches('隐现背景');
+        expect(matchLatent.command.id).toBe('background-latent');
+        matchLatent.command.execute('', context);
+        expect(context.setVisualizerBackgroundMode).toHaveBeenCalledWith('latent');
+
+        const [matchLatentFluid] = getCommandPaletteMatches('隐现流体');
+        expect(matchLatentFluid.command.id).toBe('background-latent-mesh');
+        matchLatentFluid.command.execute('', context);
+        expect(context.setLatentBackgroundTuning).toHaveBeenCalledWith({ displayMode: 'mesh' });
     });
 
     it('matches and executes the Diorama visualizer command', () => {

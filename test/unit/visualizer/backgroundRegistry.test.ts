@@ -16,6 +16,7 @@ describe('visualizer background registry', () => {
             'common',
             'monet',
             'nomand',
+            'latent',
             'url',
             'sora',
         ]);
@@ -31,12 +32,14 @@ describe('visualizer background registry', () => {
     it('falls back to common for unknown lookups', () => {
         expect(DEFAULT_VISUALIZER_BACKGROUND_MODE).toBe('common');
         expect(hasVisualizerBackgroundMode('nomand')).toBe(true);
+        expect(hasVisualizerBackgroundMode('latent')).toBe(true);
         expect(hasVisualizerBackgroundMode('missing-mode')).toBe(false);
         expect(getVisualizerBackgroundRegistryEntry('missing-mode').mode).toBe('common');
     });
 
     it('uses label fallback when translation is missing', () => {
         expect(getVisualizerBackgroundModeLabel('nomand', key => key)).toBe('Nomand');
+        expect(getVisualizerBackgroundModeLabel('latent', key => key)).toBe('Latent');
     });
 
     it('resets only the active background settings without changing its mode', () => {

@@ -110,6 +110,20 @@ describe('Visual Settings Import and Export', () => {
             overlayEnabled: true,
             overlayOpacity: 0.45,
         },
+        latentBackgroundTuning: {
+            displayMode: 'mesh' as const,
+            dynamicOnlyInPlayer: false,
+            ditheringSpeed: 0.4,
+            ditheringAudioSpeed: 1.8,
+            ditheringSize: 3,
+            ditheringOpacity: 0.6,
+            meshSpeed: 0.25,
+            meshAudioSpeed: 2,
+            meshDistortion: 1.1,
+            meshSwirl: 0.3,
+            overlayEnabled: false,
+            overlayOpacity: 0.5,
+        },
         monetTuning: {
             keywordColoringEnabled: false,
             showDescription: false,
@@ -147,6 +161,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);
         expect(decoded.nomandBackgroundTuning).toEqual(sampleConfig.nomandBackgroundTuning);
+        expect(decoded.latentBackgroundTuning).toEqual(sampleConfig.latentBackgroundTuning);
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);

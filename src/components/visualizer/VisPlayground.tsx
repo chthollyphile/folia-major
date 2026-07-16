@@ -11,6 +11,7 @@ import {
     DEFAULT_CLADDAGH_TUNING,
     DEFAULT_DIORAMA_TUNING,
     DEFAULT_FUME_TUNING,
+    DEFAULT_LATENT_BACKGROUND_TUNING,
     DEFAULT_MONET_BACKGROUND_TUNING,
     DEFAULT_MONET_TUNING,
     DEFAULT_PARTITA_TUNING,
@@ -23,6 +24,7 @@ import {
     type ClassicTuning,
     type CladdaghTuning,
     type FumeTuning,
+    type LatentBackgroundTuning,
     type MonetBackgroundTuning,
     type MonetPortraitImage,
     type MonetTuning,
@@ -327,6 +329,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const { t } = useTranslation();
     const backgroundOpacity = backgroundConfig?.common?.opacity ?? 0.75;
     const monetBackgroundTuning = backgroundConfig?.monet?.tuning ?? DEFAULT_MONET_BACKGROUND_TUNING;
+    const latentBackgroundTuning = backgroundConfig?.latent?.tuning ?? DEFAULT_LATENT_BACKGROUND_TUNING;
     const currentTime = useMotionValue(0);
     const audioPower = useMotionValue(0.24);
     const bass = useMotionValue(0.18);
@@ -356,6 +359,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const [draftTiltTuning, setDraftTiltTuning] = useState<TiltTuning>(tiltTuning);
     const [draftDioramaTuning, setDraftDioramaTuning] = useState<DioramaTuning>(dioramaTuning);
     const [draftMonetBackgroundTuning, setDraftMonetBackgroundTuning] = useState<MonetBackgroundTuning>(monetBackgroundTuning);
+    const [draftLatentBackgroundTuning, setDraftLatentBackgroundTuning] = useState<LatentBackgroundTuning>(latentBackgroundTuning);
     const [draftMonetTuning, setDraftMonetTuning] = useState<MonetTuning>(monetTuning);
     const [activeEditSection, setActiveEditSection] = useState<VisPlaygroundEditSection>(initialEditSection);
     const fontListRef = React.useRef<HTMLDivElement>(null);
@@ -486,6 +490,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => { setDraftTiltTuning(tiltTuning); }, [tiltTuning]);
     useEffect(() => { setDraftDioramaTuning(dioramaTuning); }, [dioramaTuning]);
     useEffect(() => { setDraftMonetBackgroundTuning(monetBackgroundTuning); }, [monetBackgroundTuning]);
+    useEffect(() => { setDraftLatentBackgroundTuning(latentBackgroundTuning); }, [latentBackgroundTuning]);
     useEffect(() => { setDraftMonetTuning(monetTuning); }, [monetTuning]);
     useEffect(() => { setActiveEditSection(initialEditSection); }, [initialEditSection]);
 
@@ -824,6 +829,15 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         }
     };
 
+    const handleLatentBackgroundTuningDraft = (patch: Partial<LatentBackgroundTuning>) => {
+        setDraftLatentBackgroundTuning(prev => ({ ...prev, ...patch }));
+        if (!isDraggingSlider.current) {
+            backgroundActions?.latent?.onTuningChange?.(patch);
+        } else {
+            pendingCommitRef.current = () => backgroundActions?.latent?.onTuningChange?.(patch);
+        }
+    };
+
     const handleMonetTuningDraft = (patch: Partial<MonetTuning>) => {
         const next = { ...draftMonetTuning, ...patch };
         setDraftMonetTuning(next);
@@ -878,6 +892,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             ...backgroundConfig?.monet,
             tuning: draftMonetBackgroundTuning,
         },
+        latent: {
+            ...backgroundConfig?.latent,
+            tuning: draftLatentBackgroundTuning,
+        },
     };
     const draftBackgroundActions: VisualizerBackgroundActions = {
         ...backgroundActions,
@@ -891,6 +909,14 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
             onResetTuning: () => {
                 setDraftMonetBackgroundTuning(DEFAULT_MONET_BACKGROUND_TUNING);
                 backgroundActions?.monet?.onResetTuning?.();
+            },
+        },
+        latent: {
+            ...backgroundActions?.latent,
+            onTuningChange: handleLatentBackgroundTuningDraft,
+            onResetTuning: () => {
+                setDraftLatentBackgroundTuning(DEFAULT_LATENT_BACKGROUND_TUNING);
+                backgroundActions?.latent?.onResetTuning?.();
             },
         },
     };

@@ -337,6 +337,7 @@ export default function App() {
         dioramaTuning,
         monetBackgroundTuning,
         nomandBackgroundTuning,
+        latentBackgroundTuning,
         monetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
@@ -381,6 +382,7 @@ export default function App() {
         handleToggleRandomVisualizerModePerSong,
         handleSetVisualizerBackgroundMode,
         handleSetMonetBackgroundTuning,
+        handleSetLatentBackgroundTuning,
         handleSetMonetTuning,
         handleSetCadenzaTuning,
         handleResetCadenzaTuning,
@@ -1613,6 +1615,7 @@ export default function App() {
         customImage: monetBackgroundImage,
         monet: { tuning: monetBackgroundTuning },
         nomand: { tuning: nomandBackgroundTuning },
+        latent: { tuning: latentBackgroundTuning },
         url: {
             items: urlBackgroundList,
             selectedId: urlBackgroundSelectedId,
@@ -1624,6 +1627,7 @@ export default function App() {
         monetBackgroundImage,
         monetBackgroundTuning,
         nomandBackgroundTuning,
+        latentBackgroundTuning,
         urlBackgroundList,
         urlBackgroundSelectedId,
         useCoverColorBg,
@@ -1760,6 +1764,7 @@ export default function App() {
         },
         setVisualizerBackgroundMode: handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: handleSetMonetBackgroundTuning,
+        setLatentBackgroundTuning: handleSetLatentBackgroundTuning,
         toggleTransparentBackground: () => {
             void toggleTransparentModeWithHandoff(!transparentPlayerBackground);
         },
@@ -2904,7 +2909,15 @@ export default function App() {
                         showText={currentView === 'player' && !isSettingsModalOpen}
                         seed={visualizerGeometrySeed}
                         staticMode={staticMode}
-                        paused={shouldPauseVisualizerBackground}
+                        paused={
+                            shouldPauseVisualizerBackground
+                            || playerState !== PlayerState.PLAYING
+                            || (
+                                visualizerBackgroundConfig.mode === 'latent'
+                                && latentBackgroundTuning.dynamicOnlyInPlayer
+                                && currentView !== 'player'
+                            )
+                        }
                         visualizerOpacity={visualizerOpacity}
                         background={{
                             ...visualizerBackgroundConfig,

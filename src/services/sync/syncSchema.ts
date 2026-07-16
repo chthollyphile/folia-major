@@ -70,6 +70,7 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (value.dioramaTuning !== undefined) settings.dioramaTuning = value.dioramaTuning;
     if (value.monetBackgroundTuning !== undefined) settings.monetBackgroundTuning = value.monetBackgroundTuning;
     if (value.nomandBackgroundTuning !== undefined) settings.nomandBackgroundTuning = value.nomandBackgroundTuning;
+    if (value.latentBackgroundTuning !== undefined) settings.latentBackgroundTuning = value.latentBackgroundTuning;
     if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
     if (Array.isArray(value.urlBackgroundList)) settings.urlBackgroundList = value.urlBackgroundList;
     if (value.urlBackgroundSelectedId === null) settings.urlBackgroundSelectedId = null;

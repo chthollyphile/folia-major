@@ -524,9 +524,10 @@ export type MonetBackgroundLayout = 'full-overlay' | 'half-pane-gradient';
 export type MonetBackgroundWashColorMode = 'theme' | 'custom';
 export type NomandBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type NomandBackgroundDitheringType = '2x2' | '4x4' | '8x8';
+export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'url' | 'sora';
+export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
 export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
 export interface UrlBackgroundItem {
@@ -555,6 +556,21 @@ export interface NomandBackgroundTuning {
   colorSteps: number;
   originalColors: boolean;
   inverted: boolean;
+  overlayEnabled: boolean;
+  overlayOpacity: number;
+}
+
+export interface LatentBackgroundTuning {
+  displayMode: LatentBackgroundDisplayMode;
+  dynamicOnlyInPlayer: boolean;
+  ditheringSpeed: number;
+  ditheringAudioSpeed: number;
+  ditheringSize: number;
+  ditheringOpacity: number;
+  meshSpeed: number;
+  meshAudioSpeed: number;
+  meshDistortion: number;
+  meshSwirl: number;
   overlayEnabled: boolean;
   overlayOpacity: number;
 }
@@ -590,6 +606,21 @@ export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
   colorSteps: 2,
   originalColors: false,
   inverted: false,
+  overlayEnabled: true,
+  overlayOpacity: 0.35,
+};
+
+export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
+  displayMode: 'both',
+  dynamicOnlyInPlayer: true,
+  ditheringSpeed: 0.35,
+  ditheringAudioSpeed: 2,
+  ditheringSize: 2.5,
+  ditheringOpacity: 0.55,
+  meshSpeed: 0.3,
+  meshAudioSpeed: 2,
+  meshDistortion: 0.8,
+  meshSwirl: 0.1,
   overlayEnabled: true,
   overlayOpacity: 0.35,
 };

@@ -521,6 +521,53 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'background-latent',
+        group: 'visualizer',
+        title: 'Background: Latent',
+        description: 'Switch background to cover-colored audio-reactive shaders',
+        keywords: ['latent', 'latent background', 'shader background', '隐现', '隐现背景', '音频响应背景', 'yin xian', 'yinxian', 'yxbj'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-dithering',
+        group: 'visualizer',
+        title: 'Latent: Pixel',
+        description: 'Show only the Dithering layer in Latent background',
+        keywords: ['latent pixel', 'latent dithering', '隐现像素', '像素层', 'yinxian xiangsu', 'yxxs'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'dithering' });
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-mesh',
+        group: 'visualizer',
+        title: 'Latent: Fluid',
+        description: 'Show only the MeshGradient layer in Latent background',
+        keywords: ['latent fluid', 'latent mesh', 'mesh gradient', '隐现流体', '流体层', 'yinxian liuti', 'yxlt'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'mesh' });
+            return true;
+        },
+    },
+    {
+        id: 'background-latent-both',
+        group: 'visualizer',
+        title: 'Latent: Mixed',
+        description: 'Show both shader layers in Latent background',
+        keywords: ['latent mixed', 'latent both', '隐现混合', '双层背景', 'yinxian hunhe', 'yxhh'],
+        execute: (_input, context) => {
+            context.setVisualizerBackgroundMode('latent');
+            context.setLatentBackgroundTuning({ displayMode: 'both' });
+            return true;
+        },
+    },
+    {
         id: 'background-url',
         group: 'visualizer',
         title: 'Background: Embedded Background',

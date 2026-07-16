@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
-import type { HomeViewTab, LocalSong, PlayerState, SongResult, StatusMessage, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, PlayerState, SongResult, StatusMessage, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
@@ -75,6 +75,7 @@ export type CommandPaletteContext = {
     toggleRandomVisualizerModePerSong: () => void;
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
+    setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
     toggleTransparentBackground: () => void;
     hideBottomSubtitleOverlay: boolean;
     toggleBottomSubtitleOverlay: () => void;
