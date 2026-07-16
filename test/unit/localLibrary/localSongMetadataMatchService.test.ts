@@ -5,6 +5,7 @@ import { applyLocalSongMatchSelection } from '@/services/localSongMatchSelection
 import {
     applyOnlineMetadataCandidate,
     batchAutoMatchLocalSongMetadata,
+    useImportedSnapshotForLocalSong,
 } from '@/services/localSongMetadataMatchService';
 
 // test/unit/localLibrary/localSongMetadataMatchService.test.ts
@@ -69,6 +70,7 @@ describe('localSongMetadataMatchService', () => {
             metadata: 'online',
             cover: 'online',
             lyrics: 'keep',
+            setNoAutoMatch: false,
             matchMode: 'manual',
             protectOrigins: undefined,
         });
@@ -82,6 +84,7 @@ describe('localSongMetadataMatchService', () => {
         expect(applyLocalSongMatchSelection).toHaveBeenCalledWith(expect.objectContaining({
             metadata: 'online',
             cover: 'keep',
+            setNoAutoMatch: undefined,
             matchMode: 'automatic',
             protectOrigins: ['manual', 'manual-match', 'split'],
         }));
@@ -98,6 +101,17 @@ describe('localSongMetadataMatchService', () => {
             cover: 'online',
             lyrics: 'keep',
         }));
+    });
+
+    it('restores local info and disables future automatic matching', async () => {
+        await useImportedSnapshotForLocalSong('local-info');
+        expect(applyLocalSongMatchSelection).toHaveBeenCalledWith({
+            songId: 'local-info',
+            metadata: 'imported',
+            cover: 'embedded',
+            lyrics: 'automatic',
+            setNoAutoMatch: true,
+        });
     });
 
     it('skips noAutoMatch songs and never exceeds two searches', async () => {

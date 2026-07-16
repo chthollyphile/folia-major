@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
 import type { LocalLibraryAssignment } from '../../types/localLibrary';
 import { createSafeObjectUrl, isBlob } from '../../utils/blobGuards';
-import { applyOnlineMetadataCandidate } from '../../services/localSongMetadataMatchService';
+import { applyOnlineMetadataCandidate, useImportedSnapshotForLocalSong } from '../../services/localSongMetadataMatchService';
 import {
     buildLocalSongMetadataSearchQuery,
     buildLocalSongMetadataSearchTarget,
@@ -32,6 +32,7 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
     const [selected, setSelected] = useState<OnlineMetadataCandidate | null>(null);
     const [searching, setSearching] = useState(false);
     const [applying, setApplying] = useState(false);
+    const [restoringLocalInfo, setRestoringLocalInfo] = useState(false);
     const [useOnlineMetadata, setUseOnlineMetadata] = useState(song.titleOrigin !== 'import');
     const [useOnlineCover, setUseOnlineCover] = useState(song.useOnlineCover ?? !isBlob(song.embeddedCover));
     const [embeddedCoverUrl, setEmbeddedCoverUrl] = useState<string | null>(null);
@@ -104,6 +105,18 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
             setApplying(false);
         }
     };
+    const useLocalInfo = async () => {
+        setRestoringLocalInfo(true);
+        try {
+            await useImportedSnapshotForLocalSong(song.id);
+            await onChanged();
+            onClose();
+        } catch (error) {
+            console.error('[LocalMusic] Failed to restore imported snapshot:', error);
+        } finally {
+            setRestoringLocalInfo(false);
+        }
+    };
     const panelTheme = isDaylight ? 'border-black/10 bg-white text-zinc-900' : 'border-white/10 bg-zinc-950 text-white';
 
     return (
@@ -112,7 +125,14 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
                 <header className="flex items-center justify-between border-b border-current/10 px-5 py-4">
                     <div className="min-w-0">
                         <h3 className="truncate text-lg font-bold">{t('localMusic.manualMetadataMatch')}</h3>
-                        <p className="truncate text-xs opacity-50">{song.title || song.fileName}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                            <p className="min-w-0 truncate text-xs opacity-50">{song.title || song.fileName}</p>
+                            {song.noAutoMatch && (
+                                <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">
+                                    {t('localMusic.localInfoBadge')}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <button type="button" onClick={onClose} className="rounded-full p-2 hover:bg-current/10"><X size={19} /></button>
                 </header>
@@ -190,9 +210,14 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
                             </button>
                         </div>
                     )}
-                    <button type="button" disabled={!selected || applying} onClick={() => void apply()} className="flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-35">
-                        {applying && <Loader2 size={15} className="animate-spin" />}{t('localMusic.applyMetadataMatch')}
-                    </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <button type="button" disabled={applying || restoringLocalInfo} onClick={() => void useLocalInfo()} className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-500 disabled:opacity-35">
+                            {restoringLocalInfo && <Loader2 size={15} className="animate-spin" />}{t('localMusic.dontUseOnlineMetadata')}
+                        </button>
+                        <button type="button" disabled={!selected || applying || restoringLocalInfo} onClick={() => void apply()} className="flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-35">
+                            {applying && <Loader2 size={15} className="animate-spin" />}{t('localMusic.applyMetadataMatch')}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

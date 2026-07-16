@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Search, WandSparkles } from 'lucide-react';
+import { Check, HardDrive, Search, WandSparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { List as VirtualList, type RowComponentProps } from 'react-window';
 import type { LocalSong } from '../../types';
@@ -22,8 +22,10 @@ interface FolderSongPickerProps {
 type SongRowProps = Omit<FolderSongPickerProps, 'songs'> & { songs: LocalSong[] };
 
 const SongRow = ({ index, style, ariaAttributes, songs, selectedSongIds, onToggle, onManualMatch, manualMatchLabel, statusBySongId, disabled, isDaylight }: RowComponentProps<SongRowProps>) => {
+    const { t } = useTranslation();
     const song = songs[index];
     const selected = selectedSongIds.has(song.id);
+    const automaticMatchDisabled = Boolean(song.noAutoMatch);
     return (
         <div {...ariaAttributes} style={style} className="px-1 py-1">
             <div className={`flex h-full items-center gap-3 rounded-xl border px-3 transition-colors ${selected
@@ -31,17 +33,18 @@ const SongRow = ({ index, style, ariaAttributes, songs, selectedSongIds, onToggl
                 : isDaylight ? 'border-black/5 bg-white' : 'border-white/10 bg-white/5'}`}>
                 <button
                     type="button"
-                    disabled={disabled}
+                    disabled={disabled || automaticMatchDisabled}
                     onClick={() => onToggle(song.id)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-not-allowed"
                 >
-                    <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border ${selected ? 'border-blue-500 bg-blue-500 text-white' : 'border-current/20'}`}>
+                    <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border ${selected ? 'border-blue-500 bg-blue-500 text-white' : automaticMatchDisabled ? 'border-amber-500/35 bg-amber-500/10' : 'border-current/20'}`}>
                         {selected && <Check size={12} strokeWidth={3} />}
+                        {!selected && automaticMatchDisabled && <HardDrive size={11} className="text-amber-500" />}
                     </span>
                     <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-semibold">{song.title || song.fileName}</span>
-                        <span className="block truncate text-[11px] opacity-50">
-                            {statusBySongId?.get(song.id)
+                        <span className={`block truncate text-[11px] ${automaticMatchDisabled ? 'font-semibold text-amber-500/90' : 'opacity-50'}`}>
+                            {(automaticMatchDisabled ? t('localMusic.localInfoAutoMatchSkipped') : statusBySongId?.get(song.id))
                                 || song.onlineMetadata?.artists.map(artist => artist.name).join(', ')
                                 || song.importedMetadata.artistNames.join(', ')
                                 || song.importedMetadata.albumName

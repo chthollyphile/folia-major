@@ -47,10 +47,22 @@ export const applyOnlineMetadataCandidate = async (
         metadata: useOnlineMetadata ? 'online' : 'imported',
         cover: useOnlineCover ? 'online' : options.mode === 'manual' ? 'embedded' : 'keep',
         lyrics: 'keep',
+        setNoAutoMatch: options.mode === 'manual' && (useOnlineMetadata || useOnlineCover) ? false : undefined,
         matchMode: options.mode,
         protectOrigins: options.protectOrigins,
     });
     return { coverAttempted: result.coverAttempted, coverCached: result.coverCached };
+};
+
+// Restores the complete imported snapshot and keeps future automatic matching from replacing it.
+export const useImportedSnapshotForLocalSong = async (songId: string): Promise<void> => {
+    await applyLocalSongMatchSelection({
+        songId,
+        metadata: 'imported',
+        cover: 'embedded',
+        lyrics: 'automatic',
+        setNoAutoMatch: true,
+    });
 };
 
 // Processes at most two songs concurrently and reports every completed item immediately.

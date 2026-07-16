@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Square, WandSparkles } from 'lucide-react';
+import { HardDrive, Loader2, Square, WandSparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSong } from '../../types';
 import type { LocalLibraryAssignment } from '../../types/localLibrary';
-import { batchAutoMatchLocalSongMetadata } from '../../services/localSongMetadataMatchService';
+import { batchAutoMatchLocalSongMetadata, useImportedSnapshotForLocalSong } from '../../services/localSongMetadataMatchService';
 import type { OnlineMetadataCandidate } from '../../services/onlineMetadataSearchService';
 import { FolderSongPicker } from './FolderSongPicker';
 
@@ -34,18 +34,27 @@ export const FolderAutoMatchEditor = ({ songs, assignments, isDaylight, onManual
         })
         .map(song => song.id)));
     const [running, setRunning] = useState(false);
+    const [restoringLocalInfo, setRestoringLocalInfo] = useState(false);
     const [completed, setCompleted] = useState(0);
     const [statusBySongId, setStatusBySongId] = useState(new Map<string, string>());
     const abortControllerRef = useRef<AbortController | null>(null);
     const selectAllRef = useRef<HTMLInputElement | null>(null);
-    const selectedCount = songs.reduce((count, song) => count + Number(selectedSongIds.has(song.id)), 0);
-    const allSelected = songs.length > 0 && selectedCount === songs.length;
+    const eligibleSongs = useMemo(() => songs.filter(song => !song.noAutoMatch), [songs]);
+    const selectedCount = eligibleSongs.reduce((count, song) => count + Number(selectedSongIds.has(song.id)), 0);
+    const allSelected = eligibleSongs.length > 0 && selectedCount === eligibleSongs.length;
+    const localInfoCount = songs.length - eligibleSongs.length;
+    const busy = running || restoringLocalInfo;
 
     useEffect(() => {
         if (selectAllRef.current) {
             selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
         }
     }, [allSelected, selectedCount]);
+
+    useEffect(() => {
+        const eligibleSongIds = new Set(eligibleSongs.map(song => song.id));
+        setSelectedSongIds(current => new Set([...current].filter(songId => eligibleSongIds.has(songId))));
+    }, [eligibleSongs]);
 
     const run = async () => {
         const selectedSongs = songs.filter(song => selectedSongIds.has(song.id));
@@ -78,6 +87,23 @@ export const FolderAutoMatchEditor = ({ songs, assignments, isDaylight, onManual
         }
     };
 
+    const useLocalInfo = async () => {
+        const songIds = eligibleSongs.filter(song => selectedSongIds.has(song.id)).map(song => song.id);
+        if (songIds.length === 0) return;
+        setRestoringLocalInfo(true);
+        try {
+            await Promise.all(songIds.map(useImportedSnapshotForLocalSong));
+            const restoredIds = new Set(songIds);
+            setSelectedSongIds(current => new Set([...current].filter(songId => !restoredIds.has(songId))));
+            await onChanged();
+        } catch (error) {
+            console.error('[LocalMusic] Failed to restore imported snapshots:', error);
+            window.alert(t('localMusic.entityOperationFailed'));
+        } finally {
+            setRestoringLocalInfo(false);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -90,9 +116,15 @@ export const FolderAutoMatchEditor = ({ songs, assignments, isDaylight, onManual
                         <Square size={14} /> {t('localMusic.cancelMatch')} ({completed}/{selectedCount})
                     </button>
                 ) : (
-                    <button type="button" disabled={selectedCount === 0} onClick={() => void run()} className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-35">
-                        <WandSparkles size={15} /> {t('localMusic.startAutoMatch', { count: selectedCount })}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" disabled={selectedCount === 0 || busy} onClick={() => void useLocalInfo()} className="flex items-center gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-500 disabled:opacity-35">
+                            {restoringLocalInfo ? <Loader2 size={15} className="animate-spin" /> : <HardDrive size={15} />}
+                            {t('localMusic.useLocalInfoForSelected', { count: selectedCount })}
+                        </button>
+                        <button type="button" disabled={selectedCount === 0 || busy} onClick={() => void run()} className="flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-35">
+                            <WandSparkles size={15} /> {t('localMusic.startAutoMatch', { count: selectedCount })}
+                        </button>
+                    </div>
                 )}
             </div>
             {running && (
@@ -105,14 +137,15 @@ export const FolderAutoMatchEditor = ({ songs, assignments, isDaylight, onManual
                     ref={selectAllRef}
                     type="checkbox"
                     checked={allSelected}
-                    disabled={running || songs.length === 0}
+                    disabled={busy || eligibleSongs.length === 0}
                     onChange={() => setSelectedSongIds(allSelected
                         ? new Set()
-                        : new Set(songs.map(song => song.id)))}
+                        : new Set(eligibleSongs.map(song => song.id)))}
                     className="h-4 w-4 cursor-pointer accent-blue-500 disabled:cursor-not-allowed"
                 />
                 <span>{t(allSelected ? 'localMusic.deselectAllSongs' : 'localMusic.selectAllSongs')}</span>
-                <span className="opacity-45">({selectedCount}/{songs.length})</span>
+                <span className="opacity-45">({selectedCount}/{eligibleSongs.length})</span>
+                {localInfoCount > 0 && <span className="text-amber-500/90">{t('localMusic.localInfoSkippedCount', { count: localInfoCount })}</span>}
             </label>
             <FolderSongPicker
                 songs={songs}
@@ -125,7 +158,7 @@ export const FolderAutoMatchEditor = ({ songs, assignments, isDaylight, onManual
                 onManualMatch={onManualMatch}
                 manualMatchLabel={t('localMusic.manualMetadataMatch')}
                 statusBySongId={statusBySongId}
-                disabled={running}
+                disabled={busy}
                 isDaylight={isDaylight}
             />
             {running && <div className="flex items-center justify-center gap-2 text-xs opacity-55"><Loader2 size={13} className="animate-spin" />{t('localMusic.matchingMetadata')}</div>}
