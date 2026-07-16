@@ -220,6 +220,7 @@ src/
 ## 6. Project-Specific Notes
 
 - 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
+- 主播放队列支持网易云 / 本地 / Navidrome 混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
 - `SettingsModal.tsx` 是设置中心，不只是帮助说明。
 - 新增设置时先判断是否适用 `settings-feature-integration`：视觉相关设置必须接入视觉配置导入导出；功能性设置或可执行动作必须接入 command palette。
 - `PlayerPanel.tsx` 是当前 app-level 面板入口，`UnifiedPanel.tsx` 是 legacy 实现；不要重新把面板逻辑塞回单个大组件。

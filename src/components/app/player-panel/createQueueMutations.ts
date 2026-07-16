@@ -3,6 +3,7 @@ import { buildNavidromeQueue } from '../../../services/playbackAdapters';
 import { applyQueueAddBehavior } from '../../../utils/queueAddBehavior';
 import type { NavidromeSong } from '../../../types/navidrome';
 import type { QueueAddBehavior, SongResult, StatusMessage } from '../../../types';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/player-panel/createQueueMutations.ts
 
@@ -71,7 +72,10 @@ export const createQueueMutations = ({
     };
 
     const moveQueueSongToNext = (index: number) => {
-        const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
+        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        const currentIndex = currentSongKey
+            ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
+            : -1;
         const targetIndex = Math.min(currentIndex + 1, playQueue.length - 1);
         if (index < 0 || index >= playQueue.length || index === targetIndex || index === currentIndex) return;
         const nextQueue = [...playQueue];

@@ -12,7 +12,13 @@ import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest,
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
-import { isLocalPlaybackSong, isNavidromePlaybackSong, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
+import {
+    getPlaybackSongKey,
+    isLocalPlaybackSong,
+    isNavidromePlaybackSong,
+    isSamePlaybackSong,
+    resolveNavidromePlaybackCarrier,
+} from '../utils/appPlaybackGuards';
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../services/playbackAdapters';
@@ -99,7 +105,7 @@ type UsePlaybackQueueControllerParams = {
     audioRef: MutableRefObject<HTMLAudioElement | null>;
     blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
-    currentSongRef: MutableRefObject<number | null>;
+    currentSongRef: MutableRefObject<string | number | null>;
     mainPlaybackSnapshotRef: MutableRefObject<{
         currentSong: SongResult | null;
         lyrics: any;
@@ -284,8 +290,9 @@ export function usePlaybackQueueController({
         });
     }, []);
 
-    const getNextPlayableQueueSong = useCallback((queue: SongResult[], songId: number) => {
-        const currentIndex = queue.findIndex(queuedSong => queuedSong.id === songId);
+    const getNextPlayableQueueSong = useCallback((queue: SongResult[], song: SongResult) => {
+        const currentSongKey = getPlaybackSongKey(song);
+        const currentIndex = queue.findIndex(queuedSong => getPlaybackSongKey(queuedSong) === currentSongKey);
         if (currentIndex === -1) {
             return null;
         }
@@ -320,7 +327,7 @@ export function usePlaybackQueueController({
                 return [queuedSong];
             }
 
-            if (queuedSong.id === originalSong.id) {
+            if (getPlaybackSongKey(queuedSong) === getPlaybackSongKey(originalSong)) {
                 return [replacementSong];
             }
 
@@ -335,7 +342,9 @@ export function usePlaybackQueueController({
             return [replacementSong];
         }
 
-        if (!replacedQueue.some(queuedSong => queuedSong.id === replacementSong.id)) {
+        if (!replacedQueue.some(queuedSong => (
+            getPlaybackSongKey(queuedSong) === getPlaybackSongKey(replacementSong)
+        ))) {
             replacedQueue.push(replacementSong);
         }
 
@@ -476,7 +485,10 @@ export function usePlaybackQueueController({
                     return songId ? localSongs.find(localSong => localSong.id === songId) : undefined;
                 })
                 .filter((queuedSong): queuedSong is LocalSong => Boolean(queuedSong));
-            await onPlayLocalSong(resolvedLocalData, localQueue, { shouldNavigateToPlayer });
+            await onPlayLocalSong(resolvedLocalData, localQueue, {
+                shouldNavigateToPlayer,
+                unifiedQueue: newQueue,
+            });
             return;
         }
 
@@ -490,7 +502,10 @@ export function usePlaybackQueueController({
             const navidromeQueue = queueContext
                 .map(queuedSong => resolveNavidromePlaybackCarrier(queuedSong))
                 .filter((queuedSong): queuedSong is NavidromeSong => Boolean(queuedSong));
-            await onPlayNavidromeSong(navidromeSong, navidromeQueue, { shouldNavigateToPlayer });
+            await onPlayNavidromeSong(navidromeSong, navidromeQueue, {
+                shouldNavigateToPlayer,
+                unifiedQueue: newQueue,
+            });
             return;
         }
 
@@ -520,7 +535,7 @@ export function usePlaybackQueueController({
             }
 
             if (preloadedOnlineAudioResult.kind === 'unavailable') {
-                const nextSong = getNextPlayableQueueSong(queueContext, song.id);
+                const nextSong = getNextPlayableQueueSong(queueContext, song);
                 const canSkip = Boolean(nextSong) && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT;
 
                 setIsLyricsLoading(false);
@@ -546,7 +561,8 @@ export function usePlaybackQueueController({
         }
 
         shouldAutoPlayRef.current = true;
-        currentSongRef.current = song.id;
+        const songKey = getPlaybackSongKey(song);
+        currentSongRef.current = songKey;
         pendingResumeTimeRef.current = null;
         lastAudioRecoverySourceRef.current = null;
         currentOnlineAudioUrlFetchedAtRef.current = null;
@@ -579,7 +595,7 @@ export function usePlaybackQueueController({
         setPlayerState(PlayerState.IDLE);
 
         const cachedCoverUrl = await getCachedCoverUrl(getOnlineSongCacheKey('cover', song));
-        if (currentSongRef.current !== song.id) return;
+        if (currentSongRef.current !== songKey) return;
         if (cachedCoverUrl) {
             setCachedCoverUrl(cachedCoverUrl);
         } else if (prefetched?.coverUrl) {
@@ -609,13 +625,19 @@ export function usePlaybackQueueController({
 
         try {
             await loadOnlineSongLyrics(song, prefetched, userId, {
-                isCurrent: () => currentSongRef.current === song.id,
+                isCurrent: () => currentSongRef.current === songKey,
                 onLyrics: resolvedLyrics => setLyrics(resolvedLyrics),
                 onPureMusicChange: isPureMusic => {
-                    setCurrentSong(prev => prev?.id === song.id ? { ...prev, isPureMusic } : prev);
+                    setCurrentSong(prev => {
+                        if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+                        return { ...prev, isPureMusic };
+                    });
                 },
                 onStateChange: state => {
-                    setCurrentSong(prev => prev?.id === song.id ? { ...prev, onlineLyricsState: state ?? undefined } : prev);
+                    setCurrentSong(prev => {
+                        if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+                        return { ...prev, onlineLyricsState: state ?? undefined };
+                    });
                 },
                 onAutoMatchStart: () => {
                     setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') });
@@ -630,7 +652,7 @@ export function usePlaybackQueueController({
 
         try {
             await restoreCachedThemeForSong(song);
-            if (currentSongRef.current !== song.id) return;
+            if (currentSongRef.current !== songKey) return;
         } catch (error) {
             console.warn('Theme load error', error);
         }
@@ -691,7 +713,8 @@ export function usePlaybackQueueController({
     }, [getPlayableOnlineQueue, playSong, setStatusMsg, t]);
 
     const handleQueueAddAndPlay = useCallback((song: SongResult) => {
-        const existingIndex = playQueue.findIndex(candidate => candidate.id === song.id);
+        const songKey = getPlaybackSongKey(song);
+        const existingIndex = playQueue.findIndex(candidate => getPlaybackSongKey(candidate) === songKey);
         const nextQueue = [...playQueue];
 
         if (existingIndex === -1) {
@@ -749,17 +772,10 @@ export function usePlaybackQueueController({
     }, [localLibraryCatalog, localSongs, searchDeps, t]);
 
     const handleSearchResultPlay = useCallback((track: UnifiedSong) => {
-        dispatchSearchTrackAction(track, {
-            localSongs,
-            onLocal: localSong => {
-                void onPlayLocalSong(localSong);
-            },
-            onNavidrome: navidromeSong => {
-                void onPlayNavidromeSong(navidromeSong);
-            },
-            onNetease: handleQueueAddAndPlay,
-        });
-    }, [handleQueueAddAndPlay, localSongs, onPlayLocalSong, onPlayNavidromeSong]);
+        if (!isSongMarkedUnavailable(track)) {
+            handleQueueAddAndPlay(track);
+        }
+    }, [handleQueueAddAndPlay]);
 
     const handleUnavailableReplacementConfirm = useCallback(async () => {
         if (!pendingUnavailableReplacement) {
@@ -802,7 +818,8 @@ export function usePlaybackQueueController({
         if (!currentSong || playQueue.length === 0) return;
 
         const shouldNavigateToPlayer = options?.shouldNavigateToPlayer ?? true;
-        const currentIndex = playQueue.findIndex(song => song.id === currentSong.id);
+        const currentSongKey = getPlaybackSongKey(currentSong);
+        const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
 
         if (isFmMode && currentIndex >= playQueue.length - 2) {
             try {
@@ -848,7 +865,8 @@ export function usePlaybackQueueController({
         if (isNowPlayingStageActive) return;
         if (!currentSong || playQueue.length === 0) return;
 
-        const currentIndex = playQueue.findIndex(song => song.id === currentSong.id);
+        const currentSongKey = getPlaybackSongKey(currentSong);
+        const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
         let prevIndex = -1;
 
         if (currentIndex > 0) {
@@ -865,7 +883,10 @@ export function usePlaybackQueueController({
     const skipAfterPlaybackFailure = useCallback(() => {
         clearPendingUnavailableSkip();
         const skipCount = playbackAutoSkipCountRef.current;
-        const currentIndex = currentSong ? playQueue.findIndex(song => song.id === currentSong.id) : -1;
+        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        const currentIndex = currentSongKey
+            ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
+            : -1;
         const hasNextTrack = currentIndex >= 0 && (
             currentIndex < playQueue.length - 1 ||
             (loopMode === 'all' && playQueue.length > 1)
@@ -891,7 +912,10 @@ export function usePlaybackQueueController({
         nextCurrentSong: SongResult | null,
         nextQueue: SongResult[],
     ): StagePlayerSnapshot => {
-        const queueCurrentIndex = nextCurrentSong ? nextQueue.findIndex(song => song.id === nextCurrentSong.id) : -1;
+        const nextCurrentSongKey = nextCurrentSong ? getPlaybackSongKey(nextCurrentSong) : null;
+        const queueCurrentIndex = nextCurrentSongKey
+            ? nextQueue.findIndex(song => getPlaybackSongKey(song) === nextCurrentSongKey)
+            : -1;
         const hasQueueNeighbors = nextQueue.length > 1;
         const hasCurrentSong = Boolean(nextCurrentSong);
         const audioElement = audioRef.current;
@@ -936,12 +960,13 @@ export function usePlaybackQueueController({
         const orderedAffectedSongs = action === 'append' ? [...affectedSongs].reverse() : affectedSongs;
 
         for (const song of orderedAffectedSongs) {
-            const targetIndex = nextQueue.findIndex(candidate => candidate.id === song.id);
+            const songKey = getPlaybackSongKey(song);
+            const targetIndex = nextQueue.findIndex(candidate => getPlaybackSongKey(candidate) === songKey);
             if (targetIndex < 0 || targetIndex > workingQueue.length) {
                 return buildReloadQueueDiffDraft();
             }
 
-            const currentIndex = workingQueue.findIndex(candidate => candidate.id === song.id);
+            const currentIndex = workingQueue.findIndex(candidate => getPlaybackSongKey(candidate) === songKey);
             if (currentIndex < 0) {
                 const item = snapshot.queue.items[targetIndex];
                 if (!item) {
@@ -960,7 +985,10 @@ export function usePlaybackQueueController({
         }
 
         const matchesNextQueue = workingQueue.length === nextQueue.length
-            && workingQueue.every((song, index) => song.id === nextQueue[index]?.id);
+            && workingQueue.every((song, index) => (
+                Boolean(nextQueue[index])
+                && getPlaybackSongKey(song) === getPlaybackSongKey(nextQueue[index])
+            ));
         return matchesNextQueue ? { ops } : buildReloadQueueDiffDraft();
     }, [buildReloadQueueDiffDraft]);
 
@@ -1093,7 +1121,11 @@ export function usePlaybackQueueController({
                 if (removeIndex < 0) {
                     throw new Error('Queue item was not found.');
                 }
-                if (currentSong && baseQueue[removeIndex]?.id === currentSong.id) {
+                if (
+                    currentSong
+                    && baseQueue[removeIndex]
+                    && getPlaybackSongKey(baseQueue[removeIndex]) === getPlaybackSongKey(currentSong)
+                ) {
                     throw new Error('Removing the current track is not supported.');
                 }
                 nextQueue = baseQueue.filter((_, index) => index !== removeIndex);
@@ -1168,13 +1200,13 @@ export function usePlaybackQueueController({
         if (isNowPlayingStageActive) return;
         if (!playQueue || playQueue.length <= 1) return;
 
-        const currentId = currentSong?.id;
+        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
         let songsToShuffle: SongResult[] = [];
         let firstSong: SongResult | null = null;
 
-        if (currentId) {
-            firstSong = playQueue.find(song => song.id === currentId) || null;
-            songsToShuffle = playQueue.filter(song => song.id !== currentId);
+        if (currentSongKey) {
+            firstSong = playQueue.find(song => getPlaybackSongKey(song) === currentSongKey) || null;
+            songsToShuffle = playQueue.filter(song => getPlaybackSongKey(song) !== currentSongKey);
         } else {
             songsToShuffle = [...playQueue];
         }
@@ -1189,8 +1221,8 @@ export function usePlaybackQueueController({
         setPlayQueue(nextQueue);
         setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
 
-        if (currentId && nextQueue.length > 1) {
-            invalidateAndRefetch(currentId, nextQueue, audioQuality, userId);
+        if (currentSong && nextQueue.length > 1) {
+            invalidateAndRefetch(currentSong.id, nextQueue, audioQuality, userId);
         }
     }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
 

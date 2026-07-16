@@ -15,6 +15,7 @@ import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import type { OnlineLyricsState } from '../types';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
+import { getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics';
 
@@ -836,7 +837,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                 onRemoveSong={onRemoveSong}
                                                 onMoveSongToEnd={onMoveSongToEnd}
                                                 onMoveSongToNext={onMoveSongToNext}
-                                                canSaveLocalPlaylist={Boolean(isLocal && playQueue.some(song => ((song as any).isLocal === true) || (song as any).localRef?.songId))}
+                                                // TODO: Define cross-source playlist export before enabling playlist creation for mixed queues.
+                                                canSaveLocalPlaylist={Boolean(
+                                                    isLocal
+                                                    && !hasMixedPlaybackSources(playQueue)
+                                                    && playQueue.length > 0
+                                                    && playQueue.every(song => getPlaybackSongSource(song) === 'local')
+                                                )}
                                                 onSaveCurrentQueueAsPlaylist={onSaveCurrentQueueAsPlaylist}
                                                 isDaylight={isDaylight}
                                             />

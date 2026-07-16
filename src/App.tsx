@@ -256,7 +256,7 @@ export default function App() {
     const blobUrlRef = useRef<string | null>(null);
     const queueScrollRef = useRef<HTMLDivElement>(null);
     const shouldAutoPlay = useRef(false);
-    const currentSongRef = useRef<number | null>(null);
+    const currentSongRef = useRef<string | number | null>(null);
     const currentSongFullRef = useRef<SongResult | null>(null);
     useEffect(() => {
         currentSongFullRef.current = currentSong;

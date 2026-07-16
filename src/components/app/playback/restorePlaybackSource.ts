@@ -13,7 +13,12 @@ import type { LyricData, LocalSong, SongResult, StatusMessage } from '../../../t
 import type { NavidromeSong } from '../../../types/navidrome';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../../../utils/appNavidromeLyrics';
 import { hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
-import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../../../utils/appPlaybackGuards';
+import {
+    isLocalPlaybackSong,
+    isNavidromePlaybackSong,
+    isSamePlaybackSong,
+    replacePlaybackSongInQueue,
+} from '../../../utils/appPlaybackGuards';
 import { createSafeObjectUrl, isBlob } from '../../../utils/blobGuards';
 import { LyricParserFactory } from '../../../utils/lyrics/LyricParserFactory';
 import { processNeteaseLyrics } from '../../../utils/lyrics/neteaseProcessing';
@@ -199,13 +204,17 @@ export const restorePlaybackSourceForSong = async (
         } else {
             setCachedCoverUrl(null);
         }
-        void persistLastPlaybackCache?.(restoredSong, [restoredSong]);
+        const restoredQueue = replacePlaybackSongInQueue(queue || [restoredSong], restoredSong);
+        void persistLastPlaybackCache?.(restoredSong, restoredQueue);
         return true;
     }
 
     const onlineLyricsState = await loadOnlineLyricsState(song);
     if (onlineLyricsState) {
-        setCurrentSong(prev => prev?.id === song.id ? { ...prev, onlineLyricsState } : prev);
+        setCurrentSong(prev => {
+            if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+            return { ...prev, onlineLyricsState };
+        });
     }
 
     const cachedAudio = await getCachedAudioBlob(getOnlineSongCacheKey('audio', song));
@@ -238,12 +247,15 @@ export const restorePlaybackSourceForSong = async (
     const restoredPreferredLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
     if (restoredPreferredLyrics) {
         const cachedText = restoredPreferredLyrics.lines.map(line => line.fullText).join('\n');
-        setCurrentSong(prev => prev?.id === song.id ? {
-            ...prev,
-            isPureMusic: onlineLyricsState?.lyricsSource === 'online' && typeof onlineLyricsState.matchedIsPureMusic === 'boolean'
-                ? onlineLyricsState.matchedIsPureMusic
-                : isPureMusicLyricText(cachedText),
-        } : prev);
+        setCurrentSong(prev => {
+            if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+            return {
+                ...prev,
+                isPureMusic: onlineLyricsState?.lyricsSource === 'online' && typeof onlineLyricsState.matchedIsPureMusic === 'boolean'
+                    ? onlineLyricsState.matchedIsPureMusic
+                    : isPureMusicLyricText(cachedText),
+            };
+        });
         setLyrics(restoredPreferredLyrics);
         return true;
     }
@@ -253,12 +265,15 @@ export const restorePlaybackSourceForSong = async (
         : await neteaseApi.getLyric(song.id);
     const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: song.id });
     const resolvedLyrics = resolveOnlineLyrics(onlineLyricsState, processed.lyrics);
-    setCurrentSong(prev => prev?.id === song.id ? {
-        ...prev,
-        isPureMusic: onlineLyricsState?.lyricsSource === 'online' && typeof onlineLyricsState.matchedIsPureMusic === 'boolean'
-            ? onlineLyricsState.matchedIsPureMusic
-            : processed.isPureMusic,
-    } : prev);
+    setCurrentSong(prev => {
+        if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+        return {
+            ...prev,
+            isPureMusic: onlineLyricsState?.lyricsSource === 'online' && typeof onlineLyricsState.matchedIsPureMusic === 'boolean'
+                ? onlineLyricsState.matchedIsPureMusic
+                : processed.isPureMusic,
+        };
+    });
     setLyrics(resolvedLyrics);
     return true;
 };

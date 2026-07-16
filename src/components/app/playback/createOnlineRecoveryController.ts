@@ -1,7 +1,12 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { loadOnlineSongAudioSource } from '../../../services/onlinePlayback';
 import type { SongResult } from '../../../types';
-import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
+import {
+    getPlaybackSongKey,
+    isLocalPlaybackSong,
+    isNavidromePlaybackSong,
+    isStagePlaybackSong,
+} from '../../../utils/appPlaybackGuards';
 
 // src/components/app/playback/createOnlineRecoveryController.ts
 
@@ -10,7 +15,7 @@ type RecoveryControllerParams = {
     currentSong: SongResult | null;
     audioSrc: string | null;
     audioRef: RefObject<HTMLAudioElement | null>;
-    currentSongRef: MutableRefObject<number | null>;
+    currentSongRef: MutableRefObject<string | number | null>;
     blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
     pendingResumeTimeRef: MutableRefObject<number | null>;
@@ -88,7 +93,7 @@ export const createOnlineRecoveryController = ({
 
             try {
                 const audioResult = await loadOnlineSongAudioSource(song, audioQuality, null);
-                if (currentSongRef.current !== song.id || !audioRef.current) {
+                if (currentSongRef.current !== getPlaybackSongKey(song) || !audioRef.current) {
                     return false;
                 }
 

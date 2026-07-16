@@ -5,7 +5,7 @@ import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRe
 import { buildLocalQueue } from '../services/playbackAdapters';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
-import { isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, isStagePlaybackSong } from '../utils/appPlaybackGuards';
 import type { LyricData, SongResult, StatusMessage } from '../types';
 
 // src/hooks/useSessionRestoreController.ts
@@ -111,7 +111,10 @@ export function useSessionRestoreController({
                     lastSong = rebuild(lastSong);
                     lastQueue = (lastQueue || []).map(rebuild).filter((song): song is SongResult => Boolean(song));
                     if (!lastSong) return;
-                    if (!lastQueue.some(song => song.id === lastSong!.id)) lastQueue.unshift(lastSong);
+                    const lastSongKey = getPlaybackSongKey(lastSong);
+                    if (!lastQueue.some(song => getPlaybackSongKey(song) === lastSongKey)) {
+                        lastQueue.unshift(lastSong);
+                    }
                     await persistLastPlaybackCache(lastSong, lastQueue);
                 }
 

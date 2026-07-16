@@ -6,7 +6,6 @@ import ArtistGridView from '../../ArtistGridView';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { getActiveGridViewCollection, useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
 import { LocalSong, SongResult, UnifiedSong } from '../../../types';
-import { NavidromeSong } from '../../../types/navidrome';
 import { resolveNavidromePlaybackCarrier } from '../../../utils/appPlaybackGuards';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../../services/localMusicService';
 import { deleteLocalPlaylist, removeSongsFromLocalPlaylist, updateLocalPlaylist } from '../../../services/localPlaylistService';
@@ -505,30 +504,6 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [refreshNavidromePlaylists, selectedCollection]);
 
     const handleSelectTrack = useCallback((track: SongResult, queue: SongResult[]) => {
-        const unifiedTrack = track as UnifiedSong;
-        if (unifiedTrack.isNavidrome) {
-            const naviSong = resolveNavidromePlaybackCarrier(unifiedTrack);
-            if (naviSong) {
-                const naviQueue = queue
-                    .map(t => resolveNavidromePlaybackCarrier(t))
-                    .filter((t): t is NavidromeSong => Boolean(t));
-                legacyProps.onPlayNavidromeSong?.(naviSong, naviQueue);
-                return;
-            }
-        }
-        const localSongId = unifiedTrack.localRef?.songId;
-        const localSong = localSongId ? legacyProps.localSongs.find(song => song.id === localSongId) : undefined;
-        if (unifiedTrack.isLocal && localSong) {
-            const songsById = new Map(legacyProps.localSongs.map(song => [song.id, song]));
-            const localQueue = queue
-                .map(t => {
-                    const songId = (t as UnifiedSong).localRef?.songId;
-                    return songId ? songsById.get(songId) : undefined;
-                })
-                .filter((song): song is LocalSong => Boolean(song));
-            legacyProps.onPlayLocalSong?.(localSong, localQueue);
-            return;
-        }
         legacyProps.onPlaySong(track, queue);
     }, [legacyProps]);
 
