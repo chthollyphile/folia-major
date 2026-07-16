@@ -1500,6 +1500,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
     const handleViewportWheel = useCallback((event: WheelEvent) => {
         if (gridItems.length === 0 || event.ctrlKey) return;
+        if (event.target instanceof Element && event.target.closest('[data-wheel-scroll-region]')) return;
 
         event.preventDefault();
         const deltaScale = (event.deltaMode === 1

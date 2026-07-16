@@ -1,27 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
 import { Theme } from '../../types';
+import {
+    CustomSelectMenu,
+    type CustomSelectMenuPosition,
+    type CustomSelectOption,
+} from './CustomSelectMenu';
 
 // CustomSelect.tsx
 // A custom dropdown select component designed to replace the browser's default select element.
 // Styled to match the rest of the application, handling light/dark mode and dynamic themes.
 
-interface Option {
-    value: string;
-    label: string;
-}
-
 interface CustomSelectProps {
     value: string;
     onChange: (value: string) => void;
-    options: Option[];
+    options: CustomSelectOption[];
     placeholder?: string;
     ariaLabel?: string;
     disabled?: boolean;
     isDaylight?: boolean;
     theme?: Theme;
 }
+
+const DROPDOWN_GAP = 4;
+const DROPDOWN_VIEWPORT_GUTTER = 8;
+const DROPDOWN_MAX_HEIGHT = 240;
+const DROPDOWN_MIN_PREFERRED_HEIGHT = 160;
 
 export const CustomSelect: React.FC<CustomSelectProps> = ({
     value,
@@ -34,7 +40,52 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     theme,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [dropdownPosition, setDropdownPosition] = useState<CustomSelectMenuPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Positions the portaled menu against the trigger and flips it when viewport space is limited.
+    const updateDropdownPosition = useCallback(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_GUTTER;
+        const spaceAbove = rect.top - DROPDOWN_GAP - DROPDOWN_VIEWPORT_GUTTER;
+        const useViewportPlacement = Math.max(spaceAbove, spaceBelow) < DROPDOWN_MIN_PREFERRED_HEIGHT;
+        const placement: CustomSelectMenuPosition['placement'] = useViewportPlacement
+            ? 'viewport'
+            : spaceBelow < DROPDOWN_MIN_PREFERRED_HEIGHT && spaceAbove > spaceBelow
+                ? 'top'
+                : 'bottom';
+        const availableHeight = placement === 'viewport'
+            ? window.innerHeight - DROPDOWN_VIEWPORT_GUTTER * 2
+            : placement === 'top'
+                ? spaceAbove
+                : spaceBelow;
+        const width = Math.min(rect.width, window.innerWidth - DROPDOWN_VIEWPORT_GUTTER * 2);
+        const left = Math.max(
+            DROPDOWN_VIEWPORT_GUTTER,
+            Math.min(rect.left, window.innerWidth - width - DROPDOWN_VIEWPORT_GUTTER),
+        );
+
+        setDropdownPosition({
+            left,
+            width,
+            maxHeight: Math.max(
+                72,
+                placement === 'viewport'
+                    ? availableHeight
+                    : Math.min(DROPDOWN_MAX_HEIGHT, availableHeight),
+            ),
+            placement,
+            ...(placement === 'viewport'
+                ? { top: DROPDOWN_VIEWPORT_GUTTER }
+                : placement === 'top'
+                ? { bottom: window.innerHeight - rect.top + DROPDOWN_GAP }
+                : { top: rect.bottom + DROPDOWN_GAP }),
+        });
+    }, []);
 
     // Toggle the dropdown menu visibility
     const handleToggle = () => {
@@ -46,7 +97,12 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     // Close the dropdown when clicking outside of the container
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            if (
+                containerRef.current
+                && !containerRef.current.contains(target)
+                && !menuRef.current?.contains(target)
+            ) {
                 setIsOpen(false);
             }
         };
@@ -56,6 +112,21 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    useLayoutEffect(() => {
+        if (!isOpen) {
+            setDropdownPosition(null);
+            return;
+        }
+
+        updateDropdownPosition();
+        window.addEventListener('resize', updateDropdownPosition);
+        window.addEventListener('scroll', updateDropdownPosition, true);
+        return () => {
+            window.removeEventListener('resize', updateDropdownPosition);
+            window.removeEventListener('scroll', updateDropdownPosition, true);
+        };
+    }, [isOpen, updateDropdownPosition]);
 
     const selectedOption = options.find((opt) => opt.value === value);
     const accentColor = theme?.accentColor || (isDaylight ? '#44403c' : '#f4f4f5');
@@ -87,67 +158,26 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                 />
             </button>
 
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 4, scale: 1 }}
-                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="absolute left-0 right-0 z-50 rounded-xl border shadow-xl overflow-hidden max-h-60 overflow-y-auto backdrop-blur-md custom-scrollbar"
-                        role="listbox"
-                        aria-label={ariaLabel}
-                        style={{
-                            backgroundColor: isDaylight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(24, 24, 27, 0.96)',
-                            borderColor: 'var(--border-color)',
-                        }}
-                    >
-                        <div className="p-1.5 space-y-0.5">
-                            {options.map((option) => {
-                                const isSelected = option.value === value;
-                                return (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        role="option"
-                                        aria-selected={isSelected}
-                                        onClick={() => {
-                                            onChange(option.value);
-                                            setIsOpen(false);
-                                        }}
-                                        className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg transition-colors text-left cursor-pointer"
-                                        style={{
-                                            color: 'var(--text-primary)',
-                                            backgroundColor: isSelected
-                                                ? (isDaylight ? `${accentColor}12` : `${accentColor}18`)
-                                                : 'transparent',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = isDaylight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = 'transparent';
-                                            }
-                                        }}
-                                    >
-                                        <span className="truncate mr-2">{option.label}</span>
-                                        {isSelected && (
-                                            <Check
-                                                size={14}
-                                                className="shrink-0"
-                                                style={{ color: accentColor }}
-                                            />
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isOpen && dropdownPosition && (
+                        <CustomSelectMenu
+                            menuRef={menuRef}
+                            position={dropdownPosition}
+                            options={options}
+                            value={value}
+                            ariaLabel={ariaLabel}
+                            isDaylight={isDaylight}
+                            accentColor={accentColor}
+                            onSelect={(nextValue) => {
+                                onChange(nextValue);
+                                setIsOpen(false);
+                            }}
+                        />
+                    )}
+                </AnimatePresence>,
+                document.body,
+            )}
         </div>
     );
 };
