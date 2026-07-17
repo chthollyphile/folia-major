@@ -613,8 +613,8 @@ export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
 export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
   displayMode: 'both',
   dynamicOnlyInPlayer: true,
-  ditheringSpeed: 0.35,
-  ditheringAudioSpeed: 2,
+  ditheringSpeed: 0.1,
+  ditheringAudioSpeed: 1.2,
   ditheringSize: 2.5,
   ditheringOpacity: 0.55,
   meshSpeed: 0.3,

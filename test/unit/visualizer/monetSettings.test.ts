@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
 import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
-import { resolveLatentShaderSpeed } from '@/components/visualizer/backgrounds/latent/LatentBackground';
+import {
+    resolveLatentDitheringSpeedAmount,
+    resolveLatentShaderSpeed,
+} from '@/components/visualizer/backgrounds/latent/LatentBackground';
 import { resolveMonetWordColor } from '@/components/visualizer/monet/MonetLyricsRail';
 import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/visualizer/monet/VisualizerMonet';
 import { buildMonetVisibleLineEntries, measureMonetLineLayout } from '@/components/visualizer/monet/monetLyricsModel';
@@ -111,8 +114,8 @@ describe('Monet tuning and lyric helpers', () => {
     });
 
     it('resolves automatic visualizer background mode', () => {
-        expect(resolveVisualizerBackgroundMode(null, 'monet')).toBe('monet');
-        expect(resolveVisualizerBackgroundMode(null, 'classic')).toBe('common');
+        expect(resolveVisualizerBackgroundMode(null, 'monet')).toBe('latent');
+        expect(resolveVisualizerBackgroundMode(null, 'classic')).toBe('latent');
         expect(resolveVisualizerBackgroundMode('common', 'monet')).toBe('common');
         expect(resolveVisualizerBackgroundMode('monet', 'classic')).toBe('monet');
         expect(resolveVisualizerBackgroundMode('nomand', 'classic')).toBe('nomand');
@@ -146,6 +149,9 @@ describe('Monet tuning and lyric helpers', () => {
     });
 
     it('normalizes Latent background tuning and clamps shader speed settings to 0-2', () => {
+        expect(DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed).toBe(0.1);
+        expect(DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed).toBe(1.2);
+
         expect(resolveStoredLatentBackgroundTuning({
             displayMode: 'mesh',
             dynamicOnlyInPlayer: false,
@@ -185,6 +191,17 @@ describe('Monet tuning and lyric helpers', () => {
         expect(resolveLatentShaderSpeed(0.3, 1.4, 0.9, true)).toBeCloseTo(0.036);
         expect(resolveLatentShaderSpeed(0, 1.4, 0.9, true)).toBe(0);
         expect(resolveLatentShaderSpeed(0.3, 1.3, 0.5, false)).toBeCloseTo(0.8);
+    });
+
+    it('drives Latent dithering speed from broadband energy instead of bass alone', () => {
+        const bassOnly = resolveLatentDitheringSpeedAmount(255, 0, 0, 0, 0);
+        const midOnly = resolveLatentDitheringSpeedAmount(0, 0, 255, 0, 0);
+        const vocalOnly = resolveLatentDitheringSpeedAmount(0, 0, 0, 255, 0);
+
+        expect(midOnly).toBeCloseTo(bassOnly);
+        expect(vocalOnly).toBeGreaterThan(bassOnly);
+        expect(resolveLatentDitheringSpeedAmount(0, 0, 0, 0, 0)).toBe(0);
+        expect(resolveLatentDitheringSpeedAmount(255, 255, 255, 255, 255)).toBeCloseTo(1);
     });
 
     it('builds stable display tokens without dropping spaces or punctuation', () => {

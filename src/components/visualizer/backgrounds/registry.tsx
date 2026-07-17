@@ -38,7 +38,7 @@ const {
 
 export { VISUALIZER_BACKGROUND_REGISTRY };
 
-export const DEFAULT_VISUALIZER_BACKGROUND_MODE: VisualizerBackgroundMode = 'common';
+export const DEFAULT_VISUALIZER_BACKGROUND_MODE: VisualizerBackgroundMode = 'latent';
 
 export const hasVisualizerBackgroundMode = (mode: unknown): mode is VisualizerBackgroundMode => (
     typeof mode === 'string' && Boolean(VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[mode])

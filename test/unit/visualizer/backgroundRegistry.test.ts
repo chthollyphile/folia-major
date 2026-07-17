@@ -29,12 +29,12 @@ describe('visualizer background registry', () => {
         expect(VISUALIZER_BACKGROUND_REGISTRY.every(entry => typeof entry.render === 'function')).toBe(true);
     });
 
-    it('falls back to common for unknown lookups', () => {
-        expect(DEFAULT_VISUALIZER_BACKGROUND_MODE).toBe('common');
+    it('falls back to Latent for unknown lookups', () => {
+        expect(DEFAULT_VISUALIZER_BACKGROUND_MODE).toBe('latent');
         expect(hasVisualizerBackgroundMode('nomand')).toBe(true);
         expect(hasVisualizerBackgroundMode('latent')).toBe(true);
         expect(hasVisualizerBackgroundMode('missing-mode')).toBe(false);
-        expect(getVisualizerBackgroundRegistryEntry('missing-mode').mode).toBe('common');
+        expect(getVisualizerBackgroundRegistryEntry('missing-mode').mode).toBe('latent');
     });
 
     it('uses label fallback when translation is missing', () => {

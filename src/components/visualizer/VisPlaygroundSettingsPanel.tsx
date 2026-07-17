@@ -21,6 +21,7 @@ import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEnt
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
 import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
 import {
+    DEFAULT_VISUALIZER_BACKGROUND_MODE,
     getVisualizerBackgroundModeLabel,
     getVisualizerBackgroundRegistryEntry,
     VISUALIZER_BACKGROUND_REGISTRY,
@@ -361,7 +362,7 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
         setSubtitleFontFamilyDraft(subtitleFontFamily ?? '');
     }, [subtitleFontFamily]);
 
-    const resolvedBackgroundMode = backgroundConfig?.mode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
+    const resolvedBackgroundMode = backgroundConfig?.mode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
     const backgroundEntry = getVisualizerBackgroundRegistryEntry(resolvedBackgroundMode);
     const backgroundModeOptions = useMemo(() => (
         VISUALIZER_BACKGROUND_REGISTRY.map(entry => ({

@@ -3,6 +3,7 @@ import { type VisualizerMode } from '../../types';
 import { type VisualizerSharedProps } from './definition';
 import { getVisualizerRegistryEntry } from './registry';
 import { applyVisualizerTuning } from './tuningRegistry';
+import { DEFAULT_VISUALIZER_BACKGROUND_MODE } from './backgrounds/registry';
 
 interface VisualizerRendererProps extends VisualizerSharedProps {
     mode: VisualizerMode;
@@ -16,7 +17,7 @@ const VisualizerRenderer: React.FC<VisualizerRendererProps> = ({ mode, ...props 
         ...props,
         background: {
             ...props.background,
-            mode: props.background?.mode ?? (mode === 'monet' ? 'monet' : 'common'),
+            mode: props.background?.mode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE,
         },
     }, props.visualizerTunings);
 

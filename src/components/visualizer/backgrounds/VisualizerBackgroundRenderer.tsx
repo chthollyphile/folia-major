@@ -1,5 +1,5 @@
 import React from 'react';
-import { getVisualizerBackgroundRegistryEntry } from './registry';
+import { DEFAULT_VISUALIZER_BACKGROUND_MODE, getVisualizerBackgroundRegistryEntry } from './registry';
 import type { VisualizerBackgroundRenderProps } from './definition';
 
 // src/components/visualizer/backgrounds/VisualizerBackgroundRenderer.tsx
@@ -10,7 +10,7 @@ const VisualizerBackgroundRenderer: React.FC<VisualizerBackgroundRenderProps> = 
         return null;
     }
 
-    const mode = props.config?.mode ?? 'common';
+    const mode = props.config?.mode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
     return getVisualizerBackgroundRegistryEntry(mode).render(props);
 };
 

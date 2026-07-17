@@ -6,7 +6,7 @@ import { type LatentBackgroundDisplayMode, Theme, ThemeMode, VisualizerMode } fr
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
+import { resolveVisualizerBackgroundMode, useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { syncNow } from '../../services/sync/syncCoordinator';
 import { isSyncConfigured } from '../../services/sync/syncConfig';
 
@@ -231,7 +231,7 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const themeDisplayName = formatThemeDisplayName(activeThemeSource.label || theme.name);
     const aiSwatchColor = aiThemeSource.theme?.backgroundColor ?? 'rgba(114,119,134,0.4)';
     const customSwatchColor = customThemeSource.theme?.accentColor ?? 'rgba(114,119,134,0.4)';
-    const resolvedVisualizerBackgroundMode = visualizerBackgroundMode ?? (visualizerMode === 'monet' ? 'monet' : 'common');
+    const resolvedVisualizerBackgroundMode = resolveVisualizerBackgroundMode(visualizerBackgroundMode, visualizerMode);
     const isMonetFullOverlay = monetBackgroundTuning.backgroundLayout === 'full-overlay';
     const monetLayoutLabel = t(isMonetFullOverlay ? 'options.monetLayoutFullOverlay' : 'options.monetLayoutHalfPane');
     const latentDisplayModes: LatentBackgroundDisplayMode[] = ['dithering', 'mesh', 'both'];

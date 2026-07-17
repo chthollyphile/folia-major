@@ -30,6 +30,22 @@ const clampShaderSpeed = (value: number) => Math.min(2, Math.max(0, value));
 const easeTowards = (current: number, target: number, amount: number) => (
     current + (target - current) * amount
 );
+export const resolveLatentDitheringSpeedAmount = (
+    bass: number,
+    lowMid: number,
+    mid: number,
+    vocal: number,
+    treble: number,
+) => {
+    const broadbandEnergy = (
+        normalizeAudio(bass) * 0.22
+        + normalizeAudio(lowMid) * 0.18
+        + normalizeAudio(mid) * 0.22
+        + normalizeAudio(vocal) * 0.28
+        + normalizeAudio(treble) * 0.1
+    );
+    return Math.pow(broadbandEnergy, 0.55);
+};
 export const resolveLatentShaderSpeed = (
     baseSpeed: number,
     audioSpeed: number,
@@ -108,12 +124,22 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
         let smoothedPower = 0;
         let smoothedBass = 0;
         let smoothedMid = 0;
+        let smoothedDitheringSpeed = 0;
 
         // Keep audio-rate changes inside the shader/DOM layer so React only rerenders on palette changes.
         const updateAudioResponse = () => {
             const isPaused = pausedRef.current;
             const targetPower = isPaused ? 0 : normalizeAudio(audioPower.get());
             const targetBass = isPaused ? 0 : normalizeAudio(audioBands.bass.get());
+            const targetDitheringSpeed = isPaused
+                ? 0
+                : resolveLatentDitheringSpeedAmount(
+                    audioBands.bass.get(),
+                    audioBands.lowMid.get(),
+                    audioBands.mid.get(),
+                    audioBands.vocal.get(),
+                    audioBands.treble.get(),
+                );
             const targetMid = isPaused
                 ? 0
                 : normalizeAudio(Math.max(audioBands.mid.get(), audioBands.vocal.get()));
@@ -124,6 +150,11 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                 targetMid,
                 0.13,
             );
+            smoothedDitheringSpeed = easeTowards(
+                smoothedDitheringSpeed,
+                targetDitheringSpeed,
+                targetDitheringSpeed > smoothedDitheringSpeed ? 0.3 : 0.11,
+            );
 
             const currentDitheringMount = ditheringRef.current?.paperShaderMount;
             const currentMeshMount = meshRef.current?.paperShaderMount;
@@ -131,7 +162,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             currentDitheringMount?.setSpeed(resolveLatentShaderSpeed(
                 tuning.ditheringSpeed,
                 tuning.ditheringAudioSpeed,
-                smoothedBass,
+                smoothedDitheringSpeed,
                 isPaused,
             ));
             currentDitheringMount?.setUniforms({
