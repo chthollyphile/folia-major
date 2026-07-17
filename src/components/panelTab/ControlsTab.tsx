@@ -401,6 +401,15 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                                     <>
                                         <button
                                             type="button"
+                                            onClick={cycleLatentDisplayMode}
+                                            className={`rounded-md px-1.5 py-1 text-[10px] font-bold transition-all ${activeOptionBg}`}
+                                            title={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
+                                            aria-label={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
+                                        >
+                                            {latentDisplayLabel}
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => setLatentBackgroundTuning({
                                                 overlayEnabled: !latentBackgroundTuning.overlayEnabled,
                                             })}
@@ -410,15 +419,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                                             aria-pressed={latentBackgroundTuning.overlayEnabled}
                                         >
                                             <Layers size={14} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={cycleLatentDisplayMode}
-                                            className={`rounded-md px-1.5 py-1 text-[10px] font-bold transition-all ${activeOptionBg}`}
-                                            title={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
-                                            aria-label={`${t('options.latentDisplayMode')}: ${latentDisplayLabel}`}
-                                        >
-                                            {latentDisplayLabel}
                                         </button>
                                     </>
                                 )}

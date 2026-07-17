@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check } from 'lucide-react';
+import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -599,6 +599,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 backgroundColor: isDaylight ? 'rgba(255, 255, 255, 0.72)' : 'rgba(255, 255, 255, 0.05)',
             }
     );
+    const lyricsStyleBorderStart = theme?.accentColor || accentOutlineColor;
+    const lyricsStyleBorderEnd = theme?.secondaryColor || theme?.primaryColor || accentOutlineColor;
 
     const buildCurrentConfig = () => {
         let exportTheme: DualTheme | null = null;
@@ -927,57 +929,74 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                     <Monitor size={14} /> {t('options.lyricsRenderer')}
                 </h3>
-                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
-                    <div className="space-y-1">
-                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                            {t('options.lyricsRenderer')}
-                        </div>
-                        <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.lyricsRendererDesc')}
-                        </div>
-                    </div>
+                <div className="space-y-3">
                     <button
                         type="button"
                         onClick={onOpenVisPlayground}
-                        className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors ${utilityGhostButtonClass}`}
-                        style={{ color: 'var(--text-primary)' }}
+                        className="group flex w-full items-center gap-3 rounded-xl border-2 border-transparent p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                        style={{
+                            color: 'var(--text-primary)',
+                            background: [
+                                `linear-gradient(color-mix(in srgb, var(--bg-color) ${isDaylight ? '96%' : '92%'}, ${lyricsStyleBorderStart}), color-mix(in srgb, var(--bg-color) ${isDaylight ? '96%' : '92%'}, ${lyricsStyleBorderStart})) padding-box`,
+                                `linear-gradient(120deg, ${lyricsStyleBorderStart}, ${lyricsStyleBorderEnd}) border-box`,
+                            ].join(', '),
+                        }}
                     >
-                        <Settings2 size={16} />
-                        <span>{t('options.lyricsAnimationAdjust')}</span>
+                        <span
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
+                            style={{
+                                color: accentOutlineColor,
+                                borderColor: `${accentOutlineColor}55`,
+                                backgroundColor: `${accentOutlineColor}18`,
+                            }}
+                        >
+                            <Settings2 size={19} />
+                        </span>
+                        <span className="min-w-0 flex-1 space-y-1">
+                            <span className="block text-sm font-semibold">
+                                {t('options.lyricsAnimationAdjust')}
+                            </span>
+                            <span className="block text-xs opacity-55" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.lyricsRendererDesc')}
+                            </span>
+                        </span>
+                        <ChevronRight size={18} className="shrink-0 opacity-45 transition-transform group-hover:translate-x-0.5 group-hover:opacity-80" />
                     </button>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.transparentPlayerBackground')}
+                    <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.transparentPlayerBackground')}
+                                </div>
+                                <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.transparentPlayerBackgroundDesc')}
+                                </div>
                             </div>
-                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.transparentPlayerBackgroundDesc')}
-                            </div>
+                            <button
+                                onClick={() => onToggleTransparentPlayerBackground(!transparentPlayerBackground)}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!transparentPlayerBackground ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => onToggleTransparentPlayerBackground(!transparentPlayerBackground)}
-                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!transparentPlayerBackground ? toggleOffBackgroundClass : ''}`}
-                            style={{ backgroundColor: transparentPlayerBackground ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                        >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${transparentPlayerBackground ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
-                    </div>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                {t('options.autoHidePlayerChrome')}
+                        <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.autoHidePlayerChrome')}
+                                </div>
+                                <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.autoHidePlayerChromeDesc')}
+                                </div>
                             </div>
-                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
-                                {t('options.autoHidePlayerChromeDesc')}
-                            </div>
+                            <button
+                                onClick={() => onToggleAutoHidePlayerChrome(!autoHidePlayerChrome)}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!autoHidePlayerChrome ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: autoHidePlayerChrome ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${autoHidePlayerChrome ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => onToggleAutoHidePlayerChrome(!autoHidePlayerChrome)}
-                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!autoHidePlayerChrome ? toggleOffBackgroundClass : ''}`}
-                            style={{ backgroundColor: autoHidePlayerChrome ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                        >
-                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${autoHidePlayerChrome ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
                     </div>
                 </div>
             </section>
