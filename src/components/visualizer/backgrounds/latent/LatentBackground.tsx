@@ -5,6 +5,7 @@ import type { MotionValue } from 'framer-motion';
 import {
     DEFAULT_LATENT_BACKGROUND_TUNING,
     type AudioBands,
+    type LatentBackgroundColorSource,
     type LatentBackgroundTuning,
     type Theme,
 } from '../../../../types';
@@ -27,10 +28,11 @@ const MAX_SHADER_PIXELS = 1280 * 720;
 const PAUSED_SPEED_SCALE = 0.12;
 const normalizeAudio = (value: number) => Math.min(1, Math.max(0, value / 255));
 const clampShaderSpeed = (value: number) => Math.min(2, Math.max(0, value));
+const clampAudioAmount = (value: number) => Math.min(1, Math.max(0, value));
 const easeTowards = (current: number, target: number, amount: number) => (
     current + (target - current) * amount
 );
-export const resolveLatentDitheringSpeedAmount = (
+export const resolveLatentBroadbandEnergy = (
     bass: number,
     lowMid: number,
     mid: number,
@@ -46,6 +48,26 @@ export const resolveLatentDitheringSpeedAmount = (
     );
     return Math.pow(broadbandEnergy, 0.55);
 };
+// Accents broadband energy rises so shader speed lands on musical onsets instead of following loudness alone.
+export const resolveLatentOnsetPulse = (
+    currentEnergy: number,
+    previousEnergy: number,
+    previousPulse: number,
+) => Math.max(
+    previousPulse * 0.84,
+    clampAudioAmount((currentEnergy - previousEnergy) * 7),
+);
+export const resolveLatentBeatSpeedTarget = (
+    broadbandEnergy: number,
+    onsetPulse: number,
+) => clampAudioAmount(broadbandEnergy * 0.42 + onsetPulse * 0.85);
+export const resolveLatentAudioSpeedTarget = (
+    broadbandEnergy: number,
+    onsetPulse: number,
+    enhancedBeatResponse: boolean,
+) => enhancedBeatResponse
+    ? resolveLatentBeatSpeedTarget(broadbandEnergy, onsetPulse)
+    : clampAudioAmount(broadbandEnergy);
 export const resolveLatentShaderSpeed = (
     baseSpeed: number,
     audioSpeed: number,
@@ -56,6 +78,28 @@ export const resolveLatentShaderSpeed = (
         ? baseSpeed * PAUSED_SPEED_SCALE
         : easeTowards(baseSpeed, audioSpeed, audioAmount),
 );
+export const resolveLatentShaderColors = (
+    coverColors: string[],
+    theme: Theme,
+    colorSource: LatentBackgroundColorSource,
+) => {
+    const primary = coverColors[0] ?? theme.secondaryColor;
+    if (colorSource === 'cover-only') {
+        const secondary = coverColors[1] ?? primary;
+        const tertiary = coverColors[2] ?? secondary;
+        const quaternary = coverColors[3] ?? primary;
+        return {
+            ditheringBack: tertiary,
+            ditheringFront: primary,
+            mesh: [primary, secondary, tertiary, quaternary],
+        };
+    }
+    return {
+        ditheringBack: theme.backgroundColor,
+        ditheringFront: primary,
+        mesh: [primary, coverColors[1] ?? theme.primaryColor, theme.backgroundColor, theme.accentColor],
+    };
+};
 
 const LatentBackground: React.FC<LatentBackgroundProps> = ({
     theme,
@@ -87,7 +131,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             };
         }
 
-        void extractColors(coverUrl, 2).then(colors => {
+        void extractColors(coverUrl, 4).then(colors => {
             if (active) {
                 setCoverColors(colors);
             }
@@ -98,16 +142,9 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
         };
     }, [coverUrl]);
 
-    const primaryCoverColor = coverColors[0] ?? theme.secondaryColor;
-    const secondaryCoverColor = coverColors[1] ?? theme.primaryColor;
-    const meshColors = useMemo(
-        () => [
-            primaryCoverColor,
-            secondaryCoverColor,
-            theme.backgroundColor,
-            theme.accentColor,
-        ],
-        [primaryCoverColor, secondaryCoverColor, theme.accentColor, theme.backgroundColor],
+    const shaderColors = useMemo(
+        () => resolveLatentShaderColors(coverColors, theme, tuning.colorSource),
+        [coverColors, theme, tuning.colorSource],
     );
 
     useEffect(() => {
@@ -124,16 +161,18 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
         let smoothedPower = 0;
         let smoothedBass = 0;
         let smoothedMid = 0;
-        let smoothedDitheringSpeed = 0;
+        let smoothedBeatSpeed = 0;
+        let previousBeatEnergy = 0;
+        let latentOnsetPulse = 0;
 
         // Keep audio-rate changes inside the shader/DOM layer so React only rerenders on palette changes.
         const updateAudioResponse = () => {
             const isPaused = pausedRef.current;
             const targetPower = isPaused ? 0 : normalizeAudio(audioPower.get());
             const targetBass = isPaused ? 0 : normalizeAudio(audioBands.bass.get());
-            const targetDitheringSpeed = isPaused
+            const targetBeatEnergy = isPaused
                 ? 0
-                : resolveLatentDitheringSpeedAmount(
+                : resolveLatentBroadbandEnergy(
                     audioBands.bass.get(),
                     audioBands.lowMid.get(),
                     audioBands.mid.get(),
@@ -150,10 +189,23 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                 targetMid,
                 0.13,
             );
-            smoothedDitheringSpeed = easeTowards(
-                smoothedDitheringSpeed,
-                targetDitheringSpeed,
-                targetDitheringSpeed > smoothedDitheringSpeed ? 0.3 : 0.11,
+            latentOnsetPulse = tuning.enhancedBeatResponse
+                ? resolveLatentOnsetPulse(
+                    targetBeatEnergy,
+                    previousBeatEnergy,
+                    latentOnsetPulse,
+                )
+                : 0;
+            previousBeatEnergy = targetBeatEnergy;
+            const beatSpeedTarget = resolveLatentAudioSpeedTarget(
+                targetBeatEnergy,
+                latentOnsetPulse,
+                tuning.enhancedBeatResponse,
+            );
+            smoothedBeatSpeed = easeTowards(
+                smoothedBeatSpeed,
+                beatSpeedTarget,
+                beatSpeedTarget > smoothedBeatSpeed ? 0.42 : 0.14,
             );
 
             const currentDitheringMount = ditheringRef.current?.paperShaderMount;
@@ -162,7 +214,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             currentDitheringMount?.setSpeed(resolveLatentShaderSpeed(
                 tuning.ditheringSpeed,
                 tuning.ditheringAudioSpeed,
-                smoothedDitheringSpeed,
+                smoothedBeatSpeed,
                 isPaused,
             ));
             currentDitheringMount?.setUniforms({
@@ -171,7 +223,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             currentMeshMount?.setSpeed(resolveLatentShaderSpeed(
                 tuning.meshSpeed,
                 tuning.meshAudioSpeed,
-                smoothedPower,
+                smoothedBeatSpeed,
                 isPaused,
             ));
             currentMeshMount?.setUniforms({
@@ -212,7 +264,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                         ref={meshRef}
                         width="100%"
                         height="100%"
-                        colors={meshColors}
+                        colors={shaderColors.mesh}
                         distortion={tuning.meshDistortion}
                         swirl={tuning.meshSwirl}
                         grainMixer={0}
@@ -241,8 +293,8 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                         ref={ditheringRef}
                         width="100%"
                         height="100%"
-                        colorBack={theme.backgroundColor}
-                        colorFront={primaryCoverColor}
+                        colorBack={shaderColors.ditheringBack}
+                        colorFront={shaderColors.ditheringFront}
                         shape="warp"
                         type="4x4"
                         size={tuning.ditheringSize}

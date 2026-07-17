@@ -1,5 +1,6 @@
 import React from 'react';
 import type {
+    LatentBackgroundColorSource,
     LatentBackgroundDisplayMode,
     LatentBackgroundTuning,
     Theme,
@@ -89,6 +90,10 @@ const LatentBackgroundSettingsCard: React.FC<LatentBackgroundSettingsCardProps> 
         ['mesh', t('options.latentDisplayMesh')],
         ['both', t('options.latentDisplayBoth')],
     ];
+    const colorSources: Array<[LatentBackgroundColorSource, string]> = [
+        ['cover-theme', t('options.latentColorSourceCoverTheme')],
+        ['cover-only', t('options.latentColorSourceCoverOnly')],
+    ];
     const sharedSliderProps = {
         rangeInputClass,
         theme,
@@ -130,11 +135,42 @@ const LatentBackgroundSettingsCard: React.FC<LatentBackgroundSettingsCardProps> 
                 </div>
             </div>
 
+            <div className="space-y-2">
+                <div className="text-sm" style={{ color: theme.primaryColor }}>
+                    {t('options.latentColorSource')}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    {colorSources.map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => onTuningChange?.({ colorSource: value })}
+                            className="rounded-xl border px-2 py-2 text-xs"
+                            style={{
+                                borderColor: tuning.colorSource === value ? theme.accentColor : borderColor,
+                                backgroundColor: tuning.colorSource === value ? selectedBg : 'transparent',
+                                color: theme.primaryColor,
+                            }}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             <BackgroundToggleRow
                 label={t('options.latentDynamicOnlyInPlayer')}
                 description={t('options.latentDynamicOnlyInPlayerDesc')}
                 checked={tuning.dynamicOnlyInPlayer}
                 onChange={dynamicOnlyInPlayer => onTuningChange?.({ dynamicOnlyInPlayer })}
+                theme={theme}
+            />
+
+            <BackgroundToggleRow
+                label={t('options.latentEnhancedBeatResponse')}
+                description={t('options.latentEnhancedBeatResponseDesc')}
+                checked={tuning.enhancedBeatResponse}
+                onChange={enhancedBeatResponse => onTuningChange?.({ enhancedBeatResponse })}
                 theme={theme}
             />
 

@@ -525,6 +525,7 @@ export type MonetBackgroundWashColorMode = 'theme' | 'custom';
 export type NomandBackgroundSource = 'cover-derived' | 'uploaded-global';
 export type NomandBackgroundDitheringType = '2x2' | '4x4' | '8x8';
 export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
+export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
 export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
@@ -562,7 +563,9 @@ export interface NomandBackgroundTuning {
 
 export interface LatentBackgroundTuning {
   displayMode: LatentBackgroundDisplayMode;
+  colorSource: LatentBackgroundColorSource;
   dynamicOnlyInPlayer: boolean;
+  enhancedBeatResponse: boolean;
   ditheringSpeed: number;
   ditheringAudioSpeed: number;
   ditheringSize: number;
@@ -612,7 +615,9 @@ export const DEFAULT_NOMAND_BACKGROUND_TUNING: NomandBackgroundTuning = {
 
 export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
   displayMode: 'both',
+  colorSource: 'cover-theme',
   dynamicOnlyInPlayer: true,
+  enhancedBeatResponse: true,
   ditheringSpeed: 0.1,
   ditheringAudioSpeed: 1.2,
   ditheringSize: 2.5,

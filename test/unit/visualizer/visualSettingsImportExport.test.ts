@@ -112,7 +112,9 @@ describe('Visual Settings Import and Export', () => {
         },
         latentBackgroundTuning: {
             displayMode: 'mesh' as const,
+            colorSource: 'cover-only' as const,
             dynamicOnlyInPlayer: false,
+            enhancedBeatResponse: false,
             ditheringSpeed: 0.4,
             ditheringAudioSpeed: 1.8,
             ditheringSize: 3,

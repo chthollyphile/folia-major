@@ -255,7 +255,9 @@ const decompressNomandBackground = (o: any): any => ({
 
 const compressLatentBackground = (t: any): any => ({
     dm: t.displayMode,
+    cs: t.colorSource,
     dopv: t.dynamicOnlyInPlayer,
+    ebr: t.enhancedBeatResponse,
     ds: t.ditheringSpeed,
     das: t.ditheringAudioSpeed,
     dz: t.ditheringSize,
@@ -269,9 +271,13 @@ const compressLatentBackground = (t: any): any => ({
 });
 const decompressLatentBackground = (o: any): any => ({
     displayMode: o.dm || DEFAULT_LATENT_BACKGROUND_TUNING.displayMode,
+    colorSource: o.cs || DEFAULT_LATENT_BACKGROUND_TUNING.colorSource,
     dynamicOnlyInPlayer: o.dopv !== undefined
         ? o.dopv
         : DEFAULT_LATENT_BACKGROUND_TUNING.dynamicOnlyInPlayer,
+    enhancedBeatResponse: o.ebr !== undefined
+        ? o.ebr
+        : DEFAULT_LATENT_BACKGROUND_TUNING.enhancedBeatResponse,
     ditheringSpeed: o.ds !== undefined ? o.ds : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSpeed,
     ditheringAudioSpeed: o.das !== undefined ? o.das : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringAudioSpeed,
     ditheringSize: o.dz !== undefined ? o.dz : DEFAULT_LATENT_BACKGROUND_TUNING.ditheringSize,
