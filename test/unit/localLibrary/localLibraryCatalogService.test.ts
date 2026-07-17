@@ -5,6 +5,8 @@ import {
     applyMatchedMetadata,
     applyManualMetadata,
     assignImportedSongs,
+    deleteSongAssignment,
+    deleteSongAssignments,
     ensureLocalLibraryInitialized,
     mergeEntities,
     moveEntityMembersToExistingEntity,
@@ -239,6 +241,38 @@ describe('localLibraryCatalogService', () => {
         expect((await appDatabase.local_library_entities.get(sourceAlbumId!))?.mergedInto).toBeUndefined();
         expect((await appDatabase.local_library_entities.get(targetAlbumId!))?.mergedInto).toBeUndefined();
         expect(await appDatabase.local_library_entities.count()).toBe(entityCount);
+    });
+
+    it('keeps shared entities until their final member song is deleted', async () => {
+        await assignImportedSongs([song('one'), song('two')]);
+        const entityIds = (await appDatabase.local_library_assignments.get('one'))?.artistEntityIds || [];
+        const albumEntityId = (await appDatabase.local_library_assignments.get('one'))?.albumEntityId;
+
+        await deleteSongAssignment('one');
+
+        expect(await appDatabase.local_music.get('one')).toBeUndefined();
+        expect(await appDatabase.local_library_assignments.get('one')).toBeUndefined();
+        expect(await appDatabase.local_library_entities.bulkGet([...entityIds, albumEntityId!]))
+            .toEqual(expect.arrayContaining([...entityIds, albumEntityId].map(() => expect.any(Object))));
+
+        await deleteSongAssignment('two');
+
+        expect(await appDatabase.local_library_entities.count()).toBe(0);
+    });
+
+    it('removes orphaned merged entity families after bulk song deletion', async () => {
+        await assignImportedSongs([
+            song('one', { artist: 'First' }),
+            song('two', { artist: 'Second' }),
+        ]);
+        const [one, two] = await appDatabase.local_library_assignments.toArray();
+        await mergeEntities(one.artistEntityIds[0], [two.artistEntityIds[0]]);
+
+        await deleteSongAssignments(['one', 'two']);
+
+        expect(await appDatabase.local_music.count()).toBe(0);
+        expect(await appDatabase.local_library_assignments.count()).toBe(0);
+        expect(await appDatabase.local_library_entities.count()).toBe(0);
     });
 
     it('rolls back song writes when an assignment write fails', async () => {
