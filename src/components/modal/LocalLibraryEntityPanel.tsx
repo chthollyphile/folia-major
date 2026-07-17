@@ -8,6 +8,7 @@ import {
   mergeEntities,
   moveEntityMembersToExistingEntity,
   setEntityDisplayName,
+  splitArtistEntityToTargets,
   splitEntity,
 } from '../../services/localLibraryCatalogService';
 import { EntityEditorWorkspace } from '../local-library-entity/EntityEditorWorkspace';
@@ -151,14 +152,23 @@ export const LocalLibraryEntityPanel = ({
               },
               t('localMusic.entityMerged', { kind: entityKindLabel }),
             )}
-            onSplit={(songIds, displayName, targetEntityId) => run(
-              () => targetEntityId
-                ? moveEntityMembersToExistingEntity(entity.id, targetEntityId, songIds)
-                : splitEntity(entity.id, songIds, displayName),
-              targetEntityId
-                ? t('localMusic.entityMembersMoved', { kind: entityKindLabel })
-                : t('localMusic.entitySplitDone', { kind: entityKindLabel }),
-            )}
+            onSplit={(songIds, targets, artistMode) => {
+              const target = targets[0];
+              return run(
+                () => entity.kind === 'artist'
+                  ? splitArtistEntityToTargets(entity.id, songIds, targets, artistMode)
+                  : target?.entityId
+                    ? moveEntityMembersToExistingEntity(entity.id, target.entityId, songIds)
+                    : splitEntity(entity.id, songIds, target?.displayName || ''),
+                entity.kind === 'artist'
+                  ? t(artistMode === 'append'
+                    ? 'localMusic.artistsAppended'
+                    : 'localMusic.artistsReplaced')
+                  : target?.entityId
+                    ? t('localMusic.entityMembersMoved', { kind: entityKindLabel })
+                    : t('localMusic.entitySplitDone', { kind: entityKindLabel }),
+              );
+            }}
           />
         </main>
       </motion.div>

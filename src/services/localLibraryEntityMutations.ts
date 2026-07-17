@@ -1,4 +1,9 @@
-import type { LocalLibraryAssignment, LocalLibraryEntity } from '../types/localLibrary';
+import type {
+  LocalLibraryArtistAssignmentMode,
+  LocalLibraryAssignment,
+  LocalLibraryEntity,
+  LocalLibrarySplitTarget,
+} from '../types/localLibrary';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../utils/localLibraryIndex';
 import { cleanLocalLibraryName, normalizeLocalLibraryName } from '../utils/localLibraryNames';
 import { appDatabase } from './appDatabase';
@@ -142,6 +147,90 @@ export const moveEntityMembersToExistingEntity = async (
       if (assignments.length === 0) throw new Error('No selected members belong to the source entity');
       await appDatabase.local_library_assignments.bulkPut(assignments);
       return target;
+    },
+  );
+};
+
+// Applies multiple existing or newly named artists using explicit append/replace semantics.
+export const splitArtistEntityToTargets = async (
+  sourceEntityId: string,
+  songIds: string[],
+  destinations: LocalLibrarySplitTarget[],
+  mode: LocalLibraryArtistAssignmentMode,
+): Promise<LocalLibraryEntity[]> => {
+  return await appDatabase.transaction(
+    'rw',
+    [appDatabase.local_library_entities, appDatabase.local_library_assignments],
+    async () => {
+      const entities = await appDatabase.local_library_entities.toArray();
+      const index = buildLocalLibraryIndex(entities);
+      const resolvedSourceId = followEntityRedirect(sourceEntityId, index.entitiesById);
+      const source = resolvedSourceId && index.entitiesById.get(resolvedSourceId);
+      if (!source || source.kind !== 'artist') throw new Error('Cannot split a missing or non-artist entity');
+
+      const now = Date.now();
+      const selectedTargets: LocalLibraryEntity[] = [];
+      const selectedTargetIds = new Set<string>();
+      const selectedNames = new Set<string>();
+      const newEntities: LocalLibraryEntity[] = [];
+
+      destinations.forEach(destination => {
+        const resolvedTargetId = destination.entityId
+          ? followEntityRedirect(destination.entityId, index.entitiesById)
+          : undefined;
+        const existingTarget = resolvedTargetId && index.entitiesById.get(resolvedTargetId);
+        if (destination.entityId) {
+          if (!existingTarget || existingTarget.kind !== 'artist' || existingTarget.id === source.id) {
+            throw new Error('Cannot split into an invalid artist entity');
+          }
+          if (!selectedTargetIds.has(existingTarget.id)) {
+            selectedTargets.push(existingTarget);
+            selectedTargetIds.add(existingTarget.id);
+            selectedNames.add(normalizeLocalLibraryName(existingTarget.displayName));
+          }
+          return;
+        }
+
+        const cleanedName = cleanLocalLibraryName(destination.displayName);
+        if (!cleanedName) return;
+        const normalizedName = normalizeLocalLibraryName(cleanedName);
+        if (!normalizedName || selectedNames.has(normalizedName)) return;
+        const entity: LocalLibraryEntity = {
+          id: createLocalLibraryEntityId(),
+          kind: 'artist',
+          displayName: cleanedName,
+          aliases: [cleanedName],
+          normalizedAliases: [normalizedName],
+          createdAt: now,
+          updatedAt: now,
+        };
+        selectedTargets.push(entity);
+        newEntities.push(entity);
+        selectedTargetIds.add(entity.id);
+        selectedNames.add(normalizedName);
+      });
+
+      if (selectedTargets.length === 0) throw new Error('At least one artist destination is required');
+      const targetIds = selectedTargets.map(entity => entity.id);
+      const assignments = (await appDatabase.local_library_assignments.bulkGet(Array.from(new Set(songIds))))
+        .filter((assignment): assignment is LocalLibraryAssignment => Boolean(assignment))
+        .flatMap((assignment): LocalLibraryAssignment[] => {
+          if (!assignment.artistEntityIds.includes(source.id)) return [];
+          return [{
+            ...assignment,
+            artistEntityIds: mode === 'append'
+              ? appendUnique([...assignment.artistEntityIds, ...targetIds])
+              : targetIds,
+            artistOrigin: 'split' as const,
+            updatedAt: now,
+          }];
+        });
+      if (assignments.length === 0) throw new Error('No selected members belong to the source artist');
+      await Promise.all([
+        newEntities.length > 0 ? appDatabase.local_library_entities.bulkPut(newEntities) : Promise.resolve(),
+        appDatabase.local_library_assignments.bulkPut(assignments),
+      ]);
+      return selectedTargets;
     },
   );
 };

@@ -9,7 +9,7 @@ import {
     type LatentBackgroundTuning,
     type Theme,
 } from '../../../../types';
-import { extractColors } from '../../../../utils/colorExtractor';
+import { extractRepresentativeColors } from '../../../../utils/colorExtractor';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
@@ -136,7 +136,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             };
         }
 
-        void extractColors(coverUrl, 6).then(colors => {
+        void extractRepresentativeColors(coverUrl, 6).then(colors => {
             if (active) {
                 setCoverColors(colors);
             }

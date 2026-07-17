@@ -10,6 +10,7 @@ import {
     ensureLocalLibraryInitialized,
     mergeEntities,
     moveEntityMembersToExistingEntity,
+    splitArtistEntityToTargets,
     splitEntity,
 } from '../../../src/services/localLibraryCatalogService';
 import type { LocalSong } from '../../../src/types';
@@ -241,6 +242,50 @@ describe('localLibraryCatalogService', () => {
         expect((await appDatabase.local_library_entities.get(sourceAlbumId!))?.mergedInto).toBeUndefined();
         expect((await appDatabase.local_library_entities.get(targetAlbumId!))?.mergedInto).toBeUndefined();
         expect(await appDatabase.local_library_entities.count()).toBe(entityCount);
+    });
+
+    it('replaces all artist relationships with multiple existing and newly created targets', async () => {
+        await assignImportedSongs([
+            song('source', { artist: 'Source/Companion' }),
+            song('target', { artist: 'Existing Target' }),
+        ]);
+        const sourceAssignment = await appDatabase.local_library_assignments.get('source');
+        const targetAssignment = await appDatabase.local_library_assignments.get('target');
+        const sourceEntityId = sourceAssignment?.artistEntityIds[0];
+        const existingTargetId = targetAssignment?.artistEntityIds[0];
+
+        const targets = await splitArtistEntityToTargets(sourceEntityId!, ['source'], [
+            { entityId: existingTargetId!, displayName: 'Existing Target' },
+            { displayName: 'New Target' },
+        ], 'replace');
+
+        expect(await appDatabase.local_library_assignments.get('source')).toMatchObject({
+            artistEntityIds: targets.map(entity => entity.id),
+            artistOrigin: 'split',
+        });
+        expect(targets.map(entity => entity.displayName)).toEqual(['Existing Target', 'New Target']);
+    });
+
+    it('appends multiple artist targets without removing current relationships', async () => {
+        await assignImportedSongs([
+            song('source', { artist: 'Source/Companion' }),
+            song('target', { artist: 'Existing Target' }),
+        ]);
+        const sourceAssignment = await appDatabase.local_library_assignments.get('source');
+        const targetAssignment = await appDatabase.local_library_assignments.get('target');
+        const existingTargetId = targetAssignment?.artistEntityIds[0];
+
+        const targets = await splitArtistEntityToTargets(sourceAssignment!.artistEntityIds[0], ['source'], [
+            { entityId: existingTargetId!, displayName: 'Existing Target' },
+            { displayName: 'New Target' },
+        ], 'append');
+        const updated = await appDatabase.local_library_assignments.get('source');
+
+        expect(updated?.artistEntityIds).toEqual([
+            ...sourceAssignment!.artistEntityIds,
+            ...targets.map(entity => entity.id),
+        ]);
+        expect(updated?.artistOrigin).toBe('split');
     });
 
     it('keeps shared entities until their final member song is deleted', async () => {

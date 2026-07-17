@@ -21,7 +21,13 @@ import { sanitizeLocalSongForStorage } from './repositories/localSongRepository'
 // Applies every song/entity/assignment mutation in a single Dexie transaction.
 
 export { assignImportedSongs, ensureLocalLibraryInitialized } from './localLibraryImportCatalog';
-export { mergeEntities, moveEntityMembersToExistingEntity, setEntityDisplayName, splitEntity } from './localLibraryEntityMutations';
+export {
+  mergeEntities,
+  moveEntityMembersToExistingEntity,
+  setEntityDisplayName,
+  splitArtistEntityToTargets,
+  splitEntity,
+} from './localLibraryEntityMutations';
 
 export interface MatchedLocalMetadata {
   source?: LocalSongMetadataSource;

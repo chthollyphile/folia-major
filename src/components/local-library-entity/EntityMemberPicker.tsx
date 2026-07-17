@@ -67,7 +67,7 @@ export const EntityMemberPicker = ({ memberSongs, selectedSongIds, onToggle, isD
         : 'bg-black/20 focus-within:bg-black/40 border-white/10 focus-within:border-blue-500/50 focus-within:ring-4 focus-within:ring-blue-500/20 focus-within:shadow-sm';
 
     return (
-        <div className="min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 ${inputTheme}`}>
                 <Search size={16} className="text-blue-500 opacity-80" />
                 <input
@@ -79,7 +79,7 @@ export const EntityMemberPicker = ({ memberSongs, selectedSongIds, onToggle, isD
                 />
             </div>
 
-            <div className="mt-2 h-64 overflow-hidden">
+            <div className="mt-2 h-64 min-h-0 overflow-hidden lg:h-auto lg:flex-1">
                 {songs.length > 0 ? (
                     <VirtualList
                         style={{ height: '100%', width: '100%' }}

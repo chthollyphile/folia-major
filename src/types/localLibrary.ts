@@ -52,3 +52,10 @@ export interface LocalLibraryAssignment {
   updatedAt: number;
 }
 
+export interface LocalLibrarySplitTarget {
+  entityId?: string;
+  displayName: string;
+}
+
+export type LocalLibraryArtistAssignmentMode = 'append' | 'replace';
+
