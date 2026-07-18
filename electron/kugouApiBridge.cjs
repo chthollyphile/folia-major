@@ -6,6 +6,7 @@ const SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid']);
 const DIAGNOSTIC_OPERATIONS = new Set([
   'login_qr_key', 'login_qr_create', 'login_qr_check', 'user_detail', 'user_playlist', 'logout',
+  'audio', 'song_url', 'user_cloud_url',
 ]);
 const OPERATION_MODULES = {
   register_dev: ['register_dev'],
@@ -79,10 +80,28 @@ const errorSummary = (error) => ({
   message: error instanceof Error ? error.message : String(error),
 });
 
+const isDeviceVerificationRequired = (body) => {
+  const errorCode = Number(body?.errcode ?? body?.error_code);
+  const message = String(body?.error ?? body?.error_msg ?? body?.msg ?? '');
+  return errorCode === 20028 || message.includes('本次请求需要验证');
+};
+
+const summarizePlaybackResponse = (body) => {
+  const urls = body?.play_url ?? body?.playUrl ?? body?.url;
+  const candidates = Array.isArray(urls) ? urls : (typeof urls === 'string' && urls ? [urls] : []);
+  return {
+    status: body?.status ?? body?.code ?? body?.data?.status,
+    errorCode: body?.errcode ?? body?.error_code,
+    responseKeys: body && typeof body === 'object' ? Object.keys(body).slice(0, 20) : [],
+    audioUrlCandidateCount: candidates.length,
+  };
+};
+
 function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'), logger = console }) {
   let api = null;
   let loadError = null;
-  let registered = false;
+  let registrationPromise = null;
+  let requestSequence = 0;
   const stored = store.get(SESSION_KEY);
   let cookies = stored && typeof stored === 'object' ? { ...stored } : createDeviceCookies();
 
@@ -132,15 +151,29 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
     return mergeResponseSession(result);
   };
 
-  const ensureRegistered = async () => {
-    if (registered || cookies.dfid) return;
-    registered = true;
-    try {
-      await invokeModule('register_dev');
-    } catch (error) {
-      registered = false;
-      logger.warn('[KuGouApi] register_dev:error', errorSummary(error));
+  const ensureRegistered = async (force = false, requestId = null) => {
+    if (registrationPromise) return registrationPromise;
+    if (!force && cookies.dfid) return;
+
+    if (force) {
+      delete cookies.dfid;
+      persist();
     }
+
+    registrationPromise = (async () => {
+      try {
+        logger.info('[KuGouApi] register_dev:start', { requestId, force, hadDfid: Boolean(cookies.dfid) });
+        await invokeModule('register_dev');
+        if (!cookies.dfid) throw new Error('KuGou device registration did not return a dfid');
+        logger.info('[KuGouApi] register_dev:success', { requestId, hasDfid: true });
+      } catch (error) {
+        logger.warn('[KuGouApi] register_dev:error', { requestId, ...errorSummary(error) });
+        throw error;
+      } finally {
+        registrationPromise = null;
+      }
+    })();
+    return registrationPromise;
   };
 
   return {
@@ -154,8 +187,12 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
     },
     async request(operation, params) {
       if (!OPERATION_MODULES[operation]) throw new Error(`Unsupported KuGou operation: ${operation}`);
+      const requestId = ++requestSequence;
       logDiagnostic(logger, operation, 'start', {
+        requestId,
         parameterKeys: Object.keys(params || {}),
+        hash: typeof params?.hash === 'string' ? params.hash : undefined,
+        quality: params?.quality,
         hasToken: Boolean(cookies.token),
         hasUserId: Boolean(cookies.userid || cookies.user_id),
         hasDfid: Boolean(cookies.dfid),
@@ -167,8 +204,17 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
         return { code: 200 };
       }
       try {
-        if (operation !== 'register_dev') await ensureRegistered();
-        const body = await invokeModule(operation, params);
+        if (operation !== 'register_dev') await ensureRegistered(false, requestId);
+        let body = await invokeModule(operation, params);
+        if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
+          logger.warn(`[KuGouApi] ${operation}:verification-required`, {
+            requestId,
+            errorCode: body?.errcode ?? body?.error_code,
+          });
+          await ensureRegistered(true, requestId);
+          logger.info(`[KuGouApi] ${operation}:retry`, { requestId, reason: 'device-verification' });
+          body = await invokeModule(operation, params);
+        }
         const responseBody = operation === 'user_detail' && body?.data && (cookies.userid || cookies.user_id)
           ? { ...body, data: { ...body.data, userid: String(cookies.userid || cookies.user_id) } }
           : body;
@@ -178,15 +224,17 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
         const sanitized = sanitizeBody(responseBody, hiddenKeys);
         const dataKeys = sanitized?.data && typeof sanitized.data === 'object' ? Object.keys(sanitized.data) : [];
         logDiagnostic(logger, operation, 'success', {
+          requestId,
           status: sanitized?.status ?? sanitized?.code ?? sanitized?.data?.status,
           dataKeys: dataKeys.slice(0, 20),
           dataKeyCount: dataKeys.length,
           hasToken: Boolean(cookies.token),
           hasUserId: Boolean(cookies.userid || cookies.user_id),
+          ...(DIAGNOSTIC_OPERATIONS.has(operation) ? summarizePlaybackResponse(sanitized) : {}),
         });
         return sanitized;
       } catch (error) {
-        logDiagnostic(logger, operation, 'error', errorSummary(error));
+        logDiagnostic(logger, operation, 'error', { requestId, ...errorSummary(error) });
         throw error;
       }
     },

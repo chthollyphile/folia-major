@@ -80,6 +80,23 @@ describe('kugouProvider', () => {
         expect(source?.url).toBe('http://example.test/song.flac');
     });
 
+    it('retries the same quality by hash when search metadata IDs return no URL', async () => {
+        requestMock
+            .mockResolvedValueOnce({ status: 3, fail_process: 1 })
+            .mockResolvedValueOnce({ status: 1, url: ['https://example.test/song.flac'] });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song', AlbumID: 164446399, ID: 500617606 });
+
+        const source = await kugouProvider.playback?.getAudioSource(song, 'lossless');
+
+        expect(requestMock).toHaveBeenNthCalledWith(1, 'song_url', expect.objectContaining({
+            hash: 'HASH', quality: 'flac', album_id: '164446399', album_audio_id: '500617606',
+        }));
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'song_url', expect.objectContaining({
+            hash: 'HASH', quality: 'flac', album_id: '', album_audio_id: '',
+        }));
+        expect(source).toMatchObject({ url: 'https://example.test/song.flac', quality: 'lossless' });
+    });
+
     it('selects one URL when KuGou returns multiple playback candidates', async () => {
         requestMock.mockResolvedValue({
             data: {

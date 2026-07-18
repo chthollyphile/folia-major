@@ -187,33 +187,73 @@ export const kugouProvider: OnlineMusicProvider = {
             const sourceRef = song.sourceRef?.kind === 'online' ? song.sourceRef : null;
             const hash = String(sourceRef?.providerData?.hash || sourceRef?.mediaId || song.kgHash || song.id).toUpperCase();
             const qualities = sourceRef?.variant === 'cloud' ? [quality] : qualityFallbacks(quality);
+            const albumId = String(sourceRef?.providerData?.albumId || '');
+            const albumAudioId = String(sourceRef?.providerData?.albumAudioId || '');
 
             // Tries the preferred KuGou quality first and degrades until a playable URL is returned.
             for (const candidateQuality of qualities) {
-                try {
-                    const response = sourceRef?.variant === 'cloud'
-                        ? await requestKugou('user_cloud_url', { hash, id: String(sourceRef.providerData?.fileId || '') })
-                        : await requestKugou('song_url', {
+                const requestVariants = sourceRef?.variant === 'cloud'
+                    ? [{ name: 'cloud', operation: 'user_cloud_url' as const, params: {
+                        hash, id: String(sourceRef.providerData?.fileId || ''),
+                    } }]
+                    : [
+                        { name: 'metadata', operation: 'song_url' as const, params: {
                             hash,
                             quality: qualityValue(candidateQuality),
-                            album_id: String(sourceRef?.providerData?.albumId || ''),
-                            album_audio_id: String(sourceRef?.providerData?.albumAudioId || ''),
-                        });
+                            album_id: albumId,
+                            album_audio_id: albumAudioId,
+                        } },
+                        ...((albumId || albumAudioId) ? [{ name: 'hash-only', operation: 'song_url' as const, params: {
+                            hash,
+                            quality: qualityValue(candidateQuality),
+                            album_id: '',
+                            album_audio_id: '',
+                        } }] : []),
+                    ];
+
+                // Search metadata can contain album IDs that do not belong to the returned hash, so retry the same quality by hash alone first.
+                for (const requestVariant of requestVariants) {
+                    try {
+                        const response = await requestKugou(requestVariant.operation, requestVariant.params);
                     const data = dataOf(response);
                     const url = audioUrlOf(
                         valueOf(data, 'play_url', 'playUrl', 'url')
                         ?? valueOf(data?.[0], 'url', 'play_url'),
                     );
-                    if (url) return {
-                        // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
-                        url,
-                        fetchedAt: Date.now(),
-                        quality: candidateQuality,
-                    };
-                } catch {
-                    // A lower quality may still be playable when the preferred privilege is unavailable.
+                    if (url) {
+                        console.info('[KuGouProvider] playback:url-resolved', {
+                            hash,
+                            requestedQuality: quality,
+                            resolvedQuality: candidateQuality,
+                            requestVariant: requestVariant.name,
+                        });
+                        return {
+                            // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
+                            url,
+                            fetchedAt: Date.now(),
+                            quality: candidateQuality,
+                        };
+                    }
+                    console.warn('[KuGouProvider] playback:no-url', {
+                        hash,
+                        requestedQuality: quality,
+                        candidateQuality,
+                        requestVariant: requestVariant.name,
+                        status: data?.status ?? response?.status,
+                        errorCode: data?.errcode ?? data?.error_code ?? response?.errcode ?? response?.error_code,
+                    });
+                    } catch (error) {
+                        console.warn('[KuGouProvider] playback:quality-failed', {
+                            hash,
+                            requestedQuality: quality,
+                            candidateQuality,
+                            requestVariant: requestVariant.name,
+                            error: error instanceof Error ? error.message : String(error),
+                        });
+                    }
                 }
             }
+            console.warn('[KuGouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
             return null;
         },
     },

@@ -54,6 +54,45 @@ describe('Electron KuGou API bridge', () => {
         expect(stored.KUGOU_API_GUID).toBeTruthy();
     });
 
+    it('refreshes an invalid dfid and retries an audio URL request once', async () => {
+        const store = createStore();
+        store.set('KUGOU_API_SESSION_V1', { dfid: 'stale-dfid', token: 'token', userid: '9' });
+        const registerDev = vi.fn(async () => ({ body: { status: 1 }, cookie: ['dfid=fresh-dfid'] }));
+        const songUrl = vi.fn(async (params: any) => (
+            params.cookie.dfid === 'fresh-dfid'
+                ? { body: { status: 1, url: ['https://example.test/song.mp3'] }, cookie: [] }
+                : { body: { status: 0, errcode: 20028, error: '本次请求需要验证' }, cookie: [] }
+        ));
+        const logger = { info: vi.fn(), warn: vi.fn() };
+        const bridge = createKugouApiBridge({
+            store,
+            apiLoader: () => ({ register_dev: registerDev, song_url: songUrl }),
+            logger,
+        });
+
+        await expect(bridge.request('song_url', { hash: 'HASH', quality: '128' })).resolves.toEqual({
+            status: 1,
+            url: ['https://example.test/song.mp3'],
+        });
+        expect(registerDev).toHaveBeenCalledTimes(1);
+        expect(songUrl).toHaveBeenCalledTimes(2);
+        expect(songUrl.mock.calls[1][0].cookie).toEqual(expect.objectContaining({
+            dfid: 'fresh-dfid', token: 'token', userid: '9',
+        }));
+        expect(logger.warn).toHaveBeenCalledWith('[KuGouApi] song_url:verification-required', expect.objectContaining({
+            requestId: 1,
+            errorCode: 20028,
+        }));
+        expect(logger.info).toHaveBeenCalledWith('[KuGouApi] song_url:retry', {
+            requestId: 1,
+            reason: 'device-verification',
+        });
+        expect(logger.info).toHaveBeenCalledWith('[KuGouApi] song_url:success', expect.objectContaining({
+            requestId: 1,
+            audioUrlCandidateCount: 1,
+        }));
+    });
+
     it('rejects operations outside the fixed allowlist', async () => {
         const bridge = createKugouApiBridge({ store: createStore(), apiLoader: () => ({}) });
         await expect(bridge.request('arbitrary_url', {})).rejects.toThrow('Unsupported KuGou operation');
