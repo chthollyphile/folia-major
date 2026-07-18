@@ -359,6 +359,7 @@ export default {
     "guestMode": "游客模式",
     "loginOnHome": "去主页登录",
     "audioQuality": "默认音质",
+    "qualityStandard": "标准",
     "qualityExhigh": "极高",
     "qualityLossless": "无损",
     "qualityHires": "Hi-Res",

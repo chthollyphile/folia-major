@@ -350,6 +350,7 @@ export default {
     "guestMode": "Mode Tamu",
     "loginOnHome": "Login di Beranda",
     "audioQuality": "Kualitas Bawaan",
+    "qualityStandard": "Standar",
     "qualityExhigh": "Sangat Tinggi",
     "qualityLossless": "Lossless",
     "qualityHires": "Hi-Res",

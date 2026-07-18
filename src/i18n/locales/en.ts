@@ -358,6 +358,7 @@ export default {
     "guestMode": "Guest Mode",
     "loginOnHome": "Login on Home",
     "audioQuality": "Default Quality",
+    "qualityStandard": "Standard",
     "qualityExhigh": "Very High",
     "qualityLossless": "Lossless",
     "qualityHires": "Hi-Res",
