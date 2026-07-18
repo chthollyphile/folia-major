@@ -36,7 +36,9 @@ export interface ObsWebAppearance {
 export function parseObsWebParams(search: string): ObsWebParams {
   const params = new URLSearchParams(search);
   return {
-    host: params.get('host')?.trim() || '',
+    // Sanitize host to host:port characters only; an untrusted '#'/space would otherwise
+    // produce a malformed ws:// URL that throws in the WebSocket constructor.
+    host: (params.get('host')?.trim() || '').replace(/[^\w.\-:[\]]/g, ''),
     cfg: params.get('cfg'),
     // OBS overlay defaults to the dark theme; only daylight=1 picks the light side.
     isDaylight: params.get('daylight') === '1',
@@ -75,6 +77,10 @@ export function buildObsAppearanceFromShortcode(
     ? (isDaylight ? decoded.theme.light : decoded.theme.dark)
     : null;
 
+  // Guard urlBackgroundList: an untrusted cfg may carry a non-array value, and the URL
+  // background layer calls .find() on it — a non-array would throw during render and blank
+  // the whole overlay (mirrors the Array.isArray guard on the app's own import path).
+  const urlBackgroundItems = Array.isArray(decoded?.urlBackgroundList) ? decoded.urlBackgroundList : undefined;
   const background: VisualizerBackgroundConfig = {
     mode: decoded?.visualizerBackgroundMode ?? undefined,
     transparent,
@@ -82,8 +88,8 @@ export function buildObsAppearanceFromShortcode(
     monet: decoded?.monetBackgroundTuning ? { tuning: decoded.monetBackgroundTuning } : undefined,
     nomand: decoded?.nomandBackgroundTuning ? { tuning: decoded.nomandBackgroundTuning } : undefined,
     latent: decoded?.latentBackgroundTuning ? { tuning: decoded.latentBackgroundTuning } : undefined,
-    url: (decoded?.urlBackgroundList || decoded?.urlBackgroundSelectedId)
-      ? { items: decoded?.urlBackgroundList, selectedId: decoded?.urlBackgroundSelectedId }
+    url: (urlBackgroundItems || decoded?.urlBackgroundSelectedId)
+      ? { items: urlBackgroundItems, selectedId: decoded?.urlBackgroundSelectedId }
       : undefined,
   };
 

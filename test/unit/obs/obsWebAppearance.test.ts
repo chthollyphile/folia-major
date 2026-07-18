@@ -79,10 +79,16 @@ describe('buildObsAppearanceFromShortcode', () => {
         expect(none.background.transparent).toBe(false);
         expect(none.background.mode).toBeUndefined();
 
-        // 非法 cfg（手改 URL 等）：不抛、退默认。
+        // Invalid cfg (hand-edited URL, etc.): no throw, falls back to defaults.
         const garbage = buildObsAppearanceFromShortcode('not-a-valid-shortcode', { isDaylight: false, transparent: true });
         expect(garbage.theme).toBeNull();
         expect(typeof garbage.mode).toBe('string');
+    });
+
+    it('drops a non-array urlBackgroundList instead of passing it through (render crash guard)', () => {
+        const cfg = JSON.stringify({ visualizerMode: 'monet', visualizerBackgroundMode: 'url', urlBackgroundList: 'x' });
+        const a = buildObsAppearanceFromShortcode(cfg, { isDaylight: false, transparent: false });
+        expect(a.background.url).toBeUndefined();
     });
 });
 
@@ -100,6 +106,11 @@ describe('parseObsWebParams', () => {
         expect(parseObsWebParams('').isDaylight).toBe(false);
         expect(parseObsWebParams('').transparent).toBe(true);
         expect(parseObsWebParams('?transparent=0').transparent).toBe(false);
+    });
+
+    it('sanitizes host, stripping characters that would break the ws URL', () => {
+        expect(parseObsWebParams('?host=localhost%3A9863%23').host).toBe('localhost:9863'); // trailing '#'
+        expect(parseObsWebParams('?host=local%20host%3A9863').host).toBe('localhost:9863'); // internal space
     });
 });
 

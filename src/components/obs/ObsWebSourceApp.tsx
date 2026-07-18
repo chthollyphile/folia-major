@@ -146,7 +146,10 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance })
         return () => window.cancelAnimationFrame(frameId);
     }, [currentTime]);
 
-    const paused = state.playerState !== 'playing';
+    // Derive paused from the clock (single source of truth) so lyric advance and visual
+    // animation never disagree — before the first pause-state event playerState is still
+    // 'idle', which the clock and the visuals would otherwise interpret differently.
+    const paused = !state.clock.playing;
 
     return (
         <div
