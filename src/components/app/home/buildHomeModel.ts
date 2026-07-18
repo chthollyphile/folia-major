@@ -3,6 +3,7 @@ import { PlayerState, type SongResult } from '../../../types';
 import type LegacyHome from '../../Home';
 import type { GridViewCollectionDescriptor } from './gridViewCollectionAdapters';
 import { resolveSearchSource, type SearchSource } from '../../../stores/useSearchNavigationStore';
+import type { OnlineProviderPlatformState } from '../../../hooks/useOnlineProviderPlatform';
 
 // src/components/app/home/buildHomeModel.ts
 
@@ -10,12 +11,14 @@ type LegacyHomeProps = React.ComponentProps<typeof LegacyHome>;
 
 export type HomeViewModel = {
     legacyProps: LegacyHomeProps;
+    onlineProviderPlatform?: OnlineProviderPlatformState;
     onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
     onPushCollection: (collection: GridViewCollectionDescriptor) => void;
     onBackCollection: () => void;
 };
 
 type BuildHomeModelParams = {
+    onlineProviderPlatform?: OnlineProviderPlatformState;
     playSong: LegacyHomeProps['onPlaySong'];
     navigateToPlayer: LegacyHomeProps['onBackToPlayer'];
     refreshUserData: () => Promise<unknown>;
@@ -75,6 +78,7 @@ type BuildHomeModelParams = {
 
 // Builds the full Home model from raw app dependencies so App.tsx no longer assembles nested props inline.
 export const buildHomeModel = ({
+    onlineProviderPlatform,
     playSong,
     navigateToPlayer,
     refreshUserData,
@@ -132,6 +136,7 @@ export const buildHomeModel = ({
     onBackCollection,
 }: BuildHomeModelParams): HomeViewModel => {
     return {
+        onlineProviderPlatform,
         onOpenCollection,
         onPushCollection,
         onBackCollection,

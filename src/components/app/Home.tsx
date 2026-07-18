@@ -24,6 +24,7 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden }) => {
             {(openGridView) => (
                 <Grid3D
                     {...model.legacyProps}
+                    onlineProviderPlatform={model.onlineProviderPlatform}
                     onOpenGridView={openGridView}
                 />
             )}

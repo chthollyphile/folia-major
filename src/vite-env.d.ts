@@ -38,6 +38,11 @@ declare global {
     updatedAt: number;
   }
 
+  interface ElectronKugouApiStatus {
+    available: boolean;
+    error: string | null;
+  }
+
   interface ElectronTaskbarControlState {
     hasActiveTrack: boolean;
     canGoPrevious: boolean;
@@ -473,6 +478,8 @@ declare global {
       getNeteasePort: () => Promise<number>;
       getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
+      getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
+      kugouRequest: (operation: string, params?: Record<string, string | number | boolean | undefined>) => Promise<any>;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;

@@ -44,6 +44,8 @@ import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
+import { useKugouLibrary } from './hooks/useKugouLibrary';
+import { useOnlineProviderPlatform } from './hooks/useOnlineProviderPlatform';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
 import { useElectronNeteaseApiStatus } from './hooks/useElectronNeteaseApiStatus';
@@ -840,6 +842,13 @@ export default function App() {
         setStatusMsg,
         t,
     });
+
+    const { refresh: refreshKugouLibrary } = useKugouLibrary();
+    const onlineProviderRefreshers = useMemo(() => ({
+        netease: refreshUserData,
+        kugou: refreshKugouLibrary,
+    }), [refreshKugouLibrary, refreshUserData]);
+    const onlineProviderPlatform = useOnlineProviderPlatform(onlineProviderRefreshers);
 
     const {
         stageStatus,
@@ -2022,6 +2031,7 @@ export default function App() {
     }, [navigateToCollection, t]);
 
     const homeModel = useMemo(() => buildHomeModel({
+        onlineProviderPlatform,
         playSong,
         navigateToPlayer,
         refreshUserData,
@@ -2168,6 +2178,7 @@ export default function App() {
         onPlayLocalSong,
         onPlayNavidromeSong,
         onRefreshLocalSongs,
+        onlineProviderPlatform,
         openSettings,
         openLocalAlbumByName,
         openLocalArtistByName,

@@ -10,7 +10,7 @@ import type { ThemeCacheSongKey } from '../../../services/themeCache';
 import type { LyricData, LocalSong, SongResult, StatusMessage } from '../../../types';
 import type { NavidromeSong } from '../../../types/navidrome';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../../../utils/appNavidromeLyrics';
-import { hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
+import { hasRenderableLyrics, toSafeRemoteUrl } from '../../../utils/appPlaybackHelpers';
 import {
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
@@ -237,11 +237,8 @@ export const restorePlaybackSourceForSong = async (
     }
     if (!restoredCachedAudio) {
         const audioSource = await provider.playback.getAudioSource(song, audioQuality);
-        let url = audioSource?.url;
+        const url = toSafeRemoteUrl(audioSource?.url);
         if (url) {
-            if (url.startsWith('http:')) {
-                url = url.replace('http:', 'https:');
-            }
             currentOnlineAudioUrlFetchedAtRef.current = Date.now();
             setAudioSrc(url);
         } else {

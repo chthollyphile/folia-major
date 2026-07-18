@@ -385,7 +385,7 @@ export function useLibraryPlaybackController({
         if (provider?.id !== 'netease' || !provider.capabilities.mutations || !provider.mutations?.updatePlaylistTracks) {
             throw new Error('Current provider cannot update this playlist');
         }
-        await provider.mutations.updatePlaylistTracks('add', playlistId, [currentSong.id]);
+        await provider.mutations.updatePlaylistTracks('add', playlistId, [currentSong]);
         await removeFromCache(getProviderCacheKey('netease', `playlist_tracks_${playlistId}`));
         await removeFromCache(getProviderCacheKey('netease', `playlist_detail_${playlistId}`));
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });

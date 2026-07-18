@@ -895,7 +895,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
     const CACHE_SCHEMA_VERSION = 3;
 
-    const isCloudDrive = collection ? (collection.specialType === 'cloud' || Number(collection.id) === -100) : false;
+    const isCloudDrive = collection ? (collection.type === 'cloud' || collection.specialType === 'cloud' || Number(collection.id) === -100) : false;
     const CACHE_SUFFIX = collection ? (isCloudDrive
         ? `playlist_tracks_cloud_${currentUserId ?? 'anonymous'}`
         : `playlist_tracks_${collection.id}`) : '';
@@ -1102,29 +1102,39 @@ export const GridView: React.FC<GridViewProps> = ({
     }, [isDailyRecommendationsCollection, onlineProvider]);
 
     const canEditNeteasePlaylist = !usesExternalTracks && collection && collection.specialType !== 'cloud' && Boolean(currentUserId && collection.creator?.userId === currentUserId);
+    const canEditProviderPlaylist = !usesExternalTracks
+        && collectionSource === 'online'
+        && collection?.type === 'playlist'
+        && Boolean(collection?.providerData?.owned)
+        && Boolean(onlineProvider?.capabilities.playlistTrackMutations && onlineProvider?.mutations?.updatePlaylistTracks);
     const canEditPlaylist = Boolean(
         canEditNeteasePlaylist
+        || canEditProviderPlaylist
         || (isDailyRecommendationsCollection && !selectedDailyRecommendationDate)
         || isLocalPlaylistCollection
         || isNavidromePlaylistCollection
     );
 
-    const isNeteasePlaylist = collectionSource === 'online' && collection?.providerId === 'netease' && collection?.type === 'playlist' && !isCloudDrive;
-    const isNeteaseAlbum = collectionSource === 'online' && collection?.providerId === 'netease' && collection?.type === 'album' && !isCloudDrive;
-    const showSubscribeButton = (isNeteasePlaylist && !canEditNeteasePlaylist) || isNeteaseAlbum;
+    const isOnlinePlaylist = collectionSource === 'online' && collection?.type === 'playlist' && !isCloudDrive;
+    const isOnlineAlbum = collectionSource === 'online' && collection?.type === 'album' && !isCloudDrive;
+    const showSubscribeButton = Boolean(
+        onlineProvider?.capabilities.playlistSubscription
+        && ((isOnlinePlaylist && !canEditNeteasePlaylist && !canEditProviderPlaylist && onlineProvider.mutations?.subscribePlaylist)
+            || (isOnlineAlbum && onlineProvider.mutations?.subscribeAlbum)),
+    );
 
     useEffect(() => {
         let active = true;
 
         const fetchCollectionDetail = async () => {
-            if (isNeteasePlaylist) {
+            if (isOnlinePlaylist) {
                 try {
                     const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('playlist', collection.id);
                     if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
                 } catch (err) {
                     console.warn("[GridView] Failed to fetch playlist dynamic status:", err);
                 }
-            } else if (isNeteaseAlbum) {
+            } else if (isOnlineAlbum) {
                 try {
                     const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('album', collection.id);
                     if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
@@ -1141,7 +1151,7 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => {
             active = false;
         };
-    }, [collection?.id, isNeteasePlaylist, isNeteaseAlbum, onlineProvider]);
+    }, [collection?.id, isOnlinePlaylist, isOnlineAlbum, onlineProvider]);
 
     const handleToggleSubscribe = async () => {
         if (!collection || isSubscribing) return;
@@ -1149,12 +1159,12 @@ export const GridView: React.FC<GridViewProps> = ({
         try {
             const nextSubscribed = !playlistSubscribed;
             let updated = false;
-            if (isNeteasePlaylist) {
+            if (isOnlinePlaylist) {
                 if (onlineProvider?.mutations?.subscribePlaylist) {
-                    await onlineProvider.mutations.subscribePlaylist(collection.id, nextSubscribed);
+                    await onlineProvider.mutations.subscribePlaylist(collection, nextSubscribed);
                     updated = true;
                 }
-            } else if (isNeteaseAlbum) {
+            } else if (isOnlineAlbum) {
                 if (onlineProvider?.mutations?.subscribeAlbum) {
                     await onlineProvider.mutations.subscribeAlbum(collection.id, nextSubscribed);
                     updated = true;
@@ -1163,7 +1173,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
             if (updated) {
                 setPlaylistSubscribed(nextSubscribed);
-                if (isNeteaseAlbum) {
+                if (isOnlineAlbum) {
                     window.dispatchEvent(new CustomEvent('folia-refresh-favorite-albums'));
                 }
                 if (onPlaylistMutated) {
@@ -1264,7 +1274,7 @@ export const GridView: React.FC<GridViewProps> = ({
             if (isLiked) {
                 await onlineProvider?.mutations?.likeSong?.(track.id, false);
             } else {
-                await onlineProvider?.mutations?.updatePlaylistTracks?.('del', collection.id, [track.id]);
+                await onlineProvider?.mutations?.updatePlaylistTracks?.('del', collection, [track]);
             }
             const nextTracks = tracks.filter(candidate => String(candidate.id) !== String(track.id));
             commitAfterTrackRemovalAnimation(trackKey, () => setTracks(nextTracks));
@@ -2127,7 +2137,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                         style={{
                                             backgroundColor: isDaylight ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)',
                                         }}
-                                        title={playlistSubscribed ? (isNeteaseAlbum ? t('options.unsubscribeAlbum') : t('options.unsubscribePlaylist')) : (isNeteaseAlbum ? t('options.subscribeAlbum') : t('options.subscribePlaylist'))}
+                                        title={playlistSubscribed ? (isOnlineAlbum ? t('options.unsubscribeAlbum') : t('options.unsubscribePlaylist')) : (isOnlineAlbum ? t('options.subscribeAlbum') : t('options.subscribePlaylist'))}
                                     >
                                         {isSubscribing ? (
                                             <Loader2 size={18} className="animate-spin opacity-60" style={{ color: 'var(--text-primary)' }} />
@@ -2333,7 +2343,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                 {canEditPlaylist && (
                                     <button
                                         onClick={() => {
-                                            if (canEditNeteasePlaylist) {
+                                            if (canEditNeteasePlaylist || canEditProviderPlaylist) {
                                                 setIsEditMode(prev => !prev);
                                                 return;
                                             }

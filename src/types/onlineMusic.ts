@@ -33,6 +33,28 @@ export interface ProviderCapabilities {
     recommendations: boolean;
     mutations: boolean;
     wordByWordLyrics: boolean;
+    userCloud?: boolean;
+    historyRecommendations?: boolean;
+    playlistSubscription?: boolean;
+    playlistTrackMutations?: boolean;
+    likes?: boolean;
+    userAlbums?: boolean;
+}
+
+export interface ProviderAvailability {
+    configured: boolean;
+    reason?: 'not-configured' | 'runtime-unavailable';
+}
+
+export interface ProviderAccountSummary {
+    providerId: OnlineProviderId;
+    displayName: string;
+    shortName: string;
+    availability: ProviderAvailability;
+    status: 'unknown' | 'authenticated' | 'anonymous' | 'error';
+    user: ProviderUser | null;
+    collections: ProviderCollection[];
+    error?: string;
 }
 
 export interface ProviderPage<T> {
@@ -64,6 +86,12 @@ export interface ProviderUser {
     avatarUrl?: string;
     backgroundUrl?: string;
     vipType?: number;
+}
+
+export interface ProviderHistoryEntry {
+    id: string;
+    label: string;
+    providerData?: Record<string, JsonValue>;
 }
 
 export interface ProviderCollection {
@@ -129,12 +157,13 @@ export interface OnlineAuthProvider {
 export interface OnlineLibraryProvider {
     getUserPlaylists(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     getLikedSongIds?(userId: MediaId): Promise<MediaId[]>;
+    getUserAlbums?(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
 export interface OnlineCatalogProvider {
     getPlaylistTracks?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
     getCloudTracks?(limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
-    getAlbumTracks?(id: MediaId): Promise<ProviderPage<UnifiedSong>>;
+    getAlbumTracks?(id: MediaId, limit?: number, offset?: number): Promise<ProviderPage<UnifiedSong>>;
     getArtistSongs?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
     getArtistAlbums?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     getArtistDetail?(id: MediaId): Promise<ProviderCollection | null>;
@@ -144,21 +173,29 @@ export interface OnlineCatalogProvider {
 export interface OnlineRecommendationProvider {
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(): Promise<UnifiedSong[]>;
+    getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
+    getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
-    getHistorySongs?(date: string): Promise<UnifiedSong[]>;
+    getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
     dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }>;
 }
 
 export interface OnlineMutationProvider {
-    likeSong?(id: MediaId, liked: boolean): Promise<void>;
-    updatePlaylistTracks?(operation: 'add' | 'del', playlistId: MediaId, trackIds: MediaId[]): Promise<void>;
-    subscribePlaylist?(id: MediaId, subscribed: boolean): Promise<void>;
+    likeSong?(song: MediaId | SongResult, liked: boolean): Promise<void>;
+    updatePlaylistTracks?(
+        operation: 'add' | 'del',
+        playlist: MediaId | ProviderCollection,
+        tracks: Array<MediaId | SongResult>,
+    ): Promise<void>;
+    subscribePlaylist?(playlist: MediaId | ProviderCollection, subscribed: boolean): Promise<void>;
     subscribeAlbum?(id: MediaId, subscribed: boolean): Promise<void>;
 }
 
 export interface OnlineMusicProvider {
     id: OnlineProviderId;
     displayName: string;
+    shortName?: string;
+    getAvailability?(): ProviderAvailability;
     capabilities: ProviderCapabilities;
     normalizeSong(raw: unknown): UnifiedSong;
     search?: OnlineSearchProvider;

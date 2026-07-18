@@ -8,12 +8,22 @@ export interface OnlineProviderAccountState {
     user: ProviderUser | null;
     collections: ProviderCollection[];
     likedSongIds: MediaId[];
+    error?: string;
 }
 
 type OnlineProviderAccountStore = {
     accounts: Record<string, OnlineProviderAccountState>;
+    activeProviderId: OnlineProviderId;
+    setActiveProviderId: (providerId: OnlineProviderId) => void;
     updateAccount: (providerId: OnlineProviderId, patch: Partial<OnlineProviderAccountState>) => void;
     clearAccount: (providerId: OnlineProviderId) => void;
+};
+
+const ACTIVE_PROVIDER_KEY = 'active_online_provider_id';
+
+const getInitialProviderId = (): OnlineProviderId => {
+    if (typeof localStorage === 'undefined') return 'netease';
+    return localStorage.getItem(ACTIVE_PROVIDER_KEY) || 'netease';
 };
 
 const emptyAccount = (): OnlineProviderAccountState => ({
@@ -25,6 +35,11 @@ const emptyAccount = (): OnlineProviderAccountState => ({
 
 export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(set => ({
     accounts: {},
+    activeProviderId: getInitialProviderId(),
+    setActiveProviderId: providerId => {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(ACTIVE_PROVIDER_KEY, providerId);
+        set({ activeProviderId: providerId });
+    },
     updateAccount: (providerId, patch) => set(state => ({
         accounts: {
             ...state.accounts,

@@ -155,6 +155,7 @@
     "framer-motion": "^12.42.2",
     "i18next": "^26.3.6",
     "i18next-browser-languagedetector": "^8.2.1",
+    "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.5.1.tar.gz",
     "lucide-react": "^1.25.0",
     "music-metadata": "^11.14.0",
     "opencc-js": "^1.4.1",

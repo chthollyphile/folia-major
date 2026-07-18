@@ -16,6 +16,7 @@ import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { getOnlineMusicProviderForSong, providerSupports } from './onlineMusic/providerRegistry';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
+import { toSafeRemoteUrl } from '../utils/appPlaybackHelpers';
 
 // Prefetch configuration
 const PREFETCH_COUNT_NEXT = 2;  // Prefetch 2 songs ahead
@@ -70,6 +71,10 @@ export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQuali
     const cached = prefetchCache.get(songKey);
     if (!cached) return null;
 
+    if (cached.audioUrl && cached.audioUrl !== 'CACHED_IN_DB') {
+        cached.audioUrl = toSafeRemoteUrl(cached.audioUrl) ?? null;
+    }
+
     // Check if URL is expired
     if (cached.audioUrl && !isUrlValid(cached.audioUrlFetchedAt)) {
         console.log(`[Prefetch] URL expired for song ${songId}, will refetch`);
@@ -115,6 +120,9 @@ const prefetchSong = async (
 
     // Check if already prefetched with valid URL
     const existing = prefetchCache.get(songKey);
+    if (existing?.audioUrl && existing.audioUrl !== 'CACHED_IN_DB') {
+        existing.audioUrl = toSafeRemoteUrl(existing.audioUrl) ?? null;
+    }
     if (existing && existing.audioUrl && isUrlValid(existing.audioUrlFetchedAt) && (existing.lyrics || existing.lyricRaw?.isPureMusic)) {
         console.log(`[Prefetch] Already cached: ${song.name}`);
         touchPrefetchCacheEntry(songKey, existing);
@@ -144,9 +152,8 @@ const prefetchSong = async (
                 data.audioUrlFetchedAt = Date.now();
             } else if (!signal.aborted) {
                 const audioSource = await provider.playback.getAudioSource(song, audioQuality);
-                let url = audioSource?.url;
+                const url = toSafeRemoteUrl(audioSource?.url) ?? null;
                 if (url) {
-                    if (url.startsWith('http:')) url = url.replace('http:', 'https:');
                     data.audioUrl = url;
                     data.audioUrlFetchedAt = Date.now();
                     data.audioUrlQuality = audioQuality;

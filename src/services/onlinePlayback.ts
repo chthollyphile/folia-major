@@ -11,11 +11,7 @@ import type { AudioQualityPreference } from '../types/onlineMusic';
 import { getOnlineMusicProviderForSong, providerSupports } from './onlineMusic/providerRegistry';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getCachedSongAudioBlob, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
-
-const normalizeAudioUrl = (url?: string | null) => {
-    if (!url) return null;
-    return url.startsWith('http:') ? url.replace('http:', 'https:') : url;
-};
+import { toSafeRemoteUrl } from '../utils/appPlaybackHelpers';
 
 export async function loadOnlineSongAudioSource(
     song: SongResult,
@@ -46,7 +42,7 @@ export async function loadOnlineSongAudioSource(
         console.warn('[OnlinePlayback] Provider audio source is temporarily unavailable', error);
         return { kind: 'unavailable' };
     }
-    const url = normalizeAudioUrl(source?.url);
+    const url = toSafeRemoteUrl(source?.url);
     if (!url) {
         return { kind: 'unavailable' };
     }

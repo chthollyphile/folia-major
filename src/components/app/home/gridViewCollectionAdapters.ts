@@ -78,6 +78,17 @@ export const createNeteaseGridViewCollection = (collection: any): GridViewCollec
     albumCompany: collection.type === 'album' ? collection.raw?.company : collection.albumCompany,
 });
 
+export const createOnlineGridViewCollection = (
+    collection: any,
+    providerId: OnlineProviderId,
+): OnlineGridViewCollectionDescriptor => ({
+    ...collection,
+    source: 'online',
+    providerId,
+    coverUrl: collection.coverUrl || collection.coverImgUrl || collection.picUrl,
+    raw: collection.raw || collection,
+});
+
 export const createLocalGridViewCollection = (group: LocalLibraryGroup): LocalGridViewCollectionDescriptor => ({
     source: 'local',
     id: group.id,

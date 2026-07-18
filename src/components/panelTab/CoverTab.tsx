@@ -35,7 +35,9 @@ const CoverTab: React.FC<CoverTabProps> = ({
     const copyTitleLine = currentSong
         ? `${currentSong.name || ''} - ${displayArtistNames} - ${displayAlbumName}`
         : '';
-    const neteaseSongId = !isLocalSong && !isNavidromeSong && !isStageSong ? currentSong?.id : undefined;
+    const neteaseSongId = currentSong?.sourceRef?.kind === 'online' && currentSong.sourceRef.providerId === 'netease'
+        ? currentSong.id
+        : undefined;
     const copyPayload = copyTitleLine
         ? [copyTitleLine, neteaseSongId ? `https://music.163.com/#/song?id=${neteaseSongId}` : ''].filter(Boolean).join('\n')
         : '';

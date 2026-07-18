@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('netease-api-status-changed', listener);
         return () => ipcRenderer.removeListener('netease-api-status-changed', listener);
     },
+    getKugouApiStatus: () => ipcRenderer.invoke('kugou-api-status'),
+    kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     toggleFullscreenWindow: () => ipcRenderer.invoke('window-toggle-fullscreen'),

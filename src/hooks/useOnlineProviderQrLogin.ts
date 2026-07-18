@@ -23,12 +23,13 @@ export const useOnlineProviderQrLogin = ({
     t,
 }: {
     providerId: OnlineProviderId;
-    onConfirmed: () => void;
+    onConfirmed: (providerId: OnlineProviderId) => void;
     t: (key: string) => string;
 }) => {
     const [qrCodeImg, setQrCodeImg] = useState('');
     const [qrState, setQrState] = useState<QrUiState>('idle');
     const qrCheckIntervalRef = useRef<number | null>(null);
+    const lastLoggedQrStateRef = useRef<QrUiState>('idle');
 
     const stopChecking = useCallback(() => {
         if (qrCheckIntervalRef.current !== null) {
@@ -37,11 +38,14 @@ export const useOnlineProviderQrLogin = ({
         }
     }, []);
 
-    const start = useCallback(async () => {
+    const start = useCallback(async (providerIdOverride?: OnlineProviderId) => {
+        const targetProviderId = providerIdOverride || providerId;
         stopChecking();
         setQrCodeImg('');
         setQrState('loading');
-        const provider = getOnlineMusicProvider(providerId);
+        lastLoggedQrStateRef.current = 'loading';
+        console.info('[ProviderQrLogin] start', { providerId: targetProviderId });
+        const provider = getOnlineMusicProvider(targetProviderId);
         const auth = provider?.auth;
         if (!providerSupports(provider, 'auth') || !auth?.getQrKey || !auth.createQr || !auth.checkQr) {
             setQrState('error');
@@ -52,24 +56,38 @@ export const useOnlineProviderQrLogin = ({
             const key = await auth.getQrKey();
             setQrCodeImg(await auth.createQr(key));
             setQrState('waiting');
+            lastLoggedQrStateRef.current = 'waiting';
+            console.info('[ProviderQrLogin] ready', { providerId: targetProviderId });
             qrCheckIntervalRef.current = window.setInterval(async () => {
                 try {
                     const result = await auth.checkQr!(key);
                     setQrState(result.state);
+                    if (lastLoggedQrStateRef.current !== result.state) {
+                        lastLoggedQrStateRef.current = result.state;
+                        console.info('[ProviderQrLogin] state', { providerId: targetProviderId, state: result.state });
+                    }
                     if (result.state === 'confirmed') {
                         stopChecking();
-                        window.setTimeout(onConfirmed, 1000);
+                        window.setTimeout(() => onConfirmed(targetProviderId), 1000);
                     } else if (result.state === 'expired' || result.state === 'error') {
                         stopChecking();
                     }
                 } catch (error) {
-                    console.warn(`[ProviderQrLogin] ${providerId} status check failed`, error);
+                    console.warn('[ProviderQrLogin] check:error', {
+                        providerId: targetProviderId,
+                        name: error instanceof Error ? error.name : 'Error',
+                        message: error instanceof Error ? error.message : String(error),
+                    });
                     setQrState('error');
                     stopChecking();
                 }
             }, 3000);
         } catch (error) {
-            console.warn(`[ProviderQrLogin] ${providerId} QR initialization failed`, error);
+            console.warn('[ProviderQrLogin] start:error', {
+                providerId: targetProviderId,
+                name: error instanceof Error ? error.name : 'Error',
+                message: error instanceof Error ? error.message : String(error),
+            });
             setQrState('error');
         }
     }, [onConfirmed, providerId, stopChecking]);

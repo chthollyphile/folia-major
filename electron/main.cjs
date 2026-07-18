@@ -6,6 +6,7 @@ const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
+const { createKugouApiBridge, createKugouFileLogger } = require('./kugouApiBridge.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
@@ -47,6 +48,9 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
 }
 
 const store = new Store({ projectName: 'Folia' });
+const kugouLogPath = path.join(path.dirname(store.path), 'logs', 'kugou-provider.log');
+const kugouLogger = createKugouFileLogger(kugouLogPath);
+const kugouApiBridge = createKugouApiBridge({ store, logger: kugouLogger });
 
 // --- Electron main process locale map ---
 const APP_LOCALE_KEY = 'APP_LOCALE';
@@ -869,6 +873,16 @@ function setupFileSystemAccessPermissionHandlers() {
 
 function setupCorsBypassHandlers() {
   const ses = session.defaultSession;
+
+  const getKugouMediaRequestInfo = details => {
+    const parsedUrl = new URL(details.url);
+    const isMediaRequest = details.resourceType === 'media' || parsedUrl.hostname.startsWith('fs.');
+    return isMediaRequest ? {
+      protocol: parsedUrl.protocol,
+      hostname: parsedUrl.hostname,
+      resourceType: details.resourceType,
+    } : null;
+  };
   ses.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     const originUrl = details.url;
@@ -896,6 +910,31 @@ function setupCorsBypassHandlers() {
     }
 
     callback({ cancel: false, responseHeaders });
+  });
+
+  ses.webRequest.onBeforeRequest({ urls: ['*://*.kugou.com/*'] }, (details, callback) => {
+    const requestInfo = getKugouMediaRequestInfo(details);
+    if (requestInfo) kugouLogger.info('[KuGouMedia] request:start', requestInfo);
+    callback({ cancel: false });
+  });
+
+  ses.webRequest.onCompleted({ urls: ['*://*.kugou.com/*'] }, details => {
+    const requestInfo = getKugouMediaRequestInfo(details);
+    if (!requestInfo) return;
+    kugouLogger.info('[KuGouMedia] request:completed', {
+      ...requestInfo,
+      statusCode: details.statusCode,
+      fromCache: details.fromCache,
+    });
+  });
+
+  ses.webRequest.onErrorOccurred({ urls: ['*://*.kugou.com/*'] }, details => {
+    const requestInfo = getKugouMediaRequestInfo(details);
+    if (!requestInfo) return;
+    kugouLogger.warn('[KuGouMedia] request:error', {
+      ...requestInfo,
+      error: details.error,
+    });
   });
 }
 
@@ -3114,6 +3153,9 @@ ipcMain.handle('get-netease-port', () => {
 ipcMain.handle('get-netease-api-status', () => {
   return neteaseApiStatus;
 });
+
+ipcMain.handle('kugou-api-status', () => kugouApiBridge.getStatus());
+ipcMain.handle('kugou-api-request', (_event, operation, params) => kugouApiBridge.request(operation, params));
 
 ipcMain.handle('window-minimize', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {

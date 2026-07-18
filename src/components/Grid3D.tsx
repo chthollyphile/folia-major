@@ -1,27 +1,30 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, User, Loader2, Settings, ChevronRight } from 'lucide-react';
+import { Search, User, Loader2, Settings } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import type { LocalLibraryCatalogSnapshot } from '../hooks/useLocalLibraryCatalog';
 import { useShallow } from 'zustand/react/shallow';
 import { SongResult, NeteaseUser, NeteasePlaylist, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, PlayerState } from '../types';
-import { neteaseApi, isSongMarkedUnavailable } from '../services/netease';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import LocalGrid3DView from './app/home/LocalGrid3DView';
 import NavidromeGrid3DView from './app/home/NavidromeGrid3DView';
-import { formatSongName } from '../utils/songNameFormatter';
 import DesktopGrid3DSurface from './folia-grid/DesktopGrid3DSurface';
-import { createNeteaseGridViewCollection } from './app/home/gridViewCollectionAdapters';
+import { createOnlineGridViewCollection } from './app/home/gridViewCollectionAdapters';
 import { importFolder, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import { useOnlineProviderQrLogin } from '../hooks/useOnlineProviderQrLogin';
+import type { OnlineProviderPlatformState } from '../hooks/useOnlineProviderPlatform';
+import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import OnlineProviderSwitcher from './app/home/OnlineProviderSwitcher';
+import type { ProviderCollection } from '../types/onlineMusic';
 
 // src/components/Grid3D.tsx
 // Glassmorphic interactive desktop home view replacing the legacy 3D carousel.
 // Supports cover sliding with auto-fading header controls and delegates GridView opening upward.
 
 interface Grid3DProps {
+    onlineProviderPlatform?: OnlineProviderPlatformState;
     onPlaySong: (song: SongResult, playlistCtx?: SongResult[], isFmCall?: boolean) => void;
     onBackToPlayer: () => void;
     onRefreshUser: () => void;
@@ -109,6 +112,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         stageEnabled = false,
         stageIsActive = false,
         onOpenStagePlayer,
+        onlineProviderPlatform,
     } = props;
 
     const { t } = useTranslation();
@@ -129,7 +133,29 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         submitSearch: state.submitSearch,
     })));
 
-    const isNeteaseTab = homeViewTab === 'playlist' || homeViewTab === 'albums' || homeViewTab === 'radio';
+    const isOnlineTab = homeViewTab === 'playlist' || homeViewTab === 'albums' || homeViewTab === 'radio';
+    const activeProviderId = onlineProviderPlatform?.activeProviderId || 'netease';
+    const activeProviderSummary = onlineProviderPlatform?.activeProvider;
+    const activeProvider = getOnlineMusicProvider(activeProviderId);
+    const activeUser = activeProviderSummary?.user || (activeProviderId === 'netease' && user ? {
+        id: user.userId,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        backgroundUrl: user.backgroundUrl,
+        vipType: user.vipType,
+    } : null);
+    const activeCollections: ProviderCollection[] = activeProviderSummary?.collections || (activeProviderId === 'netease'
+        ? [
+            ...playlists.map(playlist => ({
+                providerId: 'netease', id: playlist.id, name: playlist.name, type: 'playlist',
+                coverUrl: playlist.coverImgUrl, description: playlist.description, trackCount: playlist.trackCount,
+            })),
+            ...(cloudPlaylist ? [{
+                providerId: 'netease', id: cloudPlaylist.id, name: cloudPlaylist.name, type: 'cloud',
+                coverUrl: cloudPlaylist.coverImgUrl, description: cloudPlaylist.description, trackCount: cloudPlaylist.trackCount,
+            }] : []),
+        ]
+        : []);
 
     const [focusedIndex, setFocusedIndex] = useState(0);
     const [isLocalImporting, setIsLocalImporting] = useState(false);
@@ -201,6 +227,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     // Login QR State
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [loginProviderId, setLoginProviderId] = useState(activeProviderId);
     const {
         qrCodeImg,
         qrStatusText,
@@ -208,17 +235,25 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         start: startQrLogin,
         stop: stopQrLogin,
     } = useOnlineProviderQrLogin({
-        providerId: 'netease',
+        providerId: loginProviderId,
         t,
-        onConfirmed: () => {
-            onRefreshUser();
+        onConfirmed: async (confirmedProviderId) => {
+            if (onlineProviderPlatform) {
+                await onlineProviderPlatform.refreshProvider(confirmedProviderId);
+                onlineProviderPlatform.setActiveProviderId(confirmedProviderId);
+            } else {
+                onRefreshUser();
+            }
             setShowLoginModal(false);
         },
     });
 
-    const initLogin = async () => {
+    const initLogin = async (providerId = activeProviderId) => {
+        const summary = onlineProviderPlatform?.providers.find(provider => provider.providerId === providerId);
+        if (summary && !summary.availability.configured) return;
+        setLoginProviderId(providerId);
         setShowLoginModal(true);
-        await startQrLogin();
+        await startQrLogin(providerId);
     };
 
     // Netease details
@@ -228,19 +263,25 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [loadingRadio, setLoadingRadio] = useState(false);
 
     const isLoading =
-        (homeViewTab === 'playlist' && playlists.length === 0 && user !== null) ||
+        (homeViewTab === 'playlist' && activeCollections.length === 0 && activeUser !== null) ||
         (homeViewTab === 'albums' && loadingAlbums) ||
         (homeViewTab === 'radio' && loadingRadio);
 
     // Load favorite albums and recommendations
     useEffect(() => {
-        if (homeViewTab === 'albums' && favoriteAlbums.length === 0 && user) {
+        if (homeViewTab === 'albums' && favoriteAlbums.length === 0 && activeUser) {
             fetchFavoriteAlbums();
         }
-        if (homeViewTab === 'radio' && radioItems.length === 0 && user) {
+        if (homeViewTab === 'radio' && radioItems.length === 0 && activeUser) {
             fetchRadioItems();
         }
-    }, [homeViewTab, user]);
+    }, [activeProviderId, activeUser, homeViewTab]);
+
+    useEffect(() => {
+        setFavoriteAlbums([]);
+        setRadioItems([]);
+        setFocusedIndex(0);
+    }, [activeProviderId]);
 
     const fetchFavoriteAlbums = async () => {
         setLoadingAlbums(true);
@@ -250,13 +291,16 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             const limit = 50;
             let hasMore = true;
 
+            const getUserAlbums = activeProvider?.library?.getUserAlbums;
+            if (!getUserAlbums || !activeUser) {
+                setFavoriteAlbums([]);
+                return;
+            }
             while (hasMore) {
-                const res = await neteaseApi.getFavoriteAlbums(limit, offset);
-                if (res.data) {
-                    allAlbums = [...allAlbums, ...res.data];
-                }
-                hasMore = res.hasMore;
-                offset += limit;
+                const page = await getUserAlbums(activeUser.id, limit, offset);
+                allAlbums = [...allAlbums, ...page.items];
+                hasMore = page.hasMore && page.nextOffset > offset;
+                offset = page.nextOffset;
             }
             setFavoriteAlbums(allAlbums);
         } catch (e) {
@@ -282,15 +326,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const fetchRadioItems = async () => {
         setLoadingRadio(true);
         try {
-            const [fmRes, dailyRes, personalizedRes] = await Promise.all([
-                neteaseApi.getPersonalFm(),
-                neteaseApi.getDailyRecommendedSongs(),
-                neteaseApi.getPersonalizedPlaylists(35),
+            const [fmSongs, dailySongs, recommendedCollections] = await Promise.all([
+                activeProvider?.recommendations?.getPersonalFm?.() || [],
+                activeProvider?.recommendations?.getDailySongs?.() || [],
+                activeProvider?.recommendations?.getRecommendedCollections?.(35) || [],
             ]);
-            let fmCoverUrl = '';
-            if (fmRes.data && fmRes.data.length > 0) {
-                fmCoverUrl = fmRes.data[0].album?.picUrl || fmRes.data[0].al?.picUrl || '';
-            }
+            const fmCoverUrl = fmSongs[0]?.album?.picUrl || fmSongs[0]?.al?.picUrl || '';
 
             const fmItem = {
                 id: 'personal_fm',
@@ -300,7 +341,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 isFm: true,
             };
 
-            const dailySongs = dailyRes.songs || [];
             const dailyItem = {
                 id: 'daily_recommendations',
                 name: t('home.dailyRecommendations'),
@@ -311,18 +351,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 isDailyRecommendations: true,
             };
 
-            let personalizedItems: any[] = [];
-            if (personalizedRes.result) {
-                personalizedItems = personalizedRes.result.map((r: any) => ({
-                    id: r.id,
-                    name: r.name,
-                    coverUrl: r.picUrl,
-                    trackCount: r.trackCount,
-                    description: r.copywriter || t('home.playlists'),
-                    summary: r.copywriter || ''
-                }));
-            }
-            setRadioItems([fmItem, dailyItem, ...personalizedItems]);
+            const recommendedItems = recommendedCollections.map(collection => ({
+                ...collection,
+                coverUrl: collection.coverUrl,
+                description: collection.description || t('home.playlists'),
+                summary: collection.description || '',
+            }));
+            setRadioItems([fmItem, dailyItem, ...recommendedItems]);
         } catch (e) {
             console.error('[Grid3D] Failed to fetch radio items', e);
         } finally {
@@ -332,31 +367,26 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     // Filter cloud and local playlists
     const playlistCards = useMemo(() => {
-        const base = cloudPlaylist
-            ? (playlists.length > 0
-                ? [playlists[0], cloudPlaylist, ...playlists.slice(1)]
-                : [cloudPlaylist])
-            : playlists;
-        return base.map(p => ({
+        return activeCollections.map(p => ({
             id: p.id,
             name: p.name,
-            coverUrl: p.coverImgUrl || (p as any).coverUrl,
+            coverUrl: p.coverUrl,
             trackCount: p.trackCount,
             description: p.creator?.nickname || t('home.playlists'),
             summary: p.description || '',
-            type: 'playlist' as const,
+            type: p.type,
             raw: p
         }));
-    }, [playlists, cloudPlaylist]);
+    }, [activeCollections, t]);
 
     const albumCards = useMemo(() => {
         return favoriteAlbums.map(a => ({
             id: a.id,
             name: a.name,
-            coverUrl: a.picUrl,
-            trackCount: a.size,
-            description: a.artists?.[0]?.name || t('player.unknownArtist'),
-            summary: a.description || a.briefDesc || '',
+            coverUrl: a.coverUrl,
+            trackCount: a.trackCount,
+            description: a.creator?.nickname || t('player.unknownArtist'),
+            summary: a.description || '',
             type: 'album' as const,
             raw: a
         }));
@@ -392,9 +422,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const handleSelectCollectionCard = async (card: any) => {
         if (card.id === 'personal_fm' || card.raw?.id === 'personal_fm') {
             try {
-                const fmRes = await neteaseApi.getPersonalFm();
-                if (fmRes.data && fmRes.data.length > 0) {
-                    onPlaySong(fmRes.data[0], fmRes.data, true);
+                const fmSongs = await activeProvider?.recommendations?.getPersonalFm?.() || [];
+                if (fmSongs.length > 0) {
+                    onPlaySong(fmSongs[0], fmSongs, true);
                 }
             } catch (e) {
                 console.error('[Grid3D] Failed to fetch and play Personal FM:', e);
@@ -405,7 +435,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         const collection = card.raw
             ? { ...card.raw, type: card.type }
             : card;
-        onOpenGridView?.(createNeteaseGridViewCollection(collection));
+        onOpenGridView?.(createOnlineGridViewCollection(collection, activeProviderId));
     };
 
     const handleFolderImport = async () => {
@@ -431,9 +461,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         const query = searchQuery.trim();
         if (!query) return;
 
+        const searchSource = isOnlineTab ? activeProviderId : resolveSearchSource(homeViewTab);
         const didSearch = await submitSearch({
             query,
-            sourceTab: resolveSearchSource(homeViewTab),
+            sourceTab: searchSource,
             deps: {
                 localSongs,
                 localLibraryCatalog,
@@ -442,7 +473,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         });
 
         if (didSearch) {
-            onSearchCommitted(query, homeViewTab);
+            onSearchCommitted(query, searchSource);
         }
     };
 
@@ -613,22 +644,24 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
             {/* Desktop Canvas Surface */}
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative">
-                {isNeteaseTab && !user ? (
+                {isOnlineTab && !activeUser ? (
                     /* Guest Connect Account Page */
                     <div className="flex flex-1 w-full flex-col items-center justify-center space-y-6">
                         <div className={`w-24 h-24 rounded-3xl ${isDaylight ? 'bg-white/40 shadow-sm border border-black/5' : 'bg-white/5 border border-white/5'} flex items-center justify-center backdrop-blur-md`}>
                             <User size={40} className="opacity-20" />
                         </div>
                         <h2 className="text-3xl font-bold opacity-80 text-center">{t('home.guestTitle')}</h2>
-                        <p className="opacity-40 text-sm text-center max-w-md leading-6 whitespace-pre-line">{t('home.guestPrompt')}</p>
+                        <p className="opacity-40 text-sm text-center max-w-md leading-6 whitespace-pre-line">
+                            {t('home.guestPromptProvider', { provider: activeProvider?.displayName || activeProviderId })}
+                        </p>
                         <button
-                            onClick={initLogin}
+                            onClick={() => void initLogin()}
                             className="px-8 py-3 bg-white text-black rounded-full font-bold text-sm hover:scale-105 transition-transform"
                         >
-                            {t('home.connectAccount')}
+                            {t('home.connectProviderAccount', { provider: activeProvider?.shortName || activeProvider?.displayName || activeProviderId })}
                         </button>
                     </div>
-                ) : isNeteaseTab ? (
+                ) : isOnlineTab ? (
                     <DesktopGrid3DSurface
                         title={
                             homeViewTab === 'playlist'
@@ -717,7 +750,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             >
                                 ✕
                             </button>
-                            <h3 className="text-lg font-bold mb-6" style={{ color: 'var(--text-primary)' }}>{t('home.loginTitle')}</h3>
+                            <h3 className="text-lg font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
+                                {t(loginProviderId === 'kugou' ? 'home.loginTitleKugou' : 'home.loginTitle')}
+                            </h3>
 
                             <div className="relative inline-block bg-white p-2 rounded-xl mb-4 shadow-inner">
                                 {qrCodeImg ? (
@@ -734,29 +769,27 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             </p>
 
                             <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>
-                                {t('home.loginNote')}
+                                {t(loginProviderId === 'kugou' ? 'home.loginNoteKugou' : 'home.loginNote')}
                             </p>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* User Avatar - Back to Player */}
-            {user && (
-                <div className="absolute bottom-8 right-8 z-[100]">
-                    <div
-                        onClick={onBackToPlayer}
-                        className="group relative w-12 h-12 cursor-pointer rounded-full border border-white/20 hover:scale-105 transition-all overflow-hidden shadow-lg pointer-events-auto"
-                        title="Return to Player"
-                    >
-                        <img src={user.avatarUrl?.replace('http:', 'https:')} alt={user.nickname} className="w-full h-full object-cover" />
-
-                        {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                            <ChevronRight className="text-white" size={24} />
-                        </div>
-                    </div>
-                </div>
+            {onlineProviderPlatform && (
+                <OnlineProviderSwitcher
+                    providers={onlineProviderPlatform.providers}
+                    activeProviderId={activeProviderId}
+                    isDaylight={isDaylight}
+                    onBackToPlayer={onBackToPlayer}
+                    onSelect={provider => {
+                        if (provider.status === 'authenticated') {
+                            onlineProviderPlatform.setActiveProviderId(provider.providerId);
+                        } else {
+                            void initLogin(provider.providerId);
+                        }
+                    }}
+                />
             )}
 
         </div>

@@ -163,18 +163,29 @@ export function useNeteaseLibrary({
                 backgroundUrl: user.backgroundUrl,
                 vipType: user.vipType,
             } : null,
-            collections: playlists.map(playlist => ({
-                providerId: 'netease',
-                id: playlist.id,
-                name: playlist.name,
-                type: playlist.specialType === 'cloud' ? 'cloud' : 'playlist',
-                coverUrl: playlist.coverImgUrl,
-                description: playlist.description,
-                trackCount: playlist.trackCount,
-            })),
+            collections: [
+                ...playlists.map(playlist => ({
+                    providerId: 'netease',
+                    id: playlist.id,
+                    name: playlist.name,
+                    type: playlist.specialType === 'cloud' ? 'cloud' : 'playlist',
+                    coverUrl: playlist.coverImgUrl,
+                    description: playlist.description,
+                    trackCount: playlist.trackCount,
+                })),
+                ...(cloudPlaylist ? [{
+                    providerId: 'netease',
+                    id: cloudPlaylist.id,
+                    name: cloudPlaylist.name,
+                    type: 'cloud',
+                    coverUrl: cloudPlaylist.coverImgUrl,
+                    description: cloudPlaylist.description,
+                    trackCount: cloudPlaylist.trackCount,
+                }] : []),
+            ],
             likedSongIds: Array.from(likedSongIds),
         });
-    }, [likedSongIds, playlists, updateProviderAccount, user]);
+    }, [cloudPlaylist, likedSongIds, playlists, updateProviderAccount, user]);
 
     const updateCacheSize = useCallback(async () => {
         const size = await getCacheUsage();

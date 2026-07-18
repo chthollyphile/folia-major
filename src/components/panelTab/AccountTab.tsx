@@ -4,6 +4,8 @@ import { LogOut, SlidersHorizontal, HardDrive, Trash2, RefreshCw, Crown } from '
 import { useTranslation } from 'react-i18next';
 import { NeteaseUser } from '../../types';
 import type { AudioQualityPreference } from '../../types/onlineMusic';
+import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
 
 interface AccountTabProps {
     user: NeteaseUser | null;
@@ -29,6 +31,26 @@ const AccountTab: React.FC<AccountTabProps> = ({
     onNavigateHome,
 }) => {
     const { t } = useTranslation();
+    const activeProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
+    const providerAccount = useOnlineProviderAccountStore(state => state.accounts[state.activeProviderId]);
+    const clearProviderAccount = useOnlineProviderAccountStore(state => state.clearAccount);
+    const provider = getOnlineMusicProvider(activeProviderId);
+    const activeUser = providerAccount?.user || (activeProviderId === 'netease' && user ? {
+        id: user.userId,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        backgroundUrl: user.backgroundUrl,
+        vipType: user.vipType,
+    } : null);
+
+    const handleLogout = async () => {
+        if (activeProviderId === 'netease') {
+            onLogout();
+            return;
+        }
+        await provider?.auth?.logout();
+        clearProviderAccount(activeProviderId);
+    };
 
     return (
         <motion.div
@@ -36,30 +58,31 @@ const AccountTab: React.FC<AccountTabProps> = ({
             animate={{ opacity: 1 }}
             className="flex flex-col justify-start h-full"
         >
-            {user ? (
+            {activeUser ? (
                 <div className="flex flex-col gap-4">
                     {/* User Info with Logout in Header */}
                     <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full overflow-hidden">
                                 <img
-                                    src={user.avatarUrl?.replace('http:', 'https:')}
+                                    src={activeUser.avatarUrl?.replace('http:', 'https:')}
                                     className="w-full h-full object-cover"
-                                    alt={user.nickname}
+                                    alt={activeUser.nickname}
                                 />
                             </div>
                             <div>
                                 <div className="flex items-center gap-1.5">
-                                    <h3 className="font-bold text-sm">{user.nickname}</h3>
-                                    {user.vipType && user.vipType !== 0 && (
+                                    <h3 className="font-bold text-sm">{activeUser.nickname}</h3>
+                                    {activeUser.vipType && activeUser.vipType !== 0 && (
                                         <Crown size={14} className="text-white fill-white" />
                                     )}
                                 </div>
-                                <span className="text-[10px] font-mono opacity-40">ID: {user.userId}</span>
+                                <span className="block text-[10px] opacity-50">{provider?.shortName || provider?.displayName}</span>
+                                <span className="text-[10px] font-mono opacity-40">ID: {String(activeUser.id)}</span>
                             </div>
                         </div>
                         <button
-                            onClick={onLogout}
+                            onClick={() => void handleLogout()}
                             className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
                             title={t('account.logout')}
                         >
@@ -68,7 +91,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                     </div>
 
                     {/* Audio Quality Settings (VIP Only) */}
-                    {user.vipType && user.vipType !== 0 && (
+                    {activeUser.vipType && activeUser.vipType !== 0 && (
                         <div className="bg-white/5 p-3 rounded-xl">
                             <div className="flex items-center gap-2 mb-2 opacity-60">
                                 <SlidersHorizontal size={12} />
@@ -135,14 +158,14 @@ const AccountTab: React.FC<AccountTabProps> = ({
                             </button>
                         </div> */}
 
-                        <button
+                        {activeProviderId === 'netease' && <button
                             onClick={onSyncData}
                             disabled={isSyncing}
                             className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 text-xs font-bold opacity-80 transition-colors disabled:opacity-50"
                         >
                             <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
                             {isSyncing ? t('account.syncing') : t('account.syncData')}
-                        </button>
+                        </button>}
                     </div>
                 </div>
             ) : (

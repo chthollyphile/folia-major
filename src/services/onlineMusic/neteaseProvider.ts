@@ -95,6 +95,8 @@ const getLyrics = async (
 export const neteaseProvider: OnlineMusicProvider = {
     id: 'netease',
     displayName: 'NetEase Cloud Music',
+    shortName: '网易云',
+    getAvailability: () => ({ configured: true }),
     capabilities: {
         search: true,
         playback: true,
@@ -107,6 +109,12 @@ export const neteaseProvider: OnlineMusicProvider = {
         recommendations: true,
         mutations: true,
         wordByWordLyrics: true,
+        userCloud: true,
+        historyRecommendations: true,
+        playlistSubscription: true,
+        playlistTrackMutations: true,
+        likes: true,
+        userAlbums: true,
     },
     normalizeSong: normalizeNeteaseSong,
     search: {
@@ -174,6 +182,11 @@ export const neteaseProvider: OnlineMusicProvider = {
             const response = await neteaseApi.getLikedSongs(toNeteaseId(userId));
             return response?.ids || [];
         },
+        async getUserAlbums(_userId, limit, offset) {
+            const response = await neteaseApi.getFavoriteAlbums(limit, offset);
+            const items = (response?.data || []).map((item: any) => normalizeCollection(item, 'album'));
+            return { items, hasMore: Boolean(response?.hasMore), nextOffset: offset + items.length };
+        },
     },
     catalog: {
         async getPlaylistTracks(id, limit, offset) {
@@ -234,12 +247,23 @@ export const neteaseProvider: OnlineMusicProvider = {
             const response = await neteaseApi.getPersonalFm();
             return (response?.data || []).map(normalizeNeteaseSong);
         },
+        async getRecommendedCollections(limit) {
+            const response = await neteaseApi.getPersonalizedPlaylists(limit);
+            return (response?.result || []).map((item: any) => normalizeCollection(item));
+        },
+        async getHistoryEntries() {
+            const response = await neteaseApi.getDailyRecommendationHistoryDates();
+            const dates = response?.data?.dates || response?.dates || [];
+            return dates.map((date: string) => ({ id: date, label: date }));
+        },
         async getHistoryDates() {
             const response = await neteaseApi.getDailyRecommendationHistoryDates();
             return response?.data?.dates || response?.dates || [];
         },
-        async getHistorySongs(date) {
-            const response = await neteaseApi.getDailyRecommendationHistoryDetail(date);
+        async getHistorySongs(entry) {
+            const response = await neteaseApi.getDailyRecommendationHistoryDetail(
+                typeof entry === 'string' ? entry : entry.id,
+            );
             return (response?.data?.songs || response?.songs || []).map(normalizeNeteaseSong);
         },
         async dislikeSong(id) {
@@ -251,11 +275,17 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
     },
     mutations: {
-        async likeSong(id, liked) { await neteaseApi.likeSong(toNeteaseId(id), liked); },
-        async updatePlaylistTracks(operation, playlistId, trackIds) {
+        async likeSong(song, liked) {
+            await neteaseApi.likeSong(toNeteaseId(typeof song === 'object' ? song.id : song), liked);
+        },
+        async updatePlaylistTracks(operation, playlist, tracks) {
+            const playlistId = typeof playlist === 'object' ? playlist.id : playlist;
+            const trackIds = tracks.map(track => typeof track === 'object' ? track.id : track);
             await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
         },
-        async subscribePlaylist(id, subscribed) { await neteaseApi.subscribePlaylist(toNeteaseId(id), subscribed); },
+        async subscribePlaylist(playlist, subscribed) {
+            await neteaseApi.subscribePlaylist(toNeteaseId(typeof playlist === 'object' ? playlist.id : playlist), subscribed);
+        },
         async subscribeAlbum(id, subscribed) { await neteaseApi.subscribeAlbum(toNeteaseId(id), subscribed); },
     },
 };
