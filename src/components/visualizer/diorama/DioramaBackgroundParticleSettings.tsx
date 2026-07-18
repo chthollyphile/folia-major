@@ -1,22 +1,29 @@
 import React, { useId, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX,
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN,
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_STEP,
+    DIORAMA_MOTE_CIRCUMFERENCE_MAX,
+    DIORAMA_MOTE_CIRCUMFERENCE_MIN,
+    DIORAMA_MOTE_CIRCUMFERENCE_STEP,
+    DIORAMA_MOTE_RADIAL_MAX,
+    DIORAMA_MOTE_RADIAL_MIN,
+    DIORAMA_MOTE_RADIAL_STEP,
     type Theme,
 } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
 import { DioramaSettingsToggle } from './DioramaSettingsToggle';
 
 // src/components/visualizer/diorama/DioramaBackgroundParticleSettings.tsx
-// Collapsible controls for the background dust layer, matching the follow-sing effect groups.
+// Collapsible controls for the background dust layer, matching the follow-sing effect groups. The dust
+// sits in a shell around the flight axis, so its density has two INDEPENDENT axes: 圆周 (motes around each
+// ring) and 径向 (layers across the shell's thickness, inner->outer). Motes-per-line = the product.
 interface DioramaBackgroundParticleSettingsProps {
     label: string;
     enabled: boolean;
-    density: number;
+    circumference: number;
+    radial: number;
     onEnabledChange: (next: boolean) => void;
-    onDensityChange: (next: number) => void;
+    onCircumferenceChange: (next: number) => void;
+    onRadialChange: (next: number) => void;
     t: (key: string) => string;
     isDaylight: boolean;
     theme: Theme;
@@ -28,9 +35,11 @@ interface DioramaBackgroundParticleSettingsProps {
 export const DioramaBackgroundParticleSettings: React.FC<DioramaBackgroundParticleSettingsProps> = ({
     label,
     enabled,
-    density,
+    circumference,
+    radial,
     onEnabledChange,
-    onDensityChange,
+    onCircumferenceChange,
+    onRadialChange,
     t,
     isDaylight,
     theme,
@@ -40,12 +49,36 @@ export const DioramaBackgroundParticleSettings: React.FC<DioramaBackgroundPartic
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const controlsId = useId();
-    const densityLabel = t('options.dioramaBackgroundParticleDensity') || '粒子密度';
-    // Shown as a share of the cap rather than a raw count: the number that matters to the user is "how
-    // far up the safe range am I", and the cap itself is not a thing they can move.
-    const percent = Math.round(
-        ((density - DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN)
-            / (DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX - DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN)) * 100,
+
+    const renderRange = (
+        rowLabel: string,
+        value: number,
+        min: number,
+        max: number,
+        step: number,
+        onChange: (next: number) => void,
+    ) => (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0" style={{ color: 'var(--text-primary)' }}>{rowLabel}</div>
+                <span className="shrink-0 font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                    {Math.round(value)}
+                </span>
+            </div>
+            <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                disabled={!enabled}
+                aria-label={`${label} ${rowLabel}`}
+                onChange={(event) => onChange(parseFloat(event.target.value))}
+                onPointerDown={onSliderPointerDown}
+                onPointerUp={onSliderCommit}
+                className={`${rangeInputClass} disabled:cursor-not-allowed disabled:opacity-35`}
+            />
+        </div>
     );
 
     return (
@@ -89,28 +122,25 @@ export const DioramaBackgroundParticleSettings: React.FC<DioramaBackgroundPartic
             {isExpanded && (
                 <div
                     id={controlsId}
-                    className="ml-3 space-y-2 border-l pl-3"
+                    className="ml-3 space-y-3 border-l pl-3"
                     style={{ borderColor: colorWithAlpha(theme.accentColor, enabled ? 0.3 : 0.12) }}
                 >
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                        <div className="min-w-0" style={{ color: 'var(--text-primary)' }}>{densityLabel}</div>
-                        <span className="shrink-0 font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                            {percent}%
-                        </span>
-                    </div>
-                    <input
-                        type="range"
-                        min={DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN}
-                        max={DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX}
-                        step={DIORAMA_BACKGROUND_PARTICLE_DENSITY_STEP}
-                        value={density}
-                        disabled={!enabled}
-                        aria-label={`${label} ${densityLabel}`}
-                        onChange={(event) => onDensityChange(parseFloat(event.target.value))}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
-                        className={`${rangeInputClass} disabled:cursor-not-allowed disabled:opacity-35`}
-                    />
+                    {renderRange(
+                        t('options.dioramaMoteCircumference') || '圆周密度',
+                        circumference,
+                        DIORAMA_MOTE_CIRCUMFERENCE_MIN,
+                        DIORAMA_MOTE_CIRCUMFERENCE_MAX,
+                        DIORAMA_MOTE_CIRCUMFERENCE_STEP,
+                        onCircumferenceChange,
+                    )}
+                    {renderRange(
+                        t('options.dioramaMoteRadial') || '径向密度',
+                        radial,
+                        DIORAMA_MOTE_RADIAL_MIN,
+                        DIORAMA_MOTE_RADIAL_MAX,
+                        DIORAMA_MOTE_RADIAL_STEP,
+                        onRadialChange,
+                    )}
                 </div>
             )}
         </fieldset>

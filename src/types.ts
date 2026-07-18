@@ -524,12 +524,17 @@ export const DEFAULT_DIORAMA_GEOMETRY_VISIBILITY: DioramaGeometryVisibility = {
 export const DIORAMA_PARTICLE_DENSITY_MIN = 96;
 export const DIORAMA_PARTICLE_DENSITY_MAX = 1536;
 export const DIORAMA_PARTICLE_DENSITY_STEP = 24;
-// Background dust motes PER LINE of the resident window (see dioramaMoteField.ts). The MAX is a hard
-// safety cap, not taste: the window holds 8 lines, so it bounds the layer at 1120 points for low-end
-// GPUs and OBS browser sources however far the slider is dragged.
-export const DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN = 8;
-export const DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX = 140;
-export const DIORAMA_BACKGROUND_PARTICLE_DENSITY_STEP = 4;
+// Background dust motes PER LINE of the resident window (see dioramaMoteField.ts). The motes sit in a
+// shell around the flight axis, and the two axes are INDEPENDENT: 圆周 = motes around each ring, 径向 =
+// how many layers across the shell's thickness (inner→outer). Motes-per-line = 圆周 x 径向; the window
+// holds 8 lines, so MAX x MAX bounds the layer at 8*48*4 = 1536 points for low-end GPUs / OBS sources
+// however far the sliders are dragged. Default 28 x 2 = 56 matches the old single-slider default.
+export const DIORAMA_MOTE_CIRCUMFERENCE_MIN = 4;
+export const DIORAMA_MOTE_CIRCUMFERENCE_MAX = 48;
+export const DIORAMA_MOTE_CIRCUMFERENCE_STEP = 2;
+export const DIORAMA_MOTE_RADIAL_MIN = 1;
+export const DIORAMA_MOTE_RADIAL_MAX = 4;
+export const DIORAMA_MOTE_RADIAL_STEP = 1;
 export const DIORAMA_PARTICLE_SCALE_MIN = 0.65;
 export const DIORAMA_PARTICLE_SCALE_MAX = 1.6;
 export const DIORAMA_PARTICLE_SCALE_STEP = 0.05;
@@ -554,14 +559,21 @@ export interface DioramaTuning {
   particleGlowEnabled: boolean;
   particleGlowIntensity: number;
   showParticles: boolean;
-  /** Motes per line of the background dust window; the field clamps this to its own safety cap. */
-  backgroundParticleDensity: number;
+  /** Background dust shell, two INDEPENDENT axes (motes-per-line = the product; field clamps to its cap):
+   *  背景粒子·圆周密度 = motes around each ring, 背景粒子·径向密度 = layers across the shell thickness. */
+  backgroundParticleCircumference: number;
+  backgroundParticleRadial: number;
   /** 普通辉光跟唱: soft glow on the unit being sung. Independent toggle + strength. */
   glowEnabled: boolean;
   glowIntensity: number;
   /** 灵魂出窍跟唱: a ghost copy of the sung glyph drifts out of the text. Independent toggle + strength. */
   soulEnabled: boolean;
   soulIntensity: number;
+  /** 当前字漂移: a plain ON/OFF sub-switch of 灵魂出窍. ON lets the glyph CURRENTLY being sung drift at the
+   *  same 灵魂出窍强度 as every other glyph; OFF holds it perfectly registered (no doubling / reading
+   *  obstruction) until it finishes, after which it detaches and flies like the rest. No strength of its
+   *  own - it borrows soulIntensity. Only has a visible effect when soulEnabled. */
+  soulActiveEnabled: boolean;
   /** 渐变跟唱: the line's fill progressively deepens with the sung progress. Independent toggle + strength. */
   gradientEnabled: boolean;
   gradientIntensity: number;
@@ -581,11 +593,13 @@ export const DEFAULT_DIORAMA_TUNING: DioramaTuning = {
   particleGlowEnabled: true,
   particleGlowIntensity: 0.65,
   showParticles: true,
-  backgroundParticleDensity: 56,
+  backgroundParticleCircumference: 28,
+  backgroundParticleRadial: 2,
   glowEnabled: true,
   glowIntensity: 1,
   soulEnabled: true,
   soulIntensity: 1,
+  soulActiveEnabled: false,
   gradientEnabled: false,
   gradientIntensity: 1,
   keywordColoringEnabled: true,

@@ -404,8 +404,11 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
                         particleGlowEnabled={dioramaTuning?.particleGlowEnabled ?? DEFAULT_DIORAMA_TUNING.particleGlowEnabled}
                         particleGlowIntensity={dioramaTuning?.particleGlowIntensity ?? DEFAULT_DIORAMA_TUNING.particleGlowIntensity}
                         showParticles={dioramaTuning?.showParticles ?? true}
-                        backgroundParticleDensity={
-                            dioramaTuning?.backgroundParticleDensity ?? DEFAULT_DIORAMA_TUNING.backgroundParticleDensity
+                        backgroundParticleCircumference={
+                            dioramaTuning?.backgroundParticleCircumference ?? DEFAULT_DIORAMA_TUNING.backgroundParticleCircumference
+                        }
+                        backgroundParticleRadial={
+                            dioramaTuning?.backgroundParticleRadial ?? DEFAULT_DIORAMA_TUNING.backgroundParticleRadial
                         }
                         lyricsFontScale={lyricsFontScale}
                         // Each follow-sing effect resolves to an EFFECTIVE strength here (0 when its
@@ -414,6 +417,8 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
                             ? (dioramaTuning?.glowIntensity ?? DEFAULT_DIORAMA_TUNING.glowIntensity) : 0}
                         soulIntensity={(dioramaTuning?.soulEnabled ?? DEFAULT_DIORAMA_TUNING.soulEnabled)
                             ? (dioramaTuning?.soulIntensity ?? DEFAULT_DIORAMA_TUNING.soulIntensity) : 0}
+                        soulActiveEnabled={(dioramaTuning?.soulEnabled ?? DEFAULT_DIORAMA_TUNING.soulEnabled)
+                            && (dioramaTuning?.soulActiveEnabled ?? DEFAULT_DIORAMA_TUNING.soulActiveEnabled)}
                         gradientIntensity={(dioramaTuning?.gradientEnabled ?? DEFAULT_DIORAMA_TUNING.gradientEnabled)
                             ? (dioramaTuning?.gradientIntensity ?? DEFAULT_DIORAMA_TUNING.gradientIntensity) : 0}
                         keywordColoringEnabled={dioramaTuning?.keywordColoringEnabled

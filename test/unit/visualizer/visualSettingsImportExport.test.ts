@@ -105,11 +105,13 @@ describe('Visual Settings Import and Export', () => {
             particleGlowEnabled: true,
             particleGlowIntensity: 0.75,
             showParticles: false,
-            backgroundParticleDensity: 96,
+            backgroundParticleCircumference: 40,
+            backgroundParticleRadial: 3,
             glowEnabled: true,
             glowIntensity: 0.8,
             soulEnabled: false,
             soulIntensity: 1,
+            soulActiveEnabled: true,
             gradientEnabled: true,
             gradientIntensity: 0.7,
             keywordColoringEnabled: false,
@@ -187,6 +189,9 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.claddaghTuning?.ellipseTiltDeg).toBe(52);
         expect(decoded.dioramaTuning?.geometryVisibility).toEqual(sampleConfig.dioramaTuning.geometryVisibility);
         expect(decoded.dioramaTuning?.showParticles).toBe(false);
+        expect(decoded.dioramaTuning?.soulActiveEnabled).toBe(true);
+        expect(decoded.dioramaTuning?.backgroundParticleCircumference).toBe(40);
+        expect(decoded.dioramaTuning?.backgroundParticleRadial).toBe(3);
         expect(decoded.theme?.light.name).toBe('Light Gold');
         expect(decoded.theme?.dark.accentColor).toBe('#fbbf24');
         expect(decoded.monetBackgroundTuning?.backgroundBlurPx).toBe(4);

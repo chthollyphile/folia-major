@@ -39,7 +39,8 @@ import {
     DIORAMA_MOTE_WINDOW_LINES,
     dioramaMoteSlot,
     extendDioramaFrame,
-    resolveDioramaMoteDensity,
+    resolveDioramaMoteCircumference,
+    resolveDioramaMoteRadial,
     writeDioramaMoteLine,
 } from './dioramaMoteField';
 
@@ -88,8 +89,10 @@ interface DioramaSceneProps {
     showLyrics: boolean;
     /** Background particle-mote layer toggle (from the diorama tuning panel). */
     showParticles: boolean;
-    /** Requested motes per line of the resident window; the field clamps it to a safe cap. */
-    backgroundParticleDensity: number;
+    /** Background dust shell's two independent axes; the field clamps each to its cap and multiplies them
+     *  into the per-line mote count. 圆周 = motes around each ring, 径向 = layers across the shell thickness. */
+    backgroundParticleCircumference: number;
+    backgroundParticleRadial: number;
     /** Parent + per-family visibility for the staged point-cloud layer. */
     geometryVisibility: DioramaGeometryVisibility;
     /** Requested number of points per formation anchor (the particle builder also enforces a global cap). */
@@ -105,6 +108,11 @@ interface DioramaSceneProps {
     glowIntensity: number;
     /** 灵魂出窍跟唱 EFFECTIVE strength (toggle off resolves to 0) - the drifting ghost copy. */
     soulIntensity: number;
+    /** 当前字漂移 ON/OFF (already ANDed with the master 灵魂出窍 toggle upstream). ON lets the glyph being
+     *  sung right now drift at the same soulIntensity as the rest; OFF keeps it registered and clean (no
+     *  doubling / reading obstruction) until it finishes. The already-sung detach flight is untouched
+     *  either way. Has no strength of its own - it borrows soulIntensity. */
+    soulActiveEnabled: boolean;
     /** 渐变跟唱 EFFECTIVE strength (toggle off resolves to 0) - fill deepens with sung progress. */
     gradientIntensity: number;
     /** 关键字着色: the theme's keyword units take their own emphasis colour as their follow-sing TARGET -
@@ -203,6 +211,10 @@ const SOUL_ACTIVE_LIFT_EM = 0.06;
 const SOUL_DETACH_LIFT_EM = 0.5;
 const SOUL_ACTIVE_SWELL = 0.1;
 const SOUL_DETACH_SWELL = 0.3;
+// How long AFTER a glyph finishes the ghost eases from "registered on the glyph" (当前字漂移) to full
+// "out-of-body flight" (灵魂出窍强度). Read from the clock, so it is exactly 0 the whole time the glyph
+// is being sung - the currently-sung glyph can never pick up the flight, no matter its envelope charge.
+const SOUL_HANDOFF_SECONDS = 0.5;
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
@@ -400,7 +412,8 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     motion,
     showLyrics,
     showParticles,
-    backgroundParticleDensity,
+    backgroundParticleCircumference,
+    backgroundParticleRadial,
     geometryVisibility,
     particleDensity,
     particleScale,
@@ -409,6 +422,7 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     lyricsFontScale,
     glowIntensity,
     soulIntensity,
+    soulActiveEnabled,
     gradientIntensity,
     keywordColoringEnabled,
 }) => {
@@ -605,7 +619,11 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // (see dioramaMoteField.ts). The buffer is fixed-size and recycled in place per-frame below, so the
     // draw cost is bounded by the density cap no matter how long the song is.
     const activeSegKey = activeSeg?.key ?? 'x';
-    const moteDensity = resolveDioramaMoteDensity(backgroundParticleDensity);
+    // Two independent axes for the dust shell: 圆周 (motes around each ring) x 径向 (layers across the
+    // shell thickness). The per-line count is their product; the buffer is sized from it as before.
+    const moteCircumference = resolveDioramaMoteCircumference(backgroundParticleCircumference);
+    const moteRadial = resolveDioramaMoteRadial(backgroundParticleRadial);
+    const moteDensity = moteCircumference * moteRadial;
     const motePositions = useMemo(
         () => new Float32Array(DIORAMA_MOTE_WINDOW_LINES * moteDensity * 3),
         [moteDensity]
@@ -877,7 +895,8 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
                     motePositions,
                     extendDioramaFrame(resolved.frame, line - anchorLine),
                     line,
-                    moteDensity,
+                    moteCircumference,
+                    moteRadial,
                     activeSeg?.seed,
                 );
                 written[slot] = line;
@@ -1053,23 +1072,37 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
                     glowMesh.visible = glowLevel > 0.012;
                 }
 
-                // 灵魂出窍 (visual layer only - reads the unified colour as its energy tint): its own
-                // slow-release envelope - the ghost hugs the glyph while it is sung (soulVals ~1,
-                // detach ~0), then DETACHES as the envelope releases: rising, swelling and fading
-                // like the glyph's energy layer leaving the body.
+                // 灵魂出窍 (visual layer only - reads the unified colour as its energy tint): TWO disjoint
+                // ghosts split by the glyph's PLAYBACK PHASE, read from the clock - NOT from the envelope
+                // magnitude (that was the leak: a short/fast glyph never lets soulVals reach 1, so
+                // `1-soulVals` fed the flight onto the glyph WHILE it was still being sung):
+                //   while CURRENT (now in [start,end)) -> registered ghost ON the glyph, the reading-
+                //     obstruction doubling            -> gated by the 当前字漂移 ON/OFF switch
+                //   once FINISHED (now >= end)         -> flight ghost rising, swelling and fading away, the trail
+                //     -> always on, at 灵魂出窍强度 (soulIntensity)
+                // `flightMix` is exactly 0 for the WHOLE time the glyph is current (sung is false then) and
+                // eases 0->1 over SOUL_HANDOFF_SECONDS after it finishes. 当前字漂移 is a plain on/off: ON lets
+                // the CURRENT glyph drift at the SAME soulIntensity as the trail; OFF holds it registered and
+                // clean (opacity/lift/swell all 0) until it finishes, while the trail still flies at full
+                // strength. The mix is continuous from 0 at the hand-off so nothing pops when the singing steps
+                // to the next glyph. soulVals stays the fade-in/out CHARGE (so the trail still fades as it
+                // flies). With 当前字漂移 ON, opacity collapses to SOUL_MAX*life*soulVals - the old look.
                 soulVals[i] = stepEnvelope(soulVals[i], isCurrent ? 1 : 0, 12, 2.2, delta);
-                const soulStrength = Math.min(1.5, soulIntensity);
-                const soulLevel = soulVals[i] * life * soulStrength;
                 const soulMat = unitSoulMatRefs.current[i];
                 const soulMesh = unitSoulMeshRefs.current[i];
                 if (soulMat && soulMesh) {
-                    const detach = 1 - soulVals[i];
-                    soulMat.opacity = Math.min(1, SOUL_MAX_OPACITY * soulLevel);
+                    const soulStrength = Math.min(1.5, soulIntensity);       // 灵魂出窍强度: drives both phases
+                    const flightMix = sung ? smoothstep01(clamp01((now - unit.endTime) / SOUL_HANDOFF_SECONDS)) : 0;
+                    // 当前字漂移 ON => the current glyph drifts at the same strength as everything else; OFF => 0.
+                    const activeReach = soulActiveEnabled ? soulStrength : 0;
+                    const onGlyph = (1 - flightMix) * activeReach;   // registered doubling, current glyph only
+                    const flown = flightMix * soulStrength;          // out-of-body flight, finished glyph only
                     soulMat.color.copy(baseMat.color);
-                    soulMesh.position.y = LINE_FONT_SIZE * (SOUL_ACTIVE_LIFT_EM + SOUL_DETACH_LIFT_EM * detach) * soulStrength;
-                    const soulSwell = 1 + (SOUL_ACTIVE_SWELL * soulVals[i] + SOUL_DETACH_SWELL * detach) * soulStrength;
+                    soulMat.opacity = Math.min(1, SOUL_MAX_OPACITY * life * soulVals[i] * (onGlyph + flown));
+                    soulMesh.position.y = LINE_FONT_SIZE * (SOUL_ACTIVE_LIFT_EM * onGlyph + SOUL_DETACH_LIFT_EM * flown);
+                    const soulSwell = 1 + SOUL_ACTIVE_SWELL * onGlyph + SOUL_DETACH_SWELL * flown;
                     soulMesh.scale.set(soulSwell, soulSwell, 1);
-                    soulMesh.visible = soulLevel > 0.015;
+                    soulMesh.visible = soulMat.opacity > 0.015;
                 }
             });
         } else {

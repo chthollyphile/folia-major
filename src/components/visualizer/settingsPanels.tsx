@@ -6,7 +6,7 @@ import { DioramaGeometrySettings } from './diorama/DioramaGeometrySettings';
 import { DioramaBackgroundParticleSettings } from './diorama/DioramaBackgroundParticleSettings';
 import { DioramaEffectSettings } from './diorama/DioramaEffectSettings';
 import { DioramaSettingsToggle } from './diorama/DioramaSettingsToggle';
-import { resolveDioramaMoteDensity } from './diorama/dioramaMoteField';
+import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from './diorama/dioramaMoteField';
 
 // src/components/visualizer/settingsPanels.tsx
 // Mode-owned preview settings panels used by discoverable visualizer entries.
@@ -988,13 +988,17 @@ export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             ),
         ),
         showParticles: dioramaTuning.showParticles ?? DEFAULT_DIORAMA_TUNING.showParticles,
-        backgroundParticleDensity: resolveDioramaMoteDensity(
-            dioramaTuning.backgroundParticleDensity ?? DEFAULT_DIORAMA_TUNING.backgroundParticleDensity,
+        backgroundParticleCircumference: resolveDioramaMoteCircumference(
+            dioramaTuning.backgroundParticleCircumference ?? DEFAULT_DIORAMA_TUNING.backgroundParticleCircumference,
+        ),
+        backgroundParticleRadial: resolveDioramaMoteRadial(
+            dioramaTuning.backgroundParticleRadial ?? DEFAULT_DIORAMA_TUNING.backgroundParticleRadial,
         ),
         glowEnabled: dioramaTuning.glowEnabled ?? DEFAULT_DIORAMA_TUNING.glowEnabled,
         glowIntensity: Math.min(1.5, Math.max(0.1, dioramaTuning.glowIntensity ?? DEFAULT_DIORAMA_TUNING.glowIntensity)),
         soulEnabled: dioramaTuning.soulEnabled ?? DEFAULT_DIORAMA_TUNING.soulEnabled,
         soulIntensity: Math.min(1.5, Math.max(0.1, dioramaTuning.soulIntensity ?? DEFAULT_DIORAMA_TUNING.soulIntensity)),
+        soulActiveEnabled: dioramaTuning.soulActiveEnabled ?? DEFAULT_DIORAMA_TUNING.soulActiveEnabled,
         gradientEnabled: dioramaTuning.gradientEnabled ?? DEFAULT_DIORAMA_TUNING.gradientEnabled,
         gradientIntensity: Math.min(1.5, Math.max(0.1, dioramaTuning.gradientIntensity ?? DEFAULT_DIORAMA_TUNING.gradientIntensity)),
         keywordColoringEnabled: dioramaTuning.keywordColoringEnabled ?? DEFAULT_DIORAMA_TUNING.keywordColoringEnabled,
@@ -1091,12 +1095,19 @@ export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 onSliderPointerDown={onSliderPointerDown}
                 onSliderCommit={onSliderCommit}
             />
+            {/* 灵魂出窍跟唱, with 当前字漂移 as its nested child (same underlying effect, scoped to the word
+                being sung) rendered inside its expanded panel - not a standalone effect in the list. */}
             <DioramaEffectSettings
                 label={t('options.dioramaSoulEffect') || '灵魂出窍跟唱'}
                 enabled={resolvedTuning.soulEnabled}
                 intensity={resolvedTuning.soulIntensity}
                 onEnabledChange={(next) => handleDioramaTuningChange({ soulEnabled: next })}
                 onIntensityChange={(next) => handleDioramaTuningChange({ soulIntensity: next })}
+                subEffect={{
+                    label: t('options.dioramaSoulActiveEffect') || '当前字出窍',
+                    enabled: resolvedTuning.soulActiveEnabled,
+                    onEnabledChange: (next) => handleDioramaTuningChange({ soulActiveEnabled: next }),
+                }}
                 t={t}
                 isDaylight={isDaylight}
                 theme={theme}
@@ -1162,9 +1173,11 @@ export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             <DioramaBackgroundParticleSettings
                 label={t('options.dioramaShowParticles') || '背景粒子'}
                 enabled={resolvedTuning.showParticles}
-                density={resolvedTuning.backgroundParticleDensity}
+                circumference={resolvedTuning.backgroundParticleCircumference}
+                radial={resolvedTuning.backgroundParticleRadial}
                 onEnabledChange={(next) => handleDioramaTuningChange({ showParticles: next })}
-                onDensityChange={(backgroundParticleDensity) => handleDioramaTuningChange({ backgroundParticleDensity })}
+                onCircumferenceChange={(backgroundParticleCircumference) => handleDioramaTuningChange({ backgroundParticleCircumference })}
+                onRadialChange={(backgroundParticleRadial) => handleDioramaTuningChange({ backgroundParticleRadial })}
                 t={t}
                 isDaylight={isDaylight}
                 theme={theme}

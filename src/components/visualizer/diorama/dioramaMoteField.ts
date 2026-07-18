@@ -1,6 +1,8 @@
 import {
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX,
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN,
+    DIORAMA_MOTE_CIRCUMFERENCE_MAX,
+    DIORAMA_MOTE_CIRCUMFERENCE_MIN,
+    DIORAMA_MOTE_RADIAL_MAX,
+    DIORAMA_MOTE_RADIAL_MIN,
     DEFAULT_DIORAMA_TUNING,
 } from '../../../types';
 import {
@@ -36,16 +38,30 @@ export const DIORAMA_MOTE_LINES_AHEAD = 5;
 export const DIORAMA_MOTE_WINDOW_LINES = DIORAMA_MOTE_LINES_BEHIND + DIORAMA_MOTE_LINES_AHEAD + 1;
 
 /** Worst-case points the layer can ever draw - the density cap's whole reason for existing. */
-export const DIORAMA_MOTE_MAX_POINTS = DIORAMA_MOTE_WINDOW_LINES * DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX;
+export const DIORAMA_MOTE_MAX_POINTS = DIORAMA_MOTE_WINDOW_LINES
+    * DIORAMA_MOTE_CIRCUMFERENCE_MAX * DIORAMA_MOTE_RADIAL_MAX;
 
-/** Clamp a requested motes-per-line into the safe range (see the cap's note in types.ts). */
-export const resolveDioramaMoteDensity = (requested: number): number => Math.round(Math.min(
-    DIORAMA_BACKGROUND_PARTICLE_DENSITY_MAX,
+/** Clamp a requested 圆周 count (motes around each ring) into its safe range. */
+export const resolveDioramaMoteCircumference = (requested: number): number => Math.round(Math.min(
+    DIORAMA_MOTE_CIRCUMFERENCE_MAX,
     Math.max(
-        DIORAMA_BACKGROUND_PARTICLE_DENSITY_MIN,
-        Number.isFinite(requested) ? requested : DEFAULT_DIORAMA_TUNING.backgroundParticleDensity,
+        DIORAMA_MOTE_CIRCUMFERENCE_MIN,
+        Number.isFinite(requested) ? requested : DEFAULT_DIORAMA_TUNING.backgroundParticleCircumference,
     ),
 ));
+
+/** Clamp a requested 径向 count (layers across the shell thickness) into its safe range. */
+export const resolveDioramaMoteRadial = (requested: number): number => Math.round(Math.min(
+    DIORAMA_MOTE_RADIAL_MAX,
+    Math.max(
+        DIORAMA_MOTE_RADIAL_MIN,
+        Number.isFinite(requested) ? requested : DEFAULT_DIORAMA_TUNING.backgroundParticleRadial,
+    ),
+));
+
+/** Motes drawn per line = 圆周 x 径向, both already clamped. */
+export const resolveDioramaMoteCount = (circumference: number, radial: number): number =>
+    resolveDioramaMoteCircumference(circumference) * resolveDioramaMoteRadial(radial);
 
 /** Which ring-buffer slot a line owns. Consecutive lines always land in distinct slots. */
 export const dioramaMoteSlot = (line: number): number => (
@@ -107,30 +123,42 @@ export const writeDioramaMoteLine = (
     out: Float32Array,
     frame: DioramaFrame,
     line: number,
-    density: number,
+    circumference: number,
+    radial: number,
     seed: string | number | undefined,
 ): void => {
     const base = hashSeed(seed);
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const phase = seededUnit(base + 991) * Math.PI * 2;
-    let write = dioramaMoteSlot(line) * density * 3;
-    for (let p = 0; p < density; p += 1) {
-        const s = base + line * 131 + p * 17;
-        const sampleIndex = line * density + p;
-        const angle = phase + sampleIndex * goldenAngle + (seededUnit(s + 3) - 0.5) * 0.18;
-        const stratum = (p + 0.35 + seededUnit(s + 4) * 0.3) / density;
-        const radius = MOTE_INNER_RADIUS + Math.sqrt(stratum) * MOTE_RADIAL_SPAN;
-        const depth = (radicalInverse(p + 1, 2) + (seededUnit(s + 2) - 0.5) / density - 0.5)
-            * DIORAMA_STEP_DISTANCE;
-        const point = composeLocal(
-            frame,
-            Math.cos(angle) * radius,
-            Math.sin(angle) * radius * MOTE_VERTICAL_SQUASH,
-            depth,
-        );
-        out[write] = point.x;
-        out[write + 1] = point.y;
-        out[write + 2] = point.z;
-        write += 3;
+    const twoPi = Math.PI * 2;
+    const phase = seededUnit(base + 991) * twoPi;
+    const total = circumference * radial;
+    let write = dioramaMoteSlot(line) * total * 3;
+    // Two INDEPENDENT axes: `radial` layers across the shell thickness, `circumference` motes around each.
+    // The layer index drives the radius (sqrt-stratified so the shell stays area-uniform, not centre-heavy);
+    // the segment index drives the angle (evenly spaced round the ring). Decorrelation keeps it from ever
+    // reading as a rigid grid: each LINE and each LAYER is rotated by the golden angle (so consecutive lines
+    // and stacked layers never align into spokes), plus a seeded half-cell jitter on angle and radius.
+    for (let ri = 0; ri < radial; ri += 1) {
+        for (let ci = 0; ci < circumference; ci += 1) {
+            const p = ri * circumference + ci;
+            const s = base + line * 131 + p * 17;
+            const stratum = (ri + 0.35 + seededUnit(s + 4) * 0.3) / radial;
+            const radius = MOTE_INNER_RADIUS + Math.sqrt(stratum) * MOTE_RADIAL_SPAN;
+            const angle = phase + (line + ri) * goldenAngle
+                + (ci / circumference) * twoPi
+                + (seededUnit(s + 3) - 0.5) * (twoPi / circumference);
+            const depth = (radicalInverse(p + 1, 2) + (seededUnit(s + 2) - 0.5) / total - 0.5)
+                * DIORAMA_STEP_DISTANCE;
+            const point = composeLocal(
+                frame,
+                Math.cos(angle) * radius,
+                Math.sin(angle) * radius * MOTE_VERTICAL_SQUASH,
+                depth,
+            );
+            out[write] = point.x;
+            out[write + 1] = point.y;
+            out[write + 2] = point.z;
+            write += 3;
+        }
     }
 };

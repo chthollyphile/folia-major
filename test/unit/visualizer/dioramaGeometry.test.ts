@@ -35,7 +35,8 @@ import {
     DIORAMA_MOTE_WINDOW_LINES,
     dioramaMoteSlot,
     extendDioramaFrame,
-    resolveDioramaMoteDensity,
+    resolveDioramaMoteCircumference,
+    resolveDioramaMoteRadial,
     writeDioramaMoteLine,
 } from '@/components/visualizer/diorama/dioramaMoteField';
 import {
@@ -1212,10 +1213,12 @@ describe('Diorama background motes', () => {
         right: { x: 1, y: 0, z: 0 },
         up: { x: 0, y: 1, z: 0 },
     };
-    const DENSITY = 24;
+    const CIRC = 8;
+    const RAD = 4;
+    const DENSITY = CIRC * RAD;
     const writeOne = (line: number, seed = 'mote-seed'): Float32Array => {
         const out = new Float32Array(DIORAMA_MOTE_WINDOW_LINES * DENSITY * 3);
-        writeDioramaMoteLine(out, frame, line, DENSITY, seed);
+        writeDioramaMoteLine(out, frame, line, CIRC, RAD, seed);
         return out;
     };
     /** The motes one line owns, as [x,y,z] triples read back out of its ring slot. */
@@ -1247,10 +1250,13 @@ describe('Diorama background motes', () => {
         }
     });
 
-    it('caps the point count however far the density slider is dragged', () => {
-        expect(resolveDioramaMoteDensity(1e9) * DIORAMA_MOTE_WINDOW_LINES).toBeLessThanOrEqual(DIORAMA_MOTE_MAX_POINTS);
-        expect(resolveDioramaMoteDensity(-50)).toBeGreaterThan(0);
-        expect(resolveDioramaMoteDensity(Number.NaN)).toBe(DEFAULT_DIORAMA_TUNING.backgroundParticleDensity);
+    it('caps the point count however far the two density sliders are dragged', () => {
+        expect(resolveDioramaMoteCircumference(1e9) * resolveDioramaMoteRadial(1e9) * DIORAMA_MOTE_WINDOW_LINES)
+            .toBeLessThanOrEqual(DIORAMA_MOTE_MAX_POINTS);
+        expect(resolveDioramaMoteCircumference(-50)).toBeGreaterThan(0);
+        expect(resolveDioramaMoteRadial(-50)).toBeGreaterThan(0);
+        expect(resolveDioramaMoteCircumference(Number.NaN)).toBe(DEFAULT_DIORAMA_TUNING.backgroundParticleCircumference);
+        expect(resolveDioramaMoteRadial(Number.NaN)).toBe(DEFAULT_DIORAMA_TUNING.backgroundParticleRadial);
     });
 
     it('extends a frame in a straight line one step per line past the lyrics', () => {
@@ -1284,11 +1290,12 @@ describe('Diorama background motes', () => {
         // camera had almost nothing near it. A window that cannot reach past its own line count cannot
         // do that, whatever the song's length.
         const frames = buildDioramaPath(60, 'mote-window');
-        const density = 32;
-        const buffer = new Float32Array(DIORAMA_MOTE_WINDOW_LINES * density * 3);
+        const circ = 8;
+        const rad = 4;
+        const buffer = new Float32Array(DIORAMA_MOTE_WINDOW_LINES * circ * rad * 3);
         const head = 20;
         for (let line = head - DIORAMA_MOTE_LINES_BEHIND; line <= head + DIORAMA_MOTE_LINES_AHEAD; line += 1) {
-            writeDioramaMoteLine(buffer, frames[line], line, density, 'mote-window');
+            writeDioramaMoteLine(buffer, frames[line], line, circ, rad, 'mote-window');
         }
         const anchor = frames[head].position;
         let farthest = 0;
@@ -1301,7 +1308,7 @@ describe('Diorama background motes', () => {
         // Window reach + the shell radius, and nothing beyond it.
         expect(farthest).toBeLessThan((DIORAMA_MOTE_LINES_AHEAD + 1) * DIORAMA_STEP_DISTANCE + 8);
         // ...and the near band is where the motes actually are, which is the other half of the bug.
-        expect(near).toBeGreaterThan(density * 2);
+        expect(near).toBeGreaterThan(circ * rad * 2);
     });
 });
 
