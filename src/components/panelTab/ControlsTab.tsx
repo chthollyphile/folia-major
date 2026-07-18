@@ -11,7 +11,6 @@ import { resolveVisualizerBackgroundMode, useSettingsUiStore } from '../../store
 import { syncNow } from '../../services/sync/syncCoordinator';
 import { isSyncConfigured } from '../../services/sync/syncConfig';
 import QuickEffectPicker from './QuickEffectPicker';
-import { buildCurrentObsUrl } from '../../utils/currentObsUrl';
 
 // Controls tab composes compact visualizer and background pickers without changing player state flow.
 
@@ -80,19 +79,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
     const openThemeQuickEditor = useThemeQuickEditorStore(state => state.openEditor);
     const openSettings = useSettingsUiStore(state => state.openSettings);
     const statusSetter = useSettingsUiStore(state => state.statusSetter);
-    // OBS static URL is a web-deploy concept, so this copy button is web-only.
-    const isElectron = typeof window !== 'undefined' && Boolean((window as { electron?: unknown }).electron);
-    const [obsUrlCopied, setObsUrlCopied] = useState(false);
-    const handleCopyObsUrl = async () => {
-        try {
-            await navigator.clipboard.writeText(buildCurrentObsUrl('now-playing'));
-            setObsUrlCopied(true);
-            window.setTimeout(() => setObsUrlCopied(false), 1600);
-            statusSetter?.({ type: 'success', text: t('status.copied') });
-        } catch (err) {
-            console.error('Failed to copy OBS URL:', err);
-        }
-    };
     const visualizerBackgroundMode = useSettingsUiStore(state => state.visualizerBackgroundMode);
     const monetBackgroundTuning = useSettingsUiStore(state => state.monetBackgroundTuning);
     const setMonetBackgroundTuning = useSettingsUiStore(state => state.handleSetMonetBackgroundTuning);
@@ -528,18 +514,6 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                     </div>
                 </div>
 
-                {!isElectron && (
-                    <div className="pt-2 border-t border-white/5">
-                        <button
-                            type="button"
-                            onClick={() => void handleCopyObsUrl()}
-                            className={`w-full py-2 flex items-center justify-center gap-2 text-[10px] font-medium rounded-lg transition-all ${buttonBg}`}
-                        >
-                            {obsUrlCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-                            {obsUrlCopied ? t('status.copied') : t('options.copyObsUrl')}
-                        </button>
-                    </div>
-                )}
             </div>
 
         </motion.div>
