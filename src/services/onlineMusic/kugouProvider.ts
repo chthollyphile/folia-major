@@ -215,33 +215,33 @@ export const kugouProvider: OnlineMusicProvider = {
                 for (const requestVariant of requestVariants) {
                     try {
                         const response = await requestKugou(requestVariant.operation, requestVariant.params);
-                    const data = dataOf(response);
-                    const url = audioUrlOf(
-                        valueOf(data, 'play_url', 'playUrl', 'url')
-                        ?? valueOf(data?.[0], 'url', 'play_url'),
-                    );
-                    if (url) {
-                        console.info('[KuGouProvider] playback:url-resolved', {
+                        const data = dataOf(response);
+                        const url = audioUrlOf(
+                            valueOf(data, 'play_url', 'playUrl', 'url')
+                            ?? valueOf(data?.[0], 'url', 'play_url'),
+                        );
+                        if (url) {
+                            console.info('[KuGouProvider] playback:url-resolved', {
+                                hash,
+                                requestedQuality: quality,
+                                resolvedQuality: candidateQuality,
+                                requestVariant: requestVariant.name,
+                            });
+                            return {
+                                // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
+                                url,
+                                fetchedAt: Date.now(),
+                                quality: candidateQuality,
+                            };
+                        }
+                        console.warn('[KuGouProvider] playback:no-url', {
                             hash,
                             requestedQuality: quality,
-                            resolvedQuality: candidateQuality,
+                            candidateQuality,
                             requestVariant: requestVariant.name,
+                            status: data?.status ?? response?.status,
+                            errorCode: data?.errcode ?? data?.error_code ?? response?.errcode ?? response?.error_code,
                         });
-                        return {
-                            // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
-                            url,
-                            fetchedAt: Date.now(),
-                            quality: candidateQuality,
-                        };
-                    }
-                    console.warn('[KuGouProvider] playback:no-url', {
-                        hash,
-                        requestedQuality: quality,
-                        candidateQuality,
-                        requestVariant: requestVariant.name,
-                        status: data?.status ?? response?.status,
-                        errorCode: data?.errcode ?? data?.error_code ?? response?.errcode ?? response?.error_code,
-                    });
                     } catch (error) {
                         console.warn('[KuGouProvider] playback:quality-failed', {
                             hash,
