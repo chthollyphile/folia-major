@@ -9,7 +9,7 @@ import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, setLoc
 import { applyLocalLibraryEntityDisplay, buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong, resolveLocalSongMetadata } from '../services/playbackAdapters';
 import { getPrefetchedData } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
-import { extractCloudLyricText, hasRenderableLyrics } from '../utils/appPlaybackHelpers';
+import { hasRenderableLyrics } from '../utils/appPlaybackHelpers';
 import {
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
@@ -21,17 +21,21 @@ import {
     resolveNavidromePlaybackCarrier,
 } from '../utils/appPlaybackGuards';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../utils/appNavidromeLyrics';
-import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { migrateMatchedLyricsCarrierRenderHints } from '../utils/lyrics/storageMigration';
 import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { resolveExplicitFileTimedLyricFormat } from '../utils/lyrics/formatDetection';
-import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from '../services/netease';
+import { neteaseApi } from '../services/netease';
+import { getOnlineMusicProviderForSong } from '../services/onlineMusic/providerRegistry';
+import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
+import { getSongCacheWithLegacyMigration } from '../services/onlineMusic/resourceCache';
+import { getProviderCacheKey } from '../services/onlineMusic/providerStorage';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { PlayerState } from '../types';
 import type { LyricData, LocalPlaylist, LocalSong, OnlineLyricsState, QueueAddBehavior, SongResult, StatusMessage } from '../types';
+import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { PlaybackSnapshot, PlaybackNavigationOptions } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
 import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal';
@@ -41,6 +45,7 @@ import { createSafeObjectUrl, getBlobObjectUrlSignature, isBlob } from '../utils
 import { applyMatchedMetadata } from '../services/localLibraryCatalogService';
 import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata, shouldRunLocalSongAutomaticMatch } from '../utils/lyrics/localSongMatchContext';
 import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRepository';
+import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 
 // src/hooks/useLibraryPlaybackController.ts
 
@@ -70,7 +75,7 @@ const isBlobObjectUrl = (url: string | null | undefined): url is string => (
 
 type UseLibraryPlaybackControllerParams = {
     t: (key: string, fallback?: string) => string;
-    audioQuality: string;
+    audioQuality: AudioQualityPreference;
     queueAddBehavior: QueueAddBehavior;
     currentSong: SongResult | null;
     lyrics: LyricData | null;
@@ -291,24 +296,15 @@ export function useLibraryPlaybackController({
         onlineSong: SongResult,
         fallbackLyrics: LyricData | null = lyrics
     ): Promise<LyricData | null> => {
-        const cachedLyrics = await getFromCacheWithMigration<LyricData>(getOnlineSongCacheKey('lyric', onlineSong), migrateLyricDataRenderHints);
+        const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', onlineSong, migrateLyricDataRenderHints);
         if (cachedLyrics) return cachedLyrics;
 
         const prefetched = getPrefetchedData(onlineSong, audioQuality);
         if (prefetched?.lyrics) return prefetched.lyrics;
 
-        if (isCloudSong(onlineSong) && userId) {
-            const lyricRes = await neteaseApi.getCloudLyric(userId, onlineSong.id);
-            const mainLrc = extractCloudLyricText(lyricRes);
-            if (!mainLrc || isPureMusicLyricText(mainLrc)) {
-                return null;
-            }
-            return LyricParserFactory.parse({ type: 'local', lrcContent: mainLrc });
-        }
-
-        const lyricRes = await neteaseApi.getLyric(onlineSong.id);
-        const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: onlineSong.id });
-        return processed.lyrics;
+        const provider = getOnlineMusicProviderForSong(onlineSong);
+        if (!provider?.lyrics) return fallbackLyrics;
+        return (await provider.lyrics.getLyrics(onlineSong, { userId })).lyrics;
     }, [audioQuality, lyrics, userId]);
 
     const resolveOnlineSongLyricsState = useCallback(async (
@@ -385,9 +381,13 @@ export function useLibraryPlaybackController({
             throw new Error('Current song is not a Netease song');
         }
 
-        await neteaseApi.updatePlaylistTracks('add', playlistId, [currentSong.id]);
-        await removeFromCache(`playlist_tracks_${playlistId}`);
-        await removeFromCache(`playlist_detail_${playlistId}`);
+        const provider = getOnlineMusicProviderForSong(currentSong);
+        if (provider?.id !== 'netease' || !provider.capabilities.mutations || !provider.mutations?.updatePlaylistTracks) {
+            throw new Error('Current provider cannot update this playlist');
+        }
+        await provider.mutations.updatePlaylistTracks('add', playlistId, [currentSong.id]);
+        await removeFromCache(getProviderCacheKey('netease', `playlist_tracks_${playlistId}`));
+        await removeFromCache(getProviderCacheKey('netease', `playlist_detail_${playlistId}`));
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
@@ -672,7 +672,7 @@ export function useLibraryPlaybackController({
         }
         setPlayerState(PlayerState.IDLE);
         setStatusMsg({ type: 'success', text: t('status.localMusicLoaded')});
-        void restoreCachedThemeForSong(initialMeta.unifiedSong.id).catch((error) => {
+        void restoreCachedThemeForSong(initialMeta.unifiedSong).catch((error) => {
             console.warn('Theme load error', error);
         });
 
@@ -942,7 +942,7 @@ export function useLibraryPlaybackController({
             }
             setPlayerState(PlayerState.IDLE);
             setStatusMsg({ type: 'success', text: t('status.navidromeSongLoaded')});
-            void restoreCachedThemeForSong(unifiedSong.id).catch((error) => {
+            void restoreCachedThemeForSong(unifiedSong).catch((error) => {
                 console.warn('Theme load error', error);
             });
         } catch (error) {
@@ -1472,14 +1472,33 @@ export function useLibraryPlaybackController({
             return;
         }
 
-        const nextLiked = !likedSongIds.has(currentSong.id);
+        const provider = getOnlineMusicProviderForSong(currentSong);
+        if (!provider) {
+            setStatusMsg({ type: 'error', text: t('status.likeFailed') });
+            return;
+        }
+        const providerAccount = useOnlineProviderAccountStore.getState().accounts[provider.id];
+        const numericSongId = provider.id === 'netease' ? Number(currentSong.id) : null;
+        const isCurrentlyLiked = numericSongId != null
+            ? likedSongIds.has(numericSongId)
+            : Boolean(providerAccount?.likedSongIds.some(id => String(id) === String(currentSong.id)));
+        const nextLiked = !isCurrentlyLiked;
         try {
-            await neteaseApi.likeSong(currentSong.id, nextLiked);
-            setLikedSongIds(prev => {
-                const next = new Set(prev);
-                if (nextLiked) next.add(currentSong.id);
-                else next.delete(currentSong.id);
-                return next;
+            if (!provider.capabilities.mutations || !provider.mutations?.likeSong) throw new Error('Provider does not support liking songs');
+            await provider.mutations.likeSong(currentSong.id, nextLiked);
+            if (numericSongId != null) {
+                setLikedSongIds(prev => {
+                    const next = new Set(prev);
+                    if (nextLiked) next.add(numericSongId);
+                    else next.delete(numericSongId);
+                    return next;
+                });
+            }
+            const currentProviderLikedIds = providerAccount?.likedSongIds || [];
+            useOnlineProviderAccountStore.getState().updateAccount(provider.id, {
+                likedSongIds: nextLiked
+                    ? [...currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)), currentSong.id]
+                    : currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)),
             });
             setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : t('status.unliked') || 'Removed from Liked' });
         } catch (error) {

@@ -3,12 +3,13 @@ import { motion } from 'framer-motion';
 import { LogOut, SlidersHorizontal, HardDrive, Trash2, RefreshCw, Crown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NeteaseUser } from '../../types';
+import type { AudioQualityPreference } from '../../types/onlineMusic';
 
 interface AccountTabProps {
     user: NeteaseUser | null;
     onLogout: () => void;
-    audioQuality: 'exhigh' | 'lossless' | 'hires';
-    onAudioQualityChange: (quality: 'exhigh' | 'lossless' | 'hires') => void;
+    audioQuality: AudioQualityPreference;
+    onAudioQualityChange: (quality: AudioQualityPreference) => void;
     cacheSize: string;
     onClearCache: () => void;
     onSyncData: () => void;
@@ -78,10 +79,9 @@ const AccountTab: React.FC<AccountTabProps> = ({
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => {
-                                        onAudioQualityChange('exhigh');
-                                        localStorage.setItem('default_audio_quality', 'exhigh');
+                                        onAudioQualityChange('high');
                                     }}
-                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'exhigh'
+                                    className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'high'
                                         ? 'bg-white/20 shadow-sm'
                                         : 'opacity-40 hover:opacity-100 hover:bg-white/5'
                                         }`}
@@ -91,7 +91,6 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                 <button
                                     onClick={() => {
                                         onAudioQualityChange('lossless');
-                                        localStorage.setItem('default_audio_quality', 'lossless');
                                     }}
                                     className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'lossless'
                                         ? 'bg-white/20 shadow-sm'
@@ -103,7 +102,6 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                 <button
                                     onClick={() => {
                                         onAudioQualityChange('hires');
-                                        localStorage.setItem('default_audio_quality', 'hires');
                                     }}
                                     className={`flex-1 py-1.5 text-[10px] font-medium rounded-lg transition-all ${audioQuality === 'hires'
                                         ? 'bg-white/20 shadow-sm'

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Music, Check } from 'lucide-react';
 import { AmllDbPlatform, LyricProviderSource, SongResult, LyricData } from '../../types';
 import { NavidromeSong } from '../../types/navidrome';
+import type { MediaId } from '../../types/onlineMusic';
 import { saveToCache, getFromCacheWithMigration } from '../../services/db';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/storageMigration';
@@ -20,12 +21,12 @@ import {
 import { LyricPreviewPanel } from './LyricPreviewPanel';
 
 export interface NavidromeMatchData {
-    matchedSongId?: number;
+    matchedSongId?: MediaId;
     matchedLyrics?: LyricData;
     matchedIsPureMusic?: boolean;
     matchedCoverUrl?: string;
     matchedArtists?: string;
-    matchedAlbumId?: number;
+    matchedAlbumId?: MediaId;
     matchedAlbumName?: string;
     useOnlineLyrics?: boolean; // Legacy, kept for backward compatibility
     lyricsSource?: 'navi' | 'online';

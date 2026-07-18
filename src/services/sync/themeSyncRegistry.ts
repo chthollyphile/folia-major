@@ -2,6 +2,7 @@ import type { SongResult } from '../../types';
 import { getThemeRegistryEntries, upsertThemeRegistryEntries } from '../db';
 import { createNeteaseSongIdFingerprint, createSongSyncFingerprint } from './syncFingerprint';
 import type { SyncedThemeSource } from './syncTypes';
+import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 
 // src/services/sync/themeSyncRegistry.ts
 // Tracks local AI theme cache entries that can be safely mapped to remote sync fingerprints.
@@ -153,7 +154,7 @@ export const registerThemeSyncRecordForSong = async (
 
     const record: ThemeSyncRegistryRecord = {
         fingerprint,
-        cacheKey: `${DUAL_THEME_CACHE_PREFIX}${song.id}`,
+        cacheKey: `${DUAL_THEME_CACHE_PREFIX}${getPlaybackSongKey(song)}`,
         updatedAt,
         source,
     };

@@ -83,6 +83,15 @@ export async function loadCachedOrFetchCover(cacheKey: string, coverUrl?: string
     }
 }
 
+export async function saveCoverBlob(cacheKey: string, coverBlob: Blob): Promise<void> {
+    const descriptor = await writeCoverAsset(cacheKey, coverBlob).catch(() => null);
+    if (descriptor) {
+        await saveToCache(cacheKey, descriptor);
+        return;
+    }
+    await saveToCache(cacheKey, coverBlob);
+}
+
 // Replaces the cached online cover used by local-song playback without changing the audio file.
 export async function cacheLocalSongOnlineCover(songId: string, coverUrl: string): Promise<boolean> {
     const cacheKey = `cover_local_${songId}`;

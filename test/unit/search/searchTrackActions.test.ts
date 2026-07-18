@@ -24,26 +24,27 @@ const track = (patch: Partial<UnifiedSong> = {}): UnifiedSong => ({
     album: { id: 1, name: 'Album' },
     duration: 1000,
     ...patch,
+    sourceRef: patch.sourceRef ?? { kind: 'online', providerId: 'netease', mediaId: '1' },
 });
 
 describe('dispatchSearchTrackAction', () => {
     it.each([
-        ['local', track({ isLocal: true, localRef: { songId: localSong.id } })],
+        ['local', track({ isLocal: true, localRef: { songId: localSong.id }, sourceRef: { kind: 'local', mediaId: localSong.id } })],
         ['netease', track()],
     ])('dispatches %s tracks to the matching action', (source, song) => {
         const onLocal = vi.fn();
         const onNavidrome = vi.fn();
-        const onNetease = vi.fn();
+        const onOnline = vi.fn();
 
         expect(dispatchSearchTrackAction(song, {
             localSongs: [localSong],
             onLocal,
             onNavidrome,
-            onNetease,
+            onOnline,
         })).toBe(true);
 
         expect(onLocal).toHaveBeenCalledTimes(source === 'local' ? 1 : 0);
-        expect(onNetease).toHaveBeenCalledTimes(source === 'netease' ? 1 : 0);
+        expect(onOnline).toHaveBeenCalledTimes(source === 'netease' ? 1 : 0);
     });
 
     it('dispatches Navidrome tracks through their playback carrier', () => {
@@ -58,7 +59,7 @@ describe('dispatchSearchTrackAction', () => {
             localSongs: [],
             onLocal: vi.fn(),
             onNavidrome,
-            onNetease: vi.fn(),
+            onOnline: vi.fn(),
         });
 
         expect(onNavidrome).toHaveBeenCalledWith(navidromeData);
@@ -69,13 +70,13 @@ describe('dispatchSearchTrackAction', () => {
             localSongs: [],
             onLocal: vi.fn(),
             onNavidrome: vi.fn(),
-            onNetease: vi.fn(),
+            onOnline: vi.fn(),
         };
         const didDispatch = dispatchSearchTrackAction(track({
             privilege: { st: -200 },
         }), actions);
 
         expect(didDispatch).toBe(false);
-        expect(actions.onNetease).not.toHaveBeenCalled();
+        expect(actions.onOnline).not.toHaveBeenCalled();
     });
 });

@@ -9,7 +9,7 @@ type SearchTrackSourceDeps = {
     localSongs: LocalSong[];
     onLocal: (song: LocalSong) => void;
     onNavidrome: (song: NavidromeSong) => void;
-    onNetease: (song: UnifiedSong) => void;
+    onOnline: (song: UnifiedSong) => void;
 };
 
 // Routes a search-result action to the matching playback source without leaking source checks into the UI.
@@ -39,6 +39,6 @@ export const dispatchSearchTrackAction = (
         return false;
     }
 
-    deps.onNetease(track);
+    deps.onOnline(track);
     return true;
 };

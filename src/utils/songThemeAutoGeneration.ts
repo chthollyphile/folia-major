@@ -1,4 +1,5 @@
 import type { LyricData, SongResult } from '../types';
+import { getPlaybackSongKey } from './appPlaybackGuards';
 
 // src/utils/songThemeAutoGeneration.ts
 // Pure guards for deciding whether playback should auto-generate a song AI theme.
@@ -13,7 +14,7 @@ export type SongThemeAutoGenerationDecisionInput = {
 };
 
 export const getSongThemeAutoGenerationKey = (song: SongResult | null) => (
-    song?.id != null ? String(song.id) : null
+    song ? getPlaybackSongKey(song) : null
 );
 
 export const hasSongThemePromptSource = (song: SongResult, lyrics: LyricData | null) => (

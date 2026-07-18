@@ -2,6 +2,7 @@ import React from 'react';
 import { Disc, Play, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { UnifiedSong } from '../../../types';
+import type { MediaId } from '../../../types/onlineMusic';
 import { formatSongName } from '../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import { getSongUnavailableTagText, isSongMarkedUnavailable } from '../../../services/netease';
@@ -14,8 +15,8 @@ type SearchResultRowProps = {
     isDaylight: boolean;
     onPlayTrack: (track: UnifiedSong) => void;
     onAddTrackToQueue: (track: UnifiedSong) => void;
-    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: number, entityId?: string) => void;
-    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: number, entityId?: string) => void;
+    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
+    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
 
 const formatDuration = (duration: number) => {

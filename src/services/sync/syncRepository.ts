@@ -13,6 +13,7 @@ import {
     putRemoteThemes,
 } from './syncClient';
 import { createSongSyncFingerprint, createSongSyncFingerprintCandidates } from './syncFingerprint';
+import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { buildThemeBucketSummaries, getThemeBucketId } from './syncMerkle';
 import {
     createLegacyNeteaseThemeSyncRecord,
@@ -229,7 +230,7 @@ export const getSyncedThemeForSong = async (song: SongResult | null): Promise<Du
 
     const theme = sanitizeDualTheme(matched.theme);
     if (song?.id != null) {
-        await saveToCache(`dual_theme_${song.id}`, theme);
+        await saveToCache(`dual_theme_${getPlaybackSongKey(song)}`, theme);
     }
     await saveRemoteThemeToLocalCache(matched);
     return theme;

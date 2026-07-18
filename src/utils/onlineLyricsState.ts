@@ -1,5 +1,5 @@
 import { getFromCacheWithMigration, saveToCache } from '../services/db';
-import { getOnlineSongCacheKey } from '../services/netease';
+import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import type { OnlineLyricsState, SongResult } from '../types';
 import type { MigrationResult } from './lyrics/renderHints';
 import { migrateLyricDataRenderHints as migrateLyrics } from './lyrics/renderHints';
@@ -22,15 +22,15 @@ const migrateOnlineLyricsState = (value: OnlineLyricsState): MigrationResult<Onl
     };
 };
 
-export const getOnlineLyricsStateCacheKey = (song: Pick<SongResult, 'id' | 't'>) =>
-    `${getOnlineSongCacheKey('lyric', song)}${ONLINE_LYRICS_STATE_SUFFIX}`;
+export const getOnlineLyricsStateCacheKey = (song: SongResult) =>
+    `${getSongResourceCacheKey('lyric', song)}${ONLINE_LYRICS_STATE_SUFFIX}`;
 
-export const loadOnlineLyricsState = async (song: Pick<SongResult, 'id' | 't'>): Promise<OnlineLyricsState | null> => {
+export const loadOnlineLyricsState = async (song: SongResult): Promise<OnlineLyricsState | null> => {
     const key = getOnlineLyricsStateCacheKey(song);
     return getFromCacheWithMigration<OnlineLyricsState>(key, migrateOnlineLyricsState);
 };
 
-export const saveOnlineLyricsState = async (song: Pick<SongResult, 'id' | 't'>, state: OnlineLyricsState): Promise<void> => {
+export const saveOnlineLyricsState = async (song: SongResult, state: OnlineLyricsState): Promise<void> => {
     const key = getOnlineLyricsStateCacheKey(song);
     await saveToCache(key, migrateOnlineLyricsState(state).value);
 };

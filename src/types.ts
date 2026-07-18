@@ -1,4 +1,5 @@
 import type { LineRenderHints } from './utils/lyrics/renderHints';
+import type { MediaId, PlaybackSourceRef } from './types/onlineMusic';
 
 export interface LyricRuby {
   text: string;
@@ -821,13 +822,13 @@ export interface NeteasePlaylist {
 }
 
 export interface Artist {
-  id: number;
+  id: MediaId;
   name: string;
   entityId?: string;
 }
 
 export interface Album {
-  id: number;
+  id: MediaId;
   name: string;
   picUrl?: string;
   entityId?: string;
@@ -856,7 +857,7 @@ export type LyricProviderSource = 'netease' | 'qq' | 'kugou' | 'amll';
 export type AmllDbPlatform = 'ncm' | 'qq';
 
 export interface SongResult {
-  id: number;
+  id: MediaId;
   name: string;
   artists: Artist[];
   album: Album;
@@ -864,6 +865,7 @@ export interface SongResult {
   isPureMusic?: boolean;
   t?: 0 | 1 | 2;
   sourceType?: 'netease' | 'cloud';
+  sourceRef?: PlaybackSourceRef;
   // Netease API raw fields
   al?: {
     id: number;
@@ -893,7 +895,7 @@ export interface OnlineLyricsState {
   importedLyricsName?: string | null;
   hasOnlineOverride?: boolean;
   onlineOverrideLyrics?: LyricData | null;
-  matchedSongId?: number;
+  matchedSongId?: MediaId;
   matchedIsPureMusic?: boolean;
   matchedLyricsSource?: LyricProviderSource;
   matchedLyricsProviderPlatform?: AmllDbPlatform;
@@ -1028,6 +1030,7 @@ export type {
 
 // Extend SongResult to support local files and Navidrome files
 export interface UnifiedSong extends SongResult {
+  sourceRef: PlaybackSourceRef;
   isLocal?: boolean;
   localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;

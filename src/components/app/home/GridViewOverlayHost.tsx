@@ -246,10 +246,11 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         const source = selectedCollection.source;
         const albumName = album?.name || '';
         const albumCoverUrl = album?.coverImgUrl || album?.coverUrl || album?.picUrl;
-        if (source === 'netease') {
+        if (source === 'online') {
             handlePushCollection({
-                source: 'netease',
-                id: Number(albumId),
+                source: 'online',
+                providerId: selectedCollection.providerId,
+                id: albumId,
                 name: albumName,
                 type: 'album',
                 coverImgUrl: albumCoverUrl,
@@ -319,10 +320,11 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
 
         const source = selectedCollection.source;
         const artistName = artist?.name || String(artistId);
-        if (source === 'netease') {
+        if (source === 'online') {
             handlePushCollection({
-                source: 'netease',
-                id: Number(artistId),
+                source: 'online',
+                providerId: selectedCollection.providerId,
+                id: artistId,
                 name: artistName,
                 type: 'artist',
             });
@@ -375,7 +377,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             return;
         }
 
-        if (selectedCollection.source === 'netease') {
+        if (selectedCollection.source === 'online') {
             setExternalTracks(undefined);
             setExternalTracksLoading(false);
             setResolvedLocalCollectionCoverUrl(undefined);

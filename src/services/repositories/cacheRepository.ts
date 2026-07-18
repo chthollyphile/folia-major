@@ -27,14 +27,15 @@ const USER_CACHE_KEYS = new Set([
 ]);
 
 export const getCacheTableName = (key: string): CacheTableName => {
-  if (USER_CACHE_KEYS.has(key)) return 'user_cache';
+  if (USER_CACHE_KEYS.has(key) || (key.startsWith('online_provider_') && key.includes('_user_'))) return 'user_cache';
   if (key === 'last_song' || key === 'last_queue' || key === 'last_theme') return 'api_cache';
   if (key.startsWith('audio_') || key.startsWith('cover_')) return 'media_cache';
   if (
     key.startsWith('lyric_') ||
     key.startsWith('theme_') ||
     key.startsWith('playlist_tracks_') ||
-    key.startsWith('playlist_detail_')
+    key.startsWith('playlist_detail_') ||
+    (key.startsWith('online_provider_') && (key.includes('_playlist_tracks_') || key.includes('_playlist_detail_')))
   ) return 'metadata_cache';
   return 'api_cache';
 };
@@ -123,7 +124,7 @@ const getEntrySize = (entry: StoredCacheEntry): number => {
 };
 
 const matchesCategory = (key: string, category: CacheCategory): boolean => {
-  if (category === 'playlist') return key === 'user_playlists' || key.startsWith('playlist_');
+  if (category === 'playlist') return key === 'user_playlists' || key.startsWith('playlist_') || (key.startsWith('online_provider_') && key.includes('_playlist'));
   if (category === 'lyrics') return key.startsWith('lyric_');
   if (category === 'cover') return key.startsWith('cover_');
   return key.startsWith('audio_');

@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme, UnifiedSong } from '../../../types';
+import type { MediaId } from '../../../types/onlineMusic';
 import {
     type SearchSource,
     useSearchNavigationStore,
@@ -21,8 +22,8 @@ type SearchWorkspaceProps = {
     onLoadMore: () => void;
     onPlayTrack: (track: UnifiedSong) => void;
     onAddTrackToQueue: (track: UnifiedSong) => void;
-    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: number, entityId?: string) => void;
-    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: number, entityId?: string) => void;
+    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
+    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
 
 const SOURCES: SearchSource[] = ['netease', 'local', 'navidrome'];

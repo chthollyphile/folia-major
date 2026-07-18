@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { List, useListRef } from 'react-window';
 import type { UnifiedSong } from '../../../types';
+import type { MediaId } from '../../../types/onlineMusic';
 import SearchResultRow from './SearchResultRow';
 
 // src/components/app/search/SearchResultsList.tsx
@@ -12,8 +13,8 @@ type SearchResultsListProps = {
     onScrollTopChange: (scrollTop: number) => void;
     onPlayTrack: (track: UnifiedSong) => void;
     onAddTrackToQueue: (track: UnifiedSong) => void;
-    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: number, entityId?: string) => void;
-    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: number, entityId?: string) => void;
+    onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
+    onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
 
 type RowProps = Omit<SearchResultsListProps, 'scrollTop' | 'onScrollTopChange'>;

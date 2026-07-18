@@ -1,6 +1,7 @@
 import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode, type SongResult } from '../types';
 import { saveLocalSong, saveLocalSongs, deleteLocalSong as dbDeleteLocalSong, deleteLocalSongs as dbDeleteLocalSongs, saveDirHandles, getDirHandles, deleteDirHandle, getLocalSongs, getLocalLibrarySnapshot, saveLocalLibrarySnapshot, deleteLocalLibrarySnapshot } from './db';
 import { neteaseApi } from './netease';
+import { toNeteaseId } from './onlineMusic/neteaseProvider';
 import { getLocalPlaylists, saveLocalPlaylists } from './localPlaylistService';
 import { parseEmbeddedMetadataAsync, type EmbeddedMetadataResult } from '../utils/localMetadataWorkerClient';
 import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
@@ -1445,13 +1446,14 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         }
 
         // Fetch lyrics (only when NO local lyrics)
-        const lyricRes = await neteaseApi.getLyric(matchedSong.id);
+        const matchedNeteaseId = toNeteaseId(matchedSong.id);
+        const lyricRes = await neteaseApi.getLyric(matchedNeteaseId);
         const processed = await processNeteaseLyrics(
             {
                 type: 'netease',
                 ...lyricRes
             },
-            { songId: matchedSong.id }
+            { songId: matchedNeteaseId }
         );
 
         song.matchedLyricsSongId = matchedSong.id;

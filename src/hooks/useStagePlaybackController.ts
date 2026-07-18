@@ -6,7 +6,7 @@ import { getFromCache, removeFromCache, saveToCache } from '../services/db';
 import { NowPlayingProvider } from '../services/nowPlayingProvider';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../utils/appPlaybackHelpers';
 import { buildStageEntryKey, getStageLyricsTimelineBounds } from '../utils/appStageHelpers';
-import { isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, isStagePlaybackSong } from '../utils/appPlaybackGuards';
 import {
     buildNowPlayingContentLoadKey,
     clampNowPlayingTimeSec,
@@ -304,6 +304,7 @@ export function useStagePlaybackController({
         dt: Math.max(0, Math.floor(session.durationMs || 0)),
         sourceType: 'cloud',
         isStage: true,
+        sourceRef: { kind: 'stage', mediaId: session.id },
         stageData: session,
     } as SongResult), []);
 
@@ -526,6 +527,7 @@ export function useStagePlaybackController({
         dt: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
         sourceType: 'cloud',
         isStage: true,
+        sourceRef: { kind: 'stage', mediaId: String(session.updatedAt) },
         stageData: session,
     } as SongResult), []);
 
@@ -554,7 +556,7 @@ export function useStagePlaybackController({
 
         resetStageLyricsClock();
         const stageSong = buildStagePlaybackSong(session);
-        currentSongRef.current = stageSong.id;
+        currentSongRef.current = getPlaybackSongKey(stageSong);
         setIsLyricsLoading(false);
         let parsedLyrics: LyricData | null = null;
         if (session.lyricsText?.trim()) {
@@ -636,7 +638,7 @@ export function useStagePlaybackController({
         clearPlaybackSurface();
         shouldAutoPlayRef.current = false;
         pendingResumeTimeRef.current = null;
-        currentSongRef.current = stageSong.id;
+        currentSongRef.current = getPlaybackSongKey(stageSong);
         setCurrentSong(stageSong);
         setCachedCoverUrl(null);
         setAudioSrc(null);
@@ -721,11 +723,12 @@ export function useStagePlaybackController({
             dt: Math.max(0, Math.floor(resolvedDurationSec * 1000)),
             sourceType: 'cloud',
             isStage: true,
+            sourceRef: { kind: 'stage', mediaId: String(track?.id || `${fallbackTitle}|${fallbackArtist}`) },
         } as SongResult) : null;
 
         shouldAutoPlayRef.current = false;
         pendingResumeTimeRef.current = null;
-        currentSongRef.current = fallbackSong?.id ?? null;
+        currentSongRef.current = fallbackSong ? getPlaybackSongKey(fallbackSong) : null;
         setCurrentSong(fallbackSong);
         setCachedCoverUrl(fallbackCoverUrl);
         setAudioSrc(null);

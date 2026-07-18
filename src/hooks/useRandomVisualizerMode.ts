@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { SongResult, VisualizerMode } from '../types';
 import { VISUALIZER_REGISTRY } from '../components/visualizer/registry';
+import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
 
 // Applies a different registered lyric animation mode when the active track changes.
 export function useRandomVisualizerMode({
@@ -14,11 +15,11 @@ export function useRandomVisualizerMode({
     visualizerMode: VisualizerMode;
     setVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
 }) {
-    const observedSongIdRef = useRef<number | null>(null);
+    const observedSongIdRef = useRef<string | null>(null);
     const wasEnabledRef = useRef(enabled);
 
     useEffect(() => {
-        const songId = currentSong?.id ?? null;
+        const songId = currentSong ? getPlaybackSongKey(currentSong) : null;
         const wasEnabled = wasEnabledRef.current;
         wasEnabledRef.current = enabled;
 
@@ -51,5 +52,5 @@ export function useRandomVisualizerMode({
             .filter(mode => mode !== visualizerMode);
         const nextMode = candidates[Math.floor(Math.random() * candidates.length)] ?? visualizerMode;
         setVisualizerMode(nextMode, { notify: false });
-    }, [currentSong?.id, enabled, setVisualizerMode, visualizerMode]);
+    }, [currentSong, enabled, setVisualizerMode, visualizerMode]);
 }

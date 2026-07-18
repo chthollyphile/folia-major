@@ -1,12 +1,10 @@
 import i18n from '../../../i18n/config';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { getCachedAudioBlob } from '../../../services/audioCache';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../services/coverCache';
-import { getFromCacheWithMigration, getLocalSongs } from '../../../services/db';
+import { getLocalSongs } from '../../../services/db';
 import { ensureLocalSongEmbeddedCover, getAudioFromLocalSong } from '../../../services/localMusicService';
 import { applyLocalLibraryEntityDisplay, buildUnifiedLocalSong } from '../../../services/playbackAdapters';
 import { getLocalLibraryCatalogSnapshot } from '../../../services/localLibraryEntityRepository';
-import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from '../../../services/netease';
 import { getNavidromeConfig, navidromeApi } from '../../../services/navidromeService';
 import type { ThemeCacheSongKey } from '../../../services/themeCache';
 import type { LyricData, LocalSong, SongResult, StatusMessage } from '../../../types';
@@ -21,10 +19,13 @@ import {
 } from '../../../utils/appPlaybackGuards';
 import { createSafeObjectUrl, isBlob } from '../../../utils/blobGuards';
 import { LyricParserFactory } from '../../../utils/lyrics/LyricParserFactory';
-import { processNeteaseLyrics } from '../../../utils/lyrics/neteaseProcessing';
 import { isPureMusicLyricText } from '../../../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../../../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../utils/onlineLyricsState';
+import type { AudioQualityPreference } from '../../../types/onlineMusic';
+import { getOnlineMusicProviderForSong, providerSupports } from '../../../services/onlineMusic/providerRegistry';
+import { getSongResourceCacheKey } from '../../../services/onlineMusic/resourceKeys';
+import { getCachedSongAudioBlob, getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../services/onlineMusic/resourceCache';
 
 // src/components/app/playback/restorePlaybackSource.ts
 // Rehydrates playable audio and lyrics for a remembered song without reusing stale blob URLs.
@@ -32,7 +33,7 @@ import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../utils/onlin
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
 type RestorePlaybackSourceParams = {
-    audioQuality: string;
+    audioQuality: AudioQualityPreference;
     userId?: number;
     blobUrlRef: MutableRefObject<string | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
@@ -41,7 +42,7 @@ type RestorePlaybackSourceParams = {
     setAudioSrc: SetState<string | null>;
     setLyrics: (nextLyrics: LyricData | null) => void;
     setStatusMsg: SetState<StatusMessage | null>;
-    restoreCachedThemeForSong?: (songId: ThemeCacheSongKey, options?: {
+    restoreCachedThemeForSong?: (songId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
     }) => Promise<unknown>;
@@ -76,12 +77,12 @@ export const restorePlaybackSourceForSong = async (
         queue,
     }: RestorePlaybackSourceParams,
 ) => {
-    await restoreCachedThemeForSong?.(song.id, {
+    await restoreCachedThemeForSong?.(song, {
         allowLastUsedFallback: true,
         preserveCurrentOnMiss: false,
     });
 
-    setCachedCoverUrl(await getCachedCoverUrl(getOnlineSongCacheKey('cover', song)));
+    setCachedCoverUrl(await getCachedSongCoverUrl(song));
 
     if (isNavidromePlaybackSong(song)) {
         const navidromeSongToRestore = (song as unknown as SongResult & { navidromeData?: NavidromeSong }).navidromeData;
@@ -217,7 +218,13 @@ export const restorePlaybackSourceForSong = async (
         });
     }
 
-    const cachedAudio = await getCachedAudioBlob(getOnlineSongCacheKey('audio', song));
+    const provider = getOnlineMusicProviderForSong(song);
+    if (!providerSupports(provider, 'playback') || !provider?.playback) {
+        setStatusMsg({ type: 'error', text: i18n.t('status.playbackFailed') });
+        return false;
+    }
+
+    const cachedAudio = await getCachedSongAudioBlob(song);
     let restoredCachedAudio = false;
     if (cachedAudio) {
         const blobUrl = createSafeObjectUrl(cachedAudio);
@@ -229,21 +236,21 @@ export const restorePlaybackSourceForSong = async (
         }
     }
     if (!restoredCachedAudio) {
-        const urlRes = await neteaseApi.getSongUrl(song.id, audioQuality);
-        let url = urlRes.data?.[0]?.url;
+        const audioSource = await provider.playback.getAudioSource(song, audioQuality);
+        let url = audioSource?.url;
         if (url) {
             if (url.startsWith('http:')) {
                 url = url.replace('http:', 'https:');
             }
             currentOnlineAudioUrlFetchedAtRef.current = Date.now();
             setAudioSrc(url);
+        } else {
+            setStatusMsg({ type: 'error', text: i18n.t('status.playbackFailed') });
+            return false;
         }
     }
 
-    const cachedLyrics = await getFromCacheWithMigration<LyricData>(
-        getOnlineSongCacheKey('lyric', song),
-        migrateLyricDataRenderHints,
-    );
+    const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
     const restoredPreferredLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
     if (restoredPreferredLyrics) {
         const cachedText = restoredPreferredLyrics.lines.map(line => line.fullText).join('\n');
@@ -260,10 +267,9 @@ export const restorePlaybackSourceForSong = async (
         return true;
     }
 
-    const lyricRes = isCloudSong(song) && userId
-        ? await neteaseApi.getCloudLyric(userId, song.id)
-        : await neteaseApi.getLyric(song.id);
-    const processed = await processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId: song.id });
+    const processed = providerSupports(provider, 'lyrics') && provider.lyrics
+        ? await provider.lyrics.getLyrics(song, { userId })
+        : { lyrics: null, isPureMusic: false };
     const resolvedLyrics = resolveOnlineLyrics(onlineLyricsState, processed.lyrics);
     setCurrentSong(prev => {
         if (!prev || !isSamePlaybackSong(prev, song)) return prev;

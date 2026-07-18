@@ -1,4 +1,5 @@
 import { neteaseApi } from '../../services/netease';
+import { toNeteaseId } from '../../services/onlineMusic/neteaseProvider';
 import type { AmllDbPlatform, LyricData, LyricProviderSource, SongResult } from '../../types';
 import { fetchNeteaseChorusRanges, processNeteaseLyrics } from './neteaseProcessing';
 import { calculateMatchScore, calculateMatchScoreDetails } from './matchScore';
@@ -128,8 +129,9 @@ export async function fetchLyricsForMatchSource(
     selectedResult: SongResult,
 ): Promise<LyricMatchFetchResult | null> {
     if (source === 'netease') {
-        const lyricResponse = await neteaseApi.getLyric(selectedResult.id);
-        return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: selectedResult.id });
+        const neteaseSongId = toNeteaseId(selectedResult.id);
+        const lyricResponse = await neteaseApi.getLyric(neteaseSongId);
+        return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricResponse), { songId: neteaseSongId });
     }
     if (source === 'qq') {
         return {

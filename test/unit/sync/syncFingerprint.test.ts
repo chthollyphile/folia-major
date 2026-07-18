@@ -23,10 +23,12 @@ describe('sync fingerprint', () => {
             ...baseSong,
             isLocal: true,
             localRef: { songId: 'local-1' },
+            sourceRef: { kind: 'local', mediaId: 'local-1' },
         };
         const navidromeSong: UnifiedSong = {
             ...baseSong,
             isNavidrome: true,
+            sourceRef: { kind: 'navidrome', mediaId: 'navidrome-1' },
             navidromeData: {
                 title: 'Bad Apple',
                 artist: 'Nomico',

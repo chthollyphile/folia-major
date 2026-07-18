@@ -6,17 +6,16 @@
  */
 
 import { SongResult, LyricData, OnlineLyricsState } from '../types';
-import { getOnlineSongCacheKey, isCloudSong, neteaseApi } from './netease';
-import { getFromCacheWithMigration } from './db';
-import { hasCachedAudio } from './audioCache';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
-import { processNeteaseLyrics } from '../utils/lyrics/neteaseProcessing';
-import { detectTimedLyricFormat } from '../utils/lyrics/formatDetection';
-import { parseLyricsAsync } from '../utils/lyrics/workerClient';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
+import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
+import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
+import { getOnlineMusicProviderForSong, providerSupports } from './onlineMusic/providerRegistry';
+import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
+import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
 
 // Prefetch configuration
 const PREFETCH_COUNT_NEXT = 2;  // Prefetch 2 songs ahead
@@ -26,7 +25,7 @@ const MAX_PREFETCH_CACHE_SIZE = 200; // Evict least recently used entries beyond
 
 export interface PrefetchedSongData {
     songKey: string;
-    songId: number;
+    songId: MediaId;
     audioUrl: string | null;
     audioUrlFetchedAt: number;
     audioUrlQuality: string | null; // Track which quality the URL was fetched for
@@ -43,21 +42,12 @@ export interface PrefetchedSongData {
 // In-memory prefetch cache (not persisted to IndexedDB to avoid stale URLs)
 const prefetchCache = new Map<string, PrefetchedSongData>();
 
-const getPrefetchSongKey = (song: Pick<SongResult, 'id' | 't'>): string =>
-    getOnlineSongCacheKey('audio', song);
+const getPrefetchSongKey = (song: SongResult): string => getSongResourceCacheKey('audio', song);
 
 const touchPrefetchCacheEntry = (songKey: string, data: PrefetchedSongData): PrefetchedSongData => {
     prefetchCache.delete(songKey);
     prefetchCache.set(songKey, data);
     return data;
-};
-
-const extractCloudLyricText = (response: any): string => {
-    if (typeof response?.lrc === 'string') return response.lrc;
-    if (typeof response?.data?.lrc === 'string') return response.data.lrc;
-    if (typeof response?.lyric === 'string') return response.lyric;
-    if (typeof response?.data?.lyric === 'string') return response.data.lyric;
-    return '';
 };
 
 // Track current prefetch operation to cancel on queue change
@@ -74,7 +64,7 @@ export const isUrlValid = (fetchedAt: number): boolean => {
  * @param songId - The song ID to get prefetched data for
  * @param requiredQuality - The audio quality to validate against (optional)
  */
-export const getPrefetchedData = (song: SongResult, requiredQuality?: string): PrefetchedSongData | null => {
+export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQualityPreference): PrefetchedSongData | null => {
     const songKey = getPrefetchSongKey(song);
     const songId = song.id;
     const cached = prefetchCache.get(songKey);
@@ -103,15 +93,20 @@ export const getPrefetchedData = (song: SongResult, requiredQuality?: string): P
  */
 const prefetchSong = async (
     song: SongResult,
-    audioQuality: string,
+    audioQuality: AudioQualityPreference,
     signal: AbortSignal,
     userId?: number | null
 ): Promise<void> => {
     if (signal.aborted) return;
 
-    // Prefetch currently only supports Netease songs.
-    if ((song as any).isLocal || (song as any).localRef || (song as any).localData || (song as any).isNavidrome) {
-        console.log(`[Prefetch] Skipping non-Netease song: ${song.name}`);
+    const sourceRef = getPlaybackSourceRef(song);
+    if (sourceRef.kind !== 'online') {
+        console.log(`[Prefetch] Skipping non-online song: ${song.name}`);
+        return;
+    }
+    const provider = getOnlineMusicProviderForSong(song);
+    if (!providerSupports(provider, 'playback') || !provider?.playback) {
+        console.log(`[Prefetch] Skipping unavailable provider for song: ${song.name}`);
         return;
     }
 
@@ -142,14 +137,14 @@ const prefetchSong = async (
     // Prefetch audio URL (if not cached or expired)
     if (!data.audioUrl) {
         try {
-            const audioExists = await hasCachedAudio(getOnlineSongCacheKey('audio', song));
+            const audioExists = await hasCachedSongAudio(song);
             if (audioExists) {
                 console.log(`[Prefetch] Audio already cached for: ${song.name}`);
                 data.audioUrl = 'CACHED_IN_DB';
                 data.audioUrlFetchedAt = Date.now();
             } else if (!signal.aborted) {
-                const urlRes = await neteaseApi.getSongUrl(songId, audioQuality);
-                let url = urlRes.data?.[0]?.url;
+                const audioSource = await provider.playback.getAudioSource(song, audioQuality);
+                let url = audioSource?.url;
                 if (url) {
                     if (url.startsWith('http:')) url = url.replace('http:', 'https:');
                     data.audioUrl = url;
@@ -167,41 +162,22 @@ const prefetchSong = async (
     if (!data.lyrics) {
         try {
             // Check IndexedDB cache first
-            const cachedLyrics = await getFromCacheWithMigration<LyricData>(getOnlineSongCacheKey('lyric', song), migrateLyricDataRenderHints);
+            const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
             if (cachedLyrics) {
                 console.log(`[Prefetch] Lyrics in IndexedDB for: ${song.name}`);
                 data.lyrics = cachedLyrics;
             } else if (!signal.aborted) {
-                const processed = isCloudSong(song) && userId
-                    ? await (async () => {
-                        const lyricRes = await neteaseApi.getCloudLyric(userId, song.id);
-                        const mainLrc = extractCloudLyricText(lyricRes);
-                        const isPureMusic = isPureMusicLyricText(mainLrc);
-                        if (!mainLrc || isPureMusic) {
-                            return {
-                                mainLrc,
-                                yrcLrc: null,
-                                transLrc: null,
-                                isPureMusic,
-                                lyrics: null,
-                                chorusRanges: [],
-                            };
-                        }
-
-                        const lyrics = await parseLyricsAsync(detectTimedLyricFormat(mainLrc), mainLrc, '');
-                        return {
-                            mainLrc,
-                            yrcLrc: null,
-                            transLrc: null,
-                            isPureMusic,
-                            lyrics,
-                            chorusRanges: [],
-                        };
-                    })()
-                    : await (async () => {
-                        const lyricRes = await neteaseApi.getLyric(songId);
-                        return processNeteaseLyrics(neteaseApi.getProcessedLyricPayload(lyricRes), { songId });
-                    })();
+                const lyricResult = providerSupports(provider, 'lyrics') && provider.lyrics
+                    ? await provider.lyrics.getLyrics(song, { userId })
+                    : { lyrics: null, isPureMusic: false };
+                const processed = {
+                    mainLrc: lyricResult.mainText ?? null,
+                    yrcLrc: lyricResult.wordByWordText ?? null,
+                    transLrc: lyricResult.translationText ?? null,
+                    isPureMusic: lyricResult.isPureMusic,
+                    lyrics: lyricResult.lyrics,
+                    chorusRanges: lyricResult.chorusRanges || [],
+                };
                 data.lyricRaw = {
                     mainLrc: processed.mainLrc,
                     yrcLrc: processed.yrcLrc,
@@ -231,17 +207,17 @@ const prefetchSong = async (
                         const bestMatch = await autoMatchBestLyric(song.name, artistName, song.duration || song.dt || 0, {
                             album: song.album?.name || song.al?.name,
                             preferredSource: settings.preferredAlternativeLyricSource,
-                            neteaseCandidate: {
+                            ...(sourceRef.providerId === 'netease' ? { neteaseCandidate: {
                                 id: song.id,
                                 lyrics: parsedLyrics,
                                 isPureMusic: processed.isPureMusic,
                                 chorusRanges: (processed as any).chorusRanges || []
-                            }
+                            } } : {})
                         });
                         if (bestMatch && 'lyrics' in bestMatch && bestMatch.source !== 'netease') {
                             const overrideState: OnlineLyricsState = {
                                 lyricsSource: 'online',
-                                matchedSongId: typeof bestMatch.id === 'number' ? bestMatch.id : parseInt(String(bestMatch.id), 10) || 0,
+                                matchedSongId: bestMatch.id,
                                 hasOnlineOverride: true,
                                 onlineOverrideLyrics: bestMatch.lyrics,
                                 matchedLyricsSource: bestMatch.source,
@@ -301,7 +277,7 @@ const prefetchSong = async (
 };
 
 export const updatePrefetchedAudioUrl = (
-    song: Pick<SongResult, 'id' | 't'>,
+    song: SongResult,
     audioUrl: string,
     audioQuality: string
 ): void => {
@@ -326,9 +302,9 @@ export const updatePrefetchedAudioUrl = (
  * Prefetch nearby songs based on current song and queue
  */
 export const prefetchNearbySongs = async (
-    currentSongId: number,
+    currentSong: SongResult,
     queue: SongResult[],
-    audioQuality: string,
+    audioQuality: AudioQualityPreference,
     userId?: number | null
 ): Promise<void> => {
     // Cancel any ongoing prefetch
@@ -339,7 +315,8 @@ export const prefetchNearbySongs = async (
     const signal = currentPrefetchAbortController.signal;
 
     // Find current song index in queue
-    const currentIndex = queue.findIndex(s => s.id === currentSongId);
+    const currentSongKey = getPrefetchSongKey(currentSong);
+    const currentIndex = queue.findIndex(song => getPrefetchSongKey(song) === currentSongKey);
     if (currentIndex === -1) {
         console.log('[Prefetch] Current song not in queue, skipping prefetch');
         return;
@@ -426,12 +403,12 @@ export const invalidatePrefetchedLyrics = (): void => {
  * Force re-prefetch (e.g., after queue shuffle)
  */
 export const invalidateAndRefetch = async (
-    currentSongId: number,
+    currentSong: SongResult,
     queue: SongResult[],
-    audioQuality: string,
+    audioQuality: AudioQualityPreference,
     userId?: number | null
 ): Promise<void> => {
     console.log('[Prefetch] Queue changed, invalidating and re-prefetching');
     cleanupPrefetchCache(queue);
-    await prefetchNearbySongs(currentSongId, queue, audioQuality, userId);
+    await prefetchNearbySongs(currentSong, queue, audioQuality, userId);
 };

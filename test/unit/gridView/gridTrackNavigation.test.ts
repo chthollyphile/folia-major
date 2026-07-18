@@ -43,6 +43,7 @@ describe('GridView track navigation targets', () => {
             album: { id: 0, entityId: 'local-album', name: 'Album' },
             duration: 180_000,
             isLocal: true,
+            sourceRef: { kind: 'local', mediaId: 'local-song' },
             ar: [{ id: 0, entityId: 'local-artist', name: 'Artist' }],
             al: { id: 0, entityId: 'local-album', name: 'Album' },
         } satisfies UnifiedSong;
@@ -52,6 +53,7 @@ describe('GridView track navigation targets', () => {
             artists: [{ id: 11, name: 'Artist' }],
             album: { id: 22, name: 'Album' },
             duration: 180_000,
+            sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' },
             ar: [{ id: 11, name: 'Artist' }],
             al: { id: 22, name: 'Album' },
         } satisfies UnifiedSong;

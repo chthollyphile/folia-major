@@ -2,11 +2,12 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
+import type { MediaId } from '../../types/onlineMusic';
 
 interface CoverTabProps {
     currentSong: SongResult | null;
-    onAlbumSelect: (albumId: number) => void;
-    onSelectArtist: (artistId: number) => void;
+    onAlbumSelect: (albumId: MediaId) => void;
+    onSelectArtist: (artistId: MediaId) => void;
     onOpenCurrentLocalAlbum: () => void;
     onOpenCurrentLocalArtist: (entityId?: string) => void;
     onOpenCurrentNavidromeAlbum: () => void;

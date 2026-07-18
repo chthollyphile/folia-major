@@ -3,6 +3,7 @@ import { getFromCache, saveToCache } from './db';
 import { createSongSyncFingerprintCandidates } from './sync/syncFingerprint';
 import { readThemeSyncRegistry, registerThemeSyncRecordForSongIfMissing } from './sync/themeSyncRegistry';
 import { sanitizeDualTheme, sanitizeTheme, FALLBACK_AI_DUAL_THEME } from './themeSanitizer';
+import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
 
 export type ThemeCacheSongKey = string | number;
 
@@ -42,13 +43,23 @@ export async function getCachedThemeStateForSong(song: SongResult | null): Promi
         }
     }
 
-    const localThemeState = await getCachedThemeState(song.id);
+    const sourceAwareSongKey = getPlaybackSongKey(song);
+    const localThemeState = await getCachedThemeState(sourceAwareSongKey);
     if (localThemeState.kind !== 'none') {
         if (localThemeState.kind === 'dual') {
             await registerThemeSyncRecordForSongIfMissing(song, 'manual');
         }
         return localThemeState;
     }
+
+    const legacyThemeState = await getCachedThemeState(song.id);
+    if (legacyThemeState.kind === 'dual') {
+        await saveToCache(`dual_theme_${sourceAwareSongKey}`, legacyThemeState.theme);
+        await registerThemeSyncRecordForSongIfMissing(song, 'manual');
+    } else if (legacyThemeState.kind === 'legacy') {
+        await saveToCache(`theme_${sourceAwareSongKey}`, legacyThemeState.theme);
+    }
+    if (legacyThemeState.kind !== 'none') return legacyThemeState;
 
     return { kind: 'none' };
 }

@@ -10,14 +10,16 @@ describe('useCollectionNavigationStore', () => {
 
     it('opens a search-origin collection and preserves the origin across nested details', () => {
         useCollectionNavigationStore.getState().openRoot({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: 1,
             name: 'Album',
             type: 'album',
         }, 'search');
 
         useCollectionNavigationStore.getState().push({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: 2,
             name: 'Artist',
             type: 'artist',

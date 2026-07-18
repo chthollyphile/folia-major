@@ -1,9 +1,10 @@
 import type { SongResult } from '../types';
 import type { LocalSongReference } from '../types/localLibrary';
 import type { NavidromeSong } from '../types/navidrome';
+import type { OnlineProviderId, PlaybackSourceRef } from '../types/onlineMusic';
 
 // Runtime guards for the unified playback song model.
-export type PlaybackSongSource = 'netease' | 'local' | 'navidrome' | 'stage';
+export type PlaybackSongSource = OnlineProviderId | 'local' | 'navidrome' | 'stage';
 
 export const isNavidromePlaybackSong = (song: SongResult | null | undefined): song is NavidromeSong => {
     return Boolean(song && (song as any).isNavidrome === true);
@@ -42,27 +43,54 @@ export const isLocalPlaybackSong = (
 };
 
 export const isStagePlaybackSong = (song: SongResult | null | undefined): boolean => {
-    return Boolean(song && (song as any).isStage === true);
+    return Boolean(song && (song.sourceRef?.kind === 'stage' || (song as any).isStage === true));
 };
 
+export const getPlaybackSourceRef = (song: SongResult): PlaybackSourceRef => {
+    if (song.sourceRef) return song.sourceRef;
+    if (isStagePlaybackSong(song)) return { kind: 'stage', mediaId: String(song.id) };
+    if (isLocalPlaybackSong(song)) return { kind: 'local', mediaId: song.localRef.songId };
+    if (isNavidromePlaybackSong(song)) {
+        const carrier = resolveNavidromePlaybackCarrier(song);
+        return { kind: 'navidrome', mediaId: String(carrier?.navidromeData.id || song.id) };
+    }
+    return {
+        kind: 'online',
+        providerId: song.sourceType === 'cloud' ? 'netease' : 'netease',
+        mediaId: String(song.id),
+        ...(song.sourceType === 'cloud' || song.t === 1 || song.t === 2 ? { variant: 'cloud' } : {}),
+    };
+};
+
+// Upgrades legacy persisted songs before they enter source-aware playback paths.
+export const normalizePlaybackSongSource = <T extends SongResult>(song: T): T & { sourceRef: PlaybackSourceRef } => (
+    song.sourceRef ? song as T & { sourceRef: PlaybackSourceRef } : { ...song, sourceRef: getPlaybackSourceRef(song) }
+);
+
+export const getOnlineProviderIdForSong = (
+    song: SongResult | null | undefined,
+): OnlineProviderId | null => {
+    if (!song) return null;
+    const sourceRef = getPlaybackSourceRef(song);
+    return sourceRef.kind === 'online' ? sourceRef.providerId : null;
+};
+
+export const isOnlinePlaybackSong = (song: SongResult | null | undefined): boolean => (
+    Boolean(song && getPlaybackSourceRef(song).kind === 'online')
+);
+
 export const getPlaybackSongSource = (song: SongResult): PlaybackSongSource => {
-    if (isStagePlaybackSong(song)) return 'stage';
-    if (isLocalPlaybackSong(song)) return 'local';
-    if (isNavidromePlaybackSong(song)) return 'navidrome';
-    return 'netease';
+    const sourceRef = getPlaybackSourceRef(song);
+    return sourceRef.kind === 'online' ? sourceRef.providerId : sourceRef.kind;
 };
 
 // Builds a collision-safe identity for queue operations across all playback sources.
 export const getPlaybackSongKey = (song: SongResult): string => {
-    if (isLocalPlaybackSong(song)) {
-        return `local:${song.localRef.songId}`;
+    const sourceRef = getPlaybackSourceRef(song);
+    if (sourceRef.kind === 'online') {
+        return `online:${sourceRef.providerId}:${sourceRef.mediaId}`;
     }
-    if (isNavidromePlaybackSong(song)) {
-        const carrier = resolveNavidromePlaybackCarrier(song);
-        return `navidrome:${carrier?.navidromeData.id || String(song.id)}`;
-    }
-    const source = getPlaybackSongSource(song);
-    return `${source}:${String(song.id)}`;
+    return `${sourceRef.kind}:${sourceRef.mediaId}`;
 };
 
 export const isSamePlaybackSong = (

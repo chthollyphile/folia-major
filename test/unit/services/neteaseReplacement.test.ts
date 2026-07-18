@@ -214,7 +214,7 @@ describe('netease unavailable song replacement', () => {
             expect(fetchMock).toHaveBeenCalledTimes(2);
             expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/register/anonimous');
             expect(String(fetchMock.mock.calls[1]?.[0])).toContain('cookie=anon-cookie-value');
-            expect(storageMap['netease_anonymous_cookie']).toBe('anon-cookie-value');
+            expect(storageMap['online_provider:netease:anonymous_cookie']).toBe('anon-cookie-value');
         });
 
         it('uses cached anonymous cookie when unlogged-in', async () => {

@@ -3,12 +3,14 @@ import { motion, useMotionValue, animate, AnimatePresence, useDragControls } fro
 import { ChevronLeft, Disc, Play, Plus, Loader2, Heart, ListPlus, Pencil, Search, X, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../types';
-import { isSongMarkedUnavailable, getSongUnavailableTagText, neteaseApi } from '../services/netease';
+import { isSongMarkedUnavailable, getSongUnavailableTagText } from '../services/netease';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { formatSongName } from '../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { colorWithAlpha } from './visualizer/colorMix';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
+import { getOnlineMusicProvider, providerSupports } from '../services/onlineMusic/providerRegistry';
+import { getProviderCacheKey, getProviderCacheWithLegacyMigration } from '../services/onlineMusic/providerStorage';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
 import {
     applyHexCardFrameStyles,
@@ -717,11 +719,14 @@ export const GridView: React.FC<GridViewProps> = ({
     }, []);
 
     const collectionSource = collection?.source as string | undefined;
+    const onlineProvider = collectionSource === 'online' && collection?.providerId
+        ? getOnlineMusicProvider(collection.providerId)
+        : null;
     const isLocalCollection = collectionSource === 'local';
     const isNavidromeCollection = collectionSource === 'navidrome';
     const isAlbumCollection = collection?.type === 'album';
-    const isDailyRecommendationsCollection = collectionSource === 'netease' && collection?.type === 'daily_recommendations';
-    const neteaseAlbumInfo = collectionSource === 'netease' && isAlbumCollection
+    const isDailyRecommendationsCollection = collectionSource === 'online' && collection?.type === 'daily_recommendations';
+    const neteaseAlbumInfo = collectionSource === 'online' && collection?.providerId === 'netease' && isAlbumCollection
         ? (loadedAlbumInfo || collection?.raw || collection)
         : null;
     const isLocalFolderCollection = isLocalCollection && collection?.type === 'folder' && !collection?.isVirtual;
@@ -891,9 +896,12 @@ export const GridView: React.FC<GridViewProps> = ({
     const CACHE_SCHEMA_VERSION = 3;
 
     const isCloudDrive = collection ? (collection.specialType === 'cloud' || Number(collection.id) === -100) : false;
-    const CACHE_KEY = collection ? (isCloudDrive
+    const CACHE_SUFFIX = collection ? (isCloudDrive
         ? `playlist_tracks_cloud_${currentUserId ?? 'anonymous'}`
         : `playlist_tracks_${collection.id}`) : '';
+    const CACHE_KEY = collection?.source === 'online'
+        ? getProviderCacheKey(collection.providerId, CACHE_SUFFIX)
+        : CACHE_SUFFIX;
 
     const flushPendingBackgroundTracks = useCallback(() => {
         const pendingTracks = pendingBackgroundTracksRef.current;
@@ -904,8 +912,21 @@ export const GridView: React.FC<GridViewProps> = ({
         setOffset(pendingBackgroundOffsetRef.current);
     }, []);
 
+    // Resolves paged online collection tracks through the active provider boundary.
+    const loadOnlineCollectionPage = async (limit: number, pageOffset: number) => {
+        if (!collection || !onlineProvider || !providerSupports(onlineProvider, 'playlists') || !onlineProvider.catalog) {
+            return { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
+        }
+        if (isCloudDrive) {
+            return onlineProvider.catalog.getCloudTracks?.(limit, pageOffset)
+                ?? { items: [], hasMore: false, nextOffset: pageOffset };
+        }
+        return onlineProvider.catalog.getPlaylistTracks?.(collection.id, limit, pageOffset)
+            ?? { items: [], hasMore: false, nextOffset: pageOffset };
+    };
+
     const loadTracks = async (reset = false) => {
-        if (usesExternalTracks || !collection || collection.source !== 'netease' || loading || (!hasMore && !reset)) return;
+        if (usesExternalTracks || !collection || collection.source !== 'online' || loading || (!hasMore && !reset)) return;
         setLoading(true);
 
         try {
@@ -915,7 +936,13 @@ export const GridView: React.FC<GridViewProps> = ({
             if (reset) {
                 pendingBackgroundTracksRef.current = null;
                 pendingBackgroundOffsetRef.current = 0;
-                const cached = await getFromCache<{ tracks: SongResult[], snapshotTime: number; schemaVersion?: number; } | SongResult[]>(CACHE_KEY);
+                const cached = collection.source === 'online'
+                    ? await getProviderCacheWithLegacyMigration<{ tracks: SongResult[], snapshotTime: number; schemaVersion?: number; } | SongResult[]>(
+                        collection.providerId,
+                        CACHE_SUFFIX,
+                        [CACHE_SUFFIX],
+                    )
+                    : await getFromCache<{ tracks: SongResult[], snapshotTime: number; schemaVersion?: number; } | SongResult[]>(CACHE_KEY);
 
                 let cachedTracks: SongResult[] = [];
                 let cachedTime = 0;
@@ -945,29 +972,16 @@ export const GridView: React.FC<GridViewProps> = ({
                 let hasMoreSync = false;
 
                 if (collection.type === 'album') {
-                    const res = await neteaseApi.getAlbum(Number(collection.id));
-                    if (res.code === 200 && res.songs) {
-                        setLoadedAlbumInfo(res.album);
-                        responseTracks = res.songs.map((song: SongResult) => ({
-                            ...song,
-                            al: { id: res.album.id, name: res.album.name, picUrl: song.al?.picUrl || res.album.picUrl },
-                            album: { id: res.album.id, name: res.album.name, picUrl: song.album?.picUrl || res.album.picUrl }
-                        }));
-                    }
+                    const page = await onlineProvider?.catalog?.getAlbumTracks?.(collection.id);
+                    responseTracks = page?.items || [];
                 } else if (collection.type === 'radio' && collection.id === 'personal_fm') {
-                    const fmRes = await neteaseApi.getPersonalFm();
-                    if (fmRes.data) {
-                        responseTracks = fmRes.data;
-                    }
+                    responseTracks = await onlineProvider?.recommendations?.getPersonalFm?.() || [];
                 } else if (isDailyRecommendationsCollection) {
-                    const dailyRes = await neteaseApi.getDailyRecommendedSongs();
-                    responseTracks = dailyRes.songs || [];
+                    responseTracks = await onlineProvider?.recommendations?.getDailySongs?.() || [];
                 } else {
-                    const res = isCloudDrive
-                        ? await neteaseApi.getUserCloud(GRID_INITIAL_BATCH_SIZE, 0)
-                        : await neteaseApi.getPlaylistTracks(Number(collection.id), GRID_INITIAL_BATCH_SIZE, 0);
-                    responseTracks = res.songs || [];
-                    hasMoreSync = isCloudDrive ? Boolean(res.hasMore) : responseTracks.length < (collection.trackCount || 0);
+                    const page = await loadOnlineCollectionPage(GRID_INITIAL_BATCH_SIZE, 0);
+                    responseTracks = page.items;
+                    hasMoreSync = page.hasMore;
                 }
 
                 if (responseTracks.length > 0) {
@@ -987,17 +1001,15 @@ export const GridView: React.FC<GridViewProps> = ({
             } else {
                 // Manual Load More
                 if (collection.type !== 'album' && collection.type !== 'radio' && !isDailyRecommendationsCollection) {
-                    const res = isCloudDrive
-                        ? await neteaseApi.getUserCloud(1000, currentOffset)
-                        : await neteaseApi.getPlaylistTracks(Number(collection.id), 1000, currentOffset);
-                    if (res.songs && res.songs.length > 0) {
+                    const page = await loadOnlineCollectionPage(1000, currentOffset);
+                    if (page.items.length > 0) {
                         setTracks(prev => {
-                            const combined = [...prev, ...res.songs];
+                            const combined = [...prev, ...page.items];
                             saveToCache(CACHE_KEY, { tracks: combined, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
                             return combined;
                         });
-                        setOffset(currentOffset + res.songs.length);
-                        setHasMore(isCloudDrive ? Boolean(res.hasMore) : res.songs.length === 1000);
+                        setOffset(page.nextOffset);
+                        setHasMore(page.hasMore);
                     } else {
                         setHasMore(false);
                     }
@@ -1027,18 +1039,16 @@ export const GridView: React.FC<GridViewProps> = ({
             safetyCount++;
             try {
                 await new Promise(r => setTimeout(r, 100));
-                const res = isCloudDrive
-                    ? await neteaseApi.getUserCloud(GRID_BACKGROUND_BATCH_SIZE, currentOffset)
-                    : await neteaseApi.getPlaylistTracks(Number(collection.id), GRID_BACKGROUND_BATCH_SIZE, currentOffset);
-                if (res.songs && res.songs.length > 0) {
+                const page = await loadOnlineCollectionPage(GRID_BACKGROUND_BATCH_SIZE, currentOffset);
+                if (page.items.length > 0) {
                     const previousLength = currentTracks.length;
                     currentTracks = appendUniqueByKey(
                         currentTracks,
-                        res.songs,
+                        page.items,
                         (song, index) => String(song.id ?? index)
                     );
                     const addedCount = currentTracks.length - previousLength;
-                    currentOffset += res.songs.length;
+                    currentOffset = page.nextOffset;
                     const nextTracks = [...currentTracks];
                     if (isDraggingRef.current) {
                         pendingBackgroundTracksRef.current = nextTracks;
@@ -1050,8 +1060,7 @@ export const GridView: React.FC<GridViewProps> = ({
                     saveToCache(CACHE_KEY, { tracks: currentTracks, snapshotTime: targetTime, schemaVersion: CACHE_SCHEMA_VERSION });
 
                     if (addedCount === 0
-                        || (isCloudDrive && !res.hasMore)
-                        || (!isCloudDrive && res.songs.length < GRID_BACKGROUND_BATCH_SIZE)) {
+                        || !page.hasMore) {
                         fetching = false;
                     }
                 } else {
@@ -1068,7 +1077,7 @@ export const GridView: React.FC<GridViewProps> = ({
     };
 
     useEffect(() => {
-        if (mode === 'tracks' && collection && !usesExternalTracks && collection.source === 'netease') {
+        if (mode === 'tracks' && collection && !usesExternalTracks && collection.source === 'online') {
             loadTracks(true);
         }
     }, [collection?.id, mode, usesExternalTracks, collection?.source]);
@@ -1082,15 +1091,15 @@ export const GridView: React.FC<GridViewProps> = ({
         }
 
         let active = true;
-        neteaseApi.getDailyRecommendationHistoryDates()
-            .then(res => {
-                if (active) setDailyRecommendationHistoryDates(res.dates || []);
+        onlineProvider?.recommendations?.getHistoryDates?.()
+            .then(dates => {
+                if (active) setDailyRecommendationHistoryDates(dates || []);
             })
             .catch(error => console.error('Failed to load daily recommendation history dates', error));
         return () => {
             active = false;
         };
-    }, [isDailyRecommendationsCollection]);
+    }, [isDailyRecommendationsCollection, onlineProvider]);
 
     const canEditNeteasePlaylist = !usesExternalTracks && collection && collection.specialType !== 'cloud' && Boolean(currentUserId && collection.creator?.userId === currentUserId);
     const canEditPlaylist = Boolean(
@@ -1100,8 +1109,8 @@ export const GridView: React.FC<GridViewProps> = ({
         || isNavidromePlaylistCollection
     );
 
-    const isNeteasePlaylist = collectionSource === 'netease' && collection?.type === 'playlist' && !isCloudDrive;
-    const isNeteaseAlbum = collectionSource === 'netease' && collection?.type === 'album' && !isCloudDrive;
+    const isNeteasePlaylist = collectionSource === 'online' && collection?.providerId === 'netease' && collection?.type === 'playlist' && !isCloudDrive;
+    const isNeteaseAlbum = collectionSource === 'online' && collection?.providerId === 'netease' && collection?.type === 'album' && !isCloudDrive;
     const showSubscribeButton = (isNeteasePlaylist && !canEditNeteasePlaylist) || isNeteaseAlbum;
 
     useEffect(() => {
@@ -1110,19 +1119,15 @@ export const GridView: React.FC<GridViewProps> = ({
         const fetchCollectionDetail = async () => {
             if (isNeteasePlaylist) {
                 try {
-                    const res = await neteaseApi.getPlaylistDetailDynamic(Number(collection.id));
-                    if (active && res.code === 200) {
-                        setPlaylistSubscribed(res.subscribed);
-                    }
+                    const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('playlist', collection.id);
+                    if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
                 } catch (err) {
                     console.warn("[GridView] Failed to fetch playlist dynamic status:", err);
                 }
             } else if (isNeteaseAlbum) {
                 try {
-                    const res = await neteaseApi.getAlbumDetailDynamic(Number(collection.id));
-                    if (active && res.code === 200) {
-                        setPlaylistSubscribed(res.isSub);
-                    }
+                    const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('album', collection.id);
+                    if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
                 } catch (err) {
                     console.warn("[GridView] Failed to fetch album dynamic status:", err);
                 }
@@ -1136,21 +1141,27 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => {
             active = false;
         };
-    }, [collection?.id, isNeteasePlaylist, isNeteaseAlbum]);
+    }, [collection?.id, isNeteasePlaylist, isNeteaseAlbum, onlineProvider]);
 
     const handleToggleSubscribe = async () => {
         if (!collection || isSubscribing) return;
         setIsSubscribing(true);
         try {
             const nextSubscribed = !playlistSubscribed;
-            let res;
+            let updated = false;
             if (isNeteasePlaylist) {
-                res = await neteaseApi.subscribePlaylist(Number(collection.id), nextSubscribed);
+                if (onlineProvider?.mutations?.subscribePlaylist) {
+                    await onlineProvider.mutations.subscribePlaylist(collection.id, nextSubscribed);
+                    updated = true;
+                }
             } else if (isNeteaseAlbum) {
-                res = await neteaseApi.subscribeAlbum(Number(collection.id), nextSubscribed);
+                if (onlineProvider?.mutations?.subscribeAlbum) {
+                    await onlineProvider.mutations.subscribeAlbum(collection.id, nextSubscribed);
+                    updated = true;
+                }
             }
 
-            if (res && res.code === 200) {
+            if (updated) {
                 setPlaylistSubscribed(nextSubscribed);
                 if (isNeteaseAlbum) {
                     window.dispatchEvent(new CustomEvent('folia-refresh-favorite-albums'));
@@ -1159,7 +1170,7 @@ export const GridView: React.FC<GridViewProps> = ({
                     void onPlaylistMutated();
                 }
             } else {
-                console.error("Failed to toggle collection subscription", res);
+                console.error("Failed to toggle collection subscription");
             }
         } catch (e) {
             console.error("Failed to toggle collection subscription", e);
@@ -1174,11 +1185,11 @@ export const GridView: React.FC<GridViewProps> = ({
         setLoading(true);
         setIsEditMode(false);
         try {
-            const res = date
-                ? await neteaseApi.getDailyRecommendationHistoryDetail(date)
-                : await neteaseApi.getDailyRecommendedSongs(afresh);
-            setTracks(res.songs || []);
-            setOffset(res.songs?.length || 0);
+            const nextTracks = date
+                ? await onlineProvider?.recommendations?.getHistorySongs?.(date) || []
+                : await onlineProvider?.recommendations?.getDailySongs?.(afresh) || [];
+            setTracks(nextTracks);
+            setOffset(nextTracks.length);
             setHasMore(false);
             setSelectedDailyRecommendationDate(date);
         } catch (error) {
@@ -1186,7 +1197,7 @@ export const GridView: React.FC<GridViewProps> = ({
         } finally {
             setLoading(false);
         }
-    }, [isDailyRecommendationsCollection]);
+    }, [isDailyRecommendationsCollection, onlineProvider]);
 
     const handleRemoveTrack = useCallback(async (track: SongResult, trackIndex: number, trackKey: string) => {
         if (!collection) return;
@@ -1204,14 +1215,14 @@ export const GridView: React.FC<GridViewProps> = ({
                 if (dailyRecommendationDislikePendingRef.current) return;
                 dailyRecommendationDislikePendingRef.current = true;
                 try {
-                    const res = await neteaseApi.dislikeDailyRecommendedSong(Number(track.id));
-                    if (res.code === 200 && res.song) {
+                    const result = await onlineProvider?.recommendations?.dislikeSong?.(track.id);
+                    if (result?.replacement) {
                         commitAfterTrackRemovalAnimation(trackKey, () => {
                             setTracks(currentTracks => currentTracks.map((item, index) => (
-                                index === trackIndex ? res.song : item
+                                index === trackIndex ? result.replacement! : item
                             )));
                         });
-                    } else if (res.code === 432) {
+                    } else if (result?.limitReached) {
                         setDailyRecommendationDislikeLimitReached(true);
                         onStatusMessage?.({
                             type: 'info',
@@ -1249,17 +1260,16 @@ export const GridView: React.FC<GridViewProps> = ({
                 return;
             }
 
-            const trackId = Number(track.id);
             const isLiked = collection.isLiked || collection.specialType === 'liked';
             if (isLiked) {
-                await neteaseApi.likeSong(trackId, false);
+                await onlineProvider?.mutations?.likeSong?.(track.id, false);
             } else {
-                await neteaseApi.updatePlaylistTracks('del', collection.id, [trackId]);
+                await onlineProvider?.mutations?.updatePlaylistTracks?.('del', collection.id, [track.id]);
             }
-            const nextTracks = tracks.filter(track => track.id !== trackId);
+            const nextTracks = tracks.filter(candidate => String(candidate.id) !== String(track.id));
             commitAfterTrackRemovalAnimation(trackKey, () => setTracks(nextTracks));
             await saveToCache(CACHE_KEY, { tracks: nextTracks, snapshotTime: Date.now(), schemaVersion: CACHE_SCHEMA_VERSION });
-            await removeFromCache(`playlist_detail_${collection.id}`);
+            await removeFromCache(getProviderCacheKey(collection.providerId, `playlist_detail_${collection.id}`));
             await onPlaylistMutated?.();
         } catch (error) {
             console.error('Failed to remove track in GridView', error);

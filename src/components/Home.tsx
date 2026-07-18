@@ -13,6 +13,7 @@ import { resolveSearchSource, useSearchNavigationStore } from '../stores/useSear
 import type { LocalLibraryCatalogSnapshot } from '../hooks/useLocalLibraryCatalog';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useOnlineProviderQrLogin } from '../hooks/useOnlineProviderQrLogin';
 
 /**
  * @deprecated Legacy home implementation. It will be removed when the new home surface is complete;
@@ -235,9 +236,20 @@ const Home: React.FC<HomeProps> = ({
     const [searchNavidromeSelection, setSearchNavidromeSelection] = useState<NavidromeViewSelection | null>(null);
 
     // Login QR
-    const [qrCodeImg, setQrCodeImg] = useState<string>("");
-    const [qrStatus, setQrStatus] = useState<string>("");
-    const qrCheckInterval = useRef<any>(null);
+    const {
+        qrCodeImg,
+        qrStatusText,
+        isConfirmed: isQrConfirmed,
+        start: startQrLogin,
+        stop: stopQrLogin,
+    } = useOnlineProviderQrLogin({
+        providerId: 'netease',
+        t,
+        onConfirmed: () => {
+            onRefreshUser();
+            setShowLoginModal(false);
+        },
+    });
     const [isLocalPlaylistOpen, setIsLocalPlaylistOpen] = useState(false);
 
     // Favorite Albums
@@ -365,48 +377,7 @@ const Home: React.FC<HomeProps> = ({
 
     const initLogin = async () => {
         setShowLoginModal(true);
-        setQrStatus(t('home.loadingQr'));
-        try {
-            const keyRes = await neteaseApi.getQrKey();
-            const key = keyRes.data.unikey;
-
-            const createRes = await neteaseApi.createQr(key);
-            setQrCodeImg(createRes.data.qrimg);
-            setQrStatus(t('home.scanQr'));
-
-            if (qrCheckInterval.current) clearInterval(qrCheckInterval.current);
-            qrCheckInterval.current = setInterval(async () => {
-                try {
-                    const checkRes = await neteaseApi.checkQr(key);
-                    const code = checkRes.code;
-
-                    if (code === 800) {
-                        setQrStatus(t('home.qrExpired'));
-                        clearInterval(qrCheckInterval.current);
-                    } else if (code === 801) {
-                        // Waiting
-                    } else if (code === 802) {
-                        setQrStatus(t('home.qrScanned'));
-                    } else if (code === 803) {
-                        setQrStatus(t('home.loginSuccess'));
-                        clearInterval(qrCheckInterval.current);
-                        if (checkRes.cookie) {
-                            localStorage.setItem('netease_cookie', checkRes.cookie);
-                        }
-                        // Trigger parent refresh
-                        setTimeout(async () => {
-                            onRefreshUser();
-                            setShowLoginModal(false);
-                        }, 1000);
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-            }, 3000);
-
-        } catch (e) {
-            setQrStatus(t('home.loginError'));
-        }
+        await startQrLogin();
     };
 
     const handleSearch = async (e?: React.FormEvent) => {
@@ -428,12 +399,6 @@ const Home: React.FC<HomeProps> = ({
             onSearchCommitted(query, viewTab);
         }
     };
-
-    useEffect(() => {
-        return () => {
-            if (qrCheckInterval.current) clearInterval(qrCheckInterval.current);
-        };
-    }, []);
 
     useEffect(() => {
         const handleScanProgress = (event: Event) => {
@@ -845,7 +810,7 @@ const Home: React.FC<HomeProps> = ({
                                     <button
                                         onClick={() => {
                                             setShowLoginModal(false);
-                                            if (qrCheckInterval.current) clearInterval(qrCheckInterval.current);
+                                            stopQrLogin();
                                         }}
                                         className="absolute top-4 right-4 opacity-30 hover:opacity-100 rounded-full bg-white/5 p-1 transition-colors"
                                         style={{ color: 'var(--text-primary)' }}
@@ -864,8 +829,8 @@ const Home: React.FC<HomeProps> = ({
                                         )}
                                     </div>
 
-                                    <p className={`text-xs font-medium mt-2 ${qrStatus.includes('Success') ? 'text-green-400' : 'opacity-60'}`} style={{ color: qrStatus.includes('Success') ? undefined : 'var(--text-secondary)' }}>
-                                        {qrStatus}
+                                    <p className={`text-xs font-medium mt-2 ${isQrConfirmed ? 'text-green-400' : 'opacity-60'}`} style={{ color: isQrConfirmed ? undefined : 'var(--text-secondary)' }}>
+                                        {qrStatusText}
                                     </p>
 
                                     <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>

@@ -16,6 +16,7 @@ import { getLyricProviderPreferenceLabel } from '../utils/lyrics/lyricSourceLabe
 import { applyAppLanguagePreference, readStoredAppLanguagePreference, type AppLanguagePreference } from '../i18n/config';
 import { normalizeFontFamilyStack } from '../utils/fontStacks';
 import i18n from '../i18n/config';
+import type { AudioQualityPreference } from '../types/onlineMusic';
 
 // src/stores/useSettingsUiStore.ts
 // Shared settings state and actions used by App, Home, and SettingsModal.
@@ -25,7 +26,7 @@ export const CACHE_SIZE_KEY = 'folia_cache_size';
 const ENABLE_MEDIA_CACHE_KEY = 'folia_enable_media_cache';
 const LAST_SEEN_GUIDE_VERSION_STORAGE_KEY = 'folia_last_seen_guide_version';
 
-export type AudioQuality = 'exhigh' | 'lossless' | 'hires';
+export type AudioQuality = AudioQualityPreference;
 export type SettingsModalInitialTab = 'help' | 'options';
 export type SettingsSubviewId = 'appearance' | 'general' | 'playback' | 'integration' | 'storage' | 'desktop' | 'lab' | 'visualizer' | 'themePark' | 'lyricFilter';
 export type VisualizerSettingsSection = 'common' | 'background' | 'visualizer' | 'subtitle';
@@ -83,13 +84,21 @@ const readStoredDisableHomeDynamicBackground = (): boolean => {
     return false;
 };
 
+export const resolveStoredAudioQuality = (saved: string | null): AudioQuality => (
+    saved === 'standard' || saved === 'lossless' || saved === 'hires' ? saved : 'high'
+);
+
 const readStoredAudioQuality = (): AudioQuality => {
     if (typeof window === 'undefined') {
-        return 'exhigh';
+        return 'high';
     }
 
     const saved = localStorage.getItem('default_audio_quality');
-    return saved === 'lossless' || saved === 'hires' ? saved : 'exhigh';
+    const quality = resolveStoredAudioQuality(saved);
+    if (saved === 'exhigh') {
+        localStorage.setItem('default_audio_quality', 'high');
+    }
+    return quality;
 };
 
 const readStoredBackgroundOpacity = () => {

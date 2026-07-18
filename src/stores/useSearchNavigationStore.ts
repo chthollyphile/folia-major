@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
-import { neteaseApi } from '../services/netease';
 import type { HomeViewTab, LocalSong, UnifiedSong } from '../types';
+import type { OnlineProviderId } from '../types/onlineMusic';
 import {
     applyLocalLibraryEntityDisplay,
     buildUnifiedLocalSong,
     type LocalLibraryDisplayCatalog,
 } from '../services/playbackAdapters';
+import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
 const DEFAULT_SEARCH_LIMIT = 30;
-export type SearchSource = 'netease' | 'local' | 'navidrome';
+export type SearchSource = OnlineProviderId | 'local' | 'navidrome';
 export type SearchReturnView = 'home' | 'player';
 
 type SearchExecutorDeps = {
@@ -127,16 +128,18 @@ const searchNavidromeSongs = async (query: string): Promise<SearchExecutionResul
     };
 };
 
-const searchNeteaseSongs = async (query: string, limit: number, offset: number): Promise<SearchExecutionResult> => {
-    const response = await neteaseApi.cloudSearch(query, limit, offset);
-    const results = (response.result?.songs || []) as UnifiedSong[];
-    const totalCount = response.result?.songCount || 0;
-
-    return {
-        results,
-        hasMore: offset + results.length < totalCount,
-        nextOffset: offset + results.length,
-    };
+const searchOnlineProviderSongs = async (
+    providerId: OnlineProviderId,
+    query: string,
+    limit: number,
+    offset: number,
+): Promise<SearchExecutionResult> => {
+    const provider = getOnlineMusicProvider(providerId);
+    if (!provider?.search || !provider.capabilities.search) {
+        return { results: [], hasMore: false, nextOffset: offset };
+    }
+    const page = await provider.search.searchSongs(query, limit, offset);
+    return { results: page.items, hasMore: page.hasMore, nextOffset: page.nextOffset };
 };
 
 const executeSearch = async (
@@ -154,7 +157,7 @@ const executeSearch = async (
         return searchNavidromeSongs(query);
     }
 
-    return searchNeteaseSongs(query, limit, offset);
+    return searchOnlineProviderSongs(sourceTab, query, limit, offset);
 };
 
 const getInitialHomeViewTab = (): HomeViewTab => {

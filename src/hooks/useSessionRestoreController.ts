@@ -5,15 +5,16 @@ import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRe
 import { buildLocalQueue } from '../services/playbackAdapters';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
-import { getPlaybackSongKey, isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, isStagePlaybackSong, normalizePlaybackSongSource } from '../utils/appPlaybackGuards';
 import type { LyricData, SongResult, StatusMessage } from '../types';
+import type { AudioQualityPreference } from '../types/onlineMusic';
 
 // src/hooks/useSessionRestoreController.ts
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
 type UseSessionRestoreControllerParams = {
-    audioQuality: string;
+    audioQuality: AudioQualityPreference;
     userId?: number;
     blobUrlRef: MutableRefObject<string | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
@@ -23,7 +24,7 @@ type UseSessionRestoreControllerParams = {
     setAudioSrc: SetState<string | null>;
     setLyrics: (nextLyrics: LyricData | null) => void;
     setStatusMsg: SetState<StatusMessage | null>;
-    restoreCachedThemeForSong: (songId: ThemeCacheSongKey, options?: {
+    restoreCachedThemeForSong: (songId: ThemeCacheSongKey | SongResult, options?: {
         allowLastUsedFallback?: boolean;
         preserveCurrentOnMiss?: boolean;
     }) => Promise<'legacy' | 'dual' | 'fallback-dual' | 'restored' | 'none'>;
@@ -80,6 +81,9 @@ export function useSessionRestoreController({
             try {
                 let lastSong = await getFromCache<SongResult>('last_song');
                 let lastQueue = await getFromCache<SongResult[]>('last_queue');
+
+                if (lastSong) lastSong = normalizePlaybackSongSource(lastSong);
+                if (lastQueue) lastQueue = lastQueue.map(normalizePlaybackSongSource);
 
                 if (isStagePlaybackSong(lastSong) || lastQueue?.some(song => isStagePlaybackSong(song))) {
                     await clearPersistedStagePlaybackCache();

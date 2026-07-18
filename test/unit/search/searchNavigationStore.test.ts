@@ -7,6 +7,7 @@ import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLi
 vi.mock('@/services/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
+        normalizeSongResult: vi.fn((raw: unknown) => raw),
     },
 }));
 

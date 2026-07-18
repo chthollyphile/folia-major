@@ -15,12 +15,20 @@ const neteaseSong = (id: number, name = 'NetEase'): SongResult => ({
     artists: [],
     album: { id: 1, name: 'Album' },
     duration: 1000,
+    sourceRef: { kind: 'online', providerId: 'netease', mediaId: String(id) },
+});
+
+const kugouSong = (hash: string, id = -1): SongResult => ({
+    ...neteaseSong(id, 'Kugou'),
+    id: hash,
+    sourceRef: { kind: 'online', providerId: 'kugou', mediaId: hash, providerData: { hash } },
 });
 
 const localSong = (songId: string, id = -1, name = 'Local'): SongResult => ({
     ...neteaseSong(id, name),
     isLocal: true,
     localRef: { songId },
+    sourceRef: { kind: 'local', mediaId: songId },
 } as SongResult);
 
 const navidromeSong = (songId: string, id = -1, name = 'Navidrome'): SongResult => ({
@@ -34,25 +42,29 @@ const navidromeSong = (songId: string, id = -1, name = 'Navidrome'): SongResult 
         path: `${songId}.flac`,
         suffix: 'flac',
     },
+    sourceRef: { kind: 'navidrome', mediaId: songId },
 } as SongResult);
 
 describe('playback song identity', () => {
     it('keeps equal numeric ids distinct across playback sources', () => {
         const netease = neteaseSong(-1);
+        const kugou = kugouSong('-1');
         const local = localSong('local-1');
         const navidrome = navidromeSong('navi-1');
 
         expect(new Set([
             getPlaybackSongKey(netease),
+            getPlaybackSongKey(kugou),
             getPlaybackSongKey(local),
             getPlaybackSongKey(navidrome),
-        ]).size).toBe(3);
+        ]).size).toBe(4);
         expect(isSamePlaybackSong(local, navidrome)).toBe(false);
     });
 
     it('uses stable source ids instead of generated numeric ids', () => {
         expect(getPlaybackSongKey(localSong('local-stable', -123))).toBe('local:local-stable');
         expect(getPlaybackSongKey(navidromeSong('navi-stable', -123))).toBe('navidrome:navi-stable');
+        expect(getPlaybackSongKey(kugouSong('ABCDEF'))).toBe('online:kugou:ABCDEF');
     });
 
     it('replaces the loaded song without discarding other queue sources', () => {
@@ -63,7 +75,7 @@ describe('playback song identity', () => {
         const nextQueue = replacePlaybackSongInQueue(queue, replacement);
 
         expect(nextQueue.map(getPlaybackSongKey)).toEqual([
-            'netease:1',
+            'online:netease:1',
             'local:local-1',
             'navidrome:navi-1',
         ]);

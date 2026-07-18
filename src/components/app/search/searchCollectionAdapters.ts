@@ -1,5 +1,7 @@
 import type { UnifiedSong } from '../../../types';
+import type { MediaId } from '../../../types/onlineMusic';
 import type { GridViewCollectionDescriptor } from '../home/gridViewCollectionAdapters';
+import { getPlaybackSourceRef } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/search/searchCollectionAdapters.ts
 
@@ -8,7 +10,7 @@ const getTrackCoverUrl = (track: UnifiedSong) => track.al?.picUrl || track.album
 export const createSearchArtistCollection = (
     track: UnifiedSong,
     artistName: string,
-    artistId?: number,
+    artistId?: MediaId,
     entityId?: string,
 ): GridViewCollectionDescriptor | null => {
     const coverUrl = getTrackCoverUrl(track);
@@ -40,8 +42,11 @@ export const createSearchArtistCollection = (
     }
 
     if (!artistId) return null;
+    const sourceRef = getPlaybackSourceRef(track);
+    if (sourceRef.kind !== 'online') return null;
     return {
-        source: 'netease',
+        source: 'online',
+        providerId: sourceRef.providerId,
         id: artistId,
         name: artistName,
         type: 'artist',
@@ -52,7 +57,7 @@ export const createSearchArtistCollection = (
 export const createSearchAlbumCollection = (
     track: UnifiedSong,
     albumName: string,
-    albumId?: number,
+    albumId?: MediaId,
     entityId?: string,
 ): GridViewCollectionDescriptor | null => {
     const coverUrl = getTrackCoverUrl(track);
@@ -84,8 +89,11 @@ export const createSearchAlbumCollection = (
     }
 
     if (!albumId) return null;
+    const sourceRef = getPlaybackSourceRef(track);
+    if (sourceRef.kind !== 'online') return null;
     return {
-        source: 'netease',
+        source: 'online',
+        providerId: sourceRef.providerId,
         id: albumId,
         name: albumName,
         type: 'album',

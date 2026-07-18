@@ -21,8 +21,8 @@ const lyrics = {
 
 describe('songThemeAutoGeneration', () => {
     it('keeps the same generation key across repeated song object instances', () => {
-        expect(getSongThemeAutoGenerationKey(song)).toBe('101');
-        expect(getSongThemeAutoGenerationKey({ ...song } as SongResult)).toBe('101');
+        expect(getSongThemeAutoGenerationKey(song)).toBe('online:netease:101');
+        expect(getSongThemeAutoGenerationKey({ ...song } as SongResult)).toBe('online:netease:101');
         expect(getSongThemeAutoGenerationKey(null)).toBeNull();
     });
 

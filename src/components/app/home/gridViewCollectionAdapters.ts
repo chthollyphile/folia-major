@@ -6,12 +6,13 @@ import { SubsonicSong } from '../../../types/navidrome';
 import { isBlob } from '../../../utils/blobGuards';
 import { sortLocalFolderSongs } from '../../../utils/localSongSorting';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
+import type { OnlineProviderId } from '../../../types/onlineMusic';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 
 // src/components/app/home/gridViewCollectionAdapters.ts
 // Converts home-surface collections into small GridView descriptors and resolves non-Netease tracks outside GridView.
 
-export type GridViewCollectionSource = 'netease' | 'local' | 'navidrome';
+export type GridViewCollectionSource = 'online' | 'local' | 'navidrome';
 export type NavidromeGridViewCollectionType = 'album' | 'playlist' | 'artist' | 'random' | 'favorites';
 
 export interface BaseGridViewCollectionDescriptor {
@@ -49,8 +50,14 @@ export interface NavidromeGridViewCollectionDescriptor extends BaseGridViewColle
     editable?: boolean;
 }
 
+export interface OnlineGridViewCollectionDescriptor extends BaseGridViewCollectionDescriptor {
+    source: 'online';
+    providerId: OnlineProviderId;
+    raw?: any;
+}
+
 export type GridViewCollectionDescriptor =
-    | (BaseGridViewCollectionDescriptor & { source: 'netease'; raw?: any; })
+    | OnlineGridViewCollectionDescriptor
     | LocalGridViewCollectionDescriptor
     | NavidromeGridViewCollectionDescriptor;
 
@@ -62,7 +69,8 @@ const getDisplayName = (name: React.ReactNode) => (
 
 export const createNeteaseGridViewCollection = (collection: any): GridViewCollectionDescriptor => ({
     ...collection,
-    source: 'netease',
+    source: 'online',
+    providerId: 'netease',
     albumArtist: collection.type === 'album'
         ? collection.raw?.artists?.map((artist: { name?: string }) => artist.name).filter(Boolean).join(' / ') || collection.description
         : collection.albumArtist,
@@ -280,4 +288,4 @@ export const isNavidromeGridViewCollection = (
 
 export const isNeteaseGridViewCollection = (
     collection: GridViewCollectionDescriptor
-) => collection.source === 'netease';
+) => collection.source === 'online' && collection.providerId === 'netease';

@@ -6,7 +6,7 @@ import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
 import { applyLocalSongCoverDisplay, buildLocalQueue } from '../services/playbackAdapters';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
-import { neteaseApi } from '../services/netease';
+import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
 import { createCoverPlaceholder } from '../utils/coverPlaceholders';
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { createSafeObjectUrl, getBlobObjectUrlSignature, isBlob } from '../utils/blobGuards';
@@ -399,17 +399,18 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             : embeddedCoverUrl;
     }, [getOrCreateLocalCoverObjectUrl]);
 
-    // Appends Netease album pages without replacing already rendered artist content.
-    const loadNeteaseAlbumPages = async (artistId: number, generation: number, startOffset = 0) => {
+    // Appends online provider album pages without replacing already rendered artist content.
+    const loadOnlineAlbumPages = async (artistId: string | number, generation: number, startOffset = 0) => {
         setBackgroundLoading(true);
         setBackgroundLoadFailed(false);
         try {
             for (let offset = startOffset; offset < 10000; offset += 50) {
-                const response = await neteaseApi.getArtistAlbums(artistId, 50, offset);
+                const provider = getOnlineMusicProvider(collection.providerId);
+                const response = await provider?.catalog?.getArtistAlbums?.(artistId, 50, offset);
                 if (generation !== loadGenerationRef.current) return;
-                const pageAlbums = Array.isArray(response?.hotAlbums) ? response.hotAlbums : [];
+                const pageAlbums = response?.items || [];
                 setAlbums(current => appendUniqueByKey(current, pageAlbums, album => String(album.id)));
-                if (!response?.more || pageAlbums.length === 0) break;
+                if (!response?.hasMore || pageAlbums.length === 0) break;
                 await new Promise(resolve => setTimeout(resolve, 60));
             }
         } catch (error) {
@@ -433,20 +434,29 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             const artistId = collection.id;
             const source = collection.source;
 
-            if (source === 'netease') {
-                const [detailRes, topSongsRes] = await Promise.all([
-                    neteaseApi.getArtistDetail(Number(artistId)),
-                    neteaseApi.getArtistTopSongs(Number(artistId)),
+            if (source === 'online') {
+                const provider = getOnlineMusicProvider(collection.providerId);
+                const [detail, topSongsPage] = await Promise.all([
+                    provider?.catalog?.getArtistDetail?.(artistId),
+                    provider?.catalog?.getArtistSongs?.(artistId, 10, 0),
                 ]);
                 if (generation !== loadGenerationRef.current) return;
-                if (detailRes?.data?.artist) {
-                    setArtistInfo(detailRes.data.artist);
+                if (detail) {
+                    setArtistInfo({
+                        id: detail.id,
+                        name: detail.name,
+                        cover: detail.coverUrl,
+                        briefDesc: detail.description,
+                        musicSize: detail.providerData?.musicSize,
+                        albumSize: detail.providerData?.albumSize,
+                        transNames: detail.providerData?.transNames,
+                    });
                 }
-                if (topSongsRes?.songs) {
-                    setTopSongs(topSongsRes.songs.slice(0, 10));
+                if (topSongsPage?.items) {
+                    setTopSongs(topSongsPage.items.slice(0, 10));
                 }
                 setLoading(false);
-                await loadNeteaseAlbumPages(Number(artistId), generation);
+                await loadOnlineAlbumPages(artistId, generation);
             } else if (source === 'navidrome') {
                 const config = getNavidromeConfig();
                 if (config) {
@@ -1315,9 +1325,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 <button
                     type="button"
                     onClick={() => {
-                        if (!backgroundLoadFailed || collection.source !== 'netease') return;
+                        if (!backgroundLoadFailed || collection.source !== 'online') return;
                         const generation = ++loadGenerationRef.current;
-                        void loadNeteaseAlbumPages(Number(collection.id), generation, albums.length);
+                        void loadOnlineAlbumPages(collection.id, generation, albums.length);
                     }}
                     className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs backdrop-blur-md"
                     style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}

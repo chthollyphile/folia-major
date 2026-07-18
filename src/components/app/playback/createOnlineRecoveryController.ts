@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { loadOnlineSongAudioSource } from '../../../services/onlinePlayback';
 import type { SongResult } from '../../../types';
+import type { AudioQualityPreference } from '../../../types/onlineMusic';
 import {
     getPlaybackSongKey,
     isLocalPlaybackSong,
@@ -11,7 +12,7 @@ import {
 // src/components/app/playback/createOnlineRecoveryController.ts
 
 type RecoveryControllerParams = {
-    audioQuality: string;
+    audioQuality: AudioQualityPreference;
     currentSong: SongResult | null;
     audioSrc: string | null;
     audioRef: RefObject<HTMLAudioElement | null>;

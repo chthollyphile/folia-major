@@ -14,6 +14,7 @@ import OnlineLyricsTab from './panelTab/OnlineLyricsTab';
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import type { OnlineLyricsState } from '../types';
+import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
@@ -28,8 +29,8 @@ type UnifiedPanelPlaybackProps = {
     onNavigateHomeDirect: () => void;
     coverUrl: string | null;
     currentSong: SongResult | null;
-    onAlbumSelect: (albumId: number) => void;
-    onSelectArtist: (artistId: number) => void;
+    onAlbumSelect: (albumId: MediaId) => void;
+    onSelectArtist: (artistId: MediaId) => void;
     loopMode: 'off' | 'all' | 'one';
     onToggleLoop: () => void;
     onLike: () => void;
@@ -94,8 +95,8 @@ type UnifiedPanelQueueProps = {
 type UnifiedPanelAccountProps = {
     user: any; // NeteaseUser | null
     onLogout: () => void;
-    audioQuality: 'exhigh' | 'lossless' | 'hires';
-    onAudioQualityChange: (quality: 'exhigh' | 'lossless' | 'hires') => void;
+    audioQuality: AudioQualityPreference;
+    onAudioQualityChange: (quality: AudioQualityPreference) => void;
     cacheSize: string;
     onClearCache: () => void;
     onSyncData: () => void;

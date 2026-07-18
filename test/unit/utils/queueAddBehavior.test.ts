@@ -58,9 +58,9 @@ describe('applyQueueAddBehavior', () => {
         });
 
         expect(result.nextQueue.map(getPlaybackSongKey)).toEqual([
-            'netease:1',
-            'netease:3',
-            'netease:2',
+            'online:netease:1',
+            'online:netease:3',
+            'online:netease:2',
         ]);
     });
 });

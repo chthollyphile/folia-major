@@ -39,6 +39,7 @@ import {
 import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
 import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong, NeteasePlaylist } from './types';
+import type { MediaId } from './types/onlineMusic';
 import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -72,7 +73,7 @@ import { useCollectionNavigationStore } from './stores/useCollectionNavigationSt
 import { useSettingsUiStore } from './stores/useSettingsUiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume } from './utils/appPlaybackHelpers';
-import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong, resolveNavidromePlaybackCarrier } from './utils/appPlaybackGuards';
+import { getOnlineProviderIdForSong, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong, resolveNavidromePlaybackCarrier } from './utils/appPlaybackGuards';
 import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
@@ -1094,8 +1095,8 @@ export default function App() {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         clearPendingUnavailableSkip,
-        addNeteaseSongToQueue,
-        addNeteaseSongsToQueue,
+        addOnlineSongToQueue,
+        addOnlineSongsToQueue,
         playSong,
         playOnlineQueueFromStart,
         handleQueueAddAndPlay,
@@ -1169,7 +1170,7 @@ export default function App() {
     const handleSearchResultArtistOpen = useCallback((
         track: UnifiedSong,
         artistName: string,
-        artistId?: number,
+        artistId?: MediaId,
         entityId?: string,
     ) => {
         const collection = createSearchArtistCollection(track, artistName, artistId, entityId);
@@ -1180,7 +1181,7 @@ export default function App() {
     const handleSearchResultAlbumOpen = useCallback((
         track: UnifiedSong,
         albumName: string,
-        albumId?: number,
+        albumId?: MediaId,
         entityId?: string,
     ) => {
         const collection = createSearchAlbumCollection(track, albumName, albumId, entityId);
@@ -1367,7 +1368,7 @@ export default function App() {
                 const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
                 return navidromeSong ? starredNavidromeSongIds.has(navidromeSong.navidromeData.id) : false;
             }
-            return likedSongIds.has(currentSong.id);
+            return getOnlineProviderIdForSong(currentSong) === 'netease' && likedSongIds.has(Number(currentSong.id));
         })(),
         onLike: handleLike,
     });
@@ -1973,42 +1974,47 @@ export default function App() {
     const handlePlaylistSelect = useCallback((playlist: NeteasePlaylist) => {
         navigateToCollection({
             ...playlist,
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             type: 'playlist',
             coverUrl: playlist.coverImgUrl,
         }, 'home');
     }, [navigateToCollection]);
 
-    const handleUnifiedAlbumSelect = useCallback((albumId: number) => {
+    const handleUnifiedAlbumSelect = useCallback((albumId: MediaId) => {
         navigateToCollection({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: albumId,
             type: 'album',
             name: t('home.albums'),
         }, 'home');
     }, [navigateToCollection, t]);
 
-    const handleUnifiedArtistSelect = useCallback((artistId: number) => {
+    const handleUnifiedArtistSelect = useCallback((artistId: MediaId) => {
         navigateToCollection({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: artistId,
             type: 'artist',
             name: t('navidrome.artists'),
         }, 'home');
     }, [navigateToCollection, t]);
 
-    const handlePlayerPanelAlbumSelect = useCallback((albumId: number) => {
+    const handlePlayerPanelAlbumSelect = useCallback((albumId: MediaId) => {
         navigateToCollection({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: albumId,
             type: 'album',
             name: t('home.albums'),
         }, 'player');
     }, [navigateToCollection, t]);
 
-    const handlePlayerPanelArtistSelect = useCallback((artistId: number) => {
+    const handlePlayerPanelArtistSelect = useCallback((artistId: MediaId) => {
         navigateToCollection({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: artistId,
             type: 'artist',
             name: t('navidrome.artists'),
@@ -2065,8 +2071,8 @@ export default function App() {
         theme,
         navidromeEnabled,
         playAll: playOnlineQueueFromStart,
-        addAllToQueue: addNeteaseSongsToQueue,
-        addSongToQueue: addNeteaseSongToQueue,
+        addAllToQueue: addOnlineSongsToQueue,
+        addSongToQueue: addOnlineSongToQueue,
         onStatusMessage: setStatusMsg,
         onOpenCollection: collection => navigateToCollection(collection, 'home'),
         onPushCollection: pushCollection,
@@ -2074,8 +2080,8 @@ export default function App() {
     }), [
         activePlaybackContext,
         addNavidromeSongsToQueue,
-        addNeteaseSongsToQueue,
-        addNeteaseSongToQueue,
+        addOnlineSongsToQueue,
+        addOnlineSongToQueue,
         playOnlineQueueFromStart,
         applyCustomTheme,
         applyDefaultTheme,
@@ -2235,7 +2241,7 @@ export default function App() {
                 const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
                 return navidromeSong ? starredNavidromeSongIds.has(navidromeSong.navidromeData.id) : false;
             }
-            return likedSongIds.has(currentSong.id);
+            return getOnlineProviderIdForSong(currentSong) === 'netease' && likedSongIds.has(Number(currentSong.id));
         })(),
         generateAITheme: generateCurrentSongTheme,
         isGeneratingTheme,

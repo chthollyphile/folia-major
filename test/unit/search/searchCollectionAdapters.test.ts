@@ -13,28 +13,32 @@ const baseTrack = (): UnifiedSong => ({
     artists: [{ id: 2, name: 'Artist' }],
     album: { id: 3, name: 'Album', picUrl: 'https://example.com/cover.jpg' },
     duration: 1000,
+    sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' },
 });
 
 describe('search collection adapters', () => {
     it('creates NetEase artist and album descriptors', () => {
         const track = baseTrack();
         expect(createSearchArtistCollection(track, 'Artist', 2)).toEqual(expect.objectContaining({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: 2,
             type: 'artist',
         }));
         expect(createSearchAlbumCollection(track, 'Album', 3)).toEqual(expect.objectContaining({
-            source: 'netease',
+            source: 'online',
+            providerId: 'netease',
             id: 3,
             type: 'album',
         }));
     });
 
     it('uses stable local entity ids and refuses unresolved local links', () => {
-        const track = {
+        const track: UnifiedSong = {
             ...baseTrack(),
             isLocal: true,
             localRef: { songId: 'song-1' },
+            sourceRef: { kind: 'local', mediaId: 'song-1' },
         };
         expect(createSearchArtistCollection(track, 'Artist', 0, 'artist-1')).toEqual(expect.objectContaining({
             source: 'local',
@@ -46,9 +50,10 @@ describe('search collection adapters', () => {
     });
 
     it('uses Navidrome source ids from the playback carrier', () => {
-        const track = {
+        const track: UnifiedSong = {
             ...baseTrack(),
             isNavidrome: true,
+            sourceRef: { kind: 'navidrome', mediaId: 'song-1' },
             navidromeData: {
                 ...baseTrack(),
                 id: 'song-1',

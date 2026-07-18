@@ -182,6 +182,7 @@ export function buildUnifiedLocalSong({
         dt: localSong.duration,
         isLocal: true,
         localRef: { songId: localSong.id },
+        sourceRef: { kind: 'local', mediaId: localSong.id },
     };
 
     if (!matchedSong) {
@@ -260,6 +261,7 @@ export function buildUnifiedNavidromeSong(
         dt: navidromeSong.dt,
         isNavidrome: true,
         navidromeData: navidromeSong,
+        sourceRef: { kind: 'navidrome', mediaId: navidromeSong.navidromeData.id },
         matchedLyricsSource: options?.matchedLyricsSource,
         matchedLyricsProviderPlatform: options?.matchedLyricsProviderPlatform
     } as any;
@@ -277,7 +279,8 @@ export function buildNavidromeQueue(queue: NavidromeSong[], currentSong?: SongRe
         al: song.al,
         dt: song.dt,
         isNavidrome: true,
-        navidromeData: song
+        navidromeData: song,
+        sourceRef: { kind: 'navidrome', mediaId: song.navidromeData.id },
     } as any));
 
     if (!currentSong) {

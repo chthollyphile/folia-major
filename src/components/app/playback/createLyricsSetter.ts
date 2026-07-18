@@ -4,6 +4,7 @@ import { applyLyricDisplayFilter } from '../../../utils/lyrics/filtering';
 import { ensureLyricDataRenderHints } from '../../../utils/lyrics/renderHints';
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../../../utils/lyrics/chorusEffects';
 import type { NeteaseChorusRange } from '../../../utils/lyrics/chorusEffects';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/playback/createLyricsSetter.ts
 
@@ -39,7 +40,7 @@ export const createLyricsSetter = (
 
     return (nextLyrics: LyricData | null) => {
         const currentSong = currentSongFullRef?.current ?? null;
-        const currentSongId = currentSong?.id ?? null;
+        const currentSongId = currentSong ? getPlaybackSongKey(currentSong) : null;
 
         if (currentSongId !== lastSongId) {
             lastSongId = currentSongId;

@@ -1,5 +1,6 @@
 import { LyricData, LyricProviderSource, SongResult } from '../../types';
 import { neteaseApi } from '../../services/netease';
+import { toNeteaseId } from '../../services/onlineMusic/neteaseProvider';
 import { fetchNeteaseChorusRanges, processNeteaseLyrics } from './neteaseProcessing';
 import { applyNeteaseChorusByTime } from './chorusEffects';
 import type { NeteaseChorusRange } from './chorusEffects';
@@ -233,13 +234,14 @@ export async function autoMatchBestLyric(
 
         return await withTimeout(
                 (async () => {
-                    const lyricRes = await neteaseApi.getLyric(song.id);
+                    const neteaseSongId = toNeteaseId(song.id);
+                    const lyricRes = await neteaseApi.getLyric(neteaseSongId);
                     return processNeteaseLyrics(
                         {
                             type: 'netease',
                             ...lyricRes
                         },
-                        { songId: song.id }
+                        { songId: neteaseSongId }
                     );
                 })(),
                 PROVIDER_LYRIC_TIMEOUT_MS,
