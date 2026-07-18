@@ -43,7 +43,7 @@ async function requestQQ(method: string, module: string, param: any): Promise<an
 
   const response = await fetch(url, {
     method: 'POST',
-    credentials: 'omit',
+    credentials: isElectron ? 'omit' : 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       'Cookie': 'tmeLoginType=-1;',

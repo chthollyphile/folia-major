@@ -23,7 +23,17 @@ const CORS_HEADERS = {
   ].join(', '),
 };
 
-const IGNORED_FORWARD_HEADERS = ['host', 'connection', 'content-length', 'origin', 'referer'];
+const IGNORED_FORWARD_HEADERS = [
+  'host',
+  'connection',
+  'content-length',
+  'origin',
+  'referer',
+  'cookie',
+  'authorization',
+  'proxy-authorization',
+  'x-vercel-protection-bypass',
+];
 
 function isAllowedLyricProxyHost(hostname: string): boolean {
   return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
@@ -68,6 +78,11 @@ export default async function handler(req: any, res: any) {
       if (!IGNORED_FORWARD_HEADERS.includes(key.toLowerCase())) {
         headers[key] = req.headers[key] as string;
       }
+    }
+
+    if (hostname === 'u.y.qq.com') {
+      headers.Cookie = 'tmeLoginType=-1;';
+      headers['User-Agent'] = 'okhttp/3.14.9';
     }
 
     // Forward the method and body (if present and method is not GET/HEAD)
