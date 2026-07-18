@@ -275,10 +275,18 @@ export async function fetchKugouLyrics(
   }
 
   const artistsStr = song.artists?.map(a => a.name).join(', ') || '';
+  const sourceProviderData = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou'
+    ? song.sourceRef.providerData
+    : undefined;
+  const providerAlbumAudioId = sourceProviderData?.albumAudioId;
+  const fallbackAlbumAudioId = /^\d+$/u.test(String(song.id)) ? song.id : undefined;
+  const albumAudioId = providerAlbumAudioId ?? fallbackAlbumAudioId;
 
   // 1. Search lyric candidates
   const searchParams = {
-    album_audio_id: song.id,
+    ...(albumAudioId !== undefined && albumAudioId !== null && String(albumAudioId) !== ''
+      ? { album_audio_id: albumAudioId }
+      : {}),
     duration: song.duration,
     hash: song.kgHash,
     keyword: `${artistsStr} - ${song.name}`,

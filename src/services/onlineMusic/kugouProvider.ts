@@ -9,6 +9,7 @@ import type {
     ProviderUser,
 } from '../../types/onlineMusic';
 import { fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
+import { normalizeSongTitleForLyricSearch } from '../../utils/lyrics/searchQuery';
 import { removeProviderSessionValue, readProviderSessionValue } from './providerStorage';
 import { getKugouTransportAvailability, requestKugou } from './kugouTransport';
 
@@ -73,12 +74,47 @@ const normalizeArtists = (raw: any) => {
     return names.map((name, index) => ({ id: `kugou-artist-${index}-${name}`, name }));
 };
 
+// Some KuGou collection endpoints only expose "artist - title" through audio_name.
+const normalizeKugouTitleAndArtists = (rawTitle: string, rawArtists: ReturnType<typeof normalizeArtists>) => {
+    if (rawArtists.length > 0) {
+        return {
+            title: normalizeSongTitleForLyricSearch(rawTitle, rawArtists.map(artist => artist.name).join(', ')),
+            artists: rawArtists,
+        };
+    }
+
+    const combined = rawTitle.match(/^(.+?)\s+-\s+(.+)$/u);
+    if (!combined) {
+        return { title: rawTitle.trim(), artists: rawArtists };
+    }
+
+    const artistNames = combined[1]
+        .split(/[、,&/]|\s+(?:feat\.?|ft\.?|featuring)\s+/iu)
+        .map(name => name.trim())
+        .filter(Boolean);
+    if (artistNames.length === 0) {
+        return { title: rawTitle.trim(), artists: rawArtists };
+    }
+
+    return {
+        title: combined[2].trim(),
+        artists: artistNames.map((name, index) => ({ id: `kugou-artist-${index}-${name}`, name })),
+    };
+};
+
 export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
     const item = raw as any;
     const hash = hashOf(item);
-    const artists = normalizeArtists(item);
-    const albumId = valueOf(item, 'AlbumID', 'album_id', 'albumId') ?? '';
-    const albumName = String(valueOf(item, 'AlbumName', 'album_name', 'albumName') || '');
+    const rawArtists = normalizeArtists(item);
+    const nestedAlbum = valueOf(item, 'album_info', 'albumInfo', 'album') ?? {};
+    const albumId = valueOf(item, 'AlbumID', 'album_id', 'albumId')
+        ?? valueOf(nestedAlbum, 'id', 'album_id', 'albumId')
+        ?? '';
+    const albumName = String(
+        valueOf(item, 'AlbumName', 'album_name', 'albumName', 'albumname')
+        ?? valueOf(nestedAlbum, 'name', 'album_name', 'albumName')
+        ?? ''
+    );
     const durationValue = Number(valueOf(item, 'Duration', 'duration', 'timelen', 'timeLength') || 0);
     const duration = durationValue > 0 && durationValue < 10000 ? durationValue * 1000 : durationValue;
     const providerData = jsonData([
@@ -88,7 +124,8 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
         ['albumId', albumId],
         ['fileId', valueOf(item, 'FileID', 'fileid', 'file_id')],
     ]);
-    const title = String(valueOf(item, 'SongName', 'songname', 'songName', 'name', 'audio_name') || '');
+    const rawTitle = String(valueOf(item, 'SongName', 'songname', 'songName', 'name', 'audio_name') || '');
+    const { title, artists } = normalizeKugouTitleAndArtists(rawTitle, rawArtists);
 
     return {
         id: hash,

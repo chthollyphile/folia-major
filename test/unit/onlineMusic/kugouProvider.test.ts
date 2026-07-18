@@ -47,6 +47,32 @@ describe('kugouProvider', () => {
         });
     });
 
+    it('separates a duplicated artist prefix from the KuGou song title', () => {
+        const song = normalizeKugouSong({
+            FileHash: '8C2F0C043E99779C8910C78E43DBC42A',
+            SongName: 'HOYO-MiX、AURORA - 挪德卡莱 Nod-Krai',
+            Singers: [{ name: 'HOYO-MiX' }, { name: 'AURORA' }],
+        });
+
+        expect(song.name).toBe('挪德卡莱 Nod-Krai');
+        expect(song.artists.map(artist => artist.name)).toEqual(['HOYO-MiX', 'AURORA']);
+    });
+
+    it('recovers independent artists and nested album metadata from audio_name', () => {
+        const song = normalizeKugouSong({
+            FileHash: '8C2F0C043E99779C8910C78E43DBC42A',
+            audio_name: 'HOYO-MiX、AURORA - 挪德卡莱 Nod-Krai',
+            album_info: { id: 164446399, name: '原神-幽暮衬映之月 Outside It Is Growing Dark' },
+        });
+
+        expect(song.name).toBe('挪德卡莱 Nod-Krai');
+        expect(song.artists.map(artist => artist.name)).toEqual(['HOYO-MiX', 'AURORA']);
+        expect(song.album).toMatchObject({
+            id: 164446399,
+            name: '原神-幽暮衬映之月 Outside It Is Growing Dark',
+        });
+    });
+
     it('requests a rendered QR image and maps login states', async () => {
         requestMock
             .mockResolvedValueOnce({ data: { base64: 'data:image/png;base64,abc' } })

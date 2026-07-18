@@ -892,6 +892,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     )}
                                     {currentTab === 'onlineLyrics' && isNetease && currentSong && (
                                         <OnlineLyricsTab
+                                            song={currentSong}
                                             onlineLyricsState={onlineLyricsState}
                                             onImportLyrics={onImportOnlineLyrics}
                                             onChangeLyricsSource={onChangeOnlineLyricsSource}

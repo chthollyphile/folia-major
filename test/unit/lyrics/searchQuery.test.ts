@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildKugouLyricSearchQuery, buildLyricSearchQuery } from '@/utils/lyrics/searchQuery';
+import { buildKugouLyricSearchQuery, buildLyricSearchQuery, normalizeSongTitleForLyricSearch } from '@/utils/lyrics/searchQuery';
 
 // test/unit/lyrics/searchQuery.test.ts
 // Covers lyric search query construction edge cases.
@@ -18,6 +18,18 @@ describe('buildLyricSearchQuery', () => {
     it('keeps normal album names unchanged', () => {
         expect(buildLyricSearchQuery('Night of Bloom', 'Kirara Magic/Xomu/nayuta', 'Night of Bloom'))
             .toBe('Night of Bloom - Kirara Magic/Xomu/nayuta - Night of Bloom');
+    });
+
+    it('removes a duplicated provider artist prefix before building the query', () => {
+        expect(buildLyricSearchQuery(
+            'HOYO-MiX、AURORA - 挪德卡莱 Nod-Krai',
+            'HOYO-MiX, AURORA',
+            '原神-幽暮衬映之月 Outside It Is Growing Dark',
+        )).toBe('挪德卡莱 Nod-Krai - HOYO-MiX, AURORA - 原神-幽暮衬映之月 Outside It Is Growing Dark');
+    });
+
+    it('does not remove a title prefix that is not the supplied artist', () => {
+        expect(normalizeSongTitleForLyricSearch('Part I - Nod-Krai', 'HOYO-MiX')).toBe('Part I - Nod-Krai');
     });
 });
 

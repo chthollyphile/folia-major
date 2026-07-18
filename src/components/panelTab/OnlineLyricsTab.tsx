@@ -2,13 +2,14 @@ import React, { useMemo, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Search, Upload, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { OnlineLyricsState } from '../../types';
+import type { OnlineLyricsState, SongResult } from '../../types';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
-import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
+import { getLyricProviderLabel, getSongNativeLyricProviderSource } from '../../utils/lyrics/lyricSourceLabels';
 
 // src/components/panelTab/OnlineLyricsTab.tsx
 
 interface OnlineLyricsTabProps {
+    song: SongResult;
     onlineLyricsState: OnlineLyricsState | null;
     onImportLyrics: (content: string, fileName: string) => void;
     onChangeLyricsSource: (source: 'online' | 'imported') => void;
@@ -20,6 +21,7 @@ interface OnlineLyricsTabProps {
 }
 
 const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
+    song,
     onlineLyricsState,
     onImportLyrics,
     onChangeLyricsSource,
@@ -44,10 +46,10 @@ const OnlineLyricsTab: React.FC<OnlineLyricsTabProps> = ({
 
     const onlineSourceLabel = useMemo(() => {
         return getLyricProviderLabel(
-            onlineLyricsState?.matchedLyricsSource,
+            onlineLyricsState?.matchedLyricsSource ?? getSongNativeLyricProviderSource(song),
             onlineLyricsState?.matchedLyricsProviderPlatform,
         );
-    }, [onlineLyricsState]);
+    }, [onlineLyricsState, song]);
 
     const availableSources = useMemo(
         () => (hasImportedLyrics
