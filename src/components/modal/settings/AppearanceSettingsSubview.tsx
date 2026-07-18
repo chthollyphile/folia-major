@@ -17,6 +17,7 @@ import {
 import { applyVisualizerTuningsToSettings, collectVisualizerTunings } from '../../visualizer/tuningRegistry';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
+import { buildObsNowPlayingUrl, extractCfgFromInput } from '../../../utils/obsUrl';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
@@ -537,7 +538,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
 }) => {
     const { t } = useTranslation();
     const [importText, setImportText] = useState('');
-    const [copiedType, setCopiedType] = useState<'none' | 'shortcode' | 'json'>('none');
+    const [copiedType, setCopiedType] = useState<'none' | 'shortcode' | 'json' | 'obsurl'>('none');
 
     const [exportThemeType, setExportThemeType] = useState<'custom' | 'ai' | 'none'>(() => {
         if (bgMode === 'ai' && aiTheme) return 'ai';
@@ -706,10 +707,25 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         }
     };
 
+    // Copy the NowPlaying OBS overlay URL: burn the current appearance into a link to paste into an OBS browser source.
+    const handleCopyObsUrl = async () => {
+        const code = compressConfig(buildCurrentConfig());
+        const url = buildObsNowPlayingUrl(code, 'localhost:9863');
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopiedType('obsurl');
+            setTimeout(() => setCopiedType('none'), 2000);
+            store.statusSetter?.({ type: 'success', text: t('status.copied') });
+        } catch (err) {
+            console.error('Failed to copy OBS URL:', err);
+        }
+    };
+
     const handleImportConfig = () => {
         if (!importText.trim()) return;
         try {
-            const config = decompressConfig(importText);
+            // Import accepts a bare shortcode/JSON or a full OBS URL (extracting its cfg param), so a look can be re-tuned from someone's link.
+            const config = decompressConfig(extractCfgFromInput(importText));
 
             // 1. Restore Theme
             if (config.theme) {
@@ -1152,6 +1168,15 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                         >
                             {copiedType === 'json' ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
                             <span>{copiedType === 'json' ? (t('status.copied')) : t('options.importBtn')}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleCopyObsUrl}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/15 active:bg-white/5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                            style={{ color: 'var(--text-primary)' }}
+                        >
+                            {copiedType === 'obsurl' ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
+                            <span>{copiedType === 'obsurl' ? (t('status.copied')) : t('options.copyObsUrl')}</span>
                         </button>
                         <div className="flex-1 min-w-[20px]" />
                         <button

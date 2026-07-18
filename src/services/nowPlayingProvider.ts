@@ -3,6 +3,9 @@ import type { NowPlayingConnectionStatus, NowPlayingLyricPayload, NowPlayingTrac
 export const NOW_PLAYING_WS_URL = 'ws://localhost:9863/api/ws/lyric';
 const NOW_PLAYING_RECONNECT_DELAY_MS = 2000;
 
+// Build the now-playing lyric WS URL from a host (e.g. 'localhost:9863'); lets the OBS web page pick the endpoint via a URL param.
+export const buildNowPlayingWsUrl = (host: string): string => `ws://${host}/api/ws/lyric`;
+
 type NowPlayingTrackMessage = {
     author?: string;
     title?: string;
@@ -233,6 +236,7 @@ export const normalizeNowPlayingLyricPayload = (raw: unknown): NowPlayingLyricPa
 export class NowPlayingProvider {
     private readonly callbacks: NowPlayingProviderCallbacks;
     private readonly debug: boolean;
+    private readonly wsUrl: string;
     private socket: WebSocket | null = null;
     private reconnectTimer: number | null = null;
     private stopped = true;
@@ -246,9 +250,10 @@ export class NowPlayingProvider {
         progressMs: 0,
     };
 
-    constructor(callbacks: NowPlayingProviderCallbacks = {}) {
+    constructor(callbacks: NowPlayingProviderCallbacks = {}, options: { wsUrl?: string } = {}) {
         this.callbacks = callbacks;
         this.debug = callbacks.debug === true;
+        this.wsUrl = options.wsUrl ?? NOW_PLAYING_WS_URL;
     }
 
     getSnapshot(): NowPlayingProviderSnapshot {
@@ -298,7 +303,7 @@ export class NowPlayingProvider {
         }
 
         this.updateConnectionStatus('connecting');
-        const socket = new WebSocket(NOW_PLAYING_WS_URL);
+        const socket = new WebSocket(this.wsUrl);
         this.socket = socket;
 
         socket.onopen = () => {
