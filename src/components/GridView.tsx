@@ -1972,7 +1972,11 @@ export const GridView: React.FC<GridViewProps> = ({
                         </span>
                     )}
                 </h2>
-                {subtitle && <p className="text-xs opacity-50 mt-0.5">{subtitle}</p>}
+                {subtitle && (
+                    <p className="mt-0.5 max-w-[min(40rem,calc(100vw-8rem))] text-xs leading-relaxed opacity-50 line-clamp-2 whitespace-normal break-words">
+                        {subtitle}
+                    </p>
+                )}
             </div>
 
             {/* Honeycomb Drag/Viewport Canvas Area */}
@@ -2110,11 +2114,13 @@ export const GridView: React.FC<GridViewProps> = ({
                 <AnimatePresence>
                     {showCutInPanel && mode === 'tracks' && collection && (
                         <motion.div
+                            data-wheel-scroll-region
+                            onWheelCapture={event => event.stopPropagation()}
                             initial={{ opacity: 0, x: -60, scale: 0.95 }}
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: -60, scale: 0.95 }}
                             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                            className="absolute left-6 top-24 bottom-28 sm:bottom-6 w-80 rounded-3xl z-[80] overflow-y-auto hide-scrollbar flex flex-col p-6 shadow-2xl border backdrop-blur-2xl pointer-events-auto theme-glass-panel"
+                            className="absolute left-6 top-24 bottom-28 sm:bottom-6 w-80 rounded-3xl z-[80] overflow-y-auto overscroll-contain hide-scrollbar flex flex-col p-6 shadow-2xl border backdrop-blur-2xl pointer-events-auto theme-glass-panel"
                             style={{
                                 boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
                             }}
@@ -2153,7 +2159,7 @@ export const GridView: React.FC<GridViewProps> = ({
                             </div>
 
                             {/* Title & Creator */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 text-left min-w-0">
+                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar pr-1 space-y-4 text-left min-w-0">
                                 <div>
                                     {(isLocalPlaylistCollection || isNavidromePlaylistCollection) && isEditMode ? (
                                         <input
@@ -2261,7 +2267,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
                                 {/* Description */}
                                 {(neteaseAlbumInfo?.description || collection.description) && (
-                                    <p className="text-xs opacity-65 leading-relaxed break-words whitespace-pre-wrap max-h-40 overflow-y-auto pr-1">
+                                    <p data-wheel-scroll-region className="text-xs opacity-65 leading-relaxed break-words whitespace-pre-wrap max-h-40 overflow-y-auto overscroll-contain pr-1">
                                         {neteaseAlbumInfo?.description || collection.description}
                                     </p>
                                 )}
