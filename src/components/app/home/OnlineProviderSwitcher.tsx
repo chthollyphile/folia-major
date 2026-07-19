@@ -36,8 +36,19 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
 }) => {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
+    const [showProviderLabel, setShowProviderLabel] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
+    const previousProviderIdRef = useRef(activeProviderId);
     const activeProvider = providers.find(provider => provider.providerId === activeProviderId) || providers[0];
+    const surfaceClass = isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white';
+
+    useEffect(() => {
+        if (previousProviderIdRef.current === activeProviderId) return;
+        previousProviderIdRef.current = activeProviderId;
+        setShowProviderLabel(true);
+        const hideTimer = window.setTimeout(() => setShowProviderLabel(false), 1800);
+        return () => window.clearTimeout(hideTimer);
+    }, [activeProviderId]);
 
     useEffect(() => {
         if (!open) return;
@@ -58,30 +69,43 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
     if (!activeProvider) return null;
 
     return (
-        <div ref={rootRef} className="absolute bottom-8 right-8 z-[100] flex items-center gap-2 pointer-events-auto">
-            <button
-                type="button"
-                onClick={onBackToPlayer}
-                className={`group flex h-10 w-10 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-transform hover:scale-105 ${isDaylight ? 'border-black/10 bg-white/70' : 'border-white/15 bg-black/35'}`}
-                title={t('home.backToPlayer')}
-                aria-label={t('home.backToPlayer')}
-            >
-                <ChevronRight size={21} />
-            </button>
-            <button
-                type="button"
-                onClick={() => setOpen(value => !value)}
-                className="group relative h-12 w-12 overflow-visible rounded-full border border-white/20 shadow-lg transition-transform hover:scale-105"
-                title={t('home.switchOnlineProvider')}
-                aria-label={t('home.switchOnlineProvider')}
-                aria-haspopup="menu"
-                aria-expanded={open}
-            >
-                <ProviderAvatar provider={activeProvider} className="h-full w-full rounded-full" />
-                <span className="absolute -bottom-1 -left-2 rounded-full border border-white/15 bg-zinc-950 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-md">
-                    {activeProvider.shortName}
-                </span>
-            </button>
+        <div ref={rootRef} className="pointer-events-auto absolute bottom-6 right-6 z-[100]">
+            <div className={`flex items-center rounded-full p-1.5 shadow-lg backdrop-blur-md ${surfaceClass}`}>
+                <button
+                    type="button"
+                    onClick={() => setOpen(value => !value)}
+                    className={`flex items-center rounded-full py-1 pl-1 transition-all ${showProviderLabel ? 'gap-2 pr-3' : 'gap-0 pr-1'} ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}
+                    title={t('home.switchOnlineProvider')}
+                    aria-label={t('home.switchOnlineProvider')}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                >
+                    <ProviderAvatar provider={activeProvider} className="h-10 w-10 shrink-0 rounded-full" />
+                    <AnimatePresence initial={false}>
+                        {showProviderLabel && (
+                            <motion.span
+                                initial={{ width: 0, opacity: 0 }}
+                                animate={{ width: 'auto', opacity: 1 }}
+                                exit={{ width: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: 'easeOut' }}
+                                className="max-w-16 overflow-hidden whitespace-nowrap text-xs font-semibold"
+                            >
+                                {activeProvider.shortName}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </button>
+                <span className={`mx-1 h-6 w-px ${isDaylight ? 'bg-black/10' : 'bg-white/15'}`} aria-hidden="true" />
+                <button
+                    type="button"
+                    onClick={onBackToPlayer}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}
+                    title={t('home.backToPlayer')}
+                    aria-label={t('home.backToPlayer')}
+                >
+                    <ChevronRight size={21} />
+                </button>
+            </div>
 
             <AnimatePresence>
                 {open && (
@@ -91,9 +115,9 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 6, scale: 0.97 }}
                         transition={{ duration: 0.16 }}
-                        className={`absolute bottom-16 right-0 w-72 rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl ${isDaylight ? 'border-black/10 bg-white/90 text-zinc-900' : 'border-white/10 bg-zinc-950/90 text-zinc-100'}`}
+                        className={`absolute bottom-[calc(100%+0.75rem)] right-0 w-80 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-3xl p-3 shadow-2xl backdrop-blur-2xl ${surfaceClass}`}
                     >
-                        <div className="px-3 pb-2 pt-1 text-[11px] font-medium opacity-50">{t('home.onlineProvider')}</div>
+                        <div className="px-3 pb-3 pt-1 text-xs font-medium opacity-50">{t('home.onlineProvider')}</div>
                         {providers.map(provider => {
                             const active = provider.providerId === activeProviderId;
                             const configured = provider.availability.configured;
@@ -108,15 +132,13 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
                                         onSelect(provider);
                                         if (provider.status === 'authenticated') setOpen(false);
                                     }}
-                                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${configured ? (isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/8') : 'cursor-not-allowed opacity-40'}`}
+                                    className={`mb-1 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors last:mb-0 ${active ? (isDaylight ? 'bg-black/5' : 'bg-white/8') : ''} ${configured ? (isDaylight ? 'hover:bg-black/8' : 'hover:bg-white/12') : 'cursor-not-allowed opacity-40'}`}
                                 >
-                                    <ProviderAvatar provider={provider} className="h-10 w-10 shrink-0 rounded-full" />
+                                    <ProviderAvatar provider={provider} className="h-11 w-11 shrink-0 rounded-full" />
                                     <span className="min-w-0 flex-1">
-                                        <span className="flex items-center gap-2 text-sm font-semibold">
-                                            {provider.shortName}
-                                            <span className="text-[10px] font-normal opacity-45">{provider.displayName}</span>
-                                        </span>
-                                        <span className="block truncate text-xs opacity-55">
+                                        <span className="block truncate text-sm font-semibold">{provider.shortName}</span>
+                                        <span className="mt-0.5 block truncate text-[11px] opacity-45">{provider.displayName}</span>
+                                        <span className="mt-1 block truncate text-xs opacity-65">
                                             {!configured
                                                 ? t('home.providerNotConfigured')
                                                 : provider.user?.nickname || t('home.providerNotLoggedIn')}
