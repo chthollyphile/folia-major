@@ -20,6 +20,7 @@ type UsePlaybackVisualizerBridgeParams = {
     duration: number;
     effectiveLoopMode: 'off' | 'all' | 'one';
     isNowPlayingStageActive: boolean;
+    isPlayerCapStageActive: boolean;
     stageActiveEntryKind: string | null;
     stageLyricsSession: unknown;
     stageLyricsClockRef: MutableRefObject<{
@@ -33,6 +34,7 @@ type UsePlaybackVisualizerBridgeParams = {
     getSyntheticStageLyricsTime: () => number;
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
     getNowPlayingDisplayTime: () => number;
+    getPlayerCapDisplayTime: () => number;
     syncNowPlayingClock: (progressSec: number, durationSec: number, paused: boolean) => void;
     lyricTimelineOffsetMs: number;
     lyricCurrentTime: MotionValue<number>;
@@ -52,6 +54,7 @@ export function usePlaybackVisualizerBridge({
     duration,
     effectiveLoopMode,
     isNowPlayingStageActive,
+    isPlayerCapStageActive,
     stageActiveEntryKind,
     stageLyricsSession,
     stageLyricsClockRef,
@@ -60,6 +63,7 @@ export function usePlaybackVisualizerBridge({
     getSyntheticStageLyricsTime,
     syncStageLyricsClock,
     getNowPlayingDisplayTime,
+    getPlayerCapDisplayTime,
     syncNowPlayingClock,
     lyricTimelineOffsetMs,
     lyricCurrentTime,
@@ -166,6 +170,24 @@ export function usePlaybackVisualizerBridge({
                     setPlayerState(PlayerState.PAUSED);
                 }
             }
+        } else if (isPlayerCapStageActive) {
+            // PlayerCap: clock extrapolated from progress×duration; a passive source, looping/ending is driven by the external player, so no end/loop handling here.
+            const nextTime = getPlayerCapDisplayTime();
+            currentTime.set(nextTime);
+
+            const effectiveLyricTime = nextTime - lyricTimelineOffsetMs / 1000;
+            lyricCurrentTime.set(effectiveLyricTime);
+
+            if (lyrics) {
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
+                if (foundIndex !== currentLineIndexRef.current) {
+                    currentLineIndexRef.current = foundIndex;
+                    setCurrentLineIndex(foundIndex);
+                }
+            } else if (currentLineIndexRef.current !== -1) {
+                currentLineIndexRef.current = -1;
+                setCurrentLineIndex(-1);
+            }
         } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
             const nextTime = getSyntheticStageLyricsTime();
             const clock = stageLyricsClockRef.current;
@@ -207,8 +229,10 @@ export function usePlaybackVisualizerBridge({
         duration,
         effectiveLoopMode,
         getNowPlayingDisplayTime,
+        getPlayerCapDisplayTime,
         getSyntheticStageLyricsTime,
         isNowPlayingStageActive,
+        isPlayerCapStageActive,
         lyrics,
         playerState,
         setCurrentLineIndex,

@@ -21,7 +21,7 @@ export function extractCfgFromInput(raw: string): string {
 // Build an OBS overlay URL for a given web source: burn the appearance shortcode and the
 // endpoint into a link. Source-neutral - obsSource selects the browser-direct source
 // ('now-playing' or 'playercap'). Host may be empty to use the page default. extra carries
-// source-specific technical params (e.g. daylight, or PlayerCap's player/basis/sticky).
+// source-specific technical params (e.g. daylight, or PlayerCap's nxpcPlayer/nxpcBasis/nxpcSticky).
 export function buildObsSourceUrl(obsSource: string, cfg: string, host: string, extra?: Record<string, string>): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';

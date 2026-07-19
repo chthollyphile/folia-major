@@ -10,6 +10,7 @@ import type {
 import type { useThemeController } from '../../../hooks/useThemeController';
 import { type SettingsModalState, useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
+import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
 
 // src/components/app/dialogs/buildSettingsDialogModel.ts
 
@@ -34,6 +35,8 @@ type BuildSettingsDialogModelParams = {
     clearPersistedStagePlaybackCache: () => Promise<void>;
     loadStageSessionIntoPlayback: (session: any) => Promise<void>;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
+    playerCapConnectionStatus?: PlayerCapConnectionStatus;
+    playerCapPlayers?: string[];
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     onToggleTransparentPlayerBackground: (enabled: boolean) => Promise<void> | void;
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
@@ -59,6 +62,8 @@ export const buildSettingsDialogModel = ({
     clearPersistedStagePlaybackCache,
     loadStageSessionIntoPlayback,
     nowPlayingConnectionStatus,
+    playerCapConnectionStatus,
+    playerCapPlayers,
     onAudioOutputDeviceChange,
     onToggleTransparentPlayerBackground,
     obsBrowserSourceStatus,
@@ -89,6 +94,8 @@ export const buildSettingsDialogModel = ({
         stageStatus,
         stageSource,
         nowPlayingConnectionStatus,
+        playerCapConnectionStatus,
+        playerCapPlayers,
         obsBrowserSourceStatus,
         onToggleObsBrowserSource: async (enabled) => {
             const nextStatus = await window.electron?.setObsBrowserSourceEnabled?.(enabled);

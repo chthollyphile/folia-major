@@ -14,6 +14,7 @@ import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
 import GeneralSettingsSubview from './settings/GeneralSettingsSubview';
 import IntegrationSettingsSubview from './settings/IntegrationSettingsSubview';
+import type { PlayerCapConnectionStatus } from '../../types/playerCap';
 import LabSettingsModal from './settings/LabSettingsModal';
 import PlaybackSettingsSubview from './settings/PlaybackSettingsSubview';
 import StorageSettingsSection from './settings/StorageSettingsSection';
@@ -56,6 +57,8 @@ interface SettingsModalProps {
     onClearStageState?: () => Promise<void> | void;
     onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     nowPlayingConnectionStatus?: NowPlayingConnectionStatus;
+    playerCapConnectionStatus?: PlayerCapConnectionStatus;
+    playerCapPlayers?: string[];
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
@@ -104,6 +107,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onClearStageState,
     onToggleNowPlayingStage,
     nowPlayingConnectionStatus = 'disabled',
+    playerCapConnectionStatus = 'idle',
+    playerCapPlayers = [],
     obsBrowserSourceStatus = null,
     onToggleObsBrowserSource,
     onRegenerateObsBrowserSourceToken,
@@ -180,7 +185,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         subtitleFontFallbackFamilies,
         lyricFilterPattern,
         showOpenPanelCloseButton,
-        enableNowPlayingStage,
         handleToggleCoverColorBg: onToggleCoverColorBg,
         handleToggleStaticMode: onToggleStaticMode,
         handleToggleDisableHomeDynamicBackground: onToggleDisableHomeDynamicBackground,
@@ -765,13 +769,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const stageEnabled = Boolean(stageStatus?.modeEnabled);
     const activeStageSource = stageStatus?.source ?? stageSource;
     const stageHasActiveSession = Boolean(stageStatus?.lyricsSession || stageStatus?.mediaSession);
+    // now-playing 与 playercap 是互斥的舞台源：两颗状态指示都只认当前选中源 activeStageSource，
+    // 保证同一时刻至多显示一个（web 端即便两个 enable 标志同时为真，也以派生出的选中源为准）。
     const nowPlayingEnabled = Boolean(
         isElectron
             ? (stageStatus?.modeEnabled && activeStageSource === 'now-playing')
-            : enableNowPlayingStage
+            : activeStageSource === 'now-playing'
     );
     const nowPlayingConnected = nowPlayingEnabled && nowPlayingConnectionStatus === 'connected';
     const stageConnected = stageEnabled && activeStageSource === 'stage-api';
+    const playerCapEnabled = Boolean(
+        isElectron
+            ? (stageStatus?.modeEnabled && activeStageSource === 'playercap')
+            : activeStageSource === 'playercap'
+    );
+    const playerCapConnected = playerCapEnabled && playerCapConnectionStatus === 'connected';
     const integrationStatusItems = [
         ...(stageConnected
             ? [{
@@ -785,6 +797,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 key: 'now-playing',
                 label: nowPlayingConnected ? t('options.nowPlayingConnectedStatus') : t('options.nowPlayingDisconnectedStatus'),
                 tone: nowPlayingConnected ? 'success' as const : 'error' as const,
+            }]
+            : []),
+        ...(playerCapEnabled
+            ? [{
+                key: 'playercap',
+                label: playerCapConnected ? t('options.playerCapConnectedStatus') : t('options.playerCapDisconnectedStatus'),
+                tone: playerCapConnected ? 'success' as const : 'error' as const,
             }]
             : []),
     ];
@@ -1526,15 +1545,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     status: discordPresenceStatus,
                                                 }}
                                                 stage={{
-                                                    enableNowPlayingStage,
                                                     nowPlayingConnectionStatus,
+                                                    playerCapConnectionStatus,
+                                                    playerCapPlayers,
                                                     obsBrowserSourceStatus,
                                                     onCopyText: copyText,
                                                     onRegenerateObsBrowserSourceToken,
                                                     onRegenerateStageToken,
                                                     onStageSourceChange,
                                                     onToggleObsBrowserSource,
-                                                    onToggleNowPlayingStage,
                                                     onToggleStageMode,
                                                     setStageActionStatus,
                                                     setStageAddressCopied,

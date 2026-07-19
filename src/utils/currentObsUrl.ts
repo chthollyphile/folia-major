@@ -8,8 +8,7 @@ import { getLastDualTheme } from '../services/themeCache';
 
 // src/utils/currentObsUrl.ts
 // Build the OBS static URL for a given web source from the current visual settings, producing the
-// same cfg as the import/export "copy config". host is left off so the OBS page uses its own
-// default endpoint.
+// same cfg as the import/export "copy config".
 
 // The effective exported theme, matching the import/export "copy config" default: the active AI
 // theme when an AI theme is applied, otherwise the saved custom theme (same as the prior behavior
@@ -21,16 +20,19 @@ export async function readEffectiveExportTheme(): Promise<DualTheme | null> {
   return readSavedCustomTheme() ?? null;
 }
 
-// Bakes the effective theme, the current light/dark preference, and the transparent-background
-// toggle (cfg carries only the theme sides, so daylight/transparent ride as separate params). The
+// host may carry a source's non-default endpoint (empty = page default); extra carries
+// source-specific params (PlayerCap nxpcPlayer/nxpcBasis/nxpcSticky). Bakes the effective theme, the current
+// light/dark preference, and the transparent-background toggle (cfg carries only the theme sides,
+// so daylight/transparent/extra ride as separate params, keeping cfg the terminal URL segment). The
 // transparent param mirrors the toggle 1:1 — on → transparent=1, off → transparent=0 (background
 // shown); the overlay reads an absent param the same as transparent=0, so the default matches the
 // toggle 100%.
-export async function buildCurrentObsUrl(obsSource: string): Promise<string> {
+export async function buildCurrentObsUrl(obsSource: string, host = '', extra?: Record<string, string>): Promise<string> {
   const config = { theme: await readEffectiveExportTheme(), ...buildVisualSettingsConfig() };
   const { isDaylight, transparentPlayerBackground } = useSettingsUiStore.getState();
-  const extra: Record<string, string> = {};
-  if (isDaylight) extra.daylight = '1';
-  extra.transparent = transparentPlayerBackground ? '1' : '0';
-  return buildObsSourceUrl(obsSource, compressConfig(config), '', extra);
+  const mergedExtra: Record<string, string> = {};
+  if (isDaylight) mergedExtra.daylight = '1';
+  mergedExtra.transparent = transparentPlayerBackground ? '1' : '0';
+  Object.assign(mergedExtra, extra); // source-specific params (PlayerCap nxpcPlayer/nxpcBasis/nxpcSticky)
+  return buildObsSourceUrl(obsSource, compressConfig(config), host, mergedExtra);
 }
