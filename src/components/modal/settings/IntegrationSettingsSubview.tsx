@@ -159,6 +159,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         setPlayerCapTimeBasis,
         setPlayerCapSticky,
         setWebStageSource,
+        isDaylight,
     } = useSettingsUiStore(useShallow(state => ({
         playerCapHost: state.playerCapHost,
         playerCapPlayer: state.playerCapPlayer,
@@ -169,6 +170,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         setPlayerCapTimeBasis: state.setPlayerCapTimeBasis,
         setPlayerCapSticky: state.setPlayerCapSticky,
         setWebStageSource: state.setWebStageSource,
+        isDaylight: state.isDaylight,
     })));
     const [playerCapHostDraft, setPlayerCapHostDraft] = useState(playerCapHost);
     useEffect(() => { setPlayerCapHostDraft(playerCapHost); }, [playerCapHost]);
@@ -259,6 +261,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                     onChange={setPlayerCapPlayer}
                     options={[{ value: '', label: t('options.playerCapPlayerDefault') }, ...(playerCapPlayers ?? []).map((p) => ({ value: p, label: p }))]}
                     disabled={!playerCapConnected}
+                    isDaylight={isDaylight}
                     theme={theme}
                     ariaLabel="PlayerCap Player"
                 />
