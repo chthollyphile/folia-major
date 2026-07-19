@@ -77,11 +77,13 @@ const catalogRef = (
 );
 
 const normalizeArtists = (raw: any) => {
-    const singers = valueOf(raw, 'Singers', 'singers', 'authors', 'artists');
+    const singers = valueOf(raw, 'Singers', 'singers', 'singerinfo', 'authors', 'artists');
+    const usesSingerInfo = singers === raw?.singerinfo;
     if (Array.isArray(singers)) {
         return singers.map((artist: any, index: number) => {
             const base = artist?.base ?? artist;
-            const authorId = valueOf(base, 'author_id', 'authorId');
+            const authorId = valueOf(base, 'author_id', 'authorId')
+                ?? (usesSingerInfo ? valueOf(base, 'id') : undefined);
             return {
                 id: authorId ?? `kugou-artist-${index}`,
                 name: String(valueOf(base, 'name', 'author_name', 'singername') || ''),
@@ -139,7 +141,7 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
     const audioInfo = item?.audio_info ?? item?.audioInfo ?? {};
     const hash = hashOf(item);
     const rawArtists = normalizeArtists(item);
-    const nestedAlbum = valueOf(item, 'album_info', 'albumInfo', 'album') ?? {};
+    const nestedAlbum = valueOf(item, 'album_info', 'albumInfo', 'albuminfo', 'album') ?? {};
     const albumId = valueOf(item, 'AlbumID', 'album_id', 'albumId')
         ?? valueOf(nestedAlbum, 'album_id', 'albumId')
         ?? valueOf(base, 'album_id', 'albumId')
@@ -387,7 +389,7 @@ export const kugouProvider: OnlineMusicProvider = {
     normalizeCollection,
     songMetadata: {
         getSongMetadata(song) {
-            return createProviderSongMetadata(normalizeKugouSong(song));
+            return createProviderSongMetadata(song);
         },
     },
     search: {
@@ -564,7 +566,7 @@ export const kugouProvider: OnlineMusicProvider = {
         async getAlbumDetail(id, existingCollection) {
             const response = await requestKugou('album_detail', { id: String(id) });
             const data = dataOf(response);
-            const rawAlbum = data?.album ?? data;
+            const rawAlbum = listOf(response)[0] ?? data?.album ?? data;
             if (!rawAlbum || typeof rawAlbum !== 'object' || Array.isArray(rawAlbum)) {
                 return existingCollection || null;
             }
@@ -585,9 +587,26 @@ export const kugouProvider: OnlineMusicProvider = {
                 publisher: normalized.publisher || existingCollection?.publisher,
             };
         },
-        async getAlbumTracks(id, limit = 100, offset = 0) {
-            const response = await requestKugou('album_songs', { id: String(id), page: Math.floor(offset / limit) + 1, pagesize: limit });
-            return pageOf(listOf(response).map(normalizeKugouSong), response, limit, offset);
+        async getAlbumTracks(id, limit = 30, offset = 0, collection) {
+            const pageSize = Math.min(Math.max(1, limit), 30);
+            const response = await requestKugou('album_songs', {
+                id: String(id),
+                page: Math.floor(offset / pageSize) + 1,
+                pagesize: pageSize,
+            });
+            const items = listOf(response).map(raw => {
+                const song = normalizeKugouSong(raw);
+                if (song.album.name || !collection?.name) return song;
+                return {
+                    ...song,
+                    album: { ...song.album, name: collection.name },
+                    al: {
+                        ...(song.al || { id: Number(song.album.id) || 0, name: '' }),
+                        name: collection.name,
+                    },
+                };
+            });
+            return pageOf(items, response, pageSize, offset);
         },
         async getArtistSongs(id, limit, offset) {
             const response = await requestKugou('artist_audios', { id: String(id), page: Math.floor(offset / limit) + 1, pagesize: limit });

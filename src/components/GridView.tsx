@@ -932,7 +932,7 @@ export const GridView: React.FC<GridViewProps> = ({
         setIsCreatePlaylistOpen(false);
     }, [playableTracks, sourceActions]);
 
-    const CACHE_SCHEMA_VERSION = 3;
+    const CACHE_SCHEMA_VERSION = 5;
 
     const isCloudDrive = collection ? (collection.type === 'cloud' || Number(collection.id) === -100) : false;
     const CACHE_SUFFIX = collection ? (isCloudDrive
@@ -953,7 +953,14 @@ export const GridView: React.FC<GridViewProps> = ({
 
     // Resolves paged online collection tracks through the active provider boundary.
     const loadOnlineCollectionPage = async (limit: number, pageOffset: number) => {
-        if (!collection || !onlineProvider || !providerSupports(onlineProvider, 'playlists') || !onlineProvider.catalog) {
+        if (!collection || !onlineProvider?.catalog) {
+            return { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
+        }
+        if (collection.type === 'album') {
+            return onlineProvider.catalog.getAlbumTracks?.(collection.id, limit, pageOffset, collection)
+                ?? { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
+        }
+        if (!providerSupports(onlineProvider, 'playlists')) {
             return { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
         }
         if (isCloudDrive) {
@@ -1010,10 +1017,7 @@ export const GridView: React.FC<GridViewProps> = ({
                 let responseTracks: SongResult[] = [];
                 let hasMoreSync = false;
 
-                if (collection.type === 'album') {
-                    const page = await onlineProvider?.catalog?.getAlbumTracks?.(collection.id, undefined, undefined, collection);
-                    responseTracks = page?.items || [];
-                } else if (collection.type === 'radio' && collection.id === 'personal_fm') {
+                if (collection.type === 'radio' && collection.id === 'personal_fm') {
                     responseTracks = await onlineProvider?.recommendations?.getPersonalFm?.() || [];
                 } else if (isDailyRecommendationsCollection) {
                     responseTracks = await onlineProvider?.recommendations?.getDailySongs?.() || [];
@@ -1039,7 +1043,7 @@ export const GridView: React.FC<GridViewProps> = ({
                 }
             } else {
                 // Manual Load More
-                if (collection.type !== 'album' && collection.type !== 'radio' && !isDailyRecommendationsCollection) {
+                if (collection.type !== 'radio' && !isDailyRecommendationsCollection) {
                     const page = await loadOnlineCollectionPage(1000, currentOffset);
                     if (page.items.length > 0) {
                         setTracks(prev => {

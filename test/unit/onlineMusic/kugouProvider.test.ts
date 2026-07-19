@@ -54,6 +54,36 @@ describe('kugouProvider', () => {
         expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
     });
 
+    it('reads canonical song metadata without normalizing it a second time', () => {
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            SongName: '测试歌曲',
+            Singers: [{ author_id: 7, name: '歌手' }],
+            AlbumID: 9,
+            AlbumName: '专辑',
+            Image: 'https://example.test/cover.jpg',
+            Duration: 240,
+        });
+
+        const metadata = kugouProvider.songMetadata?.getSongMetadata(song);
+
+        expect(metadata).toMatchObject({
+            artists: [{
+                id: 7,
+                name: '歌手',
+                catalogRef: { providerId: 'kugou', kind: 'artist', id: 7 },
+            }],
+            album: {
+                id: 9,
+                name: '专辑',
+                coverUrl: 'https://example.test/cover.jpg',
+                catalogRef: { providerId: 'kugou', kind: 'album', id: 9 },
+            },
+            durationMs: 240_000,
+            coverUrl: 'https://example.test/cover.jpg',
+        });
+    });
+
     it('separates a duplicated artist prefix from the KuGou song title', () => {
         const song = normalizeKugouSong({
             FileHash: '8C2F0C043E99779C8910C78E43DBC42A',
@@ -262,6 +292,39 @@ describe('kugouProvider', () => {
         });
     });
 
+    it('preserves album and artist metadata from KuGou playlist tracks', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                count: 1,
+                songs: [{
+                    hash: '6B5DCE5832B0CC91F3CB90FECF2B5B02',
+                    name: '涵の心事. - 先说谎的人 (0.8X)',
+                    album_id: '58271602',
+                    albuminfo: { id: 58271602, name: '涵の心事.' },
+                    singerinfo: [{ id: 8893172, name: '涵の心事.' }],
+                    cover: 'http://imge.kugou.com/stdmusic/{size}/cover.jpg',
+                    timelen: 184344,
+                }],
+            },
+        });
+
+        const page = await kugouProvider.catalog?.getPlaylistTracks?.('collection_3_test', 30, 0);
+
+        expect(page?.items[0]).toMatchObject({
+            name: '先说谎的人 (0.8X)',
+            artists: [{
+                id: 8893172,
+                name: '涵の心事.',
+                catalogRef: { providerId: 'kugou', kind: 'artist', id: 8893172 },
+            }],
+            album: {
+                id: '58271602',
+                name: '涵の心事.',
+                catalogRef: { providerId: 'kugou', kind: 'album', id: '58271602' },
+            },
+        });
+    });
+
     it('normalizes the nested song shape returned by album catalog endpoints', async () => {
         requestMock.mockResolvedValue({
             total: 1,
@@ -287,7 +350,7 @@ describe('kugouProvider', () => {
         const song = page?.items[0];
 
         expect(requestMock).toHaveBeenCalledWith('album_songs', {
-            id: '10729818', page: 1, pagesize: 100,
+            id: '10729818', page: 1, pagesize: 30,
         });
         expect(song).toMatchObject({
             id: 'AB96FDBB35F394DFD16FB57AADD12FEA',
@@ -306,6 +369,39 @@ describe('kugouProvider', () => {
         expect(song?.artists[0].catalogRef).toEqual({
             providerId: 'kugou', kind: 'artist', id: 748078,
         });
+    });
+
+    it('caps album pages at the KuGou endpoint limit and advances from the effective page size', async () => {
+        requestMock.mockResolvedValue({ data: { total: 60, songs: [] } });
+
+        await kugouProvider.catalog?.getAlbumTracks?.(10729818, 1000, 30);
+
+        expect(requestMock).toHaveBeenCalledWith('album_songs', {
+            id: '10729818', page: 2, pagesize: 30,
+        });
+    });
+
+    it('fills a missing album name from the opened album collection', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                total: 1,
+                songs: [{
+                    base: { album_id: 10729818, audio_name: '小心思' },
+                    audio_info: { hash: 'AB96FDBB35F394DFD16FB57AADD12FEA' },
+                    authors: [{ author_name: '孙小佳', author_id: 748078 }],
+                }],
+            },
+        });
+
+        const page = await kugouProvider.catalog?.getAlbumTracks?.(10729818, 30, 0, {
+            id: 10729818,
+            name: '小心思',
+            type: 'album',
+            providerId: 'kugou',
+        });
+
+        expect(page?.items[0].album.name).toBe('小心思');
+        expect(page?.items[0].al?.name).toBe('小心思');
     });
 
     it('uses author_id for artist detail and album catalog requests', async () => {
@@ -354,13 +450,13 @@ describe('kugouProvider', () => {
 
     it('normalizes album detail biographies through the provider boundary', async () => {
         requestMock.mockResolvedValue({
-            data: {
+            data: [{
                 album_id: 194920827,
                 album_name: '见幸福',
                 brief_desc: 'Album biography',
                 image: 'http://img/{size}/album.jpg',
                 authors: [{ author_id: 6539, author_name: '郁可唯' }],
-            },
+            }],
         });
 
         const detail = await kugouProvider.catalog?.getAlbumDetail?.(194920827);
