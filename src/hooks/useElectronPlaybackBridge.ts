@@ -111,6 +111,7 @@ export const useElectronPlaybackBridge = ({
     onLike,
 }: UseElectronPlaybackBridgeOptions) => {
     const [playbackSyncBridgeStatus, setPlaybackSyncBridgeStatus] = useState<ElectronPlaybackSyncBridgeStatus>(() => emptyPlaybackSyncBridgeStatus());
+    const pausedByVoiceInputRef = useRef(false);
     const stageSnapshotCacheRef = useRef<{
         playQueue: SongResult[];
         currentSong: SongResult | null;
@@ -338,6 +339,39 @@ export const useElectronPlaybackBridge = ({
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
+
+    // System/IME voice input pauses playback and resumes it afterwards. Resume only
+    // fires when this bridge caused the pause and the track is still paused, so a
+    // manual user pause during dictation is never overridden.
+    useEffect(() => {
+        if (!isElectronWindow || !window.electron?.onVoiceInputStateChanged) {
+            return;
+        }
+
+        return window.electron.onVoiceInputStateChanged((state) => {
+            if (state?.active) {
+                pausedByVoiceInputRef.current = false;
+                if (
+                    taskbarPlayerStateRef.current === PlayerState.PLAYING
+                    && taskbarHasTrackRef.current
+                    && !isNowPlayingControlDisabledRef.current
+                ) {
+                    pausedByVoiceInputRef.current = true;
+                    mediaSessionPauseRef.current();
+                }
+                return;
+            }
+
+            if (!pausedByVoiceInputRef.current) {
+                return;
+            }
+
+            pausedByVoiceInputRef.current = false;
+            if (taskbarPlayerStateRef.current === PlayerState.PAUSED && !isNowPlayingControlDisabledRef.current) {
+                void mediaSessionPlayRef.current();
+            }
+        });
+    }, [isElectronWindow, isNowPlayingControlDisabledRef, mediaSessionPauseRef, mediaSessionPlayRef, taskbarHasTrackRef, taskbarPlayerStateRef]);
 
     useEffect(() => {
         if (!isElectronWindow) {

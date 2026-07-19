@@ -73,6 +73,12 @@ contextBridge.exposeInMainWorld('electron', {
     getDiscordPresenceStatus: () => ipcRenderer.invoke('discord-presence-get-status'),
     publishDiscordPresenceSnapshot: (snapshot) => ipcRenderer.invoke('discord-presence-publish-snapshot', snapshot),
     getPlaybackSyncBridgeStatus: () => ipcRenderer.invoke('playback-sync-bridge-get-status'),
+    getVoiceInputPauseStatus: () => ipcRenderer.invoke('voice-input-pause-get-status'),
+    onVoiceInputStateChanged: (callback) => {
+        const listener = (_event, state) => callback(state);
+        ipcRenderer.on('voice-input-state-changed', listener);
+        return () => ipcRenderer.removeListener('voice-input-state-changed', listener);
+    },
     onPlaybackSyncBridgeStatusChanged: (callback) => {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('playback-sync-bridge-status-changed', listener);

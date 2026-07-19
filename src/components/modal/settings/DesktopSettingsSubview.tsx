@@ -11,6 +11,7 @@ import {
     Globe,
     KeyRound,
     Loader2,
+    Mic,
     Minimize2,
     Monitor,
     RefreshCw,
@@ -51,9 +52,11 @@ export type DesktopSettingsPreferences = {
     hideTaskbarIcon: boolean;
     hideRemoteControlTaskbarIcon: boolean;
     minimizeToTray: boolean;
+    voiceInputPauseEnabled: boolean;
     onToggleHideTaskbarIcon: (enabled: boolean) => void;
     onToggleHideRemoteControlTaskbarIcon: (enabled: boolean) => void;
     onToggleMinimizeToTray: (enabled: boolean) => void;
+    onToggleVoiceInputPause: (enabled: boolean) => void;
     onToggleOpenPlayerOnLaunch: (enabled: boolean) => void;
     openPlayerOnLaunch: boolean;
 };
@@ -101,9 +104,11 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
         hideTaskbarIcon,
         hideRemoteControlTaskbarIcon,
         minimizeToTray,
+        voiceInputPauseEnabled,
         onToggleHideTaskbarIcon,
         onToggleHideRemoteControlTaskbarIcon,
         onToggleMinimizeToTray,
+        onToggleVoiceInputPause,
         onToggleOpenPlayerOnLaunch,
         openPlayerOnLaunch,
     } = preferences;
@@ -240,6 +245,30 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                         </div>
                     </motion.div>
                 )}
+            </section>
+
+            <section className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                    <Mic size={14} className="opacity-70" /> {t('options.voiceInputSettings')}
+                </h3>
+                <div className={`border rounded-2xl overflow-hidden ${borderColor} ${settingsCardClass}`}>
+                    <div className="flex items-center justify-between p-4 gap-4 hover:bg-black/[0.01] dark:hover:bg-white/[0.01] transition-colors">
+                        <div className="flex items-start gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${settingsIconClass}`} style={{ color: 'var(--text-primary)' }}>
+                                <Mic size={16} />
+                            </div>
+                            <div className="space-y-0.5 text-left">
+                                <h4 className="text-sm font-semibold leading-none" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.voiceInputPause')}
+                                </h4>
+                                <p className="text-xs opacity-50 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.voiceInputPauseDesc')}
+                                </p>
+                            </div>
+                        </div>
+                        {renderToggle(voiceInputPauseEnabled, () => onToggleVoiceInputPause(!voiceInputPauseEnabled))}
+                    </div>
+                </div>
             </section>
 
             <section className="space-y-4">

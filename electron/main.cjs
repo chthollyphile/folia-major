@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
+const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
@@ -147,6 +148,7 @@ const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY = 'REMOTE_CONTROL_SKIP_TASKBAR';
 const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
+const VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY = 'VOICE_INPUT_PAUSE_ENABLED';
 
 const DEFAULT_STAGE_API_PORT = 32107;
 const DEFAULT_OBS_BROWSER_SOURCE_PORT = 32108;
@@ -258,6 +260,7 @@ function getPublicSettings() {
     [MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY, false),
     [TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY]: readStoredBoolean(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, false),
     [DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY]: readStoredBoolean(DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY, false),
+    [VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY]: readStoredBoolean(VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY, false),
     'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
   };
 }
@@ -340,6 +343,12 @@ const discordPresence = createDiscordPresenceController({
       mainWindow.webContents.send('discord-presence-status-changed', status);
     }
   },
+});
+
+const voiceInputPauseMonitor = createVoiceInputPauseMonitor({
+  getMainWindow: () => mainWindow,
+  isEnabled: () => readStoredBoolean(VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY, false),
+  getOwnExePath: () => process.execPath,
 });
 
 function buildPlaybackSyncBridgeStatus() {
@@ -2859,6 +2868,7 @@ app.whenReady().then(async () => {
   createWindow();
   focusMainWindow();
   scheduleStartupUpdateCheck();
+  voiceInputPauseMonitor.syncState();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -2878,6 +2888,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   clearPendingWindowPlaybackHandoffRequests();
+  voiceInputPauseMonitor.stop();
   void discordPresence.destroy();
 });
 
@@ -2910,7 +2921,8 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY ||
     key === REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY ||
     key === TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY ||
-    key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY
+    key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY ||
+    key === VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }
@@ -2979,6 +2991,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
   if (key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY) {
     void discordPresence.refresh();
     broadcastPlaybackSyncBridgeStatus();
+  }
+
+  if (key === VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY) {
+    voiceInputPauseMonitor.syncState();
   }
 
   return getPublicSettings();
@@ -3341,6 +3357,14 @@ ipcMain.handle('playback-sync-bridge-get-status', (event) => {
   }
 
   return buildPlaybackSyncBridgeStatus();
+});
+
+ipcMain.handle('voice-input-pause-get-status', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read voice input pause status.');
+  }
+
+  return voiceInputPauseMonitor.getStatus();
 });
 
 ipcMain.handle('stage-get-status', () => {

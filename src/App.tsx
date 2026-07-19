@@ -375,6 +375,8 @@ export default function App() {
         handleToggleMinimizeToTray,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
+        voiceInputPauseEnabled,
+        handleToggleVoiceInputPause,
         handleToggleMediaCache,
         handleSetBackgroundOpacity,
         setDaylightPreference,
@@ -1783,6 +1785,10 @@ export default function App() {
         },
         enablePlayerPageNativeBlur,
         toggleDaylightMode,
+        voiceInputPauseEnabled,
+        toggleVoiceInputPause: () => {
+            handleToggleVoiceInputPause(!voiceInputPauseEnabled);
+        },
         setAppLanguagePreference: handleSetAppLanguagePreference,
         enableAlternativeLyricSources,
         runAutoMatchBestLyric: handleAutoMatchBestLyricForCurrentSong,
@@ -1829,6 +1835,8 @@ export default function App() {
         transparentPlayerBackground,
         toggleTransparentModeWithHandoff,
         toggleDaylightMode,
+        voiceInputPauseEnabled,
+        handleToggleVoiceInputPause,
         showSubtitleTranslation,
         subtitleOverlayBackground,
         handleToggleAlternativeLyricSources,
