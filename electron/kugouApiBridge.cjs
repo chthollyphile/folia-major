@@ -21,6 +21,7 @@ const OPERATION_MODULES = {
   search_lyric: ['search_lyric'],
   lyric: ['lyric'],
   playlist_track_all: ['playlist_track_all', 'playlist_track_all_new'],
+  playlist_detail: ['playlist_detail'],
   album_detail: ['album_detail'],
   album_songs: ['album_songs'],
   artist_detail: ['artist_detail'],

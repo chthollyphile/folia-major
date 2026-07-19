@@ -746,7 +746,7 @@ export const GridView: React.FC<GridViewProps> = ({
     const providerCapabilities = collectionSource === 'online' && collection?.providerId
         ? omni.getProviderCapabilities(collection.providerId)
         : null;
-    const [albumDetail, setAlbumDetail] = useState<ProviderCollection | null>(null);
+    const [collectionDetail, setCollectionDetail] = useState<ProviderCollection | null>(null);
     const isLocalCollection = collectionSource === 'local';
     const isNavidromeCollection = collectionSource === 'navidrome';
     const isAlbumCollection = collection?.type === 'album';
@@ -761,22 +761,22 @@ export const GridView: React.FC<GridViewProps> = ({
         && Boolean(sourceActions?.navidrome?.onAddToPlaylist || sourceActions?.navidrome?.onCreatePlaylist);
 
     useEffect(() => {
-        setAlbumDetail(null);
-        if (!isAlbumCollection || collectionSource !== 'online' || !collection) {
+        setCollectionDetail(null);
+        if ((collection?.type !== 'album' && collection?.type !== 'playlist') || collectionSource !== 'online' || !collection) {
             return;
         }
 
         let active = true;
-        omni.getAlbumDetail(collection)
+        omni.getCollectionDetail(collection)
             .then(detail => {
-                if (active && detail) setAlbumDetail(detail);
+                if (active && detail) setCollectionDetail(detail);
             })
-            .catch(error => console.warn('[GridView] Failed to fetch album detail:', error));
+            .catch(error => console.warn('[GridView] Failed to fetch collection detail:', error));
 
         return () => {
             active = false;
         };
-    }, [collection?.id, collectionSource, isAlbumCollection]);
+    }, [collection?.id, collection?.providerId, collection?.type, collectionSource]);
 
     useEffect(() => {
         if (isDraggingRef.current || pendingFocusCommitTimeoutRef.current) return;
@@ -1913,7 +1913,7 @@ export const GridView: React.FC<GridViewProps> = ({
     );
     const showLoading = progressiveLoading.initialLoading;
 
-    const infoCollection = albumDetail ? { ...collection, ...albumDetail } : collection;
+    const infoCollection = collectionDetail ? { ...collection, ...collectionDetail } : collection;
     const coverUrl = infoCollection?.coverUrl || '';
     const infoPanelCoverUrl = infoCollection?.coverUrl || '';
     const albumArtists = Array.isArray(infoCollection?.artists) ? infoCollection.artists : [];

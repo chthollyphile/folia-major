@@ -19,6 +19,7 @@ import {
     normalizeKugouSong,
     resolveKugouSongCatalogRefs,
 } from '@/services/onlineMusic/kugouProvider';
+import { resolveSongCatalogRef } from '@/services/onlineMusic/catalogRefs';
 
 describe('kugouProvider', () => {
     beforeEach(() => requestMock.mockReset());
@@ -252,6 +253,32 @@ describe('kugouProvider', () => {
         expect(second.album.catalogRef).toEqual(first.album.catalogRef);
     });
 
+    it('does not let an unverified song album id short-circuit panel catalog navigation', async () => {
+        requestMock.mockResolvedValue({
+            data: [{
+                audio_info: { hash: 'AB12CD' },
+                album_info: { album_id: 10729818, album_name: 'Canonical Album' },
+                authors: [{ base: { author_id: 6539, author_name: 'Canonical Artist' } }],
+            }],
+        });
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            SongName: 'Displayed Song Title',
+            AlbumID: 999999,
+            AlbumName: 'Displayed Song Title',
+            album_audio_id: 99887766,
+        });
+
+        const ref = await resolveSongCatalogRef(song, 'album', song.album);
+
+        expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 999999 });
+        expect(requestMock).toHaveBeenCalledWith('krm_audio', {
+            album_audio_id: '99887766',
+            fields: 'album_info,authors.base,base,audio_info',
+        });
+        expect(ref).toEqual({ providerId: 'kugou', kind: 'album', id: 10729818 });
+    });
+
     it('rejects KRM metadata belonging to a different hash', async () => {
         requestMock.mockResolvedValue({
             data: [{
@@ -278,6 +305,7 @@ describe('kugouProvider', () => {
                     global_collection_id: 'collection_3_1863870844_4_0',
                     listid: 12345,
                     name: 'Playlist',
+                    pic: '20251014001841327327.jpg',
                 }],
                 total: 1,
             },
@@ -288,6 +316,40 @@ describe('kugouProvider', () => {
         expect(page?.items[0]).toMatchObject({
             id: 'collection_3_1863870844_4_0',
             isOwned: true,
+            coverUrl: 'https://imge.kugou.com/soft/collection/400/20251014/20251014001841327327.jpg',
+            providerData: { listId: 12345, globalCollectionId: 'collection_3_1863870844_4_0' },
+        });
+    });
+
+    it('hydrates playlist cover and introduction from playlist detail', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                info: [{
+                    global_collection_id: 'collection_3_1863870844_4_0',
+                    name: 'Playlist',
+                    pic: '20251014001841327327.jpg',
+                    intro: 'Playlist introduction',
+                    song_count: 28,
+                }],
+            },
+        });
+
+        const detail = await kugouProvider.catalog?.getPlaylistDetail?.(
+            'collection_3_1863870844_4_0',
+            {
+                providerId: 'kugou',
+                id: 'collection_3_1863870844_4_0',
+                name: 'Playlist',
+                type: 'playlist',
+                providerData: { listId: 12345 },
+            },
+        );
+
+        expect(requestMock).toHaveBeenCalledWith('playlist_detail', { ids: 'collection_3_1863870844_4_0' });
+        expect(detail).toMatchObject({
+            coverUrl: 'https://imge.kugou.com/soft/collection/400/20251014/20251014001841327327.jpg',
+            description: 'Playlist introduction',
+            trackCount: 28,
             providerData: { listId: 12345, globalCollectionId: 'collection_3_1863870844_4_0' },
         });
     });
@@ -359,7 +421,7 @@ describe('kugouProvider', () => {
             album: {
                 id: 10729818,
                 name: '小心思',
-                coverUrl: 'http://imge.kugou.com/stdmusic/400/cover.jpg',
+                coverUrl: 'https://imge.kugou.com/stdmusic/400/cover.jpg',
                 catalogRef: { providerId: 'kugou', kind: 'album', id: 10729818 },
             },
             sourceRef: {
@@ -432,14 +494,14 @@ describe('kugouProvider', () => {
         expect(detail).toMatchObject({
             id: 6539,
             name: '郁可唯',
-            coverUrl: 'http://img/400/artist.jpg',
+            coverUrl: 'https://img/400/artist.jpg',
             providerData: { musicSize: 100, albumSize: 20 },
         });
         expect(albums?.items[0]).toMatchObject({
             id: 194920827,
             name: '见幸福',
             type: 'album',
-            coverUrl: 'http://img/400/album.jpg',
+            coverUrl: 'https://img/400/album.jpg',
             artists: [{ id: 6539, name: '郁可唯' }],
             publishedAt: Date.UTC(2020, 0, 1),
         });

@@ -264,6 +264,13 @@ export const omni = {
         return providerForCollection(collection).catalog?.getAlbumDetail?.(collection.id, collection) ?? null;
     },
 
+    async getCollectionDetail(collection: OmniCollection): Promise<OmniCollection | null> {
+        const catalog = providerForCollection(collection).catalog;
+        if (collection.type === 'album') return catalog?.getAlbumDetail?.(collection.id, collection) ?? collection;
+        if (collection.type === 'playlist') return catalog?.getPlaylistDetail?.(collection.id, collection) ?? collection;
+        return collection;
+    },
+
     async getArtistDetail(collection: OmniCollection): Promise<OmniCollection | null> {
         return providerForCollection(collection).catalog?.getArtistDetail?.(collection.id) ?? null;
     },

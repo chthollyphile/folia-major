@@ -57,10 +57,6 @@ export const resolveSongCatalogRef = async (
     const sourceRef = song.sourceRef;
     if (sourceRef?.kind !== 'online') return null;
 
-    if (isMatchingRef(requested.catalogRef, sourceRef.providerId, kind)) {
-        return requested.catalogRef;
-    }
-
     const provider = getOnlineMusicProvider(sourceRef.providerId);
     const resolver = provider?.catalog?.resolveSongCatalogRefs;
     if (resolver) {
@@ -76,6 +72,10 @@ export const resolveSongCatalogRef = async (
         return isMatchingRef(resolvedTarget?.catalogRef, sourceRef.providerId, kind)
             ? resolvedTarget.catalogRef
             : null;
+    }
+
+    if (isMatchingRef(requested.catalogRef, sourceRef.providerId, kind)) {
+        return requested.catalogRef;
     }
 
     if (requested.id === '') return null;

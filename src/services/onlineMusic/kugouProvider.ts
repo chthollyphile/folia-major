@@ -52,7 +52,13 @@ const coverOf = (raw: any): string | undefined => {
     const value = valueOf(raw, 'Image', 'image', 'img', 'pic', 'picUrl', 'cover', 'coverUrl', 'sizable_cover', 'sizable_avatar')
         ?? valueOf(raw?.album_info, 'cover', 'sizable_cover')
         ?? valueOf(raw?.trans_param, 'union_cover');
-    return value ? String(value).replace('{size}', '400') : undefined;
+    if (!value) return undefined;
+    const cover = String(value).trim().replace('{size}', '400');
+    if (/^\d{8,}\.(?:jpe?g|png|webp)$/i.test(cover)) {
+        return `https://imge.kugou.com/soft/collection/400/${cover.slice(0, 8)}/${cover}`;
+    }
+    if (cover.startsWith('//')) return `https:${cover}`;
+    return cover.replace(/^http:/i, 'https:');
 };
 
 const hashOf = (raw: any): string => String(
@@ -299,6 +305,7 @@ const normalizeCollection = (raw: any, type = 'playlist', owned = false): Provid
     const updatedAt = normalizeTimestamp(valueOf(raw, 'update_time', 'updateTime'));
     const tracksUpdatedAt = normalizeTimestamp(valueOf(raw, 'track_update_time', 'trackUpdateTime'));
     const playCount = Number(valueOf(raw, 'play_count', 'playCount'));
+    const description = valueOf(raw, 'intro', 'description', 'brief_desc', 'briefDesc', 'brief_description', 'desc');
 
     return {
         providerId: 'kugou',
@@ -306,7 +313,7 @@ const normalizeCollection = (raw: any, type = 'playlist', owned = false): Provid
         name: String(valueOf(raw, 'name', 'listname', 'specialname', 'album_name', 'author_name') || ''),
         type,
         coverUrl: coverOf(raw),
-        description: valueOf(raw, 'intro', 'description', 'brief_desc', 'briefDesc', 'brief_description', 'desc'),
+        description: description === undefined || description === null ? undefined : String(description),
         trackCount: Number(valueOf(raw, 'song_count', 'count', 'total', 'music_num') || 0),
         ...(owned ? { isOwned: true } : {}),
         ...(type === 'artist' ? { albumCount: Number(valueOf(raw, 'album_count', 'albumCount') || 0) } : {}),
@@ -544,6 +551,27 @@ export const kugouProvider: OnlineMusicProvider = {
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } };
             });
             return pageOf(items, response, limit, offset);
+        },
+        async getPlaylistDetail(id, existingCollection) {
+            const response = await requestKugou('playlist_detail', { ids: String(id) });
+            const data = dataOf(response);
+            const rawPlaylist = listOf(response)[0] ?? data?.info?.[0] ?? data;
+            if (!rawPlaylist || typeof rawPlaylist !== 'object' || Array.isArray(rawPlaylist)) {
+                return existingCollection || null;
+            }
+            const normalized = normalizeCollection({
+                ...rawPlaylist,
+                global_collection_id: valueOf(rawPlaylist, 'global_collection_id') ?? id,
+            }, 'playlist', Boolean(existingCollection?.isOwned));
+            return {
+                ...normalized,
+                name: normalized.name || existingCollection?.name || '',
+                coverUrl: normalized.coverUrl || existingCollection?.coverUrl,
+                description: normalized.description || existingCollection?.description,
+                trackCount: normalized.trackCount || existingCollection?.trackCount,
+                creator: normalized.creator || existingCollection?.creator,
+                providerData: { ...existingCollection?.providerData, ...normalized.providerData },
+            };
         },
         async getAlbumDetail(id, existingCollection) {
             const response = await requestKugou('album_detail', { id: String(id) });
