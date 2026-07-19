@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import LegacyHome from '../../Home';
 import GridView, { GridViewSourceActions } from '../../GridView';
 import ArtistGridView from '../../ArtistGridView';
@@ -27,6 +28,7 @@ import { LocalFolderSongInfoPanel } from '../../modal/LocalFolderSongInfoPanel';
 import { LocalSongMetadataMatchDialog } from '../../modal/LocalSongMetadataMatchDialog';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 import { applyLocalSongCoverDisplay } from '../../../services/playbackAdapters';
+import { resolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 
 // src/components/app/home/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
@@ -133,6 +135,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     onBackCollection,
     children,
 }) => {
+    const { t } = useTranslation();
     const collectionSnapshot = useCollectionNavigationStore(state => state.snapshot);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
     const localLibraryCatalog = legacyProps.localLibraryCatalog;
@@ -240,17 +243,45 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         }
     }, [handleBackCollection, liveSelectedCollection, localLibraryCatalog.ready, selectedCollection]);
 
-    const handlePushAlbumCollection = useCallback((albumId: number | string, album?: any) => {
+    const showCatalogUnavailable = useCallback(() => {
+        legacyProps.onStatusMessage?.({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [legacyProps, t]);
+
+    const handlePushAlbumCollection = useCallback(async (
+        albumId: number | string,
+        album?: any,
+        track?: SongResult,
+    ) => {
         if (!selectedCollection) return;
 
         const source = selectedCollection.source;
         const albumName = album?.name || '';
         const albumCoverUrl = album?.coverImgUrl || album?.coverUrl || album?.picUrl;
         if (source === 'online') {
+            let resolvedAlbumId = albumId;
+            if (track) {
+                try {
+                    const ref = await resolveSongCatalogRef(track as UnifiedSong, 'album', {
+                        id: albumId,
+                        name: albumName,
+                        picUrl: albumCoverUrl,
+                        catalogRef: album?.catalogRef,
+                    });
+                    if (!ref) {
+                        showCatalogUnavailable();
+                        return;
+                    }
+                    resolvedAlbumId = ref.id;
+                } catch (error) {
+                    console.warn('[CatalogNavigation] Failed to resolve nested album:', error);
+                    showCatalogUnavailable();
+                    return;
+                }
+            }
             handlePushCollection({
                 source: 'online',
                 providerId: selectedCollection.providerId,
-                id: albumId,
+                id: resolvedAlbumId,
                 name: albumName,
                 type: 'album',
                 coverImgUrl: albumCoverUrl,
@@ -313,18 +344,41 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 songIds: albumSongs.map(song => song.id),
             });
         }
-    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection]);
+    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
 
-    const handlePushArtistCollection = useCallback((artistId: number | string, artist?: any) => {
+    const handlePushArtistCollection = useCallback(async (
+        artistId: number | string,
+        artist?: any,
+        track?: SongResult,
+    ) => {
         if (!selectedCollection) return;
 
         const source = selectedCollection.source;
         const artistName = artist?.name || String(artistId);
         if (source === 'online') {
+            let resolvedArtistId = artistId;
+            if (track) {
+                try {
+                    const ref = await resolveSongCatalogRef(track as UnifiedSong, 'artist', {
+                        id: artistId,
+                        name: artistName,
+                        catalogRef: artist?.catalogRef,
+                    });
+                    if (!ref) {
+                        showCatalogUnavailable();
+                        return;
+                    }
+                    resolvedArtistId = ref.id;
+                } catch (error) {
+                    console.warn('[CatalogNavigation] Failed to resolve nested artist:', error);
+                    showCatalogUnavailable();
+                    return;
+                }
+            }
             handlePushCollection({
                 source: 'online',
                 providerId: selectedCollection.providerId,
-                id: artistId,
+                id: resolvedArtistId,
                 name: artistName,
                 type: 'artist',
             });
@@ -365,7 +419,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             type: 'artist',
             songIds: artistSongs.map(song => song.id),
         });
-    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection]);
+    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
 
     useEffect(() => {
         if (!selectedCollection) {

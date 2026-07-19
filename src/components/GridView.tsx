@@ -36,6 +36,7 @@ import {
     resolveGridTrackAlbumTargetId,
     resolveGridTrackArtistTargetId,
 } from './folia-grid/gridTrackNavigation';
+import { canResolveSongCatalogRef } from '../services/onlineMusic/catalogRefs';
 
 export interface GridViewSourceActions {
     local?: {
@@ -89,8 +90,8 @@ interface GridViewProps {
     collection?: any;
     onPlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[]) => void;
-    onSelectAlbum?: (albumId: number | string, album?: any) => void;
-    onSelectArtist?: (artistId: number | string, artist?: any) => void;
+    onSelectAlbum?: (albumId: number | string, album?: any, track?: SongResult) => void;
+    onSelectArtist?: (artistId: number | string, artist?: any, track?: SongResult) => void;
     currentUserId?: number | null;
     onPlaylistMutated?: () => Promise<void> | void;
     externalTracks?: SongResult[];
@@ -134,8 +135,8 @@ export const PolaroidCard = React.memo<{
     cardHeight: number;
     isEditMode?: boolean;
     onRemoveTrack?: () => void;
-    onSelectArtist?: (artistId: number | string, artist?: any) => void;
-    onSelectAlbum?: (albumId: number | string, album?: any) => void;
+    onSelectArtist?: (artistId: number | string, artist?: any, track?: SongResult) => void;
+    onSelectAlbum?: (albumId: number | string, album?: any, track?: SongResult) => void;
     onBeforeNestedNavigate?: () => void;
     onEditLocalMetadata?: () => void;
     openWhenFocusedOnCardClick?: boolean;
@@ -165,6 +166,19 @@ export const PolaroidCard = React.memo<{
         const unavailableTagText = (mode === 'tracks' && item.rawTrack)
             ? getSongUnavailableTagText(item.rawTrack, t('status.songUnavailableTag'))
             : '';
+        const trackAlbum = item.rawTrack?.al || item.rawTrack?.album;
+        const albumTargetId = resolveGridTrackAlbumTargetId(item.rawTrack);
+        const canOpenAlbum = Boolean(
+            onSelectAlbum
+            && item.rawTrack
+            && trackAlbum
+            && albumTargetId !== undefined
+            && albumTargetId !== ''
+            && (
+                item.rawTrack.sourceRef?.kind !== 'online'
+                || canResolveSongCatalogRef(item.rawTrack as UnifiedSong, 'album', trackAlbum)
+            )
+        );
 
         const textLength = useMemo(() => {
             let len = 0;
@@ -313,25 +327,34 @@ export const PolaroidCard = React.memo<{
                             <div className="text-[10px] opacity-55 max-w-full font-medium line-clamp-3 whitespace-normal break-words">
                                 {mode === 'tracks' && onSelectArtist && item.rawTrack?.ar ? (
                                     <span className="flex gap-1 flex-wrap">
-                                        {item.rawTrack.ar.map((artist, idx, artists) => (
+                                        {item.rawTrack.ar.map((artist, idx, artists) => {
+                                            const artistTargetId = resolveGridTrackArtistTargetId(item.rawTrack, artist);
+                                            const canOpenArtist = Boolean(
+                                                artistTargetId !== undefined
+                                                && artistTargetId !== ''
+                                                && (
+                                                    item.rawTrack?.sourceRef?.kind !== 'online'
+                                                    || canResolveSongCatalogRef(item.rawTrack as UnifiedSong, 'artist', artist)
+                                                )
+                                            );
+                                            return (
                                             <span
                                                 key={`${artist.id ?? 'artist'}-${idx}-${artist.name}`}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    const artistTargetId = resolveGridTrackArtistTargetId(
-                                                        item.rawTrack,
-                                                        artist,
-                                                    );
-                                                    if (artistTargetId !== undefined && artistTargetId !== '') {
+                                                    if (canOpenArtist && artistTargetId !== undefined) {
                                                         onBeforeNestedNavigate?.();
-                                                        onSelectArtist(artistTargetId, artist);
+                                                        onSelectArtist(artistTargetId, artist, item.rawTrack);
                                                     }
                                                 }}
-                                                className="hover:underline hover:opacity-100 cursor-pointer text-current font-semibold"
+                                                className={canOpenArtist
+                                                    ? 'hover:underline hover:opacity-100 cursor-pointer text-current font-semibold'
+                                                    : 'text-current font-semibold'}
                                             >
                                                 {artist.name}{idx < artists.length - 1 ? ',' : ''}
                                             </span>
-                                        ))}
+                                            );
+                                        })}
                                     </span>
                                 ) : (
                                     item.description
@@ -348,20 +371,18 @@ export const PolaroidCard = React.memo<{
                                     <span
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            const albumTargetId = resolveGridTrackAlbumTargetId(item.rawTrack);
-                                            if (
-                                                albumTargetId !== undefined
-                                                && albumTargetId !== ''
-                                                && onSelectAlbum
-                                            ) {
+                                            if (canOpenAlbum && albumTargetId !== undefined && onSelectAlbum) {
                                                 onBeforeNestedNavigate?.();
                                                 onSelectAlbum(
                                                     albumTargetId,
                                                     item.rawTrack?.al || item.rawTrack?.album,
+                                                    item.rawTrack,
                                                 );
                                             }
                                         }}
-                                        className="text-[9px] opacity-35 font-mono line-clamp-2 whitespace-normal break-words max-w-full hover:underline hover:opacity-85 cursor-pointer"
+                                        className={`text-[9px] opacity-35 font-mono line-clamp-2 whitespace-normal break-words max-w-full ${
+                                            canOpenAlbum ? 'hover:underline hover:opacity-85 cursor-pointer' : ''
+                                        }`}
                                     >
                                         {item.rawTrack.al?.name || item.rawTrack.album?.name || ''}
                                     </span>

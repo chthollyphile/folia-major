@@ -176,8 +176,10 @@ export async function searchKugouLyrics(keyword: string, page = 1, pageSize = 20
         name: s.name || 'Unknown Artist',
       }));
 
+      const hash = String(info.FileHash || '').toUpperCase();
+      const catalogLookupId = info.album_audio_id ?? info.MixSongID;
       return {
-        id: Number(info.ID || 0),
+        id: hash,
         name: info.SongName || 'Unknown Song',
         artists,
         album: {
@@ -185,9 +187,18 @@ export async function searchKugouLyrics(keyword: string, page = 1, pageSize = 20
           name: info.AlbumName || 'Unknown Album',
         },
         duration: (info.Duration || 0) * 1000,
-        kgHash: info.FileHash,
+        kgHash: hash,
+        sourceRef: {
+          kind: 'online' as const,
+          providerId: 'kugou',
+          mediaId: hash,
+          providerData: {
+            hash,
+            ...(catalogLookupId !== undefined ? { catalogLookupId } : {}),
+          },
+        },
       };
-    });
+    }).filter((song: SongResult) => Boolean(song.kgHash));
   } catch (error) {
     console.error('[Kugou] Search failed, trying old API:', error);
     return await searchKugouLyricsOld(searchKeyword, page, pageSize);
@@ -245,8 +256,10 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
         name: name.trim(),
       }));
 
+      const hash = String(info.hash || '').toUpperCase();
+      const catalogLookupId = info.album_audio_id ?? info.mixsongid;
       return {
-        id: Number(info.album_audio_id || 0),
+        id: hash,
         name: info.songname || 'Unknown Song',
         artists,
         album: {
@@ -254,9 +267,18 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
           name: info.album_name || 'Unknown Album',
         },
         duration: (info.duration || 0) * 1000,
-        kgHash: info.hash,
+        kgHash: hash,
+        sourceRef: {
+          kind: 'online' as const,
+          providerId: 'kugou',
+          mediaId: hash,
+          providerData: {
+            hash,
+            ...(catalogLookupId !== undefined ? { catalogLookupId } : {}),
+          },
+        },
       };
-    });
+    }).filter((song: SongResult) => Boolean(song.kgHash));
   } catch (err) {
     console.error('[Kugou] Fallback search also failed:', err);
     return [];
@@ -278,9 +300,9 @@ export async function fetchKugouLyrics(
   const sourceProviderData = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou'
     ? song.sourceRef.providerData
     : undefined;
-  const providerAlbumAudioId = sourceProviderData?.albumAudioId;
-  const fallbackAlbumAudioId = /^\d+$/u.test(String(song.id)) ? song.id : undefined;
-  const albumAudioId = providerAlbumAudioId ?? fallbackAlbumAudioId;
+  const albumAudioId = sourceProviderData?.albumAudioId
+    ?? sourceProviderData?.mixSongId
+    ?? sourceProviderData?.catalogLookupId;
 
   // 1. Search lyric candidates
   const searchParams = {

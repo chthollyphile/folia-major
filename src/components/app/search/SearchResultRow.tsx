@@ -6,6 +6,7 @@ import type { MediaId } from '../../../types/onlineMusic';
 import { formatSongName } from '../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import { getSongUnavailableTagText, isSongMarkedUnavailable } from '../../../services/netease';
+import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 
 // src/components/app/search/SearchResultRow.tsx
 
@@ -43,7 +44,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
     const canOpenAlbum = Boolean(album?.name && (
         track.isLocal ? album.entityId
             : track.isNavidrome ? track.navidromeData?.albumId
-                : album.id
+                : canResolveSongCatalogRef(track, 'album', album)
     ));
 
     return (
@@ -99,7 +100,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
                                 const canOpenArtist = Boolean(
                                     track.isLocal ? artist.entityId
                                         : track.isNavidrome ? track.navidromeData?.artistId
-                                            : artist.id
+                                            : canResolveSongCatalogRef(track, 'artist', artist)
                                 );
                                 return (
                                     <React.Fragment key={`${artist.entityId || artist.id}-${index}`}>

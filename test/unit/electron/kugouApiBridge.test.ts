@@ -98,4 +98,22 @@ describe('Electron KuGou API bridge', () => {
         await expect(bridge.request('arbitrary_url', {})).rejects.toThrow('Unsupported KuGou operation');
     });
 
+    it('routes KRM catalog metadata through the authenticated bridge session', async () => {
+        const store = createStore();
+        store.set('KUGOU_API_SESSION_V1', { dfid: 'device', token: 'token', userid: '9' });
+        const krmAudio = vi.fn(async () => ({ body: { data: [{ base: { album_id: 7 } }] }, cookie: [] }));
+        const bridge = createKugouApiBridge({
+            store,
+            apiLoader: () => ({ krm_audio: krmAudio }),
+        });
+
+        await expect(bridge.request('krm_audio', {
+            album_audio_id: '42', fields: 'album_info,authors.base,base,audio_info',
+        })).resolves.toEqual({ data: [{ base: { album_id: 7 } }] });
+        expect(krmAudio).toHaveBeenCalledWith(expect.objectContaining({
+            album_audio_id: '42',
+            cookie: expect.objectContaining({ dfid: 'device', token: 'token', userid: '9' }),
+        }));
+    });
+
 });

@@ -38,9 +38,10 @@ import {
 } from './components/app/search/searchCollectionAdapters';
 import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
-import { LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong, NeteasePlaylist } from './types';
+import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong, NeteasePlaylist } from './types';
 import type { MediaId } from './types/onlineMusic';
 import { isSongMarkedUnavailable, neteaseApi } from './services/netease';
+import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
@@ -69,6 +70,7 @@ import { useSessionRestoreController } from './hooks/useSessionRestoreController
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
+import { useOnlineSongMetadataHydration } from './hooks/useOnlineSongMetadataHydration';
 import { useThemeQuickEditorStore } from './stores/useThemeQuickEditorStore';
 import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useCollectionNavigationStore } from './stores/useCollectionNavigationStore';
@@ -125,6 +127,7 @@ export default function App() {
     // Player Data
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const [currentSong, setCurrentSong] = useState<SongResult | null>(null);
+    useOnlineSongMetadataHydration(currentSong, setCurrentSong);
     const [lyrics, setLyricsState] = useState<LyricData | null>(null);
     const [lyricTimelineOffsetMs, setLyricTimelineOffsetMs] = useState(0);
     const [cachedCoverUrl, setCachedCoverUrl] = useState<string | null>(null);
@@ -1176,28 +1179,40 @@ export default function App() {
         currentOnlineAudioUrlFetchedAtRef,
         lastAudioRecoverySourceRef,
     });
-    const handleSearchResultArtistOpen = useCallback((
+    const handleSearchResultArtistOpen = useCallback(async (
         track: UnifiedSong,
         artistName: string,
         artistId?: MediaId,
         entityId?: string,
     ) => {
-        const collection = createSearchArtistCollection(track, artistName, artistId, entityId);
-        if (collection) {
-            navigateToCollection(collection, 'search');
+        try {
+            const collection = await createSearchArtistCollection(track, artistName, artistId, entityId);
+            if (collection) {
+                navigateToCollection(collection, 'search');
+                return;
+            }
+        } catch (error) {
+            console.warn('[CatalogNavigation] Failed to resolve artist:', error);
         }
-    }, [navigateToCollection]);
-    const handleSearchResultAlbumOpen = useCallback((
+        setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [navigateToCollection, setStatusMsg, t]);
+    const handleSearchResultAlbumOpen = useCallback(async (
         track: UnifiedSong,
         albumName: string,
         albumId?: MediaId,
         entityId?: string,
     ) => {
-        const collection = createSearchAlbumCollection(track, albumName, albumId, entityId);
-        if (collection) {
-            navigateToCollection(collection, 'search');
+        try {
+            const collection = await createSearchAlbumCollection(track, albumName, albumId, entityId);
+            if (collection) {
+                navigateToCollection(collection, 'search');
+                return;
+            }
+        } catch (error) {
+            console.warn('[CatalogNavigation] Failed to resolve album:', error);
         }
-    }, [navigateToCollection]);
+        setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [navigateToCollection, setStatusMsg, t]);
 
     usePlaybackUiEffects({
         statusMsg,
@@ -2003,25 +2018,44 @@ export default function App() {
         }, 'home');
     }, [navigateToCollection, t]);
 
-    const handlePlayerPanelAlbumSelect = useCallback((albumId: MediaId) => {
-        navigateToCollection({
-            source: 'online',
-            providerId: 'netease',
-            id: albumId,
-            type: 'album',
-            name: t('home.albums'),
-        }, 'player');
-    }, [navigateToCollection, t]);
+    const handlePlayerPanelAlbumSelect = useCallback(async (song: SongResult, album: Album) => {
+        try {
+            const ref = await resolveSongCatalogRef(song as UnifiedSong, 'album', album);
+            if (ref) {
+                navigateToCollection({
+                    source: 'online',
+                    providerId: ref.providerId,
+                    id: ref.id,
+                    type: 'album',
+                    name: album.name || t('home.albums'),
+                    coverUrl: album.picUrl,
+                }, 'player');
+                return;
+            }
+        } catch (error) {
+            console.warn('[CatalogNavigation] Failed to resolve player album:', error);
+        }
+        setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [navigateToCollection, setStatusMsg, t]);
 
-    const handlePlayerPanelArtistSelect = useCallback((artistId: MediaId) => {
-        navigateToCollection({
-            source: 'online',
-            providerId: 'netease',
-            id: artistId,
-            type: 'artist',
-            name: t('navidrome.artists'),
-        }, 'player');
-    }, [navigateToCollection, t]);
+    const handlePlayerPanelArtistSelect = useCallback(async (song: SongResult, artist: Artist) => {
+        try {
+            const ref = await resolveSongCatalogRef(song as UnifiedSong, 'artist', artist);
+            if (ref) {
+                navigateToCollection({
+                    source: 'online',
+                    providerId: ref.providerId,
+                    id: ref.id,
+                    type: 'artist',
+                    name: artist.name || t('navidrome.artists'),
+                }, 'player');
+                return;
+            }
+        } catch (error) {
+            console.warn('[CatalogNavigation] Failed to resolve player artist:', error);
+        }
+        setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [navigateToCollection, setStatusMsg, t]);
 
     const homeModel = useMemo(() => buildHomeModel({
         onlineProviderPlatform,

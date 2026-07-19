@@ -20,6 +20,7 @@ const OPERATION_MODULES = {
   user_cloud_url: ['user_cloud_url'],
   search: ['search'],
   audio: ['audio'],
+  krm_audio: ['krm_audio'],
   song_url: ['song_url'],
   search_lyric: ['search_lyric'],
   lyric: ['lyric'],

@@ -14,7 +14,11 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
     removeProviderSessionValue: vi.fn(),
 }));
 
-import { kugouProvider, normalizeKugouSong } from '@/services/onlineMusic/kugouProvider';
+import {
+    kugouProvider,
+    normalizeKugouSong,
+    resolveKugouSongCatalogRefs,
+} from '@/services/onlineMusic/kugouProvider';
 
 describe('kugouProvider', () => {
     beforeEach(() => requestMock.mockReset());
@@ -41,10 +45,13 @@ describe('kugouProvider', () => {
             providerData: {
                 hash: 'AB12CD',
                 mixSongId: 42,
-                albumAudioId: 88,
+                catalogLookupId: 42,
                 albumId: 9,
             },
         });
+        expect(song.artists[0]).toMatchObject({ id: 'kugou-artist-0', name: '歌手' });
+        expect(song.artists[0].catalogRef).toBeUndefined();
+        expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
     });
 
     it('separates a duplicated artist prefix from the KuGou song title', () => {
@@ -62,7 +69,7 @@ describe('kugouProvider', () => {
         const song = normalizeKugouSong({
             FileHash: '8C2F0C043E99779C8910C78E43DBC42A',
             audio_name: 'HOYO-MiX、AURORA - 挪德卡莱 Nod-Krai',
-            album_info: { id: 164446399, name: '原神-幽暮衬映之月 Outside It Is Growing Dark' },
+            album_info: { album_id: 164446399, name: '原神-幽暮衬映之月 Outside It Is Growing Dark' },
         });
 
         expect(song.name).toBe('挪德卡莱 Nod-Krai');
@@ -110,7 +117,7 @@ describe('kugouProvider', () => {
 
     it('maps quality and source metadata to the song URL request', async () => {
         requestMock.mockResolvedValue({ data: { play_url: 'http://example.test/song.flac' } });
-        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song', AlbumID: 2, ID: 3 });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song', AlbumID: 2, album_audio_id: 3 });
         const source = await kugouProvider.playback?.getAudioSource(song, 'lossless');
 
         expect(requestMock).toHaveBeenCalledWith('song_url', expect.objectContaining({
@@ -123,7 +130,9 @@ describe('kugouProvider', () => {
         requestMock
             .mockResolvedValueOnce({ status: 3, fail_process: 1 })
             .mockResolvedValueOnce({ status: 1, url: ['https://example.test/song.flac'] });
-        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song', AlbumID: 164446399, ID: 500617606 });
+        const song = normalizeKugouSong({
+            FileHash: 'hash', SongName: 'Song', AlbumID: 164446399, album_audio_id: 500617606,
+        });
 
         const source = await kugouProvider.playback?.getAudioSource(song, 'lossless');
 
@@ -177,5 +186,155 @@ describe('kugouProvider', () => {
 
         expect(requestMock.mock.calls.map(call => call[1].quality)).toEqual(['high', 'flac', '320']);
         expect(source).toMatchObject({ url: 'https://example.test/song.mp3', quality: 'high' });
+    });
+
+    it('hydrates canonical album and artist ids through hash-verified KRM metadata once', async () => {
+        requestMock.mockResolvedValue({
+            data: [{
+                base: { album_audio_id: 32155307, album_id: 10729818 },
+                audio_info: { hash: 'AB12CD' },
+                album_info: { album_id: 10729818, album_name: 'Canonical Album' },
+                authors: [{ base: { author_id: 6539, author_name: 'Canonical Artist' } }],
+            }],
+        });
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            SongName: 'Song',
+            SingerName: 'Canonical Artist',
+            MixSongID: 32155307,
+            ID: 999999,
+        });
+
+        const [first, second] = await Promise.all([
+            resolveKugouSongCatalogRefs(song),
+            resolveKugouSongCatalogRefs(song),
+        ]);
+
+        expect(requestMock).toHaveBeenCalledTimes(1);
+        expect(requestMock).toHaveBeenCalledWith('krm_audio', {
+            album_audio_id: '32155307',
+            fields: 'album_info,authors.base,base,audio_info',
+        });
+        expect(first.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 10729818 });
+        expect(first.album.name).toBe('Canonical Album');
+        expect(first.al?.name).toBe('Canonical Album');
+        expect(first.artists[0].catalogRef).toEqual({ providerId: 'kugou', kind: 'artist', id: 6539 });
+        expect(second.album.catalogRef).toEqual(first.album.catalogRef);
+    });
+
+    it('rejects KRM metadata belonging to a different hash', async () => {
+        requestMock.mockResolvedValue({
+            data: [{
+                audio_info: { hash: 'DIFFERENT' },
+                album_info: { album_id: 10729818, album_name: 'Wrong Album' },
+                authors: [{ base: { author_id: 6539, author_name: 'Wrong Artist' } }],
+            }],
+        });
+        const song = normalizeKugouSong({
+            FileHash: 'EXPECTED', SongName: 'Song', SingerName: 'Artist', MixSongID: 999001,
+        });
+
+        const resolved = await resolveKugouSongCatalogRefs(song);
+
+        expect(resolved.album.catalogRef).toBeUndefined();
+        expect(resolved.artists[0].catalogRef).toBeUndefined();
+        expect(resolved.album.name).toBe('');
+    });
+
+    it('keeps playlist catalog and mutation ids separate', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                lists: [{
+                    global_collection_id: 'collection_3_1863870844_4_0',
+                    listid: 12345,
+                    name: 'Playlist',
+                }],
+                total: 1,
+            },
+        });
+
+        const page = await kugouProvider.library?.getUserPlaylists?.('user', 50, 0);
+
+        expect(page?.items[0]).toMatchObject({
+            id: 'collection_3_1863870844_4_0',
+            providerData: { listId: 12345, globalCollectionId: 'collection_3_1863870844_4_0' },
+        });
+    });
+
+    it('normalizes the nested song shape returned by album catalog endpoints', async () => {
+        requestMock.mockResolvedValue({
+            total: 1,
+            data: {
+                total: 1,
+                songs: [{
+                    base: {
+                        album_id: 10729818,
+                        album_audio_id: 115304862,
+                        audio_name: '小心思',
+                    },
+                    audio_info: { hash: 'AB96FDBB35F394DFD16FB57AADD12FEA', duration: 169012 },
+                    album_info: {
+                        album_name: '小心思',
+                        cover: 'http://imge.kugou.com/stdmusic/{size}/cover.jpg',
+                    },
+                    authors: [{ author_name: '孙小佳', author_id: 748078 }],
+                }],
+            },
+        });
+
+        const page = await kugouProvider.catalog?.getAlbumTracks?.(10729818);
+        const song = page?.items[0];
+
+        expect(requestMock).toHaveBeenCalledWith('album_songs', {
+            id: '10729818', page: 1, pagesize: 100,
+        });
+        expect(song).toMatchObject({
+            id: 'AB96FDBB35F394DFD16FB57AADD12FEA',
+            name: '小心思',
+            duration: 169012,
+            album: {
+                id: 10729818,
+                name: '小心思',
+                picUrl: 'http://imge.kugou.com/stdmusic/400/cover.jpg',
+                catalogRef: { providerId: 'kugou', kind: 'album', id: 10729818 },
+            },
+            sourceRef: {
+                providerData: { albumAudioId: 115304862, catalogLookupId: 115304862 },
+            },
+        });
+        expect(song?.artists[0].catalogRef).toEqual({
+            providerId: 'kugou', kind: 'artist', id: 748078,
+        });
+    });
+
+    it('uses author_id for artist detail and album catalog requests', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    author_id: 6539,
+                    author_name: '郁可唯',
+                    sizable_avatar: 'http://img/{size}/artist.jpg',
+                    song_count: 100,
+                    album_count: 20,
+                },
+            })
+            .mockResolvedValueOnce({
+                total: 1,
+                data: [{ album_id: 194920827, album_name: '见幸福' }],
+            });
+
+        const detail = await kugouProvider.catalog?.getArtistDetail?.(6539);
+        const albums = await kugouProvider.catalog?.getArtistAlbums?.(6539, 50, 0);
+
+        expect(detail).toMatchObject({
+            id: 6539,
+            name: '郁可唯',
+            coverUrl: 'http://img/400/artist.jpg',
+            providerData: { musicSize: 100, albumSize: 20 },
+        });
+        expect(albums?.items[0]).toMatchObject({ id: 194920827, name: '见幸福', type: 'album' });
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'artist_albums', {
+            id: '6539', page: 1, pagesize: 50,
+        });
     });
 });

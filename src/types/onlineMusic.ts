@@ -5,6 +5,13 @@ import type { LyricData, SongResult, UnifiedSong } from '../types';
 export type MediaId = string | number;
 export type OnlineProviderId = 'netease' | (string & {});
 export type AudioQualityPreference = 'standard' | 'high' | 'lossless' | 'hires';
+export type ProviderCatalogEntityKind = 'album' | 'artist' | 'playlist';
+
+export interface ProviderCatalogRef {
+    providerId: OnlineProviderId;
+    kind: ProviderCatalogEntityKind;
+    id: MediaId;
+}
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -161,6 +168,8 @@ export interface OnlineLibraryProvider {
 }
 
 export interface OnlineCatalogProvider {
+    canResolveSongCatalogRefs?(song: UnifiedSong): boolean;
+    resolveSongCatalogRefs?(song: UnifiedSong): Promise<UnifiedSong>;
     getPlaylistTracks?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
     getCloudTracks?(limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
     getAlbumTracks?(id: MediaId, limit?: number, offset?: number): Promise<ProviderPage<UnifiedSong>>;

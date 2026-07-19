@@ -17,15 +17,15 @@ const baseTrack = (): UnifiedSong => ({
 });
 
 describe('search collection adapters', () => {
-    it('creates NetEase artist and album descriptors', () => {
+    it('creates NetEase artist and album descriptors', async () => {
         const track = baseTrack();
-        expect(createSearchArtistCollection(track, 'Artist', 2)).toEqual(expect.objectContaining({
+        await expect(createSearchArtistCollection(track, 'Artist', 2)).resolves.toEqual(expect.objectContaining({
             source: 'online',
             providerId: 'netease',
             id: 2,
             type: 'artist',
         }));
-        expect(createSearchAlbumCollection(track, 'Album', 3)).toEqual(expect.objectContaining({
+        await expect(createSearchAlbumCollection(track, 'Album', 3)).resolves.toEqual(expect.objectContaining({
             source: 'online',
             providerId: 'netease',
             id: 3,
@@ -33,23 +33,23 @@ describe('search collection adapters', () => {
         }));
     });
 
-    it('uses stable local entity ids and refuses unresolved local links', () => {
+    it('uses stable local entity ids and refuses unresolved local links', async () => {
         const track: UnifiedSong = {
             ...baseTrack(),
             isLocal: true,
             localRef: { songId: 'song-1' },
             sourceRef: { kind: 'local', mediaId: 'song-1' },
         };
-        expect(createSearchArtistCollection(track, 'Artist', 0, 'artist-1')).toEqual(expect.objectContaining({
+        await expect(createSearchArtistCollection(track, 'Artist', 0, 'artist-1')).resolves.toEqual(expect.objectContaining({
             source: 'local',
             id: 'artist-1',
             entityId: 'artist-1',
             songIds: ['song-1'],
         }));
-        expect(createSearchAlbumCollection(track, 'Album')).toBeNull();
+        await expect(createSearchAlbumCollection(track, 'Album')).resolves.toBeNull();
     });
 
-    it('uses Navidrome source ids from the playback carrier', () => {
+    it('uses Navidrome source ids from the playback carrier', async () => {
         const track: UnifiedSong = {
             ...baseTrack(),
             isNavidrome: true,
@@ -62,13 +62,38 @@ describe('search collection adapters', () => {
                 albumId: 'album-1',
             } as any,
         };
-        expect(createSearchArtistCollection(track, 'Artist')).toEqual(expect.objectContaining({
+        await expect(createSearchArtistCollection(track, 'Artist')).resolves.toEqual(expect.objectContaining({
             source: 'navidrome',
             id: 'artist-1',
         }));
-        expect(createSearchAlbumCollection(track, 'Album')).toEqual(expect.objectContaining({
+        await expect(createSearchAlbumCollection(track, 'Album')).resolves.toEqual(expect.objectContaining({
             source: 'navidrome',
             id: 'album-1',
         }));
+    });
+
+    it('uses canonical KuGou catalog references instead of display ids', async () => {
+        const track: UnifiedSong = {
+            ...baseTrack(),
+            id: 'HASH',
+            artists: [{
+                id: 'display-artist',
+                name: 'Artist',
+                catalogRef: { providerId: 'kugou', kind: 'artist', id: 6539 },
+            }],
+            album: {
+                id: 'display-album',
+                name: 'Album',
+                catalogRef: { providerId: 'kugou', kind: 'album', id: 10729818 },
+            },
+            sourceRef: { kind: 'online', providerId: 'kugou', mediaId: 'HASH' },
+        };
+
+        await expect(createSearchArtistCollection(track, 'Artist', 'display-artist')).resolves.toMatchObject({
+            providerId: 'kugou', id: 6539, type: 'artist',
+        });
+        await expect(createSearchAlbumCollection(track, 'Album', 'display-album')).resolves.toMatchObject({
+            providerId: 'kugou', id: 10729818, type: 'album',
+        });
     });
 });

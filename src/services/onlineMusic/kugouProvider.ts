@@ -4,6 +4,7 @@ import type {
     JsonValue,
     MediaId,
     OnlineMusicProvider,
+    ProviderCatalogRef,
     ProviderCollection,
     ProviderPage,
     ProviderUser,
@@ -42,18 +43,22 @@ const audioUrlOf = (raw: unknown): string | undefined => {
 const dataOf = (raw: any): any => raw?.data ?? raw?.body?.data ?? raw?.body ?? raw;
 const listOf = (raw: any): any[] => {
     const data = dataOf(raw);
-    const list = data?.lists ?? data?.list ?? data?.info ?? data?.songs ?? data?.audios ?? data;
+    const list = data?.lists ?? data?.list ?? data?.info ?? data?.songs ?? data?.audios ?? data?.albums ?? data;
     return Array.isArray(list) ? list : [];
 };
 
 const coverOf = (raw: any): string | undefined => {
-    const value = valueOf(raw, 'Image', 'image', 'img', 'pic', 'picUrl', 'cover', 'coverUrl', 'sizable_cover');
+    const value = valueOf(raw, 'Image', 'image', 'img', 'pic', 'picUrl', 'cover', 'coverUrl', 'sizable_cover', 'sizable_avatar')
+        ?? valueOf(raw?.album_info, 'cover', 'sizable_cover')
+        ?? valueOf(raw?.trans_param, 'union_cover');
     return value ? String(value).replace('{size}', '400') : undefined;
 };
 
-const hashOf = (raw: any): string => String(valueOf(
-    raw, 'FileHash', 'fileHash', 'hash', 'Hash', 'audio_hash', 'audioHash', 'kgHash',
-) || '').toUpperCase();
+const hashOf = (raw: any): string => String(
+    valueOf(raw, 'FileHash', 'fileHash', 'hash', 'Hash', 'audio_hash', 'audioHash', 'kgHash')
+    ?? valueOf(raw?.audio_info, 'hash', 'hash_128')
+    ?? '',
+).toUpperCase();
 
 const jsonData = (entries: Array<[string, unknown]>): Record<string, JsonValue> => Object.fromEntries(
     entries.filter((entry): entry is [string, JsonValue] => (
@@ -61,13 +66,27 @@ const jsonData = (entries: Array<[string, unknown]>): Record<string, JsonValue> 
     )),
 );
 
+const catalogRef = (
+    kind: ProviderCatalogRef['kind'],
+    id: unknown,
+): ProviderCatalogRef | undefined => (
+    id !== undefined && id !== null && String(id) !== ''
+        ? { providerId: 'kugou', kind, id: id as MediaId }
+        : undefined
+);
+
 const normalizeArtists = (raw: any) => {
     const singers = valueOf(raw, 'Singers', 'singers', 'authors', 'artists');
     if (Array.isArray(singers)) {
-        return singers.map((artist: any, index: number) => ({
-            id: valueOf(artist, 'id', 'author_id', 'singerid', 'singerId') ?? `kugou-artist-${index}`,
-            name: String(valueOf(artist, 'name', 'author_name', 'singername') || ''),
-        })).filter(artist => artist.name);
+        return singers.map((artist: any, index: number) => {
+            const base = artist?.base ?? artist;
+            const authorId = valueOf(base, 'author_id', 'authorId');
+            return {
+                id: authorId ?? `kugou-artist-${index}`,
+                name: String(valueOf(base, 'name', 'author_name', 'singername') || ''),
+                ...(catalogRef('artist', authorId) ? { catalogRef: catalogRef('artist', authorId) } : {}),
+            };
+        }).filter(artist => artist.name);
     }
     const names = String(valueOf(raw, 'SingerName', 'singername', 'author_name', 'Singer') || '')
         .split(/[、,&/]/).map(name => name.trim()).filter(Boolean);
@@ -104,23 +123,37 @@ const normalizeKugouTitleAndArtists = (rawTitle: string, rawArtists: ReturnType<
 
 export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
     const item = raw as any;
+    const base = item?.base ?? {};
+    const audioInfo = item?.audio_info ?? item?.audioInfo ?? {};
     const hash = hashOf(item);
     const rawArtists = normalizeArtists(item);
     const nestedAlbum = valueOf(item, 'album_info', 'albumInfo', 'album') ?? {};
     const albumId = valueOf(item, 'AlbumID', 'album_id', 'albumId')
-        ?? valueOf(nestedAlbum, 'id', 'album_id', 'albumId')
+        ?? valueOf(nestedAlbum, 'album_id', 'albumId')
+        ?? valueOf(base, 'album_id', 'albumId')
         ?? '';
+    const albumCatalogRef = catalogRef('album', albumId);
     const albumName = String(
         valueOf(item, 'AlbumName', 'album_name', 'albumName', 'albumname')
         ?? valueOf(nestedAlbum, 'name', 'album_name', 'albumName')
+        ?? valueOf(base, 'album_name', 'albumName')
         ?? ''
     );
-    const durationValue = Number(valueOf(item, 'Duration', 'duration', 'timelen', 'timeLength') || 0);
+    const durationValue = Number(
+        valueOf(item, 'Duration', 'duration', 'timelen', 'timeLength', 'timelength')
+        ?? valueOf(audioInfo, 'duration', 'timelength', 'duration_128')
+        ?? 0,
+    );
     const duration = durationValue > 0 && durationValue < 10000 ? durationValue * 1000 : durationValue;
+    const mixSongId = valueOf(item, 'MixSongID', 'mixsongid', 'mixSongId')
+        ?? valueOf(base, 'MixSongID', 'mixsongid', 'mixSongId');
+    const albumAudioId = valueOf(item, 'album_audio_id', 'albumAudioId')
+        ?? valueOf(base, 'album_audio_id', 'albumAudioId');
     const providerData = jsonData([
         ['hash', hash],
-        ['mixSongId', valueOf(item, 'MixSongID', 'mixsongid', 'mixSongId')],
-        ['albumAudioId', valueOf(item, 'ID', 'album_audio_id', 'albumAudioId', 'audio_id')],
+        ['mixSongId', mixSongId],
+        ['albumAudioId', albumAudioId],
+        ['catalogLookupId', albumAudioId ?? mixSongId],
         ['albumId', albumId],
         ['fileId', valueOf(item, 'FileID', 'fileid', 'file_id')],
     ]);
@@ -130,20 +163,110 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
         'OriSongName', 'ori_song_name', 'oriSongName',
         'FileName', 'filename', 'fileName',
         'name', 'audio_name',
-    ) || '');
+    ) ?? valueOf(base, 'SongName', 'songname', 'songName', 'audio_name', 'audioName') ?? '');
     const { title, artists } = normalizeKugouTitleAndArtists(rawTitle, rawArtists);
 
     return {
         id: hash,
         name: title,
         artists,
-        album: { id: albumId, name: albumName, picUrl: coverOf(item) },
+        album: {
+            id: albumId,
+            name: albumName,
+            picUrl: coverOf(item),
+            ...(albumCatalogRef ? { catalogRef: albumCatalogRef } : {}),
+        },
         duration,
         ar: artists,
-        al: { id: Number(albumId) || 0, name: albumName, picUrl: coverOf(item) },
+        al: {
+            id: Number(albumId) || 0,
+            name: albumName,
+            picUrl: coverOf(item),
+            ...(albumCatalogRef ? { catalogRef: albumCatalogRef } : {}),
+        },
         dt: duration,
         kgHash: hash,
         sourceRef: { kind: 'online', providerId: 'kugou', mediaId: hash, providerData },
+    };
+};
+
+const kugouCatalogMetadataRequests = new Map<string, Promise<any | null>>();
+
+const getKugouCatalogLookupId = (song: SongResult): string => {
+    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou'
+        ? song.sourceRef
+        : null;
+    return String(sourceRef?.providerData?.catalogLookupId || '');
+};
+
+const requestKugouCatalogMetadata = (lookupId: string): Promise<any | null> => {
+    const cached = kugouCatalogMetadataRequests.get(lookupId);
+    if (cached) return cached;
+
+    const request = requestKugou('krm_audio', {
+        album_audio_id: lookupId,
+        fields: 'album_info,authors.base,base,audio_info',
+    }).then(response => listOf(response)[0] ?? null).catch(error => {
+        kugouCatalogMetadataRequests.delete(lookupId);
+        throw error;
+    });
+    kugouCatalogMetadataRequests.set(lookupId, request);
+    return request;
+};
+
+const hasMatchingKugouHash = (metadata: any, song: SongResult): boolean => {
+    const expectedHash = String(song.kgHash || (
+        song.sourceRef?.kind === 'online' ? song.sourceRef.providerData?.hash : ''
+    ) || '').toUpperCase();
+    if (!expectedHash) return false;
+
+    const audioInfo = metadata?.audio_info ?? metadata?.audioInfo ?? {};
+    return [
+        valueOf(audioInfo, 'hash', 'FileHash', 'fileHash'),
+        valueOf(audioInfo, 'hash_128', 'hash128'),
+    ].some(candidate => String(candidate || '').toUpperCase() === expectedHash);
+};
+
+// Hydrates canonical KuGou album/artist ids only after KRM metadata matches the song hash.
+export const resolveKugouSongCatalogRefs = async (song: UnifiedSong): Promise<UnifiedSong> => {
+    const lookupId = getKugouCatalogLookupId(song);
+    if (!lookupId) return song;
+
+    const metadata = await requestKugouCatalogMetadata(lookupId);
+    if (!metadata || !hasMatchingKugouHash(metadata, song)) return song;
+
+    const base = metadata.base ?? {};
+    const albumInfo = metadata.album_info ?? metadata.albumInfo ?? {};
+    const albumId = valueOf(albumInfo, 'album_id', 'albumId')
+        ?? valueOf(base, 'album_id', 'albumId');
+    const albumName = String(
+        valueOf(albumInfo, 'album_name', 'albumName', 'name')
+        ?? valueOf(base, 'album_name', 'albumName')
+        ?? song.album.name,
+    );
+    const albumRef = catalogRef('album', albumId);
+    const resolvedArtists = normalizeArtists(metadata);
+    const artists = resolvedArtists.length > 0 ? resolvedArtists : song.artists;
+    const coverUrl = coverOf(albumInfo) || song.album.picUrl;
+
+    return {
+        ...song,
+        artists,
+        ar: artists,
+        album: {
+            ...song.album,
+            id: albumId ?? song.album.id,
+            name: albumName,
+            picUrl: coverUrl,
+            ...(albumRef ? { catalogRef: albumRef } : {}),
+        },
+        al: {
+            ...song.al,
+            id: Number(albumId ?? song.al?.id) || 0,
+            name: albumName,
+            picUrl: coverUrl,
+            ...(albumRef ? { catalogRef: albumRef } : {}),
+        },
     };
 };
 
@@ -161,28 +284,39 @@ const normalizeUser = (raw: any): ProviderUser => {
     };
 };
 
-const normalizeCollection = (raw: any, type = 'playlist', owned = false): ProviderCollection => ({
-    providerId: 'kugou',
-    id: valueOf(raw, 'global_collection_id', 'listid', 'list_id', 'specialid', 'id', 'album_id', 'author_id') ?? '',
-    name: String(valueOf(raw, 'name', 'listname', 'specialname', 'album_name', 'author_name') || ''),
-    type,
-    coverUrl: coverOf(raw),
-    description: valueOf(raw, 'intro', 'description', 'desc'),
-    trackCount: Number(valueOf(raw, 'song_count', 'count', 'total', 'music_num') || 0),
-    providerData: jsonData([
-        ['listId', valueOf(raw, 'listid', 'list_id')],
-        ['globalCollectionId', valueOf(raw, 'global_collection_id')],
-        ['specialId', valueOf(raw, 'specialid')],
-        ['owned', owned],
-        ['creatorUserId', valueOf(raw, 'create_userid', 'list_create_userid', 'userid')],
-        ['creatorListId', valueOf(raw, 'create_listid', 'list_create_listid', 'listid')],
-        ['creatorGid', valueOf(raw, 'gid', 'list_create_gid', 'global_collection_id')],
-    ]),
-});
+const normalizeCollection = (raw: any, type = 'playlist', owned = false): ProviderCollection => {
+    const id = type === 'playlist'
+        ? valueOf(raw, 'global_collection_id')
+        : type === 'album'
+            ? valueOf(raw, 'album_id', 'AlbumID', 'albumId')
+            : type === 'artist'
+                ? valueOf(raw, 'author_id', 'authorId')
+                : undefined;
+    return {
+        providerId: 'kugou',
+        id: id ?? '',
+        name: String(valueOf(raw, 'name', 'listname', 'specialname', 'album_name', 'author_name') || ''),
+        type,
+        coverUrl: coverOf(raw),
+        description: valueOf(raw, 'intro', 'description', 'desc'),
+        trackCount: Number(valueOf(raw, 'song_count', 'count', 'total', 'music_num') || 0),
+        providerData: jsonData([
+            ['listId', valueOf(raw, 'listid', 'list_id')],
+            ['globalCollectionId', valueOf(raw, 'global_collection_id')],
+            ['specialId', valueOf(raw, 'specialid')],
+            ['owned', owned],
+            ['creatorUserId', valueOf(raw, 'create_userid', 'list_create_userid', 'userid')],
+            ['creatorListId', valueOf(raw, 'create_listid', 'list_create_listid', 'listid')],
+            ['creatorGid', valueOf(raw, 'gid', 'list_create_gid', 'global_collection_id')],
+            ['musicSize', type === 'artist' ? valueOf(raw, 'song_count', 'music_num') : undefined],
+            ['albumSize', type === 'artist' ? valueOf(raw, 'album_count') : undefined],
+        ]),
+    };
+};
 
 const pageOf = <T>(items: T[], raw: any, limit: number, offset: number): ProviderPage<T> => {
     const data = dataOf(raw);
-    const total = Number(data?.total ?? data?.total_count ?? data?.count ?? items.length);
+    const total = Number(data?.total ?? raw?.total ?? data?.total_count ?? raw?.total_count ?? data?.count ?? items.length);
     return { items, total, hasMore: offset + items.length < total || items.length === limit, nextOffset: offset + items.length };
 };
 
@@ -363,10 +497,15 @@ export const kugouProvider: OnlineMusicProvider = {
     library: {
         async getUserPlaylists(userId, limit, offset) {
             const response = await requestKugou('user_playlist', { userid: String(userId), page: Math.floor(offset / limit) + 1, pagesize: limit });
-            return pageOf(listOf(response).map(item => normalizeCollection(item, 'playlist', true)), response, limit, offset);
+            const items = listOf(response)
+                .map(item => normalizeCollection(item, 'playlist', true))
+                .filter(collection => collection.id !== '');
+            return pageOf(items, response, limit, offset);
         },
     },
     catalog: {
+        canResolveSongCatalogRefs: song => Boolean(getKugouCatalogLookupId(song)),
+        resolveSongCatalogRefs: resolveKugouSongCatalogRefs,
         async getPlaylistTracks(id, limit, offset) {
             const response = await requestKugou('playlist_track_all', { id: String(id), pagesize: limit, page: Math.floor(offset / limit) + 1 });
             return pageOf(listOf(response).map(normalizeKugouSong), response, limit, offset);
@@ -389,7 +528,10 @@ export const kugouProvider: OnlineMusicProvider = {
         },
         async getArtistAlbums(id, limit, offset) {
             const response = await requestKugou('artist_albums', { id: String(id), page: Math.floor(offset / limit) + 1, pagesize: limit });
-            return pageOf(listOf(response).map(item => normalizeCollection(item, 'album')), response, limit, offset);
+            const items = listOf(response)
+                .map(item => normalizeCollection(item, 'album'))
+                .filter(collection => collection.id !== '');
+            return pageOf(items, response, limit, offset);
         },
         async getArtistDetail(id) {
             const response = await requestKugou('artist_detail', { id: String(id) });

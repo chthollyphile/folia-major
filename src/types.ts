@@ -1,5 +1,5 @@
 import type { LineRenderHints } from './utils/lyrics/renderHints';
-import type { MediaId, PlaybackSourceRef } from './types/onlineMusic';
+import type { MediaId, PlaybackSourceRef, ProviderCatalogRef } from './types/onlineMusic';
 
 export interface LyricRuby {
   text: string;
@@ -825,6 +825,7 @@ export interface Artist {
   id: MediaId;
   name: string;
   entityId?: string;
+  catalogRef?: ProviderCatalogRef;
 }
 
 export interface Album {
@@ -832,6 +833,7 @@ export interface Album {
   name: string;
   picUrl?: string;
   entityId?: string;
+  catalogRef?: ProviderCatalogRef;
 }
 
 export interface SongPrivilege {
@@ -872,6 +874,7 @@ export interface SongResult {
     name: string;
     picUrl?: string;
     entityId?: string;
+    catalogRef?: ProviderCatalogRef;
   };
   ar?: Artist[];
   dt?: number; // duration in ms

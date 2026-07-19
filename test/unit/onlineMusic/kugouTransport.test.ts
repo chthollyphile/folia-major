@@ -72,4 +72,20 @@ describe('KuGou Web transport', () => {
             operation: 'song_url', audioUrlCandidateCount: 1,
         }));
     });
+
+    it('uses the dedicated KRM metadata endpoint on Web', async () => {
+        vi.stubGlobal('window', undefined);
+        storage.set('online_provider:kugou:dfid', 'device');
+        const fetchMock = vi.fn().mockResolvedValue(Response.json({ status: 1, data: [] }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+
+        await requestKugou('krm_audio', {
+            album_audio_id: '42', fields: 'album_info,authors.base,base,audio_info',
+        });
+
+        const requestUrl = new URL(fetchMock.mock.calls[0][0]);
+        expect(requestUrl.pathname).toBe('/krm/audio');
+        expect(requestUrl.searchParams.get('album_audio_id')).toBe('42');
+    });
 });

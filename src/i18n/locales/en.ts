@@ -382,7 +382,8 @@ export default {
     "sourceNavidrome": "Navidrome",
     "playTrack": "Play track",
     "error": "Search failed. Please try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "catalogUnavailable": "This album or artist cannot be opened because the provider did not return a valid catalog ID."
   },
   "home": {
     "welcome": "Welcome to Folia",

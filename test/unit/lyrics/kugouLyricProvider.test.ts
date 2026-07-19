@@ -51,7 +51,7 @@ describe('Kugou lyric provider', () => {
         expect(searchUrl.searchParams.get('hash')).toBe(song.kgHash);
     });
 
-    it('does not send a hash as album_audio_id when no numeric id is available', async () => {
+    it('does not infer album_audio_id from a numeric song id', async () => {
         const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ candidates: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -59,12 +59,15 @@ describe('Kugou lyric provider', () => {
         vi.stubGlobal('fetch', fetchMock);
 
         const song: SongResult = {
-            id: 'HASH-IDENTITY',
+            id: 500617606,
             name: 'Song',
             artists: [],
             album: { id: 0, name: '' },
             duration: 0,
             kgHash: 'HASH-IDENTITY',
+            sourceRef: {
+                kind: 'online', providerId: 'kugou', mediaId: 'HASH-IDENTITY', providerData: {},
+            },
         };
 
         await expect(fetchKugouLyrics(song)).resolves.toBeNull();

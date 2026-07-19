@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star, Command, ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerMode } from '../types';
+import { Album, Artist, SongResult, Theme, PlayerState, ReplayGainMode, LocalPlaylist, NeteasePlaylist, ThemeMode, VisualizerMode } from '../types';
 import CoverTab from './panelTab/CoverTab';
 import ControlsTab from './panelTab/ControlsTab';
 import QueueTab from './panelTab/QueueTab';
@@ -14,7 +14,7 @@ import OnlineLyricsTab from './panelTab/OnlineLyricsTab';
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import type { OnlineLyricsState } from '../types';
-import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
+import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
@@ -29,8 +29,8 @@ type UnifiedPanelPlaybackProps = {
     onNavigateHomeDirect: () => void;
     coverUrl: string | null;
     currentSong: SongResult | null;
-    onAlbumSelect: (albumId: MediaId) => void;
-    onSelectArtist: (artistId: MediaId) => void;
+    onAlbumSelect: (song: SongResult, album: Album) => void;
+    onSelectArtist: (song: SongResult, artist: Artist) => void;
     loopMode: 'off' | 'all' | 'one';
     onToggleLoop: () => void;
     onLike: () => void;
@@ -747,12 +747,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     {currentTab === 'cover' && (
                                         <CoverTab
                                             currentSong={currentSong}
-                                            onAlbumSelect={(albumId) => {
-                                                onAlbumSelect(albumId);
+                                            onAlbumSelect={(song, album) => {
+                                                onAlbumSelect(song, album);
                                                 onToggle();
                                             }}
-                                            onSelectArtist={(artistId) => {
-                                                onSelectArtist(artistId);
+                                            onSelectArtist={(song, artist) => {
+                                                onSelectArtist(song, artist);
                                                 onToggle();
                                             }}
                                             onOpenCurrentLocalAlbum={() => {
