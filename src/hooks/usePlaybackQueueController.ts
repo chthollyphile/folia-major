@@ -4,7 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
 import { getSongReplacement, isSongUnavailable } from '../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
-import { canPlayOnlineMusicSong, getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
@@ -288,7 +288,7 @@ export function usePlaybackQueueController({
         if (isLocalPlaybackSong(queuedSong) || isNavidromePlaybackSong(queuedSong)) {
             return true;
         }
-        return !isSongUnavailable(queuedSong) && canPlayOnlineMusicSong(queuedSong);
+        return !isSongUnavailable(queuedSong) && omni.canPlaySong(queuedSong);
     }, []);
 
     // Keeps unavailable provider entries in the queue so they can be retried after configuration changes.
@@ -830,7 +830,7 @@ export function usePlaybackQueueController({
 
         if (isFmMode && currentIndex >= playQueue.length - 2) {
             try {
-                const fmSongs = await getOnlineMusicProvider('netease')?.recommendations?.getPersonalFm?.() || [];
+                const fmSongs = await omni.getPersonalFm();
                 if (fmSongs.length > 0) {
                     const nextQueue = [...playQueue, ...fmSongs];
                     setPlayQueue(nextQueue);
@@ -1001,7 +1001,7 @@ export function usePlaybackQueueController({
 
     const handleStageExternalPlayRequest = useCallback(async (request: { requestId: string; songId: number; appendToQueue?: boolean; }) => {
         try {
-            const song = await getOnlineMusicProvider('netease')?.playback?.getSongDetail(request.songId);
+            const song = await omni.getSongDetail('netease', request.songId);
             if (!song) {
                 throw new Error(`Song ${request.songId} was not found.`);
             }
@@ -1070,7 +1070,7 @@ export function usePlaybackQueueController({
 
         const songs: SongResult[] = [];
         for (const songId of songIds) {
-            const song = await getOnlineMusicProvider('netease')?.playback?.getSongDetail(songId);
+            const song = await omni.getSongDetail('netease', songId);
             if (song && !isSongUnavailable(song)) {
                 songs.push(song);
             }

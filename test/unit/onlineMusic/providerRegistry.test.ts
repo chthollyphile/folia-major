@@ -39,7 +39,7 @@ const partialProvider: OnlineMusicProvider = {
         name: 'Partial',
         artists: [],
         album: { id: '', name: '' },
-        duration: 0,
+        durationMs: 0,
         sourceRef: { kind: 'online', providerId: 'partial-test', mediaId: String((raw as { id?: string }).id || '') },
     }),
     search: {
@@ -52,7 +52,7 @@ const availabilitySong = (blocked = false) => ({
     name: blocked ? 'Blocked' : 'Replacement',
     artists: [],
     album: { id: '', name: '' },
-    duration: 1000,
+    durationMs: 1000,
     sourceRef: {
         kind: 'online' as const,
         providerId: 'availability-test',
@@ -110,7 +110,7 @@ describe('online music provider registry', () => {
             name: 'Legacy',
             artists: [],
             album: { id: 1, name: 'Album' },
-            duration: 1000,
+            durationMs: 1000,
         });
         expect(getPlaybackSongKey(kugouSong)).toBe('online:partial-test:ABC123');
         expect(getPlaybackSongKey(legacySong)).toBe('online:netease:123');
@@ -123,7 +123,7 @@ describe('online music provider registry', () => {
             name: 'Cloud by source type',
             artists: [],
             album: { id: 1, name: 'Album' },
-            duration: 1000,
+            durationMs: 1000,
             sourceType: 'cloud',
         });
         const legacyTypeCloudSong = normalizePlaybackSongSource({
@@ -131,7 +131,7 @@ describe('online music provider registry', () => {
             name: 'Cloud by legacy type',
             artists: [],
             album: { id: 1, name: 'Album' },
-            duration: 1000,
+            durationMs: 1000,
             t: 2,
         });
 

@@ -832,7 +832,6 @@ export interface Album {
   id: MediaId;
   name: string;
   coverUrl?: string;
-  picUrl?: string;
   entityId?: string;
   catalogRef?: ProviderCatalogRef;
 }
@@ -864,25 +863,13 @@ export interface SongResult {
   name: string;
   artists: Artist[];
   album: Album;
-  duration: number; // milliseconds usually from API
+  durationMs: number;
   isPureMusic?: boolean;
   aliases?: string[];
   translatedNames?: string[];
   t?: 0 | 1 | 2;
   sourceType?: 'netease' | 'cloud';
   sourceRef?: PlaybackSourceRef;
-  // Netease API raw fields
-  al?: {
-    id: number;
-    name: string;
-    picUrl?: string;
-    entityId?: string;
-    catalogRef?: ProviderCatalogRef;
-  };
-  ar?: Artist[];
-  dt?: number; // duration in ms
-  alia?: string[]; // 别名
-  tns?: string[]; // 翻译名
   fee?: number;
   noCopyrightRcmd?: NoCopyrightRecommendation | null;
   resourceState?: boolean;

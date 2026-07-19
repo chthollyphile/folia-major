@@ -26,8 +26,8 @@ const makeSong = (id: number, name: string): SongResult => ({
     id,
     name,
     artists: [{ id, name: `Artist ${id}` }],
-    album: { id, name: `Album ${id}`, picUrl: `https://example.com/${id}.jpg` },
-    duration: 180_000,
+    album: { id, name: `Album ${id}`, coverUrl: `https://example.com/${id}.jpg` },
+    durationMs: 180_000,
 });
 
 describe('playbackSyncBridge', () => {

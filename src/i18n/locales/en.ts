@@ -397,6 +397,7 @@ export default {
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "switchOnlineProvider": "Switch online music provider",
+    "confirmOnlineProviderSwitch": "Switch to {{provider}}? Current online playback and queue will be cleared.",
     "onlineProvider": "Online music provider",
     "providerNotLoggedIn": "Not signed in · click to scan",
     "providerNotConfigured": "API is not configured for Web",

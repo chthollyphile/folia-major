@@ -52,8 +52,8 @@ describe('stage player queue item ids', () => {
         id,
         name,
         artists: [],
-        album: { id: 0, name: '', picUrl: '' },
-        duration: 1000,
+        album: { id: 0, name: '', coverUrl: '' },
+        durationMs: 1000,
     });
 
     it('rejects stale queue item ids when the same index now points at another song', () => {
@@ -80,9 +80,8 @@ describe('stage player snapshot duration', () => {
         id: 42,
         name: 'Metadata Duration Song',
         artists: [],
-        album: { id: 0, name: '', picUrl: '' },
-        duration: 211906,
-        dt: 211906,
+        album: { id: 0, name: '', coverUrl: '' },
+        durationMs: 211906,
     };
 
     it('falls back to current track metadata duration when playback duration is unknown', () => {

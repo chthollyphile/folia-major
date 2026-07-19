@@ -22,7 +22,7 @@ const track = (patch: Partial<UnifiedSong> = {}): UnifiedSong => ({
     name: 'Track',
     artists: [],
     album: { id: 1, name: 'Album' },
-    duration: 1000,
+    durationMs: 1000,
     ...patch,
     sourceRef: patch.sourceRef ?? { kind: 'online', providerId: 'netease', mediaId: '1' },
 });

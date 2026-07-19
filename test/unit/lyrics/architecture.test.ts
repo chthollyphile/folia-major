@@ -50,7 +50,7 @@ describe('lyrics architecture', () => {
 
         for (const file of delegatedProcessingCallSites) {
             const content = await readRepoFile(file);
-            expect(content, `${file} should delegate lyric source fetching`).toMatch(/fetchLyricsForMatchSource|getOnlineMusicProvider|provider\.lyrics/);
+            expect(content, `${file} should delegate lyric source fetching`).toMatch(/fetchLyricsForMatchSource|getOnlineMusicProvider|provider\.lyrics|omni\.getLyrics/);
             expect(content, `${file} should not import legacy parsers`).not.toMatch(/lrcParser|yrcParser/);
             expect(content, `${file} should not inline chorus detection`).not.toContain('detectChorusLines');
         }

@@ -123,7 +123,7 @@ export const buildDebugSnapshot = ({
         lyricsSource: resolveDebugLyricsSource(currentSong, lyrics),
         audioSrcKind: getAudioSrcKind(audioSrc),
         coverUrlKind: getAudioSrcKind(coverUrl),
-        duration: currentSong?.duration ? currentSong.duration / 1000 : null,
+        duration: currentSong?.durationMs ? currentSong.durationMs / 1000 : null,
         currentLineIndex,
         totalLines: lyrics?.lines.length ?? 0,
         totalWords: lyrics?.lines.reduce((sum, line) => sum + line.words.length, 0) ?? 0,

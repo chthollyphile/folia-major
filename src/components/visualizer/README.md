@@ -688,7 +688,7 @@ resetSettings: props => {
 
 如果你的模式会在主题预览中明显受益于专属 tuning，这里也要确认对应 props 已经透传。
 
-#### `src/components/app/Home.tsx` / `src/components/Home.tsx`
+#### `src/components/app/Home.tsx`
 
 如果 `SettingsModal` 的 props 发生变化，通常需要先检查 app-level dialogs 包装层，再同步全局设置入口。
 

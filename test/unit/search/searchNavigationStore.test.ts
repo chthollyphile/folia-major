@@ -60,7 +60,7 @@ describe('useSearchNavigationStore', () => {
             name: 'NetEase track still playing',
             artists: [],
             album: { id: 1, name: '' },
-            duration: 1,
+            durationMs: 1,
         }, 'netease', 'kugou')).toBe('kugou');
         expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('kugou');
     });
@@ -103,8 +103,8 @@ describe('useSearchNavigationStore', () => {
             .mockResolvedValueOnce({
                 result: {
                     songs: [
-                        { id: 1, name: 'Track 1', artists: [], album: { id: 1, name: 'Album 1' }, duration: 1000 },
-                        { id: 2, name: 'Track 2', artists: [], album: { id: 2, name: 'Album 2' }, duration: 1000 },
+                        { id: 1, name: 'Track 1', artists: [], album: { id: 1, name: 'Album 1' }, durationMs: 1000 },
+                        { id: 2, name: 'Track 2', artists: [], album: { id: 2, name: 'Album 2' }, durationMs: 1000 },
                     ],
                     songCount: 4,
                 },
@@ -112,8 +112,8 @@ describe('useSearchNavigationStore', () => {
             .mockResolvedValueOnce({
                 result: {
                     songs: [
-                        { id: 3, name: 'Track 3', artists: [], album: { id: 3, name: 'Album 3' }, duration: 1000 },
-                        { id: 4, name: 'Track 4', artists: [], album: { id: 4, name: 'Album 4' }, duration: 1000 },
+                        { id: 3, name: 'Track 3', artists: [], album: { id: 3, name: 'Album 3' }, durationMs: 1000 },
+                        { id: 4, name: 'Track 4', artists: [], album: { id: 4, name: 'Album 4' }, durationMs: 1000 },
                     ],
                     songCount: 4,
                 },
@@ -139,7 +139,7 @@ describe('useSearchNavigationStore', () => {
     it('restores the matching cached search results and scroll position', async () => {
         cloudSearchMock.mockResolvedValueOnce({
             result: {
-                songs: [{ id: 9, name: 'Cached', artists: [], album: { id: 1, name: 'Album' }, duration: 1000 }],
+                songs: [{ id: 9, name: 'Cached', artists: [], album: { id: 1, name: 'Album' }, durationMs: 1000 }],
                 songCount: 1,
             },
         } as any);
@@ -166,7 +166,7 @@ describe('useSearchNavigationStore', () => {
     it('does not reuse cached results from a different query', async () => {
         cloudSearchMock.mockResolvedValueOnce({
             result: {
-                songs: [{ id: 9, name: 'Cached', artists: [], album: { id: 1, name: 'Album' }, duration: 1000 }],
+                songs: [{ id: 9, name: 'Cached', artists: [], album: { id: 1, name: 'Album' }, durationMs: 1000 }],
                 songCount: 1,
             },
         } as any);
@@ -194,7 +194,7 @@ describe('useSearchNavigationStore', () => {
             name: 'Navidrome Track',
             artists: [{ id: 0, name: 'Artist' }],
             album: { id: 0, name: 'Album' },
-            duration: 1000,
+            durationMs: 1000,
             isNavidrome: true,
         } as any);
 
@@ -263,8 +263,8 @@ describe('useSearchNavigationStore', () => {
         });
 
         const [result] = useSearchNavigationStore.getState().searchResults || [];
-        expect(result.ar?.[0]).toEqual(expect.objectContaining({ entityId: 'artist-1' }));
-        expect(result.al).toEqual(expect.objectContaining({ entityId: 'album-1' }));
+        expect(result.artists[0]).toEqual(expect.objectContaining({ entityId: 'artist-1' }));
+        expect(result.album).toEqual(expect.objectContaining({ entityId: 'album-1' }));
     });
 
     it('keeps the newest result when an older request resolves later', async () => {
@@ -275,7 +275,7 @@ describe('useSearchNavigationStore', () => {
             }))
             .mockResolvedValueOnce({
                 result: {
-                    songs: [{ id: 2, name: 'Newest', artists: [], album: { id: 2, name: 'Album' }, duration: 1000 }],
+                    songs: [{ id: 2, name: 'Newest', artists: [], album: { id: 2, name: 'Album' }, durationMs: 1000 }],
                     songCount: 1,
                 },
             } as any);
@@ -292,7 +292,7 @@ describe('useSearchNavigationStore', () => {
         });
         resolveFirst?.({
             result: {
-                songs: [{ id: 1, name: 'Old', artists: [], album: { id: 1, name: 'Album' }, duration: 1000 }],
+                songs: [{ id: 1, name: 'Old', artists: [], album: { id: 1, name: 'Album' }, durationMs: 1000 }],
                 songCount: 1,
             },
         });
@@ -322,14 +322,14 @@ describe('useSearchNavigationStore', () => {
         cloudSearchMock
             .mockResolvedValueOnce({
                 result: {
-                    songs: [{ id: 1, name: 'First', artists: [], album: { id: 1, name: 'Album' }, duration: 1000 }],
+                    songs: [{ id: 1, name: 'First', artists: [], album: { id: 1, name: 'Album' }, durationMs: 1000 }],
                     songCount: 2,
                 },
             } as any)
             .mockRejectedValueOnce(new Error('page failed'))
             .mockResolvedValueOnce({
                 result: {
-                    songs: [{ id: 2, name: 'Second', artists: [], album: { id: 1, name: 'Album' }, duration: 1000 }],
+                    songs: [{ id: 2, name: 'Second', artists: [], album: { id: 1, name: 'Album' }, durationMs: 1000 }],
                     songCount: 2,
                 },
             } as any);

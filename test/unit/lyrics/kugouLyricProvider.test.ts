@@ -34,7 +34,7 @@ describe('Kugou lyric provider', () => {
             name: '挪德卡莱 Nod-Krai',
             artists: [{ id: 1, name: 'HOYO-MiX' }, { id: 2, name: 'AURORA' }],
             album: { id: 164446399, name: '原神-幽暮衬映之月 Outside It Is Growing Dark' },
-            duration: 239_000,
+            durationMs: 239_000,
             kgHash: '8C2F0C043E99779C8910C78E43DBC42A',
             sourceRef: {
                 kind: 'online',
@@ -63,7 +63,7 @@ describe('Kugou lyric provider', () => {
             name: 'Song',
             artists: [],
             album: { id: 0, name: '' },
-            duration: 0,
+            durationMs: 0,
             kgHash: 'HASH-IDENTITY',
             sourceRef: {
                 kind: 'online', providerId: 'kugou', mediaId: 'HASH-IDENTITY', providerData: {},

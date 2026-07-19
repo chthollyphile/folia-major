@@ -163,7 +163,7 @@ export async function fetchQQLyrics(
     crypt: 1,
     ct: 19,
     cv: 2111,
-    interval: Math.floor(song.duration / 1000),
+    interval: Math.floor(song.durationMs / 1000),
     lrc_t: 0,
     qrc: 1,
     qrc_t: 0,

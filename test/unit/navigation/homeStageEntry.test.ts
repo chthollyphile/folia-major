@@ -95,11 +95,11 @@ describe('home stage entry wiring', () => {
         const params = createBaseParams();
         const model = buildHomeModel(params);
 
-        expect(model.legacyProps.stageEnabled).toBe(true);
-        expect(model.legacyProps.stageSource).toBe('stage-api');
-        expect(model.legacyProps.stageIsActive).toBe(true);
+        expect(model.surfaceProps.stageEnabled).toBe(true);
+        expect(model.surfaceProps.stageSource).toBe('stage-api');
+        expect(model.surfaceProps.stageIsActive).toBe(true);
 
-        await model.legacyProps.onOpenStagePlayer?.();
+        await model.surfaceProps.onOpenStagePlayer?.();
         expect(params.openStagePlayer).toHaveBeenCalledTimes(1);
     });
 
@@ -111,9 +111,9 @@ describe('home stage entry wiring', () => {
             activePlaybackContext: 'main',
         });
 
-        expect(model.legacyProps.stageEnabled).toBe(false);
-        expect(model.legacyProps.stageSource).toBeUndefined();
-        expect(model.legacyProps.stageIsActive).toBe(false);
+        expect(model.surfaceProps.stageEnabled).toBe(false);
+        expect(model.surfaceProps.stageSource).toBeUndefined();
+        expect(model.surfaceProps.stageIsActive).toBe(false);
     });
 });
 
@@ -122,7 +122,7 @@ describe('home stage entry source contracts', () => {
         const content = await readRepoFile('src/components/app/Home.tsx');
 
         expect(content).toContain('<Grid3D');
-        expect(content).toContain('{...model.legacyProps}');
+        expect(content).toContain('{...model.surfaceProps}');
         expect(content).toContain('onOpenGridView={openGridView}');
     });
 

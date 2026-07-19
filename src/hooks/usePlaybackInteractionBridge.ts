@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
-import { getOnlineMusicProviderForSong } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { PlayerState } from '../types';
 import type { ReplayGainMode, SongResult, StageLoopMode, StatusMessage } from '../types';
 import { getReplayGainModeLabel } from '../utils/appPlaybackHelpers';
@@ -123,7 +123,7 @@ export function usePlaybackInteractionBridge({
 
         if (currentSong && isFmMode) {
             try {
-                await getOnlineMusicProviderForSong(currentSong)?.recommendations?.dislikeSong?.(currentSong.id);
+                await omni.dislikeSong(currentSong);
             } catch (error) {
                 void error;
             }

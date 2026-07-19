@@ -47,7 +47,7 @@ const ENDPOINTS: Record<KugouOperation, string> = {
 };
 
 const getWebApiBase = (): string => {
-    const viteValue = typeof import.meta !== 'undefined'
+    const viteValue = typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test'
         ? String((import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_KUGOU_API_BASE || '')
         : '';
     const processValue = typeof process !== 'undefined'
@@ -55,28 +55,6 @@ const getWebApiBase = (): string => {
         : '';
     const value = viteValue || processValue;
     return value.trim().replace(/\/$/, '');
-};
-
-let kugouRequestSequence = 0;
-
-const safeRequestParams = (params: KugouParams) => ({
-    hash: typeof params.hash === 'string' ? params.hash : undefined,
-    quality: params.quality,
-    albumId: params.album_id,
-    albumAudioId: params.album_audio_id,
-    id: params.id,
-    parameterKeys: Object.keys(params).filter(key => !['cookie', 'token', 'userid', 'dfid'].includes(key.toLowerCase())),
-});
-
-const summarizeResponse = (body: any) => {
-    const urls = body?.play_url ?? body?.playUrl ?? body?.url;
-    const candidates = Array.isArray(urls) ? urls : (typeof urls === 'string' && urls ? [urls] : []);
-    return {
-        status: body?.status ?? body?.code ?? body?.data?.status,
-        errorCode: body?.errcode ?? body?.error_code,
-        responseKeys: body && typeof body === 'object' ? Object.keys(body).slice(0, 20) : [],
-        audioUrlCandidateCount: candidates.length,
-    };
 };
 
 const isDeviceVerificationRequired = (body: any): boolean => {
@@ -137,46 +115,15 @@ export const getKugouTransportAvailability = () => {
 };
 
 // Routes one provider request through Electron IPC or an explicitly configured Web backend.
-export const requestKugou = async <T = any>(operation: KugouOperation, params: KugouParams = {}): Promise<T> => {
-    const requestId = ++kugouRequestSequence;
+export const requestKugou = async <T = unknown>(operation: KugouOperation, params: KugouParams = {}): Promise<T> => {
     if (typeof window !== 'undefined' && window.electron?.kugouRequest) {
-        console.info('[KuGouTransport] ipc:start', {
-            requestId,
-            operation,
-            params: safeRequestParams(params),
-        });
-        try {
-            const body = await window.electron.kugouRequest(operation, params) as T;
-            console.info('[KuGouTransport] ipc:success', {
-                requestId,
-                operation,
-                ...summarizeResponse(body),
-            });
-            return body;
-        } catch (error) {
-            console.warn('[KuGouTransport] ipc:error', {
-                requestId,
-                operation,
-                error: error instanceof Error ? error.message : String(error),
-            });
-            throw error;
-        }
+        return await window.electron.kugouRequest(operation, params) as T;
     }
 
     const base = getWebApiBase();
     if (!base) {
         throw new OnlineProviderError('unavailable', 'VITE_KUGOU_API_BASE is not configured', 'kugou');
     }
-    console.info('[KuGouTransport] request:start', {
-        requestId,
-        operation,
-        endpoint: ENDPOINTS[operation],
-        params: safeRequestParams(params),
-        hasDfid: Boolean(readProviderSessionValue('kugou', 'dfid')),
-        hasToken: Boolean(readProviderSessionValue('kugou', 'token')),
-        hasUserId: Boolean(readProviderSessionValue('kugou', 'userid')),
-    });
-
     const execute = async (targetOperation: KugouOperation, targetParams: KugouParams): Promise<any> => {
         const query = new URLSearchParams();
         Object.entries(targetParams).forEach(([key, value]) => {
@@ -186,58 +133,21 @@ export const requestKugou = async <T = any>(operation: KugouOperation, params: K
         if (cookie) query.set('cookie', cookie);
         query.set('timestamp', String(Date.now()));
 
-        const startedAt = performance.now();
-        console.info('[KuGouTransport] fetch:start', {
-            requestId,
-            operation: targetOperation,
-            endpoint: ENDPOINTS[targetOperation],
-            params: safeRequestParams(targetParams),
-        });
-        let response: Response;
-        try {
-            response = await fetch(`${base}${ENDPOINTS[targetOperation]}?${query}`, { credentials: 'include' });
-        } catch (error) {
-            console.warn('[KuGouTransport] fetch:error', {
-                requestId,
-                operation: targetOperation,
-                durationMs: Math.round(performance.now() - startedAt),
-                error: error instanceof Error ? error.message : String(error),
-            });
-            throw error;
-        }
+        const response = await fetch(`${base}${ENDPOINTS[targetOperation]}?${query}`, { credentials: 'include' });
         if (!response.ok) {
-            console.warn('[KuGouTransport] fetch:http-error', {
-                requestId,
-                operation: targetOperation,
-                status: response.status,
-                durationMs: Math.round(performance.now() - startedAt),
-            });
             throw new OnlineProviderError('network', `KuGouMusicApi request failed: ${response.status}`, 'kugou');
         }
         const responseBody = await response.json();
         persistWebSession(responseBody);
         const body = responseBody?.body ?? responseBody;
-        console.info('[KuGouTransport] fetch:success', {
-            requestId,
-            operation: targetOperation,
-            durationMs: Math.round(performance.now() - startedAt),
-            ...summarizeResponse(body),
-        });
         return body;
     };
 
     let body = await execute(operation, params);
     if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
-        console.warn('[KuGouTransport] request:verification-required', {
-            requestId,
-            operation,
-            errorCode: body?.errcode ?? body?.error_code,
-        });
         clearWebDeviceIdentity();
         await execute('register_dev', {});
-        console.info('[KuGouTransport] request:retry', { requestId, operation, reason: 'device-verification' });
         body = await execute(operation, params);
     }
-    console.info('[KuGouTransport] request:complete', { requestId, operation, ...summarizeResponse(body) });
     return body as T;
 };

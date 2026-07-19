@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import LegacyHome from '../../Home';
 import GridView, { GridViewSourceActions } from '../../GridView';
 import ArtistGridView from '../../ArtistGridView';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
@@ -29,14 +28,13 @@ import { LocalSongMetadataMatchDialog } from '../../modal/LocalSongMetadataMatch
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 import { applyLocalSongCoverDisplay } from '../../../services/playbackAdapters';
 import { resolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
+import type { HomeSurfaceProps } from './homeSurfaceTypes';
 
 // src/components/app/home/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
 
-type LegacyHomeProps = React.ComponentProps<typeof LegacyHome>;
-
 type GridViewOverlayHostProps = {
-    legacyProps: LegacyHomeProps;
+    surfaceProps: HomeSurfaceProps;
     onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
     onPushCollection: (collection: GridViewCollectionDescriptor) => void;
     onBackCollection: () => void;
@@ -100,23 +98,23 @@ const resolveLocalCollectionCoverUrlFromTracks = (
 
 const resolveLiveLocalCollection = (
     collection: LocalGridViewCollectionDescriptor,
-    legacyProps: LegacyHomeProps,
+    surfaceProps: HomeSurfaceProps,
     catalog: LocalLibraryCatalogSnapshot,
 ): LocalGridViewCollectionDescriptor | null => {
     if (!collection.playlistId) {
         return refreshLocalGridViewCollection(
             collection,
-            legacyProps.localSongs,
+            surfaceProps.localSongs,
             catalog.ready ? catalog : undefined,
         );
     }
 
-    const playlist = legacyProps.localPlaylists.find(item => item.id === collection.playlistId);
+    const playlist = surfaceProps.localPlaylists.find(item => item.id === collection.playlistId);
     if (!playlist) {
         return null;
     }
 
-    const validSongIds = new Set(legacyProps.localSongs.map(song => song.id));
+    const validSongIds = new Set(surfaceProps.localSongs.map(song => song.id));
     const songIds = playlist.songIds.filter(songId => validSongIds.has(songId));
 
     return {
@@ -129,7 +127,7 @@ const resolveLiveLocalCollection = (
 };
 
 const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
-    legacyProps,
+    surfaceProps,
     onOpenCollection,
     onPushCollection,
     onBackCollection,
@@ -138,7 +136,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     const { t } = useTranslation();
     const collectionSnapshot = useCollectionNavigationStore(state => state.snapshot);
     const isDaylight = useSettingsUiStore(state => state.isDaylight);
-    const localLibraryCatalog = legacyProps.localLibraryCatalog;
+    const localLibraryCatalog = surfaceProps.localLibraryCatalog;
     const selectedCollection = getActiveGridViewCollection(collectionSnapshot);
     const [externalTracks, setExternalTracks] = useState<SongResult[] | undefined>(undefined);
     const [externalTracksLoading, setExternalTracksLoading] = useState(false);
@@ -156,8 +154,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             return selectedCollection;
         }
 
-        return resolveLiveLocalCollection(selectedCollection, legacyProps, localLibraryCatalog);
-    }, [legacyProps.localPlaylists, legacyProps.localSongs, localLibraryCatalog, selectedCollection]);
+        return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog);
+    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, localLibraryCatalog, selectedCollection]);
     const displaySelectedCollection = useMemo(() => {
         if (!liveSelectedCollection) {
             return null;
@@ -240,8 +238,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [handleBackCollection, liveSelectedCollection, localLibraryCatalog.ready, selectedCollection]);
 
     const showCatalogUnavailable = useCallback(() => {
-        legacyProps.onStatusMessage?.({ type: 'error', text: t('search.catalogUnavailable') });
-    }, [legacyProps, t]);
+        surfaceProps.onStatusMessage?.({ type: 'error', text: t('search.catalogUnavailable') });
+    }, [surfaceProps, t]);
 
     const handlePushAlbumCollection = useCallback(async (
         albumId: number | string,
@@ -318,7 +316,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     followEntityRedirect(assignment.albumEntityId, catalogIndex.entitiesById) === localAlbumEntity.id
                 ))
                 .map(assignment => assignment.songId));
-            const albumSongs = legacyProps.localSongs.filter(song => memberIds.has(song.id));
+            const albumSongs = surfaceProps.localSongs.filter(song => memberIds.has(song.id));
             const albumArtist = resolveLocalAlbumArtistDisplay(
                 albumSongs.map(song => song.id),
                 localLibraryCatalog,
@@ -335,7 +333,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 songIds: albumSongs.map(song => song.id),
             });
         }
-    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
+    }, [handlePushCollection, surfaceProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
 
     const handlePushArtistCollection = useCallback(async (
         artistId: number | string,
@@ -401,7 +399,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 followEntityRedirect(entityId, catalogIndex.entitiesById) === artistEntity.id
             )))
             .map(assignment => assignment.songId));
-        const artistSongs = legacyProps.localSongs.filter(song => memberIds.has(song.id));
+        const artistSongs = surfaceProps.localSongs.filter(song => memberIds.has(song.id));
         handlePushCollection({
             source: 'local',
             id: artistEntity.id,
@@ -410,7 +408,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             type: 'artist',
             songIds: artistSongs.map(song => song.id),
         });
-    }, [handlePushCollection, legacyProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
+    }, [handlePushCollection, surfaceProps.localSongs, localLibraryCatalog, selectedCollection, showCatalogUnavailable]);
 
     useEffect(() => {
         if (!selectedCollection) {
@@ -443,7 +441,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
 
         const resolvedTracks = resolveLocalGridViewTracks(
             liveSelectedCollection,
-            legacyProps.localSongs,
+            surfaceProps.localSongs,
             localLibraryCatalog,
         ) as UnifiedSong[];
         if (liveSelectedCollection.songIds.length > 0 && resolvedTracks.length === 0) {
@@ -454,12 +452,12 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         setNavidromePlaylistItems([]);
         setResolvedLocalCollectionCoverUrl(resolveLocalCollectionCoverUrlFromTracks(
             resolvedTracks,
-            legacyProps.localSongs,
+            surfaceProps.localSongs,
             getOrCreateLocalTrackCoverObjectUrl
         ));
 
         const activeTrackCoverSongIds = new Set<string>();
-        const localSongsById = new Map(legacyProps.localSongs.map(song => [song.id, song]));
+        const localSongsById = new Map(surfaceProps.localSongs.map(song => [song.id, song]));
         const processedTracks = resolvedTracks.map(track => {
             const localData = track.localRef ? localSongsById.get(track.localRef.songId) : undefined;
             if (!localData) return track;
@@ -486,7 +484,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [
         handleBackCollection,
         getOrCreateLocalTrackCoverObjectUrl,
-        legacyProps.localSongs,
+        surfaceProps.localSongs,
         liveSelectedCollection,
         localLibraryCatalog,
         pruneLocalTrackCoverObjectUrls,
@@ -552,30 +550,30 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     }, [refreshNavidromePlaylists, selectedCollection]);
 
     const handleSelectTrack = useCallback((track: SongResult, queue: SongResult[]) => {
-        legacyProps.onPlaySong(track, queue);
-    }, [legacyProps]);
+        surfaceProps.onPlaySong(track, queue);
+    }, [surfaceProps]);
 
     const handleAddTrackToQueue = useCallback((track: SongResult) => {
         const unifiedTrack = track as UnifiedSong;
         const localSongId = unifiedTrack.localRef?.songId;
-        const localSong = localSongId ? legacyProps.localSongs.find(song => song.id === localSongId) : undefined;
+        const localSong = localSongId ? surfaceProps.localSongs.find(song => song.id === localSongId) : undefined;
         if (unifiedTrack.isLocal && localSong) {
-            legacyProps.onAddLocalSongToQueue?.(localSong);
+            surfaceProps.onAddLocalSongToQueue?.(localSong);
             return;
         }
         if (unifiedTrack.isNavidrome) {
             const naviSong = resolveNavidromePlaybackCarrier(unifiedTrack);
             if (naviSong) {
-                legacyProps.onAddNavidromeSongsToQueue?.([naviSong]);
+                surfaceProps.onAddNavidromeSongsToQueue?.([naviSong]);
                 return;
             }
         }
-        legacyProps.onAddSongToQueue?.(track);
-    }, [legacyProps]);
+        surfaceProps.onAddSongToQueue?.(track);
+    }, [surfaceProps]);
 
     const sourceActions = useMemo<GridViewSourceActions>(() => ({
         local: {
-            onRefresh: legacyProps.onRefreshLocalSongs,
+            onRefresh: surfaceProps.onRefreshLocalSongs,
             onEditEntity: async (entityId) => setEditingEntityId(entityId),
             onOrganizeFolderSongInfo: async (collection) => {
                 if (isLocalGridViewCollection(collection) && collection.type === 'folder' && !collection.isVirtual) {
@@ -586,29 +584,29 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             onResyncFolder: async (collection) => {
                 const importedSongs = await resyncFolder(collection.name);
                 if (importedSongs !== null) {
-                    await legacyProps.onRefreshLocalSongs();
+                    await surfaceProps.onRefreshLocalSongs();
                 }
             },
             onResyncAllFolders: async () => {
                 const importedSongs = await resyncAllFolders();
                 if (importedSongs !== null) {
-                    await legacyProps.onRefreshLocalSongs();
+                    await surfaceProps.onRefreshLocalSongs();
                 }
             },
             onDeleteFolder: async (collection) => {
                 await deleteFolderSongs(collection.name);
-                legacyProps.onRefreshLocalSongs();
+                surfaceProps.onRefreshLocalSongs();
             },
             onRenamePlaylist: async (playlistId, name) => {
                 await updateLocalPlaylist(playlistId, playlist => ({
                     ...playlist,
                     name: name.trim(),
                 }));
-                legacyProps.onRefreshLocalSongs();
+                surfaceProps.onRefreshLocalSongs();
             },
             onDeletePlaylist: async (playlistId) => {
                 await deleteLocalPlaylist(playlistId);
-                legacyProps.onRefreshLocalSongs();
+                surfaceProps.onRefreshLocalSongs();
             },
             onRemovePlaylistSongs: async (playlistId, songIds) => {
                 await removeSongsFromLocalPlaylist(playlistId, songIds);
@@ -663,7 +661,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 });
             },
         },
-    }), [legacyProps, navidromePlaylistItems, refreshNavidromePlaylists]);
+    }), [surfaceProps, navidromePlaylistItems, refreshNavidromePlaylists]);
 
     const editingEntity = editingEntityId
         ? localLibraryCatalog.entities.find(entity => entity.id === editingEntityId)
@@ -673,14 +671,14 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             ? assignment.artistEntityIds.includes(editingEntity.id)
             : assignment.albumEntityId === editingEntity?.id)
         .map(assignment => assignment.songId));
-    const editingEntitySongs = legacyProps.localSongs.filter(song => editingEntityMemberIds.has(song.id));
+    const editingEntitySongs = surfaceProps.localSongs.filter(song => editingEntityMemberIds.has(song.id));
     const organizingFolderSongs = organizingFolder
         ? organizingFolder.songIds
-            .map(songId => legacyProps.localSongs.find(song => song.id === songId))
+            .map(songId => surfaceProps.localSongs.find(song => song.id === songId))
             .filter((song): song is LocalSong => Boolean(song))
         : [];
     const matchingSong = matchingSongId
-        ? legacyProps.localSongs.find(song => song.id === matchingSongId)
+        ? surfaceProps.localSongs.find(song => song.id === matchingSongId)
         : undefined;
     const matchingSongAssignment = matchingSongId
         ? localLibraryCatalog.assignments.find(assignment => assignment.songId === matchingSongId)
@@ -720,13 +718,13 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                             onBack={handleBackCollection}
                             onSelectTrack={handleSelectTrack}
                             onAddTrackToQueue={handleAddTrackToQueue}
-                            onPlayAll={legacyProps.onPlayAll}
-                            onAddAllToQueue={legacyProps.onAddAllToQueue}
+                            onPlayAll={surfaceProps.onPlayAll}
+                            onAddAllToQueue={surfaceProps.onAddAllToQueue}
                             onSelectAlbum={handlePushAlbumCollection}
                             onSelectArtist={handlePushArtistCollection}
-                            theme={legacyProps.theme}
+                            theme={surfaceProps.theme}
                             isDaylight={isDaylight}
-                            localSongs={legacyProps.localSongs}
+                            localSongs={surfaceProps.localSongs}
                             onEditEntity={(entityId) => setEditingEntityId(entityId)}
                         />
                     ) : (
@@ -739,17 +737,17 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                             onBack={handleBackCollection}
                             onSelectTrack={handleSelectTrack}
                             onAddTrackToQueue={handleAddTrackToQueue}
-                            onPlayAll={legacyProps.onPlayAll}
-                            onAddAllToQueue={legacyProps.onAddAllToQueue}
+                            onPlayAll={surfaceProps.onPlayAll}
+                            onAddAllToQueue={surfaceProps.onAddAllToQueue}
                             onSelectAlbum={handlePushAlbumCollection}
                             onSelectArtist={handlePushArtistCollection}
-                            currentUserId={legacyProps.user?.id}
-                            onPlaylistMutated={legacyProps.onRefreshUser}
-                            onStatusMessage={legacyProps.onStatusMessage}
+                            currentUserId={surfaceProps.user?.id}
+                            onPlaylistMutated={surfaceProps.onRefreshUser}
+                            onStatusMessage={surfaceProps.onStatusMessage}
                             externalTracks={externalTracks}
                             externalTracksLoading={externalTracksLoading}
                             sourceActions={sourceActions}
-                            theme={legacyProps.theme}
+                            theme={surfaceProps.theme}
                             isDaylight={isDaylight}
                         />
                     )
@@ -764,7 +762,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     onClose={() => setEditingEntityId(null)}
                     onChanged={async () => {
                         await localLibraryCatalog.reload();
-                        await legacyProps.onRefreshLocalSongs();
+                        await surfaceProps.onRefreshLocalSongs();
                     }}
                 />
             )}
@@ -777,7 +775,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     onClose={() => setOrganizingFolder(null)}
                     onChanged={async () => {
                         await localLibraryCatalog.reload();
-                        await legacyProps.onRefreshLocalSongs();
+                        await surfaceProps.onRefreshLocalSongs();
                     }}
                 />
             )}
@@ -789,7 +787,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     onClose={() => setMatchingSongId(null)}
                     onChanged={async () => {
                         await localLibraryCatalog.reload();
-                        await legacyProps.onRefreshLocalSongs();
+                        await surfaceProps.onRefreshLocalSongs();
                     }}
                 />
             )}

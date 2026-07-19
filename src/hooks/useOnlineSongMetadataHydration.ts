@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { SongResult, UnifiedSong } from '../types';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 
 // src/hooks/useOnlineSongMetadataHydration.ts
 
@@ -27,14 +27,12 @@ export const useOnlineSongMetadataHydration = (
         const sourceRef = currentSong.sourceRef;
         if (sourceRef?.kind !== 'online') return;
 
-        const catalog = getOnlineMusicProvider(sourceRef.providerId)?.catalog;
-        const resolver = catalog?.resolveSongCatalogRefs;
-        if (!resolver || catalog?.canResolveSongCatalogRefs?.(currentSong as UnifiedSong) === false) return;
+        if (!omni.canResolveCatalogRef(currentSong as UnifiedSong, 'album')) return;
 
         attemptedSongRef.current = currentSong;
         let cancelled = false;
 
-        void resolver(currentSong as UnifiedSong)
+        void omni.resolveCatalogRefs(currentSong as UnifiedSong)
             .then(resolvedSong => {
                 if (cancelled || resolvedSong === currentSong) return;
 

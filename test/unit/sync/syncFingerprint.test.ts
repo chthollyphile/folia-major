@@ -10,7 +10,7 @@ const baseSong: SongResult = {
     name: ' Bad   Apple ',
     artists: [{ id: 1, name: 'Nomico' }],
     album: { id: 2, name: 'Lovelight' },
-    duration: 219321,
+    durationMs: 219321,
 };
 
 describe('sync fingerprint', () => {

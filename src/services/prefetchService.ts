@@ -13,7 +13,7 @@ import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
-import { getOnlineMusicProviderForSong, providerSupports } from './onlineMusic/providerRegistry';
+import { omni } from './onlineMusic/omni';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
 import { toSafeRemoteUrl } from '../utils/appPlaybackHelpers';
@@ -110,8 +110,7 @@ const prefetchSong = async (
         console.log(`[Prefetch] Skipping non-online song: ${song.name}`);
         return;
     }
-    const provider = getOnlineMusicProviderForSong(song);
-    if (!providerSupports(provider, 'playback') || !provider?.playback) {
+    if (!omni.canPlaySong(song)) {
         console.log(`[Prefetch] Skipping unavailable provider for song: ${song.name}`);
         return;
     }
@@ -152,7 +151,7 @@ const prefetchSong = async (
                 data.audioUrl = 'CACHED_IN_DB';
                 data.audioUrlFetchedAt = Date.now();
             } else if (!signal.aborted) {
-                const audioSource = await provider.playback.getAudioSource(song, audioQuality);
+                const audioSource = await omni.getAudioSource(song, audioQuality);
                 const url = toSafeRemoteUrl(audioSource?.url) ?? null;
                 if (url) {
                     data.audioUrl = url;
@@ -175,9 +174,7 @@ const prefetchSong = async (
                 console.log(`[Prefetch] Lyrics in IndexedDB for: ${song.name}`);
                 data.lyrics = cachedLyrics;
             } else if (!signal.aborted) {
-                const lyricResult = providerSupports(provider, 'lyrics') && provider.lyrics
-                    ? await provider.lyrics.getLyrics(song, { userId })
-                    : { lyrics: null, isPureMusic: false };
+                const lyricResult = await omni.getLyrics(song, { userId });
                 const processed = {
                     mainLrc: lyricResult.mainText ?? null,
                     yrcLrc: lyricResult.wordByWordText ?? null,
@@ -406,6 +403,13 @@ export const invalidatePrefetchedLyrics = (): void => {
     }
 
     console.log(`[Prefetch] Invalidated lyrics for ${prefetchCache.size} prefetched songs`);
+};
+
+// Aborts provider-bound work and releases every in-memory prefetch entry.
+export const clearPrefetchRuntime = (): void => {
+    currentPrefetchAbortController?.abort();
+    currentPrefetchAbortController = null;
+    prefetchCache.clear();
 };
 
 /**

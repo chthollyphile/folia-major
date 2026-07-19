@@ -10,7 +10,7 @@ import { getSizedCoverUrl } from '../utils/coverUrl';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
 import { colorWithAlpha } from './visualizer/colorMix';
 import { saveToCache, getFromCache, removeFromCache } from '../services/db';
-import { getOnlineMusicProvider, providerSupports } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { getProviderCacheKey, getProviderCacheWithLegacyMigration } from '../services/onlineMusic/providerStorage';
 import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
@@ -391,7 +391,7 @@ export const PolaroidCard = React.memo<{
                                     </span>
                                     <span className="text-[9px] opacity-35 font-mono">
                                         {(() => {
-                                            const dt = item.rawTrack.duration || 0;
+                                            const dt = item.rawTrack.durationMs || 0;
                                             const min = Math.floor(dt / 60000);
                                             const sec = Math.floor((dt % 60000) / 1000);
                                             return `${min}:${sec < 10 ? '0' : ''}${sec}`;
@@ -743,8 +743,8 @@ export const GridView: React.FC<GridViewProps> = ({
     }, []);
 
     const collectionSource = collection?.source as string | undefined;
-    const onlineProvider = collectionSource === 'online' && collection?.providerId
-        ? getOnlineMusicProvider(collection.providerId)
+    const providerCapabilities = collectionSource === 'online' && collection?.providerId
+        ? omni.getProviderCapabilities(collection.providerId)
         : null;
     const [albumDetail, setAlbumDetail] = useState<ProviderCollection | null>(null);
     const isLocalCollection = collectionSource === 'local';
@@ -762,12 +762,12 @@ export const GridView: React.FC<GridViewProps> = ({
 
     useEffect(() => {
         setAlbumDetail(null);
-        if (!isAlbumCollection || collectionSource !== 'online' || !collection || !onlineProvider?.catalog?.getAlbumDetail) {
+        if (!isAlbumCollection || collectionSource !== 'online' || !collection) {
             return;
         }
 
         let active = true;
-        onlineProvider.catalog.getAlbumDetail(collection.id, collection)
+        omni.getAlbumDetail(collection)
             .then(detail => {
                 if (active && detail) setAlbumDetail(detail);
             })
@@ -776,7 +776,7 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => {
             active = false;
         };
-    }, [collection?.id, collectionSource, isAlbumCollection, onlineProvider]);
+    }, [collection?.id, collectionSource, isAlbumCollection]);
 
     useEffect(() => {
         if (isDraggingRef.current || pendingFocusCommitTimeoutRef.current) return;
@@ -953,22 +953,10 @@ export const GridView: React.FC<GridViewProps> = ({
 
     // Resolves paged online collection tracks through the active provider boundary.
     const loadOnlineCollectionPage = async (limit: number, pageOffset: number) => {
-        if (!collection || !onlineProvider?.catalog) {
+        if (!collection || collectionSource !== 'online') {
             return { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
         }
-        if (collection.type === 'album') {
-            return onlineProvider.catalog.getAlbumTracks?.(collection.id, limit, pageOffset, collection)
-                ?? { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
-        }
-        if (!providerSupports(onlineProvider, 'playlists')) {
-            return { items: [] as SongResult[], hasMore: false, nextOffset: pageOffset };
-        }
-        if (isCloudDrive) {
-            return onlineProvider.catalog.getCloudTracks?.(limit, pageOffset, collection)
-                ?? { items: [], hasMore: false, nextOffset: pageOffset };
-        }
-        return onlineProvider.catalog.getPlaylistTracks?.(collection.id, limit, pageOffset, collection)
-            ?? { items: [], hasMore: false, nextOffset: pageOffset };
+        return omni.getCollectionTracks(collection, { limit, offset: pageOffset });
     };
 
     const loadTracks = async (reset = false) => {
@@ -1018,9 +1006,9 @@ export const GridView: React.FC<GridViewProps> = ({
                 let hasMoreSync = false;
 
                 if (collection.type === 'radio' && collection.id === 'personal_fm') {
-                    responseTracks = await onlineProvider?.recommendations?.getPersonalFm?.() || [];
+                    responseTracks = await omni.getPersonalFm();
                 } else if (isDailyRecommendationsCollection) {
-                    responseTracks = await onlineProvider?.recommendations?.getDailySongs?.() || [];
+                    responseTracks = await omni.getDailySongs();
                 } else {
                     const page = await loadOnlineCollectionPage(GRID_INITIAL_BATCH_SIZE, 0);
                     responseTracks = page.items;
@@ -1134,7 +1122,7 @@ export const GridView: React.FC<GridViewProps> = ({
         }
 
         let active = true;
-        onlineProvider?.recommendations?.getHistoryDates?.()
+        omni.getRecommendationHistoryDates()
             .then(dates => {
                 if (active) setDailyRecommendationHistoryDates(dates || []);
             })
@@ -1142,7 +1130,7 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => {
             active = false;
         };
-    }, [isDailyRecommendationsCollection, onlineProvider]);
+    }, [isDailyRecommendationsCollection]);
 
     const canEditOwnedPlaylist = !usesExternalTracks
         && collection
@@ -1153,7 +1141,7 @@ export const GridView: React.FC<GridViewProps> = ({
         && collectionSource === 'online'
         && collection?.type === 'playlist'
         && collection?.isOwned === true
-        && Boolean(onlineProvider?.capabilities.playlistTrackMutations && onlineProvider?.mutations?.updatePlaylistTracks);
+        && Boolean(providerCapabilities?.playlistTrackMutations);
     const canEditPlaylist = Boolean(
         canEditOwnedPlaylist
         || canEditProviderPlaylist
@@ -1165,9 +1153,8 @@ export const GridView: React.FC<GridViewProps> = ({
     const isOnlinePlaylist = collectionSource === 'online' && collection?.type === 'playlist' && !isCloudDrive;
     const isOnlineAlbum = collectionSource === 'online' && collection?.type === 'album' && !isCloudDrive;
     const showSubscribeButton = Boolean(
-        onlineProvider?.capabilities.playlistSubscription
-        && ((isOnlinePlaylist && !canEditOwnedPlaylist && !canEditProviderPlaylist && onlineProvider.mutations?.subscribePlaylist)
-            || (isOnlineAlbum && onlineProvider.mutations?.subscribeAlbum)),
+        providerCapabilities?.playlistSubscription
+        && ((isOnlinePlaylist && !canEditOwnedPlaylist && !canEditProviderPlaylist) || isOnlineAlbum),
     );
 
     useEffect(() => {
@@ -1176,14 +1163,14 @@ export const GridView: React.FC<GridViewProps> = ({
         const fetchCollectionDetail = async () => {
             if (isOnlinePlaylist) {
                 try {
-                    const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('playlist', collection.id, collection);
+                    const subscribed = await omni.getSubscriptionStatus(collection);
                     if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
                 } catch (err) {
                     console.warn("[GridView] Failed to fetch playlist dynamic status:", err);
                 }
             } else if (isOnlineAlbum) {
                 try {
-                    const subscribed = await onlineProvider?.catalog?.getSubscriptionStatus?.('album', collection.id, collection);
+                    const subscribed = await omni.getSubscriptionStatus(collection);
                     if (active && typeof subscribed === 'boolean') setPlaylistSubscribed(subscribed);
                 } catch (err) {
                     console.warn("[GridView] Failed to fetch album dynamic status:", err);
@@ -1198,27 +1185,15 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => {
             active = false;
         };
-    }, [collection?.id, isOnlinePlaylist, isOnlineAlbum, onlineProvider]);
+    }, [collection?.id, isOnlinePlaylist, isOnlineAlbum]);
 
     const handleToggleSubscribe = async () => {
         if (!collection || isSubscribing) return;
         setIsSubscribing(true);
         try {
             const nextSubscribed = !playlistSubscribed;
-            let updated = false;
-            if (isOnlinePlaylist) {
-                if (onlineProvider?.mutations?.subscribePlaylist) {
-                    await onlineProvider.mutations.subscribePlaylist(collection, nextSubscribed);
-                    updated = true;
-                }
-            } else if (isOnlineAlbum) {
-                if (onlineProvider?.mutations?.subscribeAlbum) {
-                    await onlineProvider.mutations.subscribeAlbum(collection.id, nextSubscribed);
-                    updated = true;
-                }
-            }
-
-            if (updated) {
+            if (isOnlinePlaylist || isOnlineAlbum) {
+                await omni.subscribe(collection, nextSubscribed);
                 setPlaylistSubscribed(nextSubscribed);
                 if (isOnlineAlbum) {
                     window.dispatchEvent(new CustomEvent('folia-refresh-favorite-albums'));
@@ -1243,8 +1218,8 @@ export const GridView: React.FC<GridViewProps> = ({
         setIsEditMode(false);
         try {
             const nextTracks = date
-                ? await onlineProvider?.recommendations?.getHistorySongs?.(date) || []
-                : await onlineProvider?.recommendations?.getDailySongs?.(afresh) || [];
+                ? await omni.getRecommendationHistorySongs(date)
+                : await omni.getDailySongs(afresh);
             setTracks(nextTracks);
             setOffset(nextTracks.length);
             setHasMore(false);
@@ -1254,7 +1229,7 @@ export const GridView: React.FC<GridViewProps> = ({
         } finally {
             setLoading(false);
         }
-    }, [isDailyRecommendationsCollection, onlineProvider]);
+    }, [isDailyRecommendationsCollection]);
 
     const handleRemoveTrack = useCallback(async (track: SongResult, trackIndex: number, trackKey: string) => {
         if (!collection) return;
@@ -1272,7 +1247,7 @@ export const GridView: React.FC<GridViewProps> = ({
                 if (dailyRecommendationDislikePendingRef.current) return;
                 dailyRecommendationDislikePendingRef.current = true;
                 try {
-                    const result = await onlineProvider?.recommendations?.dislikeSong?.(track.id);
+                    const result = await omni.dislikeSong(track);
                     if (result?.replacement) {
                         commitAfterTrackRemovalAnimation(trackKey, () => {
                             setTracks(currentTracks => currentTracks.map((item, index) => (
@@ -1321,9 +1296,9 @@ export const GridView: React.FC<GridViewProps> = ({
 
             const isLiked = collection.isLiked === true;
             if (isLiked) {
-                await onlineProvider?.mutations?.likeSong?.(track.id, false);
+                await omni.likeSong(track, false);
             } else {
-                await onlineProvider?.mutations?.updatePlaylistTracks?.('del', collection, [track]);
+                await omni.updateCollectionTracks(collection, 'del', [track]);
             }
             const songPlaybackKey = getPlaybackSongKey(track);
             const nextTracks = tracks.filter(candidate => getPlaybackSongKey(candidate) !== songPlaybackKey);

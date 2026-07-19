@@ -6,7 +6,7 @@ import { SongResult, Theme } from '../types';
 import { LocalSong } from '../types';
 import { applyLocalSongCoverDisplay, buildLocalQueue } from '../services/playbackAdapters';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { createCoverPlaceholder } from '../utils/coverPlaceholders';
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
@@ -411,8 +411,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         setBackgroundLoadFailed(false);
         try {
             for (let offset = startOffset; offset < 10000; offset += 50) {
-                const provider = getOnlineMusicProvider(collection.providerId);
-                const response = await provider?.catalog?.getArtistAlbums?.(artistId, 50, offset);
+                const response = await omni.getArtistAlbums(collection, { limit: 50, offset });
                 if (generation !== loadGenerationRef.current) return;
                 const pageAlbums = response?.items || [];
                 setAlbums(current => appendUniqueByKey(current, pageAlbums, album => String(album.id)));
@@ -441,10 +440,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             const source = collection.source;
 
             if (source === 'online') {
-                const provider = getOnlineMusicProvider(collection.providerId);
                 const [detail, topSongsPage] = await Promise.all([
-                    provider?.catalog?.getArtistDetail?.(artistId),
-                    provider?.catalog?.getArtistSongs?.(artistId, 10, 0),
+                    omni.getArtistDetail(collection),
+                    omni.getArtistSongs(collection, { limit: 10, offset: 0 }),
                 ]);
                 if (generation !== loadGenerationRef.current) return;
                 if (detail) {

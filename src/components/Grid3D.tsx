@@ -18,7 +18,7 @@ import {
 import { importFolder, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import { useOnlineProviderQrLogin } from '../hooks/useOnlineProviderQrLogin';
 import type { OnlineProviderPlatformState } from '../hooks/useOnlineProviderPlatform';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
 import OnlineProviderSwitcher from './app/home/OnlineProviderSwitcher';
 import type { MediaId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
@@ -140,7 +140,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const isOnlineTab = homeViewTab === 'playlist' || homeViewTab === 'albums' || homeViewTab === 'radio';
     const activeProviderId = onlineProviderPlatform?.activeProviderId || 'netease';
     const activeProviderSummary = onlineProviderPlatform?.activeProvider;
-    const activeProvider = getOnlineMusicProvider(activeProviderId);
     const activeUser = activeProviderSummary?.user
         || (activeProviderId === 'netease' ? user : null);
     const activeCollections: ProviderCollection[] = activeProviderSummary?.collections || (activeProviderId === 'netease'
@@ -232,8 +231,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         t,
         onConfirmed: async (confirmedProviderId) => {
             if (onlineProviderPlatform) {
-                await onlineProviderPlatform.refreshProvider(confirmedProviderId);
-                onlineProviderPlatform.setActiveProviderId(confirmedProviderId);
+                await onlineProviderPlatform.switchProvider(confirmedProviderId);
             } else {
                 onRefreshUser();
             }
@@ -284,13 +282,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             const limit = 50;
             let hasMore = true;
 
-            const getUserAlbums = activeProvider?.library?.getUserAlbums;
-            if (!getUserAlbums || !activeUser) {
+            if (!activeUser) {
                 setFavoriteAlbums([]);
                 return;
             }
             while (hasMore) {
-                const page = await getUserAlbums(activeUser.id, limit, offset);
+                const page = await omni.getUserAlbums(activeUser.id, { limit, offset });
                 allAlbums = [...allAlbums, ...page.items];
                 hasMore = page.hasMore && page.nextOffset > offset;
                 offset = page.nextOffset;
@@ -319,11 +316,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const fetchRadioItems = async () => {
         setLoadingRadio(true);
         try {
-            const [fmSongs, dailySongs, recommendedCollections] = await Promise.all([
-                activeProvider?.recommendations?.getPersonalFm?.() || [],
-                activeProvider?.recommendations?.getDailySongs?.() || [],
-                activeProvider?.recommendations?.getRecommendedCollections?.(35) || [],
-            ]);
+            const { personalFm: fmSongs, dailySongs, recommendedCollections } = await omni.getHomeFeed(35);
             const fmCoverUrl = getSongCoverUrl(fmSongs[0], activeProviderId);
 
             const fmItem = {
@@ -418,7 +411,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const handleSelectCollectionCard = async (card: any) => {
         if (card.id === 'personal_fm' || card.raw?.id === 'personal_fm') {
             try {
-                const fmSongs = await activeProvider?.recommendations?.getPersonalFm?.() || [];
+                const fmSongs = await omni.getPersonalFm();
                 if (fmSongs.length > 0) {
                     onPlaySong(fmSongs[0], fmSongs, true);
                 }
@@ -648,13 +641,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         </div>
                         <h2 className="text-3xl font-bold opacity-80 text-center">{t('home.guestTitle')}</h2>
                         <p className="opacity-40 text-sm text-center max-w-md leading-6 whitespace-pre-line">
-                            {t('home.guestPromptProvider', { provider: activeProvider?.displayName || activeProviderId })}
+                            {t('home.guestPromptProvider', { provider: activeProviderSummary?.displayName || activeProviderId })}
                         </p>
                         <button
                             onClick={() => void initLogin()}
                             className="px-8 py-3 bg-white text-black rounded-full font-bold text-sm hover:scale-105 transition-transform"
                         >
-                            {t('home.connectProviderAccount', { provider: activeProvider?.shortName || activeProvider?.displayName || activeProviderId })}
+                            {t('home.connectProviderAccount', { provider: activeProviderSummary?.shortName || activeProviderSummary?.displayName || activeProviderId })}
                         </button>
                     </div>
                 ) : isOnlineTab ? (
@@ -780,7 +773,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     onBackToPlayer={onBackToPlayer}
                     onSelect={provider => {
                         if (provider.status === 'authenticated') {
-                            onlineProviderPlatform.setActiveProviderId(provider.providerId);
+                            void onlineProviderPlatform.switchProvider(provider.providerId);
                         } else {
                             void initLogin(provider.providerId);
                         }

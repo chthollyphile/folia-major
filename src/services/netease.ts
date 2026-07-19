@@ -265,6 +265,7 @@ const normalizeSongResult = (raw: any): SongResult => {
 
   const picUrl = toHttps(getCloudCoverFallback(raw));
   const duration = Number(
+    base?.durationMs ??
     base?.dt ??
     base?.duration ??
     raw?.duration ??
@@ -280,9 +281,8 @@ const normalizeSongResult = (raw: any): SongResult => {
       id: albumId,
       name: albumName,
       coverUrl: picUrl || undefined,
-      picUrl: picUrl || undefined,
     },
-    duration,
+    durationMs: duration,
     aliases: Array.isArray(base?.alia) ? base.alia : [],
     translatedNames: Array.isArray(base?.tns) ? base.tns : [],
     t: tValue,
@@ -293,15 +293,6 @@ const normalizeSongResult = (raw: any): SongResult => {
       mediaId: String(Number(base?.id ?? raw?.id ?? 0)),
       ...(sourceType === 'cloud' ? { variant: 'cloud' } : {}),
     },
-    al: {
-      id: albumId,
-      name: albumName,
-      picUrl: picUrl || undefined,
-    },
-    ar: artists,
-    dt: duration,
-    alia: Array.isArray(base?.alia) ? base.alia : [],
-    tns: Array.isArray(base?.tns) ? base.tns : [],
     fee: typeof (base?.fee ?? raw?.fee) === 'number' ? Number(base?.fee ?? raw?.fee) : undefined,
     noCopyrightRcmd: normalizeNoCopyrightRecommendation(base?.noCopyrightRcmd ?? raw?.noCopyrightRcmd),
     resourceState: typeof (base?.resourceState ?? raw?.resourceState) === 'boolean'

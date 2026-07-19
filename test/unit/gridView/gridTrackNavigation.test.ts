@@ -16,10 +16,8 @@ describe('GridView track navigation targets', () => {
             name: 'Song',
             artists: [{ id: 0, name: 'Artist' }],
             album: { id: 0, name: 'Album' },
-            duration: 180_000,
+            durationMs: 180_000,
             isNavidrome: true,
-            ar: [{ id: 0, name: 'Artist' }],
-            al: { id: 0, name: 'Album' },
             navidromeData: {
                 id: 'song-1',
                 streamUrl: 'https://example.com/stream',
@@ -31,7 +29,7 @@ describe('GridView track navigation targets', () => {
         };
         const [track] = buildNavidromeQueue([navidromeSong]);
 
-        expect(resolveGridTrackArtistTargetId(track, track.ar![0])).toBe('artist-1');
+        expect(resolveGridTrackArtistTargetId(track, track.artists[0])).toBe('artist-1');
         expect(resolveGridTrackAlbumTargetId(track)).toBe('album-1');
     });
 
@@ -41,26 +39,22 @@ describe('GridView track navigation targets', () => {
             name: 'Local song',
             artists: [{ id: 0, entityId: 'local-artist', name: 'Artist' }],
             album: { id: 0, entityId: 'local-album', name: 'Album' },
-            duration: 180_000,
+            durationMs: 180_000,
             isLocal: true,
             sourceRef: { kind: 'local', mediaId: 'local-song' },
-            ar: [{ id: 0, entityId: 'local-artist', name: 'Artist' }],
-            al: { id: 0, entityId: 'local-album', name: 'Album' },
         } satisfies UnifiedSong;
         const onlineTrack = {
             id: 1,
             name: 'Online song',
             artists: [{ id: 11, name: 'Artist' }],
             album: { id: 22, name: 'Album' },
-            duration: 180_000,
+            durationMs: 180_000,
             sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' },
-            ar: [{ id: 11, name: 'Artist' }],
-            al: { id: 22, name: 'Album' },
         } satisfies UnifiedSong;
 
-        expect(resolveGridTrackArtistTargetId(localTrack, localTrack.ar![0])).toBe('local-artist');
+        expect(resolveGridTrackArtistTargetId(localTrack, localTrack.artists[0])).toBe('local-artist');
         expect(resolveGridTrackAlbumTargetId(localTrack)).toBe('local-album');
-        expect(resolveGridTrackArtistTargetId(onlineTrack, onlineTrack.ar![0])).toBe(11);
+        expect(resolveGridTrackArtistTargetId(onlineTrack, onlineTrack.artists[0])).toBe(11);
         expect(resolveGridTrackAlbumTargetId(onlineTrack)).toBe(22);
     });
 });

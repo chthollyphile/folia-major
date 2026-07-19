@@ -7,7 +7,7 @@ import {
     buildUnifiedLocalSong,
     type LocalLibraryDisplayCatalog,
 } from '../services/playbackAdapters';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
@@ -55,6 +55,7 @@ interface SearchNavigationState {
     setSearchScrollTop: (scrollTop: number) => void;
     restoreSearch: (payload: { query: string; sourceTab: SearchSource; returnView?: SearchReturnView; }) => void;
     hideSearchOverlay: () => void;
+    resetRuntime: (onlineProviderId?: OnlineProviderId) => void;
     submitSearch: (payload: { query?: string; sourceTab: SearchSource; deps: SearchExecutorDeps; returnView?: SearchReturnView; }) => Promise<boolean>;
     loadMoreSearchResults: (payload: { deps: SearchExecutorDeps; }) => Promise<void>;
 }
@@ -126,12 +127,7 @@ const searchNavidromeSongs = async (query: string): Promise<SearchExecutionResul
     const response = await navidromeApi.search(config, query, 0, 0, DEFAULT_SEARCH_LIMIT);
     const results = (response.song || []).map(song => {
         const navidromeSong = navidromeApi.toNavidromeSong(config, song);
-        return {
-            ...navidromeSong,
-            ar: navidromeSong.artists,
-            al: navidromeSong.album,
-            dt: navidromeSong.duration,
-        } as UnifiedSong;
+        return navidromeSong as UnifiedSong;
     });
 
     return {
@@ -147,11 +143,7 @@ const searchOnlineProviderSongs = async (
     limit: number,
     offset: number,
 ): Promise<SearchExecutionResult> => {
-    const provider = getOnlineMusicProvider(providerId);
-    if (!provider?.search || !provider.capabilities.search) {
-        return { results: [], hasMore: false, nextOffset: offset };
-    }
-    const page = await provider.search.searchSongs(query, limit, offset);
+    const page = await omni.searchProviderSongs(providerId, query, { limit, offset });
     return { results: page.items, hasMore: page.hasMore, nextOffset: page.nextOffset };
 };
 
@@ -236,6 +228,20 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         };
     }),
     hideSearchOverlay: () => set({ isSearchOpen: false, searchReturnView: 'home' }),
+    resetRuntime: (onlineProviderId) => set(state => ({
+        searchQuery: '',
+        searchSourceTab: onlineProviderId ?? state.searchSourceTab,
+        searchResults: null,
+        searchReturnView: 'home',
+        isSearchOpen: false,
+        isSearching: false,
+        isLoadingMore: false,
+        searchError: null,
+        requestId: state.requestId + 1,
+        offset: 0,
+        hasMore: false,
+        scrollTop: 0,
+    })),
     submitSearch: async ({ query, sourceTab, deps, returnView = 'home' }) => {
         const trimmedQuery = (query ?? get().searchQuery).trim();
         if (!trimmedQuery) {

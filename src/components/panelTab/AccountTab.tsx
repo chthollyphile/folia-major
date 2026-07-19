@@ -4,7 +4,7 @@ import { LogOut, SlidersHorizontal, HardDrive, Trash2, RefreshCw, Crown } from '
 import { useTranslation } from 'react-i18next';
 import type { AudioQualityPreference, ProviderUser } from '../../types/onlineMusic';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
-import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
+import { omni } from '../../services/onlineMusic/omni';
 
 interface AccountTabProps {
     user: ProviderUser | null;
@@ -43,7 +43,6 @@ const AccountTab: React.FC<AccountTabProps> = ({
     const activeProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
     const providerAccount = useOnlineProviderAccountStore(state => state.accounts[state.activeProviderId]);
     const clearProviderAccount = useOnlineProviderAccountStore(state => state.clearAccount);
-    const provider = getOnlineMusicProvider(activeProviderId);
     const activeUser = providerAccount?.user || (activeProviderId === 'netease' ? user : null);
 
     const handleLogout = async () => {
@@ -51,7 +50,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
             onLogout();
             return;
         }
-        await provider?.auth?.logout();
+        await omni.logout(activeProviderId);
         clearProviderAccount(activeProviderId);
     };
 
@@ -79,7 +78,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                                     <Crown size={14} className="text-white fill-white" />
                                 )}
                             </div>
-                            <span className="block text-[10px] opacity-50">{provider?.shortName || provider?.displayName}</span>
+                            <span className="block text-[10px] opacity-50">{omni.getProviderLabel(activeProviderId)}</span>
                             <span className="text-[10px] font-mono opacity-40">ID: {String(activeUser.id)}</span>
                         </div>
                     </div>

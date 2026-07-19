@@ -14,7 +14,7 @@ import {
 import type { MediaId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
 import { StatusMessage } from '../types';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
 
@@ -34,14 +34,13 @@ const formatBytes = (bytes: number) => {
 };
 
 const getAllUserPlaylists = async (userId: MediaId): Promise<ProviderCollection[]> => {
-    const provider = getOnlineMusicProvider('netease');
     const allPlaylists: ProviderCollection[] = [];
     let offset = 0;
     const limit = 50;
     let hasMore = true;
 
-    while (hasMore && provider?.library?.getUserPlaylists) {
-        const page = await provider.library.getUserPlaylists(userId, limit, offset);
+    while (hasMore) {
+        const page = await omni.getProviderUserPlaylists('netease', userId, { limit, offset });
         allPlaylists.push(...page.items);
         hasMore = page.hasMore && page.nextOffset > offset;
         offset = page.nextOffset;
@@ -51,7 +50,7 @@ const getAllUserPlaylists = async (userId: MediaId): Promise<ProviderCollection[
 };
 
 const getUserCloudPlaylist = async (user: ProviderUser, t: (key: string) => string): Promise<ProviderCollection | null> => {
-    const collection = await getOnlineMusicProvider('netease')?.library?.getCloudCollection?.(user);
+    const collection = await omni.getProviderCloudCollection('netease', user);
     return collection ? {
         ...collection,
         name: t('navidrome.cloudDrive'),
@@ -114,8 +113,7 @@ export function useNeteaseLibrary({
     const refreshUserData = useCallback(async (uid?: MediaId) => {
         lastRefreshAuthExpiredRef.current = false;
         try {
-            const provider = getOnlineMusicProvider('netease');
-            const profile = await provider?.auth?.getLoginStatus();
+            const profile = await omni.getLoginStatus('netease');
             if (profile) {
                 setUser(profile);
                 await saveToCache(NETEASE_USER_CACHE_KEYS.profile, profile);
@@ -135,7 +133,7 @@ export function useNeteaseLibrary({
                 }
 
                 try {
-                    const ids = await provider?.library?.getLikedSongIds?.(targetUid);
+                    const ids = await omni.getProviderLikedSongIds('netease', targetUid);
                     if (ids) {
                         setLikedSongIds(new Set(ids));
                         await saveToCache(NETEASE_USER_CACHE_KEYS.likedSongs, ids);
@@ -161,19 +159,18 @@ export function useNeteaseLibrary({
 
     const loadUserData = useCallback(async () => {
         try {
-            const provider = getOnlineMusicProvider('netease');
             const cachedUserRaw = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_profile', ['user_profile']);
             const cachedPlaylistsRaw = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_playlists', ['user_playlists']);
             const cachedLikedSongs = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_liked_songs', ['user_liked_songs']);
             const cachedCloudPlaylistRaw = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_cloud_playlist', ['user_cloud_playlist']);
             const cachedUser: ProviderUser | null = cachedUserRaw != null
-                ? provider?.normalizeUser?.(cachedUserRaw) || null
+                ? omni.normalizeCachedUser('netease', cachedUserRaw)
                 : null;
             const cachedPlaylists = Array.isArray(cachedPlaylistsRaw)
-                ? cachedPlaylistsRaw.map(item => provider?.normalizeCollection?.(item, 'playlist')).filter(Boolean) as ProviderCollection[]
+                ? cachedPlaylistsRaw.map(item => omni.normalizeCachedCollection('netease', item, 'playlist')).filter(Boolean) as ProviderCollection[]
                 : [];
             const cachedCloudPlaylist = cachedCloudPlaylistRaw
-                ? provider?.normalizeCollection?.(cachedCloudPlaylistRaw, 'cloud') || null
+                ? omni.normalizeCachedCollection('netease', cachedCloudPlaylistRaw, 'cloud')
                 : null;
 
             if (cachedUser) {
@@ -203,8 +200,7 @@ export function useNeteaseLibrary({
         if (!user) return;
 
         try {
-            const provider = getOnlineMusicProvider('netease');
-            const profile = await provider?.auth?.getLoginStatus();
+            const profile = await omni.getLoginStatus('netease');
             if (!profile) {
                 await clearAuthState();
                 return;
@@ -219,7 +215,7 @@ export function useNeteaseLibrary({
 
             const cachedPlaylistsRaw = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_playlists', ['user_playlists']);
             const cachedPlaylists = Array.isArray(cachedPlaylistsRaw)
-                ? cachedPlaylistsRaw.map(item => provider?.normalizeCollection?.(item, 'playlist')).filter(Boolean) as ProviderCollection[]
+                ? cachedPlaylistsRaw.map(item => omni.normalizeCachedCollection('netease', item, 'playlist')).filter(Boolean) as ProviderCollection[]
                 : [];
 
             if (cachedPlaylists.length === 0) {
@@ -280,7 +276,7 @@ export function useNeteaseLibrary({
 
             if (likedSongsPlaylistChanged && newPlaylists.length > 0) {
                 try {
-                    const ids = await provider?.library?.getLikedSongIds?.(profile.id);
+                    const ids = await omni.getProviderLikedSongIds('netease', profile.id);
                     if (ids) {
                         setLikedSongIds(new Set(ids));
                         await saveToCache(NETEASE_USER_CACHE_KEYS.likedSongs, ids);
@@ -346,7 +342,7 @@ export function useNeteaseLibrary({
 
     const handleLogout = useCallback(async () => {
         try {
-            await getOnlineMusicProvider('netease')?.auth?.logout();
+            await omni.logout('netease');
         } catch (error) {
             console.warn('Failed to notify logout endpoint', error);
         }

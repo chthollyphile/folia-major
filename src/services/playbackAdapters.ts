@@ -69,7 +69,6 @@ export const applyLocalLibraryArtistDisplay = <T extends SongResult>(
     return {
         ...song,
         artists,
-        ar: artists,
     };
 };
 
@@ -92,11 +91,6 @@ const applyLocalLibraryAlbumDisplay = <T extends SongResult>(
             entityId: entity.entityId,
             name: entity.name,
         },
-        al: {
-            ...song.album,
-            entityId: entity.entityId,
-            name: entity.name,
-        },
     };
 };
 
@@ -111,13 +105,12 @@ export const applyLocalLibraryEntityDisplay = <T extends SongResult>(
     preparedIndex,
 );
 
-// Applies a resolved local cover URL to both API-compatible album fields used by song cards.
+// Applies a resolved local cover URL to the canonical album field used by song cards.
 export const applyLocalSongCoverDisplay = <T extends SongResult>(song: T, coverUrl: string): T => ({
     ...song,
-    al: { ...(song.album || { id: 0, name: '' }), picUrl: coverUrl },
     album: song.album
-        ? { ...song.album, coverUrl, picUrl: coverUrl }
-        : { id: 0, name: '', coverUrl, picUrl: coverUrl },
+        ? { ...song.album, coverUrl }
+        : { id: 0, name: '', coverUrl },
 });
 
 export const getLocalSongId = (localSong: LocalSong): number => {
@@ -169,19 +162,8 @@ export function buildUnifiedLocalSong({
         name: displayTitle,
         artists: displayArtists,
         album: displayAlbum ? { id: 0, name: displayAlbum, coverUrl: coverUrl || undefined } : { id: 0, name: '' },
-        duration: localSong.duration,
+        durationMs: localSong.duration,
         isPureMusic: useMatchedLyrics ? localSong.matchedIsPureMusic : false,
-        ar: displayArtists,
-        al: displayAlbum ? {
-            id: 0,
-            name: displayAlbum,
-            picUrl: coverUrl || undefined
-        } : coverUrl ? {
-            id: 0,
-            name: '',
-            picUrl: coverUrl
-        } : undefined,
-        dt: localSong.duration,
         isLocal: true,
         localRef: { songId: localSong.id },
         sourceRef: { kind: 'local', mediaId: localSong.id },
@@ -194,9 +176,7 @@ export function buildUnifiedLocalSong({
     if (coverUrl) {
         if (unifiedSong.album) {
             unifiedSong.album.coverUrl = coverUrl;
-            unifiedSong.album.picUrl = coverUrl;
         }
-        if (unifiedSong.al) unifiedSong.al.picUrl = coverUrl;
     }
 
     return unifiedSong;
@@ -247,7 +227,7 @@ export function buildUnifiedNavidromeSong(
         : (navidromeSong.artists || []);
     const displayAlbum = navidromeSong.album || { id: 0, name: '' };
     const displayAlbumWithCover = options?.coverUrl
-        ? { ...displayAlbum, coverUrl: options.coverUrl, picUrl: options.coverUrl }
+        ? { ...displayAlbum, coverUrl: options.coverUrl }
         : displayAlbum;
 
     return {
@@ -255,14 +235,8 @@ export function buildUnifiedNavidromeSong(
         name: (options?.useOnlineMetadata && options.matchedAlbumName) ? options.matchedAlbumName : navidromeSong.name,
         artists: displayArtists,
         album: displayAlbumWithCover,
-        duration: navidromeSong.duration || 0,
+        durationMs: navidromeSong.durationMs || 0,
         isPureMusic: navidromeSong.lyricsSource === 'online' ? navidromeSong.matchedIsPureMusic : false,
-        ar: displayArtists,
-        al: {
-            id: displayAlbumWithCover.id,
-            name: displayAlbumWithCover.name,
-            picUrl: displayAlbumWithCover.coverUrl,
-        },
         isNavidrome: true,
         navidromeData: navidromeSong,
         sourceRef: { kind: 'navidrome', mediaId: navidromeSong.navidromeData.id },
@@ -277,14 +251,8 @@ export function buildNavidromeQueue(queue: NavidromeSong[], currentSong?: SongRe
         name: song.name,
         artists: song.artists || [],
         album: song.album || { id: 0, name: '' },
-        duration: song.duration || 0,
+        durationMs: song.durationMs || 0,
         isPureMusic: song.lyricsSource === 'online' ? song.matchedIsPureMusic : false,
-        ar: song.artists || [],
-        al: song.album ? {
-            id: song.album.id,
-            name: song.album.name,
-            picUrl: song.album.coverUrl,
-        } : undefined,
         isNavidrome: true,
         navidromeData: song,
         sourceRef: { kind: 'navidrome', mediaId: song.navidromeData.id },

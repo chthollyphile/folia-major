@@ -23,7 +23,7 @@ import { isPureMusicLyricText } from '../../../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../../../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../../../types/onlineMusic';
-import { getOnlineMusicProviderForSong, providerSupports } from '../../../services/onlineMusic/providerRegistry';
+import { omni } from '../../../services/onlineMusic/omni';
 import { getSongResourceCacheKey } from '../../../services/onlineMusic/resourceKeys';
 import { getCachedSongAudioBlob, getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
@@ -132,7 +132,7 @@ export const restorePlaybackSourceForSong = async (
         if (!songToRestore) {
             songToRestore = songs.find(candidate =>
                 (candidate.title || candidate.fileName) === song.name &&
-                Math.abs(candidate.duration - song.duration) < 1000,
+                Math.abs(candidate.duration - song.durationMs) < 1000,
             );
         }
 
@@ -219,8 +219,7 @@ export const restorePlaybackSourceForSong = async (
         });
     }
 
-    const provider = getOnlineMusicProviderForSong(song);
-    if (!providerSupports(provider, 'playback') || !provider?.playback) {
+    if (!omni.canPlaySong(song)) {
         setStatusMsg({ type: 'error', text: i18n.t('status.playbackFailed') });
         return false;
     }
@@ -237,7 +236,7 @@ export const restorePlaybackSourceForSong = async (
         }
     }
     if (!restoredCachedAudio) {
-        const audioSource = await provider.playback.getAudioSource(song, audioQuality);
+        const audioSource = await omni.getAudioSource(song, audioQuality);
         const url = toSafeRemoteUrl(audioSource?.url);
         if (url) {
             currentOnlineAudioUrlFetchedAtRef.current = Date.now();
@@ -265,9 +264,7 @@ export const restorePlaybackSourceForSong = async (
         return true;
     }
 
-    const processed = providerSupports(provider, 'lyrics') && provider.lyrics
-        ? await provider.lyrics.getLyrics(song, { userId })
-        : { lyrics: null, isPureMusic: false };
+    const processed = await omni.getLyrics(song, { userId });
     const resolvedLyrics = resolveOnlineLyrics(onlineLyricsState, processed.lyrics);
     setCurrentSong(prev => {
         if (!prev || !isSamePlaybackSong(prev, song)) return prev;

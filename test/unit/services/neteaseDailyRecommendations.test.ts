@@ -51,7 +51,7 @@ describe('netease daily recommendations', () => {
             name: 'Daily Song',
             privilege: { st: 0, pl: 320000 },
         });
-        expect(result.songs[0].al.picUrl).toBe('https://example.com/cover.jpg');
+        expect(result.songs[0].album.coverUrl).toBe('https://example.com/cover.jpg');
         expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain('/recommend/songs?afresh=true&timestamp=');
     });
 

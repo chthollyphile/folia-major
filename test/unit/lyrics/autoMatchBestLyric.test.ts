@@ -103,8 +103,8 @@ describe('autoMatchBestLyric', () => {
 
     it('accepts the selected QQ lyric directly when best-lyric selection is disabled', async () => {
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Correct title', duration: 200000, artists: [{ id: 1, name: 'Wrong artist' }], album: { id: 2, name: 'Wrong album' }, qqMid: 'distractor-mid' },
-            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+            { id: 201, name: 'Correct title', durationMs: 200000, artists: [{ id: 1, name: 'Wrong artist' }], album: { id: 2, name: 'Wrong album' }, qqMid: 'distractor-mid' },
+            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: false });
 
@@ -140,7 +140,7 @@ describe('autoMatchBestLyric', () => {
 
     it('keeps the preferred lyric source ahead of the metadata source', async () => {
         searchQQLyricsMock.mockResolvedValue([
-            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'preferred-mid' },
+            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'preferred-mid' },
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -166,7 +166,7 @@ describe('autoMatchBestLyric', () => {
             chorusRanges: [],
         });
         searchQQLyricsMock.mockResolvedValue([
-            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'word-mid' },
+            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'word-mid' },
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -184,7 +184,7 @@ describe('autoMatchBestLyric', () => {
 
     it('uses a selected QQ mid to probe preferred QQ AMLLDB lyrics', async () => {
         searchQQLyricsMock.mockResolvedValue([
-            { id: 202, name: 'Correct title', duration: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
         ]);
         fetchAmllDbLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -219,7 +219,7 @@ describe('autoMatchBestLyric', () => {
         });
 
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', durationMs: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -279,7 +279,7 @@ describe('autoMatchBestLyric', () => {
             {
                 id: 201,
                 name: 'Night of Bloom',
-                duration: 286000,
+                durationMs: 286000,
                 artists: [{ id: 1, name: 'Kirara Magic' }, { id: 2, name: 'Xomu' }, { id: 3, name: 'nayuta' }],
                 album: { id: 0, name: '' },
                 qqMid: 'mid-night'
@@ -300,16 +300,16 @@ describe('autoMatchBestLyric', () => {
     it('scores the top 10 QQ results and fetches only the highest scoring candidate', async () => {
         cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
         const distractors = [
-            { id: 200, name: 'Night Of Bloom (Starling Remix)', duration: 286000, artists: [{ id: 1, name: 'Xomu' }, { id: 2, name: 'StarlingEDM' }, { id: 3, name: 'nayuta' }], album: { id: 0, name: '' }, qqMid: 'remix' },
-            { id: 201, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Ayrex' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-1' },
-            { id: 202, name: 'Night of Bloom', duration: 286000, artists: [{ id: 1, name: 'Nightcore Vibe' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-2' },
-            { id: 203, name: 'Night of Bloom (K歌版)', duration: 286000, artists: [{ id: 1, name: '東京都立中央精神病院院長' }], album: { id: 0, name: '' }, qqMid: 'karaoke' },
-            { id: 204, name: 'Night of Bloom remix', duration: 286000, artists: [{ id: 1, name: 'Gphuuuuuc' }], album: { id: 0, name: '' }, qqMid: 'remix-2' }
+            { id: 200, name: 'Night Of Bloom (Starling Remix)', durationMs: 286000, artists: [{ id: 1, name: 'Xomu' }, { id: 2, name: 'StarlingEDM' }, { id: 3, name: 'nayuta' }], album: { id: 0, name: '' }, qqMid: 'remix' },
+            { id: 201, name: 'Night of Bloom', durationMs: 286000, artists: [{ id: 1, name: 'Ayrex' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-1' },
+            { id: 202, name: 'Night of Bloom', durationMs: 286000, artists: [{ id: 1, name: 'Nightcore Vibe' }], album: { id: 0, name: '' }, qqMid: 'wrong-artist-2' },
+            { id: 203, name: 'Night of Bloom (K歌版)', durationMs: 286000, artists: [{ id: 1, name: '東京都立中央精神病院院長' }], album: { id: 0, name: '' }, qqMid: 'karaoke' },
+            { id: 204, name: 'Night of Bloom remix', durationMs: 286000, artists: [{ id: 1, name: 'Gphuuuuuc' }], album: { id: 0, name: '' }, qqMid: 'remix-2' }
         ];
         const correct = {
             id: 205,
             name: 'Night of Bloom',
-            duration: 286000,
+            durationMs: 286000,
             artists: [{ id: 1, name: 'Kirara Magic' }, { id: 2, name: 'Xomu' }, { id: 3, name: 'nayuta' }],
             album: { id: 1, name: 'Night of Bloom' },
             qqMid: 'correct-mid'
@@ -357,7 +357,7 @@ describe('autoMatchBestLyric', () => {
         });
 
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', durationMs: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({
             lines: [
@@ -389,7 +389,7 @@ describe('autoMatchBestLyric', () => {
             }
         });
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', durationMs: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
@@ -492,7 +492,7 @@ describe('autoMatchBestLyric', () => {
             isPureMusic: false
         });
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Song Title', duration: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+            { id: 201, name: 'Song Title', durationMs: 201000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' }
         ]);
         fetchAmllDbLyricsMock.mockResolvedValue(null);
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
@@ -543,7 +543,7 @@ describe('autoMatchBestLyric', () => {
         cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
         searchQQLyricsMock.mockResolvedValue([]);
         searchKugouLyricsMock.mockResolvedValue([
-            { id: 301, name: 'Song Title', duration: 199000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, kgHash: 'hash123' }
+            { id: 301, name: 'Song Title', durationMs: 199000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, kgHash: 'hash123' }
         ]);
         fetchKugouLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 

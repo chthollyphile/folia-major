@@ -37,7 +37,7 @@ describe('kugouProvider', () => {
         });
 
         expect(song.id).toBe('AB12CD');
-        expect(song.duration).toBe(240_000);
+        expect(song.durationMs).toBe(240_000);
         expect(song.sourceRef).toEqual({
             kind: 'online',
             providerId: 'kugou',
@@ -247,7 +247,7 @@ describe('kugouProvider', () => {
         });
         expect(first.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 10729818 });
         expect(first.album.name).toBe('Canonical Album');
-        expect(first.al?.name).toBe('Canonical Album');
+        expect(first.album.name).toBe('Canonical Album');
         expect(first.artists[0].catalogRef).toEqual({ providerId: 'kugou', kind: 'artist', id: 6539 });
         expect(second.album.catalogRef).toEqual(first.album.catalogRef);
     });
@@ -355,11 +355,11 @@ describe('kugouProvider', () => {
         expect(song).toMatchObject({
             id: 'AB96FDBB35F394DFD16FB57AADD12FEA',
             name: '小心思',
-            duration: 169012,
+            durationMs: 169012,
             album: {
                 id: 10729818,
                 name: '小心思',
-                picUrl: 'http://imge.kugou.com/stdmusic/400/cover.jpg',
+                coverUrl: 'http://imge.kugou.com/stdmusic/400/cover.jpg',
                 catalogRef: { providerId: 'kugou', kind: 'album', id: 10729818 },
             },
             sourceRef: {
@@ -401,7 +401,7 @@ describe('kugouProvider', () => {
         });
 
         expect(page?.items[0].album.name).toBe('小心思');
-        expect(page?.items[0].al?.name).toBe('小心思');
+        expect(page?.items[0].album.name).toBe('小心思');
     });
 
     it('uses author_id for artist detail and album catalog requests', async () => {

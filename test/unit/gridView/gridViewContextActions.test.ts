@@ -9,7 +9,7 @@ const buildTrack = (id: number, name: string, unavailable = false): SongResult =
     name,
     artists: [],
     album: { id, name: 'Album' },
-    duration: 180000,
+    durationMs: 180000,
     privilege: unavailable ? { st: -200 } : { st: 0 },
 });
 

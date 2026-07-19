@@ -44,7 +44,7 @@ const candidate = {
         name: 'Song',
         artists: [{ id: 2, name: 'Artist' }],
         album: { id: 3, name: 'Album' },
-        duration: 1,
+        durationMs: 1,
     },
 };
 

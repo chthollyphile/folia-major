@@ -19,6 +19,7 @@ import {
     hasMixedPlaybackSources,
     replacePlaybackSongInQueue,
     resolveNavidromePlaybackCarrier,
+    getPlaybackSourceRef,
 } from '../utils/appPlaybackGuards';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../utils/appNavidromeLyrics';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
@@ -26,7 +27,7 @@ import { migrateMatchedLyricsCarrierRenderHints } from '../utils/lyrics/storageM
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { resolveExplicitFileTimedLyricFormat } from '../utils/lyrics/formatDetection';
-import { getOnlineMusicProvider, getOnlineMusicProviderForSong } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { getProviderSongMetadata } from '../services/onlineMusic/songMetadata';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration } from '../services/onlineMusic/resourceCache';
@@ -301,9 +302,7 @@ export function useLibraryPlaybackController({
         const prefetched = getPrefetchedData(onlineSong, audioQuality);
         if (prefetched?.lyrics) return prefetched.lyrics;
 
-        const provider = getOnlineMusicProviderForSong(onlineSong);
-        if (!provider?.lyrics) return fallbackLyrics;
-        return (await provider.lyrics.getLyrics(onlineSong, { userId })).lyrics;
+        return (await omni.getLyrics(onlineSong, { userId })).lyrics ?? fallbackLyrics;
     }, [audioQuality, lyrics, userId]);
 
     const resolveOnlineSongLyricsState = useCallback(async (
@@ -380,11 +379,11 @@ export function useLibraryPlaybackController({
             throw new Error('Current song is not a Netease song');
         }
 
-        const provider = getOnlineMusicProviderForSong(currentSong);
-        if (provider?.id !== 'netease' || !provider.capabilities.mutations || !provider.mutations?.updatePlaylistTracks) {
+        const sourceRef = getPlaybackSourceRef(currentSong);
+        if (sourceRef.kind !== 'online' || sourceRef.providerId !== 'netease') {
             throw new Error('Current provider cannot update this playlist');
         }
-        await provider.mutations.updatePlaylistTracks('add', playlistId, [currentSong]);
+        await omni.updateCollectionTracks({ providerId: 'netease', id: playlistId, name: '', type: 'playlist' }, 'add', [currentSong]);
         await removeFromCache(getProviderCacheKey('netease', `playlist_tracks_${playlistId}`));
         await removeFromCache(getProviderCacheKey('netease', `playlist_detail_${playlistId}`));
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
@@ -827,7 +826,7 @@ export function useLibraryPlaybackController({
                             if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
                                 newMatchData.matchedSongId = bestMatch.id as number;
                                 try {
-                                    const nSong = await getOnlineMusicProvider('netease')?.playback?.getSongDetail(bestMatch.id);
+                                    const nSong = await omni.getSongDetail('netease', bestMatch.id);
                                     if (nSong) {
                                         const metadata = getProviderSongMetadata(nSong, 'netease');
                                         newMatchData.matchedArtists = metadata.artists.map(artist => artist.name).join(', ');
@@ -849,11 +848,11 @@ export function useLibraryPlaybackController({
 
                     if (!isAutoMatched) {
                         const searchQuery = `${navidromeSong.name} ${artistName}`.trim();
-                        const searchPage = await getOnlineMusicProvider('netease')?.search?.searchSongs(searchQuery, 1, 0);
+                        const searchPage = await omni.searchProviderSongs('netease', searchQuery, { limit: 1, offset: 0 });
 
                         if (searchPage?.items?.length) {
                             const matchedSong = searchPage.items[0];
-                            const lyricResult = await getOnlineMusicProvider('netease')?.lyrics?.getLyrics(matchedSong);
+                            const lyricResult = await omni.getLyrics(matchedSong);
                             nextLyrics = lyricResult?.lyrics || null;
                             (navidromeSong as NavidromeSong & { matchedIsPureMusic?: boolean; }).matchedIsPureMusic = lyricResult?.isPureMusic || false;
                             if (nextLyrics || lyricResult?.isPureMusic) {
@@ -1467,20 +1466,19 @@ export function useLibraryPlaybackController({
             return;
         }
 
-        const provider = getOnlineMusicProviderForSong(currentSong);
-        if (!provider) {
+        const sourceRef = getPlaybackSourceRef(currentSong);
+        if (sourceRef.kind !== 'online') {
             setStatusMsg({ type: 'error', text: t('status.likeFailed') });
             return;
         }
-        const providerAccount = useOnlineProviderAccountStore.getState().accounts[provider.id];
-        const numericSongId = provider.id === 'netease' ? Number(currentSong.id) : null;
+        const providerAccount = useOnlineProviderAccountStore.getState().accounts[sourceRef.providerId];
+        const numericSongId = sourceRef.providerId === 'netease' ? Number(currentSong.id) : null;
         const isCurrentlyLiked = numericSongId != null
             ? likedSongIds.has(numericSongId)
             : Boolean(providerAccount?.likedSongIds.some(id => String(id) === String(currentSong.id)));
         const nextLiked = !isCurrentlyLiked;
         try {
-            if (!provider.capabilities.mutations || !provider.mutations?.likeSong) throw new Error('Provider does not support liking songs');
-            await provider.mutations.likeSong(currentSong.id, nextLiked);
+            await omni.likeSong(currentSong, nextLiked);
             if (numericSongId != null) {
                 setLikedSongIds(prev => {
                     const next = new Set(prev);
@@ -1490,7 +1488,7 @@ export function useLibraryPlaybackController({
                 });
             }
             const currentProviderLikedIds = providerAccount?.likedSongIds || [];
-            useOnlineProviderAccountStore.getState().updateAccount(provider.id, {
+            useOnlineProviderAccountStore.getState().updateAccount(sourceRef.providerId, {
                 likedSongIds: nextLiked
                     ? [...currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)), currentSong.id]
                     : currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)),

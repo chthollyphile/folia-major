@@ -398,6 +398,7 @@ export default {
     "loginTitleKugou": "使用酷狗音乐APP扫码",
     "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "switchOnlineProvider": "切换在线音乐平台",
+    "confirmOnlineProviderSwitch": "切换到 {{provider}}？当前在线播放与队列将被清空。",
     "onlineProvider": "在线音乐平台",
     "providerNotLoggedIn": "未登录·点击扫码",
     "providerNotConfigured": "Web 端未配置 API",

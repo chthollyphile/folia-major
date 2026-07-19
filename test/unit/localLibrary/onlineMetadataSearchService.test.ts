@@ -43,7 +43,7 @@ describe('onlineMetadataSearchService', () => {
             { id: 1, name: 'Completely Unrelated Melody', dt: 200000, ar: [{ name: 'Someone Else' }] },
         ] } });
         vi.mocked(searchQQLyrics).mockResolvedValue([
-            { id: 9, qqMid: 'qq-mid', name: 'Target Song', duration: 200000, artists: [{ id: 7, name: 'Target Artist' }], album: { id: 8, name: 'Target Album' } },
+            { id: 9, qqMid: 'qq-mid', name: 'Target Song', durationMs: 200000, artists: [{ id: 7, name: 'Target Artist' }], album: { id: 8, name: 'Target Album' } },
         ]);
         const candidate = await findAutomaticOnlineMetadataCandidate(song);
         expect(candidate).toMatchObject({ source: 'qq', songId: 'qq-mid', titleMatched: true });

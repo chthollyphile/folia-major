@@ -14,7 +14,7 @@ const neteaseSong = (id: number, name = 'NetEase'): SongResult => ({
     name,
     artists: [],
     album: { id: 1, name: 'Album' },
-    duration: 1000,
+    durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'netease', mediaId: String(id) },
 });
 

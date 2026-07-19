@@ -18,6 +18,8 @@ declare global {
     mimeType?: string | null;
   }
 
+  type ElectronKugouOperation = import('./services/onlineMusic/kugouTransport').KugouOperation;
+
   interface ElectronAudioCacheStats {
     size: number;
     count: number;
@@ -479,7 +481,10 @@ declare global {
       getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
-      kugouRequest: (operation: string, params?: Record<string, string | number | boolean | undefined>) => Promise<any>;
+      kugouRequest: (
+        operation: ElectronKugouOperation,
+        params?: Record<string, string | number | boolean | undefined>,
+      ) => Promise<unknown>;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;

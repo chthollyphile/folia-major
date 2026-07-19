@@ -191,18 +191,8 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
         id: hash,
         name: title,
         artists,
-        album: {
-            ...album,
-            // Keep legacy aliases at the provider boundary for older integrations.
-            ...(album.coverUrl ? { picUrl: album.coverUrl } : {}),
-        },
-        al: {
-            id: Number(albumId) || 0,
-            name: albumName,
-            ...(album.coverUrl ? { picUrl: album.coverUrl } : {}),
-            ...(albumCatalogRef ? { catalogRef: albumCatalogRef } : {}),
-        },
-        duration,
+        album,
+        durationMs: duration,
         kgHash: hash,
         sourceRef: { kind: 'online', providerId: 'kugou', mediaId: hash, providerData },
     };
@@ -276,14 +266,6 @@ export const resolveKugouSongCatalogRefs = async (song: UnifiedSong): Promise<Un
             id: resolvedAlbumId,
             name: albumName,
             coverUrl,
-            ...(coverUrl ? { picUrl: coverUrl } : {}),
-            ...(albumRef ? { catalogRef: albumRef } : {}),
-        },
-        al: {
-            ...(song.al || { id: Number(resolvedAlbumId) || 0, name: albumName }),
-            id: Number(resolvedAlbumId) || 0,
-            name: albumName,
-            ...(coverUrl ? { picUrl: coverUrl } : {}),
             ...(albumRef ? { catalogRef: albumRef } : {}),
         },
     };
@@ -461,8 +443,8 @@ export const kugouProvider: OnlineMusicProvider = {
                             requestedQuality: quality,
                             candidateQuality,
                             requestVariant: requestVariant.name,
-                            status: data?.status ?? response?.status,
-                            errorCode: data?.errcode ?? data?.error_code ?? response?.errcode ?? response?.error_code,
+                            status: valueOf(data, 'status') ?? valueOf(response, 'status'),
+                            errorCode: valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code'),
                         });
                     } catch (error) {
                         console.warn('[KuGouProvider] playback:quality-failed', {
@@ -600,10 +582,6 @@ export const kugouProvider: OnlineMusicProvider = {
                 return {
                     ...song,
                     album: { ...song.album, name: collection.name },
-                    al: {
-                        ...(song.al || { id: Number(song.album.id) || 0, name: '' }),
-                        name: collection.name,
-                    },
                 };
             });
             return pageOf(items, response, pageSize, offset);

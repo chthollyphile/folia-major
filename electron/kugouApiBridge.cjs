@@ -4,10 +4,6 @@ const crypto = require('crypto');
 
 const SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid']);
-const DIAGNOSTIC_OPERATIONS = new Set([
-  'login_qr_key', 'login_qr_create', 'login_qr_check', 'user_detail', 'user_playlist', 'logout',
-  'audio', 'song_url', 'user_cloud_url',
-]);
 const OPERATION_MODULES = {
   register_dev: ['register_dev'],
   login_qr_key: ['login_qr_key'],
@@ -63,46 +59,16 @@ function parseCookieEntry(entry) {
   return [firstPart.slice(0, separator).trim(), firstPart.slice(separator + 1).trim()];
 }
 
-function sanitizeBody(value, hiddenKeys = new Set(['token', 'dfid', 'cookie'])) {
-  if (Array.isArray(value)) return value.map(child => sanitizeBody(child, hiddenKeys));
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !hiddenKeys.has(key.toLowerCase()))
-    .map(([key, child]) => [key, sanitizeBody(child, hiddenKeys)]));
-}
-
-function logDiagnostic(logger, operation, stage, details = {}) {
-  if (!DIAGNOSTIC_OPERATIONS.has(operation)) return;
-  logger.info(`[KuGouApi] ${operation}:${stage}`, details);
-}
-
-const errorSummary = (error) => ({
-  name: error instanceof Error ? error.name : 'Error',
-  message: error instanceof Error ? error.message : String(error),
-});
-
 const isDeviceVerificationRequired = (body) => {
   const errorCode = Number(body?.errcode ?? body?.error_code);
   const message = String(body?.error ?? body?.error_msg ?? body?.msg ?? '');
   return errorCode === 20028 || message.includes('本次请求需要验证');
 };
 
-const summarizePlaybackResponse = (body) => {
-  const urls = body?.play_url ?? body?.playUrl ?? body?.url;
-  const candidates = Array.isArray(urls) ? urls : (typeof urls === 'string' && urls ? [urls] : []);
-  return {
-    status: body?.status ?? body?.code ?? body?.data?.status,
-    errorCode: body?.errcode ?? body?.error_code,
-    responseKeys: body && typeof body === 'object' ? Object.keys(body).slice(0, 20) : [],
-    audioUrlCandidateCount: candidates.length,
-  };
-};
-
-function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'), logger = console }) {
+function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi') }) {
   let api = null;
   let loadError = null;
   let registrationPromise = null;
-  let requestSequence = 0;
   const stored = store.get(SESSION_KEY);
   let cookies = stored && typeof stored === 'object' ? { ...stored } : createDeviceCookies();
 
@@ -152,7 +118,7 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
     return mergeResponseSession(result);
   };
 
-  const ensureRegistered = async (force = false, requestId = null) => {
+  const ensureRegistered = async (force = false) => {
     if (registrationPromise) return registrationPromise;
     if (!force && cookies.dfid) return;
 
@@ -163,13 +129,8 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
 
     registrationPromise = (async () => {
       try {
-        logger.info('[KuGouApi] register_dev:start', { requestId, force, hadDfid: Boolean(cookies.dfid) });
         await invokeModule('register_dev');
         if (!cookies.dfid) throw new Error('KuGou device registration did not return a dfid');
-        logger.info('[KuGouApi] register_dev:success', { requestId, hasDfid: true });
-      } catch (error) {
-        logger.warn('[KuGouApi] register_dev:error', { requestId, ...errorSummary(error) });
-        throw error;
       } finally {
         registrationPromise = null;
       }
@@ -188,56 +149,20 @@ function createKugouApiBridge({ store, apiLoader = () => require('kugoumusicapi'
     },
     async request(operation, params) {
       if (!OPERATION_MODULES[operation]) throw new Error(`Unsupported KuGou operation: ${operation}`);
-      const requestId = ++requestSequence;
-      logDiagnostic(logger, operation, 'start', {
-        requestId,
-        parameterKeys: Object.keys(params || {}),
-        hash: typeof params?.hash === 'string' ? params.hash : undefined,
-        quality: params?.quality,
-        hasToken: Boolean(cookies.token),
-        hasUserId: Boolean(cookies.userid || cookies.user_id),
-        hasDfid: Boolean(cookies.dfid),
-      });
       if (operation === 'logout') {
         cookies = Object.fromEntries(Object.entries(cookies).filter(([key]) => !AUTH_COOKIE_KEYS.has(key.toLowerCase())));
         persist();
-        logDiagnostic(logger, operation, 'success', { credentialsCleared: true });
         return { code: 200 };
       }
-      try {
-        if (operation !== 'register_dev') await ensureRegistered(false, requestId);
-        let body = await invokeModule(operation, params);
-        if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
-          logger.warn(`[KuGouApi] ${operation}:verification-required`, {
-            requestId,
-            errorCode: body?.errcode ?? body?.error_code,
-          });
-          await ensureRegistered(true, requestId);
-          logger.info(`[KuGouApi] ${operation}:retry`, { requestId, reason: 'device-verification' });
-          body = await invokeModule(operation, params);
-        }
-        const responseBody = operation === 'user_detail' && body?.data && (cookies.userid || cookies.user_id)
-          ? { ...body, data: { ...body.data, userid: String(cookies.userid || cookies.user_id) } }
-          : body;
-        const hiddenKeys = operation === 'login_qr_check'
-          ? new Set(['token', 'dfid', 'cookie', 'userid', 'user_id'])
-          : undefined;
-        const sanitized = sanitizeBody(responseBody, hiddenKeys);
-        const dataKeys = sanitized?.data && typeof sanitized.data === 'object' ? Object.keys(sanitized.data) : [];
-        logDiagnostic(logger, operation, 'success', {
-          requestId,
-          status: sanitized?.status ?? sanitized?.code ?? sanitized?.data?.status,
-          dataKeys: dataKeys.slice(0, 20),
-          dataKeyCount: dataKeys.length,
-          hasToken: Boolean(cookies.token),
-          hasUserId: Boolean(cookies.userid || cookies.user_id),
-          ...(DIAGNOSTIC_OPERATIONS.has(operation) ? summarizePlaybackResponse(sanitized) : {}),
-        });
-        return sanitized;
-      } catch (error) {
-        logDiagnostic(logger, operation, 'error', { requestId, ...errorSummary(error) });
-        throw error;
+      if (operation !== 'register_dev') await ensureRegistered(false);
+      let body = await invokeModule(operation, params);
+      if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
+        await ensureRegistered(true);
+        body = await invokeModule(operation, params);
       }
+      return operation === 'user_detail' && body?.data && (cookies.userid || cookies.user_id)
+        ? { ...body, data: { ...body.data, userid: String(cookies.userid || cookies.user_id) } }
+        : body;
     },
   };
 }

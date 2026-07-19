@@ -12,7 +12,7 @@ import {
 import SearchResultsList from './SearchResultsList';
 import { useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
-import { getOnlineMusicProvider } from '../../../services/onlineMusic/providerRegistry';
+import { omni } from '../../../services/onlineMusic/omni';
 
 // src/components/app/search/SearchWorkspace.tsx
 
@@ -72,7 +72,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const getSourceLabel = (source: SearchSource) => {
         if (source === 'local') return t('search.sourceLocal');
         if (source === 'navidrome') return t('search.sourceNavidrome');
-        return getOnlineMusicProvider(source)?.shortName || source;
+        return omni.getProviderLabel(source);
     };
 
     useEffect(() => {

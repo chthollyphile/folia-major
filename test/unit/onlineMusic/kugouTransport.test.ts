@@ -22,28 +22,20 @@ describe('KuGou Web transport', () => {
         vi.unstubAllEnvs();
     });
 
-    it('logs Electron IPC playback requests in the renderer console', async () => {
+    it('prefers Electron IPC and returns its raw body', async () => {
         const kugouRequest = vi.fn().mockResolvedValue({ status: 1, url: ['https://example.test/song.mp3'] });
         vi.stubGlobal('window', { electron: { kugouRequest } });
-        const infoLog = vi.spyOn(console, 'info').mockImplementation(() => undefined);
         const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
 
-        await requestKugou('song_url', { hash: 'HASH', quality: '128' });
-
-        expect(infoLog).toHaveBeenCalledWith('[KuGouTransport] ipc:start', expect.objectContaining({
-            operation: 'song_url',
-            params: expect.objectContaining({ hash: 'HASH', quality: '128' }),
-        }));
-        expect(infoLog).toHaveBeenCalledWith('[KuGouTransport] ipc:success', expect.objectContaining({
-            operation: 'song_url', audioUrlCandidateCount: 1,
-        }));
+        await expect(requestKugou('song_url', { hash: 'HASH', quality: '128' })).resolves.toEqual({
+            status: 1, url: ['https://example.test/song.mp3'],
+        });
+        expect(kugouRequest).toHaveBeenCalledWith('song_url', { hash: 'HASH', quality: '128' });
     });
 
     it('registers a fresh dfid and retries when an audio URL request requires verification', async () => {
         vi.stubGlobal('window', undefined);
         const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
-        const infoLog = vi.spyOn(console, 'info').mockImplementation(() => undefined);
-        const warnLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         storage.set('online_provider:kugou:dfid', 'stale-dfid');
         storage.set('online_provider:kugou:token', 'token');
         storage.set('online_provider:kugou:userid', '9');
@@ -62,15 +54,6 @@ describe('KuGou Web transport', () => {
         const retriedUrl = new URL(fetchMock.mock.calls[2][0]);
         expect(retriedUrl.pathname).toBe('/song/url');
         expect(retriedUrl.searchParams.get('cookie')).toBe('dfid=fresh-dfid;token=token;userid=9');
-        expect(warnLog).toHaveBeenCalledWith('[KuGouTransport] request:verification-required', expect.objectContaining({
-            operation: 'song_url', errorCode: 20028,
-        }));
-        expect(infoLog).toHaveBeenCalledWith('[KuGouTransport] request:retry', expect.objectContaining({
-            operation: 'song_url', reason: 'device-verification',
-        }));
-        expect(infoLog).toHaveBeenCalledWith('[KuGouTransport] request:complete', expect.objectContaining({
-            operation: 'song_url', audioUrlCandidateCount: 1,
-        }));
     });
 
     it('uses the dedicated KRM metadata endpoint on Web', async () => {
@@ -87,5 +70,26 @@ describe('KuGou Web transport', () => {
         const requestUrl = new URL(fetchMock.mock.calls[0][0]);
         expect(requestUrl.pathname).toBe('/krm/audio');
         expect(requestUrl.searchParams.get('album_audio_id')).toBe('42');
+    });
+
+    it('does not fall back to Web after an Electron IPC failure', async () => {
+        const ipcError = new Error('ipc failed');
+        const kugouRequest = vi.fn().mockRejectedValue(ipcError);
+        const fetchMock = vi.fn();
+        vi.stubGlobal('window', { electron: { kugouRequest } });
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+
+        await expect(requestKugou('search', { keywords: 'song' })).rejects.toBe(ipcError);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('reports unavailable when neither transport is configured', async () => {
+        vi.stubGlobal('window', undefined);
+        vi.stubEnv('VITE_KUGOU_API_BASE', '');
+        const { getKugouTransportAvailability, requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+
+        expect(getKugouTransportAvailability()).toEqual({ configured: false, reason: 'not-configured' });
+        await expect(requestKugou('search', { keywords: 'song' })).rejects.toMatchObject({ code: 'unavailable' });
     });
 });

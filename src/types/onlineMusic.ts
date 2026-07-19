@@ -275,3 +275,23 @@ export interface OnlineMusicProvider {
     recommendations?: OnlineRecommendationProvider;
     mutations?: OnlineMutationProvider;
 }
+
+// Public canonical contract consumed through the omni facade. Provider-prefixed
+// names above remain internal adapter vocabulary while the migration completes.
+export type OmniProviderId = OnlineProviderId;
+export type OmniMediaId = MediaId;
+export type OmniProviderCapabilities = ProviderCapabilities;
+export type OmniProviderAvailability = ProviderAvailability;
+export type OmniProviderSummary = ProviderAccountSummary;
+export type OmniAccountState = ProviderAccountSummary;
+export type OmniPage<T> = ProviderPage<T>;
+export type OmniAudioSource = ProviderAudioSource;
+export type OmniSongAvailability = ProviderSongAvailability;
+export type OmniSongReplacement = ProviderSongReplacement;
+export type OmniLyricsResult = ProviderLyricsResult;
+export type OmniAlbum = ProviderAlbumSummary;
+export type OmniArtist = ProviderArtistSummary;
+export type OmniUser = ProviderUser;
+export type OmniCollection = ProviderCollection;
+export type OmniHistoryEntry = ProviderHistoryEntry;
+export { OnlineProviderError as OmniError };

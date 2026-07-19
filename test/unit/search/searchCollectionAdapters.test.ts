@@ -11,8 +11,8 @@ const baseTrack = (): UnifiedSong => ({
     id: 1,
     name: 'Track',
     artists: [{ id: 2, name: 'Artist' }],
-    album: { id: 3, name: 'Album', picUrl: 'https://example.com/cover.jpg' },
-    duration: 1000,
+    album: { id: 3, name: 'Album', coverUrl: 'https://example.com/cover.jpg' },
+    durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' },
 });
 

@@ -3,8 +3,8 @@ import type { ProviderSongMetadata } from '../types/onlineMusic';
 
 // src/utils/songMetadata.ts
 
-export const getSongAlbumCoverUrl = (song?: Pick<SongResult, 'album' | 'al'> | null): string | undefined => {
-    const coverUrl = song?.album?.coverUrl || song?.album?.picUrl || song?.al?.picUrl;
+export const getSongAlbumCoverUrl = (song?: Pick<SongResult, 'album'> | null): string | undefined => {
+    const coverUrl = song?.album?.coverUrl;
     return typeof coverUrl === 'string' && coverUrl ? coverUrl : undefined;
 };
 
@@ -23,7 +23,7 @@ export const createProviderSongMetadata = (song: SongResult): ProviderSongMetada
                 ...(song.album.catalogRef ? { catalogRef: song.album.catalogRef } : {}),
             }
             : { id: 0, name: '' },
-        durationMs: Number.isFinite(song.duration) ? song.duration : 0,
+        durationMs: Number.isFinite(song.durationMs) ? song.durationMs : 0,
         coverUrl,
         aliases: Array.isArray(song.aliases) ? song.aliases : [],
         translatedNames: Array.isArray(song.translatedNames) ? song.translatedNames : [],

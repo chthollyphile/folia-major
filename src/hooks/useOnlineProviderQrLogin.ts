@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnlineProviderId, QrLoginState } from '../types/onlineMusic';
-import { getOnlineMusicProvider, providerSupports } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 
 // src/hooks/useOnlineProviderQrLogin.ts
 
@@ -45,22 +45,20 @@ export const useOnlineProviderQrLogin = ({
         setQrState('loading');
         lastLoggedQrStateRef.current = 'loading';
         console.info('[ProviderQrLogin] start', { providerId: targetProviderId });
-        const provider = getOnlineMusicProvider(targetProviderId);
-        const auth = provider?.auth;
-        if (!providerSupports(provider, 'auth') || !auth?.getQrKey || !auth.createQr || !auth.checkQr) {
+        if (!omni.getProviderCapabilities(targetProviderId).auth) {
             setQrState('error');
             return;
         }
 
         try {
-            const key = await auth.getQrKey();
-            setQrCodeImg(await auth.createQr(key));
+            const { key, imageUrl } = await omni.createQrLogin(targetProviderId);
+            setQrCodeImg(imageUrl);
             setQrState('waiting');
             lastLoggedQrStateRef.current = 'waiting';
             console.info('[ProviderQrLogin] ready', { providerId: targetProviderId });
             qrCheckIntervalRef.current = window.setInterval(async () => {
                 try {
-                    const result = await auth.checkQr!(key);
+                    const result = await omni.checkQrLogin(targetProviderId, key);
                     setQrState(result.state);
                     if (lastLoggedQrStateRef.current !== result.state) {
                         lastLoggedQrStateRef.current = result.state;

@@ -181,7 +181,7 @@ export async function autoMatchBestLyric(
                 name: title,
                 artists: artist ? [{ id: 0, name: artist }] : [],
                 album: { id: 0, name: options.album || '' },
-                duration: normalizedDurationMs,
+                durationMs: normalizedDurationMs,
                 sourceRef: { kind: 'online', providerId: 'netease', mediaId: String(options.neteaseCandidate.id) },
             }];
             return neteaseCandidateSongs;
@@ -193,7 +193,7 @@ export async function autoMatchBestLyric(
                 name: title,
                 artists: artist ? [{ id: 0, name: artist }] : [],
                 album: { id: 0, name: options.album || '' },
-                duration: normalizedDurationMs,
+                durationMs: normalizedDurationMs,
                 sourceRef: { kind: 'online', providerId: 'netease', mediaId: String(songId) },
             }] : [];
             return neteaseCandidateSongs;

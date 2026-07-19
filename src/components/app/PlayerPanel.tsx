@@ -1,5 +1,5 @@
 import React from 'react';
-import LegacyUnifiedPanel from '../UnifiedPanel';
+import UnifiedPanel from '../UnifiedPanel';
 import type { PlayerPanelViewModel } from './player-panel/buildPlayerPanelModel';
 
 // App-level entry for the player side panel backed by a view model.
@@ -8,7 +8,7 @@ type PlayerPanelProps = {
 };
 
 const PlayerPanel: React.FC<PlayerPanelProps> = ({ model }) => {
-    return <LegacyUnifiedPanel {...model.legacyProps} />;
+    return <UnifiedPanel {...model.panelProps} />;
 };
 
 export default PlayerPanel;

@@ -58,26 +58,11 @@ src/
 - `components/app/Home.tsx`
   首页 app-level 入口。负责消费 `buildHomeModel.ts` 生成的模型，并统一进入 Grid3D/GridView 流程；`carousel` 首页布局已弃用，历史设置会迁移到 `grid`。
 
-- `components/Home.tsx`
-  首页 legacy 实现，属于弃用路径；新首页功能不要继续放入此处。
-
-- `components/LocalMusicView.tsx`
-  本地音乐 legacy 总览页，随旧首页移除；新本地库导航走 GridView。
-
-- `components/local/LocalPlaylistView.tsx`
-  本地文件夹或歌单 legacy 列表详情，计划移除；新详情功能走 GridView。
-
-- `components/navidrome/NavidromeMusicView.tsx`
-  Navidrome legacy 总览页，随旧首页移除；新导航走 GridView。
-
-- `components/navidrome/NavidromeAlbumView.tsx`
-  Navidrome legacy 专辑列表详情，计划移除；新详情功能走 GridView。
-
 - `components/app/PlayerPanel.tsx`
-  播放器右侧面板 app-level 入口。负责消费 `buildPlayerPanelModel.ts` 生成的模型，并转接到 legacy `UnifiedPanel.tsx`。
+  播放器右侧面板 app-level 入口。负责消费 `buildPlayerPanelModel.ts` 生成的模型，并转接到 `UnifiedPanel.tsx`。
 
 - `components/UnifiedPanel.tsx`
-  播放器右侧面板 legacy 实现。根据当前歌曲来源切换不同 tab。
+  播放器右侧面板实现。根据当前歌曲来源切换不同 tab。
 
 - `components/panelTab/*`
   右侧面板各 tab 的具体实现。
@@ -104,7 +89,10 @@ src/
   用户偏好，例如音质、白天模式、静态模式、音量、可视化模式。
 
 - `hooks/useNeteaseLibrary.ts`
-  网易云用户资料、歌单、喜欢列表、同步、退出登录。
+  网易云账户缓存与同步兼容层；组件侧通过 Omni 账户摘要消费在线账户。
+
+- `hooks/useKugouLibrary.ts`
+  酷狗账户会话与收藏同步兼容层；与网易账户分别存储。
 
 - `hooks/useThemeController.ts`
   默认主题、AI 主题、自定义主题、明暗切换。
@@ -112,8 +100,14 @@ src/
 
 ### Services
 
+- `services/onlineMusic/omni.ts`
+  普通在线数据的唯一公开入口。首页请求按 active provider 路由，已有歌曲和集合按自身 provider 路由；组件、hooks 和 stores 不应直连 provider registry 或具体 API。
+
+- `services/onlineMusic/kugouTransport.ts`
+  酷狗薄 transport。Electron 优先走 preload IPC，Web 仅在明确配置 `VITE_KUGOU_API_BASE` 时启用，运行中不会跨 transport 自动降级。
+
 - `services/netease.ts`
-  网易云 API 封装。
+  网易云原始 API 封装，仅由网易 provider 清洗后提供给 Omni。
 
 - `services/navidromeService.ts`
   Navidrome / Subsonic API 封装。

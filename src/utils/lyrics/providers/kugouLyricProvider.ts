@@ -309,7 +309,7 @@ export async function fetchKugouLyrics(
     ...(albumAudioId !== undefined && albumAudioId !== null && String(albumAudioId) !== ''
       ? { album_audio_id: albumAudioId }
       : {}),
-    duration: song.duration,
+    duration: song.durationMs,
     hash: song.kgHash,
     keyword: `${artistsStr} - ${song.name}`,
     lrctxt: '1',

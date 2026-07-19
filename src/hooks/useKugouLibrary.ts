@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { getOnlineMusicProvider } from '../services/onlineMusic/providerRegistry';
+import { omni } from '../services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import type { ProviderCollection } from '../types/onlineMusic';
 
@@ -12,10 +12,9 @@ export const useKugouLibrary = () => {
     const clearAccount = useOnlineProviderAccountStore(state => state.clearAccount);
 
     const refresh = useCallback(async () => {
-        const provider = getOnlineMusicProvider('kugou');
-        const availability = provider?.getAvailability?.() ?? { configured: true };
+        const availability = omni.getProviderAvailability('kugou');
         console.info('[KugouLibrary] refresh:start', { configured: availability.configured });
-        if (!provider?.auth || !availability.configured) {
+        if (!omni.getProviderCapabilities('kugou').auth || !availability.configured) {
             updateAccount('kugou', { status: availability.configured ? 'error' : 'anonymous', user: null, error: availability.reason });
             console.warn('[KugouLibrary] refresh:unavailable', { reason: availability.reason });
             return false;
@@ -23,7 +22,7 @@ export const useKugouLibrary = () => {
 
         updateAccount('kugou', { status: 'unknown', error: undefined });
         try {
-            const user = await provider.auth.getLoginStatus();
+            const user = await omni.getLoginStatus('kugou');
             if (!user) {
                 clearAccount('kugou');
                 console.info('[KugouLibrary] refresh:anonymous');
@@ -37,11 +36,11 @@ export const useKugouLibrary = () => {
 
             const collections: ProviderCollection[] = [];
             try {
-                if (provider.library?.getUserPlaylists) {
+                if (omni.getProviderCapabilities('kugou').userLibrary) {
                     let offset = 0;
                     let hasMore = true;
                     while (hasMore && offset < 1000) {
-                        const page = await provider.library.getUserPlaylists(user.id, PAGE_SIZE, offset);
+                        const page = await omni.getProviderUserPlaylists('kugou', user.id, { limit: PAGE_SIZE, offset });
                         collections.push(...page.items);
                         console.info('[KugouLibrary] playlists:page', {
                             offset,
@@ -52,7 +51,7 @@ export const useKugouLibrary = () => {
                         offset = page.nextOffset;
                     }
                 }
-                if (provider.capabilities.userCloud) {
+                if (omni.getProviderCapabilities('kugou').userCloud) {
                     collections.push({
                         providerId: 'kugou', id: 'cloud', name: '音乐云盘', type: 'cloud',
                         coverUrl: user.avatarUrl,
@@ -84,8 +83,7 @@ export const useKugouLibrary = () => {
     }, [clearAccount, updateAccount]);
 
     const logout = useCallback(async () => {
-        const provider = getOnlineMusicProvider('kugou');
-        await provider?.auth?.logout();
+        await omni.logout('kugou');
         clearAccount('kugou');
     }, [clearAccount]);
 

@@ -14,7 +14,7 @@ const song = (id: number, name: string, patch: Partial<SongResult> = {}): SongRe
     name,
     artists: [],
     album: { id: 1, name: 'Album' },
-    duration: 1000,
+    durationMs: 1000,
     ...patch,
 });
 

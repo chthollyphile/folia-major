@@ -8,7 +8,7 @@ import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { createSafeObjectUrl } from '../utils/blobGuards';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
-import { getOnlineMusicProviderForSong, providerSupports } from './onlineMusic/providerRegistry';
+import { omni } from './onlineMusic/omni';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getCachedSongAudioBlob, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
 import { toSafeRemoteUrl } from '../utils/appPlaybackHelpers';
@@ -33,12 +33,9 @@ export async function loadOnlineSongAudioSource(
         return { kind: 'ok', audioSrc: prefetched.audioUrl };
     }
 
-    const provider = getOnlineMusicProviderForSong(song);
     let source = null;
     try {
-        source = providerSupports(provider, 'playback') && provider?.playback
-            ? await provider.playback.getAudioSource(song, audioQuality)
-            : null;
+        source = await omni.getAudioSource(song, audioQuality);
     } catch (error) {
         console.warn('[OnlinePlayback] Provider audio source is temporarily unavailable', error);
         return { kind: 'unavailable' };
@@ -128,18 +125,7 @@ export async function loadOnlineSongLyrics(
             chorusRanges: [],
           }
         : await (async () => {
-            const provider = getOnlineMusicProviderForSong(song);
-            if (!providerSupports(provider, 'lyrics') || !provider?.lyrics) {
-                return {
-                    mainLrc: null,
-                    yrcLrc: null,
-                    transLrc: null,
-                    isPureMusic: false,
-                    lyrics: null,
-                    chorusRanges: [],
-                };
-            }
-            const result = await provider.lyrics.getLyrics(song, { userId });
+            const result = await omni.getLyrics(song, { userId });
             return {
                 mainLrc: result.mainText ?? null,
                 yrcLrc: result.wordByWordText ?? null,

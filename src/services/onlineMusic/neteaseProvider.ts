@@ -122,7 +122,7 @@ const normalizeNeteaseSongFallback = (raw: unknown): UnifiedSong => {
         .map((artist: any, index: number) => ({ id: artist?.id ?? index, name: String(artist?.name || '') }))
         .filter((artist: { id: MediaId; name: string }) => artist.name);
     const rawAlbum = base.al || base.album || {};
-    const duration = Number(base.dt ?? base.duration ?? record.duration ?? record.songLength ?? 0);
+    const duration = Number(base.durationMs ?? base.dt ?? base.duration ?? record.durationMs ?? record.duration ?? record.songLength ?? 0);
     const cloud = Number(base.t ?? record.t) === 1 || Number(base.t ?? record.t) === 2 || record.sourceType === 'cloud';
 
     return {
@@ -134,7 +134,7 @@ const normalizeNeteaseSongFallback = (raw: unknown): UnifiedSong => {
             name: String(rawAlbum.name || 'Unknown Album'),
             coverUrl: rawAlbum.coverUrl || rawAlbum.picUrl || record.cover,
         },
-        duration: Number.isFinite(duration) ? duration : 0,
+        durationMs: Number.isFinite(duration) ? duration : 0,
         aliases: Array.isArray(base.alia) ? base.alia : (Array.isArray(base.aliases) ? base.aliases : []),
         translatedNames: Array.isArray(base.tns) ? base.tns : (Array.isArray(base.translatedNames) ? base.translatedNames : []),
         isPureMusic: Boolean(base.isPureMusic),
@@ -153,7 +153,18 @@ export const normalizeNeteaseSong = (raw: unknown): UnifiedSong => {
         : normalizeNeteaseSongFallback(raw);
     const isCloud = normalized.t === 1 || normalized.t === 2 || normalized.sourceType === 'cloud';
     return {
-        ...normalized,
+        id: normalized.id,
+        name: normalized.name,
+        artists: normalized.artists,
+        album: normalized.album,
+        durationMs: normalized.durationMs,
+        aliases: normalized.aliases || [],
+        translatedNames: normalized.translatedNames || [],
+        isPureMusic: normalized.isPureMusic,
+        fee: normalized.fee,
+        noCopyrightRcmd: normalized.noCopyrightRcmd,
+        resourceState: normalized.resourceState,
+        privilege: normalized.privilege,
         sourceRef: {
             kind: 'online',
             providerId: 'netease',

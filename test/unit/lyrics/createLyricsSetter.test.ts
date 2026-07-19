@@ -57,7 +57,7 @@ describe('createLyricsSetter', () => {
             name: 'Test Song',
             artists: [],
             album: { id: 1, name: 'Test Album' },
-            duration: 180000,
+            durationMs: 180000,
         };
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: currentSong };
         const setter = createLyricsSetter(setLyricsStateMock, '', currentSongFullRef);
@@ -93,7 +93,7 @@ describe('createLyricsSetter', () => {
             name: 'Local Matched Song',
             artists: [],
             album: { name: 'Album' },
-            duration: 120000,
+            durationMs: 120000,
             isLocal: true,
             localRef: { songId: 'local-999' },
         } as any as SongResult;
@@ -116,8 +116,8 @@ describe('createLyricsSetter', () => {
 
     it('resets cached chorus ranges when song changes', () => {
         const setLyricsStateMock = vi.fn();
-        const songA = { id: 101, name: 'Song A', artists: [], album: { id: 201, name: 'A' }, duration: 100 } as SongResult;
-        const songB = { id: 102, name: 'Song B', artists: [], album: { id: 202, name: 'B' }, duration: 100 } as SongResult;
+        const songA = { id: 101, name: 'Song A', artists: [], album: { id: 201, name: 'A' }, durationMs: 100 } as SongResult;
+        const songB = { id: 102, name: 'Song B', artists: [], album: { id: 202, name: 'B' }, durationMs: 100 } as SongResult;
         const currentSongFullRef: MutableRefObject<SongResult | null> = { current: songA };
         
         const setter = createLyricsSetter(setLyricsStateMock, '', currentSongFullRef);

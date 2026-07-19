@@ -40,8 +40,9 @@ import {
 import { buildPlayerPanelModel } from './components/app/player-panel/buildPlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
 import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong } from './types';
-import type { MediaId, ProviderCollection } from './types/onlineMusic';
+import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
+import { omni } from './services/onlineMusic/omni';
 import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl } from './services/onlineMusic/songMetadata';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
@@ -83,6 +84,7 @@ import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMem
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
 import { applyLocalLibraryEntityDisplay } from './services/playbackAdapters';
+import { clearPrefetchRuntime } from './services/prefetchService';
 import { buildLocalLibraryIndex, followEntityRedirect } from './utils/localLibraryIndex';
 import type { PlayerChromeVisibilityMode } from './types/remoteControl';
 
@@ -291,7 +293,7 @@ export default function App() {
     });
     const localFileBlobsRef = useRef<Map<string, string>>(new Map()); // id -> blob URL
 
-    // Navigation Persistence State (Lifted from Home/LocalMusicView)
+    // Navigation persistence state shared by the Grid home surfaces.
     const homeViewTab = useSearchNavigationStore(state => state.homeViewTab);
     const setHomeViewTab = useSearchNavigationStore(state => state.setHomeViewTab);
     const handleToggleNavidromeEnabled = useCallback((enabled: boolean) => {
@@ -841,7 +843,27 @@ export default function App() {
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
     }), [refreshKugouLibrary, refreshUserData]);
-    const onlineProviderPlatform = useOnlineProviderPlatform(onlineProviderRefreshers);
+    const prepareOnlineProviderSwitch = useCallback(async (_currentProviderId: OnlineProviderId, nextProviderId: OnlineProviderId) => {
+        if (!window.confirm(t('home.confirmOnlineProviderSwitch', { provider: omni.getProviderLabel(nextProviderId) }))) return false;
+
+        const audio = audioRef.current;
+        audio?.pause();
+        audio?.removeAttribute('src');
+        audio?.load();
+        if (audioSrc?.startsWith('blob:')) URL.revokeObjectURL(audioSrc);
+        setAudioSrc(null);
+        setCurrentSong(null);
+        setPlayQueue([]);
+        setLyrics(null);
+        setCachedCoverUrl(null);
+        setIsFmMode(false);
+        setPlayerState(PlayerState.IDLE);
+        clearPrefetchRuntime();
+        useSearchNavigationStore.getState().resetRuntime(nextProviderId);
+        useCollectionNavigationStore.getState().clear();
+        return true;
+    }, [audioRef, audioSrc, setLyrics, t]);
+    const onlineProviderPlatform = useOnlineProviderPlatform(onlineProviderRefreshers, prepareOnlineProviderSwitch);
 
     const {
         stageStatus,

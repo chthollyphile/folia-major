@@ -38,7 +38,7 @@ const candidate: OnlineMetadataCandidate = {
         name: 'Canonical Online Title',
         artists: [{ id: 8, name: 'Online Artist' }],
         album: { id: 7, name: 'Online Album' },
-        duration: 180000,
+        durationMs: 180000,
     },
 };
 

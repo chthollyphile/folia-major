@@ -10,7 +10,7 @@ const song = (id: number, patch: Partial<SongResult> = {}): SongResult => ({
     name: String(id),
     artists: [],
     album: { id: 1, name: 'Album' },
-    duration: 1000,
+    durationMs: 1000,
     ...patch,
 });
 

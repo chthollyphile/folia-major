@@ -1,10 +1,11 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
+import { KUGOU_OPERATIONS } from '../../../src/services/onlineMusic/kugouTransport';
 
 // test/unit/electron/kugouApiBridge.test.ts
 
 const require = createRequire(import.meta.url);
-const { createKugouApiBridge } = require('../../../electron/kugouApiBridge.cjs');
+const { createKugouApiBridge, OPERATION_MODULES } = require('../../../electron/kugouApiBridge.cjs');
 
 const createStore = () => {
     const values = new Map<string, unknown>();
@@ -15,7 +16,7 @@ const createStore = () => {
 };
 
 describe('Electron KuGou API bridge', () => {
-    it('absorbs credentials, strips secrets, and reuses the session', async () => {
+    it('absorbs credentials, returns the raw body, and reuses the session', async () => {
         const userDetail = vi.fn(async (params: any) => ({
             body: { data: { nickname: 'Kugou User' } },
             cookie: [],
@@ -31,7 +32,7 @@ describe('Electron KuGou API bridge', () => {
         const bridge = createKugouApiBridge({ store: createStore(), apiLoader: () => api });
 
         const login = await bridge.request('login_qr_check', { key: 'qr' });
-        expect(login).toEqual({ data: { status: 4 } });
+        expect(login).toEqual({ data: { status: 4, token: 'secret-token', userid: '123' } });
         const profile = await bridge.request('user_detail', { userid: 'renderer-user-id' });
         expect(profile).toEqual({ data: { nickname: 'Kugou User', userid: '123' } });
         expect(userDetail.mock.calls[0][0].userid).toBe('123');
@@ -63,11 +64,9 @@ describe('Electron KuGou API bridge', () => {
                 ? { body: { status: 1, url: ['https://example.test/song.mp3'] }, cookie: [] }
                 : { body: { status: 0, errcode: 20028, error: '本次请求需要验证' }, cookie: [] }
         ));
-        const logger = { info: vi.fn(), warn: vi.fn() };
         const bridge = createKugouApiBridge({
             store,
             apiLoader: () => ({ register_dev: registerDev, song_url: songUrl }),
-            logger,
         });
 
         await expect(bridge.request('song_url', { hash: 'HASH', quality: '128' })).resolves.toEqual({
@@ -79,23 +78,15 @@ describe('Electron KuGou API bridge', () => {
         expect(songUrl.mock.calls[1][0].cookie).toEqual(expect.objectContaining({
             dfid: 'fresh-dfid', token: 'token', userid: '9',
         }));
-        expect(logger.warn).toHaveBeenCalledWith('[KuGouApi] song_url:verification-required', expect.objectContaining({
-            requestId: 1,
-            errorCode: 20028,
-        }));
-        expect(logger.info).toHaveBeenCalledWith('[KuGouApi] song_url:retry', {
-            requestId: 1,
-            reason: 'device-verification',
-        });
-        expect(logger.info).toHaveBeenCalledWith('[KuGouApi] song_url:success', expect.objectContaining({
-            requestId: 1,
-            audioUrlCandidateCount: 1,
-        }));
     });
 
     it('rejects operations outside the fixed allowlist', async () => {
         const bridge = createKugouApiBridge({ store: createStore(), apiLoader: () => ({}) });
         await expect(bridge.request('arbitrary_url', {})).rejects.toThrow('Unsupported KuGou operation');
+    });
+
+    it('keeps Electron and renderer operation allowlists aligned', () => {
+        expect(Object.keys(OPERATION_MODULES).sort()).toEqual([...KUGOU_OPERATIONS].sort());
     });
 
     it('routes KRM catalog metadata through the authenticated bridge session', async () => {

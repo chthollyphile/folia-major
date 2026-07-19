@@ -22,7 +22,7 @@ type OnlineProviderAccountStore = {
 const ACTIVE_PROVIDER_KEY = 'active_online_provider_id';
 
 const getInitialProviderId = (): OnlineProviderId => {
-    if (typeof localStorage === 'undefined') return 'netease';
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return 'netease';
     return localStorage.getItem(ACTIVE_PROVIDER_KEY) || 'netease';
 };
 
@@ -37,7 +37,9 @@ export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(
     accounts: {},
     activeProviderId: getInitialProviderId(),
     setActiveProviderId: providerId => {
-        if (typeof localStorage !== 'undefined') localStorage.setItem(ACTIVE_PROVIDER_KEY, providerId);
+        if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+            localStorage.setItem(ACTIVE_PROVIDER_KEY, providerId);
+        }
         set({ activeProviderId: providerId });
     },
     updateAccount: (providerId, patch) => set(state => ({
