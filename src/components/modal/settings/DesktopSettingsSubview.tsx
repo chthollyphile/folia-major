@@ -308,11 +308,25 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                             </span>
                         </div>
 
-                        {/* 自动更新时的提示 */}
-                        {electronSettings.ENABLE_AUTO_UPDATE && updateStatus.status === 'downloading' && (
-                            <div className="text-xs text-left text-zinc-400">
-                                {t('options.autoUpdateGithubNotice')}
+                        {/* 多平台 / 手动下载时的提示 */}
+                        {updateStatus.platform === 'darwin' ? (
+                            <div className="text-xs text-left text-amber-400 font-medium opacity-90">
+                                {t('options.macManualUpdateNotice')}
                             </div>
+                        ) : updateStatus.platform === 'linux' ? (
+                            <div className="text-xs text-left text-amber-400 font-medium opacity-90">
+                                {t('options.linuxManualUpdateNotice')}
+                            </div>
+                        ) : !updateStatus.supported ? (
+                            <div className="text-xs text-left text-amber-400 font-medium opacity-90">
+                                {t('options.manualUpdateNotice')}
+                            </div>
+                        ) : (
+                            electronSettings.ENABLE_AUTO_UPDATE && updateStatus.status === 'downloading' && (
+                                <div className="text-xs text-left text-zinc-400">
+                                    {t('options.autoUpdateGithubNotice')}
+                                </div>
+                            )
                         )}
 
                         {/* 下载进度条 */}
@@ -350,15 +364,17 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                 <ExternalLink size={14} />
                                 {t('options.openReleasePage') || 'Open Release Page'}
                             </button>
-                            <button
-                                type="button"
-                                onClick={onOpenChinaDownload}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-2 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                style={{ color: 'var(--text-primary)' }}
-                            >
-                                <ExternalLink size={14} />
-                                {t('options.downloadChina')}
-                            </button>
+                            {updateStatus.platform !== 'linux' && (
+                                <button
+                                    type="button"
+                                    onClick={onOpenChinaDownload}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-3.5 py-2 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <ExternalLink size={14} />
+                                    {t('options.downloadChina')}
+                                </button>
+                            )}
                             {!electronSettings.ENABLE_AUTO_UPDATE && (
                                 <button
                                     type="button"
@@ -382,6 +398,12 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                 </button>
                             )}
                         </div>
+
+                        {updateStatus.platform !== 'linux' && (
+                            <div className="text-xs opacity-50 pt-1 text-left" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.chinaDownloadHint')}
+                            </div>
+                        )}
                     </div>
                 )}
             </section>

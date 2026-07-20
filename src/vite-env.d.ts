@@ -191,6 +191,7 @@ declare global {
     status: ElectronUpdateStatusValue;
     supported: boolean;
     updateCheckSupported: boolean;
+    platform?: string;
     updateCheckEnabled: boolean;
     autoUpdateEnabled: boolean;
     currentVersion: string;

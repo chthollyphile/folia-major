@@ -1136,7 +1136,7 @@ function getAutoUpdateEnabled() {
 }
 
 function isUpdateCheckSupported() {
-  return process.platform === 'win32';
+  return true;
 }
 
 function isAutoUpdaterSupported() {
@@ -1184,6 +1184,7 @@ function getUpdateStatus() {
     ...updateState,
     supported: isAutoUpdaterSupported(),
     updateCheckSupported: isUpdateCheckSupported(),
+    platform: process.platform,
     updateCheckEnabled: getUpdateCheckEnabled(),
     autoUpdateEnabled: getAutoUpdateEnabled(),
     lastSeenVersion: store.get(LAST_SEEN_UPDATE_VERSION_SETTING_KEY) || null,
