@@ -222,7 +222,7 @@ export default {
       "settings-r2-sync": { "title": "Sync server settings", "description": "Open sync server settings" },
       "sync-now": { "title": "Sync now", "description": "Sync AI themes" },
       "settings-desktop": { "title": "Desktop settings", "description": "Open desktop app settings" },
-      "toggle-voice-input-pause": { "title": "Voice input pause", "description": "Toggle pausing playback during voice input" },
+      "desktop-toggle-voice-input-pause": { "title": "Voice input pause", "description": "Toggle pausing playback during voice input" },
       "settings-lab": { "title": "Lab settings", "description": "Open experimental settings" },
       "visualizer-toggle-random-per-song": { "title": "Random visualizer for every song", "description": "Toggle a random lyric animation mode whenever the song changes" },
       "settings-visualizer": { "title": "Visualizer settings", "description": "Open lyrics animation workbench" },

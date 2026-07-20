@@ -217,7 +217,7 @@ export default {
       "settings-obs-browser-source": { "title": "Sumber browser OBS", "description": "Buka pengaturan sumber browser OBS" },
       "settings-storage": { "title": "Pengaturan penyimpanan", "description": "Buka pengaturan cache dan penyimpanan" },
       "settings-desktop": { "title": "Pengaturan desktop", "description": "Buka pengaturan aplikasi desktop" },
-      "toggle-voice-input-pause": { "title": "Jeda input suara", "description": "Alihkan jeda pemutaran saat input suara" },
+      "desktop-toggle-voice-input-pause": { "title": "Jeda input suara", "description": "Alihkan jeda pemutaran saat input suara" },
       "settings-lab": { "title": "Pengaturan lab", "description": "Buka pengaturan eksperimental" },
       "settings-visualizer": { "title": "Pengaturan visualizer", "description": "Buka bengkel animasi lirik" },
       "settings-theme-park": { "title": "Warna", "description": "Buka editor tema" },

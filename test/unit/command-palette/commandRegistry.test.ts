@@ -44,6 +44,7 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     toggleSubtitleOverlayBackground: vi.fn(),
     toggleDaylightMode: vi.fn(),
     voiceInputPauseEnabled: false,
+    voiceInputPauseSupported: false,
     toggleVoiceInputPause: vi.fn(),
     setAppLanguagePreference: vi.fn(async () => undefined),
     enableAlternativeLyricSources: false,

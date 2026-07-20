@@ -282,7 +282,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     },
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端', 'zhuomian', 'zhuomianduan', 'zm', 'zmd'], 'options', 'desktop'),
     {
-        id: 'toggle-voice-input-pause',
+        id: 'desktop-toggle-voice-input-pause',
         group: 'settings',
         title: 'Voice input pause',
         description: 'Toggle pausing playback while system voice input uses the microphone',
@@ -730,6 +730,13 @@ export const getAvailableCommandPaletteCommands = (context?: CommandPaletteConte
         const isWebBrowser = typeof window !== 'undefined';
         const isElectron = isWebBrowser && Boolean((window as any).electron);
         if (isWebBrowser && !isElectron) {
+            return false;
+        }
+    }
+
+    if (command.id === 'desktop-toggle-voice-input-pause') {
+        const isElectron = typeof window !== 'undefined' && Boolean((window as any).electron);
+        if (!isElectron || !context?.voiceInputPauseSupported) {
             return false;
         }
     }

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronLeft, ChevronRight, Cpu, GamepadDirectional, Monitor, PlayCircle, RotateCcw, Settings2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Cpu, GamepadDirectional, Mic, Monitor, PlayCircle, RotateCcw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme, VisualizerFrameRate } from '../../../types';
@@ -15,6 +15,11 @@ type LabSettingsModalProps = {
     onClose: () => void;
     onOpenLyricFilterSettings: () => void;
     theme?: Theme;
+    voiceInputPause?: {
+        enabled: boolean;
+        supported: boolean;
+        onToggle: () => void;
+    };
 };
 
 const shellTransition = { duration: 0.24, ease: 'easeOut' as const };
@@ -31,6 +36,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
     onClose,
     onOpenLyricFilterSettings,
     theme,
+    voiceInputPause,
 }) => {
     const { t } = useTranslation();
     const isMouseDownOnOverlayRef = useRef(false);
@@ -190,6 +196,9 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                     onToggleHideTaskbarIcon(false);
                                     onToggleOpenPlayerOnLaunch(false);
                                     onVisualizerFrameRateChange('off');
+                                    if (voiceInputPause?.supported) {
+                                        voiceInputPause.onToggle();
+                                    }
                                 }}
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${utilityGhostButtonClass}`}
                                 style={{ color: 'var(--text-primary)' }}
@@ -368,6 +377,21 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                         <ChevronRight size={18} className="shrink-0 opacity-60" style={{ color: 'var(--text-primary)' }} />
                                     </div>
                                 </button>
+
+                                {voiceInputPause?.supported && (
+                                    <div className={`flex items-center justify-between p-4 rounded-xl border transition-colors hover:bg-white/8 ${settingsCardInteractiveClass}`} onClick={voiceInputPause.onToggle}>
+                                        <div className="flex flex-col pr-8">
+                                            <span className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                                <Mic size={14} />
+                                                {t('options.voiceInputPause')}
+                                            </span>
+                                            <span className="text-xs opacity-50 mt-1 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.voiceInputPauseDesc')}
+                                            </span>
+                                        </div>
+                                        {renderToggle(voiceInputPause.enabled, voiceInputPause.onToggle)}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </motion.div>

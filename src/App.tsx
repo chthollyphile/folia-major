@@ -1786,6 +1786,7 @@ export default function App() {
         enablePlayerPageNativeBlur,
         toggleDaylightMode,
         voiceInputPauseEnabled,
+        voiceInputPauseSupported: isElectronWindow && typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win'),
         toggleVoiceInputPause: () => {
             handleToggleVoiceInputPause(!voiceInputPauseEnabled);
         },
