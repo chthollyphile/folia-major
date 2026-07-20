@@ -116,6 +116,22 @@ describe('coverCache', () => {
         expect(saveToCacheMock).toHaveBeenCalledWith('cover_local_qq-song', descriptor);
     });
 
+    it('fetches KuGou cover blobs through the same-origin proxy in web builds', async () => {
+        const blob = new Blob(['kugou-cover'], { type: 'image/jpeg' });
+        const descriptor = { backend: 'opfs' as const, mimeType: 'image/jpeg', size: blob.size, updatedAt: 1 };
+        writeCoverAssetMock.mockResolvedValue(descriptor);
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(blob) });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        const coverUrl = 'https://imge.kugou.com/stdmusic/400/cover.jpg';
+
+        await expect(cacheLocalSongOnlineCover('kugou-song', coverUrl)).resolves.toBe(true);
+        expect(fetchMock).toHaveBeenCalledWith(
+            `/api/lyric-proxy?url=${encodeURIComponent(coverUrl)}`,
+            { mode: 'cors' },
+        );
+        expect(saveToCacheMock).toHaveBeenCalledWith('cover_local_kugou-song', descriptor);
+    });
+
     afterEach(() => {
         globalThis.fetch = originalFetch;
     });

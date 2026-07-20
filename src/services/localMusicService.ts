@@ -16,6 +16,7 @@ import { resolveLocalSongMetadata } from './playbackAdapters';
 import { removeCachedCover } from './coverCache';
 import { getOnlineMusicProvider } from './onlineMusic/providerRegistry';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
+import { normalizeLyricMatchMetadataCandidate } from './onlineMetadataSearchService';
 
 
 type EmbeddedMetadata = EmbeddedMetadataResult;
@@ -1333,7 +1334,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         // A selected GridView metadata identity is authoritative and must not be replaced by lyric fallback metadata.
         if (!hasLocalOrEmbeddedLyrics) {
             const settings = useSettingsUiStore.getState();
-            const shouldUseBestLyric = settings.enableAlternativeLyricSources && settings.autoUseBestLyric;
+            const shouldUseBestLyric = settings.autoUseBestLyric;
             if (shouldUseBestLyric || matchContext.metadataCandidate) {
                 const bestMatch = await autoMatchBestLyric(
                     matchContext.title,
@@ -1368,33 +1369,31 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
                         return bestMatch.lyrics;
                     }
 
-                    if (bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')) {
-                        try {
-                            const nSong = await getOnlineMusicProvider('netease')?.playback?.getSongDetail(bestMatch.id);
-                            if (nSong) {
-                                const metadata = getProviderSongMetadata(nSong, 'netease');
-                                const coverUrl = metadata.coverUrl;
-                                await applyMatchedMetadata(song.id, {
-                                    source: 'netease',
-                                    songId: bestMatch.id,
-                                    title: nSong.name,
-                                    artists: metadata.artists,
-                                    album: metadata.album,
-                                    coverUrl: coverUrl?.replace('http:', 'https:'),
-                                }, {
-                                    songPatch: {
-                                        ...song,
-                                        useOnlineCover: Boolean(coverUrl && !isBlob(song.embeddedCover)),
-                                    },
-                                    protectOrigins: ['manual', 'manual-match', 'split'],
-                                });
-                                return bestMatch.lyrics;
-                            }
-                        } catch (error) {
-                            console.error('[LocalMusic] Failed to fetch NetEase song detail for metadata:', error);
-                        }
-                    }
-                    await applyMatchedMetadata(song.id, {}, { lyricsOnly: true, songPatch: song });
+                    const matchedMetadata = normalizeLyricMatchMetadataCandidate(
+                        bestMatch.source,
+                        bestMatch.song,
+                        {
+                            title: matchContext.title,
+                            artist: matchContext.artist,
+                            album: matchContext.album,
+                            durationMs: matchContext.durationMs,
+                        },
+                    );
+                    const coverUrl = matchedMetadata.coverUrl;
+                    await applyMatchedMetadata(song.id, {
+                        source: matchedMetadata.source,
+                        songId: matchedMetadata.songId,
+                        title: matchedMetadata.title,
+                        artists: matchedMetadata.artists,
+                        album: matchedMetadata.album,
+                        coverUrl,
+                    }, {
+                        songPatch: {
+                            ...song,
+                            useOnlineCover: Boolean(coverUrl && !isBlob(song.embeddedCover)),
+                        },
+                        protectOrigins: ['manual', 'manual-match', 'split'],
+                    });
                     return bestMatch.lyrics;
                 }
             }

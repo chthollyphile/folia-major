@@ -74,6 +74,48 @@ describe('kugouProvider', () => {
         expect(requestMock).toHaveBeenCalledWith('song_climax', { hash: 'CLIMAX-HASH' });
     });
 
+    it('loads server-decoded KRC through the provider lyric endpoints', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'search_lyric') {
+                return { candidates: [{ id: '274944371', accesskey: 'observed-access-key' }] };
+            }
+            if (operation === 'lyric') {
+                return {
+                    fmt: 'krc',
+                    content: 'encrypted-base64-is-not-used',
+                    decodeContent: '[1000,2000]<0,800,0>测<800,1200,0>试',
+                };
+            }
+            if (operation === 'song_climax') return { data: [] };
+            return {};
+        });
+        const song = normalizeKugouSong({
+            FileHash: 'lyric-hash',
+            FileName: '歌手 - 测试',
+            Duration: 3,
+            MixSongID: 42,
+            Image: 'http://imge.kugou.com/stdmusic/{size}/cover.jpg',
+        });
+
+        const result = await kugouProvider.lyrics?.getLyrics(song);
+
+        expect(result?.lyrics?.isWordByWord).toBe(true);
+        expect(result?.lyrics?.lines[0]?.fullText).toBe('测试');
+        expect(requestMock).toHaveBeenCalledWith('search_lyric', {
+            hash: 'LYRIC-HASH',
+            duration: 3000,
+            man: 'no',
+            album_audio_id: '42',
+        });
+        expect(requestMock).toHaveBeenCalledWith('lyric', {
+            id: '274944371',
+            accesskey: 'observed-access-key',
+            fmt: 'krc',
+            decode: true,
+        });
+        expect(song.album.coverUrl).toBe('https://imge.kugou.com/stdmusic/400/cover.jpg');
+    });
+
     it('reads canonical song metadata without normalizing it a second time', () => {
         const song = normalizeKugouSong({
             FileHash: 'ab12cd',

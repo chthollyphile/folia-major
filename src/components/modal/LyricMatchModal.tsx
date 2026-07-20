@@ -5,7 +5,6 @@ import { LocalSong, SongResult } from '../../types';
 import { applyLocalSongMatchSelection } from '../../services/localSongMatchSelectionService';
 import { buildLocalSongMetadataSearchTarget, normalizeLyricMatchMetadataCandidate } from '../../services/onlineMetadataSearchService';
 import { formatSongName } from '../../utils/songNameFormatter';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScoreDetails } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
 import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
@@ -55,7 +54,6 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     const [isMatching, setIsMatching] = useState(false);
     const searchRequestIdRef = useRef(0);
 
-    const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
     const [source, setSource] = useState<LyricMatchSource>('netease');
 
     // Online data toggle state (dots)
@@ -167,12 +165,6 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
     useEffect(() => {
         void runSearch(searchQuery, source);
     }, [source]);
-
-    useEffect(() => {
-        if (!enableAlternativeLyricSources && source !== 'netease') {
-            setSource('netease');
-        }
-    }, [enableAlternativeLyricSources, source]);
 
     const handleSearch = async (query?: string) => {
         await runSearch(query || searchQuery, source);
@@ -298,7 +290,6 @@ const LyricMatchModal: React.FC<LyricMatchModalProps> = ({ song, onClose, onMatc
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
                                 {LYRIC_MATCH_SOURCES
-                                    .filter(id => id === 'netease' || enableAlternativeLyricSources)
                                     .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
                                     .map(t => {
                                     const isSelected = source === t.id;

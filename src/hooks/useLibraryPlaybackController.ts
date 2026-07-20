@@ -791,7 +791,7 @@ export function useLibraryPlaybackController({
                     const albumName = navidromeMetadata.album?.name || '';
                     const settings = useSettingsUiStore.getState();
 
-                    if (settings.enableAlternativeLyricSources && settings.autoUseBestLyric) {
+                    if (settings.autoUseBestLyric) {
                         const bestMatch = await autoMatchBestLyric(navidromeSong.name, artistName, navidromeMetadata.durationMs, {
                             album: albumName,
                             preferredSource: settings.preferredAlternativeLyricSource,
@@ -1237,9 +1237,7 @@ export function useLibraryPlaybackController({
         }
 
         const settings = useSettingsUiStore.getState();
-        if (!settings.enableAlternativeLyricSources) {
-            return false;
-        }            setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '' });
+        setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '' });
 
         try {
             if (isLocalPlaybackSong(currentSong)) {
@@ -1344,9 +1342,15 @@ export function useLibraryPlaybackController({
             const currentSongMetadata = getProviderSongMetadata(currentSong);
             const artistName = currentSongMetadata.artists.map(artist => artist.name).filter(Boolean).join(', ');
             const albumName = currentSongMetadata.album?.name || '';
+            const sourceRef = getPlaybackSourceRef(currentSong);
+            const ownLyricsResult = await omni.getLyrics(currentSong);
             const bestMatch = await autoMatchBestLyric(currentSong.name, artistName, currentSongMetadata.durationMs, {
                 album: albumName,
                 preferredSource: settings.preferredAlternativeLyricSource,
+                providerCandidate: sourceRef.kind === 'online'
+                    && (sourceRef.providerId === 'netease' || sourceRef.providerId === 'kugou')
+                    ? { providerId: sourceRef.providerId as 'netease' | 'kugou', song: currentSong, lyricsResult: ownLyricsResult }
+                    : undefined,
             });
 
             if (!bestMatch) {
@@ -1358,15 +1362,14 @@ export function useLibraryPlaybackController({
             }
 
             const previousState = await loadOnlineLyricsState(currentSong);
+            const usesOwnProviderLyrics = sourceRef.kind === 'online' && bestMatch.source === sourceRef.providerId;
             const nextState: OnlineLyricsState = {
                 lyricsSource: 'online',
                 importedLyrics: previousState?.importedLyrics ?? null,
                 importedLyricsName: previousState?.importedLyricsName ?? null,
-                hasOnlineOverride: true,
-                onlineOverrideLyrics: bestMatch.lyrics,
-                matchedSongId: bestMatch.source === 'netease' || (bestMatch.source === 'amll' && bestMatch.matchedLyricsProviderPlatform === 'ncm')
-                    ? bestMatch.id as number
-                    : currentSong.id,
+                hasOnlineOverride: !usesOwnProviderLyrics,
+                onlineOverrideLyrics: usesOwnProviderLyrics ? null : bestMatch.lyrics,
+                matchedSongId: bestMatch.id,
                 matchedIsPureMusic: false,
                 matchedLyricsSource: bestMatch.source,
                 matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,

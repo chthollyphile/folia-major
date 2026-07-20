@@ -32,8 +32,8 @@ export const getMatchResultCoverUrl = (
     result: SongResult | null | undefined,
     source: LyricMatchSource,
 ): string | null => {
-    if (!result || source === 'kugou') return null;
-    const coverUrl = getProviderSongMetadata(result).coverUrl;
+    if (!result) return null;
+    const coverUrl = getProviderSongMetadata(result, source === 'amll' ? undefined : source).coverUrl;
     return coverUrl ? coverUrl.replace('http:', 'https:') : null;
 };
 

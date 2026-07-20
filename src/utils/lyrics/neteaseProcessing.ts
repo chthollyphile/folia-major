@@ -1,5 +1,4 @@
 import { LyricData } from '../../types';
-import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from './chorusEffects';
 import type { NeteaseChorusRange } from './chorusEffects';
 import { detectTimedLyricFormat } from './formatDetection';
 import { resolveLyricProcessingOptions } from './filtering';
@@ -73,12 +72,6 @@ export const processNeteaseLyrics = async (
     }
 
     const format = payload.yrcLrc ? 'yrc' : detectTimedLyricFormat(payload.mainLrc || primaryLyrics);
-    const chorusPromise = options.songId && payload.mainLrc && options.fetchChorusRanges
-        ? options.fetchChorusRanges(options.songId).catch((error) => {
-            console.warn(`[processNeteaseLyrics] Failed to fetch API-based chorus for song ${options.songId}, falling back to text-based detection:`, error);
-            return null;
-        })
-        : null;
     let lyrics = await parseLyricsAsync(
         format,
         primaryLyrics,
@@ -90,30 +83,9 @@ export const processNeteaseLyrics = async (
         lyrics.isWordByWord = !!payload.yrcLrc;
     }
 
-    let chorusRanges: NeteaseChorusRange[] = [];
-
-    if (lyrics && payload.mainLrc) {
-        let chorusApplied = false;
-        if (chorusPromise) {
-            const chorusRes = await chorusPromise;
-            const parsedRanges = chorusRes || [];
-            if (parsedRanges.length > 0) {
-                chorusRanges = parsedRanges;
-                lyrics = applyNeteaseChorusByTime(lyrics, parsedRanges);
-                chorusApplied = true;
-                console.log(`[processNeteaseLyrics] Applied API-based chorus detection for song ${options.songId}. Ranges: ${JSON.stringify(parsedRanges)}`);
-            }
-        }
-
-        if (!chorusApplied) {
-            lyrics = applyDetectedChorusEffects(lyrics, payload.mainLrc);
-            console.log(`[processNeteaseLyrics] Applied text-based chorus detection fallback for song ${options.songId ?? 'unknown'}`);
-        }
-    }
-
     return {
         ...payload,
         lyrics,
-        chorusRanges
+        chorusRanges: [],
     };
 };

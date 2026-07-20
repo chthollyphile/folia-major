@@ -4,7 +4,6 @@ import { Check, Loader2, Music, Search, X } from 'lucide-react';
 import type { OnlineLyricsState, SongResult } from '../../types';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { loadOnlineLyricsState, saveOnlineLyricsState } from '../../utils/onlineLyricsState';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
 import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
@@ -29,7 +28,6 @@ interface OnlineLyricMatchModalProps {
 const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onClose, onMatch, isDaylight }) => {
     const { t } = useTranslation();
     const isMouseDownOnOverlayRef = useRef(false);
-    const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
     const bgClass = isDaylight ? 'bg-white/90 border-white/20' : 'bg-zinc-900/95 border-white/10';
     const textPrimary = isDaylight ? 'text-zinc-900' : 'text-white';
     const textSecondary = isDaylight ? 'text-zinc-500' : 'text-zinc-400';
@@ -126,12 +124,6 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
         };
     }, [song, source]);
 
-    useEffect(() => {
-        if (!enableAlternativeLyricSources && source !== 'netease') {
-            setSource('netease');
-        }
-    }, [enableAlternativeLyricSources, source]);
-
     const handleConfirm = async () => {
         if (!selectedResult) {
             return;
@@ -195,7 +187,6 @@ const OnlineLyricMatchModal: React.FC<OnlineLyricMatchModalProps> = ({ song, onC
                     <div className={`w-[62%] flex flex-col border-r ${borderColor} p-6 gap-5 min-h-0`}>
                         <div className={`flex border-b ${borderColor} pb-2 gap-4`}>
                             {LYRIC_MATCH_SOURCES
-                                .filter(id => id === 'netease' || enableAlternativeLyricSources)
                                 .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
                                 .map(t => {
                                 const isSelected = source === t.id;

@@ -5,7 +5,7 @@
  * Handles URL expiration (1200s TTL) and re-prefetches on queue changes.
  */
 
-import { SongResult, LyricData, OnlineLyricsState } from '../types';
+import { SongResult, LyricData, OnlineLyricsState, type LyricProviderSource } from '../types';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
@@ -38,6 +38,7 @@ export interface PrefetchedSongData {
         transLrc: string | null;
         isPureMusic: boolean;
     } | null;
+    lyricPreferenceSource: LyricProviderSource | null;
     coverUrl: string | null;
 }
 
@@ -123,7 +124,10 @@ const prefetchSong = async (
     if (existing?.audioUrl && existing.audioUrl !== 'CACHED_IN_DB') {
         existing.audioUrl = toSafeRemoteUrl(existing.audioUrl) ?? null;
     }
-    if (existing && existing.audioUrl && isUrlValid(existing.audioUrlFetchedAt) && (existing.lyrics || existing.lyricRaw?.isPureMusic)) {
+    const currentSettings = useSettingsUiStore.getState();
+    const lyricPreferenceMatches = !currentSettings.autoUseBestLyric
+        || existing?.lyricPreferenceSource === currentSettings.preferredAlternativeLyricSource;
+    if (existing && lyricPreferenceMatches && existing.audioUrl && isUrlValid(existing.audioUrlFetchedAt) && (existing.lyrics || existing.lyricRaw?.isPureMusic)) {
         console.log(`[Prefetch] Already cached: ${song.name}`);
         touchPrefetchCacheEntry(songKey, existing);
         return;
@@ -139,6 +143,7 @@ const prefetchSong = async (
         audioUrlQuality: existing?.audioUrlQuality || null,
         lyrics: existing?.lyrics || null,
         lyricRaw: existing?.lyricRaw || null,
+        lyricPreferenceSource: existing?.lyricPreferenceSource || null,
         coverUrl: existing?.coverUrl || null,
     };
 
@@ -197,14 +202,9 @@ const prefetchSong = async (
                 const resolvedLyrics = resolveOnlineLyrics(onlineLyricsState, parsedLyrics);
 
                 const settings = useSettingsUiStore.getState();
-                const hasWordByWord = resolvedLyrics?.isWordByWord === true;
-                const enableAlternative = settings.enableAlternativeLyricSources;
                 const autoUseBest = settings.autoUseBestLyric;
                 const preferredSource = settings.preferredAlternativeLyricSource;
-                const isBaseNetease = !onlineLyricsState?.hasOnlineOverride;
-
-                const shouldAutoMatch = enableAlternative && autoUseBest &&
-                                        (!hasWordByWord || (isBaseNetease && preferredSource !== 'netease'));
+                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride;
 
                 if (shouldAutoMatch) {
                     try {
@@ -213,14 +213,22 @@ const prefetchSong = async (
                         const bestMatch = await autoMatchBestLyric(song.name, artistName, metadata.durationMs, {
                             album: metadata.album?.name,
                             preferredSource: settings.preferredAlternativeLyricSource,
-                            ...(sourceRef.providerId === 'netease' ? { neteaseCandidate: {
-                                id: song.id,
-                                lyrics: parsedLyrics,
-                                isPureMusic: processed.isPureMusic,
-                                chorusRanges: (processed as any).chorusRanges || []
-                            } } : {})
+                            ...(sourceRef.providerId === 'netease' || sourceRef.providerId === 'kugou'
+                                ? { providerCandidate: {
+                                    providerId: sourceRef.providerId as 'netease' | 'kugou',
+                                    song,
+                                    lyricsResult: {
+                                        lyrics: parsedLyrics,
+                                        mainText: processed.mainLrc,
+                                        wordByWordText: processed.yrcLrc,
+                                        translationText: processed.transLrc,
+                                        isPureMusic: processed.isPureMusic,
+                                        chorusRanges: processed.chorusRanges,
+                                    },
+                                } }
+                                : {})
                         });
-                        if (bestMatch && 'lyrics' in bestMatch && bestMatch.source !== 'netease') {
+                        if (bestMatch && 'lyrics' in bestMatch && bestMatch.source !== sourceRef.providerId) {
                             const overrideState: OnlineLyricsState = {
                                 lyricsSource: 'online',
                                 matchedSongId: bestMatch.id,
@@ -231,6 +239,9 @@ const prefetchSong = async (
                             };
                             await saveOnlineLyricsState(song, overrideState);
                             finalLyrics = bestMatch.lyrics;
+                        } else if (bestMatch && 'isPureMusic' in bestMatch) {
+                            finalLyrics = null;
+                            if (data.lyricRaw) data.lyricRaw.isPureMusic = true;
                         }
                     } catch (error) {
                         console.warn('[Prefetch] Failed to auto-match best lyric:', error);
@@ -238,9 +249,7 @@ const prefetchSong = async (
                 } else {
                     console.log(
                         `[Prefetch] Skipping autoMatchBestLyric for "${song.name}": ` +
-                        `hasWordByWord=${hasWordByWord}, ` +
                         `preferredSource=${preferredSource}, ` +
-                        `enableAlternativeLyricSources=${enableAlternative}, ` +
                         `autoUseBestLyric=${autoUseBest}`
                     );
                     if (resolvedLyrics) {
@@ -249,6 +258,7 @@ const prefetchSong = async (
                 }
 
                 data.lyrics = finalLyrics;
+                data.lyricPreferenceSource = autoUseBest ? preferredSource : null;
 
                 if (data.lyrics) {
                     console.log(`[Prefetch] Parsed and processed lyrics for: ${song.name}`);
@@ -298,6 +308,7 @@ export const updatePrefetchedAudioUrl = (
         audioUrlQuality: audioQuality,
         lyrics: existing?.lyrics || null,
         lyricRaw: existing?.lyricRaw || null,
+        lyricPreferenceSource: existing?.lyricPreferenceSource || null,
         coverUrl: existing?.coverUrl || null,
     };
 
@@ -399,6 +410,7 @@ export const invalidatePrefetchedLyrics = (): void => {
             ...cached,
             lyrics: null,
             lyricRaw: null,
+            lyricPreferenceSource: null,
         });
     }
 

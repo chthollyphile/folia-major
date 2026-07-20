@@ -135,9 +135,9 @@ export async function searchOnlineMetadata(
     if (!safeQuery) return [];
     throwIfAborted(options.signal);
     const limit = options.limit ?? 10;
-    const results = source === 'netease'
+    const results = source === 'netease' || source === 'kugou'
         ? ((await waitForProvider(
-            getOnlineMusicProvider('netease')?.search?.searchSongs(safeQuery, limit, 0)
+            getOnlineMusicProvider(source)?.search?.searchSongs(safeQuery, limit, 0)
                 || Promise.resolve({ items: [], hasMore: false, nextOffset: 0 }),
             options.signal,
         )).items as SongResult[])
@@ -149,7 +149,7 @@ export async function searchOnlineMetadata(
         .slice(0, limit);
 }
 
-// Uses NetEase first and falls back to QQ when the best candidate is not title-compatible.
+// Preserves the established NetEase-to-QQ fallback and appends KuGou as the final provider-backed source.
 export async function findAutomaticOnlineMetadataCandidate(
     song: LocalSong,
     signal?: AbortSignal,
@@ -164,6 +164,13 @@ export async function findAutomaticOnlineMetadataCandidate(
         console.warn('[LocalMusic] NetEase metadata search failed, falling back to QQ:', error);
     }
     if (neteaseCandidates[0]?.titleMatched) return neteaseCandidates[0];
-    const qqCandidates = await searchOnlineMetadata('qq', query, target, { limit: 10, signal });
-    return qqCandidates[0]?.titleMatched ? qqCandidates[0] : null;
+    try {
+        const qqCandidates = await searchOnlineMetadata('qq', query, target, { limit: 10, signal });
+        if (qqCandidates[0]?.titleMatched) return qqCandidates[0];
+    } catch (error) {
+        if ((error as Error).name === 'AbortError') throw error;
+        console.warn('[LocalMusic] QQ metadata search failed, falling back to KuGou:', error);
+    }
+    const kugouCandidates = await searchOnlineMetadata('kugou', query, target, { limit: 10, signal });
+    return kugouCandidates[0]?.titleMatched ? kugouCandidates[0] : null;
 }

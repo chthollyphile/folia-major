@@ -18,6 +18,7 @@ import type {
     ProviderCatalogEntityKind,
     QrLoginState,
 } from '../../types/onlineMusic';
+import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
@@ -307,7 +308,11 @@ export const omni = {
     async getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<OmniLyricsResult> {
         const provider = providerForSong(song);
         if (!provider.lyrics) return unsupported(provider.id, 'lyrics');
-        return provider.lyrics.getLyrics(song, context);
+        const providerResult = await provider.lyrics.getLyrics(song, context);
+        return (await resolveProviderLyricsChorus(providerResult, {
+            providerId: provider.id,
+            songId: song.id,
+        })).result;
     },
 
     async getChorusRanges(song: SongResult): Promise<OmniChorusRange[]> {

@@ -89,4 +89,18 @@ describe('lyrics architecture', () => {
         expect(lrcWrapperContent).toContain('parseCoreLRC');
         expect(yrcWrapperContent).toContain('parseCoreYRC');
     });
+
+    it('keeps multi-source orchestration independent from the active Omni provider', async () => {
+        const orchestrationFiles = [
+            'src/utils/lyrics/autoMatchBestLyric.ts',
+            'src/utils/lyrics/lyricMatchSources.ts',
+        ];
+
+        for (const file of orchestrationFiles) {
+            const content = await readRepoFile(file);
+            expect(content, `${file} should not import active-provider Omni APIs`).not.toMatch(
+                /from ['"].*onlineMusic\/omni['"]|omni\.(?:searchSongs|getLyrics|getChorusRanges)/,
+            );
+        }
+    });
 });

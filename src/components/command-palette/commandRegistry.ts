@@ -723,10 +723,6 @@ export const getAvailableCommandPaletteCommands = (context?: CommandPaletteConte
         }
     }
 
-    if (command.id === 'playback-auto-match-best-lyric') {
-        return Boolean(context?.enableAlternativeLyricSources);
-    }
-
     if (command.id === 'theme-generate-current') {
         return context ? context.canGenerateAITheme && !context.isGeneratingTheme : true;
     }

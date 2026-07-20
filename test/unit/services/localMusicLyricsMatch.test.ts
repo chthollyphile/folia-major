@@ -23,7 +23,6 @@ vi.mock('@/services/netease', () => ({
 vi.mock('@/stores/useSettingsUiStore', () => ({
     useSettingsUiStore: {
         getState: () => ({
-            enableAlternativeLyricSources: true,
             autoUseBestLyric: true,
             preferredAlternativeLyricSource: 'amll',
         }),
@@ -60,6 +59,13 @@ describe('localMusicService lyric matching', () => {
             lyrics,
             source: 'netease',
             id: 987,
+            song: {
+                id: 987,
+                name: 'Correct title',
+                artists: [{ id: 1, name: 'Correct artist' }],
+                album: { id: 2, name: 'Correct album' },
+                durationMs: 200000,
+            },
         });
         const localSong = song();
 

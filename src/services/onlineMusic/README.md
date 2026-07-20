@@ -49,6 +49,8 @@ Omni 提供的能力按业务模块分类整理如下：
 - `searchSongs(query, page)`: 在当前活跃 Provider 中分页搜索歌曲。
 - `searchProviderSongs(providerId, query, page)`: 在指定 Provider 中分页搜索歌曲。
 
+歌词多源匹配和本地元数据匹配属于显式跨 Provider 编排：它们必须按指定 provider 调用 registry，不得使用会随 active provider 切换的 `searchSongs`。
+
 ### 4. 音乐库与用户资产 (User Library & Collections)
 - `getUserPlaylists(userId, page)` / `getProviderUserPlaylists(providerId, userId, page)`: 分页获取用户的自建与收藏歌单。
 - `getUserAlbums(userId, page)`: 分页获取用户收藏的专辑列表。

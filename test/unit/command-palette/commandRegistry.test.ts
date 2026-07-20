@@ -44,7 +44,6 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     toggleSubtitleOverlayBackground: vi.fn(),
     toggleDaylightMode: vi.fn(),
     setAppLanguagePreference: vi.fn(async () => undefined),
-    enableAlternativeLyricSources: false,
     runAutoMatchBestLyric: vi.fn(async () => true),
     setIsUserGuideModalOpen: vi.fn(),
     openThemeQuickEditor: vi.fn(),
@@ -317,16 +316,13 @@ describe('command palette registry', () => {
         expect(context.shuffleQueue).toHaveBeenCalled();
     });
 
-    it('shows best lyric auto-match command only when alternative lyric sources are enabled', async () => {
-        const disabledContext = createContext({ enableAlternativeLyricSources: false });
-        expect(getCommandPaletteMatches('最佳歌词', disabledContext).some(match => match.command.id === 'playback-auto-match-best-lyric')).toBe(false);
-
-        const enabledContext = createContext({ enableAlternativeLyricSources: true });
-        const [match] = getCommandPaletteMatches('最佳歌词', enabledContext);
+    it('always exposes the best lyric auto-match command', async () => {
+        const context = createContext();
+        const [match] = getCommandPaletteMatches('最佳歌词', context);
         expect(match.command.id).toBe('playback-auto-match-best-lyric');
 
-        await match.command.execute(match.input, enabledContext);
-        expect(enabledContext.runAutoMatchBestLyric).toHaveBeenCalled();
+        await match.command.execute(match.input, context);
+        expect(context.runAutoMatchBestLyric).toHaveBeenCalled();
     });
 
     it('filters out settings-desktop command in a web browser environment without electron', () => {

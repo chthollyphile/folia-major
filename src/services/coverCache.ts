@@ -24,7 +24,9 @@ const buildCoverRequestUrl = (coverUrl: string): string => {
     if (typeof window !== 'undefined' && window.electron) return coverUrl;
     try {
         const hostname = new URL(coverUrl).hostname;
-        if (hostname === 'y.gtimg.cn') {
+        if (hostname === 'y.gtimg.cn'
+            || hostname === 'kugou.com' || hostname.endsWith('.kugou.com')
+            || hostname === 'kgimg.com' || hostname.endsWith('.kgimg.com')) {
             return `/api/lyric-proxy?url=${encodeURIComponent(coverUrl)}`;
         }
     } catch {

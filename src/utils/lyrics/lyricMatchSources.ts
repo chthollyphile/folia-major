@@ -1,9 +1,7 @@
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
-import { omni } from '../../services/onlineMusic/omni';
 import type { AmllDbPlatform, LyricData, LyricProviderSource, SongResult } from '../../types';
 import { calculateMatchScore, calculateMatchScoreDetails } from './matchScore';
 import { searchQQLyrics, fetchQQLyrics } from './providers/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from './providers/kugouLyricProvider';
 import { fetchAmllDbLyrics } from './providers/amllDbProvider';
 import { applyNeteaseChorusByTime } from './chorusEffects';
 
@@ -119,7 +117,8 @@ export async function searchLyricsByMatchSource(
         return sortByMatchScore(await searchQQLyrics(query), target);
     }
     if (source === 'kugou') {
-        return sortByMatchScore(await searchKugouLyrics(query), target);
+        const page = await getOnlineMusicProvider('kugou')?.search?.searchSongs(query, 50, 0);
+        return sortByMatchScore(page?.items || [], target);
     }
     return searchAmllDbLyricCandidates(query, target);
 }
@@ -143,10 +142,9 @@ export async function fetchLyricsForMatchSource(
         };
     }
     if (source === 'kugou') {
-        return {
-            lyrics: await fetchKugouLyrics(selectedResult),
-            isPureMusic: false,
-        };
+        const result = await getOnlineMusicProvider('kugou')?.lyrics?.getLyrics(selectedResult);
+        if (!result) return null;
+        return { lyrics: result.lyrics, isPureMusic: result.isPureMusic };
     }
 
     const platform = selectedResult.amllDbPlatform;
@@ -155,7 +153,7 @@ export async function fetchLyricsForMatchSource(
     }
     const lyrics = await fetchAmllDbLyrics(platform, selectedResult.id);
     const chorusRanges = platform === 'ncm' && !hasChorusMarkers(lyrics)
-        ? await omni.getChorusRanges(selectedResult)
+        ? await getOnlineMusicProvider('netease')?.lyrics?.getChorusRanges?.(selectedResult.id) ?? []
         : [];
 
     return {

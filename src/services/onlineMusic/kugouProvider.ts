@@ -11,7 +11,8 @@ import type {
     ProviderPage,
     ProviderUser,
 } from '../../types/onlineMusic';
-import { fetchKugouLyrics } from '../../utils/lyrics/providers/kugouLyricProvider';
+import { parseLyricsByFormat } from '../../utils/lyrics/parserCore';
+import { isPureMusicLyricText } from '../../utils/lyrics/pureMusic';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { normalizeSongTitleForLyricSearch } from '../../utils/lyrics/searchQuery';
 import { removeProviderSessionValue, readProviderSessionValue } from './providerStorage';
@@ -596,6 +597,57 @@ const getKugouChorusRanges = async (songId: MediaId): Promise<ChorusRange[]> => 
     return request;
 };
 
+const getKugouLyricCandidate = async (song: SongResult): Promise<any | null> => {
+    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou'
+        ? song.sourceRef
+        : null;
+    const albumAudioId = sourceRef?.providerData?.albumAudioId
+        ?? sourceRef?.providerData?.mixSongId
+        ?? sourceRef?.providerData?.catalogLookupId;
+    const response = await requestKugou('search_lyric', {
+        hash: String(song.kgHash ?? song.id).toUpperCase(),
+        duration: song.durationMs,
+        man: 'no',
+        ...(albumAudioId !== undefined ? { album_audio_id: String(albumAudioId) } : {}),
+    });
+    const candidates = (response as any)?.candidates;
+    return Array.isArray(candidates) ? candidates[0] ?? null : null;
+};
+
+// Fetches the server-decoded KRC payload exposed by the current KuGou provider API.
+const getKugouLyrics = async (song: SongResult) => {
+    const candidate = await getKugouLyricCandidate(song);
+    if (!candidate?.id || !candidate?.accesskey) {
+        return { lyrics: null, isPureMusic: false, chorusRanges: [] };
+    }
+
+    const response = await requestKugou('lyric', {
+        id: String(candidate.id),
+        accesskey: String(candidate.accesskey),
+        fmt: 'krc',
+        decode: true,
+    });
+    const lyricText = typeof (response as any)?.decodeContent === 'string'
+        ? (response as any).decodeContent
+        : '';
+    if (isPureMusicLyricText(lyricText)) {
+        return { lyrics: null, mainText: lyricText, wordByWordText: lyricText, isPureMusic: true, chorusRanges: [] };
+    }
+    const parsed = lyricText ? parseLyricsByFormat('krc', lyricText, '') : null;
+    if (!parsed) {
+        return { lyrics: null, mainText: lyricText || null, wordByWordText: lyricText || null, isPureMusic: false, chorusRanges: [] };
+    }
+    parsed.isWordByWord = true;
+    const songId = song.kgHash ?? song.id;
+    return {
+        lyrics: parsed,
+        mainText: lyricText,
+        wordByWordText: lyricText,
+        isPureMusic: false,
+        chorusRanges: await getKugouChorusRanges(songId),
+    };
+};
+
 const getKugouUserPlaylistItems = async (userId: MediaId): Promise<any[]> => {
     const response = await requestKugou('user_playlist', {
         userid: String(userId),
@@ -793,16 +845,7 @@ export const kugouProvider: OnlineMusicProvider = {
         },
     },
     lyrics: {
-        async getLyrics(song) {
-            const chorusRanges = await getKugouChorusRanges(song.kgHash ?? song.id);
-            const lyrics = await fetchKugouLyrics(song, { chorusRanges });
-            return {
-                lyrics,
-                isPureMusic: Boolean(lyrics?.isPureMusic),
-                wordByWordText: lyrics ? 'krc' : null,
-                chorusRanges,
-            };
-        },
+        getLyrics: getKugouLyrics,
         getChorusRanges: getKugouChorusRanges,
     },
     auth: {

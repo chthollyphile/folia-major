@@ -7,7 +7,6 @@ import type { MediaId } from '../../types/onlineMusic';
 import { saveToCache, getFromCacheWithMigration } from '../../services/db';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/storageMigration';
-import { useSettingsUiStore } from '../../stores/useSettingsUiStore';
 import { calculateMatchScore } from '../../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../../utils/lyrics/searchQuery';
 import { fetchLyricsForMatchSource, LYRIC_MATCH_SOURCES, searchLyricsByMatchSource, sourceSupportsManualSearch } from '../../utils/lyrics/lyricMatchSources';
@@ -77,7 +76,6 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
 
     // Online data toggle state
     const [lyricsSource, setLyricsSource] = useState<'navi' | 'online'>('online');
-    const enableAlternativeLyricSources = useSettingsUiStore(state => state.enableAlternativeLyricSources);
     const [source, setSource] = useState<LyricMatchSource>('netease');
 
     const navidromeMetadata = getProviderSongMetadata(song);
@@ -174,12 +172,6 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
         };
     }, [song, source, navidromeArtist, navidromeAlbum]);
 
-    useEffect(() => {
-        if (!enableAlternativeLyricSources && source !== 'netease') {
-            setSource('netease');
-        }
-    }, [enableAlternativeLyricSources, source]);
-
     // When a search result is selected, update lyricsSource to 'online'
     useEffect(() => {
         if (selectedResult) {
@@ -266,7 +258,6 @@ const NaviLyricMatchModal: React.FC<NaviLyricMatchModalProps> = ({ song, onClose
                         <div className="p-4">
                             <div className={`flex border-b ${borderColor} pb-2 mb-3.5 gap-4`}>
                                 {LYRIC_MATCH_SOURCES
-                                    .filter(id => id === 'netease' || enableAlternativeLyricSources)
                                     .map(id => ({ id, label: getLyricMatchSourceLabel(id) }))
                                     .map(t => {
                                     const isSelected = source === t.id;

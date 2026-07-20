@@ -181,17 +181,14 @@ const getLyrics = async (
     if (song.sourceRef?.kind === 'online' && song.sourceRef.variant === 'cloud' && context?.userId != null) {
         const response = await neteaseApi.getCloudLyric(toNeteaseId(context.userId), toNeteaseId(song.id));
         const mainText = extractCloudLyricText(response);
-        const processed = await processNeteaseLyrics(
-            { type: 'netease', lrc: { lyric: mainText } },
-            { songId: toNeteaseId(song.id), fetchChorusRanges: getNeteaseChorusRanges },
-        );
+        const processed = await processNeteaseLyrics({ type: 'netease', lrc: { lyric: mainText } });
         return {
             lyrics: processed.lyrics,
             mainText,
             wordByWordText: null,
             translationText: null,
             isPureMusic: processed.isPureMusic,
-            chorusRanges: processed.chorusRanges,
+            chorusRanges: await getNeteaseChorusRanges(song.id),
         };
     }
 
@@ -200,7 +197,6 @@ const getLyrics = async (
         typeof neteaseApi.getProcessedLyricPayload === 'function'
             ? neteaseApi.getProcessedLyricPayload(response)
             : response,
-        { songId: toNeteaseId(song.id), fetchChorusRanges: getNeteaseChorusRanges },
     );
     return {
         lyrics: processed.lyrics,
@@ -208,7 +204,7 @@ const getLyrics = async (
         wordByWordText: processed.yrcLrc,
         translationText: processed.transLrc,
         isPureMusic: processed.isPureMusic,
-        chorusRanges: processed.chorusRanges,
+        chorusRanges: await getNeteaseChorusRanges(song.id),
     };
 };
 
