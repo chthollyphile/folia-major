@@ -59,13 +59,9 @@ const getUserCloudPlaylist = async (user: ProviderUser, t: (key: string) => stri
 };
 
 export function useNeteaseLibrary({
-    currentView,
-    hasOverlay,
     setStatusMsg,
     t,
 }: {
-    currentView: 'home' | 'player';
-    hasOverlay: boolean;
     setStatusMsg: StatusSetter;
     t: (key: string) => string;
 }) {
@@ -76,7 +72,6 @@ export function useNeteaseLibrary({
     const [isSyncing, setIsSyncing] = useState(false);
     const [cacheSize, setCacheSize] = useState<string>('0 B');
     const [isUserDataReady, setIsUserDataReady] = useState(false);
-    const lastCheckTimeRef = useRef<number>(0);
     const lastRefreshAuthExpiredRef = useRef(false);
     const updateProviderAccount = useOnlineProviderAccountStore(state => state.updateAccount);
     const clearProviderAccount = useOnlineProviderAccountStore(state => state.clearAccount);
@@ -196,103 +191,6 @@ export function useNeteaseLibrary({
         }
     }, [refreshUserData]);
 
-    const checkAndUpdatePlaylists = useCallback(async () => {
-        if (!user) return;
-
-        try {
-            const profile = await omni.getLoginStatus('netease');
-            if (!profile) {
-                await clearAuthState();
-                return;
-            }
-
-            setUser(profile);
-            await saveToCache(NETEASE_USER_CACHE_KEYS.profile, profile);
-
-            const newPlaylists = await getAllUserPlaylists(profile.id);
-            if (!newPlaylists || newPlaylists.length === 0) return;
-            const nextCloudPlaylist = await getUserCloudPlaylist(profile, t);
-
-            const cachedPlaylistsRaw = await getProviderCacheWithLegacyMigration<unknown>('netease', 'user_playlists', ['user_playlists']);
-            const cachedPlaylists = Array.isArray(cachedPlaylistsRaw)
-                ? cachedPlaylistsRaw.map(item => omni.normalizeCachedCollection('netease', item, 'playlist')).filter(Boolean) as ProviderCollection[]
-                : [];
-
-            if (cachedPlaylists.length === 0) {
-                setPlaylists(newPlaylists);
-                await saveToCache(NETEASE_USER_CACHE_KEYS.playlists, newPlaylists);
-                return;
-            }
-
-            const cachedMap = new Map<MediaId, ProviderCollection>();
-            cachedPlaylists.forEach(playlist => {
-                cachedMap.set(playlist.id, playlist);
-            });
-
-            const changedPlaylistIds: MediaId[] = [];
-            let likedSongsPlaylistChanged = false;
-
-            newPlaylists.forEach((newPlaylist, index) => {
-                const oldPlaylist = cachedMap.get(newPlaylist.id);
-                const isLikedSongsPlaylist = index === 0;
-
-                if (!oldPlaylist) {
-                    changedPlaylistIds.push(newPlaylist.id);
-                    if (isLikedSongsPlaylist) likedSongsPlaylistChanged = true;
-                    return;
-                }
-
-                const trackTimeChanged = (newPlaylist.tracksUpdatedAt || 0) !== (oldPlaylist.tracksUpdatedAt || 0);
-                const updateTimeChanged = (newPlaylist.updatedAt || 0) !== (oldPlaylist.updatedAt || 0);
-
-                if (trackTimeChanged || updateTimeChanged) {
-                    changedPlaylistIds.push(newPlaylist.id);
-                    if (isLikedSongsPlaylist) likedSongsPlaylistChanged = true;
-                }
-            });
-
-            const newPlaylistIds = new Set(newPlaylists.map(playlist => playlist.id));
-            cachedPlaylists.forEach(oldPlaylist => {
-                if (!newPlaylistIds.has(oldPlaylist.id)) {
-                    changedPlaylistIds.push(oldPlaylist.id);
-                }
-            });
-
-            if (changedPlaylistIds.length > 0) {
-                try {
-                    await removeCacheEntries(changedPlaylistIds.flatMap(playlistId => [
-                        getProviderCacheKey('netease', `playlist_tracks_${playlistId}`),
-                        getProviderCacheKey('netease', `playlist_detail_${playlistId}`),
-                    ]));
-                } catch (error) {
-                    console.error('[PlaylistSync] Failed to clear cache', error);
-                }
-            }
-
-            setPlaylists(newPlaylists);
-            await saveToCache(NETEASE_USER_CACHE_KEYS.playlists, newPlaylists);
-            setCloudPlaylist(nextCloudPlaylist);
-            await saveToCache(NETEASE_USER_CACHE_KEYS.cloudPlaylist, nextCloudPlaylist);
-
-            if (likedSongsPlaylistChanged && newPlaylists.length > 0) {
-                try {
-                    const ids = await omni.getProviderLikedSongIds('netease', profile.id);
-                    if (ids) {
-                        setLikedSongIds(new Set(ids));
-                        await saveToCache(NETEASE_USER_CACHE_KEYS.likedSongs, ids);
-                    }
-                } catch (error) {
-                    console.warn('[PlaylistSync] Failed to refetch liked songs', error);
-                }
-            }
-        } catch (error) {
-            console.error('[PlaylistSync] Failed to check playlists', error);
-            if (error instanceof Error && error.message === 'NETEASE_AUTH_EXPIRED') {
-                await clearAuthState();
-            }
-        }
-    }, [clearAuthState, t, user]);
-
     const handleClearCache = useCallback(async () => {
         const preserveKeys = [...Object.values(NETEASE_USER_CACHE_KEYS), 'last_song', 'last_queue', 'last_theme'];
 
@@ -354,16 +252,6 @@ export function useNeteaseLibrary({
     useEffect(() => {
         loadUserData();
     }, [loadUserData]);
-
-    useEffect(() => {
-        if (currentView === 'home' && user && !hasOverlay) {
-            const now = Date.now();
-            if (now - lastCheckTimeRef.current > 10000) {
-                lastCheckTimeRef.current = now;
-                checkAndUpdatePlaylists();
-            }
-        }
-    }, [checkAndUpdatePlaylists, currentView, hasOverlay, user]);
 
     return {
         user,

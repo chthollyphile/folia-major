@@ -35,7 +35,7 @@ import { getProviderCacheKey } from '../services/onlineMusic/providerStorage';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { PlayerState } from '../types';
 import type { LyricData, LocalPlaylist, LocalSong, OnlineLyricsState, QueueAddBehavior, SongResult, StatusMessage } from '../types';
-import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
+import type { AudioQualityPreference, MediaId, ProviderCollection } from '../types/onlineMusic';
 import type { PlaybackSnapshot, PlaybackNavigationOptions } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
 import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal';
@@ -45,7 +45,6 @@ import { createSafeObjectUrl, getBlobObjectUrlSignature, isBlob } from '../utils
 import { applyMatchedMetadata } from '../services/localLibraryCatalogService';
 import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata, shouldRunLocalSongAutomaticMatch } from '../utils/lyrics/localSongMatchContext';
 import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRepository';
-import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 
 // src/hooks/useLibraryPlaybackController.ts
 
@@ -374,18 +373,11 @@ export function useLibraryPlaybackController({
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, loadLocalPlaylists, resolveLocalSongRecord, setStatusMsg, t]);
 
-    const addCurrentSongToNeteasePlaylist = useCallback(async (playlistId: number) => {
-        if (!currentSong || isLocalPlaybackSong(currentSong) || isNavidromePlaybackSong(currentSong)) {
-            throw new Error('Current song is not a Netease song');
-        }
-
-        const sourceRef = getPlaybackSourceRef(currentSong);
-        if (sourceRef.kind !== 'online' || sourceRef.providerId !== 'netease') {
-            throw new Error('Current provider cannot update this playlist');
-        }
-        await omni.updateCollectionTracks({ providerId: 'netease', id: playlistId, name: '', type: 'playlist' }, 'add', [currentSong]);
-        await removeFromCache(getProviderCacheKey('netease', `playlist_tracks_${playlistId}`));
-        await removeFromCache(getProviderCacheKey('netease', `playlist_detail_${playlistId}`));
+    const addCurrentSongToOnlinePlaylist = useCallback(async (playlist: ProviderCollection) => {
+        if (!currentSong) throw new Error('No current song');
+        await omni.addSongToPlaylist(currentSong, playlist);
+        await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_tracks_${playlist.id}`));
+        await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_detail_${playlist.id}`));
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
@@ -1471,28 +1463,18 @@ export function useLibraryPlaybackController({
             setStatusMsg({ type: 'error', text: t('status.likeFailed') });
             return;
         }
-        const providerAccount = useOnlineProviderAccountStore.getState().accounts[sourceRef.providerId];
-        const numericSongId = sourceRef.providerId === 'netease' ? Number(currentSong.id) : null;
-        const isCurrentlyLiked = numericSongId != null
-            ? likedSongIds.has(numericSongId)
-            : Boolean(providerAccount?.likedSongIds.some(id => String(id) === String(currentSong.id)));
-        const nextLiked = !isCurrentlyLiked;
         try {
-            await omni.likeSong(currentSong, nextLiked);
-            if (numericSongId != null) {
+            const nextLiked = await omni.toggleSongLike(currentSong, likedSongIds);
+            if (sourceRef.providerId === 'netease') {
                 setLikedSongIds(prev => {
                     const next = new Set(prev);
-                    if (nextLiked) next.add(numericSongId);
-                    else next.delete(numericSongId);
+                    for (const id of next) {
+                        if (String(id) === String(sourceRef.mediaId)) next.delete(id);
+                    }
+                    if (nextLiked) next.add(sourceRef.mediaId);
                     return next;
                 });
             }
-            const currentProviderLikedIds = providerAccount?.likedSongIds || [];
-            useOnlineProviderAccountStore.getState().updateAccount(sourceRef.providerId, {
-                likedSongIds: nextLiked
-                    ? [...currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)), currentSong.id]
-                    : currentProviderLikedIds.filter(id => String(id) !== String(currentSong.id)),
-            });
             setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : t('status.unliked') || 'Removed from Liked' });
         } catch (error) {
             console.error('Like failed', error);
@@ -1527,7 +1509,7 @@ export function useLibraryPlaybackController({
         saveCurrentQueueAsLocalPlaylist,
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
-        addCurrentSongToNeteasePlaylist,
+        addCurrentSongToOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         resolveLocalMetadataUI,

@@ -832,8 +832,6 @@ export default function App() {
         handleLogout,
         setLikedSongIds,
     } = useNeteaseLibrary({
-        currentView,
-        hasOverlay: hasCollection,
         setStatusMsg,
         t,
     });
@@ -864,6 +862,27 @@ export default function App() {
         return true;
     }, [audioRef, audioSrc, setLyrics, t]);
     const onlineProviderPlatform = useOnlineProviderPlatform(onlineProviderRefreshers, prepareOnlineProviderSwitch);
+    const refreshActiveProviderPlaylists = useCallback(
+        () => omni.refreshProviderPlaylists(onlineProviderPlatform.activeProviderId),
+        [onlineProviderPlatform.activeProviderId],
+    );
+    const lastHomeProviderRefreshRef = useRef<{ providerId: OnlineProviderId; at: number } | null>(null);
+    useEffect(() => {
+        if (currentView !== 'home' || hasCollection) return;
+
+        const providerId = onlineProviderPlatform.activeProviderId;
+        const now = Date.now();
+        const previous = lastHomeProviderRefreshRef.current;
+        if (previous?.providerId === providerId && now - previous.at <= 10_000) return;
+
+        lastHomeProviderRefreshRef.current = { providerId, at: now };
+        void refreshActiveProviderPlaylists().catch(error => {
+            console.warn('[Omni] Failed to refresh active provider playlists on home entry', {
+                providerId,
+                name: error instanceof Error ? error.name : 'Error',
+            });
+        });
+    }, [currentView, hasCollection, onlineProviderPlatform.activeProviderId, refreshActiveProviderPlaylists]);
 
     const {
         stageStatus,
@@ -1009,7 +1028,7 @@ export default function App() {
         saveCurrentQueueAsLocalPlaylist,
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
-        addCurrentSongToNeteasePlaylist,
+        addCurrentSongToOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         loadCurrentSongLyricPreview,
@@ -1404,8 +1423,7 @@ export default function App() {
                 const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
                 return navidromeSong ? starredNavidromeSongIds.has(navidromeSong.navidromeData.id) : false;
             }
-            return getOnlineProviderIdForSong(currentSong) === 'netease'
-                && [...likedSongIds].some(id => String(id) === String(currentSong.id));
+            return omni.isSongLiked(currentSong, likedSongIds);
         })(),
         onLike: handleLike,
     });
@@ -2071,7 +2089,7 @@ export default function App() {
         onlineProviderPlatform,
         playSong,
         navigateToPlayer,
-        refreshUserData,
+        refreshOnlineProviderPlaylists: refreshActiveProviderPlaylists,
         user,
         playlists,
         cloudPlaylist,
@@ -2227,7 +2245,7 @@ export default function App() {
         playSong,
         queueAddBehavior,
         audioOutputDeviceId,
-        refreshUserData,
+        refreshActiveProviderPlaylists,
         saveCustomDualTheme,
         setFocusedFavoriteAlbumIndex,
         setFocusedPlaylistIndex,
@@ -2265,6 +2283,9 @@ export default function App() {
     const playerDisplayQueue = useMemo(() => (
         playQueue.map(song => applyLocalLibraryEntityDisplay(song, localLibraryCatalog, playerDisplayCatalogIndex))
     ), [localLibraryCatalog, playQueue, playerDisplayCatalogIndex]);
+    const onlinePlaylists = useMemo(() => {
+        return playerDisplayCurrentSong ? omni.getPlaylistsForSong(playerDisplayCurrentSong) : [];
+    }, [onlineProviderPlatform.providers, playerDisplayCurrentSong]);
 
     const playerPanelModel = useMemo(() => buildPlayerPanelModel({
         isPanelOpen,
@@ -2289,8 +2310,7 @@ export default function App() {
                 const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
                 return navidromeSong ? starredNavidromeSongIds.has(navidromeSong.navidromeData.id) : false;
             }
-            return getOnlineProviderIdForSong(currentSong) === 'netease'
-                && [...likedSongIds].some(id => String(id) === String(currentSong.id));
+            return omni.isSongLiked(currentSong, likedSongIds);
         })(),
         generateAITheme: generateCurrentSongTheme,
         isGeneratingTheme,
@@ -2345,11 +2365,11 @@ export default function App() {
         moveQueueSongToEnd,
         moveQueueSongToNext,
         localPlaylists,
-        playlists,
+        onlinePlaylists,
         saveCurrentQueueAsLocalPlaylist,
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
-        addCurrentSongToNeteasePlaylist,
+        addCurrentSongToOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         openCurrentLocalAlbum: () => {
@@ -2472,7 +2492,7 @@ export default function App() {
         activePlaybackContext,
         addCurrentSongToLocalPlaylist,
         addCurrentSongToNavidromePlaylist,
-        addCurrentSongToNeteasePlaylist,
+        addCurrentSongToOnlinePlaylist,
         audioQuality,
         cacheSize,
         canGenerateAITheme,
@@ -2516,6 +2536,8 @@ export default function App() {
         isPanelOpen,
         isSyncing,
         likedSongIds,
+        onlineProviderPlatform.providers,
+        onlinePlaylists,
         starredNavidromeSongIds,
         localPlaylists,
         lyrics,
@@ -2525,7 +2547,6 @@ export default function App() {
         panelTab,
         playSong,
         playerState,
-        playlists,
         queueScrollRef,
         replayGainMode,
         saveCurrentQueueAsLocalPlaylist,

@@ -19,7 +19,7 @@ type BuildHomeModelParams = {
     onlineProviderPlatform?: OnlineProviderPlatformState;
     playSong: HomeSurfaceProps['onPlaySong'];
     navigateToPlayer: HomeSurfaceProps['onBackToPlayer'];
-    refreshUserData: () => Promise<unknown>;
+    refreshOnlineProviderPlaylists: () => Promise<unknown>;
     user: HomeSurfaceProps['user'];
     playlists: HomeSurfaceProps['playlists'];
     cloudPlaylist?: HomeSurfaceProps['cloudPlaylist'];
@@ -79,7 +79,7 @@ export const buildHomeModel = ({
     onlineProviderPlatform,
     playSong,
     navigateToPlayer,
-    refreshUserData,
+    refreshOnlineProviderPlaylists,
     user,
     playlists,
     cloudPlaylist,
@@ -141,7 +141,7 @@ export const buildHomeModel = ({
         surfaceProps: {
             onPlaySong: playSong,
             onBackToPlayer: navigateToPlayer,
-            onRefreshUser: () => refreshUserData(),
+            onRefreshUser: () => refreshOnlineProviderPlaylists(),
             user: onlineProviderPlatform?.activeProvider?.user ?? user,
             playlists: onlineProviderPlatform?.activeProvider?.collections.filter(collection => collection.type !== 'cloud') ?? playlists,
             cloudPlaylist: onlineProviderPlatform?.activeProvider?.collections.find(collection => collection.type === 'cloud') ?? cloudPlaylist,

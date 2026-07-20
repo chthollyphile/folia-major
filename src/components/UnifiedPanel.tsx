@@ -17,7 +17,7 @@ import TextInputDialog from './shared/TextInputDialog';
 import type { OnlineLyricsState } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
-import { getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
+import { getPlaybackSourceRef, getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics';
 
@@ -110,11 +110,11 @@ type UnifiedPanelAccountProps = {
 
 type UnifiedPanelLibraryProps = {
     localPlaylists: LocalPlaylist[];
-    neteasePlaylists: ProviderCollection[];
+    onlinePlaylists: ProviderCollection[];
     onSaveCurrentQueueAsPlaylist: (name: string) => Promise<void>;
     onAddCurrentSongToLocalPlaylist: (playlistId: string) => Promise<void>;
     onCreateCurrentLocalPlaylist: (name: string) => Promise<void>;
-    onAddCurrentSongToNeteasePlaylist: (playlistId: number) => Promise<void>;
+    onAddCurrentSongToOnlinePlaylist: (playlist: ProviderCollection) => Promise<void>;
     onAddCurrentSongToNavidromePlaylist: (playlistId: string) => Promise<void>;
     onCreateCurrentNavidromePlaylist: (name: string) => Promise<void>;
     onOpenCurrentLocalAlbum: () => void;
@@ -201,11 +201,11 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const { playQueue, onPlaySong, queueScrollRef, onShuffle, onRemoveSong, onMoveSongToEnd, onMoveSongToNext } = queue;
     const {
         localPlaylists,
-        neteasePlaylists,
+        onlinePlaylists,
         onSaveCurrentQueueAsPlaylist,
         onAddCurrentSongToLocalPlaylist,
         onCreateCurrentLocalPlaylist,
-        onAddCurrentSongToNeteasePlaylist,
+        onAddCurrentSongToOnlinePlaylist,
         onAddCurrentSongToNavidromePlaylist,
         onCreateCurrentNavidromePlaylist,
         onOpenCurrentLocalAlbum,
@@ -239,12 +239,14 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const isStage = isStageContext || Boolean(currentSong && (currentSong as any).isStage === true);
     const isNavidrome = currentSong && (currentSong as any).isNavidrome === true;
     const isLocal = currentSong && !isNavidrome && (((currentSong as any).isLocal === true) || Boolean((currentSong as any).localRef?.songId));
-    const isNetease = Boolean(currentSong && !isLocal && !isNavidrome && !isStage);
+    const playbackSourceRef = currentSong ? getPlaybackSourceRef(currentSong) : null;
+    const isOnline = playbackSourceRef?.kind === 'online';
+    const isNetease = isOnline && playbackSourceRef.providerId === 'netease';
     const canCreateLocalPlaylist = isLocal;
     const canCreateNavidromePlaylist = isNavidrome;
     const canAddCurrentSongToPlaylist =
         (isLocal && (localPlaylists.length > 0 || canCreateLocalPlaylist))
-        || (isNetease && neteasePlaylists.length > 0)
+        || (isOnline && onlinePlaylists.length > 0)
         || (isNavidrome && (navidromePlaylists.length > 0 || canCreateNavidromePlaylist));
     const supportsHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     const refreshNavidromePlaylists = React.useCallback(async () => {
@@ -272,8 +274,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             }));
         }
 
-        if (isNetease) {
-            return neteasePlaylists.map((playlist) => ({
+        if (isOnline) {
+            return onlinePlaylists.map((playlist) => ({
                 id: playlist.id,
                 name: playlist.name,
                 description: `${playlist.trackCount || 0} ${t('playlist.tracks')}`,
@@ -285,7 +287,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         }
 
         return [];
-    }, [isLocal, isNetease, isNavidrome, localPlaylists, navidromePlaylists, neteasePlaylists, t]);
+    }, [isLocal, isOnline, isNavidrome, localPlaylists, navidromePlaylists, onlinePlaylists, t]);
 
     React.useEffect(() => {
         let cancelled = false;
@@ -925,8 +927,10 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                             return;
                         }
 
-                        if (isNetease) {
-                            await onAddCurrentSongToNeteasePlaylist(Number(playlistId));
+                        if (isOnline) {
+                            const playlist = onlinePlaylists.find(item => String(item.id) === String(playlistId));
+                            if (!playlist) throw new Error('Selected playlist is unavailable');
+                            await onAddCurrentSongToOnlinePlaylist(playlist);
                             return;
                         }
 

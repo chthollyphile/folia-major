@@ -321,6 +321,42 @@ describe('kugouProvider', () => {
         });
     });
 
+    it('uses the newest liked song cover when KuGou leaves the liked playlist cover empty', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{
+                        type: 0,
+                        source: 1,
+                        listid: 2,
+                        name: '我喜欢',
+                        pic: '',
+                        global_collection_id: 'collection_3_user_2_0',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    songs: [{
+                        hash: 'ABC123',
+                        name: 'Newest liked song',
+                        cover: 'http://imge.kugou.com/stdmusic/{size}/20260720/newest.jpg',
+                    }],
+                },
+            });
+
+        const page = await kugouProvider.library?.getUserPlaylists?.('user', 50, 0);
+
+        expect(page?.items[0]).toMatchObject({
+            id: 'collection_3_user_2_0',
+            name: '我喜欢',
+            coverUrl: 'https://imge.kugou.com/stdmusic/400/20260720/newest.jpg',
+        });
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_track_all', {
+            id: 'collection_3_user_2_0', page: 1, pagesize: 1,
+        });
+    });
+
     it('separates mixed user playlists from favorite albums', async () => {
         const response = {
             data: {
@@ -337,7 +373,7 @@ describe('kugouProvider', () => {
                         type: 1,
                         source: 1,
                         global_collection_id: 'collection_3_user_2_0',
-                        listid: 2,
+                        listid: 11,
                         name: 'Favorite playlist',
                         count: 3,
                     },
@@ -370,6 +406,39 @@ describe('kugouProvider', () => {
         ]);
         expect(requestMock).toHaveBeenNthCalledWith(1, 'user_playlist', { userid: 'user', page: 1, pagesize: 50 });
         expect(requestMock).toHaveBeenNthCalledWith(2, 'user_playlist', { userid: 'user', page: 1, pagesize: 50 });
+    });
+
+    it('requests the user cloud with the logged-in user id and maps the cloud list payload', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                list: [{
+                    hash: '6AAA167433D31309245EC71E13AB70B7',
+                    author_name: '吉野裕司',
+                    name: '吉野裕司 - 食む.mp3',
+                    timelen: 130533,
+                }],
+                list_count: 1,
+            },
+        });
+
+        const page = await kugouProvider.catalog?.getCloudTracks?.(1000, 0);
+
+        expect(page).toMatchObject({ hasMore: false, nextOffset: 1, total: 1 });
+        expect(page?.items[0]).toMatchObject({
+            id: '6AAA167433D31309245EC71E13AB70B7',
+            name: '食む.mp3',
+            durationMs: 130533,
+            sourceRef: { kind: 'online', providerId: 'kugou', variant: 'cloud' },
+        });
+        expect(requestMock).toHaveBeenCalledWith('user_cloud', {
+            userid: 'web-session-user', page: 1, pagesize: 100,
+        });
+
+        requestMock.mockResolvedValue({ data: { list: [], list_count: 1 } });
+        await kugouProvider.catalog?.getCloudTracks?.(1000, 100);
+        expect(requestMock).toHaveBeenLastCalledWith('user_cloud', {
+            userid: 'web-session-user', page: 2, pagesize: 100,
+        });
     });
 
     it('hydrates playlist cover and introduction from playlist detail', async () => {
@@ -667,7 +736,7 @@ describe('kugouProvider', () => {
             userid: 'user', page: 1, pagesize: 100,
         });
         expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_track_all', {
-            id: 'collection_3_user_2_0', page: 1, pagesize: 1000,
+            id: 'collection_3_user_2_0', page: 1, pagesize: 100,
         });
     });
 
@@ -863,5 +932,56 @@ describe('kugouProvider', () => {
         expect(requestMock).toHaveBeenCalledWith('user_playlist', {
             userid: 'web-session-user', page: 1, pagesize: 100,
         });
+    });
+
+    it('derives album subscription status from source-2 user-library entries', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                info: [{ type: 1, source: 2, musiclib_id: '164446399', listid: 9 }],
+            },
+        });
+
+        await expect(kugouProvider.catalog?.getSubscriptionStatus?.('album', '164446399'))
+            .resolves.toBe(true);
+    });
+
+    it('uses playlist add with source 2 to subscribe an album', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: [{
+                    album_id: '164446399',
+                    album_name: '原神-幽暮衬映之月 Outside It Is Growing Dark',
+                    authors: [{ author_id: '789658', author_name: 'HOYO-MiX' }],
+                }],
+            })
+            .mockResolvedValueOnce({});
+
+        await kugouProvider.mutations?.subscribeAlbum?.('164446399', true);
+
+        expect(requestMock).toHaveBeenNthCalledWith(1, 'album_detail', { id: '164446399' });
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_add', {
+            source: 2,
+            name: '原神-幽暮衬映之月 Outside It Is Growing Dark',
+            type: 1,
+            list_create_userid: '789658',
+            list_create_listid: '164446399',
+        });
+    });
+
+    it('uses the matched user playlist listid to unsubscribe an album', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{ type: 1, source: 2, musiclib_id: '164446399', listid: 9 }],
+                },
+            })
+            .mockResolvedValueOnce({});
+
+        await kugouProvider.mutations?.subscribeAlbum?.('164446399', false);
+
+        expect(requestMock).toHaveBeenNthCalledWith(1, 'user_playlist', {
+            userid: 'web-session-user', page: 1, pagesize: 100,
+        });
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_del', { listid: '9' });
     });
 });

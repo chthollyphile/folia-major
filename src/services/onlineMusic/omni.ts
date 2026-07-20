@@ -95,6 +95,33 @@ export const omni = {
         return this.getProviderSummaries().find(provider => provider.providerId === providerId);
     },
 
+    // Reads cached like state through Omni while preserving Netease's local state during account refreshes.
+    isSongLiked(song: SongResult, fallbackLikedSongIds?: Iterable<MediaId>): boolean {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return false;
+
+        const accountLikedSongIds = useOnlineProviderAccountStore.getState().accounts[source.providerId]?.likedSongIds;
+        const likedSongIds = source.providerId === 'netease' && fallbackLikedSongIds
+            ? fallbackLikedSongIds
+            : accountLikedSongIds || [];
+        return Array.from(likedSongIds).some(id => String(id) === String(source.mediaId));
+    },
+
+    // Toggles a song through its source provider and keeps the provider account cache in sync.
+    async toggleSongLike(song: SongResult, fallbackLikedSongIds?: Iterable<MediaId>): Promise<boolean> {
+        const source = getPlaybackSourceRef(song);
+        const nextLiked = !this.isSongLiked(song, fallbackLikedSongIds);
+        await this.likeSong(song, nextLiked);
+        if (source.kind !== 'online') return nextLiked;
+
+        const account = useOnlineProviderAccountStore.getState().accounts[source.providerId];
+        const likedSongIds = (account?.likedSongIds || []).filter(id => String(id) !== String(source.mediaId));
+        useOnlineProviderAccountStore.getState().updateAccount(source.providerId, {
+            likedSongIds: nextLiked ? [...likedSongIds, source.mediaId] : likedSongIds,
+        });
+        return nextLiked;
+    },
+
     getActiveCapabilities(): OmniProviderCapabilities {
         return activeProvider().capabilities;
     },
@@ -159,6 +186,41 @@ export const omni = {
         const library = requireOnlineMusicProvider(providerId).library;
         if (!library?.getUserPlaylists) return emptyPage(page.offset);
         return library.getUserPlaylists(userId, page.limit, page.offset);
+    },
+
+    // Refreshes one provider's playlist catalog and keeps the Omni account cache current.
+    async refreshProviderPlaylists(providerId: OmniProviderId): Promise<OmniCollection[]> {
+        const account = useOnlineProviderAccountStore.getState().accounts[providerId];
+        const userId = account?.user?.id;
+        if (userId === undefined || userId === null) return [];
+
+        const playlists: OmniCollection[] = [];
+        const limit = 50;
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore && offset < 1000) {
+            const page = await this.getProviderUserPlaylists(providerId, userId, { limit, offset });
+            playlists.push(...page.items.filter(collection => collection.type === 'playlist'));
+            hasMore = page.hasMore && page.nextOffset > offset;
+            offset = page.nextOffset;
+        }
+
+        const existingCollections = account.collections || [];
+        useOnlineProviderAccountStore.getState().updateAccount(providerId, {
+            collections: [
+                ...existingCollections.filter(collection => collection.type !== 'playlist'),
+                ...playlists,
+            ],
+        });
+        return playlists;
+    },
+
+    // Returns the cached playlists owned by the provider that owns the current song.
+    getPlaylistsForSong(song: SongResult): OmniCollection[] {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return [];
+        return useOnlineProviderAccountStore.getState().accounts[source.providerId]?.collections
+            .filter(collection => collection.type === 'playlist') || [];
     },
 
     async getUserAlbums(userId: MediaId, page: PageInput): Promise<OmniPage<OmniCollection>> {
@@ -304,6 +366,25 @@ export const omni = {
         const mutations = providerForCollection(collection).mutations;
         if (!mutations?.updatePlaylistTracks) return unsupported(collection.providerId, 'playlist-track-mutations');
         return mutations.updatePlaylistTracks(operation, collection, tracks);
+    },
+
+    async addSongToPlaylist(song: SongResult, playlist: OmniCollection): Promise<void> {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') {
+            throw new OnlineProviderError('unsupported', 'Only online songs can be added to online playlists');
+        }
+        if (playlist.providerId !== source.providerId || playlist.type !== 'playlist') {
+            throw new OnlineProviderError('unsupported', 'Playlist does not belong to the song provider', source.providerId);
+        }
+        await this.updateCollectionTracks(playlist, 'add', [song]);
+        try {
+            await this.refreshProviderPlaylists(playlist.providerId);
+        } catch (error) {
+            console.warn('[Omni] Failed to refresh provider playlists after mutation', {
+                providerId: playlist.providerId,
+                name: error instanceof Error ? error.name : 'Error',
+            });
+        }
     },
 
     async likeSong(song: SongResult, liked: boolean): Promise<void> {

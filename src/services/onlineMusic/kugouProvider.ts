@@ -270,6 +270,7 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
 };
 
 const KUGOU_RECOMMENDATION_PAGE_SIZE = 30;
+const KUGOU_MAX_PAGE_SIZE = 100;
 const KUGOU_RECOMMENDATION_CARDS = [
     { id: 3006, name: 'VIP 专属推荐' },
     { id: 3001, name: '私人专属好歌' },
@@ -553,18 +554,50 @@ const getId = (value: MediaId | ProviderCollection | SongResult) => typeof value
 
 const getKugouUserId = (): string => String(readProviderSessionValue('kugou', 'userid') || '');
 
-// Finds KuGou's built-in "我喜欢" playlist, which is the provider's song-like collection.
-const getKugouLikedPlaylist = async (userId: MediaId): Promise<any | null> => {
+const getKugouUserPlaylistItems = async (userId: MediaId): Promise<any[]> => {
     const response = await requestKugou('user_playlist', {
         userid: String(userId),
         page: 1,
         pagesize: 100,
     });
-    return listOf(response).find(item => {
-        if (getKugouUserCollectionType(item) !== 'playlist') return false;
-        const name = String(valueOf(item, 'name', 'listname') || '').trim();
-        return name === '我喜欢' || name === '我喜欢的音乐' || valueOf(item, 'listid', 'list_id') === 2;
-    }) ?? null;
+    return listOf(response);
+};
+
+// Loads the raw album metadata needed by KuGou's playlist-based album subscription endpoint.
+const getKugouAlbumDetailRaw = async (id: MediaId): Promise<any | null> => {
+    const response = await requestKugou('album_detail', { id: String(id) });
+    const data = dataOf(response);
+    const rawAlbum = listOf(response)[0] ?? data?.album ?? data;
+    return rawAlbum && typeof rawAlbum === 'object' && !Array.isArray(rawAlbum) ? rawAlbum : null;
+};
+
+// Identifies KuGou's built-in "我喜欢" playlist, which is the provider's song-like collection.
+const isKugouLikedPlaylist = (raw: any): boolean => {
+    if (getKugouUserCollectionType(raw) !== 'playlist') return false;
+    const name = String(valueOf(raw, 'name', 'listname') || '').trim();
+    return name === '我喜欢' || name === '我喜欢的音乐' || valueOf(raw, 'listid', 'list_id') === 2;
+};
+
+// Finds KuGou's built-in "我喜欢" playlist, which is the provider's song-like collection.
+const getKugouLikedPlaylist = async (userId: MediaId): Promise<any | null> => {
+    const items = await getKugouUserPlaylistItems(userId);
+    return items.find(isKugouLikedPlaylist) ?? null;
+};
+
+// Uses the newest liked song's observed cover when KuGou leaves the playlist cover empty.
+const getKugouPlaylistFallbackCover = async (rawPlaylist: any): Promise<string | undefined> => {
+    const globalCollectionId = valueOf(rawPlaylist, 'global_collection_id', 'globalCollectionId');
+    if (globalCollectionId === undefined || globalCollectionId === null) return undefined;
+
+    const response = await requestKugou('playlist_track_all', {
+        id: String(globalCollectionId),
+        page: 1,
+        pagesize: 1,
+    });
+    return listOf(response)
+        .map(normalizeKugouSong)
+        .map(song => song.album.coverUrl)
+        .find((cover): cover is string => Boolean(cover));
 };
 
 const getKugouTrackAddData = (track: MediaId | SongResult): string => {
@@ -779,22 +812,29 @@ export const kugouProvider: OnlineMusicProvider = {
     },
     library: {
         async getUserPlaylists(userId, limit, offset) {
-            const response = await requestKugou('user_playlist', { userid: String(userId), page: Math.floor(offset / limit) + 1, pagesize: limit });
+            const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
+            const response = await requestKugou('user_playlist', { userid: String(userId), page: Math.floor(offset / requestLimit) + 1, pagesize: requestLimit });
             const rawItems = listOf(response);
-            const items = rawItems
+            const playlistItems = rawItems
                 .filter(item => getKugouUserCollectionType(item) === 'playlist')
-                .map(item => normalizeCollection(item, 'playlist', isKugouOwnedPlaylist(item)))
-                .filter(collection => collection.id !== '');
-            return userCollectionPageOf(items, response, limit, offset, rawItems.length);
+                .map(item => ({ raw: item, collection: normalizeCollection(item, 'playlist', isKugouOwnedPlaylist(item)) }))
+                .filter(({ collection }) => collection.id !== '');
+            const items = await Promise.all(playlistItems.map(async ({ raw, collection }) => {
+                if (collection.coverUrl || !isKugouLikedPlaylist(raw)) return collection;
+                const fallbackCover = await getKugouPlaylistFallbackCover(raw).catch(() => undefined);
+                return fallbackCover ? { ...collection, coverUrl: fallbackCover } : collection;
+            }));
+            return userCollectionPageOf(items, response, requestLimit, offset, rawItems.length);
         },
         async getUserAlbums(userId, limit, offset) {
-            const response = await requestKugou('user_playlist', { userid: String(userId), page: Math.floor(offset / limit) + 1, pagesize: limit });
+            const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
+            const response = await requestKugou('user_playlist', { userid: String(userId), page: Math.floor(offset / requestLimit) + 1, pagesize: requestLimit });
             const rawItems = listOf(response);
             const items = rawItems
                 .filter(item => getKugouUserCollectionType(item) === 'album')
                 .map(item => normalizeCollection(item, 'album'))
                 .filter(collection => collection.id !== '');
-            return userCollectionPageOf(items, response, limit, offset, rawItems.length);
+            return userCollectionPageOf(items, response, requestLimit, offset, rawItems.length);
         },
         async getLikedSongIds(userId) {
             const playlist = await getKugouLikedPlaylist(userId);
@@ -803,7 +843,7 @@ export const kugouProvider: OnlineMusicProvider = {
             const response = await requestKugou('playlist_track_all', {
                 id: String(globalCollectionId),
                 page: 1,
-                pagesize: 1000,
+                pagesize: KUGOU_MAX_PAGE_SIZE,
             });
             return listOf(response)
                 .map(normalizeKugouSong)
@@ -818,16 +858,22 @@ export const kugouProvider: OnlineMusicProvider = {
             const recommendationPage = await getKugouRecommendationPage(collection, limit, offset);
             if (recommendationPage) return recommendationPage;
 
-            const response = await requestKugou('playlist_track_all', { id: String(id), pagesize: limit, page: Math.floor(offset / limit) + 1 });
-            return pageOf(listOf(response).map(normalizeKugouSong), response, limit, offset);
+            const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
+            const response = await requestKugou('playlist_track_all', { id: String(id), pagesize: requestLimit, page: Math.floor(offset / requestLimit) + 1 });
+            return pageOf(listOf(response).map(normalizeKugouSong), response, requestLimit, offset);
         },
         async getCloudTracks(limit, offset) {
-            const response = await requestKugou('user_cloud', { page: Math.floor(offset / limit) + 1, pagesize: limit });
+            const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
+            const response = await requestKugou('user_cloud', {
+                userid: getKugouUserId() || undefined,
+                page: Math.floor(offset / requestLimit) + 1,
+                pagesize: requestLimit,
+            });
             const items = listOf(response).map(item => {
                 const song = normalizeKugouSong(item);
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } };
             });
-            return pageOf(items, response, limit, offset);
+            return pageOf(items, response, requestLimit, offset);
         },
         async getPlaylistDetail(id, existingCollection) {
             if (existingCollection && isKugouVirtualRecommendation(existingCollection)) return existingCollection;
@@ -855,10 +901,8 @@ export const kugouProvider: OnlineMusicProvider = {
             };
         },
         async getAlbumDetail(id, existingCollection) {
-            const response = await requestKugou('album_detail', { id: String(id) });
-            const data = dataOf(response);
-            const rawAlbum = listOf(response)[0] ?? data?.album ?? data;
-            if (!rawAlbum || typeof rawAlbum !== 'object' || Array.isArray(rawAlbum)) {
+            const rawAlbum = await getKugouAlbumDetailRaw(id);
+            if (!rawAlbum) {
                 return existingCollection || null;
             }
 
@@ -1035,6 +1079,37 @@ export const kugouProvider: OnlineMusicProvider = {
                 list_create_userid: String(providerData?.creatorUserId || ''),
                 list_create_listid: String(providerData?.creatorListId || listId),
                 list_create_gid: String(providerData?.creatorGid || ''),
+            });
+        },
+        async subscribeAlbum(id, subscribed) {
+            const userId = getKugouUserId();
+            if (!userId) return;
+
+            if (!subscribed) {
+                const album = (await getKugouUserPlaylistItems(userId)).find(item => (
+                    getKugouUserCollectionType(item) === 'album'
+                    && String(valueOf(item, 'musiclib_id', 'musicLibId', 'album_id', 'albumId', 'list_create_listid') || '') === String(id)
+                ));
+                const listId = valueOf(album, 'listid', 'list_id');
+                if (listId === undefined || listId === null) return;
+                await requestKugou('playlist_del', { listid: String(listId) });
+                return;
+            }
+
+            const rawAlbum = await getKugouAlbumDetailRaw(id);
+            if (!rawAlbum) return;
+            const albumId = valueOf(rawAlbum, 'album_id', 'AlbumID', 'albumId') ?? id;
+            const firstAuthor = Array.isArray(rawAlbum.authors) ? rawAlbum.authors[0]?.base ?? rawAlbum.authors[0] : undefined;
+            const creatorUserId = valueOf(rawAlbum, 'list_create_userid', 'create_userid', 'author_id', 'authorId', 'userid')
+                ?? valueOf(firstAuthor, 'author_id', 'authorId', 'id');
+            if (creatorUserId === undefined || creatorUserId === null) return;
+
+            await requestKugou('playlist_add', {
+                source: 2,
+                name: String(valueOf(rawAlbum, 'name', 'album_name', 'AlbumName') || ''),
+                type: 1,
+                list_create_userid: String(creatorUserId),
+                list_create_listid: String(albumId),
             });
         },
     },

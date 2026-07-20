@@ -78,11 +78,11 @@ type BuildPlayerPanelModelParams = {
     moveQueueSongToEnd: UnifiedPanelProps['queue']['onMoveSongToEnd'];
     moveQueueSongToNext: UnifiedPanelProps['queue']['onMoveSongToNext'];
     localPlaylists: UnifiedPanelProps['library']['localPlaylists'];
-    playlists: UnifiedPanelProps['library']['neteasePlaylists'];
+    onlinePlaylists: UnifiedPanelProps['library']['onlinePlaylists'];
     saveCurrentQueueAsLocalPlaylist: UnifiedPanelProps['library']['onSaveCurrentQueueAsPlaylist'];
     addCurrentSongToLocalPlaylist: UnifiedPanelProps['library']['onAddCurrentSongToLocalPlaylist'];
     createCurrentLocalPlaylist: UnifiedPanelProps['library']['onCreateCurrentLocalPlaylist'];
-    addCurrentSongToNeteasePlaylist: UnifiedPanelProps['library']['onAddCurrentSongToNeteasePlaylist'];
+    addCurrentSongToOnlinePlaylist: UnifiedPanelProps['library']['onAddCurrentSongToOnlinePlaylist'];
     addCurrentSongToNavidromePlaylist: UnifiedPanelProps['library']['onAddCurrentSongToNavidromePlaylist'];
     createCurrentNavidromePlaylist: UnifiedPanelProps['library']['onCreateCurrentNavidromePlaylist'];
     openCurrentLocalAlbum: UnifiedPanelProps['library']['onOpenCurrentLocalAlbum'];
@@ -173,11 +173,11 @@ export const buildPlayerPanelModel = ({
     moveQueueSongToEnd,
     moveQueueSongToNext,
     localPlaylists,
-    playlists,
+    onlinePlaylists,
     saveCurrentQueueAsLocalPlaylist,
     addCurrentSongToLocalPlaylist,
     createCurrentLocalPlaylist,
-    addCurrentSongToNeteasePlaylist,
+    addCurrentSongToOnlinePlaylist,
     addCurrentSongToNavidromePlaylist,
     createCurrentNavidromePlaylist,
     openCurrentLocalAlbum,
@@ -273,11 +273,11 @@ export const buildPlayerPanelModel = ({
         },
         library: {
             localPlaylists,
-            neteasePlaylists: playlists,
+            onlinePlaylists,
             onSaveCurrentQueueAsPlaylist: saveCurrentQueueAsLocalPlaylist,
             onAddCurrentSongToLocalPlaylist: addCurrentSongToLocalPlaylist,
             onCreateCurrentLocalPlaylist: createCurrentLocalPlaylist,
-            onAddCurrentSongToNeteasePlaylist: addCurrentSongToNeteasePlaylist,
+            onAddCurrentSongToOnlinePlaylist: addCurrentSongToOnlinePlaylist,
             onAddCurrentSongToNavidromePlaylist: addCurrentSongToNavidromePlaylist,
             onCreateCurrentNavidromePlaylist: createCurrentNavidromePlaylist,
             onOpenCurrentLocalAlbum: openCurrentLocalAlbum,

@@ -40,8 +40,6 @@
 
 | Omni 能力 | 当前状态 | 原因与影响 |
 | --- | --- | --- |
-| 每日推荐中的 `dislikeSong` | 部分实现 | 文档只明确说明 `/personal/fm` 支持 `action=garbage`，因此酷狗实现可处理私人 FM 的垃圾动作；没有找到 `/everyday/recommend` 对应的 dislike 接口。`GridView` 对每日推荐也复用同一个 Omni 方法，所以该场景无法证明与酷狗 API 完全对齐。 |
-| 专辑订阅/取消订阅 | 未实现 | 文档只提供歌单收藏 `/playlist/add`，没有收藏专辑或取消收藏专辑接口。酷狗 provider 没有实现 `subscribeAlbum`；调用专辑订阅时会由 Omni 报 unsupported。 |
 | 歌曲可用性与版权替代 | 未实现 | 文档中没有与 `getAvailability`、`getReplacement` 对应的酷狗接口；当前播放失败只能返回无音源，不能像网易云一样获取版权替代歌曲。 |
 | 歌曲页面 URL | 未实现 | Omni 暴露了 `getSongPageUrl`，但接口文档没有稳定的歌曲详情页 URL 约定，当前没有为酷狗拼接未经验证的链接。 |
 
