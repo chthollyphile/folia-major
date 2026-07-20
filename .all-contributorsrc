@@ -305,6 +305,15 @@
         "code",
         "ideas"
       ]
+    },
+    {
+      "login": "iammagicc",
+      "name": "iammagicc",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69392179?v=4",
+      "profile": "https://github.com/iammagicc",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
