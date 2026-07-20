@@ -151,11 +151,19 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         : '';
     const liveSelectedCollection = useMemo(() => {
         if (!selectedCollection || !isLocalGridViewCollection(selectedCollection)) {
-            return selectedCollection;
+            if (selectedCollection?.source !== 'online') return selectedCollection;
+
+            const refreshed = surfaceProps.playlists.find(collection => (
+                collection.providerId === selectedCollection.providerId
+                && String(collection.id) === String(selectedCollection.id)
+            ));
+            return refreshed
+                ? { ...selectedCollection, ...refreshed, source: 'online' as const, providerId: selectedCollection.providerId }
+                : selectedCollection;
         }
 
         return resolveLiveLocalCollection(selectedCollection, surfaceProps, localLibraryCatalog);
-    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, localLibraryCatalog, selectedCollection]);
+    }, [surfaceProps.localPlaylists, surfaceProps.localSongs, surfaceProps.playlists, localLibraryCatalog, selectedCollection]);
     const displaySelectedCollection = useMemo(() => {
         if (!liveSelectedCollection) {
             return null;

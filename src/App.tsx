@@ -92,6 +92,7 @@ const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
+const HOME_PROVIDER_REFRESH_COOLDOWN_MS = 5_000;
 const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
 const LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC = 3;
 // Default Theme
@@ -871,12 +872,16 @@ export default function App() {
         if (currentView !== 'home' || hasCollection) return;
 
         const providerId = onlineProviderPlatform.activeProviderId;
-        const now = Date.now();
+        const startedAt = Date.now();
         const previous = lastHomeProviderRefreshRef.current;
-        if (previous?.providerId === providerId && now - previous.at <= 10_000) return;
+        if (previous?.providerId === providerId && startedAt - previous.at <= HOME_PROVIDER_REFRESH_COOLDOWN_MS) return;
 
-        lastHomeProviderRefreshRef.current = { providerId, at: now };
+        lastHomeProviderRefreshRef.current = { providerId, at: startedAt };
         void refreshActiveProviderPlaylists().catch(error => {
+            if (lastHomeProviderRefreshRef.current?.providerId === providerId
+                && lastHomeProviderRefreshRef.current.at === startedAt) {
+                lastHomeProviderRefreshRef.current = null;
+            }
             console.warn('[Omni] Failed to refresh active provider playlists on home entry', {
                 providerId,
                 name: error instanceof Error ? error.name : 'Error',

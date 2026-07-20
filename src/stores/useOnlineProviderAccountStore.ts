@@ -33,6 +33,17 @@ const emptyAccount = (): OnlineProviderAccountState => ({
     likedSongIds: [],
 });
 
+// Keeps the cloud collection in the stable second slot across provider refreshes.
+const placeCloudCollectionSecond = (collections: ProviderCollection[]): ProviderCollection[] => {
+    const cloud = collections.find(collection => collection.type === 'cloud');
+    if (!cloud) return collections;
+
+    const withoutCloud = collections.filter(collection => collection !== cloud);
+    return withoutCloud.length > 0
+        ? [withoutCloud[0], cloud, ...withoutCloud.slice(1)]
+        : [cloud];
+};
+
 export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(set => ({
     accounts: {},
     activeProviderId: getInitialProviderId(),
@@ -42,12 +53,17 @@ export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(
         }
         set({ activeProviderId: providerId });
     },
-    updateAccount: (providerId, patch) => set(state => ({
-        accounts: {
-            ...state.accounts,
-            [providerId]: { ...(state.accounts[providerId] || emptyAccount()), ...patch },
-        },
-    })),
+    updateAccount: (providerId, patch) => set(state => {
+        const nextPatch = patch.collections === undefined
+            ? patch
+            : { ...patch, collections: placeCloudCollectionSecond(patch.collections) };
+        return {
+            accounts: {
+                ...state.accounts,
+                [providerId]: { ...(state.accounts[providerId] || emptyAccount()), ...nextPatch },
+            },
+        };
+    }),
     clearAccount: providerId => set(state => ({
         accounts: { ...state.accounts, [providerId]: { ...emptyAccount(), status: 'anonymous' } },
     })),

@@ -43,4 +43,18 @@ describe('online provider account store', () => {
         expect(state.accounts.kugou).toMatchObject({ status: 'anonymous', user: null });
         expect(state.activeProviderId).toBe('kugou');
     });
+
+    it('keeps the cloud collection in the second slot when collections refresh', async () => {
+        vi.stubGlobal('localStorage', createStorage());
+        const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
+        const first = { providerId: 'kugou' as const, id: 'first', name: 'First', type: 'playlist' as const };
+        const cloud = { providerId: 'kugou' as const, id: 'cloud', name: 'Cloud', type: 'cloud' as const };
+        const second = { providerId: 'kugou' as const, id: 'second', name: 'Second', type: 'playlist' as const };
+
+        useOnlineProviderAccountStore.getState().updateAccount('kugou', {
+            collections: [cloud, first, second],
+        });
+
+        expect(useOnlineProviderAccountStore.getState().accounts.kugou.collections).toEqual([first, cloud, second]);
+    });
 });

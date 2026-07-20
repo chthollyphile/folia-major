@@ -219,8 +219,12 @@ export const omni = {
     getPlaylistsForSong(song: SongResult): OmniCollection[] {
         const source = getPlaybackSourceRef(song);
         if (source.kind !== 'online') return [];
-        return useOnlineProviderAccountStore.getState().accounts[source.providerId]?.collections
-            .filter(collection => collection.type === 'playlist') || [];
+        const provider = getOnlineMusicProvider(source.providerId);
+        const collections = useOnlineProviderAccountStore.getState().accounts[source.providerId]?.collections || [];
+        return collections.filter(collection => (
+            collection.type === 'playlist'
+            && (provider?.mutations?.canAddToPlaylist?.(collection) ?? true)
+        ));
     },
 
     async getUserAlbums(userId: MediaId, page: PageInput): Promise<OmniPage<OmniCollection>> {
@@ -375,6 +379,10 @@ export const omni = {
         }
         if (playlist.providerId !== source.providerId || playlist.type !== 'playlist') {
             throw new OnlineProviderError('unsupported', 'Playlist does not belong to the song provider', source.providerId);
+        }
+        const provider = providerForCollection(playlist);
+        if (provider.mutations?.canAddToPlaylist && !provider.mutations.canAddToPlaylist(playlist)) {
+            throw new OnlineProviderError('unsupported', 'Playlist does not accept track mutations', source.providerId);
         }
         await this.updateCollectionTracks(playlist, 'add', [song]);
         try {

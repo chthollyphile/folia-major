@@ -1129,10 +1129,14 @@ export const GridView: React.FC<GridViewProps> = ({
     };
 
     useEffect(() => {
+        setCollectionDetail(null);
+    }, [collection?.id, collection?.trackCount, collection?.tracksUpdatedAt, collection?.updatedAt]);
+
+    useEffect(() => {
         if (mode === 'tracks' && collection && !usesExternalTracks && collection.source === 'online') {
             loadTracks(true);
         }
-    }, [collection?.id, mode, usesExternalTracks, collection?.source]);
+    }, [collection?.id, collection?.trackCount, collection?.tracksUpdatedAt, collection?.updatedAt, mode, usesExternalTracks, collection?.source]);
 
     useEffect(() => {
         if (!isDailyRecommendationsCollection) {

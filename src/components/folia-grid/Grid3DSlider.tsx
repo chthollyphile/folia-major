@@ -42,6 +42,13 @@ export const getGrid3DSliderSecondaryText = (
         : compactDescription(item.description) || compactDescription(item.summary)
 );
 
+export const getGrid3DSliderSummaryText = (
+    item: Pick<Grid3DSliderItem, 'type' | 'description' | 'summary'>,
+): string => {
+    const summary = compactDescription(item.summary);
+    return summary && summary !== getGrid3DSliderSecondaryText(item) ? summary : '';
+};
+
 const clampFocusedIndex = (index: number, itemCount: number) => {
     if (itemCount <= 0 || !Number.isFinite(index)) {
         return 0;
@@ -522,6 +529,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
                         slicedItems.map((item, index) => {
                             const isFocused = index === safeFocusedIndex;
                             const secondaryText = getGrid3DSliderSecondaryText(item);
+                            const summaryText = getGrid3DSliderSummaryText(item);
 
                             return (
                                 <div
@@ -574,9 +582,9 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
                                                         {secondaryText}
                                                     </p>
                                                 )}
-                                                {compactDescription(item.summary) && (
+                                                {summaryText && (
                                                     <p className="text-[10px] leading-snug opacity-45 mt-2 line-clamp-2">
-                                                        {compactDescription(item.summary)}
+                                                        {summaryText}
                                                     </p>
                                                 )}
                                             </div>

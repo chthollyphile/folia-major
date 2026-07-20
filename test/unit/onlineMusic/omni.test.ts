@@ -92,6 +92,32 @@ describe('omni routing', () => {
         expect(omni.getPlaylistsForSong({ ...song(providerId), sourceRef: { kind: 'local', mediaId: 'local-song' } })).toEqual([]);
     });
 
+    it('lets a provider hide playlists that cannot accept track mutations', () => {
+        const addable: ProviderCollection = {
+            providerId,
+            id: 'addable',
+            name: 'Addable',
+            type: 'playlist',
+        };
+        const hidden: ProviderCollection = {
+            providerId,
+            id: 'hidden',
+            name: 'Hidden',
+            type: 'playlist',
+        };
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            mutations: {
+                canAddToPlaylist: playlist => playlist.id === addable.id,
+            },
+        });
+        useOnlineProviderAccountStore.getState().updateAccount(providerId, {
+            collections: [addable, hidden],
+        });
+
+        expect(omni.getPlaylistsForSong(song(providerId))).toEqual([addable]);
+    });
+
     it('refreshes the owning provider playlist cache through Omni', async () => {
         const playlist: ProviderCollection = {
             providerId,
@@ -113,8 +139,8 @@ describe('omni routing', () => {
 
         expect(getUserPlaylists).toHaveBeenCalledWith('user', 50, 0);
         expect(useOnlineProviderAccountStore.getState().accounts[providerId]?.collections).toEqual([
-            { providerId, id: 'cloud', name: 'Cloud', type: 'cloud' },
             playlist,
+            { providerId, id: 'cloud', name: 'Cloud', type: 'cloud' },
         ]);
     });
 
@@ -168,5 +194,24 @@ describe('omni routing', () => {
 
         expect(updateTracks).toHaveBeenCalledWith('add', collection, [target]);
         expect(getUserPlaylists).toHaveBeenCalledWith('user', 50, 0);
+    });
+
+    it('rejects a playlist that its provider marks as non-mutable', async () => {
+        const updateTracks = vi.fn(async () => undefined);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            mutations: {
+                canAddToPlaylist: () => false,
+                updatePlaylistTracks: updateTracks,
+            },
+        });
+
+        await expect(omni.addSongToPlaylist(song(providerId), {
+            providerId,
+            id: 'hidden',
+            name: 'Hidden',
+            type: 'playlist',
+        })).rejects.toMatchObject({ code: 'unsupported' });
+        expect(updateTracks).not.toHaveBeenCalled();
     });
 });

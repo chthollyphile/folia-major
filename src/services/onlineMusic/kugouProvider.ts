@@ -455,10 +455,10 @@ const normalizeCollection = (raw: any, type = 'playlist', owned = false): Provid
     const aliases = valueOf(raw, 'aliases', 'alias');
     const publishedAt = normalizeTimestamp(valueOf(raw, 'publish_time', 'publishTime', 'release_date', 'releaseDate', 'year'));
     const updatedAt = normalizeTimestamp(valueOf(raw, 'update_time', 'updateTime'));
-    const tracksUpdatedAt = normalizeTimestamp(valueOf(raw, 'track_update_time', 'trackUpdateTime'));
+    const tracksUpdatedAt = normalizeTimestamp(valueOf(raw, 'track_update_time', 'trackUpdateTime', 'list_ver', 'listVer'));
     const playCount = Number(valueOf(raw, 'play_count', 'playCount'));
     const description = valueOf(raw, 'intro', 'description', 'brief_desc', 'briefDesc', 'brief_description', 'desc');
-    const trackCountValue = valueOf(raw, 'song_count', 'count', 'total', 'music_num');
+    const trackCountValue = valueOf(raw, 'song_count', 'count', 'm_count', 'total', 'music_num');
     const trackCount = trackCountValue === undefined ? undefined : Number(trackCountValue);
 
     return {
@@ -508,6 +508,15 @@ const getKugouUserCollectionType = (raw: any): KugouUserCollectionType => {
 const isKugouOwnedPlaylist = (raw: any): boolean => {
     const type = valueOf(raw, 'type');
     return type === undefined || type === null || Number(type) === 0;
+};
+
+// Restricts the player-panel destination list to KuGou playlists that accept user track mutations.
+const canAddToKugouPlaylist = (playlist: ProviderCollection): boolean => {
+    if (playlist.type !== 'playlist' || playlist.isOwned !== true) return false;
+
+    const listId = String(playlist.providerData?.listId || '');
+    const name = playlist.name.trim();
+    return listId !== '2' && name !== '我喜欢' && name !== '我喜欢的音乐';
 };
 
 // Advances mixed user-library pagination with the raw response count, not the filtered item count.
@@ -584,7 +593,7 @@ const getKugouLikedPlaylist = async (userId: MediaId): Promise<any | null> => {
     return items.find(isKugouLikedPlaylist) ?? null;
 };
 
-// Uses the newest liked song's observed cover when KuGou leaves the playlist cover empty.
+// Uses the newest song's observed cover when KuGou leaves a user playlist cover empty.
 const getKugouPlaylistFallbackCover = async (rawPlaylist: any): Promise<string | undefined> => {
     const globalCollectionId = valueOf(rawPlaylist, 'global_collection_id', 'globalCollectionId');
     if (globalCollectionId === undefined || globalCollectionId === null) return undefined;
@@ -820,7 +829,7 @@ export const kugouProvider: OnlineMusicProvider = {
                 .map(item => ({ raw: item, collection: normalizeCollection(item, 'playlist', isKugouOwnedPlaylist(item)) }))
                 .filter(({ collection }) => collection.id !== '');
             const items = await Promise.all(playlistItems.map(async ({ raw, collection }) => {
-                if (collection.coverUrl || !isKugouLikedPlaylist(raw)) return collection;
+                if (collection.coverUrl || !isKugouOwnedPlaylist(raw)) return collection;
                 const fallbackCover = await getKugouPlaylistFallbackCover(raw).catch(() => undefined);
                 return fallbackCover ? { ...collection, coverUrl: fallbackCover } : collection;
             }));
@@ -1033,6 +1042,7 @@ export const kugouProvider: OnlineMusicProvider = {
         },
     },
     mutations: {
+        canAddToPlaylist: canAddToKugouPlaylist,
         async likeSong(song, liked) {
             const userId = getKugouUserId();
             if (!userId) return;

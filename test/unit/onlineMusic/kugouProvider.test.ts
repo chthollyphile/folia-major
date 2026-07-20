@@ -306,6 +306,8 @@ describe('kugouProvider', () => {
                     listid: 12345,
                     name: 'Playlist',
                     pic: '20251014001841327327.jpg',
+                    list_ver: 7,
+                    m_count: 4,
                 }],
                 total: 1,
             },
@@ -316,6 +318,8 @@ describe('kugouProvider', () => {
         expect(page?.items[0]).toMatchObject({
             id: 'collection_3_1863870844_4_0',
             isOwned: true,
+            trackCount: 4,
+            tracksUpdatedAt: expect.any(Number),
             coverUrl: 'https://c1.kgimg.com/stdmusic/400/20251014/20251014001841327327.jpg',
             providerData: { listId: 12345, globalCollectionId: 'collection_3_1863870844_4_0' },
         });
@@ -368,6 +372,7 @@ describe('kugouProvider', () => {
                         listid: 1,
                         name: 'Created playlist',
                         count: 2,
+                        pic: 'created.jpg',
                     },
                     {
                         type: 1,
@@ -376,6 +381,7 @@ describe('kugouProvider', () => {
                         listid: 11,
                         name: 'Favorite playlist',
                         count: 3,
+                        pic: 'favorite.jpg',
                     },
                     {
                         type: 1,
@@ -406,6 +412,52 @@ describe('kugouProvider', () => {
         ]);
         expect(requestMock).toHaveBeenNthCalledWith(1, 'user_playlist', { userid: 'user', page: 1, pagesize: 50 });
         expect(requestMock).toHaveBeenNthCalledWith(2, 'user_playlist', { userid: 'user', page: 1, pagesize: 50 });
+    });
+
+    it('only exposes owned non-liked KuGou playlists as add destinations', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                info: [
+                    {
+                        type: 0,
+                        source: 1,
+                        global_collection_id: 'created',
+                        listid: 8,
+                        name: '自建歌单',
+                    },
+                    {
+                        type: 1,
+                        source: 1,
+                        global_collection_id: 'collected',
+                        listid: 9,
+                        name: '收藏歌单',
+                    },
+                    {
+                        type: 0,
+                        source: 1,
+                        global_collection_id: 'liked',
+                        listid: 2,
+                        name: '我喜欢',
+                    },
+                    {
+                        type: 1,
+                        source: 2,
+                        global_collection_id: 'album',
+                        musiclib_id: 10,
+                        name: '收藏专辑',
+                    },
+                ],
+                list_count: 4,
+            },
+        });
+
+        const playlists = await kugouProvider.library?.getUserPlaylists?.('user', 50, 0);
+        expect(playlists?.items).toHaveLength(3);
+
+        const addable = playlists?.items.filter(item => kugouProvider.mutations?.canAddToPlaylist?.(item));
+        expect(addable).toEqual([expect.objectContaining({ id: 'created', isOwned: true })]);
+        expect(playlists?.items.find(item => item.id === 'liked')).toEqual(expect.objectContaining({ isOwned: true }));
+        expect(playlists?.items.find(item => item.id === 'album')).toBeUndefined();
     });
 
     it('requests the user cloud with the logged-in user id and maps the cloud list payload', async () => {

@@ -246,6 +246,7 @@ export interface OnlineRecommendationProvider {
 }
 
 export interface OnlineMutationProvider {
+    canAddToPlaylist?(playlist: ProviderCollection): boolean;
     likeSong?(song: MediaId | SongResult, liked: boolean): Promise<void>;
     updatePlaylistTracks?(
         operation: 'add' | 'del',
