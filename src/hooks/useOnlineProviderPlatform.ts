@@ -11,7 +11,7 @@ export type OnlineProviderPlatformState = {
     activeProviderId: OnlineProviderId;
     activeProvider: ProviderAccountSummary | undefined;
     switchProvider: (providerId: OnlineProviderId) => Promise<boolean>;
-    refreshProvider: (providerId: OnlineProviderId) => Promise<void>;
+    refreshProvider: (providerId: OnlineProviderId) => Promise<unknown>;
 };
 
 type ProviderSwitchTransaction = {
@@ -50,7 +50,7 @@ export const useOnlineProviderPlatform = (
 
     const providers = useMemo<ProviderAccountSummary[]>(() => omni.getProviderSummaries(), [accounts]);
     const refreshProvider = useCallback(async (providerId: OnlineProviderId) => {
-        await refreshers[providerId]?.();
+        return await refreshers[providerId]?.();
     }, [refreshers]);
     const switchProvider = useCallback((providerId: OnlineProviderId) => switchOnlineProviderTransaction({
         currentProviderId: activeProviderId,

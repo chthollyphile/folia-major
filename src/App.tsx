@@ -834,6 +834,7 @@ export default function App() {
     });
 
     const { refresh: refreshKugouLibrary } = useKugouLibrary();
+    const [isProviderSyncing, setIsProviderSyncing] = useState(false);
     const onlineProviderRefreshers = useMemo(() => ({
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
@@ -895,6 +896,30 @@ export default function App() {
         };
     }, [handleCancelProviderSwitch, handleConfirmProviderSwitch, isDaylight, providerSwitchPending, t]);
     const onlineProviderPlatform = useOnlineProviderPlatform(onlineProviderRefreshers, prepareOnlineProviderSwitch);
+    const handleActiveProviderSyncData = useCallback(async () => {
+        const providerId = onlineProviderPlatform.activeProviderId;
+        if (providerId === 'netease') {
+            await handleSyncData();
+            return;
+        }
+
+        setIsProviderSyncing(true);
+        try {
+            const synced = await onlineProviderPlatform.refreshProvider(providerId);
+            setStatusMsg({
+                type: synced === false ? 'error' : 'success',
+                text: synced === false ? t('status.syncFailed') : t('status.dataSynced'),
+            });
+        } catch (error) {
+            console.warn('[OmniSync] Provider data sync failed', { providerId, error });
+            setStatusMsg({ type: 'error', text: t('status.syncFailed') });
+        } finally {
+            setIsProviderSyncing(false);
+        }
+    }, [handleSyncData, onlineProviderPlatform.activeProviderId, onlineProviderPlatform.refreshProvider, setStatusMsg, t]);
+    const isActiveProviderSyncing = onlineProviderPlatform.activeProviderId === 'netease'
+        ? isSyncing
+        : isProviderSyncing;
     const refreshActiveProviderPlaylists = useCallback(
         () => omni.refreshProviderPlaylists(onlineProviderPlatform.activeProviderId),
         [onlineProviderPlatform.activeProviderId],
@@ -2516,8 +2541,8 @@ export default function App() {
         setAudioQuality,
         cacheSize,
         handleClearCache,
-        handleSyncData,
-        isSyncing,
+        handleSyncData: handleActiveProviderSyncData,
+        isSyncing: isActiveProviderSyncing,
         useCoverColorBg,
         handleToggleCoverColorBg,
         isDaylight,
@@ -2556,7 +2581,7 @@ export default function App() {
         handleResetTheme,
         handleSetVisualizerMode,
         handleSetVolume,
-        handleSyncData,
+        handleActiveProviderSyncData,
         handleToggleCoverColorBg,
         handleToggleMute,
         handleToggleDaylight,
@@ -2568,7 +2593,7 @@ export default function App() {
         isMuted,
         isNowPlayingControlDisabled,
         isPanelOpen,
-        isSyncing,
+        isActiveProviderSyncing,
         likedSongIds,
         onlineProviderPlatform.providers,
         onlinePlaylists,

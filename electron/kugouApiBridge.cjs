@@ -11,6 +11,7 @@ const OPERATION_MODULES = {
   login_qr_check: ['login_qr_check'],
   logout: [],
   user_detail: ['user_detail'],
+  user_vip_detail: ['user_vip_detail'],
   user_playlist: ['user_playlist'],
   user_cloud: ['user_cloud'],
   user_cloud_url: ['user_cloud_url'],

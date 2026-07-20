@@ -74,7 +74,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                         <div>
                             <div className="flex items-center gap-1.5">
                                 <h3 className="font-bold text-sm">{activeUser.nickname}</h3>
-                                {activeUser.vipType && activeUser.vipType !== 0 && (
+                                {Boolean(activeUser.vipType && activeUser.vipType !== 0) && (
                                     <Crown size={14} className="text-white fill-white" />
                                 )}
                             </div>
@@ -148,7 +148,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                 </button>
             </div> */}
 
-            {activeUser && activeProviderId === 'netease' && <button
+            {activeUser && <button
                 onClick={onSyncData}
                 disabled={isSyncing}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center gap-2 text-xs font-bold opacity-80 transition-colors disabled:opacity-50"

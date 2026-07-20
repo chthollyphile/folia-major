@@ -445,6 +445,16 @@ const normalizeUser = (raw: any): ProviderUser => {
     };
 };
 
+// Maps the dedicated VIP response, including active product entries used by concept accounts.
+const normalizeKugouVipType = (raw: any): number => {
+    const data = dataOf(raw);
+    const directVipType = Number(valueOf(data, 'vip_type', 'vipType', 'is_vip') || 0);
+    if (directVipType > 0) return directVipType;
+
+    const businessVips = Array.isArray(data?.busi_vip) ? data.busi_vip : [];
+    return businessVips.some((entry: any) => Number(valueOf(entry, 'is_vip', 'vip_type') || 0) > 0) ? 1 : 0;
+};
+
 const normalizeCollection = (raw: any, type = 'playlist', owned = false): ProviderCollection => {
     const id = type === 'playlist'
         ? valueOf(raw, 'global_collection_id', 'globalCollectionId', 'specialid', 'specialId', 'id')
@@ -859,7 +869,18 @@ export const kugouProvider: OnlineMusicProvider = {
             if (!userId && !hasElectronTransport) return null;
             try {
                 const response = await requestKugou('user_detail', { userid: userId || undefined });
-                const user = normalizeUser(response);
+                let user = normalizeUser(response);
+                if (user.id && user.nickname) {
+                    try {
+                        const vipResponse = await requestKugou('user_vip_detail', { userid: user.id });
+                        user = { ...user, vipType: normalizeKugouVipType(vipResponse) };
+                    } catch (error) {
+                        console.warn('[KugouProvider] login-status:vip-error', {
+                            name: error instanceof Error ? error.name : 'Error',
+                            message: error instanceof Error ? error.message : String(error),
+                        });
+                    }
+                }
                 const responseKeys = Object.keys(dataOf(response) || {});
                 console.info('[KugouProvider] login-status:profile', {
                     responseKeys: responseKeys.slice(0, 20),

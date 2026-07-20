@@ -207,6 +207,21 @@ describe('kugouProvider', () => {
         });
     });
 
+    it('marks an account as VIP when the dedicated response has an active business product', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: { userid: '123', nickname: 'Kugou User', vip_type: 0 },
+            })
+            .mockResolvedValueOnce({
+                data: { is_vip: 0, vip_type: 0, busi_vip: [{ is_vip: 1, busi_type: 'concept' }] },
+            });
+
+        await expect(kugouProvider.auth?.getLoginStatus()).resolves.toMatchObject({
+            id: '123', nickname: 'Kugou User', vipType: 1,
+        });
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'user_vip_detail', { userid: '123' });
+    });
+
     it('maps quality and source metadata to the song URL request', async () => {
         requestMock.mockResolvedValue({ data: { play_url: 'http://example.test/song.flac' } });
         const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song', AlbumID: 2, album_audio_id: 3 });
