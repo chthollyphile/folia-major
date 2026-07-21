@@ -184,7 +184,8 @@ const { t } = useTranslation();
 - 网易云 API：`src/services/netease.ts`
 - Navidrome / Subsonic：`src/services/navidromeService.ts`
 - 本地音乐：`src/services/localMusicService.ts`
-- 在线播放和歌词加载：`src/services/onlinePlayback.ts`
+- 在线歌曲搜索、播放、歌词、歌单、账户和 provider 路由：`src/services/onlineMusic/omni.ts`
+- 在线播放编排：`src/services/onlinePlayback.ts`（内部在线数据仍须通过 Omni）
 - 播放结构统一：`src/services/playbackAdapters.ts`
 - IndexedDB：`src/services/db.ts`
 - 队列预取：`src/services/prefetchService.ts`

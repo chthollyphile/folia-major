@@ -5,7 +5,7 @@ description: Align Folia's KuGou provider implementation with the repository API
 
 # KuGou Provider Alignment
 
-Use the documented request contract and a live response as the source of truth before changing provider code. Never invent an endpoint path or response field because a mock, an old implementation, or a familiar KuGou shape looks plausible.
+Use the documented request contract and a live response as the source of truth before changing provider code. Never invent an endpoint path or response field because a mock, an old implementation, or a familiar KuGou shape looks plausible. For the public application boundary, also follow `skills/online-song-omni-routing/SKILL.md`: ordinary online-song interaction must remain behind Omni.
 
 ## Required workflow
 
@@ -13,7 +13,7 @@ Use the documented request contract and a live response as the source of truth b
 
 - Read the relevant product context in `README.md` and `src/README.md` before changing project files.
 - Inspect `src/services/onlineMusic/kugouTransport.ts` for the operation name and endpoint mapping, then inspect `src/services/onlineMusic/kugouProvider.ts` or the relevant lyrics provider for normalization and response unwrapping.
-- Keep the public data flow through `services/onlineMusic/omni.ts`; components, hooks, and stores should not call a KuGou endpoint directly.
+- Keep the public data flow through `services/onlineMusic/omni.ts`; components, hooks, stores, and ordinary app services should not call a KuGou endpoint or concrete KuGou provider directly. Direct KuGou access is limited to the adapter/transport implementation and its focused tests.
 - Locate the matching heading in `docs/ku-go-api-docs.md` with `rg -n` and read that section. Confirm the documented path, method, required parameters, optional parameters, authentication notes, and cache/timestamp requirements.
 
 The documentation defines the request contract. The live response defines the response mapping. If they disagree, preserve the evidence, report the mismatch, and do not silently guess.
@@ -66,6 +66,7 @@ If credentials or `VITE_KUGOU_API_BASE` are missing, stop and report the missing
 - Add response mappings only for fields observed in the live payload or documented as part of that endpoint. Prefer a small endpoint-specific adapter over a broad recursive fallback that hides contract mistakes.
 - Preserve and test the session fields the runtime already uses: cookie values plus `token`, `userid`/`user_id`, and `dfid`. Treat device verification responses such as error code `20028` as a real protocol state, not as an empty result.
 - Normalize into the existing provider types and route collections through the existing catalog/reference conventions. Do not make callers depend on raw KuGou field names.
+- Keep the provider result behind the Omni contract. If a new KuGou capability is a normal online-song operation, add it to the shared Omni types/service instead of exposing a KuGou-only bypass.
 - Keep Web and Electron behavior equivalent at the provider boundary, while retaining their transport-specific request mechanics.
 
 ### 5. Verify with live data and focused tests

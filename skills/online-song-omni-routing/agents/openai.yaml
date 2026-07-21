@@ -1,0 +1,4 @@
+interface:
+  display_name: "Online Song Omni Routing"
+  short_description: "Route online-song data through Omni"
+  default_prompt: "Use $online-song-omni-routing to design or review online-song data flow with Omni and explicit cross-provider boundaries."
