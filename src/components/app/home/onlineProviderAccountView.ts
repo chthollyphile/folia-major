@@ -15,6 +15,6 @@ export const resolveOnlineProviderAccountView = ({
     platformAvailable: boolean;
 }): OnlineProviderAccountView => {
     if (hasUser) return 'authenticated';
-    if (platformAvailable && provider?.status === 'unknown') return 'resolving';
+    if (platformAvailable && (provider?.hydration === 'loading' || provider?.status === 'unknown')) return 'resolving';
     return 'guest';
 };

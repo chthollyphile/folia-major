@@ -36,6 +36,7 @@ Omni 提供的能力按业务模块分类整理如下：
 - `getActiveCapabilities()` / `getProviderCapabilities(providerId)`: 查询活跃 Provider 或指定 Provider 所支持的能力集合 (`OmniProviderCapabilities`)。
 - `getProviderAvailability(providerId)`: 获取 Provider 的配置与服务可用状态。
 - `getProviderLabel(providerId)`: 获取 Provider 的展示名称或简称。
+- Provider 账号摘要将登录状态、缓存水合状态和数据新鲜度分开维护；首页可先展示持久化快照，再静默刷新。
 - `isSongLiked(song, fallbackLikedSongIds)`: 查询某首歌曲在对应 Provider 中是否已被点赞/收藏。
 - `invalidateActiveRequests()` / `getActiveRequestGeneration()`: 递增与获取当前请求代数，用于异步响应防护。
 
@@ -57,6 +58,8 @@ Omni 提供的能力按业务模块分类整理如下：
 - `getLikedSongIds(userId)` / `getProviderLikedSongIds(providerId, userId)`: 获取用户点赞/收藏的歌曲 ID 列表。
 - `getCloudCollection(user)` / `getProviderCloudCollection(providerId, user)`: 获取用户的网盘/云盘音乐集合。
 - `normalizeCachedUser(providerId, raw)` / `normalizeCachedCollection(providerId, raw, type)`: 校验与标准化持久化的用户或歌单缓存数据。
+- `providerAccountCache.ts`: 按 Provider 原子保存用户、集合与点赞 ID 首页快照；刷新失败保留旧快照，明确退出或登录失效时才清除。
+- 静默刷新按 `providerId + type + id` 复用未变化集合对象，只替换内容发生变化的卡片。
 
 ### 5. 推荐与探索 (Recommendations & Home Feed)
 - `getHomeFeed(limit)`: 一键聚合获取首页所需的推荐数据（私人 FM、每日推荐歌曲、推荐歌单）。

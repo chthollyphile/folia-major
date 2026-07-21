@@ -62,6 +62,9 @@ export interface ProviderAccountSummary {
     user: ProviderUser | null;
     collections: ProviderCollection[];
     error?: string;
+    hydration?: 'loading' | 'ready';
+    freshness?: 'stale' | 'refreshing' | 'fresh' | 'error';
+    lastUpdatedAt?: number;
 }
 
 export interface ProviderPage<T> {

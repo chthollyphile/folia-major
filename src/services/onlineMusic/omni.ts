@@ -29,6 +29,7 @@ import {
     providerSupports,
     requireOnlineMusicProvider,
 } from './providerRegistry';
+import { saveProviderAccountSnapshot } from './providerAccountCache';
 
 // src/services/onlineMusic/omni.ts
 // Online Music Network Interface (Omni) - a unified interface for interacting with multiple online music providers.
@@ -88,6 +89,9 @@ export const omni = {
                 user: account?.user || null,
                 collections: account?.collections || [],
                 error: account?.error,
+                hydration: account?.hydration || 'loading',
+                freshness: account?.freshness || 'stale',
+                lastUpdatedAt: account?.lastUpdatedAt,
             };
         });
     },
@@ -195,26 +199,46 @@ export const omni = {
         const account = useOnlineProviderAccountStore.getState().accounts[providerId];
         const userId = account?.user?.id;
         if (userId === undefined || userId === null) return [];
-
-        const playlists: OmniCollection[] = [];
-        const limit = 50;
-        let offset = 0;
-        let hasMore = true;
-        while (hasMore && offset < 1000) {
-            const page = await this.getProviderUserPlaylists(providerId, userId, { limit, offset });
-            playlists.push(...page.items.filter(collection => collection.type === 'playlist'));
-            hasMore = page.hasMore && page.nextOffset > offset;
-            offset = page.nextOffset;
-        }
-
-        const existingCollections = account.collections || [];
         useOnlineProviderAccountStore.getState().updateAccount(providerId, {
-            collections: [
+            freshness: 'refreshing',
+            error: undefined,
+        });
+
+        try {
+            const playlists: OmniCollection[] = [];
+            const limit = 50;
+            let offset = 0;
+            let hasMore = true;
+            while (hasMore && offset < 1000) {
+                const page = await this.getProviderUserPlaylists(providerId, userId, { limit, offset });
+                playlists.push(...page.items.filter(collection => collection.type === 'playlist'));
+                hasMore = page.hasMore && page.nextOffset > offset;
+                offset = page.nextOffset;
+            }
+
+            const existingCollections = account.collections || [];
+            const collections = [
                 ...existingCollections.filter(collection => collection.type !== 'playlist'),
                 ...playlists,
-            ],
-        });
-        return playlists;
+            ];
+            const snapshot = await saveProviderAccountSnapshot(providerId, {
+                user: account.user!,
+                collections,
+                likedSongIds: account.likedSongIds || [],
+            });
+            useOnlineProviderAccountStore.getState().updateAccount(providerId, {
+                collections,
+                freshness: 'fresh',
+                lastUpdatedAt: snapshot.savedAt,
+            });
+            return playlists;
+        } catch (error) {
+            useOnlineProviderAccountStore.getState().updateAccount(providerId, {
+                freshness: 'error',
+                error: error instanceof Error ? error.message : 'provider_playlist_refresh_failed',
+            });
+            throw error;
+        }
     },
 
     // Returns the cached playlists owned by the provider that owns the current song.

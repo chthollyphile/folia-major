@@ -932,6 +932,10 @@ export default function App() {
         const startedAt = Date.now();
         const previous = lastHomeProviderRefreshRef.current;
         if (previous?.providerId === providerId && startedAt - previous.at <= HOME_PROVIDER_REFRESH_COOLDOWN_MS) return;
+        if (onlineProviderPlatform.activeProvider?.freshness === 'refreshing') {
+            lastHomeProviderRefreshRef.current = { providerId, at: startedAt };
+            return;
+        }
 
         lastHomeProviderRefreshRef.current = { providerId, at: startedAt };
         void refreshActiveProviderPlaylists().catch(error => {
@@ -944,7 +948,7 @@ export default function App() {
                 name: error instanceof Error ? error.name : 'Error',
             });
         });
-    }, [currentView, hasCollection, onlineProviderPlatform.activeProviderId, refreshActiveProviderPlaylists]);
+    }, [currentView, hasCollection, onlineProviderPlatform.activeProvider?.freshness, onlineProviderPlatform.activeProviderId, refreshActiveProviderPlaylists]);
 
     const {
         stageStatus,

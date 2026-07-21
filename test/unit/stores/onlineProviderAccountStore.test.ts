@@ -57,4 +57,37 @@ describe('online provider account store', () => {
 
         expect(useOnlineProviderAccountStore.getState().accounts.kugou.collections).toEqual([first, cloud, second]);
     });
+
+    it('preserves unchanged collection references during a silent refresh', async () => {
+        vi.stubGlobal('localStorage', createStorage());
+        const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
+        const original = { providerId: 'netease' as const, id: 1, name: 'Daily Mix', type: 'playlist' as const };
+        useOnlineProviderAccountStore.getState().updateAccount('netease', { collections: [original] });
+        const previousCollections = useOnlineProviderAccountStore.getState().accounts.netease.collections;
+
+        useOnlineProviderAccountStore.getState().updateAccount('netease', {
+            collections: [{ ...original }],
+        });
+
+        const nextCollections = useOnlineProviderAccountStore.getState().accounts.netease.collections;
+        expect(nextCollections).toBe(previousCollections);
+        expect(nextCollections[0]).toBe(original);
+    });
+
+    it('replaces only changed collection cards during a silent refresh', async () => {
+        vi.stubGlobal('localStorage', createStorage());
+        const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
+        const first = { providerId: 'netease' as const, id: 1, name: 'First', type: 'playlist' as const };
+        const second = { providerId: 'netease' as const, id: 2, name: 'Second', type: 'playlist' as const };
+        useOnlineProviderAccountStore.getState().updateAccount('netease', { collections: [first, second] });
+
+        useOnlineProviderAccountStore.getState().updateAccount('netease', {
+            collections: [{ ...first }, { ...second, name: 'Updated' }],
+        });
+
+        const collections = useOnlineProviderAccountStore.getState().accounts.netease.collections;
+        expect(collections[0]).toBe(first);
+        expect(collections[1]).not.toBe(second);
+        expect(collections[1].name).toBe('Updated');
+    });
 });

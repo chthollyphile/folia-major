@@ -2,6 +2,11 @@ import { useCallback, useEffect } from 'react';
 import { omni } from '../services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import type { MediaId, ProviderCollection } from '../types/onlineMusic';
+import {
+    clearProviderAccountSnapshot,
+    loadProviderAccountSnapshot,
+    saveProviderAccountSnapshot,
+} from '../services/onlineMusic/providerAccountCache';
 
 // src/hooks/useKugouLibrary.ts
 
@@ -15,21 +20,34 @@ export const useKugouLibrary = () => {
         const availability = omni.getProviderAvailability('kugou');
         console.info('[KugouLibrary] refresh:start', { configured: availability.configured });
         if (!omni.getProviderCapabilities('kugou').auth || !availability.configured) {
-            updateAccount('kugou', { status: availability.configured ? 'error' : 'anonymous', user: null, error: availability.reason });
+            updateAccount('kugou', {
+                status: availability.configured ? 'error' : 'anonymous',
+                user: null,
+                error: availability.reason,
+                hydration: 'ready',
+                freshness: availability.configured ? 'error' : 'fresh',
+            });
             console.warn('[KugouLibrary] refresh:unavailable', { reason: availability.reason });
             return false;
         }
 
-        updateAccount('kugou', { status: 'unknown', error: undefined });
+        const cachedAccount = useOnlineProviderAccountStore.getState().accounts.kugou;
+        updateAccount('kugou', {
+            status: cachedAccount?.user ? 'authenticated' : 'unknown',
+            hydration: cachedAccount?.user ? 'ready' : 'loading',
+            freshness: 'refreshing',
+            error: undefined,
+        });
         try {
             const user = await omni.getLoginStatus('kugou');
             if (!user) {
                 clearAccount('kugou');
+                await clearProviderAccountSnapshot('kugou');
                 console.info('[KugouLibrary] refresh:anonymous');
                 return false;
             }
 
-            updateAccount('kugou', { status: 'authenticated', user, collections: [], likedSongIds: [], error: undefined });
+            updateAccount('kugou', { status: 'authenticated', user, hydration: 'ready', error: undefined });
             console.info('[KugouLibrary] refresh:authenticated', {
                 hasAvatar: Boolean(user.avatarUrl),
             });
@@ -68,14 +86,30 @@ export const useKugouLibrary = () => {
                         coverUrl: user.avatarUrl,
                     });
                 }
-                updateAccount('kugou', { status: 'authenticated', user, collections, likedSongIds, error: undefined });
+                const snapshot = await saveProviderAccountSnapshot('kugou', { user, collections, likedSongIds });
+                updateAccount('kugou', {
+                    status: 'authenticated',
+                    user,
+                    collections,
+                    likedSongIds,
+                    error: undefined,
+                    hydration: 'ready',
+                    freshness: 'fresh',
+                    lastUpdatedAt: snapshot.savedAt,
+                });
                 console.info('[KugouLibrary] refresh:complete', {
                     collectionCount: collections.length,
                     likedSongCount: likedSongIds.length,
                 });
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'kugou_library_failed';
-                updateAccount('kugou', { status: 'authenticated', user, collections: [], error: message });
+                updateAccount('kugou', {
+                    status: 'authenticated',
+                    user,
+                    error: message,
+                    hydration: 'ready',
+                    freshness: 'error',
+                });
                 console.warn('[KugouLibrary] playlists:error', {
                     name: error instanceof Error ? error.name : 'Error',
                     message,
@@ -84,9 +118,12 @@ export const useKugouLibrary = () => {
             return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : 'kugou_refresh_failed';
+            const retainedAccount = useOnlineProviderAccountStore.getState().accounts.kugou;
             updateAccount('kugou', {
-                status: 'error',
+                status: retainedAccount?.user ? 'authenticated' : 'error',
                 error: message,
+                hydration: 'ready',
+                freshness: 'error',
             });
             console.warn('[KugouLibrary] refresh:error', {
                 name: error instanceof Error ? error.name : 'Error',
@@ -99,10 +136,34 @@ export const useKugouLibrary = () => {
     const logout = useCallback(async () => {
         await omni.logout('kugou');
         clearAccount('kugou');
+        await clearProviderAccountSnapshot('kugou');
     }, [clearAccount]);
 
     useEffect(() => {
-        void refresh();
+        let cancelled = false;
+        void (async () => {
+            const snapshot = await loadProviderAccountSnapshot('kugou');
+            if (cancelled) return;
+            if (snapshot) {
+                const user = omni.normalizeCachedUser('kugou', snapshot.user);
+                if (user) {
+                    const collections = snapshot.collections
+                        .map(collection => omni.normalizeCachedCollection('kugou', collection, collection.type))
+                        .filter(Boolean) as ProviderCollection[];
+                    updateAccount('kugou', {
+                        status: 'authenticated',
+                        user,
+                        collections,
+                        likedSongIds: snapshot.likedSongIds,
+                        hydration: 'ready',
+                        freshness: 'stale',
+                        lastUpdatedAt: snapshot.savedAt,
+                    });
+                }
+            }
+            if (!cancelled) void refresh();
+        })();
+        return () => { cancelled = true; };
     }, [refresh]);
 
     return { refresh, logout };
