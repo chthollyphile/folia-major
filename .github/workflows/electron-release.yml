@@ -46,11 +46,13 @@ jobs:
           COMMIT_MESSAGE="$(git log -1 --format=%B)"
           RELEASE_FILE_VERSION="$(COMMIT_MESSAGE="${COMMIT_MESSAGE}" node -e "const fs=require('fs'); const { validateRealecoReleaseMetadata }=require('./shared/realecoReleaseMetadata.cjs'); process.stdout.write(validateRealecoReleaseMetadata({ commitMessage: process.env.COMMIT_MESSAGE, releaseFileContent: fs.readFileSync('realeco-release', 'utf8'), packageVersion: require('./package.json').version }));")"
 
-          RELEASES_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100")"
-          RELEASE_FILE_VERSION="${RELEASE_FILE_VERSION}" RELEASES_JSON="${RELEASES_JSON}" node <<'NODE'
+          RELEASES_FILE="$(mktemp)"
+          trap 'rm -f "${RELEASES_FILE}"' EXIT
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > "${RELEASES_FILE}"
+          RELEASE_FILE_VERSION="${RELEASE_FILE_VERSION}" RELEASES_FILE="${RELEASES_FILE}" node <<'NODE'
           const fs = require('fs');
           const target = process.env.RELEASE_FILE_VERSION;
-          const releases = JSON.parse(process.env.RELEASES_JSON || '[]');
+          const releases = JSON.parse(fs.readFileSync(process.env.RELEASES_FILE, 'utf8'));
           const parse = (tag) => {
             const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(tag || '');
             return match ? match.slice(1).map(Number) : null;
