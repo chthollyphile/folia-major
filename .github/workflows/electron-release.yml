@@ -43,8 +43,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          COMMIT_MESSAGE="$(git log -1 --format=%B)"
-          RELEASE_FILE_VERSION="$(COMMIT_MESSAGE="${COMMIT_MESSAGE}" node -e "const fs=require('fs'); const { validateRealecoReleaseMetadata }=require('./shared/realecoReleaseMetadata.cjs'); process.stdout.write(validateRealecoReleaseMetadata({ commitMessage: process.env.COMMIT_MESSAGE, releaseFileContent: fs.readFileSync('realeco-release', 'utf8'), packageVersion: require('./package.json').version }));")"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RELEASE_FILE_VERSION="$(node -e "const version=require('./package.json').version; if (!/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(version)) throw new Error('package.json version must be a stable A.B.C version for a manual Realeco release.'); process.stdout.write(version);")"
+          else
+            COMMIT_MESSAGE="$(git log -1 --format=%B)"
+            RELEASE_FILE_VERSION="$(COMMIT_MESSAGE="${COMMIT_MESSAGE}" node -e "const fs=require('fs'); const { validateRealecoReleaseMetadata }=require('./shared/realecoReleaseMetadata.cjs'); process.stdout.write(validateRealecoReleaseMetadata({ commitMessage: process.env.COMMIT_MESSAGE, releaseFileContent: fs.readFileSync('realeco-release', 'utf8'), packageVersion: require('./package.json').version }));")"
+          fi
 
           RELEASES_FILE="$(mktemp)"
           trap 'rm -f "${RELEASES_FILE}"' EXIT

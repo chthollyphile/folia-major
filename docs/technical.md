@@ -17,7 +17,7 @@
 | Limo | Nightly | `beta`，也可升级到 Realeco | 不提供 |
 | Cielo | Canary | `alpha`，也可升级到 Limo / Realeco | 不提供 |
 
-Realeco 发布仅在 `main` 修改根目录 `realeco-release` 时触发。该文件必须只包含单行 `A.B.C`，并且必须同时与 `package.json` 版本、当前完整提交信息 `release: vA.B.C` 严格一致。工作流创建草稿 Release；维护者在 GitHub 手动公开后，Realeco 客户端才会发现更新。
+Realeco 发布仅在 `main` 修改根目录 `realeco-release` 时触发。自动触发时，该文件必须只包含单行 `A.B.C`，并且必须同时与 `package.json` 版本、当前完整提交信息 `release: vA.B.C` 严格一致。手动触发作为应急入口，会跳过这两项一致性检查，直接使用当前 HEAD 的 `package.json.version`（仍必须是稳定的 `A.B.C`）打包。工作流创建草稿 Release；维护者在 GitHub 手动公开后，Realeco 客户端才会发现更新。
 
 Cielo 的 `[canary]` 推送会更新滚动的 `cielo` prerelease，供 Cielo 通道客户端获取更新。手动运行 Cielo 工作流时可选择 `branch-release`，为当前分支和提交创建独立的 `cielo-<branch>-<sha>` prerelease，供人工下载和回归；该 Release 不参与客户端自动更新。选择 `artifacts` 则不创建 Release，只将各平台构建产物保留 14 天。
 
