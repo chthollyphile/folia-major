@@ -167,7 +167,7 @@ jobs:
       - name: Package Electron app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --publish never -c.publish.channel=latest
+        run: npx electron-builder --publish never --config.publish.channel=latest
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v6
