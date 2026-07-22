@@ -54,6 +54,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mmmpipi"><img src="https://avatars.githubusercontent.com/u/153883613?v=4?s=100" width="100px;" alt="mmmpipi"/><br /><sub><b>mmmpipi</b></sub></a><br /><a href="#ideas-mmmpipi" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.imyifeng.top"><img src="https://avatars.githubusercontent.com/u/70053196?v=4?s=100" width="100px;" alt="YiFENG"/><br /><sub><b>YiFENG</b></sub></a><br /><a href="#ideas-imyifeng" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
