@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Map as MapIcon } from 'lucide-react';
 import GridMap from '../GridMap';
@@ -19,6 +19,27 @@ export interface DesktopGrid3DAction {
     title?: string;
 }
 
+const HIDDEN_GRID_PLAYLISTS_STORAGE_KEY = 'hidden_grid_playlists';
+
+const readHiddenGridPlaylists = (): Record<string, string[]> => {
+    if (typeof window === 'undefined') return {};
+
+    try {
+        const stored = localStorage.getItem(HIDDEN_GRID_PLAYLISTS_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : {};
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+        return Object.fromEntries(
+            Object.entries(parsed).map(([scope, ids]) => [
+                scope,
+                Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [],
+            ]),
+        );
+    } catch {
+        return {};
+    }
+};
+
 interface DesktopGrid3DSurfaceProps {
     title: string;
     mapButtonLabel: string;
@@ -34,6 +55,7 @@ interface DesktopGrid3DSurfaceProps {
     theme: Theme;
     isDaylight: boolean;
     hasFloatingPlayer?: boolean;
+    playlistVisibilityScope?: string;
 }
 
 export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
@@ -51,11 +73,58 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     theme,
     isDaylight,
     hasFloatingPlayer = false,
+    playlistVisibilityScope = 'default',
 }) => {
     const [showGridMap, setShowGridMap] = useState(false);
     const [tabsExpanded, setTabsExpanded] = useState(false);
+    const [hiddenPlaylistsByScope, setHiddenPlaylistsByScope] = useState(readHiddenGridPlaylists);
 
     const activeTab = tabs.find(tab => tab.active) || tabs[0];
+    const hiddenPlaylistIds = useMemo(
+        () => new Set(hiddenPlaylistsByScope[playlistVisibilityScope] || []),
+        [hiddenPlaylistsByScope, playlistVisibilityScope],
+    );
+    const visibleItems = useMemo(
+        () => items.filter(item => item.type !== 'playlist' || !hiddenPlaylistIds.has(String(item.id))),
+        [hiddenPlaylistIds, items],
+    );
+    const visibleFocusedIndex = useMemo(() => {
+        const focusedItem = items[focusedIndex];
+        const nextIndex = focusedItem ? visibleItems.indexOf(focusedItem) : -1;
+        return nextIndex >= 0 ? nextIndex : 0;
+    }, [focusedIndex, items, visibleItems]);
+
+    const handleVisibleFocusedIndexChange = (index: number) => {
+        const sourceIndex = items.indexOf(visibleItems[index]);
+        if (sourceIndex >= 0) onFocusedIndexChange(sourceIndex);
+    };
+
+    const handleVisibleSelect = (item: Grid3DSliderItem, index: number) => {
+        const sourceIndex = items.indexOf(item);
+        onSelect(item, sourceIndex >= 0 ? sourceIndex : index);
+    };
+
+    const togglePlaylistHidden = (item: Grid3DSliderItem) => {
+        if (item.type !== 'playlist') return;
+
+        const id = String(item.id);
+        setHiddenPlaylistsByScope(previous => {
+            const current = new Set(previous[playlistVisibilityScope] || []);
+            if (current.has(id)) {
+                current.delete(id);
+            } else {
+                current.add(id);
+            }
+
+            const next = { ...previous, [playlistVisibilityScope]: [...current] };
+            try {
+                localStorage.setItem(HIDDEN_GRID_PLAYLISTS_STORAGE_KEY, JSON.stringify(next));
+            } catch {
+                // Keep the visibility change for this session when storage is unavailable.
+            }
+            return next;
+        });
+    };
 
     return (
         <div className="w-full h-full min-h-0 flex flex-col justify-center relative">
@@ -167,10 +236,10 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
             )}
 
             <Grid3DSlider
-                items={items}
-                focusedIndex={focusedIndex}
-                onFocusedIndexChange={onFocusedIndexChange}
-                onSelect={onSelect}
+                items={visibleItems}
+                focusedIndex={visibleFocusedIndex}
+                onFocusedIndexChange={handleVisibleFocusedIndexChange}
+                onSelect={handleVisibleSelect}
                 isInteractive={isInteractive && !showGridMap}
                 isLoading={isLoading}
                 emptyMessage={emptyMessage}
@@ -188,6 +257,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                             coverUrl: item.coverUrl,
                             description: item.description,
                             summary: item.summary,
+                            type: item.type,
                             rawCollection: item,
                         }))}
                         initialFocusedIndex={focusedIndex}
@@ -198,6 +268,8 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                         }}
                         theme={theme}
                         isDaylight={isDaylight}
+                        isPlaylistHidden={(item) => hiddenPlaylistIds.has(String(item.id))}
+                        onTogglePlaylistHidden={togglePlaylistHidden}
                     />
                 )}
             </AnimatePresence>

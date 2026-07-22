@@ -371,7 +371,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             trackCount: p.trackCount,
             description: p.creator?.nickname || t('home.playlists'),
             summary: p.description || '',
-            type: p.type,
+            type: 'playlist' as const,
             raw: p
         }));
     }, [activeCollections, t]);
@@ -679,6 +679,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         theme={theme}
                         isDaylight={isDaylight}
                         hasFloatingPlayer={Boolean(currentTrack)}
+                        playlistVisibilityScope={`online:${activeProviderId}`}
                     />
                 ) : homeViewTab === 'local' ? (
                     <div className="w-full h-full flex-1">

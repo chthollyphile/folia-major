@@ -132,6 +132,7 @@ export const NavidromeGrid3DView: React.FC<NavidromeGrid3DViewProps> = ({
                 coverUrl: randomCover || createCoverPlaceholder(t('navidrome.random') || 'Random', 'playlist'),
                 description: t('navidrome.randomDesc'),
                 trackCount: randomSongs.length,
+                type: 'playlist' as const,
             },
             {
                 id: FAVORITES_PLAYLIST_ID,
@@ -139,6 +140,7 @@ export const NavidromeGrid3DView: React.FC<NavidromeGrid3DViewProps> = ({
                 coverUrl: favoritesCover || createCoverPlaceholder(t('navidrome.favorites') || 'Favorites', 'playlist'),
                 description: t('navidrome.favorites'),
                 trackCount: favoriteSongs.length,
+                type: 'playlist' as const,
             },
             ...playlists.map(playlist => ({
                 id: playlist.id,
@@ -147,6 +149,7 @@ export const NavidromeGrid3DView: React.FC<NavidromeGrid3DViewProps> = ({
                 description: playlist.owner || t('home.playlists'),
                 trackCount: playlist.songCount,
                 editable: true,
+                type: 'playlist' as const,
             })),
         ];
     }, [config, favoriteSongs, playlists, randomSongs, t]);
@@ -267,6 +270,7 @@ export const NavidromeGrid3DView: React.FC<NavidromeGrid3DViewProps> = ({
             theme={theme}
             isDaylight={isDaylight}
             hasFloatingPlayer={hasFloatingPlayer}
+            playlistVisibilityScope="navidrome"
         />
     );
 };

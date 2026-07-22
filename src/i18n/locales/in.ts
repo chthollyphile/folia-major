@@ -418,7 +418,7 @@ export default {
     "pleaseLogin": "Silakan login untuk mengakses perpustakaan Anda",
     "connectAccount": "Hubungkan Akun Netease",
     "connectProviderAccount": "Hubungkan Akun {{provider}}",
-    "loadingLibrary": "Memuat Perpustakaan...",
+    "loadingLibrary": "Kosong",
     "resultsFor": "Hasil untuk",
     "noResults": "Tidak ada hasil ditemukan.",
     "playlists": "Playlist",

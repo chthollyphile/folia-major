@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
-import { ChevronLeft, Disc, Search, X } from 'lucide-react';
+import { ChevronLeft, Disc, Eye, EyeOff, ListFilter, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../types';
 import { useFoliaHexViewport } from './folia-grid/useFoliaHexViewport';
@@ -23,6 +23,7 @@ export interface GridMapItem {
     coverUrl?: string;
     description?: string;
     summary?: string;
+    type?: string;
     rawCollection?: any;
 }
 
@@ -35,6 +36,8 @@ interface GridMapProps {
     onSelectCollection: (collection: any, index: number) => void;
     theme: Theme;
     isDaylight: boolean;
+    isPlaylistHidden?: (item: GridMapItem) => boolean;
+    onTogglePlaylistHidden?: (item: GridMapItem) => void;
 }
 
 const compactDescription = (description?: string, maxLength = 72) => {
@@ -51,13 +54,30 @@ const MapCard = React.memo<{
     item: GridMapItem;
     isDaylight: boolean;
     onSelect: () => void;
+    isPlaylistEditMode: boolean;
+    isHidden: boolean;
+    onTogglePlaylistHidden?: () => void;
     cardWidth: number;
     cardHeight: number;
 }>(
-    ({ item, isDaylight, onSelect, cardWidth, cardHeight }) => {
+    ({
+        item,
+        isDaylight,
+        onSelect,
+        isPlaylistEditMode,
+        isHidden,
+        onTogglePlaylistHidden,
+        cardWidth,
+        cardHeight,
+    }) => {
+        const { t } = useTranslation();
+        const isPlaylistSelectionDisabled = isPlaylistEditMode && item.type === 'playlist';
+
         return (
             <div
-                className="rounded-xl p-3 flex flex-col items-center border backdrop-blur-md transition-shadow duration-300 shadow-lg hover:shadow-2xl theme-polaroid-card cursor-pointer"
+                className={`rounded-xl p-3 flex flex-col items-center border backdrop-blur-md transition-shadow duration-300 shadow-lg theme-polaroid-card ${
+                    isPlaylistSelectionDisabled ? 'cursor-default' : 'cursor-pointer hover:shadow-2xl'
+                }`}
                 style={{
                     width: cardWidth,
                     minHeight: cardHeight,
@@ -65,7 +85,7 @@ const MapCard = React.memo<{
                 }}
                 onClick={(e) => {
                     e.stopPropagation();
-                    onSelect();
+                    if (!isPlaylistSelectionDisabled) onSelect();
                 }}
             >
                 {/* Square Polaroid Photo Area */}
@@ -109,6 +129,21 @@ const MapCard = React.memo<{
                             <Disc size={48} className="opacity-20" style={{ color: 'var(--text-primary)' }} />
                         </div>
                     )}
+                    {isPlaylistEditMode && item.type === 'playlist' && onTogglePlaylistHidden && (
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onTogglePlaylistHidden();
+                            }}
+                            className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 shadow-lg backdrop-blur-md transition-transform hover:scale-105 active:scale-95 ${
+                                isHidden ? 'bg-red-500/80 text-white' : 'bg-black/45 text-white'
+                            }`}
+                            title={t(isHidden ? 'home.showPlaylist' : 'home.hidePlaylist')}
+                        >
+                            {isHidden ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                    )}
                 </div>
 
                 {/* Bottom Polaroid Frame Label Details */}
@@ -139,7 +174,11 @@ const MapCard = React.memo<{
             prev.item.coverUrl === next.item.coverUrl &&
             prev.item.description === next.item.description &&
             prev.item.summary === next.item.summary &&
+            prev.item.type === next.item.type &&
             prev.isDaylight === next.isDaylight &&
+            prev.isPlaylistEditMode === next.isPlaylistEditMode &&
+            prev.isHidden === next.isHidden &&
+            prev.onTogglePlaylistHidden === next.onTogglePlaylistHidden &&
             prev.cardWidth === next.cardWidth &&
             prev.cardHeight === next.cardHeight &&
             prev.onSelect === next.onSelect
@@ -156,6 +195,8 @@ export const GridMap: React.FC<GridMapProps> = ({
     onSelectCollection,
     theme,
     isDaylight,
+    isPlaylistHidden = () => false,
+    onTogglePlaylistHidden,
 }) => {
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +217,10 @@ export const GridMap: React.FC<GridMapProps> = ({
     const isComposingSearchRef = useRef(false);
 
     const [showSidePanel, setShowSidePanel] = useState(false);
+    const [showCutInPanel, setShowCutInPanel] = useState(false);
+    const [isPlaylistEditMode, setIsPlaylistEditMode] = useState(false);
+    const [showHiddenPlaylistsOnly, setShowHiddenPlaylistsOnly] = useState(false);
+    const hasPlaylistItems = useMemo(() => items.some(item => item.type === 'playlist'), [items]);
 
     const selectDisplayedItem = useCallback((item: GridMapItem, displayIndex: number) => {
         const sourceIndex = resolveGridMapSourceIndex(items, item, displayIndex);
@@ -218,18 +263,42 @@ export const GridMap: React.FC<GridMapProps> = ({
         return () => window.removeEventListener('keydown', handleSearchTyping);
     }, [showSearchPanel]);
 
+    const visibleItems = useMemo(() => {
+        if (isPlaylistEditMode && showHiddenPlaylistsOnly) {
+            return items.filter(item => item.type === 'playlist' && isPlaylistHidden(item));
+        }
+
+        return isPlaylistEditMode
+            ? items
+            : items.filter(item => item.type !== 'playlist' || !isPlaylistHidden(item));
+    }, [isPlaylistEditMode, isPlaylistHidden, items, showHiddenPlaylistsOnly]);
+
     const displayItems = useMemo(() => {
         const query = deferredSearchQuery.trim().toLowerCase();
-        if (!query) return items;
+        if (!query) return visibleItems;
 
-        return items.filter(item => {
+        return visibleItems.filter(item => {
             return (
                 item.name?.toLowerCase().includes(query) ||
                 item.description?.toLowerCase().includes(query) ||
                 item.summary?.toLowerCase().includes(query)
             );
         });
-    }, [items, deferredSearchQuery]);
+    }, [visibleItems, deferredSearchQuery]);
+
+    const togglePlaylistEditMode = useCallback(() => {
+        setIsPlaylistEditMode(previous => {
+            const next = !previous;
+            if (!next) setShowHiddenPlaylistsOnly(false);
+            return next;
+        });
+    }, []);
+
+    const closeCutInPanel = useCallback(() => {
+        setShowCutInPanel(false);
+        setIsPlaylistEditMode(false);
+        setShowHiddenPlaylistsOnly(false);
+    }, []);
 
     // Track responsive container size to scale grid card dimensions dynamically
     const [containerSize, setContainerSize] = useState(() => {
@@ -507,9 +576,15 @@ export const GridMap: React.FC<GridMapProps> = ({
                     <MapCard
                         item={item}
                         isDaylight={isDaylight}
+                        isPlaylistEditMode={isPlaylistEditMode}
+                        isHidden={isPlaylistHidden(item)}
+                        onTogglePlaylistHidden={item.type === 'playlist' && onTogglePlaylistHidden
+                            ? () => onTogglePlaylistHidden(item)
+                            : undefined}
                         cardWidth={layoutConfig.cardWidth}
                         cardHeight={layoutConfig.cardHeight}
                         onSelect={() => {
+                            if (isPlaylistEditMode && item.type === 'playlist') return;
                             if (suppressSelectionRef.current) return;
                             selectDisplayedItem(item, idx);
                         }}
@@ -522,6 +597,9 @@ export const GridMap: React.FC<GridMapProps> = ({
         displayItems,
         baseCoords,
         isDaylight,
+        isPlaylistEditMode,
+        isPlaylistHidden,
+        onTogglePlaylistHidden,
         layoutConfig.cardWidth,
         layoutConfig.cardHeight,
         layoutConfig.maxDistance,
@@ -685,7 +763,7 @@ export const GridMap: React.FC<GridMapProps> = ({
             }}
         >
             {/* Top Floating Glass Header */}
-            <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-5 z-[70] bg-gradient-to-b from-black/10 to-transparent pointer-events-none">
+            <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-5 z-[70] bg-gradient-to-b from-black/10 to-transparent">
                 <button
                     onClick={onBack}
                     className="w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto shadow-lg hover:scale-105 active:scale-95"
@@ -697,12 +775,32 @@ export const GridMap: React.FC<GridMapProps> = ({
                     <ChevronLeft size={20} />
                 </button>
 
-                <div className="text-center flex flex-col items-center select-none pointer-events-auto">
+                <button
+                    type="button"
+                    disabled={!hasPlaylistItems}
+                    onClick={() => {
+                        if (showCutInPanel) {
+                            closeCutInPanel();
+                        } else {
+                            setShowCutInPanel(true);
+                        }
+                    }}
+                    className="text-center flex flex-col items-center select-none pointer-events-auto cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl backdrop-blur-md disabled:cursor-default disabled:hover:scale-100"
+                    style={{
+                        backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
+                        color: 'var(--text-primary)',
+                    }}
+                >
                     <h2 className="text-lg font-bold tracking-tight">
                         {title}
+                        {hasPlaylistItems && (
+                            <span className="ml-1.5 rounded-full bg-zinc-500/20 px-1.5 py-0.5 text-[9px] font-normal opacity-60">
+                                {t(showCutInPanel ? 'ui.close' : 'ui.info')}
+                            </span>
+                        )}
                     </h2>
                     {subtitle && <p className="text-xs opacity-50 mt-0.5">{subtitle}</p>}
-                </div>
+                </button>
 
                 <div className="w-10 h-10" />
             </div>
@@ -826,6 +924,68 @@ export const GridMap: React.FC<GridMapProps> = ({
                     </motion.div>
                 )}
             </div>
+
+            <AnimatePresence>
+                {showCutInPanel && hasPlaylistItems && (
+                    <motion.div
+                        initial={{ opacity: 0, x: -60, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: -60, scale: 0.95 }}
+                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute left-6 top-24 bottom-28 sm:bottom-6 w-80 rounded-3xl z-[80] flex flex-col p-6 shadow-2xl border backdrop-blur-2xl pointer-events-auto theme-glass-panel"
+                    >
+                        <div
+                            className="relative mb-4 aspect-square shrink-0 overflow-hidden rounded-2xl shadow-lg"
+                            style={{
+                                background: `linear-gradient(145deg, ${theme.primaryColor}, ${theme.accentColor})`,
+                            }}
+                        >
+                            <div
+                                className="absolute inset-0 opacity-60"
+                                style={{
+                                    background: `radial-gradient(circle at 20% 15%, ${theme.secondaryColor}, transparent 58%)`,
+                                }}
+                            />
+                            <div className="absolute inset-0 bg-black/15" />
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="line-clamp-2 text-xl font-bold leading-snug">{title}</h3>
+                            <p className="mt-1.5 text-[10px] opacity-40">{t('home.playlists')}</p>
+                        </div>
+                        <div
+                            className="mt-auto space-y-2 border-t pt-4"
+                            style={{ borderTopColor: 'color-mix(in srgb, var(--text-primary) 12%, transparent)' }}
+                        >
+                            {isPlaylistEditMode && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHiddenPlaylistsOnly(previous => !previous)}
+                                    className={`w-full rounded-full py-2.5 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        showHiddenPlaylistsOnly
+                                            ? 'bg-black/10 dark:bg-white/10'
+                                            : 'bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900'
+                                    }`}
+                                >
+                                    <ListFilter size={14} />
+                                    {showHiddenPlaylistsOnly ? t('home.showAllPlaylists') : t('home.showHiddenPlaylistsOnly')}
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={togglePlaylistEditMode}
+                                className={`w-full rounded-full py-2.5 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    isPlaylistEditMode
+                                        ? 'bg-red-500/20 text-red-500 border border-red-500/30'
+                                        : 'bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900'
+                                }`}
+                            >
+                                {isPlaylistEditMode ? <EyeOff size={14} /> : <Eye size={14} />}
+                                {isPlaylistEditMode ? t('home.finishHidingPlaylists') : t('home.hidePlaylists')}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Bottom Right Floating Button */}
             {items.length > 0 && (

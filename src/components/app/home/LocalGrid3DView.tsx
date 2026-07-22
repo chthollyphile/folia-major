@@ -261,6 +261,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
             theme={theme}
             isDaylight={isDaylight}
             hasFloatingPlayer={hasFloatingPlayer}
+            playlistVisibilityScope="local"
         />
     );
 };
