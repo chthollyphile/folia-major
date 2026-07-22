@@ -48,7 +48,7 @@ src/
   负责用 `build*.ts` / `create*.ts` 聚合底层 hook / state / action，生成给顶层 app 组件消费的模型和动作。
 
 - `components/app/search/*`
-  搜索工作台、虚拟化结果列表和搜索结果到 GridView 集合描述符的适配层。
+  搜索工作台 `SearchWorkspace.tsx`、虚拟化结果列表和搜索结果到 GridView 集合描述符的适配层。
   搜索结果保持高密度列表；歌手与专辑详情统一进入 GridView 集合导航栈。
 
 - `components/app/navigation/*` / `playback/*` / `presentation/*`
@@ -56,20 +56,19 @@ src/
   分别承接顶层导航辅助、播放装配辅助、展示派生计算，避免这些实现回流到 `App.tsx`。
 
 - `components/app/Home.tsx`
-  首页 app-level 入口。负责消费 `buildHomeModel.ts` 生成的模型，并统一进入 Grid3D/GridView 流程；`carousel` 首页布局已弃用，历史设置会迁移到 `grid`。
+  首页 app-level 入口。负责消费 `buildHomeModel.ts` 生成的模型，挂载 `GridViewOverlayHost` 与 `Grid3D` 视图；历史 `carousel` 布局与旧版单视图组件已完全清理，统一由 3D 网格与 GridView 导航栈接管。
 
 - `components/app/PlayerPanel.tsx`
-  播放器右侧面板 app-level 入口。负责消费 `buildPlayerPanelModel.ts` 生成的模型，并转接到 `UnifiedPanel.tsx`。
+  播放器右侧面板 app-level 入口。负责消费 `buildPlayerPanelModel.ts` 生成的模型，转接到 `UnifiedPanel.tsx` 及其子 tab。
 
 - `components/UnifiedPanel.tsx`
   播放器右侧面板实现。根据当前歌曲来源切换不同 tab。
 
 - `components/panelTab/*`
-  右侧面板各 tab 的具体实现。
+  右侧面板各 tab 的具体实现（CoverTab, ControlsTab, QueueTab, AccountTab, LocalTab, NaviTab, FmTab, OnlineLyricsTab 等）。
 
 - `components/modal/*`
-  各类弹窗，尤其是：
-  `SettingsModal.tsx` 是全局设置中心和帮助入口；具体设置页已拆到 `components/modal/settings/*`。
+  各类弹窗与对话框。`SettingsModal.tsx` 是全局设置中心和帮助入口，已载入分栏结构；具体设置子页拆分到 `components/modal/settings/*`（外观、播放、集成、存储、桌面端、实验室等）。
 
 - `components/command-palette/*`
   命令面板。`commandRegistry.ts` 统一注册搜索、设置入口、导航、右侧面板、播放、visualizer 和背景切换命令；新增功能性设置或可执行动作时必须同步这里和 i18n。
@@ -77,8 +76,8 @@ src/
 - `components/visualizer/*`
   歌词可视化层。
   根目录保留共享壳层、runtime、registry、视觉设置卡片和预览入口；
-  `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` 子目录分别负责各模式实现。
-  shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用、Monet、漫游像素画、隐现双着色器、URL 和 Sora 模式。
+  `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` / `diorama` 子目录分别负责各模式实现。
+  shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用 (common)、Monet、漫游 (latent/diorama)、隐现双着色器、URL 和 Sora 模式。
 
 ### Hooks
 
@@ -86,7 +85,7 @@ src/
   App 级导航状态。
 
 - `hooks/useAppPreferences.ts`
-  用户偏好，例如音质、白天模式、静态模式、音量、可视化模式。
+  用户偏好，例如音质、白天模式、静态模式、音量、字重、可视化模式。
 
 - `hooks/useNeteaseLibrary.ts`
   网易云账户缓存与同步兼容层；组件侧通过 Omni 账户摘要消费在线账户。
@@ -101,16 +100,16 @@ src/
 ### Services
 
 - `services/onlineMusic/omni.ts`
-  普通在线数据的唯一公开入口。首页请求按 active provider 路由，已有歌曲和集合按自身 provider 路由；组件、hooks 和 stores 不应直连 provider registry 或具体 API。
+  普通在线数据的唯一公开入口。首页请求按 active provider 路由，已有歌曲和集合按自身 provider 路由；组件、hooks 和 stores 不应直连 provider registry 或具体 API。支持网易云与酷狗多在线 provider。
 
-- `services/onlineMusic/kugouTransport.ts`
-  酷狗薄 transport。Electron 优先走 preload IPC，Web 仅在明确配置 `VITE_KUGOU_API_BASE` 时启用，运行中不会跨 transport 自动降级。
+- `services/onlineMusic/kugouTransport.ts` / `kugouProvider.ts`
+  酷狗薄 transport 与 provider 适配层。Electron 优先走 preload IPC，Web 仅在明确配置 `VITE_KUGOU_API_BASE` 时启用，运行中不会跨 transport 自动降级。支持账号登录刷新、搜歌、歌词与音源。
 
 - `services/netease.ts`
   网易云原始 API 封装，仅由网易 provider 清洗后提供给 Omni。
 
 - `services/navidromeService.ts`
-  Navidrome / Subsonic API 封装。
+  Navidrome / Subsonic API 封装。已适配 Navidrome 0.63+ 结构化歌词 API (`/api/getLyrics`)。
 
 - `services/localMusicService.ts`
   本地音乐导入、重扫、删除、歌词匹配、文件句柄恢复、扫描事件。
@@ -213,17 +212,19 @@ src/
 
 ## 6. Project-Specific Notes
 
-- 这是统一播放模型，不要把网易云 / 本地 / Navidrome 分成三套播放器状态。
-- 主播放队列支持网易云 / 本地 / Navidrome 混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
-- `SettingsModal.tsx` 是设置中心，不只是帮助说明。
-- 新增设置时先判断是否适用 `settings-feature-integration`：视觉相关设置必须接入视觉配置导入导出；功能性设置或可执行动作必须接入 command palette。
-- `PlayerPanel.tsx` 是当前 app-level 面板入口，`UnifiedPanel.tsx` 是 legacy 实现；不要重新把面板逻辑塞回单个大组件。
+- 这是统一播放模型，不要把网易云 / 酷狗 / 本地 / Navidrome 分成多套播放器状态。
+- 主播放队列支持多来源（网易云 / 酷狗 / 本地 / Navidrome）混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
+- `SettingsModal.tsx` 是设置中心与帮助入口，内部按子视图分栏结构组织。
+- 新增设置时先判断是否适用 `settings-feature-integration`：视觉相关设置必须接入外观配置导入导出；功能性设置或可执行动作必须接入 command palette。
+- `PlayerPanel.tsx` 是当前 app-level 面板入口，负责消费 View Model 并转接到 `UnifiedPanel.tsx` 及其子 tab；不要重新把面板逻辑和超长 props 塞回 `App.tsx`。
 - 不要在 `App.tsx` 里直接组装超长 props；优先放进 `components/app/*` 下与功能相邻的 `build*.ts` / `create*.ts`。
-- 本地音乐导入是增量快照式，不是单次全量扫描。
+- 本地音乐导入是增量快照式，不是单次全量扫描。GridView 视图支持保存本地文件夹排序倾向（`localFolderSortStrategy`），并支持隐藏歌单过滤。
 - 本地曲库数据库已由 Dexie 全面管理，并保留原生 IndexedDB v6 数据兼容。艺术家/专辑 UUID 与显示名称、文件路径和在线来源 ID 相互独立；GridView 按 assignment 中的实体 UUID 导航。
 - 主题同步 registry 已从 legacy localStorage 迁移到 IndexedDB 的 `theme_registry` store；首次读取时会做一次性迁移，不要在业务组件里直接维护 registry。
 - 同步服务的主题同步与视觉设置同步是两个动作：`sync-now` 只同步 AI 主题；完整视觉设置的拉取/推送和 zip library 导入导出位于 `StorageSettingsSection.tsx`。
+- Electron 更新逻辑已模块化到 `electron/updateChannels.cjs`，支持 release、limo 和 cielo 等多更新通道检查。
 - 歌词解析优先从 `parserCore.ts` 理解，不要从旧兼容层反推。
+- 歌词与字幕字重必须通过 `resolveThemeFontWeight(theme, modeFallback)` 统一解析，且 DOM、Canvas、pretext 与光栅化渲染保持一致；取消自定义字体时会自动重置字体栈与相关设置。
 - 不要用高频 `useState`、store setter 或 reducer 追踪当前精确播放时间来驱动每帧动画；连续时间优先走 `MotionValue`、CSS / Framer Motion、canvas draw loop 或 `useRef`，React state 只承载当前行、模式、可见段落等离散状态。
 - 新增 UI 文案必须补 `src/i18n/locales/en.ts` 和 `src/i18n/locales/zh-CN.ts`。
 - 新增组件颜色必须从 dual theme 的 light / dark 配色中动态派生，并验证明暗模式下的可读对比。

@@ -74,7 +74,7 @@ When you are commanded to rewrite the project code to another language or a diff
 涉及文件通常包括：
 
 - `.github/workflows/*.yml`
-- `electron/main.cjs`
+- `electron/main.cjs` / `electron/updateChannels.cjs` (更新通道检查逻辑可通过 `test/unit/electron/updateChannels.test.ts` 跑单测)
 - `package.json`
 
 ### 4. 开发服务器已经在跑

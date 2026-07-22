@@ -12,13 +12,14 @@
 - `tilt/VisualizerTilt.tsx`: 倾诉模式
 - `claddagh/VisualizerCladdagh.tsx`: 回环模式
 - `monet/VisualizerMonet.tsx`: 莫奈海报模式
+- `diorama/VisualizerDiorama.tsx`: 漫游模式（3D 景深立影与动态相机步进）
 - `definition.ts`: visualizer 共享契约、registry entry 定义
 - `settingsPanels.tsx`: 模式自带设置面板
 - `VisualizerShell.tsx`: 共享外层容器、背景层、返回按钮
 - `VisualizerSubtitleOverlay.tsx`: 共享底部翻译 / 下一句提示层
 - `runtime.ts`: 共享 runtime 工具与基础 hook（当前行、下一句、最近完成句、预热入口）
 - `FumeBackground.ts`: Fume 专用 canvas 几何背景
-- `backgrounds/<mode>/`: shell 级背景模式目录，包含 `entry.tsx`、渲染层和可选设置卡
+- `backgrounds/<mode>/`: shell 级背景模式目录，包含 `entry.tsx`、渲染层和可选设置卡；当前包含 common, monet, latent, nomand, url, sora
 - `backgrounds/registry.tsx`: 自动发现 `backgrounds/*/entry.tsx`
 - `backgrounds/definition.ts`: 背景统一配置、动作和注册入口契约
 - `VisPlayground.tsx`: 可视化预览和样式设置面板

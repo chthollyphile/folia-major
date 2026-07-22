@@ -41,12 +41,18 @@ description: Use when the user refers to repository-specific terms such as home 
 
 - “首页视图”“当前首页 tab”“主页 tab”
   -> `homeViewTab` in `src/stores/useSearchNavigationStore.ts`
-  -> consumed by `src/components/Grid3D.tsx`, legacy `src/components/Home.tsx` and `src/components/app/home/GridViewOverlayHost.tsx`
+  -> consumed by `src/components/Grid3D.tsx` and `src/components/app/home/GridViewOverlayHost.tsx`
 
 - “网格首页”“3D 首页”“集合网格”
   -> `src/components/Grid3D.tsx` / `src/components/GridView.tsx`
   -> collection adapters: `src/components/app/home/gridViewCollectionAdapters.ts`
   -> overlay host: `src/components/app/home/GridViewOverlayHost.tsx`
+
+- “隐藏歌单”“歌单隐藏过滤”
+  -> `isPlaylistHidden` / `hiddenPlaylistKeys` in `src/components/Grid3D.tsx`, `src/components/GridMap.tsx`, `src/components/folia-grid/DesktopGrid3DSurface.tsx`
+
+- “文件夹排序”“本地排序策略”
+  -> `localFolderSortStrategy` in `src/components/GridView.tsx`
 
 - “当前 app 视图”“home/player 切换”
   -> `useAppNavigation` in `src/hooks/useAppNavigation.ts`
@@ -63,8 +69,7 @@ description: Use when the user refers to repository-specific terms such as home 
 
 - “首页”
   -> app-level entry: `src/components/app/Home.tsx`
-  -> selects Grid3D/GridView or the legacy implementation according to `homeLayoutStyle`
-  -> legacy implementation: `src/components/Home.tsx`（弃用路径，不承接新功能）
+  -> mounts `GridViewOverlayHost` and `Grid3D` directly; legacy carousel and single-view home components are fully removed.
 
 - “首页模型”“Home 装配输入”
   -> `src/components/app/home/buildHomeModel.ts`
@@ -81,17 +86,8 @@ description: Use when the user refers to repository-specific terms such as home 
 - “Navidrome 专辑页”
   -> `src/components/navidrome/NavidromeAlbumView.tsx`
 
-- “网易云歌单页”“歌单详情页”
-  -> app-level overlay entry: `src/components/app/views/PlaylistView.tsx`
-  -> legacy implementation: `src/components/PlaylistView.tsx`
-
-- “网易云专辑页”“专辑详情页”
-  -> app-level overlay entry: `src/components/app/views/AlbumView.tsx`
-  -> legacy implementation: `src/components/AlbumView.tsx`
-
-- “网易云歌手页”“歌手详情页”
-  -> app-level overlay entry: `src/components/app/views/ArtistView.tsx`
-  -> legacy implementation: `src/components/ArtistView.tsx`
+- “网易云歌单页 / 专辑页 / 歌手页 / 详情集合”
+  -> 统一由 `GridView.tsx` 集合导航栈与 `src/components/app/home/gridViewCollectionAdapters.ts` 接管
 
 ### Search
 
@@ -104,9 +100,9 @@ description: Use when the user refers to repository-specific terms such as home 
 - “搜索来源 tab”
   -> `searchSourceTab` in `src/stores/useSearchNavigationStore.ts`
 
-- “搜索结果页面”
-  -> app-level overlay assembly: `src/components/app/overlays/AppOverlays.tsx`
-  -> legacy implementation: `src/components/SearchResultsOverlay.tsx`
+- “搜索结果页面”“搜索工作台”
+  -> `src/components/app/search/SearchWorkspace.tsx`
+  -> overlay assembly: `src/components/app/overlays/AppOverlays.tsx`
 
 ### Panel / Modal
 
@@ -209,22 +205,38 @@ description: Use when the user refers to repository-specific terms such as home 
   -> `VisualizerMode = 'claddagh'`
   -> tuning: `claddaghTuning` in `src/stores/useSettingsUiStore.ts`
 
-- “通用背景 / 莫奈背景”
+- “漫游模式”“立影模式”“diorama”
+  -> `src/components/visualizer/diorama/VisualizerDiorama.tsx`
+  -> `VisualizerMode = 'diorama'`
+
+- “通用背景 / 莫奈背景 / 隐现双着色器背景”
   -> `visualizerBackgroundMode` in `src/stores/useSettingsUiStore.ts`
-  -> shell background card: `src/components/visualizer/MonetBackgroundSettingsCard.tsx`
+  -> shell background registry: `src/components/visualizer/backgrounds/registry.tsx`
 
 - “可视化模式状态”
   -> `visualizerMode` in `src/stores/useSettingsUiStore.ts`
   -> bridge hook: `src/hooks/useAppPreferences.ts`
   -> related type in `src/types.ts`
 
+- “更新通道”“limo 通道”“cielo 通道”
+  -> `electron/updateChannels.cjs` / `electron/main.cjs`
+
+- “自定义字重”
+  -> `resolveThemeFontWeight` in `src/utils/fontStacks.ts` / `useSettingsUiStore.ts`
+
+- “Acrylic 确认弹窗”
+  -> `src/components/modal/settings/DesktopSettingsSubview.tsx`
+
 ### Data / Service
 
 - “网易云接口层”
   -> `src/services/netease.ts`
 
+- “酷狗接口层 / 酷狗 Provider”
+  -> `src/services/onlineMusic/kugouTransport.ts` / `kugouProvider.ts`
+
 - “Navidrome 接口层”
-  -> `src/services/navidromeService.ts`
+  -> `src/services/navidromeService.ts`（已适配 Navidrome 0.63+ `/api/getLyrics` 歌词接口）
 
 - “本地导入逻辑”“本地文件扫描”“重扫逻辑”
   -> `src/services/localMusicService.ts`

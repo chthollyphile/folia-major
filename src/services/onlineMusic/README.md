@@ -74,7 +74,7 @@ Omni 提供的能力按业务模块分类整理如下：
 - `getSongDetail(providerId, id)`: 获取指定歌曲的详细元数据信息。
 - `canPlaySong(song)`: 校验歌曲是否具备播放支持。
 - `getAudioSource(song, quality)`: 获取歌曲指定音质（如标准、HQ、SQ、Hi-Res）的播放音频 URL 与格式。
-- `getLyrics(song, context)`: 获取歌曲的歌词信息（支持逐字/逐句时序歌词）。
+- `getLyrics(song, context)`: 获取歌曲的歌词信息（支持逐字/逐句时序歌词，支持 Navidrome 0.63+ 结构化歌词 API `/api/getLyrics`）。
 - `getChorusRanges(song)`: 通过歌曲所属 Provider 获取标准化的副歌时间区间。
 - `getSongAvailability(song)`: 查询歌曲可用性状态（如版权限制、付费提示）。
 - `getSongReplacement(song)`: 尝试查找不可用歌曲的同曲目替代版本。
@@ -91,6 +91,8 @@ Omni 提供的能力按业务模块分类整理如下：
 - `subscribe(collection, subscribed)`: 订阅或取消订阅指定的歌单/专辑。
 - `updateCollectionTracks(collection, operation, tracks)`: 向指定歌单批量添加（`add`）或删除（`del`）歌曲。
 - `likeSong(song, liked)`: 将指定歌曲加入或移出“我喜欢的音乐”。
+- `toggleSongLike(song, fallbackLikedSongIds)`: 根据当前点赞状态安全切换“我喜欢的音乐”，并保持 Provider account cache 同步。
+- `isSongLiked(song, fallbackLikedSongIds)`: 查询某首歌曲在对应 Provider 中是否已被点赞/收藏。
 
 ### 9. 关联引用与外链 (Catalog References & Links)
 - `canResolveCatalogRef(song, kind)`: 判断是否能解析歌曲在对应平台下的分类/目录关联引用。
