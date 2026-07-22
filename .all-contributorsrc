@@ -324,6 +324,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "Ckey1225",
+      "name": "Ckey1225",
+      "avatar_url": "https://avatars.githubusercontent.com/u/291420673?v=4",
+      "profile": "https://github.com/Ckey1225",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
