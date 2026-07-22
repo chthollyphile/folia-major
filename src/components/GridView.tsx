@@ -116,6 +116,18 @@ type StoredGridViewNavigationState = {
 
 const GRID_VIEW_NAVIGATION_PREFIX = 'folia_gridview_state';
 const GRID_VIEW_LAST_INDEX_PREFIX = 'folia_gridview_last_index';
+const LOCAL_TRACK_SORT_FIELD_STORAGE_KEY = 'local_track_sort_field';
+const LOCAL_TRACK_SORT_DIRECTION_STORAGE_KEY = 'local_track_sort_direction';
+
+const getStoredLocalTrackSortField = (): LocalSongFolderSortField => {
+    const stored = localStorage.getItem(LOCAL_TRACK_SORT_FIELD_STORAGE_KEY);
+    return stored === 'fileLastModified' ? stored : 'fileName';
+};
+
+const getStoredLocalTrackSortDirection = (): LocalSongFolderSortDirection => {
+    const stored = localStorage.getItem(LOCAL_TRACK_SORT_DIRECTION_STORAGE_KEY);
+    return stored === 'desc' ? stored : 'asc';
+};
 const GRID_VIEW_RENDER_BUFFER_FACTOR = 0.75;
 const GRID_VIEW_CARD_VISIBILITY_BUFFER = 96;
 const GRID_SEARCH_DEBOUNCE_MS = 80;
@@ -691,8 +703,16 @@ export const GridView: React.FC<GridViewProps> = ({
     const [removingTrackKeys, setRemovingTrackKeys] = useState<Set<string>>(() => new Set());
     const trackRemovalTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const [removedExternalTrackKeys, setRemovedExternalTrackKeys] = useState<Set<string>>(() => new Set());
-    const [localTrackSortField, setLocalTrackSortField] = useState<LocalSongFolderSortField>('fileName');
-    const [localTrackSortDirection, setLocalTrackSortDirection] = useState<LocalSongFolderSortDirection>('asc');
+    const [localTrackSortField, setLocalTrackSortField] = useState<LocalSongFolderSortField>(getStoredLocalTrackSortField);
+    const [localTrackSortDirection, setLocalTrackSortDirection] = useState<LocalSongFolderSortDirection>(getStoredLocalTrackSortDirection);
+    const handleLocalTrackSortFieldChange = useCallback((field: LocalSongFolderSortField) => {
+        localStorage.setItem(LOCAL_TRACK_SORT_FIELD_STORAGE_KEY, field);
+        setLocalTrackSortField(field);
+    }, []);
+    const handleLocalTrackSortDirectionChange = useCallback((direction: LocalSongFolderSortDirection) => {
+        localStorage.setItem(LOCAL_TRACK_SORT_DIRECTION_STORAGE_KEY, direction);
+        setLocalTrackSortDirection(direction);
+    }, []);
     const baseDisplayTracks = externalTracks ?? tracks;
     const usesExternalTracks = externalTracks !== undefined;
     const [isEditMode, setIsEditMode] = useState(false);
@@ -2531,13 +2551,13 @@ export const GridView: React.FC<GridViewProps> = ({
                     headerLeadingActions={supportsLocalTrackSorting ? (
                         <LocalTrackSortDirectionButton
                             direction={localTrackSortDirection}
-                            onDirectionChange={setLocalTrackSortDirection}
+                            onDirectionChange={handleLocalTrackSortDirectionChange}
                         />
                     ) : undefined}
                     headerActions={supportsLocalTrackSorting ? (
                         <LocalTrackSortMenu
                             field={localTrackSortField}
-                            onFieldChange={setLocalTrackSortField}
+                            onFieldChange={handleLocalTrackSortFieldChange}
                         />
                     ) : undefined}
                     renderItem={(track, index, style) => (
