@@ -66,8 +66,32 @@ function getReleaseUrl(channel, version, releasesUrl) {
   return normalizedVersion ? `${releasesUrl}/tag/v${normalizedVersion}` : releasesUrl;
 }
 
+// Builds a provider configuration that can read rolling prerelease assets without GitHub's release-feed selection.
+function getUpdateProviderConfig(releaseChannel, github) {
+  if (!releaseChannel?.updateEnabled) {
+    return null;
+  }
+
+  if (releaseChannel.rollingReleaseTag) {
+    return {
+      provider: 'generic',
+      url: `https://github.com/${github.owner}/${github.repo}/releases/download/${releaseChannel.rollingReleaseTag}/`,
+      channel: releaseChannel.updaterChannel,
+      useMultipleRangeRequest: false,
+    };
+  }
+
+  return {
+    provider: 'github',
+    owner: github.owner,
+    repo: github.repo,
+    channel: releaseChannel.updaterChannel,
+  };
+}
+
 module.exports = {
   RELEASE_CHANNELS,
   getReleaseUrl,
+  getUpdateProviderConfig,
   resolveReleaseChannel,
 };
