@@ -371,7 +371,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             trackCount: p.trackCount,
             description: p.creator?.nickname || t('home.playlists'),
             summary: p.description || '',
-            type: 'playlist' as const,
+            type: p.type,
             raw: p
         }));
     }, [activeCollections, t]);
