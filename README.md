@@ -14,7 +14,7 @@ Lyrics Reimagined // 辞曲新境
 [![GitHub stars](https://img.shields.io/github/stars/chthollyphile/folia-major?style=social)](https://github.com/chthollyphile/folia-major/stargazers)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-34-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-35-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [获取方式](https://github.com/chthollyphile/folia-major#%E8%8E%B7%E5%8F%96%E6%96%B9%E5%BC%8F)
@@ -188,6 +188,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/oldking139"><img src="https://avatars.githubusercontent.com/u/45203648?v=4?s=100" width="100px;" alt="George Kazami"/><br /><sub><b>George Kazami</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=oldking139" title="Code">💻</a> <a href="#ideas-oldking139" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/iammagicc"><img src="https://avatars.githubusercontent.com/u/69392179?v=4?s=100" width="100px;" alt="iammagicc"/><br /><sub><b>iammagicc</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Aiammagicc" title="Bug reports">🐛</a> <a href="https://github.com/chthollyphile/folia-major/commits?author=iammagicc" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/xinjiu-qwq"><img src="https://avatars.githubusercontent.com/u/63525418?v=4?s=100" width="100px;" alt="Rika Tsuki"/><br /><sub><b>Rika Tsuki</b></sub></a><br /><a href="#ideas-xinjiu-qwq" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Ckey1225"><img src="https://avatars.githubusercontent.com/u/291420673?v=4?s=100" width="100px;" alt="Ckey1225"/><br /><sub><b>Ckey1225</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3ACkey1225" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>
