@@ -149,6 +149,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
     const coverSize = useCompactMetrics
         ? (isDesktopWidth ? 208 : 192)
         : (isDesktopWidth ? (isUltraDesktop ? 360 : isLargeDesktop ? 312 : 218) : 224);
+    const edgePadding = Math.max(0, (containerSize.width - coverSize) / 2);
 
     const safeFocusedIndex = clampFocusedIndex(focusedIndex, items.length);
     const itemsSignature = useMemo(() => items.map(item => item.id).join(','), [items]);
@@ -498,7 +499,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
                 }`}
                 style={{ scrollbarWidth: 'none' }}
             >
-                <div className="flex px-[40vw] gap-12">
+                <div className="flex gap-12" style={{ paddingInline: edgePadding }}>
                     {isLoading ? (
                         Array.from({ length: 5 }).map((_, index) => (
                             <div key={`skeleton-${index}`} className="shrink-0 pointer-events-none select-none">
