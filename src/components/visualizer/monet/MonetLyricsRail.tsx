@@ -701,7 +701,7 @@ const MonetRailLine: React.FC<{
                 />
             )}
             <div
-                className="min-w-0 overflow-hidden"
+                className="min-w-0 overflow-hidden pointer-events-none"
                 style={{
                     marginLeft: `-${glowBufferPx}px`,
                     marginRight: `-${glowBufferPx}px`,
