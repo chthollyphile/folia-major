@@ -3,6 +3,7 @@ export function splitCombinedTimeline(rawText: string): { main: string, trans: s
 
     const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
     const enhancedAngleRegex = /<\d{2}:\d{2}[.:]\d{2,3}>/;
+    const enhancedAngleTimestampRegex = /<\d{2}:\d{2}[.:]\d{2,3}>/g;
     const enhancedBracketRegex = /^\s*\[\d{2}:\d{2}[.:]\d{2,3}\][^\[\]\n]+(?:\[\d{2}:\d{2}[.:]\d{2,3}\][^\[\]\n]*)+$/;
     const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -24,6 +25,16 @@ export function splitCombinedTimeline(rawText: string): { main: string, trans: s
                 startTimestamp = match[0];
             }
             timestampSignature += match[0];
+        }
+
+        if (!timestampSignature) {
+            enhancedAngleTimestampRegex.lastIndex = 0;
+            while ((match = enhancedAngleTimestampRegex.exec(line)) !== null) {
+                if (!startTimestamp) {
+                    startTimestamp = match[0];
+                }
+                timestampSignature += match[0];
+            }
         }
 
         if (timestampSignature) {

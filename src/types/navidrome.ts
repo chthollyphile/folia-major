@@ -342,7 +342,7 @@ export interface NavidromeSong extends SongResult {
     noAutoMatch?: boolean;
     matchedLyricsSource?: LyricProviderSource;
     matchedLyricsProviderPlatform?: AmllDbPlatform;
-    cachedStructuredLyrics?: StructuredLyric | StructuredLyricLine[];
+    cachedStructuredLyrics?: StructuredLyric | StructuredLyric[] | StructuredLyricLine[];
     cachedPlainLyrics?: string;
 }
 

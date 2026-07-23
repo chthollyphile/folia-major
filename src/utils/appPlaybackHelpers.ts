@@ -146,7 +146,7 @@ export const resolveDebugLyricsSource = (
 type NavidromeSongLike = SongResult & {
     lyricsSource?: 'navi' | 'online';
     matchedLyrics?: LyricData;
-    cachedStructuredLyrics?: StructuredLyric | StructuredLyric['line'];
+    cachedStructuredLyrics?: StructuredLyric | StructuredLyric[] | StructuredLyric['line'];
     cachedPlainLyrics?: string;
 };
 

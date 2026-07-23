@@ -8,7 +8,7 @@ import { buildLyricDataFromTTMLResult } from './ttmlConversion';
 
 export type LyricParseFormat = TimedLyricFormat | 'yrc' | 'qrc' | 'krc';
 
-interface TimedTextEntry {
+export interface TimedTextEntry {
     startTime: number;
     endTime?: number;
     text: string;
@@ -176,7 +176,7 @@ const sortByStartTimeIfNeeded = <T extends { startTime: number }>(items: T[], is
     return [...items].sort((left, right) => left.startTime - right.startTime);
 };
 
-const findTranslationsForSortedStartTimes = (
+export const findTranslationsForSortedStartTimes = (
     startTimes: number[],
     entries: TimedTextEntry[]
 ): Array<string | undefined> => {

@@ -50,7 +50,7 @@ export interface RawNeteaseLyric {
 export interface RawNavidromeLyric {
     type: 'navidrome';
     // OpenSubsonic structured lyrics
-    structuredLyrics?: StructuredLyric | StructuredLyricLine[];
+    structuredLyrics?: StructuredLyric | StructuredLyric[] | StructuredLyricLine[];
     // Standard Subsonic plain lyrics string
     plainLyrics?: string;
 }

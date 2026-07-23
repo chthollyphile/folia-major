@@ -522,15 +522,13 @@ export function useLibraryPlaybackController({
                 return (navidromeSong as NavidromeSong & { matchedLyrics?: LyricData; }).matchedLyrics ?? null;
             }
 
-            let resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
-            if (resolved) return resolved;
-
             const config = getNavidromeConfig();
             if (config) {
                 await hydrateNavidromeLyricPayload(config, navidromeSong);
-                resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
-                if (resolved) return resolved;
             }
+
+            const resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
+            if (resolved) return resolved;
 
             return lyrics;
         }
@@ -763,14 +761,6 @@ export function useLibraryPlaybackController({
             }
 
             if (!nextLyrics) {
-                nextLyrics = await resolvePreferredNavidromeLyrics(navidromeSong);
-            }
-
-            if (!nextLyrics) {
-                if (!showedLoadingToast) {
-                    setStatusMsg({ type: 'info', text: t('status.loadingSong') || '' });
-                    showedLoadingToast = true;
-                }
                 await hydrateNavidromeLyricPayload(config, navidromeSong);
                 nextLyrics = await resolvePreferredNavidromeLyrics(navidromeSong);
             }

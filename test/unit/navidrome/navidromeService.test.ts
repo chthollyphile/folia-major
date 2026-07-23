@@ -111,6 +111,17 @@ describe('navidromeService P0 endpoints', () => {
         expect(lyrics?.[0].cueLine?.[0].cue?.[0].start).toBe(1000);
     });
 
+    it('returns enhanced-LRC text embedded in the legacy getLyrics value field', async () => {
+        const enhancedLrc = '<00:00.000>恋<00:00.608>の<00:00.912>う<00:01.216>た';
+        const fetchMock = vi.fn(async () => okResponse(subsonicOk({
+            lyrics: { artist: 'Yunomi', title: '恋のうた', value: enhancedLrc },
+        }))) as any;
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(navidromeApi.getLyrics(config, 'Yunomi', '恋のうた')).resolves.toBe(enhancedLrc);
+        expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/rest/getLyrics');
+    });
+
     it('keeps generated media URLs stable across repeated renders', () => {
         stubIncrementingCrypto();
 
