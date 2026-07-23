@@ -124,7 +124,9 @@ export const getKugouTransportAvailability = () => {
 // Routes one provider request through Electron IPC or an explicitly configured Web backend.
 export const requestKugou = async <T = unknown>(operation: KugouOperation, params: KugouParams = {}): Promise<T> => {
     if (typeof window !== 'undefined' && window.electron?.kugouRequest) {
-        return await window.electron.kugouRequest(operation, params) as T;
+        const response = await window.electron.kugouRequest(operation, params);
+        persistWebSession(response);
+        return response as T;
     }
 
     const base = getWebApiBase();
