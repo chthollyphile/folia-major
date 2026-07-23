@@ -15,7 +15,7 @@ import {
     createOnlineGridViewCollection,
     getProviderCollectionArtistLabel,
 } from './app/home/gridViewCollectionAdapters';
-import { importFolder, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
+import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../services/localMusicService';
 import { useOnlineProviderQrLogin } from '../hooks/useOnlineProviderQrLogin';
 import type { OnlineProviderPlatformState } from '../hooks/useOnlineProviderPlatform';
 import { omni } from '../services/onlineMusic/omni';
@@ -171,6 +171,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     const [focusedIndex, setFocusedIndex] = useState(0);
     const [isLocalImporting, setIsLocalImporting] = useState(false);
+    const [isLocalRefreshing, setIsLocalRefreshing] = useState(false);
     const [scanProgress, setScanProgress] = useState<{
         active: boolean;
         folderName: string;
@@ -448,7 +449,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     };
 
     const handleFolderImport = async () => {
-        if (isLocalImporting || scanProgress?.active) return;
+        if (isLocalImporting || isLocalRefreshing || scanProgress?.active) return;
 
         setIsLocalImporting(true);
         try {
@@ -461,6 +462,22 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             alert(t('localMusic.importNotSupported'));
         } finally {
             setIsLocalImporting(false);
+        }
+    };
+
+    const handleRefreshFolders = async () => {
+        if (isLocalImporting || isLocalRefreshing || scanProgress?.active) return;
+
+        setIsLocalRefreshing(true);
+        try {
+            const importedSongs = await resyncAllFolders();
+            if (importedSongs && importedSongs.length > 0) {
+                onRefreshLocalSongs();
+            }
+        } catch (error) {
+            console.error('[Grid3D] Failed to resync local folders:', error);
+        } finally {
+            setIsLocalRefreshing(false);
         }
     };
 
@@ -709,8 +726,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             focusedPlaylistIndex={localMusicState.focusedPlaylistIndex}
                             setFocusedPlaylistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
                             onImportFolder={handleFolderImport}
-                            importButtonDisabled={isLocalImporting || Boolean(scanProgress?.active)}
+                            onRefreshFolders={handleRefreshFolders}
+                            importButtonDisabled={isLocalImporting || isLocalRefreshing || Boolean(scanProgress?.active)}
                             isImporting={isLocalImporting}
+                            isRefreshing={isLocalRefreshing}
                             isScanInProgress={Boolean(scanProgress?.active)}
                             theme={theme}
                             isDaylight={isDaylight}

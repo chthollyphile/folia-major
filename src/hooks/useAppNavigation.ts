@@ -79,6 +79,8 @@ const getCollectionHash = (collection: GridViewCollectionDescriptor) => (
     `#collection/${collection.source}/${collection.type}/${encodeURIComponent(String(collection.id))}`
 );
 
+const LOCAL_MUSIC_LAST_ROW_KEY = 'folia_local_music_last_row';
+
 export function useAppNavigation() {
     const [currentView, setCurrentView] = useState<ViewState>('home');
     const [focusedPlaylistIndex, setFocusedPlaylistIndex] = useState(0);
@@ -86,16 +88,38 @@ export function useAppNavigation() {
     const [focusedRadioIndex, setFocusedRadioIndex] = useState(0);
     const [navidromeFocusedAlbumIndex, setNavidromeFocusedAlbumIndex] = useState(0);
     const [pendingNavidromeSelection, setPendingNavidromeSelection] = useState<NavidromeViewSelection | null>(null);
-    const [localMusicState, setLocalMusicState] = useState<LocalMusicNavigationState>({
-        activeRow: 0,
-        selectedGroup: null,
-        detailStack: [],
-        detailOriginView: null,
-        focusedFolderIndex: 0,
-        focusedAlbumIndex: 0,
-        focusedArtistIndex: 0,
-        focusedPlaylistIndex: 0,
+    const [localMusicState, setLocalMusicState] = useState<LocalMusicNavigationState>(() => {
+        let savedRow = 0;
+        try {
+            const saved = localStorage.getItem(LOCAL_MUSIC_LAST_ROW_KEY);
+            if (saved !== null) {
+                const parsed = parseInt(saved, 10);
+                if (!isNaN(parsed) && parsed >= 0 && parsed <= 3) {
+                    savedRow = parsed;
+                }
+            }
+        } catch (e) {
+            console.warn('[useAppNavigation] Failed to restore local music last row:', e);
+        }
+        return {
+            activeRow: savedRow as LocalMusicNavigationState['activeRow'],
+            selectedGroup: null,
+            detailStack: [],
+            detailOriginView: null,
+            focusedFolderIndex: 0,
+            focusedAlbumIndex: 0,
+            focusedArtistIndex: 0,
+            focusedPlaylistIndex: 0,
+        };
     });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(LOCAL_MUSIC_LAST_ROW_KEY, localMusicState.activeRow.toString());
+        } catch (e) {
+            console.warn('[useAppNavigation] Failed to save local music last row:', e);
+        }
+    }, [localMusicState.activeRow]);
 
     const restoreHistoryState = (state: NavigationHistoryState) => {
         localStorage.setItem(LAST_APP_VIEW_KEY, state.view);

@@ -534,6 +534,7 @@ export default {
     "lyricMatchPriorityDesc": "在多个歌词源都存在高置信度匹配时，优先选择该歌词源的结果。"
   },
   "options": {
+    "refresh": "刷新",
     "cacheDetails": "缓存详情",
     "generalSettings": "通用设置",
     "generalSettingsDesc": "界面语言等全局应用偏好。",

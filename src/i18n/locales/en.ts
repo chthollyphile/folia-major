@@ -533,6 +533,7 @@ export default {
     "lyricMatchPriorityDesc": "When multiple lyric sources have high-confidence matches, prefer this source first."
   },
   "options": {
+    "refresh": "Refresh",
     "cacheDetails": "Cache Details",
     "generalSettings": "General settings",
     "generalSettingsDesc": "Interface language and other app-wide preferences.",

@@ -491,6 +491,7 @@ export default {
     "lyricMatchPriorityDesc": "Saat beberapa sumber lirik memiliki kecocokan tinggi, utamakan sumber ini terlebih dahulu."
   },
   "options": {
+    "refresh": "Segarkan",
     "cacheDetails": "Detail Cache",
     "generalSettings": "Pengaturan umum",
     "generalSettingsDesc": "Bahasa antarmuka dan preferensi aplikasi lainnya.",
