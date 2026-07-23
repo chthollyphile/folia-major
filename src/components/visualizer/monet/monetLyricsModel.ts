@@ -205,6 +205,15 @@ export const measureMonetGraphemeOffsets = (text: string, fontPx: number, fontSp
     return rememberGraphemeOffsets(cacheKey, offsets);
 };
 
+/** Extends the mask front so its soft trailing edge has fully cleared the word at its end time. */
+export const resolveMonetSweepEnd = (filledWidthPx: number, fullWidthPx: number, edgeSoftnessPx: number): number => {
+    if (fullWidthPx <= 0) {
+        return 0;
+    }
+    const progress = Math.min(1, Math.max(0, filledWidthPx / fullWidthPx));
+    return filledWidthPx + edgeSoftnessPx * progress;
+};
+
 export const resolveMonetLineStatus = (
     line: Line,
     index: number,

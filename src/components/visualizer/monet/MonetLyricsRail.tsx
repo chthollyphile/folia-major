@@ -16,6 +16,7 @@ import {
     buildMonetDisplayTokens,
     measureMonetGraphemeOffsets,
     measureMonetLineLayout,
+    resolveMonetSweepEnd,
     resolveMonetWordStatus,
     type MonetLineStatus,
     type MonetMeasuredLineLayout,
@@ -525,9 +526,11 @@ const MonetWordSweep: React.FC<{
         const maskImage = useTransform(fillWidth, latest => {
             // Original narrower sweep: Math.max(Math.min(fontPx * 0.45, 16), 6)
             const edgeSoftness = Math.max(Math.min(fontPx * 1.35, 36), 18);
-            const solidEnd = Math.max(latest - edgeSoftness, 0);
-            const featherStart = Math.max(latest - edgeSoftness * 0.55, 0);
-            const featherEnd = Math.max(latest, 0);
+            const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
+            const sweepEnd = resolveMonetSweepEnd(latest, fullWidth, edgeSoftness);
+            const solidEnd = Math.max(sweepEnd - edgeSoftness, 0);
+            const featherStart = Math.max(sweepEnd - edgeSoftness * 0.55, 0);
+            const featherEnd = Math.max(sweepEnd, 0);
             return `linear-gradient(90deg, rgba(0, 0, 0, 1) 0px, rgba(0, 0, 0, 1) ${solidEnd}px, rgba(0, 0, 0, 0.92) ${featherStart}px, rgba(0, 0, 0, 0) ${featherEnd}px, rgba(0, 0, 0, 0) 100%)`;
         });
 
