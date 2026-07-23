@@ -122,6 +122,23 @@ describe('navidromeService P0 endpoints', () => {
         expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/rest/getLyrics');
     });
 
+    it('loads ReplayGain from the getSong OpenSubsonic payload', async () => {
+        const fetchMock = vi.fn(async () => okResponse(subsonicOk({
+            song: {
+                id: 'song-1',
+                replayGain: { trackGain: -7.2, albumGain: -6.4, trackPeak: 0.9, albumPeak: 0.95 },
+            },
+        }))) as any;
+        vi.stubGlobal('fetch', fetchMock);
+
+        const song = await navidromeApi.getSong(config, 'song-1');
+
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.pathname).toBe('/rest/getSong');
+        expect(url.searchParams.get('id')).toBe('song-1');
+        expect(song?.replayGain).toEqual({ trackGain: -7.2, albumGain: -6.4, trackPeak: 0.9, albumPeak: 0.95 });
+    });
+
     it('keeps generated media URLs stable across repeated renders', () => {
         stubIncrementingCrypto();
 

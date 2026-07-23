@@ -6,6 +6,7 @@ import type { LocalSong } from '../types';
 import { saveAudioBlob } from '../services/audioCache';
 import { hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
+import { resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { saveToCache } from '../services/db';
 
 // src/hooks/usePlaybackAudioBridge.ts
@@ -154,6 +155,18 @@ export function usePlaybackAudioBridge({
                         ? localData.replayGainTrackGain
                         : (typeof localData.replayGain === 'number' ? localData.replayGain : 0));
                 replayGainPeak = localData.replayGainAlbumPeak ?? localData.replayGainTrackPeak;
+            }
+        }
+
+        const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+        const navidromeReplayGain = navidromeSong?.navidromeData.replayGain;
+        if (navidromeReplayGain) {
+            if (replayGainMode === 'track') {
+                replayGainDb = navidromeReplayGain.trackGain ?? 0;
+                replayGainPeak = navidromeReplayGain.trackPeak;
+            } else if (replayGainMode === 'album') {
+                replayGainDb = navidromeReplayGain.albumGain ?? navidromeReplayGain.trackGain ?? 0;
+                replayGainPeak = navidromeReplayGain.albumPeak ?? navidromeReplayGain.trackPeak;
             }
         }
 

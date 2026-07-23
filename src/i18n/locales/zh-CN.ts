@@ -1267,6 +1267,7 @@ export default {
     "replayGainTrack": "单曲",
     "replayGainAlbum": "专辑",
     "replayGainUnavailable": "未检测到 ReplayGain",
+    "replayGainTitle": "音频增益",
     "lyricsSource": "歌词",
     "lyricTimelineOffset": "时间轴偏移",
     "lyricTimelineOffsetHint": "仅本次播放临时生效。正数让歌词更晚出现。",

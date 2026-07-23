@@ -1266,6 +1266,7 @@ export default {
     "replayGainTrack": "Track",
     "replayGainAlbum": "Album",
     "replayGainUnavailable": "No ReplayGain detected",
+    "replayGainTitle": "Audio Gain",
     "lyricsSource": "Lyrics",
     "lyricTimelineOffset": "Timeline Offset",
     "lyricTimelineOffsetHint": "Temporary for this playback session. Positive values make lyrics later.",

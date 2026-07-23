@@ -1,17 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { NavidromeSong } from '../../types/navidrome';
+import { ReplayGainMode, SongResult } from '../../types';
 import { RefreshCw, FileText, Cloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LyricTimelineOffsetControl from './LyricTimelineOffsetControl';
 import { getLyricProviderLabel } from '../../utils/lyrics/lyricSourceLabels';
+import { resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
+import ReplayGainControl from './ReplayGainControl';
 
 interface NaviTabProps {
-    currentSong: NavidromeSong;
+    currentSong: SongResult;
     hasLyrics: boolean;
     onMatchOnline: () => void;
     lyricTimelineOffsetMs: number;
     onLyricTimelineOffsetChange: (offsetMs: number) => void;
+    replayGainMode: ReplayGainMode;
+    onChangeReplayGainMode: (mode: ReplayGainMode) => void;
     isDaylight: boolean;
 }
 
@@ -21,12 +25,15 @@ const NaviTab: React.FC<NaviTabProps> = ({
     onMatchOnline,
     lyricTimelineOffsetMs,
     onLyricTimelineOffsetChange,
+    replayGainMode,
+    onChangeReplayGainMode,
     isDaylight,
 }) => {
     const { t } = useTranslation();
-    const navidromeData = currentSong.navidromeData;
+    const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+    const navidromeData = navidromeSong?.navidromeData;
 
-    if (!currentSong.isNavidrome || !navidromeData) {
+    if (!navidromeSong || !navidromeData) {
         return (
             <div className="flex items-center justify-center h-full opacity-60">
                 {t('localMusic.notALocalSong')}
@@ -34,22 +41,11 @@ const NaviTab: React.FC<NaviTabProps> = ({
         );
     }
 
-    // We determine source:
-    // If hasManualLyricSelection is true AND useOnlineLyrics is not explicitly false -> "在线" (Online matched)
-    // Else if hasLyrics is true -> "navi" (Navidrome native)
-    // Else -> "无" (None)
-    
-    // Check if the current song is using online matched lyrics
-    // We can assume it if hasManualLyricSelection is true and useOnlineLyrics !== false
-    const matchData = (currentSong as any).navidromeMatchData; // Wait, we didn't inject this yet. Let's rely on basic logic or inject it.
-    // Wait, the user said they can later choose to enable online matching. The App.tsx will apply the matched lyrics.
-    // If it's a Navidrome song, we don't have matchedLyrics stored IN the song object natively by App.tsx unless we attach it.
-    // Let's attach 'useOnlineLyrics', 'hasMatchedLyrics' in App.tsx when we build the Navidrome song, or use a new prop.
-    // Let's assume currentSong has useOnlineLyrics attached, or we simply check:
-    const matchedLyrics = currentSong.matchedLyrics || (navidromeData as any)?.matchedLyrics;
-    const songLyricsSource = (currentSong as any).lyricsSource ?? (navidromeData as any)?.lyricsSource;
-    const matchedLyricsSource = currentSong.matchedLyricsSource || (navidromeData as any)?.matchedLyricsSource;
-    const matchedLyricsProviderPlatform = currentSong.matchedLyricsProviderPlatform || (navidromeData as any)?.matchedLyricsProviderPlatform;
+    // The unified player song retains the original Navidrome metadata carrier for lyric and gain details.
+    const matchedLyrics = navidromeSong.matchedLyrics;
+    const songLyricsSource = navidromeSong.lyricsSource;
+    const matchedLyricsSource = navidromeSong.matchedLyricsSource;
+    const matchedLyricsProviderPlatform = navidromeSong.matchedLyricsProviderPlatform;
     const hasMatchedLyrics = (matchedLyrics?.lines?.length ?? 0) > 0;
     const isOnline = hasMatchedLyrics && songLyricsSource === 'online';
     
@@ -80,6 +76,16 @@ const NaviTab: React.FC<NaviTabProps> = ({
                     </div>
                 </div>
             </div>
+
+            <ReplayGainControl
+                values={{
+                    trackGain: navidromeData.replayGain?.trackGain,
+                    albumGain: navidromeData.replayGain?.albumGain,
+                }}
+                mode={replayGainMode}
+                onChangeMode={onChangeReplayGainMode}
+                isDaylight={isDaylight}
+            />
 
             {/* Lyrics Management */}
             <div className="space-y-3">

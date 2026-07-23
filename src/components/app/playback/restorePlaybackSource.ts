@@ -97,6 +97,10 @@ export const restorePlaybackSourceForSong = async (
         }
 
         currentOnlineAudioUrlFetchedAtRef.current = null;
+        const serverSong = await navidromeApi.getSong(config, navidromeId);
+        if (serverSong?.replayGain) {
+            navidromeSongToRestore.navidromeData.replayGain = serverSong.replayGain;
+        }
         setAudioSrc(navidromeApi.getStreamUrl(config, navidromeId));
         const restoredCoverUrl = getSongCoverUrl(song) || navidromeSongToRestore.navidromeData.coverArtUrl;
         if (restoredCoverUrl) {

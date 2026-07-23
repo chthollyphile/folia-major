@@ -743,6 +743,7 @@ export function useLibraryPlaybackController({
         try {
             const navidromeId = navidromeSong.navidromeData.id;
             const streamUrl = navidromeApi.getStreamUrl(config, navidromeId);
+            const serverSongPromise = navidromeApi.getSong(config, navidromeId);
             const matchData = await getFromCacheWithMigration<NavidromeMatchData>(
                 `navidrome_match_${navidromeId}`,
                 migrateMatchedLyricsCarrierRenderHints,
@@ -886,6 +887,11 @@ export function useLibraryPlaybackController({
 
             if (!coverUrl) {
                 coverUrl = getProviderSongMetadata(navidromeSong).coverUrl || navidromeApi.getCoverArtUrl(config, navidromeId);
+            }
+
+            const serverSong = await serverSongPromise;
+            if (serverSong?.replayGain) {
+                navidromeSong.navidromeData.replayGain = serverSong.replayGain;
             }
 
             const unifiedSong = buildUnifiedNavidromeSong(navidromeSong, {

@@ -1151,6 +1151,7 @@ export default {
     "replayGainTrack": "Trek",
     "replayGainAlbum": "ReplayGain: Mode Album",
     "replayGainUnavailable": "ReplayGain tidak terdeteksi",
+    "replayGainTitle": "Penguatan Audio",
     "lyricsSource": "Lirik",
     "lyricTimelineOffset": "Offset Garis Waktu",
     "lyricTimelineOffsetHint": "Sementara untuk sesi pemutaran ini. Nilai positif membuat lirik lebih lambat.",

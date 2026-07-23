@@ -5,6 +5,7 @@ import {
     SubsonicSong,
     AlbumList2Response,
     AlbumResponse,
+    SongResponse,
     PingResponse,
     LyricsResponse,
     Search3Response,
@@ -520,6 +521,19 @@ export const navidromeApi = {
         return null;
     },
 
+    // Fetches the full OpenSubsonic song payload, including ReplayGain when supported by the server.
+    getSong: async (config: NavidromeConfig, id: string): Promise<SubsonicSong | null> => {
+        try {
+            const res = await fetchSubsonic<SongResponse>(config, 'getSong', { id });
+            if (res['subsonic-response'].status === 'ok') {
+                return res['subsonic-response'].song || null;
+            }
+        } catch (e) {
+            console.warn('[Navidrome] getSong failed:', e);
+        }
+        return null;
+    },
+
     // Get streaming URL
     getStreamUrl: (config: NavidromeConfig, songId: string, format?: string): string => {
         const url = new URL(`${config.serverUrl}/rest/stream`);
@@ -654,6 +668,7 @@ export const navidromeApi = {
                 bitRate: song.bitRate,
                 suffix: song.suffix,
                 starred: song.starred,
+                replayGain: song.replayGain,
             },
         };
     },

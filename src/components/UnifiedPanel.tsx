@@ -884,11 +884,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     )}
                                     {currentTab === 'navi' && isNavidrome && (
                                         <NaviTab
-                                            currentSong={currentSong as any}
+                                            currentSong={currentSong}
                                             hasLyrics={hasLyrics}
                                             onMatchOnline={onMatchOnline}
                                             lyricTimelineOffsetMs={lyricTimelineOffsetMs}
                                             onLyricTimelineOffsetChange={onLyricTimelineOffsetChange}
+                                            replayGainMode={replayGainMode}
+                                            onChangeReplayGainMode={onChangeReplayGainMode}
                                             isDaylight={isDaylight}
                                         />
                                     )}
