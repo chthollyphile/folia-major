@@ -18,6 +18,7 @@ import { applyVisualizerTuningsToSettings } from '../../visualizer/tuningRegistr
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { sanitizeUrlBackgroundItem } from '../../../utils/urlBackground';
 import { buildObsSourceUrl, extractCfgFromInput } from '../../../utils/obsUrl';
+import { resolveWebObsTarget, selectWebObsSource } from '../../../utils/webObsTarget';
 import { buildVisualSettingsConfig, hasCustomObsFont } from '../../../utils/visualSettingsConfig';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
@@ -558,7 +559,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
 }) => {
     const { t } = useTranslation();
     // OBS static URL points to this web deploy, so the copy button is web-only (no shareable URL under Electron).
+    // The link follows the selected web stage source (Now Playing / PlayerCap); disabled when none is on.
     const isElectron = typeof window !== 'undefined' && Boolean((window as { electron?: unknown }).electron);
+    const webObsSource = useSettingsUiStore(selectWebObsSource);
     const [importText, setImportText] = useState('');
     const [copiedType, setCopiedType] = useState<'none' | 'shortcode' | 'json' | 'obsurl'>('none');
 
@@ -713,17 +716,20 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         }
     };
 
-    // Copy the OBS overlay URL: burn the current appearance into a link to paste into an OBS browser
-    // source. Bakes the current light/dark preference and the transparent-background toggle (on →
-    // transparent=1, off → transparent=0 with the background shown); warns when the link carries a
+    // Copy the OBS overlay URL for the selected web stage source: burn the current appearance into a
+    // link to paste into an OBS browser source. Bakes the current light/dark preference and the
+    // transparent-background toggle (on → transparent=1, off → transparent=0 with the background
+    // shown); PlayerCap carries its non-default connection params; warns when the link carries a
     // custom font.
     const handleCopyObsUrl = async () => {
+        const target = resolveWebObsTarget();
+        if (!target) return;
         const code = compressConfig(buildCurrentConfig());
-        // Omit host so the OBS page uses its own default endpoint (single source for the default).
+        // daylight + transparent baked into extra (before cfg); PlayerCap host/params come from the resolved target.
         const extra: Record<string, string> = {};
         if (isDaylight) extra.daylight = '1';
         extra.transparent = transparentPlayerBackground ? '1' : '0';
-        const url = buildObsSourceUrl('now-playing', code, '', extra);
+        const url = buildObsSourceUrl(target.source, code, target.host, { ...extra, ...target.extra });
         try {
             await navigator.clipboard.writeText(url);
             setCopiedType('obsurl');
@@ -1216,7 +1222,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             <button
                                 type="button"
                                 onClick={handleCopyObsUrl}
-                                className="px-3 py-2 bg-white/10 hover:bg-white/15 active:bg-white/5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                                disabled={webObsSource === null}
+                                className="px-3 py-2 bg-white/10 hover:bg-white/15 active:bg-white/5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: 'var(--text-primary)' }}
                             >
                                 {copiedType === 'obsurl' ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}

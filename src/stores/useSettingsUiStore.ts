@@ -85,6 +85,14 @@ export const readStoredSubtitleContentMode = (): SubtitleContentMode => {
     return getStoredBoolean(SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY, true) ? 'translation' : 'none';
 };
 
+const getStoredString = (key: string, fallback: string) => {
+    if (typeof window === 'undefined') {
+        return fallback;
+    }
+
+    return localStorage.getItem(key) || fallback;
+};
+
 const readStoredDisableHomeDynamicBackground = (): boolean => {
     if (typeof window === 'undefined') {
         return false;
@@ -1073,6 +1081,12 @@ export type SettingsUiState = {
     lyricFilterPattern: string;
     showOpenPanelCloseButton: boolean;
     enableNowPlayingStage: boolean;
+    // PlayerCap lyrics source (third stage source) config. enablePlayerCapStage is Web-only (Electron uses stageStatus.source).
+    enablePlayerCapStage: boolean;
+    playerCapHost: string;
+    playerCapPlayer: string;
+    playerCapTimeBasis: 'timestamp' | 'play_time';
+    playerCapSticky: boolean;
     queueAddBehavior: QueueAddBehavior;
     audioOutputDeviceId: string;
     volume: number;
@@ -1198,6 +1212,12 @@ export type SettingsUiState = {
     handleSetLyricFilterPattern: (pattern: string) => void;
     handleToggleOpenPanelCloseButton: (enable: boolean) => void;
     handleToggleNowPlayingStage: (enable: boolean) => void;
+    // Web stage-source tri-state mutually-exclusive selection: null disables, else one of 'now-playing' or 'playercap'. Electron uses stageStatus.source.
+    setWebStageSource: (source: 'now-playing' | 'playercap' | null) => void;
+    setPlayerCapHost: (host: string) => void;
+    setPlayerCapPlayer: (player: string) => void;
+    setPlayerCapTimeBasis: (basis: 'timestamp' | 'play_time') => void;
+    setPlayerCapSticky: (sticky: boolean) => void;
     handleSetQueueAddBehavior: (behavior: QueueAddBehavior) => void;
     handleSetAudioOutputDeviceId: (deviceId: string) => void;
     handleSetVolume: (val: number) => void;
@@ -1293,6 +1313,11 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     lyricFilterPattern: readStoredLyricFilterPattern(),
     showOpenPanelCloseButton: getStoredBoolean('show_open_panel_close_button', true),
     enableNowPlayingStage: getStoredBoolean('enable_now_playing_stage', false),
+    enablePlayerCapStage: getStoredBoolean('enable_playercap_stage', false),
+    playerCapHost: getStoredString('playercap_host', 'localhost:8765'),
+    playerCapPlayer: getStoredString('playercap_player', ''),
+    playerCapTimeBasis: getStoredString('playercap_time_basis', 'play_time') === 'timestamp' ? 'timestamp' : 'play_time',
+    playerCapSticky: getStoredBoolean('playercap_sticky', true),
     queueAddBehavior: readStoredQueueAddBehavior(),
     audioOutputDeviceId: readStoredAudioOutputDeviceId(),
     volume: readStoredVolume(),
@@ -2265,6 +2290,38 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             text: i18n.t('notifications.' + (enable ? 'panelCloseBtnShown' : 'panelCloseBtnHidden')),
         });
     },
+    setWebStageSource: (source) => {
+        const wasEnabled = get().enableNowPlayingStage || get().enablePlayerCapStage;
+        const enableNowPlaying = source === 'now-playing';
+        const enablePlayerCap = source === 'playercap';
+        setStoredBoolean('enable_now_playing_stage', enableNowPlaying);
+        setStoredBoolean('enable_playercap_stage', enablePlayerCap);
+        set({ enableNowPlayingStage: enableNowPlaying, enablePlayerCapStage: enablePlayerCap });
+        const nowEnabled = enableNowPlaying || enablePlayerCap;
+        // Only notify on the enable/disable transition; switching between the two sources is silent. On disable, the controller's stageSource→null reactive effect handles teardown automatically.
+        if (wasEnabled !== nowEnabled) {
+            notify(get, {
+                type: 'info',
+                text: i18n.t('notifications.' + (nowEnabled ? 'stageModeOn' : 'stageModeOff')),
+            });
+        }
+    },
+    setPlayerCapHost: (host) => {
+        localStorage.setItem('playercap_host', host);
+        set({ playerCapHost: host });
+    },
+    setPlayerCapPlayer: (player) => {
+        localStorage.setItem('playercap_player', player);
+        set({ playerCapPlayer: player });
+    },
+    setPlayerCapTimeBasis: (basis) => {
+        localStorage.setItem('playercap_time_basis', basis);
+        set({ playerCapTimeBasis: basis });
+    },
+    setPlayerCapSticky: (sticky) => {
+        setStoredBoolean('playercap_sticky', sticky);
+        set({ playerCapSticky: sticky });
+    },
     handleToggleNowPlayingStage: (enable) => {
         setStoredBoolean('enable_now_playing_stage', enable);
         set({ enableNowPlayingStage: enable });
@@ -2433,6 +2490,11 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     lyricFilterPatternError: getLyricFilterError(state.lyricFilterPattern),
     showOpenPanelCloseButton: state.showOpenPanelCloseButton,
     enableNowPlayingStage: state.enableNowPlayingStage,
+    enablePlayerCapStage: state.enablePlayerCapStage,
+    playerCapHost: state.playerCapHost,
+    playerCapPlayer: state.playerCapPlayer,
+    playerCapTimeBasis: state.playerCapTimeBasis,
+    playerCapSticky: state.playerCapSticky,
     queueAddBehavior: state.queueAddBehavior,
     audioOutputDeviceId: state.audioOutputDeviceId,
     loopMode: state.loopMode,

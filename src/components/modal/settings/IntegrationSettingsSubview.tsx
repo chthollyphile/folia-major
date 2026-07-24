@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Activity, AlertCircle, Check, Copy, Loader2, Server, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useShallow } from 'zustand/react/shallow';
 import type { NowPlayingConnectionStatus, StageSource, StageStatus, Theme } from '../../../types';
 import type { NavidromeServerProfile } from '../../../types/navidrome';
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
+import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
+import { CustomSelect } from '../../shared/CustomSelect';
 import { buildCurrentObsUrl } from '../../../utils/currentObsUrl';
+import { resolveWebObsTarget } from '../../../utils/webObsTarget';
 import { hasCustomObsFont } from '../../../utils/visualSettingsConfig';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 
@@ -27,7 +31,6 @@ export type IntegrationSettingsChrome = {
 };
 
 export type IntegrationStageModel = {
-    enableNowPlayingStage: boolean;
     nowPlayingConnectionStatus: NowPlayingConnectionStatus;
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     onCopyText: (text: string) => Promise<void>;
@@ -35,8 +38,9 @@ export type IntegrationStageModel = {
     onRegenerateStageToken?: () => Promise<void> | void;
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
-    onToggleNowPlayingStage?: (enabled: boolean) => Promise<void> | void;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
+    playerCapConnectionStatus?: PlayerCapConnectionStatus;
+    playerCapPlayers?: string[];
     setStageActionStatus: (status: StageActionStatus) => void;
     setStageAddressCopied: (copied: boolean) => void;
     stageActionStatus: StageActionStatus;
@@ -98,7 +102,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         toggleOffBackgroundClass,
     } = chrome;
     const {
-        enableNowPlayingStage,
         nowPlayingConnectionStatus,
         obsBrowserSourceStatus,
         onCopyText,
@@ -106,7 +109,6 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         onRegenerateStageToken,
         onStageSourceChange,
         onToggleObsBrowserSource,
-        onToggleNowPlayingStage,
         onToggleStageMode,
         setStageActionStatus,
         setStageAddressCopied,
@@ -114,6 +116,8 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         stageAddressCopied,
         stageSource,
         stageStatus,
+        playerCapConnectionStatus,
+        playerCapPlayers,
     } = stage;
     const {
         navidromeConfigured,
@@ -144,6 +148,44 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     };
     const [obsAddressCopied, setObsAddressCopied] = useState(false);
     const [obsUrlCopied, setObsUrlCopied] = useState(false);
+    // PlayerCap config: the subview reads the store directly (fewer layers); connection state/players are passed in by the stage model.
+    const {
+        playerCapHost,
+        playerCapPlayer,
+        playerCapTimeBasis,
+        playerCapSticky,
+        setPlayerCapHost,
+        setPlayerCapPlayer,
+        setPlayerCapTimeBasis,
+        setPlayerCapSticky,
+        setWebStageSource,
+        isDaylight,
+    } = useSettingsUiStore(useShallow(state => ({
+        playerCapHost: state.playerCapHost,
+        playerCapPlayer: state.playerCapPlayer,
+        playerCapTimeBasis: state.playerCapTimeBasis,
+        playerCapSticky: state.playerCapSticky,
+        setPlayerCapHost: state.setPlayerCapHost,
+        setPlayerCapPlayer: state.setPlayerCapPlayer,
+        setPlayerCapTimeBasis: state.setPlayerCapTimeBasis,
+        setPlayerCapSticky: state.setPlayerCapSticky,
+        setWebStageSource: state.setWebStageSource,
+        isDaylight: state.isDaylight,
+    })));
+    const [playerCapHostDraft, setPlayerCapHostDraft] = useState(playerCapHost);
+    useEffect(() => { setPlayerCapHostDraft(playerCapHost); }, [playerCapHost]);
+    const playerCapConnected = playerCapConnectionStatus === 'connected';
+    const playerCapStatusLabel = (() => {
+        switch (playerCapConnectionStatus) {
+            case 'connected': return t('status.connected');
+            case 'connecting':
+            case 'probing': return t('status.connecting');
+            case 'disconnected':
+            case 'unreachable': return t('status.disconnected');
+            default: return t('options.updateCheckDisabled');
+        }
+    })();
+    const commitPlayerCapHost = () => setPlayerCapHost(playerCapHostDraft.trim() || 'localhost:8765');
     const nowPlayingStatusLabel = getNowPlayingStatusLabel(nowPlayingConnectionStatus);
     const maskStageTokenWithT = (token: string | null | undefined) => maskStageToken(token, t);
     const discordPresenceStatusLabel = (() => {
@@ -169,15 +211,126 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         window.setTimeout(() => setObsAddressCopied(false), 1600);
     };
 
-    // Web NowPlaying OBS static URL: same effective theme as the appearance import/export copy.
+    // Whether the web stage is enabled (stageSource is derived by the controller from the store's two toggles: null means disabled).
+    const webStageEnabled = stageSource === 'now-playing' || stageSource === 'playercap';
+
+    // Copy the OBS overlay URL for the selected web stage source (Now Playing / PlayerCap).
     const handleCopyObsUrl = async () => {
-        await onCopyText(await buildCurrentObsUrl('now-playing'));
+        const target = resolveWebObsTarget();
+        if (!target) return;
+        await onCopyText(await buildCurrentObsUrl(target.source, target.host, target.extra));
         setObsUrlCopied(true);
         window.setTimeout(() => setObsUrlCopied(false), 1600);
         if (hasCustomObsFont()) {
             useSettingsUiStore.getState().statusSetter?.({ type: 'info', text: t('options.obsUrlCustomFontHint') });
         }
     };
+
+    // PlayerCap config panel: the Electron and Web sections share a single instance (host/player/timeline/sticky).
+    const renderPlayerCapPanel = () => (
+        <>
+            <div className={`rounded-xl border p-3 space-y-3 ${settingsCardClass}`}>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                        {t('options.playerCapAddress')}
+                    </div>
+                    <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] ${playerCapConnected ? successBgColor : errorBgColor} ${playerCapConnected ? successTextColor : errorTextColor}`}>
+                        {playerCapStatusLabel}
+                    </span>
+                </div>
+                <input
+                    type="text"
+                    value={playerCapHostDraft}
+                    onChange={(e) => setPlayerCapHostDraft(e.target.value)}
+                    onBlur={commitPlayerCapHost}
+                    placeholder="localhost:8765"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-white/30 transition-colors"
+                    style={{ color: 'var(--text-primary)' }}
+                />
+                <div className="text-[10px] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                    {t('options.playerCapAddressHint')}
+                </div>
+            </div>
+
+            <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
+                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                    {t('options.playerCapPlayer')}
+                </div>
+                <CustomSelect
+                    value={playerCapPlayer}
+                    onChange={setPlayerCapPlayer}
+                    options={[{ value: '', label: t('options.playerCapPlayerDefault') }, ...(playerCapPlayers ?? []).map((p) => ({ value: p, label: p }))]}
+                    disabled={!playerCapConnected}
+                    isDaylight={isDaylight}
+                    theme={theme}
+                    ariaLabel="PlayerCap Player"
+                />
+            </div>
+
+            <div className={`rounded-xl border p-3 space-y-3 ${settingsCardClass}`}>
+                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                    {t('options.playerCapTimeline')}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    {([
+                        { value: 'play_time', label: 'play_time' },
+                        { value: 'timestamp', label: 'timestamp' },
+                    ] as Array<{ value: 'play_time' | 'timestamp'; label: string }>).map((option) => {
+                        const selected = playerCapTimeBasis === option.value;
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setPlayerCapTimeBasis(option.value)}
+                                className="rounded-xl border px-3 py-3 text-sm transition-colors"
+                                style={{ ...getAccentOptionStyle(selected), color: 'var(--text-primary)' }}
+                            >
+                                {option.label}
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="text-[10px] opacity-40 leading-relaxed space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    <div>{t('options.playerCapBasisPlayTime')}</div>
+                    <div>{t('options.playerCapBasisTimestamp')}</div>
+                </div>
+                <div className="flex items-center justify-between gap-4 pt-1">
+                    <div className="space-y-1">
+                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {t('options.playerCapIgnoreClear')}
+                        </div>
+                        <div className="text-[10px] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                            {t('options.playerCapIgnoreClearHint')}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setPlayerCapSticky(!playerCapSticky)}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!playerCapSticky ? toggleOffBackgroundClass : ''}`}
+                        style={{ backgroundColor: playerCapSticky ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                        aria-label={t('options.playerCapIgnoreClear')}
+                    >
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${playerCapSticky ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+            </div>
+        </>
+    );
+
+    // Now Playing panel: the Electron and Web sections share it (fixed ws://localhost:9863).
+    const renderNowPlayingPanel = () => (
+        <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
+            <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                Now Playing
+            </div>
+            <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                {t("options.nowPlayingStatusLabel", { status: nowPlayingStatusLabel })}
+            </div>
+            <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                {t('options.nowPlayingFixedConnectionDesc')}
+            </div>
+        </div>
+    );
 
     return (
         <>
@@ -321,10 +474,11 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
                                         Source
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {([
                                             { value: 'stage-api', label: 'Stage API' },
                                             { value: 'now-playing', label: 'Now Playing' },
+                                            { value: 'playercap', label: 'Nexus PlayerCap' },
                                         ] as Array<{ value: StageSource; label: string }>).map((option) => {
                                             const selected = stageSource === option.value;
                                             return (
@@ -342,18 +496,10 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                     </div>
                                 </div>
 
-                                {stageSource === 'now-playing' ? (
-                                    <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
-                                        <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                            Now Playing
-                                        </div>
-                                        <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                                            {t("options.nowPlayingStatusLabel", { status: nowPlayingStatusLabel })}
-                                        </div>
-                                        <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                                            {t('options.nowPlayingFixedConnectionDesc')}
-                                        </div>
-                                    </div>
+                                {stageSource === 'playercap' ? (
+                                    renderPlayerCapPanel()
+                                ) : stageSource === 'now-playing' ? (
+                                    renderNowPlayingPanel()
                                 ) : (
                                     <>
                                         <div className={`rounded-xl border p-3 space-y-3 ${settingsCardClass}`}>
@@ -434,7 +580,8 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                         <button
                             type="button"
                             onClick={() => void handleCopyObsUrl()}
-                            className="normal-case text-xs font-medium flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 transition-colors"
+                            disabled={!webStageEnabled}
+                            className="normal-case text-xs font-medium flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             style={{ color: obsUrlCopied ? '#86efac' : 'var(--text-primary)' }}
                         >
                             {obsUrlCopied ? <Check size={13} /> : <Copy size={13} />}
@@ -445,28 +592,50 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                         <div className="flex items-center justify-between gap-4">
                             <div className="space-y-1">
                                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                                    {t('options.enableNowPlaying')}
+                                    {t('options.enableStageMode')}
                                 </div>
                                 <div className="text-[10px] opacity-40 max-w-[320px]" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.enableNowPlayingDesc')}
+                                    {t('options.enableStageModeDescWeb')}
                                 </div>
                             </div>
                             <button
-                                onClick={() => void onToggleNowPlayingStage?.(!enableNowPlayingStage)}
-                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!enableNowPlayingStage ? toggleOffBackgroundClass : ''}`}
-                                style={{ backgroundColor: enableNowPlayingStage ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                onClick={() => setWebStageSource(webStageEnabled ? null : 'now-playing')}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors ${!webStageEnabled ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: webStageEnabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                aria-label={t('options.enableStageMode')}
                             >
-                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${enableNowPlayingStage ? 'translate-x-6' : 'translate-x-0'}`} />
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${webStageEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                             </button>
                         </div>
-                        {enableNowPlayingStage && (
-                            <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
-                                <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
-                                    Now Playing
+
+                        {webStageEnabled && (
+                            <div className="space-y-3">
+                                <div className={`rounded-xl border p-3 space-y-2 ${settingsCardClass}`}>
+                                    <div className="text-[10px] uppercase tracking-[0.16em] opacity-40" style={{ color: 'var(--text-secondary)' }}>
+                                        Source
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {([
+                                            { value: 'now-playing', label: 'Now Playing' },
+                                            { value: 'playercap', label: 'Nexus PlayerCap' },
+                                        ] as Array<{ value: 'now-playing' | 'playercap'; label: string }>).map((option) => {
+                                            const selected = stageSource === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setWebStageSource(option.value)}
+                                                    className="rounded-xl border px-3 py-3 text-sm transition-colors"
+                                                    style={{ ...getAccentOptionStyle(selected), color: 'var(--text-primary)' }}
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                                <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                                    {t("options.nowPlayingStatusLabel", { status: nowPlayingStatusLabel })}
-                                </div>
+
+                                {stageSource === 'playercap' ? renderPlayerCapPanel() : renderNowPlayingPanel()}
                             </div>
                         )}
                     </div>

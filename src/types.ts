@@ -120,7 +120,7 @@ export type VisualizerFrameRate = 'off' | 120 | 90 | 60;
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio';
 
 export type PlaybackContext = 'main' | 'stage';
-export type StageSource = 'stage-api' | 'now-playing';
+export type StageSource = 'stage-api' | 'now-playing' | 'playercap';
 export type StageLoopMode = 'off' | 'all' | 'one';
 export type QueueAddBehavior = 'append' | 'next';
 export type StageActiveEntryKind = 'lyrics' | 'media';

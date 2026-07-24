@@ -151,4 +151,16 @@ describe('buildObsSourceUrl', () => {
         // cfg stays last so trailing technical params never wrap the copied link.
         expect(url.indexOf('cfg=')).toBeGreaterThan(url.indexOf('transparent=0'));
     });
+
+    it('keeps the long cfg blob last, after source-specific extra params', () => {
+        const url = buildObsSourceUrl('playercap', 'folia-theme://abc', 'lan:8765', { nxpcPlayer: 'cloudmusicv3', nxpcBasis: 'timestamp' });
+        // cfg always comes last; technical params (host/nxpcPlayer/nxpcBasis) go up front for readability.
+        expect(url.indexOf('cfg=')).toBeGreaterThan(url.indexOf('nxpcPlayer='));
+        expect(url.indexOf('cfg=')).toBeGreaterThan(url.indexOf('nxpcBasis='));
+        expect(url.indexOf('cfg=')).toBeGreaterThan(url.indexOf('host='));
+        // cfg is the final segment: no &param follows it (guaranteed structurally, not by convention).
+        expect(url.slice(url.indexOf('cfg=')).includes('&')).toBe(false);
+        // order-independent parsing can still unwrap cfg.
+        expect(extractCfgFromInput(`https://x.test${url}`)).toBe('folia-theme://abc');
+    });
 });
