@@ -1076,6 +1076,25 @@ export default {
         "title": "Berbagi Tautan Statis OBS",
         "description": "Versi web kini mendukung pembuatan dan pengiriman tautan statis OBS untuk integrasi streaming."
       }
+    },
+    "v0_6_2": {
+      "intro": "Berikut adalah fitur dan peningkatan baru di versi 0.6.2.",
+      "multiProvider": {
+        "title": "Multi-Penyedia & Sinkronisasi Akun",
+        "description": "Memperkenalkan arsitektur multi-penyedia baru dengan dukungan KuGou Music (login, sinkronisasi VIP, playlist/album/radio, audio KRM), serta beralih akun dengan cepat."
+      },
+      "harmonyLyrics": {
+        "title": "Subjudul Harmoni & TTML",
+        "description": "Mendukung format TTML dan linimasa lirik tumpang tindih, perenderan subjudul harmoni khusus, serta tampilan lirik 3-jalur (teks asli/terjemahan/romanisasi)."
+      },
+      "playerCap": {
+        "title": "PlayerCap & Integrasi OBS",
+        "description": "Menambahkan sumber streaming tahap ketiga PlayerCap dan kontrol pemutaran dengan integrasi OBS Shell serta berbagi tautan URL streaming web."
+      },
+      "typographyAndCustomization": {
+        "title": "Tipografi & Peningkatan Perpustakaan",
+        "description": "Pengaturan ketebalan font kustom & skala subjudul, pengurutan folder lokal yang ditingkatkan, penyegaran pustaka, memori jalur, serta penyesuaian penyembunyian tampilan/playlist."
+      }
     }
   },
   "export": {

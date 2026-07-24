@@ -607,13 +607,13 @@ export default {
     "enableUpdateCheckDesc": "启动时检查是否有新版本发布。",
     "enableAutoUpdate": "启用自动更新",
     "enableAutoUpdateDesc": "发现新版本后自动下载更新。",
-      "updateChannel": "更新通道",
-      "updateChannelDesc": "选择此桌面端应用跟随的发布通道。",
-      "updateChannelRealeco": "Realeco · 正式版",
-      "updateChannelLimo": "Limo · Nightly",
-      "updateChannelCielo": "Cielo · Canary",
-      "updateChannelInternal": "内部构建",
-      "updateUnsupportedSystem": "当前系统不支持自动更新。",
+    "updateChannel": "更新通道",
+    "updateChannelDesc": "选择此桌面端应用跟随的发布通道。",
+    "updateChannelRealeco": "Realeco · 正式版",
+    "updateChannelLimo": "Limo · Nightly",
+    "updateChannelCielo": "Cielo · Canary",
+    "updateChannelInternal": "内部构建",
+    "updateUnsupportedSystem": "当前系统不支持自动更新。",
     "updateUnsupportedChannel": "此内部构建不支持自动更新。",
     "autoUpdateGithubNotice": "自动更新需要能够访问 GitHub；网络不稳定时可能无法下载更新。",
     "openReleasePage": "打开发布页",
@@ -1197,6 +1197,25 @@ export default {
       "obsStaticLink": {
         "title": "OBS 静态链接分享",
         "description": "Web 版本支持导出与分享 OBS 静态串流链接，方便推流工具直接引用。"
+      }
+    },
+    "v0_6_2": {
+      "intro": "以下是 0.6.2 版本的新功能与改进",
+      "multiProvider": {
+        "title": "多音源与账号同步",
+        "description": "引入全新多音源底层架构，支持酷狗音乐源（账号登录、歌单/专辑/电台同步等），支持多平台独立登录与账户切换。"
+      },
+      "harmonyLyrics": {
+        "title": "和声字幕",
+        "description": "支持 TTML 格式的重叠时间轴歌词，引入和声字幕独立渲染，并支持底部字幕的翻译/罗马音切换显示。"
+      },
+      "playerCap": {
+        "title": "PlayerCap 播控与 OBS 推流",
+        "description": "新增 PlayerCap 播控与推流控制，支持 OBS Shell 串列以及 Web 端一键复制串流 URL，实现无缝跨端播控。"
+      },
+      "typographyAndCustomization": {
+        "title": "排版字重与本地库增强",
+        "description": "支持自定义字体字重与字幕缩放倍率，增强本地歌曲文件夹排序策略、手动刷新与路径记忆，并支持隐藏首页特定视图与指定歌单。"
       }
     }
   },

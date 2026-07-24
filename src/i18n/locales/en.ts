@@ -1197,6 +1197,25 @@ export default {
         "title": "OBS Static Link Sharing",
         "description": "Web version now supports generating and sharing static OBS overlay links for streaming setups."
       }
+    },
+    "v0_6_2": {
+      "intro": "Here are the new features and improvements in version 0.6.2.",
+      "multiProvider": {
+        "title": "Multi-Provider & Account Sync",
+        "description": "Introduces a redesigned multi-provider architecture with KuGou Music support (login, VIP sync, playlists/albums/radios, KRM audio), multi-platform login, and seamless account switching."
+      },
+      "harmonyLyrics": {
+        "title": "Harmony Subtitles & TTML",
+        "description": "Supports TTML format and overlapping lyrics timeline, introduces dedicated harmony subtitle rendering, and supports 3-track LRC with romanization and translation."
+      },
+      "playerCap": {
+        "title": "PlayerCap & OBS Integration",
+        "description": "Adds PlayerCap third-stage streaming source and playback control with OBS Shell wiring and Web one-click stream URL sharing."
+      },
+      "typographyAndCustomization": {
+        "title": "Typography & Library Enhancements",
+        "description": "Custom font weight & subtitle scaling adjustments, enhanced local folder sorting, library refreshing, path memory, and customizable view/playlist hiding."
+      }
     }
   },
   "export": {

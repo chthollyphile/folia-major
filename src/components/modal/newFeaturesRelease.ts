@@ -1,4 +1,4 @@
-import { FlaskConical, PanelTop, Settings2, Share2 } from 'lucide-react';
+import { Layers, Music2, Sliders, Tv } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // src/components/modal/newFeaturesRelease.ts
@@ -17,11 +17,11 @@ type NewFeaturesRelease = {
 
 // Defines the current release's cards; their localized text lives under i18nKey in every locale.
 export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
-    i18nKey: 'releaseNotes.v0_6_1',
+    i18nKey: 'releaseNotes.v0_6_2',
     features: [
-        { id: 'settingsRework', icon: Settings2, daylightIconClassName: 'text-cyan-500', darkIconClassName: 'text-cyan-400' },
-        { id: 'autoHideChrome', icon: PanelTop, daylightIconClassName: 'text-amber-500', darkIconClassName: 'text-amber-400' },
-        { id: 'voiceInputPause', icon: FlaskConical, daylightIconClassName: 'text-emerald-500', darkIconClassName: 'text-emerald-400' },
-        { id: 'obsStaticLink', icon: Share2, daylightIconClassName: 'text-violet-500', darkIconClassName: 'text-violet-400' },
+        { id: 'multiProvider', icon: Layers, daylightIconClassName: 'text-rose-500', darkIconClassName: 'text-rose-400' },
+        { id: 'harmonyLyrics', icon: Music2, daylightIconClassName: 'text-indigo-500', darkIconClassName: 'text-indigo-400' },
+        { id: 'playerCap', icon: Tv, daylightIconClassName: 'text-emerald-500', darkIconClassName: 'text-emerald-400' },
+        { id: 'typographyAndCustomization', icon: Sliders, daylightIconClassName: 'text-amber-500', darkIconClassName: 'text-amber-400' },
     ],
 };
