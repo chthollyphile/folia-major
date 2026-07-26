@@ -466,8 +466,10 @@ export default function App() {
     // fresh song behaves exactly like the old reset). currentSongFullRef.current holds the live song
     // for the change handler below, so a user's correction is saved against the right track.
     useEffect(() => {
-        setLyricTimelineOffsetMs(readLyricOffset(currentSong?.id));
-    }, [currentSong?.id]);
+        const nextOffsetMs = readLyricOffset(currentSong?.id);
+        setLyricTimelineOffsetMs(nextOffsetMs);
+        lyricCurrentTime.set(-nextOffsetMs / 1000);
+    }, [currentSong?.id, lyricCurrentTime]);
 
     const handleLyricTimelineOffsetChange = useCallback((offsetMs: number) => {
         setLyricTimelineOffsetMs(offsetMs);

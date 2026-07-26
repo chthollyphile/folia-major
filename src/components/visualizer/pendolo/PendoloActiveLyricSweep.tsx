@@ -6,6 +6,7 @@ import { buildLineGraphemeTimeline, splitLyricGraphemes } from '../../../utils/l
 import { measureMonetGraphemeOffsets } from '../monet/monetLyricsModel';
 import { buildPendoloTextLayout, type PendoloWrappedTextLine } from './pendoloTextLayout';
 import { prepareWordColorMatchers, buildWordColorRangesFromMatchers, resolveTokenColorMap, type WordColorToken } from '../wordColoring';
+import { buildPendoloColorRuns, type PendoloColorRun } from './pendoloColorRuns';
 
 // src/components/visualizer/pendolo/PendoloActiveLyricSweep.tsx
 
@@ -19,6 +20,9 @@ interface PendoloActiveLyricSweepProps {
     accentTextColor: string;
     fontPx?: number;
     wordColors?: Theme['wordColors'];
+    isChorus?: boolean;
+    accentMix?: number;
+    chorusGlowMultiplier?: number;
 }
 
 interface PendoloSweepLineProps {
@@ -30,8 +34,9 @@ interface PendoloSweepLineProps {
     lineHeight: number;
     lineEndTime: number;
     primaryTextColor: string;
-    fillColor: string;
-    tokenColors: Map<string, string>;
+    colorRuns: PendoloColorRun[];
+    glowFilter?: string;
+    glowPaddingPx: number;
 }
 
 const PendoloSweepLine: React.FC<PendoloSweepLineProps> = ({
@@ -43,8 +48,9 @@ const PendoloSweepLine: React.FC<PendoloSweepLineProps> = ({
     lineHeight,
     lineEndTime,
     primaryTextColor,
-    fillColor,
-    tokenColors,
+    colorRuns,
+    glowFilter,
+    glowPaddingPx,
 }) => {
     const graphemeOffsets = useMemo(
         () => measureMonetGraphemeOffsets(layoutLine.text, fontPx, fontSpec),
@@ -69,37 +75,47 @@ const PendoloSweepLine: React.FC<PendoloSweepLineProps> = ({
     });
     const maskImage = useTransform(fillWidth, width => {
         const edgeSoftness = Math.min(Math.max(fontPx * 0.42, 8), 16);
-        return `linear-gradient(90deg, #000 0px, #000 ${Math.max(width - edgeSoftness, 0)}px, rgba(0, 0, 0, 0.84) ${width}px, transparent ${width + edgeSoftness}px)`;
+        const paddedFillWidth = glowPaddingPx + width;
+        return `linear-gradient(90deg, #000 0px, #000 ${Math.max(paddedFillWidth - edgeSoftness, 0)}px, rgba(0, 0, 0, 0.84) ${paddedFillWidth}px, transparent ${paddedFillWidth + edgeSoftness}px)`;
     });
     const fillOpacity = useTransform(currentTime, latest => (
         latest < (timings[0]?.startTime ?? lineEndTime) ? 0 : 1
     ));
 
     return (
-        <span className="relative block whitespace-pre" style={{ width: `${layoutLine.width}px`, height: `${lineHeight}px` }}>
-            <span style={{ color: colorWithAlpha(primaryTextColor, 0.52) }}>{layoutLine.text}</span>
-            <motion.span
+        <span className="relative block whitespace-pre overflow-visible" style={{ width: `${layoutLine.width}px`, height: `${lineHeight}px` }}>
+            <span style={{ color: colorWithAlpha(primaryTextColor, 0.52) }}>
+                {colorRuns.map(run => <span key={run.key}>{run.text}</span>)}
+            </span>
+            <span
                 aria-hidden
-                className="pointer-events-none absolute inset-0 block whitespace-pre"
-                style={{
-                    opacity: fillOpacity,
-                    WebkitMaskImage: maskImage,
-                    maskImage,
-                    WebkitMaskSize: '100% 100%',
-                    maskSize: '100% 100%',
-                    WebkitMaskRepeat: 'no-repeat',
-                    maskRepeat: 'no-repeat',
-                    textShadow: 'none',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)'
-                }}
+                className="pointer-events-none absolute inset-0 block whitespace-pre overflow-visible"
             >
-                {splitLyricGraphemes(layoutLine.text).map((char, localIdx) => {
-                    const globalIdx = layoutLine.graphemeStart + localIdx;
-                    const charColor = tokenColors.get(String(globalIdx)) || fillColor;
-                    return <span key={globalIdx} style={{ color: charColor }}>{char}</span>;
-                })}
-            </motion.span>
+                <span
+                    className="absolute block whitespace-pre overflow-visible"
+                    style={{
+                        inset: `${-glowPaddingPx}px`,
+                        filter: glowFilter,
+                    }}
+                >
+                    <motion.span
+                        className="absolute inset-0 block whitespace-pre"
+                        style={{
+                            boxSizing: 'border-box',
+                            padding: `${glowPaddingPx}px`,
+                            opacity: fillOpacity,
+                            WebkitMaskImage: maskImage,
+                            maskImage,
+                            WebkitMaskSize: '100% 100%',
+                            maskSize: '100% 100%',
+                            WebkitMaskRepeat: 'no-repeat',
+                            maskRepeat: 'no-repeat',
+                        }}
+                    >
+                        {colorRuns.map(run => <span key={run.key} style={{ color: run.color }}>{run.text}</span>)}
+                    </motion.span>
+                </span>
+            </span>
         </span>
     );
 };
@@ -115,6 +131,9 @@ const PendoloActiveLyricSweep: React.FC<PendoloActiveLyricSweepProps> = ({
     accentTextColor,
     fontPx = 28,
     wordColors,
+    isChorus = false,
+    accentMix = 0.32,
+    chorusGlowMultiplier = 0,
 }) => {
     const text = line.fullText;
     const fontSpec = `${fontWeight} ${fontPx}px ${fontFamily}`;
@@ -147,7 +166,23 @@ const PendoloActiveLyricSweep: React.FC<PendoloActiveLyricSweepProps> = ({
         () => buildPendoloTextLayout(text, fontSpec, maxWidth, lineHeight),
         [fontSpec, lineHeight, maxWidth, text],
     );
-    const fillColor = mixColors(primaryTextColor, accentTextColor, 0.32);
+    const fillColor = mixColors(primaryTextColor, accentTextColor, accentMix);
+    const colorRunsByLine = useMemo(
+        () => textLayout.lines.map(layoutLine => buildPendoloColorRuns(
+            layoutLine.text,
+            layoutLine.graphemeStart,
+            tokenColors,
+            fillColor,
+        )),
+        [fillColor, textLayout.lines, tokenColors],
+    );
+    // CSS masks clip text-shadow to the glyph layer; filters run after masking and preserve the glow.
+    const glowFilter = isChorus
+        ? `drop-shadow(0 0 ${Math.round(fontPx * 0.3 * chorusGlowMultiplier)}px ${colorWithAlpha(fillColor, 0.72)}) drop-shadow(0 0 ${Math.round(fontPx * 0.62 * chorusGlowMultiplier)}px ${colorWithAlpha(accentTextColor, 0.28)})`
+        : undefined;
+    const glowPaddingPx = isChorus
+        ? Math.ceil(fontPx * 0.7 * chorusGlowMultiplier + 10)
+        : 0;
     const textLayoutStyle = {
         fontSize: `${fontPx}px`,
         lineHeight: `${lineHeight}px`,
@@ -156,7 +191,7 @@ const PendoloActiveLyricSweep: React.FC<PendoloActiveLyricSweepProps> = ({
 
     return (
         <span className="block" style={textLayoutStyle}>
-            {textLayout.lines.map(layoutLine => (
+            {textLayout.lines.map((layoutLine, index) => (
                 <PendoloSweepLine
                     key={`${layoutLine.graphemeStart}-${layoutLine.graphemeEnd}`}
                     layoutLine={layoutLine}
@@ -167,8 +202,9 @@ const PendoloActiveLyricSweep: React.FC<PendoloActiveLyricSweepProps> = ({
                     lineHeight={textLayout.lineHeight}
                     lineEndTime={line.endTime}
                     primaryTextColor={primaryTextColor}
-                    fillColor={fillColor}
-                    tokenColors={tokenColors}
+                    colorRuns={colorRunsByLine[index] ?? []}
+                    glowFilter={glowFilter}
+                    glowPaddingPx={glowPaddingPx}
                 />
             ))}
         </span>

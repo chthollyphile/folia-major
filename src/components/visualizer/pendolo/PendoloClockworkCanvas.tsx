@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { colorWithAlpha } from '../colorMix';
+import type { PendoloMotionProfile } from './pendoloMotionProfile';
 
 // src/components/visualizer/pendolo/PendoloClockworkCanvas.tsx
 
@@ -21,6 +22,7 @@ export interface PendoloClockworkCanvasProps {
     coverUrl?: string | null;
     enableLineGlow?: boolean;
     paused?: boolean;
+    motionProfile: PendoloMotionProfile;
 }
 
 /**
@@ -197,6 +199,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     coverUrl = null,
     enableLineGlow = false,
     paused = false,
+    motionProfile,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const phaseRef = useRef(0);
@@ -243,6 +246,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
         showCenterGradient,
         showCover,
         paused,
+        motionProfile,
     });
 
     useEffect(() => {
@@ -259,8 +263,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             showCenterGradient,
             showCover,
             paused,
+            motionProfile,
         };
-    }, [centerX, centerY, baseRadius, lyricRingRadius, audioBass, primaryTextColor, accentTextColor, backgroundColor, showGearDecor, showCenterGradient, showCover, paused]);
+    }, [centerX, centerY, baseRadius, lyricRingRadius, audioBass, primaryTextColor, accentTextColor, backgroundColor, showGearDecor, showCenterGradient, showCover, paused, motionProfile]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -285,12 +290,15 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             const val = audioBassMotionValue ? audioBassMotionValue.get() : p.audioBass;
             const normBass = val > 1.0 ? val / 255 : val;
             const clampedBass = Math.max(0, Math.min(1, normBass));
-            smoothedBassRef.current += (clampedBass - smoothedBassRef.current) * 0.12;
+            smoothedBassRef.current += (clampedBass - smoothedBassRef.current)
+                * Math.min(0.24, 0.12 * p.motionProfile.bassResponseMultiplier);
             const bass = smoothedBassRef.current;
 
             // 1. Balance wheel phase accumulation & harmonic swing (Audio Bass regulator)
             if (!p.paused) {
-                phaseRef.current += dt * (2.8 + bass * 3.5);
+                phaseRef.current += dt
+                    * (2.8 + bass * 3.5 * p.motionProfile.bassResponseMultiplier)
+                    * p.motionProfile.balanceSpeedMultiplier;
                 secondGearElapsedRef.current += dt;
                 const completedSteps = Math.floor(secondGearElapsedRef.current);
                 if (completedSteps > 0) {
@@ -299,11 +307,13 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 }
                 const secondGearTarget = secondGearStepRef.current * (Math.PI * 2 / 15);
                 const displacement = secondGearTarget - secondGearAngleRef.current;
-                secondGearVelocityRef.current += displacement * 92 * dt;
-                secondGearVelocityRef.current *= Math.exp(-13 * dt);
+                secondGearVelocityRef.current += displacement * 92 * p.motionProfile.escapementSpringMultiplier * dt;
+                secondGearVelocityRef.current *= Math.exp(-13 * p.motionProfile.escapementDampingMultiplier * dt);
                 secondGearAngleRef.current += secondGearVelocityRef.current * dt;
             }
-            const bassOscillation = Math.sin(phaseRef.current) * (0.15 + bass * 0.70);
+            const bassOscillation = Math.sin(phaseRef.current)
+                * (0.15 + bass * 0.70 * p.motionProfile.bassResponseMultiplier)
+                * p.motionProfile.balanceAmplitudeMultiplier;
 
             // 2. Main gear wheel angle is strictly tied to lyric line ratchet steps
             // Gears remain stationary while a line is being sung, and ratchet ONLY when lyrics switch
