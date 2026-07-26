@@ -10,10 +10,48 @@ export type UserGuideShortcut = {
     separator?: '+' | '/';
 };
 
+/** A touch gesture hint shown on the user guide page for touch devices. */
+export type UserGuideTouchGesture = {
+    id: string;
+    /** i18n key for the action description (e.g. "播放 / 暂停"). */
+    titleKey: string;
+    /** Fallback text when the translation is unavailable. */
+    fallback: string;
+    /** i18n key for the gesture label shown as a badge (e.g. "双击屏幕"). */
+    gestureKey: string;
+    /** Fallback text for the gesture badge. */
+    gestureFallback: string;
+};
+
 export type GuidePage = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const USER_GUIDE_PAGE_COUNT = 7;
 export const USER_GUIDE_AUTO_OPEN_VERSION: string | null = '0.6.2';
+
+/** Touch gesture hints for the player page, shown when the device supports touch input. */
+export const PLAYER_PAGE_TOUCH_GESTURES: UserGuideTouchGesture[] = [
+    {
+        id: 'touch-play-pause',
+        titleKey: 'help.touchPlayPause',
+        fallback: 'Play / Pause',
+        gestureKey: 'help.touchGestureDoubleTap',
+        gestureFallback: 'Double Tap',
+    },
+    {
+        id: 'touch-prev-next',
+        titleKey: 'help.touchPrevNext',
+        fallback: 'Previous / Next Track',
+        gestureKey: 'help.touchGestureSwipe',
+        gestureFallback: 'Swipe \u2190 \u2192',
+    },
+    {
+        id: 'touch-seek',
+        titleKey: 'help.touchSeek',
+        fallback: 'Seek Progress',
+        gestureKey: 'help.touchGestureHoldDrag',
+        gestureFallback: 'Hold + Drag \u2190 \u2192',
+    },
+];
 
 export const PLAYER_PAGE_SHORTCUTS: UserGuideShortcut[] = [
     {

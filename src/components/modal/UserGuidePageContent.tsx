@@ -1,10 +1,11 @@
 import React from 'react';
-import { Command, Keyboard, Lock, Palette, Search, Sparkles, WandSparkles } from 'lucide-react';
+import { Command, Hand, Keyboard, Lock, Palette, Search, Sparkles, WandSparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { CommandPaletteCommand } from '../command-palette/types';
 import { UserGuideFeatureCard } from './UserGuideFeatureCard';
 import { UserGuideTipCard } from './UserGuideTipCard';
 import { PLAYER_PAGE_SHORTCUTS, type GuidePage, type UserGuideShortcut } from './userGuideContent';
+import { TouchGestureList } from './TouchGestureList';
 import { NewFeaturesIntro } from './NewFeaturesIntro';
 import foliaIcon from '../../../build/icon.png';
 
@@ -56,6 +57,7 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
             ))}
         </div>
     );
+
     if (page === 1) {
         return (
             <>
@@ -135,6 +137,7 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
     if (page === 4) {
         return (
             <>
+                {/* Keyboard shortcuts section */}
                 <UserGuideTipCard
                     {...tipCardClasses}
                     icon={Keyboard}
@@ -151,6 +154,24 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
                             </li>
                         ))}
                     </ul>
+                </div>
+
+                {/* Touch gestures section */}
+                <div className="mt-6">
+                    <UserGuideTipCard
+                        {...tipCardClasses}
+                        icon={Hand}
+                        iconClassName={isDaylight ? 'text-orange-500' : 'text-orange-400'}
+                        title={t('userGuide.touchShortcutsPageTitle', '触屏手势操作')}
+                        description={t('userGuide.touchShortcutsPageSubtitle', '播放页面可用的触屏手势')}
+                    />
+                    <div className="mt-5">
+                        <TouchGestureList
+                            itemClassName={`p-3.5 rounded-xl transition-colors ${cardBg}`}
+                            textPrimary={textPrimary}
+                            keyBg={keyBg}
+                        />
+                    </div>
                 </div>
             </>
         );

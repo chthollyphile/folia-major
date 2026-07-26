@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Command, MousePointer2, Keyboard, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, CircleHelp, Languages } from 'lucide-react';
+import { X, Command, MousePointer2, Keyboard, Hand, Settings2, Trash2, Database, Monitor, PlayCircle, Loader2, Server, Check, AlertCircle, FlaskConical, ChevronLeft, ChevronRight, RefreshCw, Download, ExternalLink, Sparkles, Palette, CircleHelp, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useOverlayBackStack } from '../../hooks/useOverlayBackStack';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
 import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPassword, navidromeApi, isNavidromeEnabled, setNavidromeEnabled, getCachedNavidromeServerProfile, refreshNavidromeServerProfile } from '../../services/navidromeService';
@@ -10,6 +11,7 @@ import VisPlayground from '../visualizer/VisPlayground';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel } from '../visualizer/registry';
 import ThemePark from './ThemePark';
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
+import { TouchGestureList } from './TouchGestureList';
 import AppearanceSettingsSubview from './settings/AppearanceSettingsSubview';
 import DesktopSettingsSubview from './settings/DesktopSettingsSubview';
 import GeneralSettingsSubview from './settings/GeneralSettingsSubview';
@@ -161,7 +163,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         nomandBackgroundTuning,
         latentBackgroundTuning,
         monetTuning,
-        pendoloTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
         cappellaCustomAvatarImages,
@@ -234,8 +235,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetLatentBackgroundTuning: onResetLatentBackgroundTuning,
         handleSetMonetTuning: onMonetTuningChange,
         handleResetMonetTuning: onResetMonetTuning,
-        handleSetPendoloTuning: onPendoloTuningChange,
-        handleResetPendoloTuning: onResetPendoloTuning,
         handleUploadMonetBackgroundImage: onUploadMonetBackgroundImage,
         handleClearMonetBackgroundImage: onClearMonetBackgroundImage,
         handleUploadMonetPortraitImage: onUploadMonetPortraitImage,
@@ -920,6 +919,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowAiHelpPrompt(false);
     };
 
+    // ── Mobile back button: close subview first, then close modal ──
+    // When a subview is open, pressing back closes only the subview.
+    useOverlayBackStack('settings-subview', isAnySubviewOpen, closeAllSubviews);
+    // When no subview is open, pressing back closes the entire settings modal.
+    useOverlayBackStack('settings-modal', !isAnySubviewOpen, onClose);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -1260,6 +1265,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </li>
 
                                     </ul>
+                                </div>
+
+                                {/* Touch Gestures */}
+                                <div className="mt-5">
+                                    <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-3 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                                        <Hand size={14} /> {t('userGuide.touchShortcutsPageTitle', '触屏手势操作')}
+                                    </h3>
+                                    <TouchGestureList
+                                        itemClassName="bg-white/5 p-2 rounded-lg"
+                                        textPrimary=""
+                                        keyBg="bg-white/10"
+                                    />
                                 </div>
 
                                 {/* User Guide Button */}
@@ -1749,7 +1766,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         tiltTuning={tiltTuning}
                         dioramaTuning={dioramaTuning}
                         monetTuning={monetTuning}
-                        pendoloTuning={pendoloTuning}
                         cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                         cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                         monetPortraitImage={monetPortraitImage}
@@ -1802,8 +1818,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         onResetDioramaTuning={onResetDioramaTuning}
                         onMonetTuningChange={onMonetTuningChange}
                         onResetMonetTuning={onResetMonetTuning}
-                        onPendoloTuningChange={onPendoloTuningChange}
-                        onResetPendoloTuning={onResetPendoloTuning}
                         onUploadMonetPortraitImage={onUploadMonetPortraitImage}
                         onClearMonetPortraitImage={onClearMonetPortraitImage}
                         isLoadingMonetPortraitImage={isLoadingMonetPortraitImage}
@@ -1833,7 +1847,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             tilt: tiltTuning,
                             diorama: dioramaTuning,
                             monet: monetTuning,
-                            pendolo: pendoloTuning,
                         }}
                         staticMode={staticMode}
                         visualizerOpacity={visualizerOpacity}
