@@ -22,6 +22,7 @@ describe('visualizer registry', () => {
             'pendolo',
             'cappella',
             'diorama',
+            'sonnet',
         ]);
     });
 

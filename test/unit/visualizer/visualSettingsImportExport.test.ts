@@ -262,6 +262,17 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.subtitleFontWeight).toBeNull();
     });
 
+    it('round-trips Sonnet tuning through the renderer tuning bundle', () => {
+        const sonnet = { cameraIntensity: 1.25, typographyMotion: 0.8, mgDensity: 1.6 };
+        const decoded = decompressConfig(compressConfig({
+            visualizerMode: 'sonnet',
+            visualizerTunings: { sonnet },
+        }));
+
+        expect(decoded.visualizerMode).toBe('sonnet');
+        expect(decoded.visualizerTunings?.sonnet).toEqual(sonnet);
+    });
+
     it('migrates the removed Nomand random dithering option to 8x8', () => {
         const encoded = compressConfig({
             nomandBackgroundTuning: {

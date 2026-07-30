@@ -76,7 +76,7 @@ src/
 - `components/visualizer/*`
   歌词可视化层。
   根目录保留共享壳层、runtime、registry、视觉设置卡片和预览入口；
-  `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` / `diorama` 子目录分别负责各模式实现。
+  `classic` / `cadenza` / `partita` / `fume` / `cappella` / `tilt` / `claddagh` / `monet` / `diorama` / `pendolo` / `sonnet` 子目录分别负责各模式实现；`sonnet` 将歌词预编译成确定性日式 MG PV 时间线，并动态加载 Pixi runtime。
   shell 背景按 `backgrounds/<mode>/` 组织，并由 `backgrounds/*/entry.tsx` 自动发现；当前支持通用 (common)、Monet、漫游 (latent/diorama)、隐现双着色器、URL 和 Sora 模式。
 
 ### Hooks

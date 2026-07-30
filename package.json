@@ -160,6 +160,7 @@
     "lucide-react": "^1.25.0",
     "music-metadata": "^11.14.0",
     "opencc-js": "^1.4.1",
+    "pixi.js": "^8.19.0",
     "react": "^19.2.7",
     "react-colorful": "^5.8.0",
     "react-dom": "^19.2.7",

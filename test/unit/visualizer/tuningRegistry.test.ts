@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_DIORAMA_TUNING } from '../../../src/types';
+import { DEFAULT_DIORAMA_TUNING, DEFAULT_SONNET_TUNING } from '../../../src/types';
 import {
     applyVisualizerTuningsToSettings,
     collectVisualizerTunings,
@@ -19,6 +19,7 @@ describe('visualizer tuning registry', () => {
             'monet',
             'partita',
             'pendolo',
+            'sonnet',
             'tilt',
         ]);
     });
@@ -33,5 +34,17 @@ describe('visualizer tuning registry', () => {
         expect(collectVisualizerTunings(settings).diorama).toEqual(DEFAULT_DIORAMA_TUNING);
         applyVisualizerTuningsToSettings(settings, { diorama: DEFAULT_DIORAMA_TUNING });
         expect(handleSetDioramaTuning).toHaveBeenCalledWith(DEFAULT_DIORAMA_TUNING);
+    });
+
+    it('collects and applies Sonnet tuning through its discovered adapter', () => {
+        const handleSetSonnetTuning = vi.fn();
+        const settings = {
+            sonnetTuning: DEFAULT_SONNET_TUNING,
+            handleSetSonnetTuning,
+        };
+
+        expect(collectVisualizerTunings(settings).sonnet).toEqual(DEFAULT_SONNET_TUNING);
+        applyVisualizerTuningsToSettings(settings, { sonnet: DEFAULT_SONNET_TUNING });
+        expect(handleSetSonnetTuning).toHaveBeenCalledWith(DEFAULT_SONNET_TUNING);
     });
 });

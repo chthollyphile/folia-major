@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LocalLyricsPriority, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type QueueAddBehavior, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type SubtitleContentMode, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LocalLyricsPriority, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type QueueAddBehavior, type SonnetTuning, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type SubtitleContentMode, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerModeLabel, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { DEFAULT_VISUALIZER_BACKGROUND_MODE, hasVisualizerBackgroundMode } from '../components/visualizer/backgrounds/registry';
 import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from '../components/visualizer/diorama/dioramaMoteField';
@@ -445,6 +445,22 @@ const readStoredPendoloTuning = (): PendoloTuning => {
         };
     } catch {
         return DEFAULT_PENDOLO_TUNING;
+    }
+};
+
+const readStoredSonnetTuning = (): SonnetTuning => {
+    if (typeof window === 'undefined') return DEFAULT_SONNET_TUNING;
+    const saved = localStorage.getItem('sonnet_tuning');
+    if (!saved) return DEFAULT_SONNET_TUNING;
+    try {
+        const parsed = JSON.parse(saved) as Partial<SonnetTuning>;
+        return {
+            cameraIntensity: resolvePendoloNumber(parsed.cameraIntensity, DEFAULT_SONNET_TUNING.cameraIntensity, 0, 2),
+            typographyMotion: resolvePendoloNumber(parsed.typographyMotion, DEFAULT_SONNET_TUNING.typographyMotion, 0, 2),
+            mgDensity: resolvePendoloNumber(parsed.mgDensity, DEFAULT_SONNET_TUNING.mgDensity, 0, 2),
+        };
+    } catch {
+        return DEFAULT_SONNET_TUNING;
     }
 };
 
@@ -1117,6 +1133,7 @@ export type SettingsUiState = {
     latentBackgroundTuning: LatentBackgroundTuning;
     monetTuning: MonetTuning;
     pendoloTuning: PendoloTuning;
+    sonnetTuning: SonnetTuning;
     storedCappellaEmojiPack: StoredCappellaEmojiImage[];
     cappellaCustomEmojiImages: CappellaEmojiImage[];
     isLoadingCappellaCustomEmojiPack: boolean;
@@ -1257,6 +1274,8 @@ export type SettingsUiState = {
     handleResetMonetTuning: () => void;
     handleSetPendoloTuning: (patch: Partial<PendoloTuning>) => void;
     handleResetPendoloTuning: () => void;
+    handleSetSonnetTuning: (patch: Partial<SonnetTuning>) => void;
+    handleResetSonnetTuning: () => void;
     handleUploadMonetBackgroundImage: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
     handleClearMonetBackgroundImage: () => Promise<void>;
     handleUploadMonetPortraitImage: (files: File[]) => Promise<{ ok: boolean; error?: string; }>;
@@ -1359,6 +1378,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     latentBackgroundTuning: readStoredLatentBackgroundTuning(),
     monetTuning: readStoredMonetTuning(),
     pendoloTuning: readStoredPendoloTuning(),
+    sonnetTuning: readStoredSonnetTuning(),
     storedCappellaEmojiPack: [],
     cappellaCustomEmojiImages: [],
     isLoadingCappellaCustomEmojiPack: true,
@@ -1969,6 +1989,23 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ pendoloTuning: DEFAULT_PENDOLO_TUNING });
         notify(get, { type: 'info', text: i18n.t('notifications.pendoloReset') });
+    },
+    handleSetSonnetTuning: (patch: Partial<SonnetTuning>) => {
+        const prev = get().sonnetTuning;
+        const next: SonnetTuning = {
+            cameraIntensity: resolvePendoloNumber(patch.cameraIntensity, prev.cameraIntensity, 0, 2),
+            typographyMotion: resolvePendoloNumber(patch.typographyMotion, prev.typographyMotion, 0, 2),
+            mgDensity: resolvePendoloNumber(patch.mgDensity, prev.mgDensity, 0, 2),
+        };
+        if (typeof window !== 'undefined') localStorage.setItem('sonnet_tuning', JSON.stringify(next));
+        set({ sonnetTuning: next });
+    },
+    handleResetSonnetTuning: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sonnet_tuning', JSON.stringify(DEFAULT_SONNET_TUNING));
+        }
+        set({ sonnetTuning: DEFAULT_SONNET_TUNING });
+        notify(get, { type: 'info', text: i18n.t('notifications.sonnetReset') });
     },
     handleSetCappellaTuning: (patch) => {
         const requestedCustomWithoutPack = patch.emojiPackSource === 'custom' && get().storedCappellaEmojiPack.length === 0;
@@ -2598,6 +2635,7 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     latentBackgroundTuning: state.latentBackgroundTuning,
     monetTuning: state.monetTuning,
     pendoloTuning: state.pendoloTuning,
+    sonnetTuning: state.sonnetTuning,
     cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
     isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
     cappellaCustomAvatarImages: state.cappellaCustomAvatarImages,
@@ -2699,6 +2737,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleResetMonetTuning: state.handleResetMonetTuning,
     handleSetPendoloTuning: state.handleSetPendoloTuning,
     handleResetPendoloTuning: state.handleResetPendoloTuning,
+    handleSetSonnetTuning: state.handleSetSonnetTuning,
+    handleResetSonnetTuning: state.handleResetSonnetTuning,
     handleUploadMonetBackgroundImage: state.handleUploadMonetBackgroundImage,
     handleClearMonetBackgroundImage: state.handleClearMonetBackgroundImage,
     handleUploadMonetPortraitImage: state.handleUploadMonetPortraitImage,

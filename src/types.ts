@@ -519,6 +519,18 @@ export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
   enableLineGlow: false,
 };
 
+export interface SonnetTuning {
+  cameraIntensity: number;
+  typographyMotion: number;
+  mgDensity: number;
+}
+
+export const DEFAULT_SONNET_TUNING: SonnetTuning = {
+  cameraIntensity: 1,
+  typographyMotion: 1,
+  mgDensity: 1,
+};
+
 // Diorama's camera STYLE (calm/standard/chaotic) is not part of its tuning: like every other
 // visualizer it follows theme.animationIntensity (the player-panel intensity chip / AI themes), so
 // the theme system stays the single source of truth. The tuning only carries diorama-specific knobs.

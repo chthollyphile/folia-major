@@ -328,6 +328,7 @@ export default function App() {
         latentBackgroundTuning,
         monetTuning,
         pendoloTuning,
+        sonnetTuning,
         cappellaCustomEmojiImages,
         isLoadingCappellaCustomEmojiPack,
         cappellaCustomAvatarImages,
@@ -429,7 +430,8 @@ export default function App() {
         diorama: dioramaTuning,
         monet: monetTuning,
         pendolo: pendoloTuning,
-    }), [cadenzaTuning, cappellaTuning, classicTuning, claddaghTuning, dioramaTuning, fumeTuning, monetTuning, partitaTuning, pendoloTuning, tiltTuning]);
+        sonnet: sonnetTuning,
+    }), [cadenzaTuning, cappellaTuning, classicTuning, claddaghTuning, dioramaTuning, fumeTuning, monetTuning, partitaTuning, pendoloTuning, sonnetTuning, tiltTuning]);
 
     const showPlayerChromeVisibilityModeStatus = useCallback((mode: PlayerChromeVisibilityMode) => {
         setStatusMsg({
