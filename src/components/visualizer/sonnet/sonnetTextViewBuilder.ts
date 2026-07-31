@@ -1,4 +1,5 @@
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
+import 'pixi.js/advanced-blend-modes';
 import type { Theme } from '../../../types';
 import { buildSonnetGlyphLayout } from './sonnetGlyphLayout';
 import { createSonnetGuide, type SonnetGuideView } from './sonnetGuides';
@@ -112,7 +113,7 @@ export const buildSonnetTextView = (
         fontWeight: renderWeight as import('pixi.js').TextStyleFontWeight,
         fontSize,
         fill: (isBlurry && isDecoration) ? 'transparent' : (isDecoration ? 'transparent' : bodyColor),
-        stroke: isDecoration ? { color: glowColor, width: Math.max(1, fontSize * (isBlurry ? 0.03 : 0.015)) } : undefined,
+        stroke: isDecoration ? { color: glowColor, width: Math.max(1, Math.min(8, fontSize * (isBlurry ? 0.02 : 0.006))) } : undefined,
         align: 'center',
         dropShadow: finalDropShadow,
         padding: finalDropShadow ? Math.max(20, finalDropShadow.blur * 2.5) : 0,
@@ -132,10 +133,6 @@ export const buildSonnetTextView = (
         display.anchor.set(0.5);
         if (isDecoration) display.alpha = 0.2;
         
-        if (placement.role === 'support' || isDecoration) {
-            display.blendMode = 'difference';
-        }
-        
         const wrapper = new pixi.Container();
         wrapper.rotation = placement.rotation;
         wrapper.position.set(glyph.baseX, glyph.baseY);
@@ -148,21 +145,19 @@ export const buildSonnetTextView = (
 
         if (!isDecoration && !isBlurry) {
             const isHero = placement.role === 'hero';
-            const offset = fontSize * (isHero ? 0.025 : 0.010); // Reduced magnitude as requested
+            const offset = fontSize * (isHero ? 0.025 : 0.010);
             caOffsetValue = offset;
             
             const caCyan = new Text({ text: glyph.char, style });
             caCyan.tint = 0x00ffff;
             caCyan.blendMode = 'screen';
             caCyan.anchor.set(0.5);
-            // Position will be animated in runtime
             caCyan.alpha = isHero ? 0.8 : 0.5;
             
             const caRed = new Text({ text: glyph.char, style });
             caRed.tint = 0xff0044;
             caRed.blendMode = 'screen';
             caRed.anchor.set(0.5);
-            // Position will be animated in runtime
             caRed.alpha = isHero ? 0.8 : 0.5;
             
             wrapper.addChild(caCyan, caRed);

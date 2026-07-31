@@ -217,7 +217,6 @@ export class SonnetPixiRuntime {
         this.sceneCache.clear();
         this.activeParagraphIndex = -1;
     }
-
     private destroyScene(scene: SceneView) {
         this.sceneContainer.removeChild(scene.container);
         unloadSonnetDisplayTree(scene.container);
@@ -259,6 +258,27 @@ export class SonnetPixiRuntime {
         const motion = this.options.tuning.typographyMotion * animationScale(this.options.theme);
         const camera = this.options.tuning.cameraIntensity * animationScale(this.options.theme);
         const cameraFrame = resolveShotMotionFrame(view.shot.kind, progress);
+        
+        // Add a slow continuous pan during the time gap to prevent the scene from looking frozen
+        const gapTime = Math.max(0, time - view.shot.endTime);
+        if (gapTime > 0) {
+            // Inherit the movement direction from the tail end of the shot (progress 0.8 to 1.0)
+            const tailStart = resolveShotMotionFrame(view.shot.kind, 0.8);
+            const dx = cameraFrame.x - tailStart.x;
+            const dy = cameraFrame.y - tailStart.y;
+            const dScale = cameraFrame.scale - tailStart.scale;
+            const dRot = cameraFrame.rotation - tailStart.rotation;
+            
+            // Continue drifting in that direction at a slow, relaxed PV pace
+            // speed = 0.8 means it takes 1.25 seconds of gap to drift the same distance 
+            // the camera covered in the last 20% of the shot.
+            const driftSpeed = gapTime * 0.8;
+            cameraFrame.x += dx * driftSpeed;
+            cameraFrame.y += dy * driftSpeed;
+            cameraFrame.scale += dScale * driftSpeed;
+            cameraFrame.rotation += dRot * driftSpeed;
+        }
+
         const shake = resolveTimelineShake(time, shakeIntensity);
         
         const trackSegments = view.segments;
@@ -282,11 +302,14 @@ export class SonnetPixiRuntime {
             let closestSeg = trackSegments[0];
             let minAbsDist = Infinity;
             
+            // Freeze focus time within the shot's boundaries to prevent jumps during time gaps
+            const focusTime = Math.max(view.shot.startTime, Math.min(time, view.shot.endTime));
+            
             for (let i = 0; i < trackSegments.length; i++) {
                 const seg = trackSegments[i];
                 // Use the center of the segment's duration for the peak of the Gaussian
                 const mid = (seg.guide.startTime + seg.guide.endTime) / 2;
-                const dist = time - mid;
+                const dist = focusTime - mid;
                 
                 if (Math.abs(dist) < minAbsDist) {
                     minAbsDist = Math.abs(dist);
@@ -432,9 +455,7 @@ export class SonnetPixiRuntime {
                 }
             }
             
-            const visibleShotIndex = time <= scene.shots[activeShotIndex].shot.endTime
-                ? activeShotIndex
-                : -1;
+            const visibleShotIndex = activeShotIndex;
             scene.shots.forEach((shot, shotIndex) => {
                 const isShotActive = shotIndex === visibleShotIndex;
                 shot.container.visible = isShotActive;

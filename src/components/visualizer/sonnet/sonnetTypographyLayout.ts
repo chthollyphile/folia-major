@@ -255,42 +255,51 @@ export const resolveSonnetTypographyLayout = ({
             }
         } else {
             // 5. Dynamic Cross/Zigzag ('type-impact', 'mask-reveal')
-            // Replaces the old boring diagonal layout with a tighter cross-cluster
-            let prevBoxLeft = heroBox;
-            let topStackY = heroBox.y - heroBox.measuredHeight / 2 - 10;
-            let bottomStackY = heroBox.y + heroBox.measuredHeight / 2 + 10;
+            // To preserve readability and avoid camera tracking jitter, we form continuous lines
+            // Reading order flow: Top -> Left -> Hero -> Right -> Bottom
+            const beforeCount = heroIndex;
+            const topCount = Math.floor(beforeCount / 2);
+            const afterCount = boxes.length - 1 - heroIndex;
+            const rightCount = Math.ceil(afterCount / 2);
             
-            for (let i = heroIndex - 1; i >= 0; i--) {
+            // Place Left words (heroIndex - 1 down to topCount). Read left-to-right.
+            let currentXLeft = heroBox.x - heroBox.measuredWidth / 2 - 25;
+            for (let i = heroIndex - 1; i >= topCount; i--) {
                 const box = boxes[i];
-                if (i % 2 === 0) {
-                    // Place horizontally to the left
-                    box.x = prevBoxLeft.x - prevBoxLeft.measuredWidth / 2 - box.measuredWidth / 2 - 25;
-                    box.y = heroBox.y + (i % 4 === 0 ? 20 : -20);
-                    prevBoxLeft = box;
-                } else {
-                    // Place vertically above, but ensure it avoids the hero's horizontal center heavily
-                    box.x = heroBox.x + (i % 3 === 0 ? 40 : -40);
-                    box.y = topStackY - box.measuredHeight / 2;
-                    topStackY -= box.measuredHeight + 15;
-                }
+                box.x = currentXLeft - box.measuredWidth / 2;
+                box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
+                currentXLeft -= box.measuredWidth + 25;
                 box.enterX = -30; box.enterY = 0;
             }
-
-            let prevBoxRight = heroBox;
-            for (let i = heroIndex + 1; i < boxes.length; i++) {
+            
+            // Place Top words (topCount - 1 down to 0). Read top-to-bottom.
+            let currentYTop = heroBox.y - heroBox.measuredHeight / 2 - 20;
+            for (let i = topCount - 1; i >= 0; i--) {
                 const box = boxes[i];
-                if (i % 2 !== 0) {
-                    // Place horizontally to the right
-                    box.x = prevBoxRight.x + prevBoxRight.measuredWidth / 2 + box.measuredWidth / 2 + 25;
-                    box.y = heroBox.y + (i % 3 === 0 ? 20 : -20);
-                    prevBoxRight = box;
-                } else {
-                    // Place vertically below, avoiding direct center overlap
-                    box.x = heroBox.x + (i % 3 === 0 ? -40 : 40);
-                    box.y = bottomStackY + box.measuredHeight / 2;
-                    bottomStackY += box.measuredHeight + 15;
-                }
+                box.x = heroBox.x + (i % 2 === 0 ? 15 : -15);
+                box.y = currentYTop - box.measuredHeight / 2;
+                currentYTop -= box.measuredHeight + 15;
+                box.enterX = 0; box.enterY = -30;
+            }
+            
+            // Place Right words (heroIndex + 1 up to heroIndex + rightCount). Read left-to-right.
+            let currentXRight = heroBox.x + heroBox.measuredWidth / 2 + 25;
+            for (let i = heroIndex + 1; i <= heroIndex + rightCount; i++) {
+                const box = boxes[i];
+                box.x = currentXRight + box.measuredWidth / 2;
+                box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
+                currentXRight += box.measuredWidth + 25;
                 box.enterX = 30; box.enterY = 0;
+            }
+            
+            // Place Bottom words (heroIndex + rightCount + 1 to end). Read top-to-bottom.
+            let currentYBottom = heroBox.y + heroBox.measuredHeight / 2 + 20;
+            for (let i = heroIndex + rightCount + 1; i < boxes.length; i++) {
+                const box = boxes[i];
+                box.x = heroBox.x + (i % 2 === 0 ? 15 : -15);
+                box.y = currentYBottom + box.measuredHeight / 2;
+                currentYBottom += box.measuredHeight + 15;
+                box.enterX = 0; box.enterY = 30;
             }
         }
         
@@ -303,7 +312,7 @@ export const resolveSonnetTypographyLayout = ({
                 ...heroBox,
                 isHero: false,
                 role: 'decoration' as any,
-                fontScale: heroBox.fontScale * 2.8,
+                fontScale: Math.min(heroBox.fontScale * 2.0, 3.2),
                 vertical: false,
                 x: heroBox.x - width * 0.1,
                 y: heroBox.y - height * 0.05,
@@ -317,7 +326,7 @@ export const resolveSonnetTypographyLayout = ({
                     ...dec2,
                     isHero: false,
                     role: 'decoration' as any,
-                    fontScale: heroBox.fontScale * 1.5,
+                    fontScale: Math.min(heroBox.fontScale * 1.2, 2.0),
                     vertical: false,
                     x: heroBox.x + width * 0.25,
                     y: heroBox.y + height * 0.15,
@@ -328,7 +337,7 @@ export const resolveSonnetTypographyLayout = ({
             }
         }
         
-        boxes.push(...decorations);
+        boxes.unshift(...decorations);
     }
 
     return boxes.map(box => ({

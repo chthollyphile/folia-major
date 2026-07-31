@@ -79,7 +79,7 @@ export const buildSonnetShotMg = (
         // Massive overlapping geometries
         const geo = new Graphics();
         
-        const geoVariant = seed % 4;
+        const geoVariant = seed % 5;
         
         if (geoVariant === 0) {
             // Variant 0: Huge circular frame with sunburst
@@ -118,8 +118,8 @@ export const buildSonnetShotMg = (
                    .lineTo(Math.cos(angle)*radius*0.57, Math.sin(angle)*radius*0.57)
                    .stroke({color: primary, width: 2, alpha: 0.4});
             }
-        } else {
-            // Variant 3: Chemistry / Molecular Structure (Organic Rings & Orbitals)
+        } else if (geoVariant === 3) {
+            // Variant 3: Organic Rings (Benzene)
             const hexR = radius * 0.22;
             const drawBenzene = (cx: number, cy: number, scale: number, rotationOffset = 0) => {
                 const r = hexR * scale;
@@ -146,11 +146,6 @@ export const buildSonnetShotMg = (
             drawBenzene(dx, 0, 1.2); 
             
             // Left-top fused ring
-            const lx = -Math.sin(Math.PI/3) * rMain;
-            const ly = -Math.cos(Math.PI/3) * rMain * 2; // wait, exact math is sin(60)*rMain, -cos(60)*rMain*2? Actually distance is sqrt(3)*R.
-            // Angle to top-left edge is -30 degrees (-PI/6) from center if top is 0?
-            // Top right is 30deg (PI/6), Top left is -30deg (-PI/6).
-            // distance = rMain * sqrt(3)
             const branchDist = Math.sin(Math.PI/3) * rMain * 2;
             drawBenzene(-Math.sin(Math.PI/6) * branchDist, -Math.cos(Math.PI/6) * branchDist, 1.2);
             
@@ -159,8 +154,8 @@ export const buildSonnetShotMg = (
                .lineTo(0, rMain + radius * 0.2)
                .lineTo(radius * 0.15, rMain + radius * 0.35)
                .stroke({color: primary, width: 2, alpha: 0.6});
-            
-            // Draw atomic electron orbitals (intersecting ellipses)
+        } else {
+            // Variant 4: Atomic electron orbitals (intersecting ellipses)
             const ellR = radius * 0.7;
             for(let i=0; i<3; i++) {
                 const angle = i * Math.PI / 3;
@@ -176,6 +171,8 @@ export const buildSonnetShotMg = (
                 }
                 geo.stroke({color: primary, width: 1, alpha: 0.3});
             }
+            // Add a small nucleus core
+            geo.circle(0, 0, radius * 0.05).fill({color: primary, alpha: 0.8});
         }
 
         // Intersecting Rectangles with Hatching (Shared across all variants to maintain PV consistency)
