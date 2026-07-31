@@ -198,8 +198,8 @@ export class SonnetPixiRuntime {
                 this.options.theme.primaryColor,
             ];
             const color = colors[index % colors.length];
-            const key = buildSonnetIconTextureKey(name, color, 1.5, size, resolution);
-            const url = buildSonnetIconDataUrl(name, color, 1.5, size);
+            const key = buildSonnetIconTextureKey(name, color, 3.5, size, resolution);
+            const url = buildSonnetIconDataUrl(name, color, 3.5, size);
             if (!url) return;
             try {
                 this.iconTextures.set(key, await texturePool.acquire(url));

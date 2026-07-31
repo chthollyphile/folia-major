@@ -119,23 +119,15 @@ export const buildSonnetTextView = (
         distance: 0,
     } : undefined;
 
-    // If it's a blurry element, we use dropShadow to bake Depth of Field directly into the texture
-    const finalDropShadow = isBlurry ? {
-        color: isDecoration ? glowColor : bodyColor,
-        alpha: isDecoration ? 0.6 : 0.9,
-        blur: blurAmount,
-        distance: 0,
-    } : baseDropShadow;
-
     const style = new TextStyle({
         fontFamily: options.fontFamily,
         fontWeight: renderWeight as import('pixi.js').TextStyleFontWeight,
         fontSize,
-        fill: (isBlurry && isDecoration) ? 'transparent' : (isDecoration ? 'transparent' : bodyColor),
-        stroke: isDecoration ? { color: glowColor, width: Math.max(1, Math.min(8, fontSize * (isBlurry ? 0.02 : 0.006))) } : undefined,
+        fill: (isDecoration ? 'transparent' : bodyColor),
+        stroke: isDecoration ? { color: glowColor, width: Math.max(1, Math.min(8, fontSize * 0.006)) } : undefined,
         align: 'center',
-        dropShadow: finalDropShadow,
-        padding: finalDropShadow ? Math.max(20, finalDropShadow.blur * 2.5) : 0,
+        dropShadow: baseDropShadow,
+        padding: baseDropShadow ? Math.max(20, baseDropShadow.blur * 2.5) : 0,
     });
 
     const glyphs: GlyphView[] = buildSonnetGlyphLayout(
@@ -156,16 +148,13 @@ export const buildSonnetTextView = (
         wrapper.rotation = placement.rotation;
         wrapper.position.set(glyph.baseX, glyph.baseY);
         wrapper.alpha = 0;
-        if (isBlurry && blurAmount > 0.5 && !isDecoration) {
-            wrapper.filters = [new pixi.BlurFilter({ strength: blurAmount })];
-        }
 
         // Chromatic Aberration (Dispersion) Effect
         let caCyanNode: import('pixi.js').Text | undefined;
         let caRedNode: import('pixi.js').Text | undefined;
         let caOffsetValue: number | undefined;
 
-        if (!isDecoration && !isBlurry) {
+        if (!isDecoration) {
             const isHero = placement.role === 'hero';
             const offset = fontSize * (isHero ? 0.025 : 0.010);
             caOffsetValue = offset;

@@ -674,16 +674,15 @@ export const buildSonnetShotMg = (
         const type = hasIcons ? (seed + i) % 4 : (seed + i) % 3; // 0: square, 1: diamond, 2: star, 3: icon
         let p: import('pixi.js').Container;
         
-        if (type === 3 && hasIcons) {
-            const iconName = theme.lyricsIcons![(seed + i) % theme.lyricsIcons!.length];
-            const tex = iconTextures.get(iconName);
+        if (type === 3 && hasIcons && iconTextures.size > 0) {
+            const availableTextures = Array.from(iconTextures.values());
+            const tex = availableTextures[(seed + i) % availableTextures.length];
             if (tex) {
                 const s = new Sprite(tex);
                 s.anchor.set(0.5);
-                s.width = pSize * 3;
-                s.height = pSize * 3;
-                s.tint = (i % 2 === 0 ? primary : secondary);
-                s.alpha = 0.4;
+                s.width = pSize * 7;
+                s.height = pSize * 7;
+                s.alpha = 0.85;
                 p = s;
             } else {
                 const g = new Graphics();

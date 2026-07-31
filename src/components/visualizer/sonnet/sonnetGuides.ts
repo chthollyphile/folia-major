@@ -61,8 +61,8 @@ export const createSonnetGuide = (
 
     // Cubic bezier control points
     const p0 = { x: startX, y: startY };
-    const p1 = { x: startX * 0.72, y: startY * 0.3 };
-    const p2 = { x: -startX * 0.18, y: -startY * 0.22 };
+    const p1 = { x: startX * 0.6, y: startY * 0.4 };
+    const p2 = { x: startX * 0.2, y: startY * 0.1 };
     const p3 = { x: 0, y: 0 };
 
     const getBezier = (p_0: { x: number, y: number; }, p_1: { x: number, y: number; }, p_2: { x: number, y: number; }, p_3: { x: number, y: number; }, t: number) => {
@@ -243,17 +243,17 @@ export const createSonnetGuide = (
                 const headT = Math.min(1, Math.max(0, localProg * 1.5));
                 // Shrink phase: tail moves from p0 to p1, trailing behind head
                 const tailT = Math.min(1, Math.max(0, (localProg - 0.3) * 1.5));
-                
+
                 if (headT > tailT) {
                     const hx = rectSpline.p0.x + (rectSpline.p1.x - rectSpline.p0.x) * headT;
                     const hy = rectSpline.p0.y + (rectSpline.p1.y - rectSpline.p0.y) * headT;
                     const tx = rectSpline.p0.x + (rectSpline.p1.x - rectSpline.p0.x) * tailT;
                     const ty = rectSpline.p0.y + (rectSpline.p1.y - rectSpline.p0.y) * tailT;
-                    
+
                     graphics.moveTo(tx, ty);
                     graphics.lineTo(hx, hy);
                     graphics.stroke({ color, width: rectSpline.thickness, alpha: strokeProps.alpha * fadeOut * 0.7 });
-                    
+
                     // Also draw a bright core
                     graphics.moveTo(tx, ty);
                     graphics.lineTo(hx, hy);
