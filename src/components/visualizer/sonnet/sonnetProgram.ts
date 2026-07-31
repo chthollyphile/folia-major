@@ -65,12 +65,21 @@ const splitOversizedDraft = (draft: ParagraphDraft): ParagraphDraft[] => {
     const output: ParagraphDraft[] = [];
     let remaining = draft.lines;
     let boundary = draft.boundary;
+    let loopGuard = 0;
     while (remaining.length > 6 || (remaining.length > 1 && (remaining.at(-1)!.renderEndTime - remaining[0].line.startTime) > 18)) {
+        if (loopGuard++ > 1000) {
+            console.error('splitOversizedDraft: Infinite loop detected, breaking');
+            break;
+        }
         const candidates = remaining.slice(2, -1).map((line, offset) => ({
             splitIndex: offset + 2,
             gap: line.line.startTime - remaining[offset + 1].renderEndTime,
         }));
-        const splitIndex = candidates.sort((a, b) => b.gap - a.gap)[0]?.splitIndex ?? Math.min(4, remaining.length - 1);
+        // Filter out NaNs to ensure sort works predictably, though max(1) is the ultimate safeguard
+        const validCandidates = candidates.filter(c => !Number.isNaN(c.gap));
+        const rawSplitIndex = validCandidates.sort((a, b) => b.gap - a.gap)[0]?.splitIndex ?? Math.min(4, remaining.length - 1);
+        const splitIndex = Math.max(1, rawSplitIndex);
+        
         output.push({ lines: remaining.slice(0, splitIndex), boundary });
         remaining = remaining.slice(splitIndex);
         boundary = output.at(-1)!.lines.length >= 6 ? 'line-cap' : 'duration-cap';
