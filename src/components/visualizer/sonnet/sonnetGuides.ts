@@ -36,23 +36,23 @@ export const createSonnetGuide = (
     theme: Theme,
     fontSize: number,
     textStartTime = segment.startTime,
-): SonnetGuideView & { update?: (progress: number) => void } => {
+): SonnetGuideView & { update?: (progress: number) => void; } => {
     const container = new pixi.Container();
     const graphics = new pixi.Graphics();
-    
+
     // Container for geometric decorations
     const shapesContainer = new pixi.Container();
-    
+
     const isHero = placement.role === 'hero';
     const fallbackDirection = placement.timingPhase < 0.5 ? -1 : 1;
     const startX = placement.enterX || fallbackDirection * fontSize * 1.8;
     const startY = placement.enterY || -fontSize * 0.9;
-    
+
     const color = colorNumber(
         pixi,
         isHero ? theme.accentColor : theme.secondaryColor,
     );
-    
+
     const strokeProps = {
         color,
         width: isHero ? 1.8 : 1,
@@ -64,25 +64,25 @@ export const createSonnetGuide = (
     const p1 = { x: startX * 0.72, y: startY * 0.3 };
     const p2 = { x: -startX * 0.18, y: -startY * 0.22 };
     const p3 = { x: 0, y: 0 };
-    
-    const getBezier = (p_0: {x:number, y:number}, p_1: {x:number, y:number}, p_2: {x:number, y:number}, p_3: {x:number, y:number}, t: number) => {
+
+    const getBezier = (p_0: { x: number, y: number; }, p_1: { x: number, y: number; }, p_2: { x: number, y: number; }, p_3: { x: number, y: number; }, t: number) => {
         const mt = 1 - t;
         return {
-            x: mt*mt*mt*p_0.x + 3*mt*mt*t*p_1.x + 3*mt*t*t*p_2.x + t*t*t*p_3.x,
-            y: mt*mt*mt*p_0.y + 3*mt*mt*t*p_1.y + 3*mt*t*t*p_2.y + t*t*t*p_3.y
+            x: mt * mt * mt * p_0.x + 3 * mt * mt * t * p_1.x + 3 * mt * t * t * p_2.x + t * t * t * p_3.x,
+            y: mt * mt * mt * p_0.y + 3 * mt * mt * t * p_1.y + 3 * mt * t * t * p_2.y + t * t * t * p_3.y
         };
     };
 
     // Create random small geometric shapes
     const numShapes = isHero ? 6 : 3;
     const shapeData: any[] = [];
-    
+
     for (let i = 0; i < numShapes; i++) {
         const shape = new pixi.Graphics();
         const type = Math.floor(Math.random() * 4);
         const size = (isHero ? 3 : 1.5) + Math.random() * 3.5;
         const sAlpha = isHero ? 0.8 : 0.6;
-        
+
         if (type === 0) {
             shape.circle(0, 0, size).fill({ color, alpha: sAlpha });
         } else if (type === 1) {
@@ -92,7 +92,7 @@ export const createSonnetGuide = (
         } else {
             shape.moveTo(0, -size).lineTo(size, 0).lineTo(0, size).lineTo(-size, 0).fill({ color, alpha: sAlpha });
         }
-        
+
         shapesContainer.addChild(shape);
         shapeData.push({
             obj: shape,
@@ -131,14 +131,14 @@ export const createSonnetGuide = (
     container.addChild(graphics, shapesContainer);
     container.position.set(placement.x, placement.y);
     container.alpha = 0;
-    
+
     const cue = resolveSonnetGuideCue(segment, textStartTime);
-    
+
     const update = (progress: number) => {
         // Curve draws in quickly from 0 to 0.35, then fades out from 0.4 to 0.7
         const drawProgress = Math.min(1, Math.max(0, progress / 0.35));
         const fadeOut = 1 - Math.min(1, Math.max(0, (progress - 0.4) / 0.3));
-        
+
         graphics.clear();
         if (drawProgress > 0 && fadeOut > 0) {
             const steps = 20;
@@ -148,23 +148,23 @@ export const createSonnetGuide = (
                 const t = (i / steps) * drawProgress;
                 const p = getBezier(p0, p1, p2, p3, t);
                 const intensity = Math.pow(i / steps, 2); // Quadratic curve: 0 at tail, 1 at head
-                
+
                 // Enhanced thickness and brightness
-                const segmentAlpha = Math.min(1, intensity * strokeProps.alpha * fadeOut * 1.6); 
-                const segmentWidth = (isHero ? 2.5 : 1.5) + intensity * (isHero ? 5.0 : 3.0); 
-                
+                const segmentAlpha = Math.min(1, intensity * strokeProps.alpha * fadeOut * 1.6);
+                const segmentWidth = (isHero ? 2.5 : 1.5) + intensity * (isHero ? 5.0 : 3.0);
+
                 graphics.moveTo(prevP.x, prevP.y);
                 graphics.lineTo(p.x, p.y);
                 graphics.stroke({ color, width: segmentWidth, alpha: segmentAlpha });
                 prevP = p;
             }
-            
+
             // Star Head (Core + Glow) - Made more prominent
             const head = getBezier(p0, p1, p2, p3, drawProgress);
             graphics.circle(head.x, head.y, isHero ? 14 : 9).fill({ color, alpha: 0.5 * fadeOut });
             graphics.circle(head.x, head.y, isHero ? 4.5 : 3).fill({ color: 0xffffff, alpha: 1 * fadeOut });
         }
-        
+
         // Rhythm Game Style Silk Thread Tracks
         trackingTrails.forEach(trail => {
             const localProg = (progress - trail.delay) / 0.55;
@@ -186,38 +186,38 @@ export const createSonnetGuide = (
                 if (localProg > 0 && localProg < 1.3) {
                     const headT = Math.min(1, localProg);
                     const tailT = Math.max(0, localProg - 0.35); // The comet tail length
-                    
+
                     if (headT > tailT) {
                         const steps = 25;
                         let prevP = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, tailT);
-                        
+
                         for (let i = 1; i <= steps; i++) {
                             const stepT = tailT + (i / steps) * (headT - tailT);
                             const pos = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, stepT);
-                            const intensity = Math.pow(i / steps, 2); 
+                            const intensity = Math.pow(i / steps, 2);
                             const alpha = intensity * strokeProps.alpha * fadeOut * 0.9;
                             const width = (isHero ? 2 : 1) + intensity * (isHero ? 5 : 2.5);
-                            
+
                             graphics.moveTo(prevP.x, prevP.y);
                             graphics.lineTo(pos.x, pos.y);
                             graphics.stroke({ color, width, alpha });
                             prevP = pos;
                         }
                     }
-                    
+
                     // 3. Glowing Head and Follow Circle
                     if (headT > 0 && headT < 1) {
                         const headPos = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, headT);
                         graphics.circle(headPos.x, headPos.y, isHero ? 7 : 4).fill({ color, alpha: 0.9 * fadeOut });
                         graphics.circle(headPos.x, headPos.y, isHero ? 2.5 : 1.5).fill({ color: 0xffffff, alpha: 1 * fadeOut });
-                        
+
                         // Outer "follow circle" glow for rhythm game vibe
                         graphics.circle(headPos.x, headPos.y, isHero ? 20 : 12).stroke({ color, width: isHero ? 2 : 1, alpha: 0.4 * fadeOut });
                     }
                 }
             }
         });
-        
+
         // Shapes burst outwards when text starts to settle (progress ~ 0.3)
         const burstProgress = Math.min(1, Math.max(0, (progress - 0.3) / 0.7));
         shapeData.forEach(s => {

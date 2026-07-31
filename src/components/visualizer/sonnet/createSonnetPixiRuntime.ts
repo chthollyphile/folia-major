@@ -50,7 +50,7 @@ export class SonnetPixiRuntime {
     private resizeObserver: ResizeObserver | null = null;
     private lastWidth = 0;
     private lastHeight = 0;
-    
+
     private sceneContainer!: import('pixi.js').Container;
     private overlayContainer!: import('pixi.js').Container;
 
@@ -58,7 +58,7 @@ export class SonnetPixiRuntime {
         private readonly pixi: PixiModule,
         private readonly options: SonnetRuntimeOptions,
         private readonly app: import('pixi.js').Application,
-    ) {}
+    ) { }
 
     static async create(options: SonnetRuntimeOptions) {
         const pixi = await import('pixi.js');
@@ -81,7 +81,7 @@ export class SonnetPixiRuntime {
         runtime.sceneContainer = new pixi.Container();
         runtime.overlayContainer = new pixi.Container();
         app.stage.addChild(runtime.sceneContainer, runtime.overlayContainer);
-        
+
         if (options.signal?.aborted) {
             runtime.destroy();
             throw new DOMException('Sonnet runtime creation was cancelled', 'AbortError');
@@ -121,27 +121,27 @@ export class SonnetPixiRuntime {
         this.drawOverlay(width, height);
         return true;
     }
-    
+
     private drawOverlay(width: number, height: number) {
         destroySonnetContainerChildren(this.overlayContainer);
         const g = new this.pixi.Graphics();
-        
+
         const paddingX = Math.max(30, width * 0.05);
         const paddingY = Math.max(30, height * 0.05);
-        
+
         const primary = this.pixi.Color.shared.setValue(this.options.theme.primaryColor).toNumber();
         const alpha = 0.5;
-        
+
         // Asymmetrical, partial perimeter (Not enclosing the whole screen)
         // 1. Top-Left cluster
         g.rect(paddingX, paddingY, 30, 4).fill({ color: primary, alpha: 0.8 }); // Thick bar
         g.moveTo(paddingX, paddingY + 16).lineTo(paddingX, paddingY + 120).stroke({ color: primary, width: 1, alpha }); // Dropping line
-        
+
         // 2. Bottom-Right cluster
         g.rect(width - paddingX - 4, height - paddingY - 16, 4, 16).fill({ color: primary, alpha: 0.8 }); // Thick vertical bar
         g.moveTo(width - paddingX - 160, height - paddingY).lineTo(width - paddingX - 20, height - paddingY).stroke({ color: primary, width: 1, alpha }); // Horizontal line
         g.moveTo(width - paddingX, height - paddingY - 180).lineTo(width - paddingX, height - paddingY - 30).stroke({ color: primary, width: 1, alpha }); // Rising line
-        
+
         // 3. Floating accents
         const drawCross = (cx: number, cy: number, size: number) => {
             g.moveTo(cx - size, cy).lineTo(cx + size, cy).stroke({ color: primary, width: 1, alpha: 0.8 });
@@ -149,7 +149,7 @@ export class SonnetPixiRuntime {
         };
         // Top-Right cross
         drawCross(width - paddingX, paddingY + 20, 6);
-        
+
         // Bottom-Left diamond
         g.moveTo(paddingX, height - paddingY - 4).lineTo(paddingX + 4, height - paddingY).lineTo(paddingX, height - paddingY + 4).lineTo(paddingX - 4, height - paddingY).fill({ color: primary, alpha: 0.7 });
 
@@ -161,17 +161,17 @@ export class SonnetPixiRuntime {
             letterSpacing: 4,
             fontWeight: 'bold'
         });
-        
+
         const topText = new this.pixi.Text({ text: 'SONNET', style: textStyle });
         topText.alpha = 0.5;
         topText.position.set(paddingX + 40, paddingY - 2);
         topText.anchor.set(0, 0);
-        
+
         const bottomText = new this.pixi.Text({ text: 'VISUALIZER', style: textStyle });
         bottomText.alpha = 0.5;
         bottomText.position.set(width - paddingX - 150, height - paddingY);
         bottomText.anchor.set(0, 0.5);
-        
+
         // Typographic star ✦
         const starStyle = new this.pixi.TextStyle({
             fontFamily: 'sans-serif',
@@ -182,7 +182,7 @@ export class SonnetPixiRuntime {
         starText.alpha = 0.6;
         starText.position.set(width - paddingX - 10, height - paddingY);
         starText.anchor.set(1, 0.5);
-        
+
         this.overlayContainer.addChild(g, topText, bottomText, starText);
     }
 
@@ -258,7 +258,7 @@ export class SonnetPixiRuntime {
         const motion = this.options.tuning.typographyMotion * animationScale(this.options.theme);
         const camera = this.options.tuning.cameraIntensity * animationScale(this.options.theme);
         const cameraFrame = resolveShotMotionFrame(view.shot.kind, progress);
-        
+
         // Add a slow continuous pan during the time gap to prevent the scene from looking frozen
         const gapTime = Math.max(0, time - view.shot.endTime);
         if (gapTime > 0) {
@@ -268,7 +268,7 @@ export class SonnetPixiRuntime {
             const dy = cameraFrame.y - tailStart.y;
             const dScale = cameraFrame.scale - tailStart.scale;
             const dRot = cameraFrame.rotation - tailStart.rotation;
-            
+
             // Continue drifting in that direction at a slow, relaxed PV pace
             // speed = 0.8 means it takes 1.25 seconds of gap to drift the same distance 
             // the camera covered in the last 20% of the shot.
@@ -280,52 +280,53 @@ export class SonnetPixiRuntime {
         }
 
         const shake = resolveTimelineShake(time, shakeIntensity);
-        
-        const trackSegments = view.segments;
-        
+
+        let trackSegments = view.segments.filter(s => s.role !== 'decoration');
+        if (trackSegments.length === 0) trackSegments = view.segments;
+
         let currentFocusX = 0;
         let currentFocusY = 0;
-        
+
         if (trackSegments.length > 0) {
             const getCenter = (seg: typeof view.segments[0]) => {
-                if (seg.glyphs.length === 0) return {x:0, y:0};
+                if (seg.glyphs.length === 0) return { x: 0, y: 0 };
                 return {
                     x: seg.glyphs.reduce((s, g) => s + g.baseX, 0) / seg.glyphs.length,
                     y: seg.glyphs.reduce((s, g) => s + g.baseY, 0) / seg.glyphs.length
                 };
             };
-            
+
             let focusX = 0;
             let focusY = 0;
             let totalWeight = 0;
-            
+
             let closestSeg = trackSegments[0];
             let minAbsDist = Infinity;
-            
+
             // Freeze focus time within the shot's boundaries to prevent jumps during time gaps
             const focusTime = Math.max(view.shot.startTime, Math.min(time, view.shot.endTime));
-            
+
             for (let i = 0; i < trackSegments.length; i++) {
                 const seg = trackSegments[i];
                 // Use the center of the segment's duration for the peak of the Gaussian
                 const mid = (seg.guide.startTime + seg.guide.endTime) / 2;
                 const dist = focusTime - mid;
-                
+
                 if (Math.abs(dist) < minAbsDist) {
                     minAbsDist = Math.abs(dist);
                     closestSeg = seg;
                 }
-                
+
                 // Cinematic smoothing window: sigma = 0.35 seconds
                 const sigma = 0.35;
                 const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-                
+
                 const center = getCenter(seg);
                 focusX += center.x * weight;
                 focusY += center.y * weight;
                 totalWeight += weight;
             }
-            
+
             if (totalWeight < 0.0001) {
                 const center = getCenter(closestSeg);
                 currentFocusX = center.x;
@@ -340,7 +341,7 @@ export class SonnetPixiRuntime {
             currentFocusX * camera,
             currentFocusY * camera
         );
-        
+
         view.container.scale.set(
             view.shot.camera.zoom
             * (1 + (cameraFrame.scale - 1) * camera),
@@ -385,7 +386,7 @@ export class SonnetPixiRuntime {
                 const x = glyph.baseX + glyph.enterX * offset;
                 const y = glyph.baseY + glyph.enterY * offset;
                 const rotation = glyph.finalRotation + glyph.entryRotation * offset;
-                
+
                 // Simulated Parallax 3D effect
                 const depth = glyph.zDepth || 0;
                 // Move faster/slower than camera
@@ -393,7 +394,7 @@ export class SonnetPixiRuntime {
                 const parallaxY = (cameraFrame.y * height + shake.y * height) * camera * depth * 2.5;
                 // Scale larger if closer to camera (positive depth)
                 const depthScale = 1 + depth * 0.45;
-                
+
                 glyph.display.alpha = coreAlpha;
                 glyph.display.scale.set(scale * depthScale);
                 glyph.display.position.set(x + parallaxX, y + parallaxY);
@@ -404,13 +405,13 @@ export class SonnetPixiRuntime {
                     glyph.halo.position.set(x, y);
                     glyph.halo.rotation = rotation;
                 }
-                
+
                 // Animate Chromatic Aberration separation and merging
                 if (glyph.caCyan && glyph.caRed && glyph.caOffset) {
                     // Starts separated (impact), and gently merges to a very subtle base offset
                     const mergeEased = easeSonnetInOut(glyphProgress);
                     const currentOffset = glyph.caOffset * (1 - mergeEased * 0.8); // 1.0 -> 0.2
-                    
+
                     glyph.caCyan.position.set(-currentOffset, currentOffset * 0.5);
                     glyph.caRed.position.set(currentOffset, -currentOffset * 0.5);
                 }
@@ -431,10 +432,10 @@ export class SonnetPixiRuntime {
         }
         const width = Math.max(this.options.host.clientWidth, 320);
         const height = Math.max(this.options.host.clientHeight, 240);
-        
+
         this.sceneCache.forEach((scene, index) => {
             const isActive = index === paragraphIndex;
-            
+
             // Strict visibility: only the active scene is ever drawn. Zero overlap between scenes.
             scene.container.visible = isActive;
             if (!isActive) {
@@ -443,9 +444,9 @@ export class SonnetPixiRuntime {
                 scene.activeShotIndex = -1;
                 return;
             }
-            
+
             const transition = resolveTransitionFrame(scene.paragraph, time);
-            
+
             // Strictly determine the single active shot within this scene to avoid intra-scene residues
             let activeShotIndex = 0;
             for (let i = scene.shots.length - 1; i >= 0; i--) {
@@ -454,7 +455,7 @@ export class SonnetPixiRuntime {
                     break;
                 }
             }
-            
+
             const visibleShotIndex = activeShotIndex;
             scene.shots.forEach((shot, shotIndex) => {
                 const isShotActive = shotIndex === visibleShotIndex;
@@ -467,7 +468,7 @@ export class SonnetPixiRuntime {
                 if (previousShot) unloadSonnetDisplayTree(previousShot.container);
                 scene.activeShotIndex = visibleShotIndex;
             }
-            
+
             // If this is the active scene, we simulate an 'entrance' by reversing the previous scene's transition
             let enterX = 0, enterY = 0, enterScale = 1, enterRotation = 0, enterAlpha = 1;
             if (isActive && index > 0) {
@@ -477,7 +478,7 @@ export class SonnetPixiRuntime {
                     if (time >= prevT.startTime && time <= prevT.endTime + 0.1) {
                         const inProgress = clamp01((time - prevT.startTime) / Math.max(0.001, prevT.endTime - prevT.startTime));
                         const easedIn = easeSonnetInOut(inProgress);
-                        
+
                         // Counter-animate against the previous scene's exit direction
                         const tFrame = resolveTransitionFrame(prevScene.paragraph, prevT.startTime + (prevT.endTime - prevT.startTime) * 0.99);
                         enterX = -tFrame.x * (1 - easedIn) * 0.5;
@@ -487,15 +488,15 @@ export class SonnetPixiRuntime {
                     }
                 }
             }
-            
+
             scene.container.alpha = isActive ? enterAlpha : transition.alpha;
             scene.container.pivot.set(width / 2, height / 2);
-            
+
             const finalX = isActive ? enterX : transition.x;
             const finalY = isActive ? enterY : transition.y;
             const finalScale = isActive ? enterScale : transition.scale;
             const finalRotation = isActive ? enterRotation : transition.rotation;
-            
+
             scene.container.position.set(width / 2 + finalX * width, height / 2 + finalY * height);
             scene.container.scale.set(finalScale);
             scene.container.rotation = finalRotation;

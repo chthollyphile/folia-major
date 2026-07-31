@@ -72,24 +72,24 @@ export const buildSonnetTextView = (
     const { segment, placement } = options;
     const fontSize = options.baseFontSize * placement.fontScale;
     const isKeyword = options.theme.wordColors?.find(w => w.word.toLowerCase() === segment.text.toLowerCase());
-    
+
     // The main body of the text remains the primary color
     const bodyColor = options.theme.primaryColor;
-    
+
     // The glow and decoration edges use keyword colors, or accent colors for support text
-    const glowColor = isKeyword 
-        ? isKeyword.color 
+    const glowColor = isKeyword
+        ? isKeyword.color
         : (placement.role === 'hero' ? options.theme.primaryColor : options.theme.accentColor);
-    
+
     const isDecoration = placement.role === 'decoration';
     const renderWeight = placement.role === 'hero' ? '900' : isDecoration ? '300' : '700';
     const fontSpec = `${renderWeight} ${fontSize}px ${options.fontFamily}`;
-    
+
     // Parallax depth assignment
-    const zDepth = isDecoration 
+    const zDepth = isDecoration
         ? (Math.random() > 0.5 ? 0.5 + Math.random() * 0.8 : -0.5 - Math.random() * 0.8)
         : (placement.role === 'support' ? (Math.random() - 0.5) * 0.25 : 0);
-        
+
     const blurAmount = Math.abs(zDepth) * fontSize * 0.12;
     const isBlurry = blurAmount > 2;
 
@@ -99,7 +99,7 @@ export const buildSonnetTextView = (
         blur: Math.max(12, fontSize * 0.18),
         distance: 0,
     } : undefined;
-    
+
     // If it's a blurry element, we use dropShadow to bake Depth of Field directly into the texture
     const finalDropShadow = isBlurry ? {
         color: isDecoration ? glowColor : bodyColor,
@@ -132,12 +132,12 @@ export const buildSonnetTextView = (
         const display = new Text({ text: glyph.char, style });
         display.anchor.set(0.5);
         if (isDecoration) display.alpha = 0.2;
-        
+
         const wrapper = new pixi.Container();
         wrapper.rotation = placement.rotation;
         wrapper.position.set(glyph.baseX, glyph.baseY);
         wrapper.alpha = 0;
-        
+
         // Chromatic Aberration (Dispersion) Effect
         let caCyanNode: import('pixi.js').Text | undefined;
         let caRedNode: import('pixi.js').Text | undefined;
@@ -147,28 +147,28 @@ export const buildSonnetTextView = (
             const isHero = placement.role === 'hero';
             const offset = fontSize * (isHero ? 0.025 : 0.010);
             caOffsetValue = offset;
-            
+
             const caCyan = new Text({ text: glyph.char, style });
             caCyan.tint = 0x00ffff;
             caCyan.blendMode = 'screen';
             caCyan.anchor.set(0.5);
             caCyan.alpha = isHero ? 0.8 : 0.5;
-            
+
             const caRed = new Text({ text: glyph.char, style });
             caRed.tint = 0xff0044;
             caRed.blendMode = 'screen';
             caRed.anchor.set(0.5);
             caRed.alpha = isHero ? 0.8 : 0.5;
-            
+
             wrapper.addChild(caCyan, caRed);
             caCyanNode = caCyan;
             caRedNode = caRed;
         }
-        
+
         wrapper.addChild(display);
-        
+
         options.textLayer.addChild(wrapper);
-        
+
         return {
             display: wrapper as any,
             halo: null,
