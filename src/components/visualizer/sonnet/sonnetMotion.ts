@@ -140,7 +140,6 @@ export interface SonnetTransitionFrame {
     scale: number;
     rotation: number;
     alpha: number;
-    flashAlpha: number;
     shakeIntensity: number;
 }
 
@@ -150,7 +149,7 @@ export const resolveTransitionFrame = (
 ): SonnetTransitionFrame => {
     const transition = paragraph.transitionOut;
     if (!transition || time < transition.startTime) {
-        return { progress: 0, x: 0, y: 0, scale: 1, rotation: 0, alpha: 1, flashAlpha: 0, shakeIntensity: 0 };
+        return { progress: 0, x: 0, y: 0, scale: 1, rotation: 0, alpha: 1, shakeIntensity: 0 };
     }
     const progress = easeSonnetInOut(clamp01(
         (time - transition.startTime) / Math.max(transition.endTime - transition.startTime, 0.001),
@@ -158,11 +157,11 @@ export const resolveTransitionFrame = (
     const shakeIntensity = 0; // Removed extreme shaking per user request
 
     const frames: Record<SonnetTransitionKind, Omit<SonnetTransitionFrame, 'progress' | 'shakeIntensity'>> = {
-        'whip-pan': { x: -0.15 * progress, y: 0.02 * progress, scale: 1.01, rotation: -0.005 * progress, alpha: 1 - progress, flashAlpha: 0 },
-        'match-cut': { x: 0, y: 0, scale: 1 + progress * 0.1, rotation: 0, alpha: 1 - progress, flashAlpha: Math.sin(progress * Math.PI) * 0.1 },
-        'strip-slice': { x: 0.05 * progress, y: -0.02 * progress, scale: 1, rotation: 0.01 * progress, alpha: 1 - progress, flashAlpha: 0 },
-        'flash-frame': { x: 0, y: 0, scale: 1.02, rotation: 0, alpha: 1 - progress, flashAlpha: Math.sin(progress * Math.PI) * 0.5 },
-        'aperture-wipe': { x: 0, y: 0, scale: Math.max(0.8, 1 - progress * 0.2), rotation: progress * 0.02, alpha: 1 - progress, flashAlpha: 0 },
+        'whip-pan': { x: -0.15 * progress, y: 0.02 * progress, scale: 1.01, rotation: -0.005 * progress, alpha: 1 - progress },
+        'match-cut': { x: 0, y: 0, scale: 1 + progress * 0.1, rotation: 0, alpha: 1 - progress },
+        'strip-slice': { x: 0.05 * progress, y: -0.02 * progress, scale: 1, rotation: 0.01 * progress, alpha: 1 - progress },
+        'flash-frame': { x: 0, y: 0, scale: 1.02, rotation: 0, alpha: 1 - progress },
+        'aperture-wipe': { x: 0, y: 0, scale: Math.max(0.8, 1 - progress * 0.2), rotation: progress * 0.02, alpha: 1 - progress },
     };
     return { progress, shakeIntensity, ...frames[transition.kind] };
 };

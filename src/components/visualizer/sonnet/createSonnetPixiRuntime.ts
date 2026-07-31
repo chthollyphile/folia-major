@@ -534,7 +534,6 @@ export class SonnetPixiRuntime {
             scene.container.position.set(width / 2 + finalX * width, height / 2 + finalY * height);
             scene.container.scale.set(finalScale);
             scene.container.rotation = finalRotation;
-            scene.flash.alpha = transition.flashAlpha;
         });
     };
 

@@ -113,17 +113,27 @@ const buildCues = (lines: SonnetCompiledLine[]): SonnetAnimationCue[] => {
 
 const groupShotLines = (lines: SonnetCompiledLine[]) => {
     const groups: SonnetCompiledLine[][] = [];
+    let currentGroup: SonnetCompiledLine[] = [];
+    let groupStartTime = 0;
+
     for (let index = 0; index < lines.length; index += 1) {
-        const current = lines[index];
-        const next = lines[index + 1];
-        const combinedDuration = next ? next.renderEndTime - current.line.startTime : Infinity;
-        const bothShort = next
-            && current.line.endTime - current.line.startTime < 1.8
-            && next.line.endTime - next.line.startTime < 1.8
-            && combinedDuration <= 3.5;
-        groups.push(bothShort ? [current, next] : [current]);
-        if (bothShort) index += 1;
+        const line = lines[index];
+        if (currentGroup.length === 0) {
+            currentGroup.push(line);
+            groupStartTime = line.line.startTime;
+        } else {
+            const durationSoFar = line.renderEndTime - groupStartTime;
+            // Group up to 4 lines, max 6 seconds total, to reuse background MG
+            if (currentGroup.length < 4 && durationSoFar <= 6.0) {
+                currentGroup.push(line);
+            } else {
+                groups.push(currentGroup);
+                currentGroup = [line];
+                groupStartTime = line.line.startTime;
+            }
+        }
     }
+    if (currentGroup.length > 0) groups.push(currentGroup);
     return groups;
 };
 
@@ -201,8 +211,11 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
         const next = drafts[index + 1];
         const endTime = draft.lines.at(-1)!.renderEndTime;
         const gap = next ? next.lines[0].line.startTime - endTime : 0;
+        const availableTransitions = kind === 'chorus' 
+            ? TRANSITION_KINDS.filter(t => t !== 'flash-frame')
+            : TRANSITION_KINDS;
         const transitionKind = next
-            ? chooseWithoutRepeat(TRANSITION_KINDS, `${resolvedSeed}:${index}:transition`, previousTransition)
+            ? chooseWithoutRepeat(availableTransitions, `${resolvedSeed}:${index}:transition`, previousTransition)
             : null;
         if (transitionKind) previousTransition = transitionKind;
         const transitionDuration = next ? (gap >= 1.2 ? Math.min(0.8, gap * 0.65) : Math.min(0.22, Math.max(0.12, gap + 0.12))) : 0;

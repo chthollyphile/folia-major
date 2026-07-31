@@ -156,6 +156,9 @@ export const buildSonnetTextView = (
         wrapper.rotation = placement.rotation;
         wrapper.position.set(glyph.baseX, glyph.baseY);
         wrapper.alpha = 0;
+        if (isBlurry && blurAmount > 0.5 && !isDecoration) {
+            wrapper.filters = [new pixi.BlurFilter({ strength: blurAmount })];
+        }
 
         // Chromatic Aberration (Dispersion) Effect
         let caCyanNode: import('pixi.js').Text | undefined;

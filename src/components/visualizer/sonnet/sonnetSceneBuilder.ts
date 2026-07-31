@@ -37,7 +37,6 @@ export interface SceneView {
     paragraph: SonnetParagraph;
     container: import('pixi.js').Container;
     shots: ShotView[];
-    flash: import('pixi.js').Graphics;
     postProcessFilters: import('pixi.js').Filter[];
     activeShotIndex: number;
 }
@@ -230,11 +229,7 @@ export const buildSonnetScene = (
         };
     });
 
-    const flash = new Graphics()
-        .rect(0, 0, width, height)
-        .fill({ color: colorNumber(pixi, options.theme.accentColor), alpha: 1 });
-    flash.alpha = 0;
-    container.addChild(flash);
+
     postProcessFilters.push(...applySonnetScenePostProcess(
         pixi,
         container,
@@ -242,5 +237,5 @@ export const buildSonnetScene = (
         sceneSeed,
     ));
     container.visible = false;
-    return { paragraph, container, shots, flash, postProcessFilters, activeShotIndex: -1 };
+    return { paragraph, container, shots, postProcessFilters, activeShotIndex: -1 };
 };

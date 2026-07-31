@@ -91,7 +91,7 @@ export const resolveSonnetTypographyLayout = ({
             : index / Math.max(1, segments.length - 1)
     ));
     const heroPhase = phases[heroIndex] ?? 0.5;
-    
+
     // Deterministic pseudo-randomness for layout variations
     const layoutVariantSeed = segments.reduce((acc, seg) => acc + (seg.text.trim().length || 1), 0) + segments.length;
     const editorialVariant = layoutVariantSeed % 3;
@@ -104,7 +104,7 @@ export const resolveSonnetTypographyLayout = ({
         let fontScale = 1.0;
         let vertical = false;
         let rotation = 0;
-        
+
         switch (shotKind) {
             case 'editorial-column':
                 fontScale = isHero ? (editorialVariant === 2 ? 3.2 : 4.0) : 1.2;
@@ -133,25 +133,25 @@ export const resolveSonnetTypographyLayout = ({
         // To prevent massive text from overflowing 82% of screen width, we calculate a fitScale
         let displayText = vertical ? verticalText(segment) : segment.text;
         const renderWeight = isHero ? '900' : '700';
-        
+
         let targetFontSize = baseFontSize * fontScale;
         let fontSpec = `${renderWeight} ${targetFontSize}px ${fontFamily}`;
-        
-        let measuredWidth = vertical 
-            ? targetFontSize * 1.1 
+
+        let measuredWidth = vertical
+            ? targetFontSize * 1.1
             : measureText(displayText, fontSpec, targetFontSize);
-            
-        let measuredHeight = vertical 
-            ? targetFontSize * 1.1 * (displayText.split('\n').length) 
+
+        let measuredHeight = vertical
+            ? targetFontSize * 1.1 * (displayText.split('\n').length)
             : targetFontSize * 1.2;
-            
+
         // Safe downscale if it exceeds screen bounds
         const maxW = width * 0.82;
         const maxH = height * 0.82;
         let fitScale = 1.0;
         if (measuredWidth > maxW) fitScale = Math.min(fitScale, maxW / measuredWidth);
         if (measuredHeight > maxH) fitScale = Math.min(fitScale, maxH / measuredHeight);
-        
+
         if (fitScale < 1.0) {
             targetFontSize *= fitScale;
             fontScale *= fitScale;
@@ -184,7 +184,7 @@ export const resolveSonnetTypographyLayout = ({
             if (editorialVariant === 0) heroBox.x = -width * 0.15;
             else if (editorialVariant === 1) heroBox.x = width * 0.15;
             else heroBox.x = 0; // Variant 2 (centered horizontal)
-            
+
             heroBox.y = (editorialVariant === 2) ? -height * 0.25 : 0;
         } else if (shotKind === 'quiet-tableau') {
             heroBox.x = 0;
@@ -193,7 +193,7 @@ export const resolveSonnetTypographyLayout = ({
             heroBox.x = 0;
             heroBox.y = 0;
         }
-        
+
         // Implement diverse layout strategies based on shotKind
         if (shotKind === 'quiet-tableau') {
             if (tableauVariant === 0) {
@@ -294,7 +294,7 @@ export const resolveSonnetTypographyLayout = ({
                 // 3a. Editorial Column: Original (hero left, text on left and right)
                 let currentYLeft = heroBox.y - heroBox.measuredHeight / 2 + 20;
                 let currentYRight = heroBox.y - heroBox.measuredHeight / 2 + 20;
-                
+
                 for (let i = heroIndex - 1; i >= 0; i--) {
                     const box = boxes[i];
                     box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 25;
@@ -326,7 +326,7 @@ export const resolveSonnetTypographyLayout = ({
                 let currentXRight = heroBox.x + heroBox.measuredWidth * 0.25 + 10;
                 let leftY = heroBox.y + heroBox.measuredHeight / 2 + 40;
                 let rightY = heroBox.y + heroBox.measuredHeight / 2 + 40;
-                
+
                 for (let i = 0; i < boxes.length; i++) {
                     if (i === heroIndex) continue;
                     const box = boxes[i];
@@ -354,7 +354,7 @@ export const resolveSonnetTypographyLayout = ({
                 const radius = baseRadius + 40 + Math.random() * 120;
                 box.x = heroBox.x + Math.cos(angle) * (radius + box.measuredWidth / 2);
                 box.y = heroBox.y + Math.sin(angle) * (radius * 0.6 + box.measuredHeight / 2);
-                box.rotation = (Math.random() - 0.5) * 0.6;
+                box.rotation = 0;
                 box.enterX = Math.cos(angle) * -60;
                 box.enterY = Math.sin(angle) * -60;
             }
@@ -366,7 +366,7 @@ export const resolveSonnetTypographyLayout = ({
             const topCount = Math.floor(beforeCount / 2);
             const afterCount = boxes.length - 1 - heroIndex;
             const rightCount = Math.ceil(afterCount / 2);
-            
+
             // Place Left words (heroIndex - 1 down to topCount). Read left-to-right.
             let currentXLeft = heroBox.x - heroBox.measuredWidth / 2 - 25;
             for (let i = heroIndex - 1; i >= topCount; i--) {
@@ -376,7 +376,7 @@ export const resolveSonnetTypographyLayout = ({
                 currentXLeft -= box.measuredWidth + 25;
                 box.enterX = -30; box.enterY = 0;
             }
-            
+
             // Place Top words (topCount - 1 down to 0). Read top-to-bottom.
             let currentYTop = heroBox.y - heroBox.measuredHeight / 2 - 20;
             for (let i = topCount - 1; i >= 0; i--) {
@@ -386,7 +386,7 @@ export const resolveSonnetTypographyLayout = ({
                 currentYTop -= box.measuredHeight + 15;
                 box.enterX = 0; box.enterY = -30;
             }
-            
+
             // Place Right words (heroIndex + 1 up to heroIndex + rightCount). Read left-to-right.
             let currentXRight = heroBox.x + heroBox.measuredWidth / 2 + 25;
             for (let i = heroIndex + 1; i <= heroIndex + rightCount; i++) {
@@ -396,7 +396,7 @@ export const resolveSonnetTypographyLayout = ({
                 currentXRight += box.measuredWidth + 25;
                 box.enterX = 30; box.enterY = 0;
             }
-            
+
             // Place Bottom words (heroIndex + rightCount + 1 to end). Read top-to-bottom.
             let currentYBottom = heroBox.y + heroBox.measuredHeight / 2 + 20;
             for (let i = heroIndex + rightCount + 1; i < boxes.length; i++) {
@@ -407,10 +407,10 @@ export const resolveSonnetTypographyLayout = ({
                 box.enterX = 0; box.enterY = 30;
             }
         }
-        
+
         heroBox.enterX = 0;
         heroBox.enterY = height * 0.15;
-        
+
         const decorations: typeof boxes = [];
         if (shotKind !== 'quiet-tableau') {
             decorations.push({
@@ -441,7 +441,7 @@ export const resolveSonnetTypographyLayout = ({
                 });
             }
         }
-        
+
         boxes.unshift(...decorations);
     }
 
