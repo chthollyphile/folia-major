@@ -29,6 +29,7 @@ export interface ShotView {
     basePivotX: number;
     basePivotY: number;
     haloLayer: import('pixi.js').Container;
+    mgParticleLayer?: import('pixi.js').Container;
 }
 
 export interface SceneView {
@@ -151,7 +152,7 @@ export const buildSonnetScene = (
             fontFamily,
             fontWeight,
         });
-        shotContainer.addChild(buildSonnetShotMg(
+        const mgLayer = buildSonnetShotMg(
             pixi,
             shot.kind,
             options.theme,
@@ -159,7 +160,9 @@ export const buildSonnetScene = (
             height,
             sceneSeed + shotIndex * 97,
             iconTextures
-        ));
+        );
+        shotContainer.addChild(mgLayer);
+        const mgParticleLayer = (mgLayer as any).particleLayer as import('pixi.js').Container | undefined;
         const { layer: haloLayer, filters: haloFilters } = createSonnetHaloLayer(
             pixi,
             postProcessProfile,
@@ -219,6 +222,7 @@ export const buildSonnetScene = (
             basePivotX: focusX,
             basePivotY: focusY,
             haloLayer,
+            mgParticleLayer,
         };
     });
 

@@ -708,7 +708,9 @@ export const buildSonnetShotMg = (
         p.rotation = (seed + i * 13) % 360 * Math.PI / 180;
         particleLayer.addChild(p);
     }
+    
     container.addChild(particleLayer);
+    (container as any).particleLayer = particleLayer;
 
     return container;
 };

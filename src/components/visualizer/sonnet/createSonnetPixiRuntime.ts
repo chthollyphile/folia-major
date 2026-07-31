@@ -369,6 +369,18 @@ export class SonnetPixiRuntime {
         view.container.x = view.baseX + (cameraFrame.x * width + shake.x * width) * camera;
         view.container.y = view.baseY + (cameraFrame.y * height + shake.y * height) * camera;
 
+        if (view.mgParticleLayer) {
+            // Create a slight time-difference/parallax effect for decorative elements
+            const particleParallaxX = (cameraFrame.x * width + shake.x * width) * camera * 0.4;
+            const particleParallaxY = (cameraFrame.y * height + shake.y * height) * camera * 0.4;
+            view.mgParticleLayer.position.set(particleParallaxX, particleParallaxY);
+            
+            // Continuous independent rotation based on shot time
+            view.mgParticleLayer.rotation = (time - view.shot.startTime) * 0.05;
+            // Slower scale response creates depth illusion
+            view.mgParticleLayer.scale.set(1 + (cameraFrame.scale - 1) * 0.3);
+        }
+
         view.segments.forEach(segmentView => {
             const guide = segmentView.guide;
             const guideActive = time >= guide.startTime && time <= guide.endTime;
