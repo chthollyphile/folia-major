@@ -289,42 +289,66 @@ export class SonnetPixiRuntime {
         let currentFocusY = view.basePivotY;
 
         if (trackSegments.length > 0) {
+            const getSegmentFocus = (seg: typeof view.segments[0], t: number) => {
+                if (seg.glyphs.length === 0) return { x: 0, y: 0 };
+                const first = seg.glyphs[0];
+                const last = seg.glyphs[seg.glyphs.length - 1];
+                
+                // Dampen the tracking distance to prevent the camera from advancing too fast
+                // and pushing settled text off the screen edge.
+                const trackingFactor = 0.35; 
+                const segCenterX = (first.baseX + last.baseX) / 2;
+                const segCenterY = (first.baseY + last.baseY) / 2;
+                const applyFactor = (exactX: number, exactY: number) => ({
+                    x: segCenterX + (exactX - segCenterX) * trackingFactor,
+                    y: segCenterY + (exactY - segCenterY) * trackingFactor
+                });
+
+                if (t <= first.startTime) return applyFactor(first.baseX, first.baseY);
+                if (t >= last.startTime) return applyFactor(last.baseX, last.baseY);
+                
+                for (let i = 0; i < seg.glyphs.length - 1; i++) {
+                    if (t >= seg.glyphs[i].startTime && t <= seg.glyphs[i+1].startTime) {
+                        const g1 = seg.glyphs[i];
+                        const g2 = seg.glyphs[i+1];
+                        const p = (t - g1.startTime) / Math.max(0.001, g2.startTime - g1.startTime);
+                        const exactX = g1.baseX + (g2.baseX - g1.baseX) * p;
+                        const exactY = g1.baseY + (g2.baseY - g1.baseY) * p;
+                        return applyFactor(exactX, exactY);
+                    }
+                }
+                return applyFactor(first.baseX, first.baseY);
+            };
+
+            const focusTime = Math.max(view.shot.startTime, Math.min(time, view.shot.endTime));
             let focusX = 0;
             let focusY = 0;
             let totalWeight = 0;
-
-            let closestGlyph: any = null;
-            let minAbsDist = Infinity;
-
-            // Freeze focus time within the shot's boundaries to prevent jumps during time gaps
-            const focusTime = Math.max(view.shot.startTime, Math.min(time, view.shot.endTime));
+            const sigma = 0.35;
 
             for (let i = 0; i < trackSegments.length; i++) {
                 const seg = trackSegments[i];
-                for (let j = 0; j < seg.glyphs.length; j++) {
-                    const glyph = seg.glyphs[j];
-                    const mid = glyph.startTime; // Peak focus on glyph start time
-                    const dist = focusTime - mid;
-
-                    if (Math.abs(dist) < minAbsDist) {
-                        minAbsDist = Math.abs(dist);
-                        closestGlyph = glyph;
-                    }
-
-                    // Cinematic smoothing window: sigma = 0.35 seconds
-                    const sigma = 0.35;
-                    const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-
-                    focusX += glyph.baseX * weight;
-                    focusY += glyph.baseY * weight;
-                    totalWeight += weight;
+                if (seg.glyphs.length === 0) continue;
+                
+                const firstTime = seg.glyphs[0].startTime;
+                const lastTime = seg.glyphs[seg.glyphs.length - 1].startTime;
+                
+                let weight = 1.0;
+                if (focusTime < firstTime) {
+                    const dist = firstTime - focusTime;
+                    weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
+                } else if (focusTime > lastTime) {
+                    const dist = focusTime - lastTime;
+                    weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
                 }
+                
+                const pos = getSegmentFocus(seg, focusTime);
+                focusX += pos.x * weight;
+                focusY += pos.y * weight;
+                totalWeight += weight;
             }
-
-            if (totalWeight < 0.0001 && closestGlyph) {
-                currentFocusX = closestGlyph.baseX;
-                currentFocusY = closestGlyph.baseY;
-            } else if (totalWeight >= 0.0001) {
+            
+            if (totalWeight > 0.0001) {
                 currentFocusX = focusX / totalWeight;
                 currentFocusY = focusY / totalWeight;
             }
