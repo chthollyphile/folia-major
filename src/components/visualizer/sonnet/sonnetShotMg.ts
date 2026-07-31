@@ -119,41 +119,124 @@ export const buildSonnetShotMg = (
                    .stroke({color: primary, width: 2, alpha: 0.4});
             }
         } else if (geoVariant === 3) {
-            // Variant 3: Organic Rings (Benzene)
-            const hexR = radius * 0.22;
-            const drawBenzene = (cx: number, cy: number, scale: number, rotationOffset = 0) => {
-                const r = hexR * scale;
-                geo.moveTo(cx + r*Math.sin(rotationOffset), cy - r*Math.cos(rotationOffset));
-                for(let j=1; j<=6; j++) {
-                    geo.lineTo(cx + r*Math.sin(j*Math.PI/3 + rotationOffset), cy - r*Math.cos(j*Math.PI/3 + rotationOffset));
-                }
+            // Variant 3: Organic Molecules
+            const molVariant = seed % 3;
+            
+            if (molVariant === 0) {
+                // Sub-variant 0: Benzene Cluster
+                const hexR = radius * 0.22;
+                const drawBenzene = (cx: number, cy: number, scale: number, rotationOffset = 0) => {
+                    const r = hexR * scale;
+                    geo.moveTo(cx + r*Math.sin(rotationOffset), cy - r*Math.cos(rotationOffset));
+                    for(let j=1; j<=6; j++) {
+                        geo.lineTo(cx + r*Math.sin(j*Math.PI/3 + rotationOffset), cy - r*Math.cos(j*Math.PI/3 + rotationOffset));
+                    }
+                    geo.stroke({color: primary, width: 3, alpha: 0.8});
+                    
+                    // Double bonds
+                    for(let j=0; j<6; j+=2) {
+                        const innerR = r * 0.82;
+                        geo.moveTo(cx + innerR*Math.sin(j*Math.PI/3 + rotationOffset), cy - innerR*Math.cos(j*Math.PI/3 + rotationOffset))
+                           .lineTo(cx + innerR*Math.sin((j+1)*Math.PI/3 + rotationOffset), cy - innerR*Math.cos((j+1)*Math.PI/3 + rotationOffset))
+                           .stroke({color: primary, width: 2, alpha: 0.5});
+                    }
+                };
+                
+                const rMain = hexR * 1.2;
+                drawBenzene(0, 0, 1.2); // Central ring
+                
+                // Right fused ring
+                const dx = Math.sin(Math.PI/3) * rMain * 2;
+                drawBenzene(dx, 0, 1.2); 
+                
+                // Left-top fused ring
+                const branchDist = Math.sin(Math.PI/3) * rMain * 2;
+                drawBenzene(-Math.sin(Math.PI/6) * branchDist, -Math.cos(Math.PI/6) * branchDist, 1.2);
+                
+                // Connecting structural line
+                geo.moveTo(0, rMain)
+                   .lineTo(0, rMain + radius * 0.2)
+                   .lineTo(radius * 0.15, rMain + radius * 0.35)
+                   .stroke({color: primary, width: 2, alpha: 0.6});
+            } else if (molVariant === 1) {
+                // Sub-variant 1: Caffeine/Serotonin-like (Fused hexagon + pentagon + branches)
+                const hexR = radius * 0.22;
+                geo.moveTo(0, -hexR);
+                for(let j=1; j<=6; j++) geo.lineTo(hexR*Math.sin(j*Math.PI/3), -hexR*Math.cos(j*Math.PI/3));
                 geo.stroke({color: primary, width: 3, alpha: 0.8});
                 
-                // Double bonds
-                for(let j=0; j<6; j+=2) {
-                    const innerR = r * 0.82;
-                    geo.moveTo(cx + innerR*Math.sin(j*Math.PI/3 + rotationOffset), cy - innerR*Math.cos(j*Math.PI/3 + rotationOffset))
-                       .lineTo(cx + innerR*Math.sin((j+1)*Math.PI/3 + rotationOffset), cy - innerR*Math.cos((j+1)*Math.PI/3 + rotationOffset))
-                       .stroke({color: primary, width: 2, alpha: 0.5});
+                geo.moveTo(hexR*0.8*Math.sin(Math.PI/3), -hexR*0.8*Math.cos(Math.PI/3))
+                   .lineTo(hexR*0.8*Math.sin(2*Math.PI/3), -hexR*0.8*Math.cos(2*Math.PI/3))
+                   .stroke({color: primary, width: 2, alpha: 0.5});
+                geo.moveTo(hexR*0.8*Math.sin(4*Math.PI/3), -hexR*0.8*Math.cos(4*Math.PI/3))
+                   .lineTo(hexR*0.8*Math.sin(5*Math.PI/3), -hexR*0.8*Math.cos(5*Math.PI/3))
+                   .stroke({color: primary, width: 2, alpha: 0.5});
+                   
+                const px1 = hexR * Math.sqrt(3)/2;
+                const py1 = -hexR/2;
+                const px2 = hexR * Math.sqrt(3)/2;
+                const py2 = hexR/2;
+                const pentTopX = px1 + hexR*0.8;
+                const pentTopY = py1 - hexR*0.1;
+                const pentMidX = px1 + hexR*1.2;
+                const pentMidY = 0;
+                const pentBotX = px2 + hexR*0.8;
+                const pentBotY = py2 + hexR*0.1;
+                
+                geo.moveTo(px1, py1).lineTo(pentTopX, pentTopY).lineTo(pentMidX, pentMidY)
+                   .lineTo(pentBotX, pentBotY).lineTo(px2, py2).stroke({color: primary, width: 3, alpha: 0.8});
+                   
+                const drawBranch = (sx: number, sy: number, angle: number, len: number, node: boolean) => {
+                    const ex = sx + Math.cos(angle)*len;
+                    const ey = sy + Math.sin(angle)*len;
+                    geo.moveTo(sx, sy).lineTo(ex, ey).stroke({color: primary, width: 2, alpha: 0.6});
+                    if (node) geo.circle(ex, ey, 6).stroke({color: primary, width: 2, alpha: 0.8});
+                };
+                
+                drawBranch(0, -hexR, -Math.PI/2, radius*0.15, true); 
+                drawBranch(-hexR*Math.sqrt(3)/2, hexR/2, Math.PI*0.8, radius*0.2, true); 
+                drawBranch(-hexR*Math.sqrt(3)/2, -hexR/2, -Math.PI*0.8, radius*0.15, false);
+                drawBranch(pentMidX, pentMidY, 0, radius*0.18, false); 
+                drawBranch(pentMidX + radius*0.18, pentMidY, Math.PI/4, radius*0.1, true); 
+            } else {
+                // Sub-variant 2: Linear Polymer Chain (Zig-Zag backbone with functional groups)
+                const segLen = radius * 0.18;
+                const steps = 7;
+                const startX = -segLen * (steps/2) * Math.cos(Math.PI/6);
+                const pts: {x: number, y: number}[] = [];
+                
+                let cx = startX;
+                let cy = 0;
+                pts.push({x: cx, y: cy});
+                for(let i=0; i<steps; i++) {
+                    cx += segLen * Math.cos(Math.PI/6);
+                    cy = (i % 2 === 0 ? 1 : -1) * segLen * Math.sin(Math.PI/6);
+                    pts.push({x: cx, y: cy});
                 }
-            };
-            
-            const rMain = hexR * 1.2;
-            drawBenzene(0, 0, 1.2); // Central ring
-            
-            // Right fused ring (distance is rMain * sqrt(3))
-            const dx = Math.sin(Math.PI/3) * rMain * 2;
-            drawBenzene(dx, 0, 1.2); 
-            
-            // Left-top fused ring
-            const branchDist = Math.sin(Math.PI/3) * rMain * 2;
-            drawBenzene(-Math.sin(Math.PI/6) * branchDist, -Math.cos(Math.PI/6) * branchDist, 1.2);
-            
-            // Connecting structural line
-            geo.moveTo(0, rMain)
-               .lineTo(0, rMain + radius * 0.2)
-               .lineTo(radius * 0.15, rMain + radius * 0.35)
-               .stroke({color: primary, width: 2, alpha: 0.6});
+                
+                geo.moveTo(pts[0].x, pts[0].y);
+                for(let i=1; i<=steps; i++) geo.lineTo(pts[i].x, pts[i].y);
+                geo.stroke({color: primary, width: 3, alpha: 0.8});
+                
+                // Offset normal for double bond
+                const nx = -Math.sin(Math.PI/6) * 6;
+                const ny = Math.cos(Math.PI/6) * 6;
+                geo.moveTo(pts[1].x + nx, pts[1].y + ny)
+                   .lineTo(pts[2].x + nx, pts[2].y + ny)
+                   .stroke({color: primary, width: 2, alpha: 0.5});
+                
+                for(let i=1; i<steps; i++) {
+                    const angle = i % 2 === 0 ? Math.PI/2 : -Math.PI/2;
+                    const bx = pts[i].x;
+                    const by = pts[i].y + Math.sin(angle) * segLen * 0.6;
+                    geo.moveTo(pts[i].x, pts[i].y).lineTo(bx, by).stroke({color: primary, width: 2, alpha: 0.5});
+                    if (i % 2 !== 0) {
+                        geo.circle(bx, by, 5).stroke({color: primary, width: 2, alpha: 0.8});
+                    } else {
+                        geo.moveTo(bx, by).lineTo(bx + segLen*0.5, by - segLen*0.3).stroke({color: primary, width: 2, alpha: 0.5});
+                    }
+                }
+            }
         } else if (geoVariant === 4) {
             // Variant 4: Atomic electron orbitals (intersecting ellipses)
             const ellR = radius * 0.7;
@@ -536,6 +619,15 @@ export const buildSonnetShotMg = (
         // Intersecting Rectangles with Hatching (Shared across all variants to maintain PV consistency)
         geo.rect(-radius * 0.4, -radius * 0.2, radius * 0.6, radius * 0.15).fill({ color: primary, alpha: 0.7 });
         geo.rect(-radius * 0.1, radius * 0.1, radius * 0.5, radius * 0.3).stroke({ color: primary, width: 2, alpha: 0.6 });
+        
+        // Selectively apply deterministic rotation based on variant compatibility
+        if (![6, 8, 9].includes(geoVariant)) {
+            // Arbitrary rotation
+            geo.rotation = ((seed * 13) % 360) * (Math.PI / 180);
+        } else if (geoVariant === 8) {
+            // HUD frames rotate in 90-degree increments
+            geo.rotation = (seed % 4) * (Math.PI / 2);
+        }
         
         container.addChild(geo);
 
