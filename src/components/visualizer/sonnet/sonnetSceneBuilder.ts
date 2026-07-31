@@ -35,6 +35,7 @@ export interface SceneView {
     shots: ShotView[];
     flash: import('pixi.js').Graphics;
     postProcessFilters: import('pixi.js').Filter[];
+    activeShotIndex: number;
 }
 
 export interface SonnetSceneBuildOptions {
@@ -229,5 +230,5 @@ export const buildSonnetScene = (
         sceneSeed,
     ));
     container.visible = false;
-    return { paragraph, container, shots, flash, postProcessFilters };
+    return { paragraph, container, shots, flash, postProcessFilters, activeShotIndex: -1 };
 };

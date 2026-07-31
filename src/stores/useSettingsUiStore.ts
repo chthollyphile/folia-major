@@ -458,6 +458,7 @@ const readStoredSonnetTuning = (): SonnetTuning => {
             cameraIntensity: resolvePendoloNumber(parsed.cameraIntensity, DEFAULT_SONNET_TUNING.cameraIntensity, 0, 2),
             typographyMotion: resolvePendoloNumber(parsed.typographyMotion, DEFAULT_SONNET_TUNING.typographyMotion, 0, 2),
             mgDensity: resolvePendoloNumber(parsed.mgDensity, DEFAULT_SONNET_TUNING.mgDensity, 0, 2),
+            textureResolution: resolvePendoloNumber(parsed.textureResolution, DEFAULT_SONNET_TUNING.textureResolution, 0.5, 4),
         };
     } catch {
         return DEFAULT_SONNET_TUNING;
@@ -1996,6 +1997,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             cameraIntensity: resolvePendoloNumber(patch.cameraIntensity, prev.cameraIntensity, 0, 2),
             typographyMotion: resolvePendoloNumber(patch.typographyMotion, prev.typographyMotion, 0, 2),
             mgDensity: resolvePendoloNumber(patch.mgDensity, prev.mgDensity, 0, 2),
+            textureResolution: resolvePendoloNumber(patch.textureResolution, prev.textureResolution, 0.5, 4),
         };
         if (typeof window !== 'undefined') localStorage.setItem('sonnet_tuning', JSON.stringify(next));
         set({ sonnetTuning: next });

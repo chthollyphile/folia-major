@@ -90,4 +90,22 @@ describe('Sonnet program compiler', () => {
         shotKinds.slice(1).forEach((kind, index) => expect(kind).not.toBe(shotKinds[index]));
         expect(findSonnetParagraphIndexAtTime(first, first.paragraphs.at(-1)!.startTime)).toBe(first.paragraphs.length - 1);
     });
+
+    it('extends the visual timeline to renderEndTime without crossing the next line', () => {
+        const first = line('tail', 1, 2, undefined, {
+            renderHints: {
+                rawDuration: 1,
+                timingClass: 'normal',
+                renderEndTime: 3.5,
+                lineTransitionMode: 'normal',
+                wordRevealMode: 'normal',
+            },
+        });
+        const second = line('next', 3, 4);
+        const program = compileSonnetProgram([first, second], 'render-tail');
+        const compiledFirst = program.paragraphs[0].lines[0];
+
+        expect(compiledFirst.renderEndTime).toBe(3);
+        expect(program.paragraphs[0].shots[0].endTime).toBeGreaterThanOrEqual(3);
+    });
 });

@@ -1,4 +1,5 @@
 import type { Line } from '../../../types';
+import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import type {
     SonnetAnimationCue,
     SonnetCompiledLine,
@@ -44,7 +45,9 @@ const median = (values: number[]) => {
 };
 
 export const resolveSonnetParagraphGapThreshold = (lines: Line[]) => {
-    const gaps = lines.slice(1).map((line, index) => line.startTime - lines[index].endTime).filter(gap => gap > 0);
+    const gaps = lines.slice(1).map((line, index) => (
+        line.startTime - Math.min(getLineRenderEndTime(lines[index]), line.startTime)
+    )).filter(gap => gap > 0);
     return clamp(median(gaps) * 2.5, 1.25, 3.5);
 };
 
@@ -62,10 +65,10 @@ const splitOversizedDraft = (draft: ParagraphDraft): ParagraphDraft[] => {
     const output: ParagraphDraft[] = [];
     let remaining = draft.lines;
     let boundary = draft.boundary;
-    while (remaining.length > 6 || (remaining.at(-1)!.line.endTime - remaining[0].line.startTime) > 18) {
+    while (remaining.length > 6 || (remaining.at(-1)!.renderEndTime - remaining[0].line.startTime) > 18) {
         const candidates = remaining.slice(2, -1).map((line, offset) => ({
             splitIndex: offset + 2,
-            gap: line.line.startTime - remaining[offset + 1].line.endTime,
+            gap: line.line.startTime - remaining[offset + 1].renderEndTime,
         }));
         const splitIndex = candidates.sort((a, b) => b.gap - a.gap)[0]?.splitIndex ?? Math.min(4, remaining.length - 1);
         output.push({ lines: remaining.slice(0, splitIndex), boundary });
@@ -80,7 +83,7 @@ const classifyParagraph = (lines: SonnetCompiledLine[], index: number, total: nu
     if (lines.some(item => item.line.isChorus || /chorus|副歌/i.test(item.line.songPart ?? ''))) return 'chorus';
     if (lines.some(item => /bridge|break|間奏|ブリッジ/i.test(item.line.songPart ?? ''))) return 'break';
     if (index === total - 1) return 'outro';
-    const duration = lines.at(-1)!.line.endTime - lines[0].line.startTime;
+    const duration = lines.at(-1)!.renderEndTime - lines[0].line.startTime;
     const segmentCount = lines.reduce((sum, line) => sum + line.segments.filter(segment => segment.isWordLike).length, 0);
     const punctuationCount = lines.reduce((sum, line) => sum + (line.line.fullText.match(/[!?！？…]/g)?.length ?? 0), 0);
     if (duration <= 3.5 || segmentCount <= 3) return 'breath';
@@ -113,7 +116,7 @@ const groupShotLines = (lines: SonnetCompiledLine[]) => {
     for (let index = 0; index < lines.length; index += 1) {
         const current = lines[index];
         const next = lines[index + 1];
-        const combinedDuration = next ? next.line.endTime - current.line.startTime : Infinity;
+        const combinedDuration = next ? next.renderEndTime - current.line.startTime : Infinity;
         const bothShort = next
             && current.line.endTime - current.line.startTime < 1.8
             && next.line.endTime - next.line.startTime < 1.8
@@ -144,7 +147,7 @@ const buildShots = (
             id: `p${paragraphIndex}-s${shotIndex}`,
             kind: shotKind,
             startTime: group[0].line.startTime,
-            endTime: group.at(-1)!.line.endTime,
+            endTime: group.at(-1)!.renderEndTime,
             lineIndices: group.map(item => item.sourceIndex),
             cues: buildCues(group),
             camera: {
@@ -161,6 +164,11 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
     const compiled = lines.map((line, sourceIndex) => ({
         sourceIndex,
         line,
+        // The visual tail may extend beyond authored timing, but never into the next line.
+        renderEndTime: Math.max(
+            line.startTime,
+            Math.min(getLineRenderEndTime(line), lines[sourceIndex + 1]?.startTime ?? Number.POSITIVE_INFINITY),
+        ),
         segments: buildSonnetSemanticSegments(line),
     }));
     const paragraphGapThreshold = resolveSonnetParagraphGapThreshold(lines);
@@ -169,7 +177,7 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
 
     compiled.forEach((line, index) => {
         const previous = compiled[index - 1];
-        const gap = previous ? line.line.startTime - previous.line.endTime : 0;
+        const gap = previous ? line.line.startTime - previous.renderEndTime : 0;
         const boundary = previous && metadataChanged(previous.line, line.line)
             ? 'metadata'
             : previous && gap >= paragraphGapThreshold
@@ -191,13 +199,13 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
         const shots = buildShots(draft.lines, kind, index, resolvedSeed, previousShot);
         previousShot = shots.at(-1)?.kind ?? previousShot;
         const next = drafts[index + 1];
-        const gap = next ? next.lines[0].line.startTime - draft.lines.at(-1)!.line.endTime : 0;
+        const endTime = draft.lines.at(-1)!.renderEndTime;
+        const gap = next ? next.lines[0].line.startTime - endTime : 0;
         const transitionKind = next
             ? chooseWithoutRepeat(TRANSITION_KINDS, `${resolvedSeed}:${index}:transition`, previousTransition)
             : null;
         if (transitionKind) previousTransition = transitionKind;
         const transitionDuration = next ? (gap >= 1.2 ? Math.min(0.8, gap * 0.65) : Math.min(0.22, Math.max(0.12, gap + 0.12))) : 0;
-        const endTime = draft.lines.at(-1)!.line.endTime;
         return {
             id: `sonnet-p${index}`,
             kind,
@@ -209,7 +217,7 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
             transitionOut: transitionKind ? {
                 kind: transitionKind,
                 startTime: Math.max(draft.lines[0].line.startTime, endTime - transitionDuration),
-                endTime: endTime + transitionDuration,
+                endTime,
             } : null,
         };
     });

@@ -14,6 +14,10 @@ import {
 } from './sonnetMotion';
 import { buildSonnetScene, type SceneView, type ShotView } from './sonnetSceneBuilder';
 import { getSonnetTexturePool } from './sonnetTexturePool';
+import {
+    destroySonnetContainerChildren,
+    unloadSonnetDisplayTree,
+} from './sonnetPixiResources';
 
 // src/components/visualizer/sonnet/createSonnetPixiRuntime.ts
 // Owns Pixi lifecycle and mutates bounded scene views directly from absolute playback time.
@@ -47,8 +51,8 @@ export class SonnetPixiRuntime {
     private lastWidth = 0;
     private lastHeight = 0;
     
-    private readonly sceneContainer: import('pixi.js').Container;
-    private readonly overlayContainer: import('pixi.js').Container;
+    private sceneContainer!: import('pixi.js').Container;
+    private overlayContainer!: import('pixi.js').Container;
 
     private constructor(
         private readonly pixi: PixiModule,
@@ -67,7 +71,7 @@ export class SonnetPixiRuntime {
             backgroundAlpha: 0,
             antialias: true,
             autoDensity: true,
-            resolution: Math.min(window.devicePixelRatio || 1, 2),
+            resolution: options.tuning.textureResolution,
             autoStart: false,
             sharedTicker: false,
             preference: 'webgl',
@@ -119,7 +123,7 @@ export class SonnetPixiRuntime {
     }
     
     private drawOverlay(width: number, height: number) {
-        this.overlayContainer.removeChildren();
+        destroySonnetContainerChildren(this.overlayContainer);
         const g = new this.pixi.Graphics();
         
         const paddingX = Math.max(30, width * 0.05);
@@ -184,7 +188,7 @@ export class SonnetPixiRuntime {
 
     private async preloadIcons() {
         const names = resolveSonnetIconNames(this.options.theme.lyricsIcons).slice(0, 4);
-        const resolution = Math.min(window.devicePixelRatio || 1, 2);
+        const resolution = this.options.tuning.textureResolution;
         const texturePool = getSonnetTexturePool(this.pixi);
         await Promise.all(names.map(async (name, index) => {
             const size = 192 + index * 32;
@@ -216,6 +220,7 @@ export class SonnetPixiRuntime {
 
     private destroyScene(scene: SceneView) {
         this.sceneContainer.removeChild(scene.container);
+        unloadSonnetDisplayTree(scene.container);
         scene.container.filters = null;
         scene.shots.forEach(shot => {
             shot.haloLayer.filters = null;
@@ -409,7 +414,12 @@ export class SonnetPixiRuntime {
             
             // Strict visibility: only the active scene is ever drawn. Zero overlap between scenes.
             scene.container.visible = isActive;
-            if (!isActive) return;
+            if (!isActive) {
+                const previousShot = scene.shots[scene.activeShotIndex];
+                if (previousShot) unloadSonnetDisplayTree(previousShot.container);
+                scene.activeShotIndex = -1;
+                return;
+            }
             
             const transition = resolveTransitionFrame(scene.paragraph, time);
             
@@ -422,12 +432,20 @@ export class SonnetPixiRuntime {
                 }
             }
             
+            const visibleShotIndex = time <= scene.shots[activeShotIndex].shot.endTime
+                ? activeShotIndex
+                : -1;
             scene.shots.forEach((shot, shotIndex) => {
-                const isShotActive = shotIndex === activeShotIndex;
+                const isShotActive = shotIndex === visibleShotIndex;
                 shot.container.visible = isShotActive;
                 if (!isShotActive) return;
                 this.updateShot(shot, time, width, height, transition.shakeIntensity);
             });
+            if (scene.activeShotIndex !== visibleShotIndex) {
+                const previousShot = scene.shots[scene.activeShotIndex];
+                if (previousShot) unloadSonnetDisplayTree(previousShot.container);
+                scene.activeShotIndex = visibleShotIndex;
+            }
             
             // If this is the active scene, we simulate an 'entrance' by reversing the previous scene's transition
             let enterX = 0, enterY = 0, enterScale = 1, enterRotation = 0, enterAlpha = 1;

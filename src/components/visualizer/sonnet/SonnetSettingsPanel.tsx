@@ -16,10 +16,20 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     const controls: Array<{
         key: keyof SonnetTuning;
         label: string;
+        min?: number;
+        max?: number;
+        step?: number;
     }> = [
         { key: 'cameraIntensity', label: t('options.sonnetCameraIntensity') },
         { key: 'typographyMotion', label: t('options.sonnetTypographyMotion') },
         { key: 'mgDensity', label: t('options.sonnetMgDensity') },
+        {
+            key: 'textureResolution',
+            label: t('options.sonnetTextureResolution'),
+            min: 0.5,
+            max: 4,
+            step: 0.25,
+        },
     ];
 
     return (
@@ -45,9 +55,9 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     </div>
                     <input
                         type="range"
-                        min="0"
-                        max="2"
-                        step="0.05"
+                        min={control.min ?? 0}
+                        max={control.max ?? 2}
+                        step={control.step ?? 0.05}
                         value={sonnetTuning[control.key]}
                         onChange={event => onSonnetTuningChange?.({
                             [control.key]: Number(event.target.value),

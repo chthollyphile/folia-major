@@ -33,6 +33,7 @@ export interface SonnetSemanticSegment {
 export interface SonnetCompiledLine {
     sourceIndex: number;
     line: Line;
+    renderEndTime: number;
     segments: SonnetSemanticSegment[];
 }
 

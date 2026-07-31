@@ -263,7 +263,12 @@ describe('Visual Settings Import and Export', () => {
     });
 
     it('round-trips Sonnet tuning through the renderer tuning bundle', () => {
-        const sonnet = { cameraIntensity: 1.25, typographyMotion: 0.8, mgDensity: 1.6 };
+        const sonnet = {
+            cameraIntensity: 1.25,
+            typographyMotion: 0.8,
+            mgDensity: 1.6,
+            textureResolution: 4,
+        };
         const decoded = decompressConfig(compressConfig({
             visualizerMode: 'sonnet',
             visualizerTunings: { sonnet },
