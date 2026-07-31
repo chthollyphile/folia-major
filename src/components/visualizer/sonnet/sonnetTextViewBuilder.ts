@@ -31,11 +31,19 @@ export interface GlyphView {
 }
 
 export interface SegmentView {
-    segment: SonnetSemanticSegment;
-    glyphs: GlyphView[];
-    guide: SonnetGuideView;
-    index: number;
+    segmentIndex: number;
+    displayText: string;
     role: SonnetSegmentRole;
+    fontScale: number;
+    x: number;
+    y: number;
+    rotation: number;
+    enterX: number;
+    enterY: number;
+    vertical: boolean;
+    timingPhase: number;
+    guide: SonnetGuideView;
+    glyphs: GlyphView[];
 }
 
 interface SonnetTextViewOptions {
@@ -45,6 +53,7 @@ interface SonnetTextViewOptions {
     baseFontSize: number;
     shotStartTime: number;
     shotEndTime: number;
+    paragraphKind: string;
     width: number;
     fontFamily: string;
     fontWeight: number;
@@ -69,7 +78,17 @@ export const buildSonnetTextView = (
     options: SonnetTextViewOptions,
 ): SegmentView => {
     const { Text, TextStyle } = pixi;
-    const { segment, placement } = options;
+    const { segment, placement: originalPlacement } = options;
+    const isAscii = /^[\x00-\x7F]*$/.test(segment.text.trim());
+    const placement = { ...originalPlacement };
+    
+    // In vertical layout, pure English (ASCII) words should not be stacked vertically letter-by-letter.
+    // Instead, they should be laid out horizontally, and the entire word block rotated 90 degrees clockwise.
+    if (placement.vertical && isAscii && segment.text.length > 1) {
+        placement.vertical = false;
+        placement.rotation += Math.PI / 2;
+    }
+
     const fontSize = options.baseFontSize * placement.fontScale;
     const isKeyword = options.theme.wordColors?.find(w => w.word.toLowerCase() === segment.text.toLowerCase());
 
@@ -186,6 +205,8 @@ export const buildSonnetTextView = (
             zDepth,
         };
     });
+
+
     const guide = createSonnetGuide(
         pixi,
         segment,
@@ -203,5 +224,6 @@ export const buildSonnetTextView = (
         guide,
         index: options.segmentIndex,
         role: placement.role,
+        timingPhase: placement.timingPhase,
     };
 };

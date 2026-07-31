@@ -32,10 +32,10 @@ export const buildSonnetShotMg = (
     };
 
     // Helper: Draw diagonal hatching pattern
-    const drawHatching = (x: number, y: number, w: number, h: number, spacing = 8) => {
+    const drawHatching = (x: number, y: number, w: number, h: number, spacing = 8, target: import('pixi.js').Container = bg) => {
         const lines = new Graphics();
         lines.rect(x, y, w, h);
-        bg.addChild(lines); // just for keeping it in bg scope conceptually, wait, we need clipping
+        target.addChild(lines); // just for keeping it in target scope conceptually
         
         const hatch = new Graphics();
         for (let i = -w; i < w + h; i += spacing) {
@@ -46,8 +46,8 @@ export const buildSonnetShotMg = (
         mask.rect(x, y, w, h).fill({ color: 0xffffff });
         hatch.mask = mask;
         
-        container.addChild(hatch);
-        container.addChild(mask);
+        target.addChild(hatch);
+        target.addChild(mask);
     };
 
     // --- Component: HUD Overlays ---
@@ -617,8 +617,11 @@ export const buildSonnetShotMg = (
         }
 
         // Intersecting Rectangles with Hatching (Shared across all variants to maintain PV consistency)
-        geo.rect(-radius * 0.4, -radius * 0.2, radius * 0.6, radius * 0.15).fill({ color: primary, alpha: 0.7 });
-        geo.rect(-radius * 0.1, radius * 0.1, radius * 0.5, radius * 0.3).stroke({ color: primary, width: 2, alpha: 0.6 });
+        const fixedGeoLayer = new Container();
+        const fixedGeo = new Graphics();
+        fixedGeo.rect(-radius * 0.4, -radius * 0.2, radius * 0.6, radius * 0.15).fill({ color: primary, alpha: 0.7 });
+        fixedGeo.rect(-radius * 0.1, radius * 0.1, radius * 0.5, radius * 0.3).stroke({ color: primary, width: 2, alpha: 0.6 });
+        fixedGeoLayer.addChild(fixedGeo);
         
         // Selectively apply deterministic rotation based on variant compatibility
         if (![6, 8, 9].includes(geoVariant)) {
@@ -632,7 +635,10 @@ export const buildSonnetShotMg = (
         container.addChild(geo);
 
         // Add hatching rect
-        drawHatching(-radius * 0.3, -radius * 0.4, radius * 0.4, radius * 0.25, 6);
+        drawHatching(-radius * 0.3, -radius * 0.4, radius * 0.4, radius * 0.25, 6, fixedGeoLayer);
+        
+        container.addChild(fixedGeoLayer);
+        (container as any).fixedGeoLayer = fixedGeoLayer;
     } else if (kind === 'editorial-column') {
         // Strict grids
         for (let i = 1; i <= 6; i++) {

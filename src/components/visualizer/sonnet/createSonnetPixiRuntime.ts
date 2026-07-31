@@ -380,6 +380,11 @@ export class SonnetPixiRuntime {
             // Slower scale response creates depth illusion
             view.mgParticleLayer.scale.set(1 + (cameraFrame.scale - 1) * 0.3);
         }
+        
+        if (view.mgFixedGeoLayer) {
+            // Keep fixed geometry upright regardless of camera rotation
+            view.mgFixedGeoLayer.rotation = -view.container.rotation;
+        }
 
         view.segments.forEach(segmentView => {
             const guide = segmentView.guide;

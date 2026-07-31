@@ -127,6 +127,23 @@ export const createSonnetGuide = (
             delay: Math.random() * 0.1
         });
     }
+    // Create growing rectangular spline (modern HUD style)
+    let rectSpline: any = null;
+    if (Math.random() > 0.4) {
+        const length = fontSize * (1.2 + Math.random() * 1.5);
+        const thickness = (isHero ? 6 : 3) + Math.random() * 8;
+        const angle = (Math.random() - 0.5) * Math.PI; // Random angle
+        // Start somewhere near the text
+        const rx = (Math.random() - 0.5) * fontSize * 1.2;
+        const ry = (Math.random() - 0.5) * fontSize * 1.2;
+        rectSpline = {
+            p0: { x: rx, y: ry },
+            p1: { x: rx + Math.cos(angle) * length, y: ry + Math.sin(angle) * length },
+            thickness,
+            delay: Math.random() * 0.15,
+            duration: 0.25 + Math.random() * 0.2
+        };
+    }
 
     container.addChild(graphics, shapesContainer);
     container.position.set(placement.x, placement.y);
@@ -217,6 +234,33 @@ export const createSonnetGuide = (
                 }
             }
         });
+
+        // Rectangular Spline (Modern HUD style)
+        if (rectSpline) {
+            const localProg = (progress - rectSpline.delay) / rectSpline.duration;
+            if (localProg > 0 && localProg < 1.3 && fadeOut > 0) {
+                // Growth phase: head moves from p0 to p1
+                const headT = Math.min(1, Math.max(0, localProg * 1.5));
+                // Shrink phase: tail moves from p0 to p1, trailing behind head
+                const tailT = Math.min(1, Math.max(0, (localProg - 0.3) * 1.5));
+                
+                if (headT > tailT) {
+                    const hx = rectSpline.p0.x + (rectSpline.p1.x - rectSpline.p0.x) * headT;
+                    const hy = rectSpline.p0.y + (rectSpline.p1.y - rectSpline.p0.y) * headT;
+                    const tx = rectSpline.p0.x + (rectSpline.p1.x - rectSpline.p0.x) * tailT;
+                    const ty = rectSpline.p0.y + (rectSpline.p1.y - rectSpline.p0.y) * tailT;
+                    
+                    graphics.moveTo(tx, ty);
+                    graphics.lineTo(hx, hy);
+                    graphics.stroke({ color, width: rectSpline.thickness, alpha: strokeProps.alpha * fadeOut * 0.7 });
+                    
+                    // Also draw a bright core
+                    graphics.moveTo(tx, ty);
+                    graphics.lineTo(hx, hy);
+                    graphics.stroke({ color: 0xffffff, width: rectSpline.thickness * 0.3, alpha: strokeProps.alpha * fadeOut * 0.9 });
+                }
+            }
+        }
 
         // Shapes burst outwards when text starts to settle (progress ~ 0.3)
         const burstProgress = Math.min(1, Math.max(0, (progress - 0.3) / 0.7));
