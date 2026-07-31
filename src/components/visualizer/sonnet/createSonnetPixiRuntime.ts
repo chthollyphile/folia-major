@@ -272,7 +272,8 @@ export class SonnetPixiRuntime {
             // Continue drifting in that direction at a slow, relaxed PV pace
             // speed = 0.8 means it takes 1.25 seconds of gap to drift the same distance 
             // the camera covered in the last 20% of the shot.
-            const driftSpeed = gapTime * 0.8;
+            const maxDrift = 2.0;
+            const driftSpeed = (1 - Math.exp(-gapTime * 0.4)) * maxDrift;
             cameraFrame.x += dx * driftSpeed;
             cameraFrame.y += dy * driftSpeed;
             cameraFrame.scale += dScale * driftSpeed;
@@ -284,23 +285,15 @@ export class SonnetPixiRuntime {
         let trackSegments = view.segments.filter(s => s.role !== 'decoration');
         if (trackSegments.length === 0) trackSegments = view.segments;
 
-        let currentFocusX = 0;
-        let currentFocusY = 0;
+        let currentFocusX = view.basePivotX;
+        let currentFocusY = view.basePivotY;
 
         if (trackSegments.length > 0) {
-            const getCenter = (seg: typeof view.segments[0]) => {
-                if (seg.glyphs.length === 0) return { x: 0, y: 0 };
-                return {
-                    x: seg.glyphs.reduce((s, g) => s + g.baseX, 0) / seg.glyphs.length,
-                    y: seg.glyphs.reduce((s, g) => s + g.baseY, 0) / seg.glyphs.length
-                };
-            };
-
             let focusX = 0;
             let focusY = 0;
             let totalWeight = 0;
 
-            let closestSeg = trackSegments[0];
+            let closestGlyph: any = null;
             let minAbsDist = Infinity;
 
             // Freeze focus time within the shot's boundaries to prevent jumps during time gaps
@@ -308,38 +301,38 @@ export class SonnetPixiRuntime {
 
             for (let i = 0; i < trackSegments.length; i++) {
                 const seg = trackSegments[i];
-                // Use the center of the segment's duration for the peak of the Gaussian
-                const mid = (seg.guide.startTime + seg.guide.endTime) / 2;
-                const dist = focusTime - mid;
+                for (let j = 0; j < seg.glyphs.length; j++) {
+                    const glyph = seg.glyphs[j];
+                    const mid = glyph.startTime; // Peak focus on glyph start time
+                    const dist = focusTime - mid;
 
-                if (Math.abs(dist) < minAbsDist) {
-                    minAbsDist = Math.abs(dist);
-                    closestSeg = seg;
+                    if (Math.abs(dist) < minAbsDist) {
+                        minAbsDist = Math.abs(dist);
+                        closestGlyph = glyph;
+                    }
+
+                    // Cinematic smoothing window: sigma = 0.35 seconds
+                    const sigma = 0.35;
+                    const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
+
+                    focusX += glyph.baseX * weight;
+                    focusY += glyph.baseY * weight;
+                    totalWeight += weight;
                 }
-
-                // Cinematic smoothing window: sigma = 0.35 seconds
-                const sigma = 0.35;
-                const weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-
-                const center = getCenter(seg);
-                focusX += center.x * weight;
-                focusY += center.y * weight;
-                totalWeight += weight;
             }
 
-            if (totalWeight < 0.0001) {
-                const center = getCenter(closestSeg);
-                currentFocusX = center.x;
-                currentFocusY = center.y;
-            } else {
+            if (totalWeight < 0.0001 && closestGlyph) {
+                currentFocusX = closestGlyph.baseX;
+                currentFocusY = closestGlyph.baseY;
+            } else if (totalWeight >= 0.0001) {
                 currentFocusX = focusX / totalWeight;
                 currentFocusY = focusY / totalWeight;
             }
         }
 
         view.container.pivot.set(
-            currentFocusX * camera,
-            currentFocusY * camera
+            view.basePivotX + (currentFocusX - view.basePivotX) * camera,
+            view.basePivotY + (currentFocusY - view.basePivotY) * camera
         );
 
         view.container.scale.set(

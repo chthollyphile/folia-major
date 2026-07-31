@@ -140,9 +140,13 @@ export const resolveSonnetTypographyLayout = ({
             : targetFontSize * 1.2;
             
         // Safe downscale if it exceeds screen bounds
-        const maxWidth = vertical ? height * 0.82 : width * 0.82; // for vertical, bounds are height
-        if (measuredWidth > maxWidth) {
-            const fitScale = maxWidth / measuredWidth;
+        const maxW = width * 0.82;
+        const maxH = height * 0.82;
+        let fitScale = 1.0;
+        if (measuredWidth > maxW) fitScale = Math.min(fitScale, maxW / measuredWidth);
+        if (measuredHeight > maxH) fitScale = Math.min(fitScale, maxH / measuredHeight);
+        
+        if (fitScale < 1.0) {
             targetFontSize *= fitScale;
             fontScale *= fitScale;
             measuredWidth *= fitScale;

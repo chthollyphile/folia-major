@@ -26,6 +26,8 @@ export interface ShotView {
     segments: SegmentView[];
     baseX: number;
     baseY: number;
+    basePivotX: number;
+    basePivotY: number;
     haloLayer: import('pixi.js').Container;
 }
 
@@ -214,6 +216,8 @@ export const buildSonnetScene = (
             segments: views,
             baseX: shotContainer.x,
             baseY: shotContainer.y,
+            basePivotX: focusX,
+            basePivotY: focusY,
             haloLayer,
         };
     });
