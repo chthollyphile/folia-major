@@ -569,22 +569,44 @@ export const buildSonnetShotMg = (
     // --- Component: Floating Particles ---
     const particleLayer = new Container();
     const particleCount = kind === 'type-impact' ? 24 : 12;
+    const hasIcons = theme.lyricsIcons && theme.lyricsIcons.length > 0;
+    
     for (let i = 0; i < particleCount; i++) {
-        const p = new Graphics();
-        const type = (seed + i) % 3; // 0: square, 1: diamond, 2: star
         const pSize = 4 + (seed + i) % 12;
+        const type = hasIcons ? (seed + i) % 4 : (seed + i) % 3; // 0: square, 1: diamond, 2: star, 3: icon
+        let p: import('pixi.js').Container;
         
-        if (type === 0) {
-            p.rect(-pSize/2, -pSize/2, pSize, pSize).fill({ color: (i % 2 === 0 ? primary : secondary), alpha: 0.6 });
-        } else if (type === 1) {
-            p.moveTo(0, -pSize).lineTo(pSize, 0).lineTo(0, pSize).lineTo(-pSize, 0).fill({ color: primary, alpha: 0.5 });
+        if (type === 3 && hasIcons) {
+            const iconName = theme.lyricsIcons![(seed + i) % theme.lyricsIcons!.length];
+            const tex = iconTextures.get(iconName);
+            if (tex) {
+                const s = new Sprite(tex);
+                s.anchor.set(0.5);
+                s.width = pSize * 3;
+                s.height = pSize * 3;
+                s.tint = (i % 2 === 0 ? primary : secondary);
+                s.alpha = 0.4;
+                p = s;
+            } else {
+                const g = new Graphics();
+                g.rect(-pSize/2, -pSize/2, pSize, pSize).fill({ color: primary, alpha: 0.6 });
+                p = g;
+            }
         } else {
-            // 4-point star (sparkle)
-            p.moveTo(0, -pSize * 1.5).quadraticCurveTo(0, 0, pSize * 1.5, 0)
-             .quadraticCurveTo(0, 0, 0, pSize * 1.5)
-             .quadraticCurveTo(0, 0, -pSize * 1.5, 0)
-             .quadraticCurveTo(0, 0, 0, -pSize * 1.5)
-             .fill({ color: primary, alpha: 0.8 });
+            const g = new Graphics();
+            if (type === 0 || (type === 3 && !hasIcons)) {
+                g.rect(-pSize/2, -pSize/2, pSize, pSize).fill({ color: (i % 2 === 0 ? primary : secondary), alpha: 0.6 });
+            } else if (type === 1) {
+                g.moveTo(0, -pSize).lineTo(pSize, 0).lineTo(0, pSize).lineTo(-pSize, 0).fill({ color: primary, alpha: 0.5 });
+            } else {
+                // 4-point star (sparkle)
+                g.moveTo(0, -pSize * 1.5).quadraticCurveTo(0, 0, pSize * 1.5, 0)
+                 .quadraticCurveTo(0, 0, 0, pSize * 1.5)
+                 .quadraticCurveTo(0, 0, -pSize * 1.5, 0)
+                 .quadraticCurveTo(0, 0, 0, -pSize * 1.5)
+                 .fill({ color: primary, alpha: 0.8 });
+            }
+            p = g;
         }
         
         p.position.set(

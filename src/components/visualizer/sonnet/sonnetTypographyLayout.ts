@@ -91,6 +91,12 @@ export const resolveSonnetTypographyLayout = ({
             : index / Math.max(1, segments.length - 1)
     ));
     const heroPhase = phases[heroIndex] ?? 0.5;
+    
+    // Deterministic pseudo-randomness for layout variations
+    const layoutVariantSeed = segments.reduce((acc, seg) => acc + (seg.text.trim().length || 1), 0) + segments.length;
+    const editorialVariant = layoutVariantSeed % 3;
+    const ribbonVariant = layoutVariantSeed % 3;
+    const tableauVariant = layoutVariantSeed % 2;
 
     // 1. Assign styles and measure boxes
     const boxes = segments.map((segment, index) => {
@@ -101,8 +107,8 @@ export const resolveSonnetTypographyLayout = ({
         
         switch (shotKind) {
             case 'editorial-column':
-                fontScale = isHero ? 4.0 : 1.2;
-                vertical = isHero;
+                fontScale = isHero ? (editorialVariant === 2 ? 3.2 : 4.0) : 1.2;
+                vertical = isHero && editorialVariant !== 2;
                 break;
             case 'type-impact':
                 fontScale = isHero ? 5.5 : 1.5;
@@ -175,8 +181,11 @@ export const resolveSonnetTypographyLayout = ({
     const heroBox = boxes[heroIndex];
     if (heroBox) {
         if (shotKind === 'editorial-column') {
-            heroBox.x = -width * 0.15;
-            heroBox.y = 0;
+            if (editorialVariant === 0) heroBox.x = -width * 0.15;
+            else if (editorialVariant === 1) heroBox.x = width * 0.15;
+            else heroBox.x = 0; // Variant 2 (centered horizontal)
+            
+            heroBox.y = (editorialVariant === 2) ? -height * 0.25 : 0;
         } else if (shotKind === 'quiet-tableau') {
             heroBox.x = 0;
             heroBox.y = -height * 0.1;
@@ -187,60 +196,152 @@ export const resolveSonnetTypographyLayout = ({
         
         // Implement diverse layout strategies based on shotKind
         if (shotKind === 'quiet-tableau') {
-            // 1. Strict Vertical Stack (Centered)
-            let currentY = heroBox.y - heroBox.measuredHeight / 2 - 10;
-            for (let i = heroIndex - 1; i >= 0; i--) {
-                const box = boxes[i];
-                box.x = heroBox.x;
-                box.y = currentY - box.measuredHeight / 2;
-                currentY -= box.measuredHeight + 10;
-                box.enterX = 0; box.enterY = 20;
-            }
-            currentY = heroBox.y + heroBox.measuredHeight / 2 + 10;
-            for (let i = heroIndex + 1; i < boxes.length; i++) {
-                const box = boxes[i];
-                box.x = heroBox.x;
-                box.y = currentY + box.measuredHeight / 2;
-                currentY += box.measuredHeight + 10;
-                box.enterX = 0; box.enterY = -20;
+            if (tableauVariant === 0) {
+                // 1a. Strict Vertical Stack (Centered)
+                let currentY = heroBox.y - heroBox.measuredHeight / 2 - 15;
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = heroBox.x;
+                    box.y = currentY - box.measuredHeight / 2;
+                    currentY -= box.measuredHeight + 15;
+                    box.enterX = 0; box.enterY = 20;
+                }
+                currentY = heroBox.y + heroBox.measuredHeight / 2 + 15;
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = heroBox.x;
+                    box.y = currentY + box.measuredHeight / 2;
+                    currentY += box.measuredHeight + 15;
+                    box.enterX = 0; box.enterY = -20;
+                }
+            } else {
+                // 1b. Flush-Left Vertical Stack (Modern Poster)
+                let currentY = heroBox.y - heroBox.measuredHeight / 2 - 10;
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = heroBox.x - heroBox.measuredWidth / 2 + box.measuredWidth / 2;
+                    box.y = currentY - box.measuredHeight / 2;
+                    currentY -= box.measuredHeight + 10;
+                    box.enterX = 20; box.enterY = 0;
+                }
+                currentY = heroBox.y + heroBox.measuredHeight / 2 + 10;
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = heroBox.x - heroBox.measuredWidth / 2 + box.measuredWidth / 2;
+                    box.y = currentY + box.measuredHeight / 2;
+                    currentY += box.measuredHeight + 10;
+                    box.enterX = -20; box.enterY = 0;
+                }
             }
         } else if (shotKind === 'tracking-ribbon') {
-            // 2. Pure Horizontal Ribbon (Reading order line)
-            let currentX = heroBox.x - heroBox.measuredWidth / 2 - 15;
-            for (let i = heroIndex - 1; i >= 0; i--) {
-                const box = boxes[i];
-                box.x = currentX - box.measuredWidth / 2;
-                box.y = heroBox.y + (i % 2 === 0 ? 10 : -10); // Slight undulation
-                currentX -= box.measuredWidth + 15;
-                box.enterX = 30; box.enterY = 0;
-            }
-            currentX = heroBox.x + heroBox.measuredWidth / 2 + 15;
-            for (let i = heroIndex + 1; i < boxes.length; i++) {
-                const box = boxes[i];
-                box.x = currentX + box.measuredWidth / 2;
-                box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
-                currentX += box.measuredWidth + 15;
-                box.enterX = -30; box.enterY = 0;
+            if (ribbonVariant === 0) {
+                // 2a. Pure Horizontal Ribbon (Reading order line)
+                let currentX = heroBox.x - heroBox.measuredWidth / 2 - 15;
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = currentX - box.measuredWidth / 2;
+                    box.y = heroBox.y + (i % 2 === 0 ? 10 : -10); // Slight undulation
+                    currentX -= box.measuredWidth + 15;
+                    box.enterX = 30; box.enterY = 0;
+                }
+                currentX = heroBox.x + heroBox.measuredWidth / 2 + 15;
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = currentX + box.measuredWidth / 2;
+                    box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
+                    currentX += box.measuredWidth + 15;
+                    box.enterX = -30; box.enterY = 0;
+                }
+            } else if (ribbonVariant === 1) {
+                // 2b. Strict Baseline Aligned Ribbon with extra spacing
+                let currentX = heroBox.x - heroBox.measuredWidth / 2 - 25;
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = currentX - box.measuredWidth / 2;
+                    box.y = heroBox.y + heroBox.measuredHeight / 2 - box.measuredHeight / 2;
+                    currentX -= box.measuredWidth + 25;
+                    box.enterX = 30; box.enterY = 0;
+                }
+                currentX = heroBox.x + heroBox.measuredWidth / 2 + 25;
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = currentX + box.measuredWidth / 2;
+                    box.y = heroBox.y + heroBox.measuredHeight / 2 - box.measuredHeight / 2;
+                    currentX += box.measuredWidth + 25;
+                    box.enterX = -30; box.enterY = 0;
+                }
+            } else {
+                // 2c. Top Aligned Ribbon with larger spacing
+                let currentX = heroBox.x - heroBox.measuredWidth / 2 - 35;
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = currentX - box.measuredWidth / 2;
+                    box.y = heroBox.y - heroBox.measuredHeight / 2 + box.measuredHeight / 2;
+                    currentX -= box.measuredWidth + 35;
+                    box.enterX = 20; box.enterY = 0;
+                }
+                currentX = heroBox.x + heroBox.measuredWidth / 2 + 35;
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = currentX + box.measuredWidth / 2;
+                    box.y = heroBox.y - heroBox.measuredHeight / 2 + box.measuredHeight / 2;
+                    currentX += box.measuredWidth + 35;
+                    box.enterX = -20; box.enterY = 0;
+                }
             }
         } else if (shotKind === 'editorial-column') {
-            // 3. Editorial Column: Left-aligned blocks next to vertical hero
-            // Hero is usually vertical and placed at x = -width * 0.15
-            let currentYLeft = heroBox.y - heroBox.measuredHeight / 2 + 20;
-            let currentYRight = heroBox.y - heroBox.measuredHeight / 2 + 20;
-            
-            for (let i = heroIndex - 1; i >= 0; i--) {
-                const box = boxes[i];
-                box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 20;
-                box.y = currentYLeft + box.measuredHeight / 2;
-                currentYLeft += box.measuredHeight + 15;
-                box.enterX = 20; box.enterY = 0;
-            }
-            for (let i = heroIndex + 1; i < boxes.length; i++) {
-                const box = boxes[i];
-                box.x = heroBox.x + heroBox.measuredWidth / 2 + box.measuredWidth / 2 + 20;
-                box.y = currentYRight + box.measuredHeight / 2;
-                currentYRight += box.measuredHeight + 15;
-                box.enterX = -20; box.enterY = 0;
+            if (editorialVariant === 0) {
+                // 3a. Editorial Column: Original (hero left, text on left and right)
+                let currentYLeft = heroBox.y - heroBox.measuredHeight / 2 + 20;
+                let currentYRight = heroBox.y - heroBox.measuredHeight / 2 + 20;
+                
+                for (let i = heroIndex - 1; i >= 0; i--) {
+                    const box = boxes[i];
+                    box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 25;
+                    box.y = currentYLeft + box.measuredHeight / 2;
+                    currentYLeft += box.measuredHeight + 15;
+                    box.enterX = 20; box.enterY = 0;
+                }
+                for (let i = heroIndex + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.x = heroBox.x + heroBox.measuredWidth / 2 + box.measuredWidth / 2 + 25;
+                    box.y = currentYRight + box.measuredHeight / 2;
+                    currentYRight += box.measuredHeight + 15;
+                    box.enterX = -20; box.enterY = 0;
+                }
+            } else if (editorialVariant === 1) {
+                // 3b. Magazine Layout: Hero Vertical Right, all support text in a neat column on the left
+                let currentY = heroBox.y - heroBox.measuredHeight / 2 + 10;
+                for (let i = 0; i < boxes.length; i++) {
+                    if (i === heroIndex) continue;
+                    const box = boxes[i];
+                    box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 40;
+                    box.y = currentY + box.measuredHeight / 2;
+                    currentY += box.measuredHeight + 15;
+                    box.enterX = -20; box.enterY = 0;
+                }
+            } else {
+                // 3c. Magazine Header: Horizontal hero at top, text blocks below in two columns
+                let currentXLeft = heroBox.x - heroBox.measuredWidth * 0.25 - 10;
+                let currentXRight = heroBox.x + heroBox.measuredWidth * 0.25 + 10;
+                let leftY = heroBox.y + heroBox.measuredHeight / 2 + 40;
+                let rightY = heroBox.y + heroBox.measuredHeight / 2 + 40;
+                
+                for (let i = 0; i < boxes.length; i++) {
+                    if (i === heroIndex) continue;
+                    const box = boxes[i];
+                    if (i % 2 === 0) {
+                        box.x = currentXLeft - box.measuredWidth / 2;
+                        box.y = leftY + box.measuredHeight / 2;
+                        leftY += box.measuredHeight + 12;
+                        box.enterX = -20; box.enterY = 0;
+                    } else {
+                        box.x = currentXRight + box.measuredWidth / 2;
+                        box.y = rightY + box.measuredHeight / 2;
+                        rightY += box.measuredHeight + 12;
+                        box.enterX = 20; box.enterY = 0;
+                    }
+                }
             }
         } else if (shotKind === 'fragment-collage') {
             // 4. Fragment Collage: Scattered, overlapping, chaotic positioning
