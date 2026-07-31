@@ -65,7 +65,7 @@ const splitOversizedDraft = (draft: ParagraphDraft): ParagraphDraft[] => {
     const output: ParagraphDraft[] = [];
     let remaining = draft.lines;
     let boundary = draft.boundary;
-    while (remaining.length > 6 || (remaining.at(-1)!.renderEndTime - remaining[0].line.startTime) > 18) {
+    while (remaining.length > 6 || (remaining.length > 1 && (remaining.at(-1)!.renderEndTime - remaining[0].line.startTime) > 18)) {
         const candidates = remaining.slice(2, -1).map((line, offset) => ({
             splitIndex: offset + 2,
             gap: line.line.startTime - remaining[offset + 1].renderEndTime,
