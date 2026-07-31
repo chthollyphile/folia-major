@@ -20,8 +20,9 @@ const isMatchingRef = (
 export const canResolveSongCatalogRef = (
     song: UnifiedSong,
     kind: 'album' | 'artist',
-    requested: CatalogTarget,
+    requested: CatalogTarget | null | undefined,
 ): boolean => {
+    if (!requested) return false;
     const sourceRef = song.sourceRef;
     if (sourceRef?.kind !== 'online') return false;
     if (isMatchingRef(requested.catalogRef, sourceRef.providerId, kind)) return true;
@@ -52,8 +53,9 @@ const findResolvedTarget = (
 export const resolveSongCatalogRef = async (
     song: UnifiedSong,
     kind: 'album' | 'artist',
-    requested: CatalogTarget,
+    requested: CatalogTarget | null | undefined,
 ): Promise<ProviderCatalogRef | null> => {
+    if (!requested) return null;
     const sourceRef = song.sourceRef;
     if (sourceRef?.kind !== 'online') return null;
 
