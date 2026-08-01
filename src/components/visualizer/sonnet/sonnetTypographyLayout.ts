@@ -24,7 +24,7 @@ export interface SonnetTypographyPlacement {
 }
 
 interface SonnetTypographyLayoutOptions {
-    segments: SonnetSemanticSegment[];
+    lines: SonnetSemanticSegment[][];
     shotKind: SonnetShotKind;
     paragraphKind: SonnetParagraphKind;
     width: number;
@@ -71,7 +71,7 @@ export const measureText = (text: string, fontSpec: string, fontSize: number) =>
 };
 
 export const resolveSonnetTypographyLayout = ({
-    segments,
+    lines,
     shotKind,
     paragraphKind,
     width,
@@ -80,6 +80,16 @@ export const resolveSonnetTypographyLayout = ({
     fontFamily,
     fontWeight,
 }: SonnetTypographyLayoutOptions): SonnetTypographyPlacement[] => {
+    const segments = lines.flat();
+    
+    let offset = 0;
+    const heroIndices = lines.map(lineSegs => {
+        const localHero = findSonnetHeroSegmentIndex(lineSegs);
+        const globalHero = offset + localHero;
+        offset += lineSegs.length;
+        return globalHero;
+    });
+
     const heroIndex = findSonnetHeroSegmentIndex(segments);
     const midpoints = segments.map(segment => (segment.startTime + segment.endTime) / 2);
     const timelineStart = Math.min(...midpoints);
@@ -119,7 +129,7 @@ export const resolveSonnetTypographyLayout = ({
 
     // 1. Assign styles and measure boxes
     const boxes = segments.map((segment, index) => {
-        const isHero = index === heroIndex || (index === secondaryHeroIndex && shotKind === 'editorial-column' && editorialVariant === 3);
+        const isHero = heroIndices.includes(index) || (index === secondaryHeroIndex && shotKind === 'editorial-column' && editorialVariant === 3);
         let fontScale = 1.0;
         let vertical = false;
         let rotation = 0;
@@ -477,28 +487,31 @@ export const resolveSonnetTypographyLayout = ({
 
         const decorations: typeof boxes = [];
         if (shotKind !== 'quiet-tableau') {
-            decorations.push({
-                ...heroBox,
-                isHero: false,
-                role: 'decoration' as any,
-                fontScale: Math.max(2.8, Math.min(heroBox.fontScale * 3.5, 5.5)),
-                vertical: false,
-                x: heroBox.x - width * 0.1,
-                y: heroBox.y - height * 0.05,
-                rotation: -0.15,
-                enterX: -width * 0.05,
-                enterY: -height * 0.05,
+            const allHeroes = boxes.filter(b => b.isHero);
+            allHeroes.forEach((hBox, idx) => {
+                decorations.push({
+                    ...hBox,
+                    isHero: false,
+                    role: 'decoration' as any,
+                    fontScale: Math.max(2.8, Math.min(hBox.fontScale * 3.5, 5.5)),
+                    vertical: false,
+                    x: hBox.x - width * (0.1 - idx * 0.03),
+                    y: hBox.y - height * (0.05 - idx * 0.02),
+                    rotation: -0.15 + (idx % 2 === 0 ? 0 : 0.05),
+                    enterX: -width * 0.05,
+                    enterY: -height * 0.05,
+                });
             });
-            if (boxes.length > 1) {
+            if (boxes.length > 1 && allHeroes.length > 0) {
                 const dec2 = boxes[boxes.length - 1].isHero ? boxes[0] : boxes[boxes.length - 1];
                 decorations.push({
                     ...dec2,
                     isHero: false,
                     role: 'decoration' as any,
-                    fontScale: Math.max(1.8, Math.min(heroBox.fontScale * 2.2, 3.5)),
+                    fontScale: Math.max(1.8, Math.min(allHeroes[0].fontScale * 2.2, 3.5)),
                     vertical: false,
-                    x: heroBox.x + width * 0.25,
-                    y: heroBox.y + height * 0.15,
+                    x: allHeroes[0].x + width * 0.25,
+                    y: allHeroes[0].y + height * 0.15,
                     rotation: 0.08,
                     enterX: width * 0.05,
                     enterY: height * 0.05,

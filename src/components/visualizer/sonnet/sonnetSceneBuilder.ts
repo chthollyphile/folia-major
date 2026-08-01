@@ -136,7 +136,10 @@ export const buildSonnetScene = (
         const compiledLines = shot.lineIndices
             .map(lineIndex => paragraph.lines.find(item => item.sourceIndex === lineIndex))
             .filter(Boolean) as SonnetParagraph['lines'];
-        const segments = compiledLines.flatMap(line => line.segments).filter(segment => segment.text.length > 0);
+        const linesSegments = compiledLines
+            .map(line => line.segments.filter(segment => segment.text.length > 0))
+            .filter(segs => segs.length > 0);
+        const segments = linesSegments.flat();
         const wordCount = Math.max(1, segments.filter(segment => segment.isWordLike).length);
         const heroScale = shot.kind === 'type-impact' ? 1.55 : shot.kind === 'quiet-tableau' ? 0.82 : 1;
         const fontSize = Math.max(24, Math.min(112, (
@@ -144,7 +147,7 @@ export const buildSonnetScene = (
         ) * heroScale * options.lyricsFontScale));
         const views: SegmentView[] = [];
         const placements = resolveSonnetTypographyLayout({
-            segments,
+            lines: linesSegments,
             shotKind: shot.kind,
             paragraphKind: paragraph.kind,
             width,
