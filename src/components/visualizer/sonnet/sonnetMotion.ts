@@ -61,6 +61,35 @@ export interface SonnetShotMotionFrame {
     rotation: number;
 }
 
+export interface SonnetFocusTimeRange {
+    startTime: number;
+    endTime: number;
+}
+
+// Produces stable normalized focus weights, including silent gaps and the tail after the final glyph.
+export const resolveSonnetFocusWeights = (
+    ranges: SonnetFocusTimeRange[],
+    time: number,
+    sigma = 0.35,
+) => {
+    if (ranges.length === 0) return [];
+    const safeSigma = Math.max(0.001, sigma);
+    const logWeights = ranges.map(range => {
+        const startTime = Math.min(range.startTime, range.endTime);
+        const endTime = Math.max(range.startTime, range.endTime);
+        const distance = time < startTime
+            ? startTime - time
+            : time > endTime
+                ? time - endTime
+                : 0;
+        return -(distance * distance) / (2 * safeSigma * safeSigma);
+    });
+    const maxLogWeight = Math.max(...logWeights);
+    const weights = logWeights.map(weight => Math.exp(weight - maxLogWeight));
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+    return weights.map(weight => weight / totalWeight);
+};
+
 export const resolveShotPathProgress = (kind: SonnetShotKind, progress: number) => {
     const linear = clamp01(progress);
     if (kind === 'tracking-ribbon' || kind === 'fragment-collage' || kind === 'quiet-tableau') {

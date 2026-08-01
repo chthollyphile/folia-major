@@ -7,6 +7,7 @@ import {
     clamp01,
     easeSonnetInOut,
     resolveSegmentProgress,
+    resolveSonnetFocusWeights,
     resolveShotMotionFrame,
     resolveShotProgress,
     resolveTimelineShake,
@@ -18,6 +19,11 @@ import {
     destroySonnetContainerChildren,
     unloadSonnetDisplayTree,
 } from './sonnetPixiResources';
+import {
+    buildSonnetCreditsPoster,
+    hasSonnetCreditsMetadata,
+    resolveSonnetCreditsFrame,
+} from './sonnetCredits';
 
 // src/components/visualizer/sonnet/createSonnetPixiRuntime.ts
 // Owns Pixi lifecycle and mutates bounded scene views directly from absolute playback time.
@@ -34,6 +40,9 @@ export interface SonnetRuntimeOptions {
     lyricsFontScale: number;
     staticMode: boolean;
     paused: boolean;
+    songTitle?: string | null;
+    songArtist?: string | null;
+    songAlbum?: string | null;
     signal?: AbortSignal;
 }
 
@@ -52,7 +61,10 @@ export class SonnetPixiRuntime {
     private lastHeight = 0;
 
     private sceneContainer!: import('pixi.js').Container;
+    private creditsContainer!: import('pixi.js').Container;
     private overlayContainer!: import('pixi.js').Container;
+    private outroBlurFilter: import('pixi.js').BlurFilter | null = null;
+    private outroBlurScene: SceneView | null = null;
 
     private constructor(
         private readonly pixi: PixiModule,
@@ -79,8 +91,9 @@ export class SonnetPixiRuntime {
         });
         const runtime = new SonnetPixiRuntime(pixi, options, app);
         runtime.sceneContainer = new pixi.Container();
+        runtime.creditsContainer = new pixi.Container();
         runtime.overlayContainer = new pixi.Container();
-        app.stage.addChild(runtime.sceneContainer, runtime.overlayContainer);
+        app.stage.addChild(runtime.sceneContainer, runtime.creditsContainer, runtime.overlayContainer);
 
         if (options.signal?.aborted) {
             runtime.destroy();
@@ -118,8 +131,59 @@ export class SonnetPixiRuntime {
         this.lastHeight = height;
         this.app.renderer.resize(width, height);
         this.clearScenes();
+        this.drawCredits(width, height);
         this.drawOverlay(width, height);
         return true;
+    }
+
+    private drawCredits(width: number, height: number) {
+        destroySonnetContainerChildren(this.creditsContainer);
+        const metadata = {
+            title: this.options.songTitle,
+            artist: this.options.songArtist,
+            album: this.options.songAlbum,
+        };
+        if (!hasSonnetCreditsMetadata(metadata)) return;
+        this.creditsContainer.addChild(buildSonnetCreditsPoster(
+            this.pixi,
+            this.options.theme,
+            metadata,
+            width,
+            height,
+            this.options.lyricsFontScale,
+        ));
+        this.creditsContainer.pivot.set(width / 2, height / 2);
+        this.creditsContainer.position.set(width / 2, height / 2);
+        this.creditsContainer.visible = false;
+    }
+
+    private clearOutroBlur() {
+        if (this.outroBlurFilter && this.outroBlurScene) {
+            this.outroBlurScene.container.filters = (this.outroBlurScene.container.filters ?? [])
+                .filter(filter => filter !== this.outroBlurFilter);
+            this.outroBlurFilter.destroy();
+        }
+        this.outroBlurFilter = null;
+        this.outroBlurScene = null;
+    }
+
+    private updateOutroBlur(scene: SceneView, strength: number) {
+        if (strength <= 0) {
+            this.clearOutroBlur();
+            return;
+        }
+        if (this.outroBlurScene !== scene) this.clearOutroBlur();
+        if (!this.outroBlurFilter) {
+            this.outroBlurFilter = new this.pixi.BlurFilter({
+                strength: 0,
+                quality: 2,
+                kernelSize: 5,
+                resolution: 0.75,
+            });
+            scene.container.filters = [...(scene.container.filters ?? []), this.outroBlurFilter];
+            this.outroBlurScene = scene;
+        }
+        this.outroBlurFilter.strength = strength;
     }
 
     private drawOverlay(width: number, height: number) {
@@ -211,6 +275,7 @@ export class SonnetPixiRuntime {
     }
 
     private clearScenes() {
+        this.clearOutroBlur();
         this.sceneCache.forEach(scene => {
             this.destroyScene(scene);
         });
@@ -218,6 +283,7 @@ export class SonnetPixiRuntime {
         this.activeParagraphIndex = -1;
     }
     private destroyScene(scene: SceneView) {
+        if (this.outroBlurScene === scene) this.clearOutroBlur();
         this.sceneContainer.removeChild(scene.container);
         unloadSonnetDisplayTree(scene.container);
         scene.container.filters = null;
@@ -282,8 +348,8 @@ export class SonnetPixiRuntime {
 
         const shake = resolveTimelineShake(time, shakeIntensity);
 
-        let trackSegments = view.segments.filter(s => s.role !== 'decoration');
-        if (trackSegments.length === 0) trackSegments = view.segments;
+        let trackSegments = view.segments.filter(s => s.role !== 'decoration' && s.glyphs.length > 0);
+        if (trackSegments.length === 0) trackSegments = view.segments.filter(s => s.glyphs.length > 0);
 
         let currentFocusX = view.basePivotX;
         let currentFocusY = view.basePivotY;
@@ -323,35 +389,25 @@ export class SonnetPixiRuntime {
             const focusTime = Math.max(view.shot.startTime, Math.min(time, view.shot.endTime));
             let focusX = 0;
             let focusY = 0;
-            let totalWeight = 0;
-            const sigma = 0.35;
+            const focusWeights = resolveSonnetFocusWeights(
+                trackSegments.map(segment => ({
+                    startTime: segment.glyphs[0]?.startTime ?? view.shot.startTime,
+                    endTime: segment.glyphs.at(-1)?.startTime ?? view.shot.endTime,
+                })),
+                focusTime,
+            );
 
             for (let i = 0; i < trackSegments.length; i++) {
                 const seg = trackSegments[i];
                 if (seg.glyphs.length === 0) continue;
-                
-                const firstTime = seg.glyphs[0].startTime;
-                const lastTime = seg.glyphs[seg.glyphs.length - 1].startTime;
-                
-                let weight = 1.0;
-                if (focusTime < firstTime) {
-                    const dist = firstTime - focusTime;
-                    weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-                } else if (focusTime > lastTime) {
-                    const dist = focusTime - lastTime;
-                    weight = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-                }
-                
+                const weight = focusWeights[i] ?? 0;
                 const pos = getSegmentFocus(seg, focusTime);
                 focusX += pos.x * weight;
                 focusY += pos.y * weight;
-                totalWeight += weight;
             }
-            
-            if (totalWeight > 0.0001) {
-                currentFocusX = focusX / totalWeight;
-                currentFocusY = focusY / totalWeight;
-            }
+
+            currentFocusX = focusX;
+            currentFocusY = focusY;
         }
 
         view.container.pivot.set(
@@ -470,6 +526,12 @@ export class SonnetPixiRuntime {
         }
         const width = Math.max(this.options.host.clientWidth, 320);
         const height = Math.max(this.options.host.clientHeight, 240);
+        const finalParagraph = this.options.program.paragraphs.at(-1);
+        const creditsFrame = resolveSonnetCreditsFrame(
+            time,
+            finalParagraph?.endTime ?? Number.POSITIVE_INFINITY,
+        );
+        const hasCredits = this.creditsContainer.children.length > 0;
 
         this.sceneCache.forEach((scene, index) => {
             const isActive = index === paragraphIndex;
@@ -527,7 +589,9 @@ export class SonnetPixiRuntime {
                 }
             }
 
-            scene.container.alpha = isActive ? enterAlpha : transition.alpha;
+            const isFinalScene = index === this.options.program.paragraphs.length - 1;
+            const lyricAlpha = isFinalScene && hasCredits ? creditsFrame.lyricAlpha : 1;
+            scene.container.alpha = (isActive ? enterAlpha : transition.alpha) * lyricAlpha;
             scene.container.pivot.set(width / 2, height / 2);
 
             const finalX = isActive ? enterX : transition.x;
@@ -538,7 +602,20 @@ export class SonnetPixiRuntime {
             scene.container.position.set(width / 2 + finalX * width, height / 2 + finalY * height);
             scene.container.scale.set(finalScale);
             scene.container.rotation = finalRotation;
+
+            if (isFinalScene && hasCredits) {
+                this.updateOutroBlur(scene, creditsFrame.lyricBlur);
+            }
         });
+
+        if (!creditsFrame.active || !hasCredits) this.clearOutroBlur();
+        this.creditsContainer.visible = creditsFrame.active && hasCredits;
+        this.creditsContainer.alpha = creditsFrame.posterAlpha;
+        this.creditsContainer.position.set(
+            width / 2,
+            height / 2 + creditsFrame.posterOffsetY * height,
+        );
+        this.creditsContainer.scale.set(creditsFrame.posterScale);
     };
 
     renderOnce() {
@@ -567,6 +644,7 @@ export class SonnetPixiRuntime {
         this.app.stop();
         this.app.ticker.remove(this.renderFrame);
         this.clearScenes();
+        destroySonnetContainerChildren(this.creditsContainer);
         this.iconTextures.clear();
         const texturePool = getSonnetTexturePool(this.pixi);
         this.iconUrls.forEach(url => {

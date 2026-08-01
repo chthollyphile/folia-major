@@ -25,6 +25,9 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
         staticMode = false,
         paused = false,
         seed = 'sonnet',
+        songTitle,
+        songArtist,
+        songAlbum,
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
         showSubtitleTranslation = true,
@@ -64,6 +67,9 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                 lyricsFontScale,
                 staticMode,
                 paused,
+                songTitle,
+                songArtist,
+                songAlbum,
                 signal: abortController.signal,
             }))
             .then(runtime => {
@@ -91,6 +97,9 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
         currentTime,
         lyricsFontScale,
         program,
+        songAlbum,
+        songArtist,
+        songTitle,
         sonnetTuning,
         staticMode,
         theme,
@@ -106,6 +115,10 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
 
     const fallbackFontFamily = resolveThemeFontStack(theme);
     const fallbackFontWeight = resolveThemeFontWeight(theme, 600);
+    const finalLine = lines.at(-1);
+    const creditsRecentCompletedLine = recentCompletedLine === finalLine
+        ? null
+        : recentCompletedLine;
 
     return (
         <VisualizerShell
@@ -134,7 +147,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
             <VisualizerSubtitleOverlay
                 showText={showText}
                 activeLine={activeLine}
-                recentCompletedLine={recentCompletedLine}
+                recentCompletedLine={creditsRecentCompletedLine}
                 nextLines={nextLines}
                 theme={theme}
                 translationFontSize={`clamp(${1.05 * lyricsFontScale}rem, ${2.2 * lyricsFontScale}vw, ${1.25 * lyricsFontScale}rem)`}
