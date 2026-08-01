@@ -1,5 +1,12 @@
 import type { Theme } from '../../../types';
 import type { SonnetShotKind } from './types';
+import {
+    drawSonnetHexagonalPrism,
+    drawSonnetSolidCuboid,
+    drawSonnetTrapezoidPrism,
+    drawSonnetTriangularPrism,
+    resolveSonnetGeoVariant,
+} from './sonnetSpatialMgGeometry';
 
 // src/components/visualizer/sonnet/sonnetShotMg.ts
 // Builds PV style high-density semantic decorative elements (HUD, Geometric Chaos, Particles)
@@ -286,7 +293,7 @@ export const buildSonnetShotMg = (
         geo = new AnimatedGraphics(pixi);
         if (!geo) throw new Error('Unreachable');
         
-        const geoVariant = seed % 14;
+        const geoVariant = resolveSonnetGeoVariant(seed);
         
         if (geoVariant === 0) {
             // Variant 0: Huge circular frame with sunburst
@@ -782,7 +789,7 @@ export const buildSonnetShotMg = (
                 const ly = Math.sin(startAngle + 1.5) * stemR * 1.05;
                 geo!.circle(lx, ly, 4).fill({ color: primary, alpha: 0.6 });
             }
-        } else {
+        } else if (geoVariant === 13) {
             // Variant 13: Sacred Geometry (Seed of Life)
             const soflR = radius * 0.25; // radius of each circle
             const drawIntersectingCircle = (cx: number, cy: number, alpha: number) => {
@@ -821,13 +828,37 @@ export const buildSonnetShotMg = (
                    .lineTo(Math.cos(angle) * soflR * 3, Math.sin(angle) * soflR * 3)
                    .stroke({ color: secondary, width: 1, alpha: 0.05 });
             }
+        } else if (geoVariant === 14) {
+            // Variant 14: Large translucent architectural monoliths
+            const direction = seed % 2 === 0 ? 1 : -1;
+            drawSonnetSolidCuboid(geo, radius * 0.18 * direction, radius * 0.03, radius * 0.62, radius * 0.7, radius * 0.22 * direction, -radius * 0.16, primary, 0.34);
+            drawSonnetSolidCuboid(geo, -radius * 0.48 * direction, radius * 0.24, radius * 0.28, radius * 0.38, radius * 0.12 * direction, -radius * 0.09, primary, 0.24);
+            drawSonnetSolidCuboid(geo, radius * 0.55 * direction, -radius * 0.3, radius * 0.2, radius * 0.26, radius * 0.09 * direction, -radius * 0.07, primary, 0.2);
+        } else if (geoVariant === 15) {
+            // Variant 15: Floating triangular prisms
+            const direction = seed % 2 === 0 ? 1 : -1;
+            drawSonnetTriangularPrism(geo, -radius * 0.12 * direction, radius * 0.02, radius * 0.72, radius * 0.68, radius * 0.18 * direction, -radius * 0.13, primary, 0.34);
+            drawSonnetTriangularPrism(geo, radius * 0.48 * direction, radius * 0.26, radius * 0.28, radius * 0.25, -radius * 0.08 * direction, -radius * 0.06, primary, 0.22);
+            drawSonnetTriangularPrism(geo, -radius * 0.5 * direction, -radius * 0.3, radius * 0.2, radius * 0.18, radius * 0.06 * direction, -radius * 0.05, primary, 0.18);
+        } else if (geoVariant === 16) {
+            // Variant 16: Faceted hexagonal solids
+            const direction = seed % 2 === 0 ? 1 : -1;
+            drawSonnetHexagonalPrism(geo, radius * 0.12 * direction, 0, radius * 0.68, radius * 0.72, radius * 0.2 * direction, -radius * 0.14, primary, 0.32);
+            drawSonnetHexagonalPrism(geo, -radius * 0.48 * direction, radius * 0.27, radius * 0.25, radius * 0.28, radius * 0.07 * direction, -radius * 0.05, primary, 0.2);
+            drawSonnetHexagonalPrism(geo, radius * 0.52 * direction, -radius * 0.3, radius * 0.18, radius * 0.2, -radius * 0.06 * direction, -radius * 0.045, primary, 0.17);
+        } else {
+            // Variant 17: Trapezoid prisms and low architectural plinths
+            const direction = seed % 2 === 0 ? 1 : -1;
+            drawSonnetTrapezoidPrism(geo, radius * 0.12 * direction, radius * 0.04, radius * 0.3, radius * 0.68, radius * 0.62, radius * 0.18 * direction, -radius * 0.13, primary, 0.34);
+            drawSonnetTrapezoidPrism(geo, -radius * 0.42 * direction, radius * 0.28, radius * 0.2, radius * 0.38, radius * 0.22, radius * 0.08 * direction, -radius * 0.06, primary, 0.21);
+            drawSonnetTrapezoidPrism(geo, radius * 0.5 * direction, -radius * 0.3, radius * 0.2, radius * 0.12, radius * 0.22, -radius * 0.06 * direction, -radius * 0.05, primary, 0.18);
         }
 
         // Randomized Geometric Composition moved to sonnetTextViewBuilder so they accompany text
         
         // Selectively apply deterministic rotation based on variant compatibility
         // Selectively apply deterministic rotation based on variant compatibility
-        if (![6, 8, 9].includes(geoVariant)) {
+        if (![6, 8, 9, 14, 15, 16, 17].includes(geoVariant)) {
             // Arbitrary rotation
             geo!.rotation = ((seed * 13) % 360) * (Math.PI / 180);
         } else if (geoVariant === 8) {
