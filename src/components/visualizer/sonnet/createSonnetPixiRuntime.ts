@@ -1,5 +1,5 @@
 import type { MotionValue } from 'framer-motion';
-import type { AudioBands, SonnetTuning, Theme } from '../../../types';
+import type { SonnetTuning, Theme } from '../../../types';
 import type { SonnetProgram } from './types';
 import { findSonnetParagraphIndexAtTime } from './sonnetProgram';
 import { buildSonnetIconDataUrl, buildSonnetIconTextureKey, resolveSonnetIconNames } from './sonnetIcons';
@@ -29,14 +29,18 @@ import {
 // Owns Pixi lifecycle and mutates bounded scene views directly from absolute playback time.
 type PixiModule = typeof import('pixi.js');
 
+export interface SonnetSongMetadata {
+    title?: string | null;
+    artist?: string | null;
+    album?: string | null;
+}
+
 export interface SonnetRuntimeOptions {
     host: HTMLDivElement;
     program: SonnetProgram;
     theme: Theme;
     tuning: SonnetTuning;
     currentTime: MotionValue<number>;
-    audioPower: MotionValue<number>;
-    audioBands: AudioBands;
     lyricsFontScale: number;
     staticMode: boolean;
     paused: boolean;
@@ -155,6 +159,22 @@ export class SonnetPixiRuntime {
         this.creditsContainer.pivot.set(width / 2, height / 2);
         this.creditsContainer.position.set(width / 2, height / 2);
         this.creditsContainer.visible = false;
+    }
+
+    setSongMetadata(metadata: SonnetSongMetadata) {
+        if (this.destroyed) return;
+        const changed = this.options.songTitle !== metadata.title
+            || this.options.songArtist !== metadata.artist
+            || this.options.songAlbum !== metadata.album;
+        if (!changed) return;
+
+        this.options.songTitle = metadata.title;
+        this.options.songArtist = metadata.artist;
+        this.options.songAlbum = metadata.album;
+        if (this.lastWidth > 0 && this.lastHeight > 0) {
+            this.drawCredits(this.lastWidth, this.lastHeight);
+            if (this.options.paused) this.renderOnce();
+        }
     }
 
     private clearOutroBlur() {
