@@ -24,6 +24,7 @@ const segment: SonnetSemanticSegment = {
 };
 
 const placement: SonnetTypographyPlacement = {
+    segmentIndex: 0,
     displayText: 'あ\nな\nた',
     role: 'hero',
     fontScale: 1,

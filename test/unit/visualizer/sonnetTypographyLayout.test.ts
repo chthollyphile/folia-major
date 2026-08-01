@@ -33,11 +33,14 @@ describe('Sonnet typography layout', () => {
 
     it('stacks the hero by grapheme and keeps support text small', () => {
         const layout = resolveSonnetTypographyLayout({
-            segments,
+            lines: [segments],
             shotKind: 'editorial-column',
             paragraphKind: 'verse',
             width: 1280,
             height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
         });
         const hero = layout.find(item => item.role === 'hero')!;
         const supports = layout.filter(item => item.role === 'support');
@@ -50,18 +53,24 @@ describe('Sonnet typography layout', () => {
 
     it('changes composition across templates without changing segment order', () => {
         const impact = resolveSonnetTypographyLayout({
-            segments,
+            lines: [segments],
             shotKind: 'type-impact',
             paragraphKind: 'chorus',
             width: 1280,
             height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
         });
         const quiet = resolveSonnetTypographyLayout({
-            segments,
+            lines: [segments],
             shotKind: 'quiet-tableau',
             paragraphKind: 'outro',
             width: 1280,
             height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
         });
 
         expect(impact.map(item => item.role)).toEqual(quiet.map(item => item.role));
@@ -76,11 +85,14 @@ describe('Sonnet typography layout', () => {
             { ...segment('尾'), startTime: 2.3, endTime: 2.6 },
         ];
         const layout = resolveSonnetTypographyLayout({
-            segments: timed,
+            lines: [timed],
             shotKind: 'fragment-collage',
             paragraphKind: 'verse',
             width: 1280,
             height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
         });
 
         expect(findSonnetHeroSegmentIndex(timed)).toBe(1);

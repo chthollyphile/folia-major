@@ -204,6 +204,7 @@ export const resolveSonnetTypographyLayout = ({
             measuredHeight,
             timingPhase: phases[index],
             relativePhase: phases[index] - heroPhase,
+            role: undefined as SonnetSegmentRole | undefined,
             x: 0,
             y: 0,
             enterX: 0,

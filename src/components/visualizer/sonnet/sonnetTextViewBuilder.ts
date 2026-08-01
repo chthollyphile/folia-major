@@ -2,6 +2,7 @@ import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import 'pixi.js/advanced-blend-modes';
 import type { Theme } from '../../../types';
 import { buildSonnetGlyphLayout } from './sonnetGlyphLayout';
+import { buildSonnetStaffView } from './sonnetStaffView';
 import { createSonnetGuide, type SonnetGuideView } from './sonnetGuides';
 import type { SonnetSemanticSegment } from './types';
 import type {
@@ -28,6 +29,7 @@ export interface GlyphView {
     startTime: number;
     settleTime: number;
     zDepth: number;
+    updateAnimation?: (time: number) => void;
 }
 
 export interface SegmentView {
@@ -129,6 +131,44 @@ export const buildSonnetTextView = (
         dropShadow: baseDropShadow,
         padding: baseDropShadow ? Math.max(20, baseDropShadow.blur * 2.5) : 0,
     });
+
+    if (segment.text === '♪') {
+        const staffView = buildSonnetStaffView(
+            pixi,
+            placement,
+            options.theme,
+            options.baseFontSize,
+            options.shotStartTime,
+            options.width,
+            options.textLayer
+        );
+        const guide = createSonnetGuide(
+            pixi,
+            segment,
+            placement,
+            options.theme,
+            fontSize,
+            staffView.startTime,
+        );
+        if (!isDecoration) {
+            options.guideLayer.addChild(guide.container);
+        }
+        return {
+            segmentIndex: options.segmentIndex,
+            displayText: segment.text,
+            role: placement.role,
+            fontScale: placement.fontScale,
+            x: placement.x,
+            y: placement.y,
+            rotation: placement.rotation,
+            enterX: placement.enterX,
+            enterY: placement.enterY,
+            vertical: placement.vertical,
+            timingPhase: placement.timingPhase,
+            guide,
+            glyphs: [staffView],
+        };
+    }
 
     const glyphs: GlyphView[] = buildSonnetGlyphLayout(
         segment,
@@ -298,11 +338,18 @@ export const buildSonnetTextView = (
         options.guideLayer.addChild(guide.container);
     }
     return {
-        segment,
-        glyphs,
-        guide,
-        index: options.segmentIndex,
+        segmentIndex: options.segmentIndex,
+        displayText: segment.text,
         role: placement.role,
+        fontScale: placement.fontScale,
+        x: placement.x,
+        y: placement.y,
+        rotation: placement.rotation,
+        enterX: placement.enterX,
+        enterY: placement.enterY,
+        vertical: placement.vertical,
         timingPhase: placement.timingPhase,
+        guide,
+        glyphs,
     };
 };

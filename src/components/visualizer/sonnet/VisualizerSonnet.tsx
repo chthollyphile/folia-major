@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_SONNET_TUNING } from '../../../types';
 import type { Line } from '../../../types';
@@ -53,7 +54,55 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
         album: songAlbum,
     };
     const [runtimeFailed, setRuntimeFailed] = useState(false);
-    const programLines = showText && lines.length > 0 ? lines : EMPTY_SONNET_LINES;
+    const [isInstrumental, setIsInstrumental] = useState(false);
+    const lyricsSig = lines.length === 0 ? '' : `${lines.length}|${lines[0]?.fullText ?? ''}`;
+    const seedRef = useRef(seed);
+
+    useEffect(() => {
+        if (lyricsSig !== '') {
+            setIsInstrumental(false);
+            seedRef.current = seed;
+            return undefined;
+        }
+        if (seed !== seedRef.current) {
+            setIsInstrumental(false);
+            seedRef.current = seed;
+        }
+
+        let raf = 0;
+        let sawReset = false;
+        const startWall = performance.now();
+        const watch = () => {
+            const t = currentTime.get();
+            const capped = performance.now() - startWall >= 3000;
+            if (!sawReset && t < 1) sawReset = true;
+            if ((sawReset && t >= 2) || capped) {
+                setIsInstrumental(true);
+                return;
+            }
+            raf = requestAnimationFrame(watch);
+        };
+        raf = requestAnimationFrame(watch);
+        return () => cancelAnimationFrame(raf);
+    }, [seed, lyricsSig, currentTime]);
+
+    const virtualLines = useMemo(() => {
+        if (!isInstrumental) return EMPTY_SONNET_LINES;
+        const generated: Line[] = [];
+        for (let i = 0; i < 60; i++) {
+            generated.push({
+                id: `virtual-staff-${i}`,
+                startTime: i * 8,
+                endTime: i * 8 + 6,
+                fullText: '♪',
+                words: [],
+                isChorus: false,
+            });
+        }
+        return generated;
+    }, [isInstrumental]);
+
+    const programLines = showText ? (lines.length > 0 ? lines : virtualLines) : EMPTY_SONNET_LINES;
     const program = useMemo(
         () => compileSonnetProgram(programLines, seed),
         [programLines, seed],
@@ -81,6 +130,8 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                     theme,
                     tuning: sonnetTuning,
                     currentTime,
+                    audioPower,
+                    audioBands,
                     lyricsFontScale,
                     staticMode,
                     paused: pausedRef.current,
@@ -165,7 +216,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                             fontSize: `clamp(2rem, ${5.4 * lyricsFontScale}vw, 5.6rem)`,
                         }}
                     >
-                        {showText ? (activeLine?.fullText || t('ui.waitingForMusic')) : null}
+                        {showText && !isInstrumental ? (activeLine?.fullText || t('ui.waitingForMusic')) : null}
                     </div>
                 )}
             </div>

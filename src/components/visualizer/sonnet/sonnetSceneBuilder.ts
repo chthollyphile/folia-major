@@ -176,8 +176,14 @@ export const buildSonnetScene = (
         const textLayer = new Container();
         shotContainer.addChild(guideLayer, haloLayer, textLayer);
         postProcessFilters.push(...haloFilters);
+        // Virtual instrumental lines can share one shot; the complete staff belongs to the shot, not each line.
+        let staffViewAdded = false;
         placements.forEach((placement, placementIndex) => {
             const segment = segments[placement.segmentIndex];
+            if (segment.text === '♪') {
+                if (staffViewAdded) return;
+                staffViewAdded = true;
+            }
             views.push(buildSonnetTextView(
                 pixi,
                 {

@@ -13,6 +13,16 @@ import {
 type PixiModule = typeof import('pixi.js');
 
 const colorNumber = (pixi: PixiModule, color: string) => pixi.Color.shared.setValue(color).toNumber();
+const normalizeAudioLevel = (value: number) => Math.min(1, Math.max(0, value > 1 ? value / 255 : value));
+
+interface SonnetIconAnimation {
+    node: import('pixi.js').Container;
+    baseScale: number;
+    baseAlpha: number;
+    delay: number;
+    duration: number;
+    phase: number;
+}
 
 class AnimatedGraphics {
     public display: import('pixi.js').Graphics;
@@ -901,6 +911,8 @@ export const buildSonnetShotMg = (
     const particleLayer = new Container();
     const particleCount = kind === 'type-impact' ? 24 : 12;
     const hasIcons = theme.lyricsIcons && theme.lyricsIcons.length > 0;
+    const iconAnimations: SonnetIconAnimation[] = [];
+    let smoothedIconAudio = 0;
     
     for (let i = 0; i < particleCount; i++) {
         const pSize = 4 + (seed + i) % 12;
@@ -915,7 +927,17 @@ export const buildSonnetShotMg = (
                 s.anchor.set(0.5);
                 s.width = pSize * 7;
                 s.height = pSize * 7;
-                s.alpha = 0.85;
+                const iconSeed = Math.abs(seed + i * 17);
+                const baseScale = s.scale.x;
+                s.alpha = 0;
+                iconAnimations.push({
+                    node: s,
+                    baseScale,
+                    baseAlpha: 0.85,
+                    delay: (iconSeed % 5) * 0.12,
+                    duration: 0.62 + (iconSeed % 4) * 0.08,
+                    phase: (iconSeed % 31) * 0.2,
+                });
                 p = s;
             } else {
                 const g = new Graphics();
@@ -950,7 +972,15 @@ export const buildSonnetShotMg = (
     container.addChild(particleLayer);
     (container as any).particleLayer = particleLayer;
 
-    (container as any).updateTime = (time: number, cues: import('./types').SonnetAnimationCue[], startTime: number, endTime: number) => {
+    (container as any).updateTime = (
+        time: number,
+        cues: import('./types').SonnetAnimationCue[],
+        startTime: number,
+        endTime: number,
+        audioBass = 0,
+        audioPower = 0,
+        audioVocal = 0,
+    ) => {
         // Continuous bezier curve animation (ease-out cubic), ignoring rhythm cues for jumping,
         // but spanning the progress across the actual duration of the lyrics in this shot.
         
@@ -979,6 +1009,33 @@ export const buildSonnetShotMg = (
         const c = container as any;
         if (c.geo) c.geo.update(rawProgress);
         if (c.bg) c.bg.update(rawProgress);
+
+        const audioEnergy = normalizeAudioLevel(audioBass) * 0.34
+            + normalizeAudioLevel(audioVocal) * 0.52
+            + normalizeAudioLevel(audioPower) * 0.14;
+        // Ignore the idle breathing signal, then expand the audible range so medium peaks remain visible.
+        const gatedEnergy = Math.max(0, (audioEnergy - 0.08) / 0.92);
+        const targetIconAudio = Math.min(1, Math.pow(gatedEnergy, 0.68) * 1.35);
+        const smoothing = targetIconAudio > smoothedIconAudio ? 0.34 : 0.16;
+        smoothedIconAudio += (targetIconAudio - smoothedIconAudio) * smoothing;
+        iconAnimations.forEach(icon => {
+            const entryProgress = Math.min(
+                1,
+                Math.max(0, (time - startTime - icon.delay) / icon.duration),
+            );
+            const entryEased = 1 - Math.pow(1 - entryProgress, 3);
+            const loopPulse = (Math.sin((time - startTime) * Math.PI * 0.7 + icon.phase) + 1) * 0.5;
+            const audioScale = 1 + smoothedIconAudio * 0.42;
+            const loopScale = 1 + loopPulse * 0.025;
+
+            icon.node.alpha = Math.min(
+                1,
+                icon.baseAlpha * entryEased * (0.72 + smoothedIconAudio * 0.38 + loopPulse * 0.03),
+            );
+            icon.node.scale.set(
+                icon.baseScale * (0.72 + entryEased * 0.28) * audioScale * loopScale,
+            );
+        });
     };
 
     return container;

@@ -1,5 +1,5 @@
 import type { MotionValue } from 'framer-motion';
-import type { SonnetTuning, Theme } from '../../../types';
+import type { AudioBands, SonnetTuning, Theme } from '../../../types';
 import type { SonnetProgram } from './types';
 import { findSonnetParagraphIndexAtTime } from './sonnetProgram';
 import { buildSonnetIconDataUrl, buildSonnetIconTextureKey, resolveSonnetIconNames } from './sonnetIcons';
@@ -41,6 +41,8 @@ export interface SonnetRuntimeOptions {
     theme: Theme;
     tuning: SonnetTuning;
     currentTime: MotionValue<number>;
+    audioPower?: MotionValue<number>;
+    audioBands?: AudioBands;
     lyricsFontScale: number;
     staticMode: boolean;
     paused: boolean;
@@ -443,8 +445,20 @@ export class SonnetPixiRuntime {
             view.mgFixedGeoLayer.rotation = -view.container.rotation;
         }
 
+        const audioBass = this.options.audioBands?.bass?.get() ?? 0;
+        const audioPower = this.options.audioPower?.get() ?? 0;
+        const audioVocal = this.options.audioBands?.vocal?.get() ?? 0;
+
         if ((view.mgLayer as any).updateTime) {
-            (view.mgLayer as any).updateTime(time, view.shot.cues, view.shot.startTime, view.shot.endTime);
+            (view.mgLayer as any).updateTime(
+                time,
+                view.shot.cues,
+                view.shot.startTime,
+                view.shot.endTime,
+                audioBass,
+                audioPower,
+                audioVocal,
+            );
         }
 
         view.segments.forEach(segmentView => {
@@ -510,6 +524,8 @@ export class SonnetPixiRuntime {
                     glyph.caCyan.position.set(-currentOffset, currentOffset * 0.5);
                     glyph.caRed.position.set(currentOffset, -currentOffset * 0.5);
                 }
+
+                glyph.updateAnimation?.(time);
             });
         });
     }
