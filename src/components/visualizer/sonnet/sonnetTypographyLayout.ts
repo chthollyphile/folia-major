@@ -94,21 +94,45 @@ export const resolveSonnetTypographyLayout = ({
 
     // Deterministic pseudo-randomness for layout variations
     const layoutVariantSeed = segments.reduce((acc, seg) => acc + (seg.text.trim().length || 1), 0) + segments.length;
-    const editorialVariant = layoutVariantSeed % 3;
+    let editorialVariant = layoutVariantSeed % 4; // Expanded to 4 variants
     const ribbonVariant = layoutVariantSeed % 3;
     const tableauVariant = layoutVariantSeed % 2;
 
+    let secondaryHeroIndex = -1;
+    if (editorialVariant === 3 && segments.length > 2) {
+        let bestScore = -Infinity;
+        segments.forEach((segment, index) => {
+            if (index === heroIndex || !segment.isWordLike || visibleLength(segment) === 0) return;
+            const lengthScore = Math.min(visibleLength(segment), 8) * 14;
+            const durationScore = Math.min(2.5, Math.max(0, segment.endTime - segment.startTime)) * 18;
+            const distanceBonus = Math.abs(index - heroIndex) > 1 ? 50 : 0; 
+            const score = lengthScore + durationScore + distanceBonus;
+            if (score > bestScore) {
+                bestScore = score;
+                secondaryHeroIndex = index;
+            }
+        });
+        if (secondaryHeroIndex === -1) editorialVariant = 0;
+    } else if (editorialVariant === 3) {
+        editorialVariant = 0;
+    }
+
     // 1. Assign styles and measure boxes
     const boxes = segments.map((segment, index) => {
-        const isHero = index === heroIndex;
+        const isHero = index === heroIndex || (index === secondaryHeroIndex && shotKind === 'editorial-column' && editorialVariant === 3);
         let fontScale = 1.0;
         let vertical = false;
         let rotation = 0;
 
         switch (shotKind) {
             case 'editorial-column':
-                fontScale = isHero ? (editorialVariant === 2 ? 3.2 : 4.0) : 1.2;
-                vertical = isHero && editorialVariant !== 2;
+                if (editorialVariant === 3) {
+                    fontScale = isHero ? 3.8 : 1.3;
+                    vertical = false;
+                } else {
+                    fontScale = isHero ? (editorialVariant === 2 ? 3.2 : 4.0) : 1.2;
+                    vertical = isHero && editorialVariant !== 2;
+                }
                 break;
             case 'type-impact':
                 fontScale = isHero ? 5.5 : 1.5;
@@ -198,20 +222,22 @@ export const resolveSonnetTypographyLayout = ({
         if (shotKind === 'quiet-tableau') {
             if (tableauVariant === 0) {
                 // 1a. Strict Vertical Stack (Centered)
-                let currentY = heroBox.y - heroBox.measuredHeight / 2 - 15;
+                // Use a spacing factor (e.g., 0.6) because measuredHeight (1.2x font size) is too generous for this specific layout
+                const spacingFactor = 0.6;
+                let currentY = heroBox.y - (heroBox.measuredHeight * spacingFactor) / 2 - 5;
                 for (let i = heroIndex - 1; i >= 0; i--) {
                     const box = boxes[i];
                     box.x = heroBox.x;
-                    box.y = currentY - box.measuredHeight / 2;
-                    currentY -= box.measuredHeight + 15;
+                    box.y = currentY - (box.measuredHeight * spacingFactor) / 2;
+                    currentY -= (box.measuredHeight * spacingFactor) + 5;
                     box.enterX = 0; box.enterY = 20;
                 }
-                currentY = heroBox.y + heroBox.measuredHeight / 2 + 15;
+                currentY = heroBox.y + (heroBox.measuredHeight * spacingFactor) / 2 + 5;
                 for (let i = heroIndex + 1; i < boxes.length; i++) {
                     const box = boxes[i];
                     box.x = heroBox.x;
-                    box.y = currentY + box.measuredHeight / 2;
-                    currentY += box.measuredHeight + 15;
+                    box.y = currentY + (box.measuredHeight * spacingFactor) / 2;
+                    currentY += (box.measuredHeight * spacingFactor) + 5;
                     box.enterX = 0; box.enterY = -20;
                 }
             } else {
@@ -320,7 +346,7 @@ export const resolveSonnetTypographyLayout = ({
                     currentY += box.measuredHeight + 15;
                     box.enterX = -20; box.enterY = 0;
                 }
-            } else {
+            } else if (editorialVariant === 2) {
                 // 3c. Magazine Header: Horizontal hero at top, text blocks below in two columns
                 let currentXLeft = heroBox.x - heroBox.measuredWidth * 0.25 - 10;
                 let currentXRight = heroBox.x + heroBox.measuredWidth * 0.25 + 10;
@@ -342,6 +368,44 @@ export const resolveSonnetTypographyLayout = ({
                         box.enterX = 20; box.enterY = 0;
                     }
                 }
+            } else if (editorialVariant === 3) {
+                // 3d. Double Hero Lines (Two massive focal points on two offset lines)
+                const firstHero = Math.min(heroIndex, secondaryHeroIndex);
+                
+                // Line 1: index 0 to firstHero
+                let currentX1 = 0;
+                let line1Y = heroBox.y - heroBox.measuredHeight * 0.45 - 15;
+                for (let i = 0; i <= firstHero; i++) {
+                    const box = boxes[i];
+                    box.y = line1Y;
+                    box.x = currentX1 + box.measuredWidth / 2;
+                    currentX1 += box.measuredWidth + 20;
+                    box.enterX = 30; box.enterY = 0;
+                }
+                const line1Width = currentX1 - 20;
+                for (let i = 0; i <= firstHero; i++) {
+                    boxes[i].x -= line1Width / 2;
+                }
+
+                // Line 2: index firstHero + 1 to end
+                let currentX2 = 0;
+                let line2Y = heroBox.y + heroBox.measuredHeight * 0.45 + 15;
+                for (let i = firstHero + 1; i < boxes.length; i++) {
+                    const box = boxes[i];
+                    box.y = line2Y;
+                    box.x = currentX2 + box.measuredWidth / 2;
+                    currentX2 += box.measuredWidth + 20;
+                    box.enterX = -30; box.enterY = 0;
+                }
+                const line2Width = currentX2 > 0 ? currentX2 - 20 : 0;
+                for (let i = firstHero + 1; i < boxes.length; i++) {
+                    boxes[i].x -= line2Width / 2;
+                }
+                
+                // Offset the two lines to create a dynamic, staggered stairs typography feel
+                const offsetAmount = Math.max(line1Width, line2Width) * 0.12;
+                for (let i = 0; i <= firstHero; i++) boxes[i].x -= offsetAmount;
+                for (let i = firstHero + 1; i < boxes.length; i++) boxes[i].x += offsetAmount;
             }
         } else if (shotKind === 'fragment-collage') {
             // 4. Fragment Collage: Scattered, overlapping, chaotic positioning

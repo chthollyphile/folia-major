@@ -87,6 +87,7 @@ class AnimatedGraphics {
     }
     
     rect(x: number, y: number, w: number, h: number) {
+        this.currentPath.push({ type: 'rect_hint', x, y, w, h });
         this.moveTo(x, y).lineTo(x + w, y).lineTo(x + w, y + h).lineTo(x, y + h).lineTo(x, y);
         return this;
     }
@@ -109,21 +110,34 @@ class AnimatedGraphics {
         return this;
     }
     
-    update(progress: number) {
+    update(rawProgress: number) {
         this.display.clear();
         let strokeIndex = 0;
         for (const cmd of this.commands) {
             if (cmd.type === 'fill') {
                 this.display.moveTo(0, 0);
-                for (const p of cmd.path) {
-                    if (p.type === 'moveTo') this.display.moveTo(p.x, p.y);
-                    else if (p.type === 'lineTo') this.display.lineTo(p.x, p.y);
-                    else if (p.type === 'circle') this.display.circle(p.x, p.y, p.r);
-                    else if (p.type === 'arc') this.display.arc(p.cx, p.cy, p.r, p.start, p.end, p.anticlockwise);
-                    else if (p.type === 'quadraticCurveTo') this.display.quadraticCurveTo(p.cx, p.cy, p.tx, p.ty);
-                    else if (p.type === 'bezierCurveTo') this.display.bezierCurveTo(p.c1x, p.c1y, p.c2x, p.c2y, p.tx, p.ty);
+                let isRectWipe = false;
+                if (cmd.path.length === 6 && cmd.path[0].type === 'rect_hint') {
+                    isRectWipe = true;
+                    const r = cmd.path[0];
+                    // Left to right mask wipe: just animate the width
+                    const wipeProgress = 1 - Math.pow(1 - rawProgress, 3); // Cubic ease-out
+                    this.display.rect(r.x, r.y, r.w * wipeProgress, r.h);
                 }
-                const alpha = (cmd.options.alpha ?? 1) * Math.min(1, progress * 2);
+
+                if (!isRectWipe) {
+                    for (const p of cmd.path) {
+                        if (p.type === 'rect_hint') continue;
+                        if (p.type === 'moveTo') this.display.moveTo(p.x, p.y);
+                        else if (p.type === 'lineTo') this.display.lineTo(p.x, p.y);
+                        else if (p.type === 'circle') this.display.circle(p.x, p.y, p.r);
+                        else if (p.type === 'arc') this.display.arc(p.cx, p.cy, p.r, p.start, p.end, p.anticlockwise);
+                        else if (p.type === 'quadraticCurveTo') this.display.quadraticCurveTo(p.cx, p.cy, p.tx, p.ty);
+                        else if (p.type === 'bezierCurveTo') this.display.bezierCurveTo(p.c1x, p.c1y, p.c2x, p.c2y, p.tx, p.ty);
+                    }
+                }
+                const alphaProgress = 1 - Math.pow(1 - Math.min(1, rawProgress * 2), 3); // Ease out alpha over first 50%
+                const alpha = (cmd.options.alpha ?? 1) * alphaProgress;
                 this.display.fill({ ...cmd.options, alpha });
             } else if (cmd.type === 'stroke') {
                 if (cmd.length <= 0) continue;
@@ -131,13 +145,15 @@ class AnimatedGraphics {
                 // Add extreme stagger effect based on stroke index to create significant speed differences
                 const delay = (strokeIndex * 0.23) % 0.4; // Starts anywhere between 0.0 and 0.4
                 const finishTime = 0.5 + ((strokeIndex * 0.31) % 0.5); // Ends anywhere between 0.5 and 1.0
-                const localProgress = Math.min(1, Math.max(0, (progress - delay) / (finishTime - delay)));
+                const localRaw = Math.min(1, Math.max(0, (rawProgress - delay) / (finishTime - delay)));
+                const localProgress = 1 - Math.pow(1 - localRaw, 3); // Apply cubic ease-out LOCALLY
                 strokeIndex++;
 
                 const targetLen = cmd.length * localProgress;
                 let currentLen = 0;
                 
                 for (const p of cmd.path) {
+                    if (p.type === 'rect_hint') continue;
                     if (p.type === 'moveTo') {
                         this.display.moveTo(p.x, p.y);
                     } else {
@@ -766,19 +782,19 @@ export const buildSonnetShotMg = (
         } else {
             // Variant 13: Sacred Geometry (Seed of Life)
             const soflR = radius * 0.25; // radius of each circle
-            const drawIntersectingCircle = (cx: number, cy: number) => {
-                geo!.circle(cx, cy, soflR).stroke({ color: primary, width: 2, alpha: 0.6 });
+            const drawIntersectingCircle = (cx: number, cy: number, alpha: number) => {
+                geo!.circle(cx, cy, soflR).stroke({ color: primary, width: 1.5, alpha });
             };
             
-            // Center circle
-            drawIntersectingCircle(0, 0);
+            // Center circle (stronger)
+            drawIntersectingCircle(0, 0, 0.35);
             
             // 6 surrounding circles
             for(let i = 0; i < 6; i++) {
                 const angle = (i / 6) * Math.PI * 2;
                 const cx = Math.cos(angle) * soflR;
                 const cy = Math.sin(angle) * soflR;
-                drawIntersectingCircle(cx, cy);
+                drawIntersectingCircle(cx, cy, 0.2); // Mid opacity
             }
             
             // 12 outer circles for next layer
@@ -788,30 +804,25 @@ export const buildSonnetShotMg = (
                 const dist = i % 2 === 0 ? soflR * 2 : soflR * Math.sqrt(3);
                 const cx = Math.cos(angle) * dist;
                 const cy = Math.sin(angle) * dist;
-                geo!.circle(cx, cy, soflR).stroke({ color: primary, width: 1, alpha: 0.3 });
+                geo!.circle(cx, cy, soflR).stroke({ color: secondary, width: 1, alpha: 0.1 }); // Recessive secondary color
             }
             
             // Bounding circles
-            geo!.circle(0, 0, soflR * 3).stroke({ color: primary, width: 2, alpha: 0.5 });
-            geo!.circle(0, 0, soflR * 3.1).stroke({ color: primary, width: 1, alpha: 0.3 });
+            geo!.circle(0, 0, soflR * 3).stroke({ color: primary, width: 1.5, alpha: 0.2 });
+            geo!.circle(0, 0, soflR * 3.1).stroke({ color: secondary, width: 1, alpha: 0.08 });
             
-            // Radial connection lines
+            // Radial connection lines (barely visible to avoid spiderweb feel)
             for(let i = 0; i < 12; i++) {
                 const angle = (i / 12) * Math.PI * 2;
                 geo!.moveTo(Math.cos(angle) * soflR * 0.5, Math.sin(angle) * soflR * 0.5)
                    .lineTo(Math.cos(angle) * soflR * 3, Math.sin(angle) * soflR * 3)
-                   .stroke({ color: primary, width: 1, alpha: 0.2 });
+                   .stroke({ color: secondary, width: 1, alpha: 0.05 });
             }
         }
 
-        // Intersecting Rectangles with Hatching (Shared across all variants to maintain PV consistency)
-        const fixedGeoLayer = new Container();
-        const fixedGeo = new AnimatedGraphics(pixi);
-        fixedGeo.rect(-radius * 0.4, -radius * 0.2, radius * 0.6, radius * 0.15).fill({ color: primary, alpha: 0.7 });
-        fixedGeo.rect(-radius * 0.1, radius * 0.1, radius * 0.5, radius * 0.3).stroke({ color: primary, width: 2, alpha: 0.6 });
-        fixedGeoLayer.addChild(fixedGeo.display);
-        (container as any).fixedGeo = fixedGeo;
+        // Randomized Geometric Composition moved to sonnetTextViewBuilder so they accompany text
         
+        // Selectively apply deterministic rotation based on variant compatibility
         // Selectively apply deterministic rotation based on variant compatibility
         if (![6, 8, 9].includes(geoVariant)) {
             // Arbitrary rotation
@@ -822,12 +833,6 @@ export const buildSonnetShotMg = (
         }
         
         container.addChild(geo!.display);
-
-        // Add hatching rect
-        drawHatching(-radius * 0.3, -radius * 0.4, radius * 0.4, radius * 0.25, 6, fixedGeoLayer);
-        
-        container.addChild(fixedGeoLayer);
-        (container as any).fixedGeoLayer = fixedGeoLayer;
     } else if (kind === 'editorial-column') {
         // Strict grids
         for (let i = 1; i <= 6; i++) {
@@ -926,15 +931,12 @@ export const buildSonnetShotMg = (
         const drawDuration = Math.max(1.0, targetFinishTime - startTime);
         const rawProgress = Math.min(1, Math.max(0, (time - startTime) / drawDuration));
         
-        // Cubic ease-in-out (slow at start, fast in middle, slow at end)
-        const currentProgress = rawProgress < 0.5 
-            ? 4 * rawProgress * rawProgress * rawProgress 
-            : 1 - Math.pow(-2 * rawProgress + 2, 3) / 2;
+        // Pass rawProgress down; AnimatedGraphics handles its own local easing
+        // to prevent staggered elements from having their curves truncated
         
         const c = container as any;
-        if (c.geo) c.geo.update(currentProgress);
-        if (c.fixedGeo) c.fixedGeo.update(currentProgress);
-        if (c.bg) c.bg.update(currentProgress);
+        if (c.geo) c.geo.update(rawProgress);
+        if (c.bg) c.bg.update(rawProgress);
     };
 
     return container;
