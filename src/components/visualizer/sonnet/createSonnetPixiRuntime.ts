@@ -237,25 +237,6 @@ export class SonnetPixiRuntime {
         // Bottom-Left diamond
         g.moveTo(paddingX, height - paddingY - 4).lineTo(paddingX + 4, height - paddingY).lineTo(paddingX, height - paddingY + 4).lineTo(paddingX - 4, height - paddingY).fill({ color: primary, alpha: 0.7 });
 
-        // Minimalist Asymmetrical Typography
-        const textStyle = new this.pixi.TextStyle({
-            fontFamily: 'sans-serif',
-            fontSize: 10,
-            fill: primary,
-            letterSpacing: 4,
-            fontWeight: 'bold'
-        });
-
-        const topText = new this.pixi.Text({ text: 'SONNET', style: textStyle });
-        topText.alpha = 0.5;
-        topText.position.set(paddingX + 40, paddingY - 2);
-        topText.anchor.set(0, 0);
-
-        const bottomText = new this.pixi.Text({ text: 'VISUALIZER', style: textStyle });
-        bottomText.alpha = 0.5;
-        bottomText.position.set(width - paddingX - 150, height - paddingY);
-        bottomText.anchor.set(0, 0.5);
-
         // Typographic star ✦
         const starStyle = new this.pixi.TextStyle({
             fontFamily: 'sans-serif',
@@ -267,7 +248,7 @@ export class SonnetPixiRuntime {
         starText.position.set(width - paddingX - 10, height - paddingY);
         starText.anchor.set(1, 0.5);
 
-        this.overlayContainer.addChild(g, topText, bottomText, starText);
+        this.overlayContainer.addChild(g, starText);
     }
 
     private async preloadIcons() {
