@@ -29,6 +29,7 @@ export interface ShotView {
     basePivotX: number;
     basePivotY: number;
     haloLayer: import('pixi.js').Container;
+    mgLayer: import('pixi.js').Container;
     mgParticleLayer?: import('pixi.js').Container;
     mgFixedGeoLayer?: import('pixi.js').Container;
 }
@@ -224,6 +225,7 @@ export const buildSonnetScene = (
             basePivotX: focusX,
             basePivotY: focusY,
             haloLayer,
+            mgLayer,
             mgParticleLayer,
             mgFixedGeoLayer,
         };

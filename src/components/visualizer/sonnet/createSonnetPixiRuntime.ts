@@ -386,6 +386,10 @@ export class SonnetPixiRuntime {
             view.mgFixedGeoLayer.rotation = -view.container.rotation;
         }
 
+        if ((view.mgLayer as any).updateTime) {
+            (view.mgLayer as any).updateTime(time, view.shot.cues, view.shot.startTime, view.shot.endTime);
+        }
+
         view.segments.forEach(segmentView => {
             const guide = segmentView.guide;
             const guideActive = time >= guide.startTime && time <= guide.endTime;
