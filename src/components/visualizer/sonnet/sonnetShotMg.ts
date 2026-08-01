@@ -78,7 +78,10 @@ class AnimatedGraphics {
         const anticlockwise = Math.random() > 0.5;
         const diff = anticlockwise ? -Math.PI * 2 : Math.PI * 2;
         const len = Math.PI * 2 * r;
+        const startX = x + Math.cos(start) * r;
+        const startY = y + Math.sin(start) * r;
         
+        this.moveTo(startX, startY);
         this.currentPath.push({ type: 'arc', cx: x, cy: y, r, start, end: start + diff, anticlockwise, len, diff });
         this.currentLength += len;
         this.lastX = x + Math.cos(start + diff) * r;
