@@ -922,11 +922,19 @@ export const buildSonnetShotMg = (
         
         let targetFinishTime = endTime;
         if (cues.length > 0) {
-            // Reaches 1.0 when the last lyric word of this background starts
-            targetFinishTime = cues[cues.length - 1].at;
+            // Previously this just used cues[cues.length - 1].at, but if the last word is a long held note,
+            // the background finishes drawing way too early and sits frozen.
+            // By enforcing a minimum of 85% of the total shot duration, we ensure long shots have continuous background motion.
+            const lastWordStart = cues[cues.length - 1].at;
+            targetFinishTime = Math.max(
+                lastWordStart,
+                startTime + (endTime - startTime) * 0.85
+            );
         } else {
-            targetFinishTime = startTime + (endTime - startTime) * 0.8;
+            targetFinishTime = startTime + (endTime - startTime) * 0.85;
         }
+        
+        targetFinishTime = Math.min(endTime, targetFinishTime);
         
         const drawDuration = Math.max(1.0, targetFinishTime - startTime);
         const rawProgress = Math.min(1, Math.max(0, (time - startTime) / drawDuration));
