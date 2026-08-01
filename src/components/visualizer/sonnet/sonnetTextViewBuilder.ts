@@ -200,9 +200,10 @@ export const buildSonnetTextView = (
 
 
     // Randomized background geometry accompanying specific text segments
-    const isChorus = options.paragraphKind === 'chorus';
+    const isChorusParagraph = options.paragraphKind === 'chorus';
     const textSeed = segment.text.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + options.segmentIndex * 13;
-    const shapeThreshold = isChorus ? 65 : 25; // Higher chance in chorus
+    const isChorusEffect = isChorusParagraph || ((textSeed % 100) < 35);
+    const shapeThreshold = isChorusEffect ? 65 : 25; // Higher chance in chorus effect
     const shouldAddBgShape = (textSeed % 100) < shapeThreshold && !isDecoration && segment.isWordLike && glyphs.length > 0;
 
     if (shouldAddBgShape) {
@@ -214,8 +215,8 @@ export const buildSonnetTextView = (
         const bgShape = new pixi.Graphics();
         let blockType = textSeed % 4; // 0: solid rect, 1: hollow rect, 2: 45deg hollow rect, 3: abstract sphere
         
-        if (isChorus) {
-            // Bias towards hollow frames in chorus
+        if (isChorusEffect) {
+            // Bias towards hollow frames in chorus effect
             const chorusSeed = textSeed % 10;
             if (chorusSeed < 5) blockType = 1;      // 50% hollow rect
             else if (chorusSeed < 9) blockType = 2; // 40% 45deg hollow rect
@@ -223,10 +224,10 @@ export const buildSonnetTextView = (
         }
 
         const color = (textSeed % 2 === 0) ? options.theme.primaryColor : options.theme.secondaryColor;
-        const alpha = (isChorus ? 0.4 : 0.25) + (textSeed % 10) * 0.03;
+        const alpha = (isChorusEffect ? 0.4 : 0.25) + (textSeed % 10) * 0.03;
         
         // Size proportional to the word size and overall layout
-        const scaleMultiplier = isChorus ? (1.5 + (textSeed % 5) * 0.3) : 1.0;
+        const scaleMultiplier = isChorusEffect ? (1.5 + (textSeed % 5) * 0.3) : 1.0;
         const w = Math.max(fontSize * 2.5 * scaleMultiplier, options.width * 0.12 * scaleMultiplier);
         const h = blockType === 3 ? w : Math.max(fontSize * 1.8 * scaleMultiplier, options.width * 0.08 * scaleMultiplier);
         
@@ -237,7 +238,7 @@ export const buildSonnetTextView = (
             bgShape.rect(x, y, w, h).fill({ color, alpha });
         } else if (blockType === 1) {
             bgShape.rect(x, y, w, h).stroke({ color, width: Math.max(1.5, fontSize * 0.02), alpha });
-            if (isChorus && textSeed % 2 === 0) {
+            if (isChorusEffect && textSeed % 2 === 0) {
                 // Double concentric frame for explosiveness
                 bgShape.rect(x * 1.2, y * 1.2, w * 1.2, h * 1.2).stroke({ color, width: 1, alpha: alpha * 0.5 });
             }
@@ -245,14 +246,14 @@ export const buildSonnetTextView = (
             const rw = w * 0.8;
             const rh = h * 0.8;
             bgShape.rect(-rw / 2, -rh / 2, rw, rh).stroke({ color, width: Math.max(1.5, fontSize * 0.02), alpha });
-            if (isChorus && textSeed % 2 === 0) {
+            if (isChorusEffect && textSeed % 2 === 0) {
                 // Double concentric frame
                 bgShape.rect(-rw * 0.6, -rh * 0.6, rw * 1.2, rh * 1.2).stroke({ color, width: 1, alpha: alpha * 0.5 });
             }
             bgShape.rotation = Math.PI / 4;
         } else if (blockType === 3) {
             const r = w * 0.5;
-            bgShape.circle(0, 0, r).fill({ color, alpha: alpha * 0.8 });
+            bgShape.circle(0, 0, r).fill({ color, alpha: alpha * 0.15 });
             
             const hatch = new pixi.Graphics();
             const hatchSpacing = Math.max(4, w * 0.05);
