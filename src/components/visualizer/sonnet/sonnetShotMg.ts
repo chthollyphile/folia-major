@@ -958,14 +958,14 @@ export const buildSonnetShotMg = (
         if (cues.length > 0) {
             // Previously this just used cues[cues.length - 1].at, but if the last word is a long held note,
             // the background finishes drawing way too early and sits frozen.
-            // By enforcing a minimum of 85% of the total shot duration, we ensure long shots have continuous background motion.
+            // By enforcing a minimum of 95% of the total shot duration, we ensure long shots have continuous background motion.
             const lastWordStart = cues[cues.length - 1].at;
             targetFinishTime = Math.max(
                 lastWordStart,
-                startTime + (endTime - startTime) * 0.85
+                startTime + (endTime - startTime) * 0.95
             );
         } else {
-            targetFinishTime = startTime + (endTime - startTime) * 0.85;
+            targetFinishTime = startTime + (endTime - startTime) * 0.95;
         }
         
         targetFinishTime = Math.min(endTime, targetFinishTime);

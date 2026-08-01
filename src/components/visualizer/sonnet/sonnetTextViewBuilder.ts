@@ -203,7 +203,7 @@ export const buildSonnetTextView = (
     const isChorusParagraph = options.paragraphKind === 'chorus';
     const textSeed = segment.text.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + options.segmentIndex * 13;
     const isChorusEffect = isChorusParagraph || ((textSeed % 100) < 35);
-    const shapeThreshold = isChorusEffect ? 65 : 25; // Higher chance in chorus effect
+    const shapeThreshold = isChorusEffect ? 40 : 25; // Higher chance in chorus effect
     const shouldAddBgShape = (textSeed % 100) < shapeThreshold && !isDecoration && segment.isWordLike && glyphs.length > 0;
 
     if (shouldAddBgShape) {
