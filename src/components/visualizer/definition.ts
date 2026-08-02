@@ -59,7 +59,9 @@ export interface VisualizerSharedProps {
     subtitleContentMode?: SubtitleContentMode;
     paused?: boolean;
     onBack?: () => void;
+    isPanelOpen?: boolean;
     alwaysShowBackButton?: boolean;
+    onPlayerPanelGuideHotspotChange?: (isActive: boolean) => void;
     onLyricLineSeek?: (lyricTimeSec: number) => void;
     isPreviewMode?: boolean;
     visualizerTunings?: VisualizerTuningBundle;

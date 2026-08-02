@@ -64,6 +64,7 @@ type BuildPlayerPanelModelParams = {
     handleSetVolume: UnifiedPanelProps['playback']['onVolumeChange'];
     handleToggleMute: UnifiedPanelProps['playback']['onToggleMute'];
     showOpenPanelCloseButton: UnifiedPanelProps['playback']['showOpenPanelCloseButton'];
+    isPanelGuideHotspotActive: boolean;
     hideToggleButton: boolean;
     activePlaybackContext: 'main' | 'stage';
     isNowPlayingControlDisabled: boolean;
@@ -159,6 +160,7 @@ export const buildPlayerPanelModel = ({
     handleSetVolume,
     handleToggleMute,
     showOpenPanelCloseButton,
+    isPanelGuideHotspotActive,
     hideToggleButton,
     activePlaybackContext,
     isNowPlayingControlDisabled,
@@ -253,6 +255,7 @@ export const buildPlayerPanelModel = ({
             onVolumeChange: handleSetVolume,
             onToggleMute: handleToggleMute,
             showOpenPanelCloseButton,
+            isPanelGuideHotspotActive,
             hideToggleButton,
             isStageContext: activePlaybackContext === 'stage',
             playbackControlsDisabled: isNowPlayingControlDisabled,

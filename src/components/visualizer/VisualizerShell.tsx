@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
@@ -21,7 +21,9 @@ type VisualizerShellSharedProps = Pick<
     | 'backgroundStaticMode'
     | 'paused'
     | 'onBack'
+    | 'isPanelOpen'
     | 'alwaysShowBackButton'
+    | 'onPlayerPanelGuideHotspotChange'
 >;
 
 interface VisualizerShellProps {
@@ -34,6 +36,15 @@ interface VisualizerShellProps {
     className?: string;
 }
 
+const PLAYER_CHROME_HOTSPOT_SIZE = 120;
+const TOUCH_GUIDE_DISPLAY_MS = 1400;
+
+const isNearPlayerPanelHotspot = (clientX: number, clientY: number) => (
+    typeof window !== 'undefined'
+    && clientX >= window.innerWidth - PLAYER_CHROME_HOTSPOT_SIZE
+    && clientY >= window.innerHeight - PLAYER_CHROME_HOTSPOT_SIZE
+);
+
 const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     theme,
     audioPower,
@@ -45,6 +56,8 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+    const playerPanelGuideHotspotRef = useRef(false);
+    const touchGuideHideTimeoutRef = useRef<number | null>(null);
     const resolvedCoverUrl = sharedProps?.coverUrl;
     const resolvedIsDaylight = sharedProps?.isDaylight ?? false;
     const resolvedVisualizerOpacity = sharedProps?.visualizerOpacity ?? visualizerOpacity;
@@ -52,7 +65,43 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const resolvedBackgroundStaticMode = sharedProps?.backgroundStaticMode ?? false;
     const resolvedPaused = sharedProps?.paused ?? false;
     const resolvedOnBack = sharedProps?.onBack;
+    const resolvedIsPanelOpen = sharedProps?.isPanelOpen ?? false;
+    const onPlayerPanelGuideHotspotChange = sharedProps?.onPlayerPanelGuideHotspotChange;
     const isBackButtonVisible = sharedProps?.alwaysShowBackButton || showBackButton;
+
+    const updatePlayerPanelGuideHotspot = (isActive: boolean) => {
+        if (playerPanelGuideHotspotRef.current === isActive) {
+            return;
+        }
+
+        playerPanelGuideHotspotRef.current = isActive;
+        onPlayerPanelGuideHotspotChange?.(isActive);
+    };
+
+    const clearTouchGuideHideTimeout = () => {
+        if (touchGuideHideTimeoutRef.current === null) {
+            return;
+        }
+
+        window.clearTimeout(touchGuideHideTimeoutRef.current);
+        touchGuideHideTimeoutRef.current = null;
+    };
+
+    const showTouchPanelGuide = () => {
+        clearTouchGuideHideTimeout();
+        updatePlayerPanelGuideHotspot(true);
+        touchGuideHideTimeoutRef.current = window.setTimeout(() => {
+            touchGuideHideTimeoutRef.current = null;
+            updatePlayerPanelGuideHotspot(false);
+        }, TOUCH_GUIDE_DISPLAY_MS);
+    };
+
+    useEffect(() => () => {
+        clearTouchGuideHideTimeout();
+        if (playerPanelGuideHotspotRef.current) {
+            onPlayerPanelGuideHotspotChange?.(false);
+        }
+    }, [onPlayerPanelGuideHotspotChange]);
 
     /* eslint-disable-next-line no-warning-comments -- @AI: KEEP THIS EXACTLY AS IS */
     // @note Version Control: Project Folia version 0.5.27-a16525c
@@ -78,15 +127,29 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
             onMouseMove={(event) => {
                 // Back button is intentionally hidden most of the time.
                 // Only reveal it near the top-left hot area so it does not pollute the visual field.
-                const nearBackArea = event.clientX <= 120 && event.clientY <= 120;
+                const nearBackArea = event.clientX <= PLAYER_CHROME_HOTSPOT_SIZE && event.clientY <= PLAYER_CHROME_HOTSPOT_SIZE;
                 if (nearBackArea !== showBackButton) {
                     setShowBackButton(nearBackArea);
                 }
+
+                updatePlayerPanelGuideHotspot(!resolvedIsPanelOpen && isNearPlayerPanelHotspot(event.clientX, event.clientY));
             }}
             onMouseLeave={() => {
                 if (showBackButton) {
                     setShowBackButton(false);
                 }
+                updatePlayerPanelGuideHotspot(false);
+            }}
+            onPointerDown={(event) => {
+                if (resolvedIsPanelOpen || event.pointerType !== 'touch' || !isNearPlayerPanelHotspot(event.clientX, event.clientY)) {
+                    return;
+                }
+
+                showTouchPanelGuide();
+            }}
+            onPointerCancel={() => {
+                clearTouchGuideHideTimeout();
+                updatePlayerPanelGuideHotspot(false);
             }}
         >
             {resolvedOnBack && (

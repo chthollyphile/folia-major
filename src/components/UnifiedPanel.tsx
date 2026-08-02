@@ -19,6 +19,8 @@ import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSourceRef, getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 
+const TOUCH_GUIDE_DISPLAY_MS = 1400;
+
 export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics';
 
 type UnifiedPanelPlaybackProps = {
@@ -75,6 +77,7 @@ type UnifiedPanelPlaybackProps = {
     onVolumeChange: (val: number) => void;
     onToggleMute: () => void;
     showOpenPanelCloseButton: boolean;
+    isPanelGuideHotspotActive?: boolean;
     hideToggleButton?: boolean;
     isStageContext?: boolean;
     playbackControlsDisabled?: boolean;
@@ -191,6 +194,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         onVolumeChange,
         onToggleMute,
         showOpenPanelCloseButton,
+        isPanelGuideHotspotActive = false,
         hideToggleButton = false,
         isStageContext = false,
         playbackControlsDisabled = false,
@@ -235,6 +239,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const [navidromePlaylists, setNavidromePlaylists] = React.useState<Array<{ id: string; name: string; description?: string; }>>([]);
     const [showGuideLine, setShowGuideLine] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
+    const guideHideTimeoutRef = React.useRef<number | null>(null);
 
     const isStage = isStageContext || Boolean(currentSong && (currentSong as any).isStage === true);
     const isNavidrome = currentSong && (currentSong as any).isNavidrome === true;
@@ -338,12 +343,13 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-900';
     const activeTabBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const tabSwitcherBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
-    const toggleButtonMotionClass = (isOpen || showGuideLine || isDragging)
+    const canSlideOpenCommandPalette = !isOpen && Boolean(onOpenCommandPalette);
+    const isGuideLineVisible = canSlideOpenCommandPalette && (showGuideLine || isPanelGuideHotspotActive);
+    const toggleButtonMotionClass = (isOpen || isGuideLineVisible || isDragging)
         ? 'translate-x-0 opacity-100'
         : supportsHover
             ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
             : 'translate-x-1/2 opacity-60';
-    const canSlideOpenCommandPalette = !isOpen && Boolean(onOpenCommandPalette);
     const setCommandDestinationFeedback = (progress: number) => {
         const iconContainer = trackEndIconRef.current;
         if (!iconContainer) {
@@ -558,6 +564,25 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             setShowGuideLine(false);
         }
     };
+    const handleToggleHotspotPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'touch' || !canSlideOpenCommandPalette) {
+            return;
+        }
+
+        if (event.target instanceof Node && toggleButtonRef.current?.contains(event.target)) {
+            return;
+        }
+
+        if (guideHideTimeoutRef.current !== null) {
+            window.clearTimeout(guideHideTimeoutRef.current);
+        }
+
+        setShowGuideLine(true);
+        guideHideTimeoutRef.current = window.setTimeout(() => {
+            guideHideTimeoutRef.current = null;
+            setShowGuideLine(false);
+        }, TOUCH_GUIDE_DISPLAY_MS);
+    };
     const clearToggleButtonGesture = () => {
         commandSlideRef.current = null;
         resetToggleButtonDragFeedback();
@@ -592,6 +617,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             setIsCreatePlaylistOpen(false);
         }
     }, [isOpen]);
+
+    React.useEffect(() => () => {
+        if (guideHideTimeoutRef.current !== null) {
+            window.clearTimeout(guideHideTimeoutRef.current);
+        }
+    }, []);
 
     React.useEffect(() => {
         setIsCoverActionsVisible(false);
@@ -981,6 +1012,9 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                         }
                         transition={{ duration: 0.24, ease: 'easeOut' }}
                         className="pointer-events-auto fixed bottom-8 right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end"
+                        onMouseEnter={handleToggleButtonMouseEnter}
+                        onMouseLeave={handleToggleButtonMouseLeave}
+                        onPointerDown={handleToggleHotspotPointerDown}
                     >
                         {/* Wrapper for both track and button to guarantee perfect alignment across browsers */}
                         <div className={`relative w-12 h-12 transition-all duration-300 transform ${toggleButtonMotionClass}`}>
@@ -991,7 +1025,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     transition: 'opacity 200ms ease-out',
                                 }}
                                 className={`absolute right-0 top-0 h-12 rounded-full border pointer-events-none z-0 ${
-                                    showGuideLine || isDragging
+                                    isGuideLineVisible || isDragging
                                         ? 'opacity-100'
                                         : 'opacity-0'
                                 } ${
@@ -1003,14 +1037,14 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                 {/* Semi-transparent command icon at the left end of the track */}
                                 <motion.div 
                                     className="absolute left-3.5 top-[17px] w-3.5 h-3.5 pointer-events-none flex items-center justify-center"
-                                    animate={showGuideLine ? {
+                                    animate={isGuideLineVisible ? {
                                         x: [0, -4, 0],
                                         opacity: [0.45, 0.85, 0.45],
                                     } : {
                                         x: 0,
                                         opacity: 0.45,
                                     }}
-                                    transition={showGuideLine ? {
+                                    transition={isGuideLineVisible ? {
                                         duration: 1.5,
                                         repeat: Infinity,
                                         ease: "easeInOut",
@@ -1046,8 +1080,6 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                 onPointerMove={handleToggleButtonPointerMove}
                                 onPointerUp={clearToggleButtonGesture}
                                 onPointerCancel={clearToggleButtonGesture}
-                                onMouseEnter={handleToggleButtonMouseEnter}
-                                onMouseLeave={handleToggleButtonMouseLeave}
                                 onClick={handleToggleButtonClick}
                                 style={{ touchAction: canSlideOpenCommandPalette ? 'none' : undefined }}
                                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform

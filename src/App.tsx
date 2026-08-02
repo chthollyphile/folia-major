@@ -122,6 +122,7 @@ export default function App() {
     // UI State
     const [statusMsg, setStatusMsg] = useState<StatusMessage | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [isPlayerPanelGuideHotspotActive, setIsPlayerPanelGuideHotspotActive] = useState(false);
     useElectronNeteaseApiStatus(setStatusMsg, t);
 
     // Auto-close the player panel when leaving the player view
@@ -805,6 +806,12 @@ export default function App() {
             setIsPanelOpen(false);
         }
     }, [currentView, isPanelOpen]);
+
+    useEffect(() => {
+        if (isPanelOpen) {
+            setIsPlayerPanelGuideHotspotActive(previous => previous ? false : previous);
+        }
+    }, [isPanelOpen]);
 
     const {
         isSearchOpen,
@@ -2480,6 +2487,7 @@ export default function App() {
         handleSetVolume,
         handleToggleMute,
         showOpenPanelCloseButton,
+        isPanelGuideHotspotActive: isPlayerPanelGuideHotspotActive,
         hideToggleButton: isPlayerChromeHidden || shouldHidePlayerRightPanelButton,
         activePlaybackContext,
         isNowPlayingControlDisabled,
@@ -2663,6 +2671,7 @@ export default function App() {
         isMuted,
         isNowPlayingControlDisabled,
         isPanelOpen,
+        isPlayerPanelGuideHotspotActive,
         isActiveProviderSyncing,
         likedSongIds,
         onlineProviderPlatform.providers,
@@ -3170,7 +3179,9 @@ export default function App() {
                         monetPortraitImage={monetPortraitImage}
                         onLyricLineSeek={['monet', 'pendolo'].includes(visualizerMode) ? handleMonetLyricLineSeek : undefined}
                         onBack={navigateBackFromPlayer}
-                        alwaysShowBackButton={alwaysShowPlayerBackButton}
+                        isPanelOpen={isPanelOpen}
+                        alwaysShowBackButton={alwaysShowPlayerBackButton || isPanelOpen}
+                        onPlayerPanelGuideHotspotChange={setIsPlayerPanelGuideHotspotActive}
                     />
                 )}
             </div>
