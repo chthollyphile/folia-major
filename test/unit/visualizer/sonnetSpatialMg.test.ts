@@ -5,12 +5,12 @@ import {
 } from '@/components/visualizer/sonnet/sonnetSpatialMgGeometry';
 
 // test/unit/visualizer/sonnetSpatialMg.test.ts
-// Locks the expanded cuboid recipes into Sonnet's existing single MG scene collection.
+// Locks the expanded geometric recipes into Sonnet's existing single MG scene collection.
 describe('Sonnet spatial MG variants', () => {
-    it('extends the original fourteen-scene collection without a second layer family', () => {
-        expect(SONNET_GEO_VARIANT_COUNT).toBe(18);
-        expect(Array.from({ length: 18 }, (_, seed) => resolveSonnetGeoVariant(seed)))
-            .toEqual(Array.from({ length: 18 }, (_, seed) => seed));
+    it('extends the original collection without a second layer family', () => {
+        expect(SONNET_GEO_VARIANT_COUNT).toBe(24);
+        expect(Array.from({ length: 24 }, (_, seed) => resolveSonnetGeoVariant(seed)))
+            .toEqual(Array.from({ length: 24 }, (_, seed) => seed));
     });
 
     it('keeps selection deterministic and safe for negative seeds', () => {

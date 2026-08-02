@@ -8,6 +8,7 @@ import {
     resolveSonnetGeoVariant,
 } from './sonnetSpatialMgGeometry';
 import { buildSonnetIconParticleIndices } from './sonnetIcons';
+import { drawAdditionalSonnetShotMg } from './sonnetAdditionalShotMg';
 
 // src/components/visualizer/sonnet/sonnetShotMg.ts
 // Builds PV style high-density semantic decorative elements (HUD, Geometric Chaos, Particles)
@@ -858,19 +859,27 @@ export const buildSonnetShotMg = (
             drawSonnetHexagonalPrism(geo, radius * 0.12 * direction, 0, radius * 0.68, radius * 0.72, radius * 0.2 * direction, -radius * 0.14, primary, 0.32);
             drawSonnetHexagonalPrism(geo, -radius * 0.48 * direction, radius * 0.27, radius * 0.25, radius * 0.28, radius * 0.07 * direction, -radius * 0.05, primary, 0.2);
             drawSonnetHexagonalPrism(geo, radius * 0.52 * direction, -radius * 0.3, radius * 0.18, radius * 0.2, -radius * 0.06 * direction, -radius * 0.045, primary, 0.17);
-        } else {
+        } else if (geoVariant === 17) {
             // Variant 17: Trapezoid prisms and low architectural plinths
             const direction = seed % 2 === 0 ? 1 : -1;
             drawSonnetTrapezoidPrism(geo, radius * 0.12 * direction, radius * 0.04, radius * 0.3, radius * 0.68, radius * 0.62, radius * 0.18 * direction, -radius * 0.13, primary, 0.34);
             drawSonnetTrapezoidPrism(geo, -radius * 0.42 * direction, radius * 0.28, radius * 0.2, radius * 0.38, radius * 0.22, radius * 0.08 * direction, -radius * 0.06, primary, 0.21);
             drawSonnetTrapezoidPrism(geo, radius * 0.5 * direction, -radius * 0.3, radius * 0.2, radius * 0.12, radius * 0.22, -radius * 0.06 * direction, -radius * 0.05, primary, 0.18);
+        } else {
+            drawAdditionalSonnetShotMg({
+                target: geo,
+                variant: geoVariant,
+                radius,
+                seed,
+                primary,
+                secondary,
+            });
         }
 
         // Randomized Geometric Composition moved to sonnetTextViewBuilder so they accompany text
         
         // Selectively apply deterministic rotation based on variant compatibility
-        // Selectively apply deterministic rotation based on variant compatibility
-        if (![6, 8, 9, 14, 15, 16, 17].includes(geoVariant)) {
+        if (![6, 8, 9, 14, 15, 16, 17, 20, 22, 23].includes(geoVariant)) {
             // Arbitrary rotation
             geo!.rotation = ((seed * 13) % 360) * (Math.PI / 180);
         } else if (geoVariant === 8) {

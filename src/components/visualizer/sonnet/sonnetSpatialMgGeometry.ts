@@ -1,6 +1,6 @@
 // src/components/visualizer/sonnet/sonnetSpatialMgGeometry.ts
-// Adds reference-aligned cuboid recipes to the existing single Sonnet MG variant collection.
-export const SONNET_GEO_VARIANT_COUNT = 18;
+// Owns deterministic variant selection and reusable spatial recipes for Sonnet MG scenes.
+export const SONNET_GEO_VARIANT_COUNT = 24;
 
 interface SonnetMgPathTarget {
     moveTo: (x: number, y: number) => SonnetMgPathTarget;
