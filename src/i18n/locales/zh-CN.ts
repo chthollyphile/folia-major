@@ -899,7 +899,7 @@ export default {
     "sonnetFontSizeAutoNotice": "商籁模式会根据画面尺寸、歌词量和布局自动计算字号；通用字体尺寸设置在此模式下无效。",
     "sonnetCameraIntensity": "镜头运动强度",
     "sonnetTypographyMotion": "文字动势",
-    "sonnetMgDensity": "MG 元素密度",
+    "sonnetMgDensity": "背景短线密度",
     "sonnetTextureResolution": "纹理分辨率",
     "sonnetTexturePerformanceWarning": "提高纹理分辨率会增加 GPU 显存占用和渲染负载，可能影响性能。",
     "sonnetOuterFrameMode": "外层边框",

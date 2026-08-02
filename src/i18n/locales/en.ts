@@ -896,7 +896,7 @@ export default {
     "sonnetFontSizeAutoNotice": "Sonnet calculates lyric size automatically from the viewport, lyric length, and layout. The general font-size setting does not apply in this mode.",
     "sonnetCameraIntensity": "Camera intensity",
     "sonnetTypographyMotion": "Typography motion",
-    "sonnetMgDensity": "MG density",
+    "sonnetMgDensity": "Background line density",
     "sonnetTextureResolution": "Texture resolution",
     "sonnetTexturePerformanceWarning": "Higher texture resolution increases GPU memory use and rendering load, and may reduce performance.",
     "sonnetOuterFrameMode": "Outer frame",
