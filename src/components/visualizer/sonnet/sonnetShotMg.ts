@@ -7,7 +7,12 @@ import {
     drawSonnetTriangularPrism,
     resolveSonnetGeoVariant,
 } from './sonnetSpatialMgGeometry';
-import { buildSonnetIconParticleIndices } from './sonnetIcons';
+import {
+    buildSonnetIconParticleIndices,
+    resolveSonnetIconEntryDelay,
+    resolveSonnetIconEntryDuration,
+    resolveSonnetIconEntryPhase,
+} from './sonnetIcons';
 import { drawAdditionalSonnetShotMg } from './sonnetAdditionalShotMg';
 
 // src/components/visualizer/sonnet/sonnetShotMg.ts
@@ -21,8 +26,8 @@ interface SonnetIconAnimation {
     node: import('pixi.js').Container;
     baseScale: number;
     baseAlpha: number;
-    delay: number;
-    duration: number;
+    entryPhase: number;
+    preferredDuration: number;
     phase: number;
 }
 
@@ -968,8 +973,8 @@ export const buildSonnetShotMg = (
                     node: s,
                     baseScale,
                     baseAlpha: 0.85,
-                    delay: (iconSeed % 5) * 0.12,
-                    duration: 0.62 + (iconSeed % 4) * 0.08,
+                    entryPhase: 0,
+                    preferredDuration: 0.62 + (iconSeed % 4) * 0.08,
                     phase: (iconSeed % 31) * 0.2,
                 });
                 p = s;
@@ -1002,6 +1007,10 @@ export const buildSonnetShotMg = (
         p.rotation = (seed + i * 13) % 360 * Math.PI / 180;
         particleLayer.addChild(p);
     }
+
+    iconAnimations.forEach((icon, index) => {
+        icon.entryPhase = resolveSonnetIconEntryPhase(index, iconAnimations.length);
+    });
     
     container.addChild(particleLayer);
     (container as any).particleLayer = particleLayer;
@@ -1052,10 +1061,13 @@ export const buildSonnetShotMg = (
         const targetIconAudio = Math.min(1, Math.pow(gatedEnergy, 0.68) * 1.35);
         const smoothing = targetIconAudio > smoothedIconAudio ? 0.34 : 0.16;
         smoothedIconAudio += (targetIconAudio - smoothedIconAudio) * smoothing;
+        const sceneDuration = Math.max(0.01, endTime - startTime);
         iconAnimations.forEach(icon => {
+            const entryDuration = resolveSonnetIconEntryDuration(sceneDuration, icon.preferredDuration);
+            const entryDelay = resolveSonnetIconEntryDelay(icon.entryPhase, sceneDuration, entryDuration);
             const entryProgress = Math.min(
                 1,
-                Math.max(0, (time - startTime - icon.delay) / icon.duration),
+                Math.max(0, (time - startTime - entryDelay) / entryDuration),
             );
             const entryEased = 1 - Math.pow(1 - entryProgress, 3);
             const loopPulse = (Math.sin((time - startTime) * Math.PI * 0.7 + icon.phase) + 1) * 0.5;

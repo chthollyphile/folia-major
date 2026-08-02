@@ -49,6 +49,29 @@ export const buildSonnetIconParticleIndices = (
     });
 };
 
+// Distributes icon starts across most of a shot while reserving time for the final reveal.
+export const resolveSonnetIconEntryPhase = (index: number, iconCount: number) => {
+    const safeCount = Math.max(0, Math.floor(iconCount));
+    if (safeCount <= 1) return 0.12;
+    const safeIndex = Math.min(safeCount - 1, Math.max(0, Math.floor(index)));
+    return 0.04 + (safeIndex / (safeCount - 1)) * 0.82;
+};
+
+export const resolveSonnetIconEntryDuration = (sceneDuration: number, preferredDuration: number) => {
+    const safeSceneDuration = Math.max(0.01, sceneDuration);
+    return Math.min(
+        Math.max(0.01, preferredDuration),
+        Math.max(0.08, safeSceneDuration * 0.18),
+        safeSceneDuration,
+    );
+};
+
+export const resolveSonnetIconEntryDelay = (
+    entryPhase: number,
+    sceneDuration: number,
+    entryDuration: number,
+) => Math.min(1, Math.max(0, entryPhase)) * Math.max(0, sceneDuration - entryDuration);
+
 export const buildSonnetIconTextureKey = (
     name: string,
     color: string,

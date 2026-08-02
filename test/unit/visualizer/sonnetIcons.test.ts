@@ -3,6 +3,9 @@ import {
     buildSonnetIconDataUrl,
     buildSonnetIconParticleIndices,
     buildSonnetIconTextureKey,
+    resolveSonnetIconEntryDelay,
+    resolveSonnetIconEntryDuration,
+    resolveSonnetIconEntryPhase,
     resolveSonnetIconNames,
 } from '@/components/visualizer/sonnet/sonnetIcons';
 
@@ -41,5 +44,22 @@ describe('Sonnet theme icons', () => {
         expect(firstPlan.filter((index): index is number => index !== null)).toHaveLength(3);
         expect(firstPlan.filter((index): index is number => index !== null)).toContain(0);
         expect(firstPlan.filter((index): index is number => index !== null)).toContain(1);
+    });
+
+    it('spreads icon entry across the scene and finishes the last reveal before its end', () => {
+        const sceneDuration = 6;
+        const preferredDuration = 0.7;
+        const entryDuration = resolveSonnetIconEntryDuration(sceneDuration, preferredDuration);
+        const phases = Array.from({ length: 5 }, (_, index) => resolveSonnetIconEntryPhase(index, 5));
+        const delays = phases.map(phase => resolveSonnetIconEntryDelay(phase, sceneDuration, entryDuration));
+
+        expect(phases[0]).toBeCloseTo(0.04);
+        expect(phases[4]).toBeCloseTo(0.86);
+        expect(delays).toEqual([...delays].sort((left, right) => left - right));
+        expect(delays[4] + entryDuration).toBeLessThan(sceneDuration);
+    });
+
+    it('shortens icon entry animation for short scenes', () => {
+        expect(resolveSonnetIconEntryDuration(0.3, 0.8)).toBeLessThanOrEqual(0.3);
     });
 });
