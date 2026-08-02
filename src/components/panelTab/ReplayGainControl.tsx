@@ -1,12 +1,9 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ReplayGainMode } from '../../types';
+import type { ReplayGainInfo, ReplayGainMode } from '../../types';
 
 // Shared control keeps local and Navidrome ReplayGain presentation and mode selection in sync.
-type ReplayGainValues = {
-    trackGain?: number;
-    albumGain?: number;
-};
+type ReplayGainValues = Pick<ReplayGainInfo, 'trackGain' | 'albumGain'>;
 
 interface ReplayGainControlProps {
     values?: ReplayGainValues;
@@ -41,21 +38,21 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
     const inactiveBackground = isDaylight ? 'bg-black/5 text-zinc-500 hover:bg-black/10' : 'bg-white/5 text-zinc-400 hover:bg-white/10';
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold opacity-50 uppercase tracking-wider">
+                <h3 className="text-[12px] font-bold opacity-40 uppercase tracking-widest">
                     {t('localMusic.replayGainTitle')}
                 </h3>
                 <span className="text-[11px] opacity-60 text-right">
                     {summary}
                 </span>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1">
                 {modes.map(({ key, label }) => (
                     <button
                         key={key}
                         onClick={() => onChangeMode(key)}
-                        className={`flex-1 text-xs py-1.5 px-2 rounded-lg font-medium transition-all ${
+                        className={`flex-1 text-[11px] py-1 px-1.5 rounded-md font-medium transition-all ${
                             mode === key ? activeBackground : inactiveBackground
                         }`}
                     >

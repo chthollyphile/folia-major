@@ -358,6 +358,94 @@ describe('kugouProvider', () => {
         expect(source?.url).toBe('http://example.test/song.flac');
     });
 
+    it('maps top-level KuGou ReplayGain fields and converts peak dB to a linear ratio', async () => {
+        requestMock.mockResolvedValue({
+            status: 1,
+            url: [
+                'https://fs.example.test/primary.flac',
+                'https://fs.example.test/backup.flac',
+            ],
+            volume: -12.1,
+            volume_peak: -0.4,
+            volume_gain: 0,
+        });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+        const source = await kugouProvider.playback?.getAudioSource(song, 'lossless');
+
+        expect(source).toMatchObject({
+            url: 'https://fs.example.test/primary.flac',
+            replayGain: {
+                trackGain: -12.1,
+                trackPeak: Math.pow(10, -0.4 / 20),
+            },
+        });
+        expect(source?.replayGain).not.toHaveProperty('volumeGain');
+    });
+
+    it('maps ReplayGain fields when KuGou wraps the URL in a data array', async () => {
+        requestMock.mockResolvedValue({
+            data: [{
+                url: ['https://fs.example.test/song.flac'],
+                volume: '-6.5',
+                volume_peak: '-1.2',
+                volume_gain: 0,
+            }],
+        });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+        const source = await kugouProvider.playback?.getAudioSource(song, 'high');
+
+        expect(source?.replayGain).toEqual({
+            trackGain: -6.5,
+            trackPeak: Math.pow(10, -1.2 / 20),
+        });
+    });
+
+    it('keeps ReplayGain mapping for KuGou cloud playback responses', async () => {
+        requestMock.mockResolvedValue({
+            data: {
+                url: ['https://fs.example.test/cloud.flac'],
+                volume: -4.2,
+                volume_peak: -0.8,
+            },
+        });
+        const song = {
+            ...normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' }),
+            sourceRef: {
+                kind: 'online' as const,
+                providerId: 'kugou' as const,
+                mediaId: 'HASH',
+                variant: 'cloud' as const,
+                providerData: { hash: 'HASH', fileId: 'cloud-file' },
+            },
+        };
+
+        const source = await kugouProvider.playback?.getAudioSource(song, 'high');
+
+        expect(requestMock).toHaveBeenCalledWith('user_cloud_url', expect.objectContaining({ hash: 'HASH' }));
+        expect(source?.replayGain).toEqual({
+            trackGain: -4.2,
+            trackPeak: Math.pow(10, -0.8 / 20),
+        });
+    });
+
+    it('maps ReplayGain fields from a bare KuGou response array', async () => {
+        requestMock.mockResolvedValue([{
+            url: 'https://fs.example.test/array.flac',
+            volume: -2.4,
+            volume_peak: '-0.6',
+        }]);
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+        const source = await kugouProvider.playback?.getAudioSource(song, 'high');
+
+        expect(source?.replayGain).toEqual({
+            trackGain: -2.4,
+            trackPeak: Math.pow(10, -0.6 / 20),
+        });
+    });
+
     it('retries the same quality by hash when search metadata IDs return no URL', async () => {
         requestMock
             .mockResolvedValueOnce({ status: 3, fail_process: 1 })
@@ -411,13 +499,27 @@ describe('kugouProvider', () => {
         requestMock
             .mockResolvedValueOnce({ data: {} })
             .mockRejectedValueOnce(new Error('privilege required'))
-            .mockResolvedValueOnce({ data: { play_url: 'https://example.test/song.mp3' } });
+            .mockResolvedValueOnce({
+                data: {
+                    play_url: 'https://example.test/song.mp3',
+                    volume: -5.5,
+                    volume_peak: -1.1,
+                    volume_gain: 0,
+                },
+            });
         const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
 
         const source = await kugouProvider.playback?.getAudioSource(song, 'hires');
 
         expect(requestMock.mock.calls.map(call => call[1].quality)).toEqual(['high', 'flac', '320']);
-        expect(source).toMatchObject({ url: 'https://example.test/song.mp3', quality: 'high' });
+        expect(source).toMatchObject({
+            url: 'https://example.test/song.mp3',
+            quality: 'high',
+            replayGain: {
+                trackGain: -5.5,
+                trackPeak: Math.pow(10, -1.1 / 20),
+            },
+        });
     });
 
     it('hydrates canonical album and artist ids through hash-verified KRM metadata once', async () => {

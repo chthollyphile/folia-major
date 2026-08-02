@@ -6,11 +6,12 @@ import { ensureLocalSongEmbeddedCover, getAudioFromLocalSong } from '../../../se
 import { applyLocalLibraryEntityDisplay, buildUnifiedLocalSong } from '../../../services/playbackAdapters';
 import { getLocalLibraryCatalogSnapshot } from '../../../services/localLibraryEntityRepository';
 import { getNavidromeConfig, navidromeApi } from '../../../services/navidromeService';
+import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource } from '../../../services/onlinePlayback';
 import type { ThemeCacheSongKey } from '../../../services/themeCache';
 import type { LyricData, LocalSong, SongResult, StatusMessage } from '../../../types';
 import type { NavidromeSong } from '../../../types/navidrome';
 import { hydrateNavidromeLyricPayload, resolvePreferredNavidromeLyrics } from '../../../utils/appNavidromeLyrics';
-import { hasRenderableLyrics, toSafePlaybackUrl } from '../../../utils/appPlaybackHelpers';
+import { hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
 import {
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
@@ -24,8 +25,7 @@ import { migrateLyricDataRenderHints } from '../../../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../../../types/onlineMusic';
 import { omni } from '../../../services/onlineMusic/omni';
-import { getSongResourceCacheKey } from '../../../services/onlineMusic/resourceKeys';
-import { getCachedSongAudioBlob, getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../services/onlineMusic/resourceCache';
+import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 
@@ -40,6 +40,7 @@ type RestorePlaybackSourceParams = {
     blobUrlRef: MutableRefObject<string | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
     setCurrentSong: SetState<SongResult | null>;
+    setPlayQueue?: SetState<SongResult[]>;
     setCachedCoverUrl: SetState<string | null>;
     setAudioSrc: SetState<string | null>;
     setLyrics: (nextLyrics: LyricData | null) => void;
@@ -70,6 +71,7 @@ export const restorePlaybackSourceForSong = async (
         blobUrlRef,
         currentOnlineAudioUrlFetchedAtRef,
         setCurrentSong,
+        setPlayQueue,
         setCachedCoverUrl,
         setAudioSrc,
         setLyrics,
@@ -229,27 +231,29 @@ export const restorePlaybackSourceForSong = async (
         return false;
     }
 
-    const cachedAudio = await getCachedSongAudioBlob(song);
-    let restoredCachedAudio = false;
-    if (cachedAudio) {
-        const blobUrl = createSafeObjectUrl(cachedAudio);
-        if (blobUrl) {
-            replaceBlobUrl(blobUrlRef, blobUrl);
-            currentOnlineAudioUrlFetchedAtRef.current = null;
-            setAudioSrc(blobUrl);
-            restoredCachedAudio = true;
-        }
+    const audioResult = await loadOnlineSongAudioSource(song, audioQuality, null);
+    if (audioResult.kind === 'unavailable') {
+        setStatusMsg({ type: 'error', text: i18n.t('status.playbackFailed') });
+        return false;
     }
-    if (!restoredCachedAudio) {
-        const audioSource = await omni.getAudioSource(song, audioQuality);
-        const url = toSafePlaybackUrl(audioSource?.url);
-        if (url) {
-            currentOnlineAudioUrlFetchedAtRef.current = Date.now();
-            setAudioSrc(url);
-        } else {
-            setStatusMsg({ type: 'error', text: i18n.t('status.playbackFailed') });
-            return false;
-        }
+
+    if (audioResult.blobUrl) {
+        replaceBlobUrl(blobUrlRef, audioResult.blobUrl);
+        currentOnlineAudioUrlFetchedAtRef.current = null;
+    } else {
+        currentOnlineAudioUrlFetchedAtRef.current = Date.now();
+    }
+    setAudioSrc(audioResult.audioSrc);
+
+    const restoredSong = applyOnlineAudioSourceMetadata(song, audioResult.replayGain);
+    if (restoredSong.replayGain) {
+        setCurrentSong(prev => {
+            if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+            return { ...prev, replayGain: restoredSong.replayGain };
+        });
+        const restoredQueue = replacePlaybackSongInQueue(queue || [restoredSong], restoredSong);
+        setPlayQueue?.(restoredQueue);
+        void persistLastPlaybackCache?.(restoredSong, restoredQueue);
     }
 
     const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);

@@ -141,6 +141,7 @@ export function useSessionRestoreController({
                         blobUrlRef,
                         currentOnlineAudioUrlFetchedAtRef,
                         setCurrentSong,
+                        setPlayQueue,
                         setCachedCoverUrl,
                         setAudioSrc,
                         setLyrics,

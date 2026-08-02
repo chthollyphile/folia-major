@@ -5,7 +5,7 @@
  * Handles URL expiration (1200s TTL) and re-prefetches on queue changes.
  */
 
-import { SongResult, LyricData, OnlineLyricsState, type LyricProviderSource } from '../types';
+import { ReplayGainInfo, SongResult, LyricData, OnlineLyricsState, type LyricProviderSource } from '../types';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
@@ -31,6 +31,7 @@ export interface PrefetchedSongData {
     audioUrl: string | null;
     audioUrlFetchedAt: number;
     audioUrlQuality: string | null; // Track which quality the URL was fetched for
+    replayGain?: ReplayGainInfo;
     lyrics: LyricData | null;
     lyricRaw: {
         mainLrc: string | null;
@@ -82,6 +83,7 @@ export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQuali
         console.log(`[Prefetch] URL expired for song ${songId}, will refetch`);
         cached.audioUrl = null;
         cached.audioUrlQuality = null;
+        cached.replayGain = undefined;
     }
 
     // Check if quality matches (if requiredQuality is specified)
@@ -90,6 +92,7 @@ export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQuali
         // Don't use cached URL, but keep other data (lyrics, cover)
         cached.audioUrl = null;
         cached.audioUrlQuality = null;
+        cached.replayGain = undefined;
     }
 
     return touchPrefetchCacheEntry(songKey, cached);
@@ -141,6 +144,7 @@ const prefetchSong = async (
         audioUrl: existing?.audioUrl && existing.audioUrlQuality === audioQuality && isUrlValid(existing.audioUrlFetchedAt) ? existing.audioUrl : null,
         audioUrlFetchedAt: existing?.audioUrlFetchedAt || 0,
         audioUrlQuality: existing?.audioUrlQuality || null,
+        replayGain: existing?.replayGain ?? song.replayGain,
         lyrics: existing?.lyrics || null,
         lyricRaw: existing?.lyricRaw || null,
         lyricPreferenceSource: existing?.lyricPreferenceSource || null,
@@ -162,6 +166,9 @@ const prefetchSong = async (
                     data.audioUrl = url;
                     data.audioUrlFetchedAt = Date.now();
                     data.audioUrlQuality = audioQuality;
+                    data.replayGain = audioSource?.replayGain
+                        ? { ...data.replayGain, ...audioSource.replayGain }
+                        : data.replayGain;
                     console.log(`[Prefetch] Got audio URL for: ${song.name} (quality: ${audioQuality})`);
                 }
             }
@@ -295,7 +302,8 @@ const prefetchSong = async (
 export const updatePrefetchedAudioUrl = (
     song: SongResult,
     audioUrl: string,
-    audioQuality: string
+    audioQuality: string,
+    replayGain?: ReplayGainInfo,
 ): void => {
     const songKey = getPrefetchSongKey(song);
     const existing = prefetchCache.get(songKey);
@@ -306,6 +314,9 @@ export const updatePrefetchedAudioUrl = (
         audioUrl,
         audioUrlFetchedAt: Date.now(),
         audioUrlQuality: audioQuality,
+        replayGain: replayGain
+            ? { ...song.replayGain, ...existing?.replayGain, ...replayGain }
+            : existing?.replayGain ?? song.replayGain,
         lyrics: existing?.lyrics || null,
         lyricRaw: existing?.lyricRaw || null,
         lyricPreferenceSource: existing?.lyricPreferenceSource || null,

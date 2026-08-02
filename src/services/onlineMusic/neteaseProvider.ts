@@ -11,6 +11,7 @@ import type {
     ProviderUser,
 } from '../../types/onlineMusic';
 import { parseNeteaseChorusRanges, processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
+import { toFiniteNumber } from '../../utils/replayGain';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { isSongMarkedUnavailable, neteaseApi } from '../netease';
 import { writeProviderSessionValue } from './providerStorage';
@@ -261,12 +262,15 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
         async getAudioSource(song, quality) {
             const response = await neteaseApi.getSongUrl(toNeteaseId(song.id), mapQuality(quality));
-            const rawUrl = response?.data?.[0]?.url;
+            const raw = response?.data?.[0];
+            const rawUrl = raw?.url;
             if (!rawUrl) return null;
+            const trackGain = toFiniteNumber(raw?.gain);
             return {
                 url: String(rawUrl).replace(/^http:/, 'https:'),
                 fetchedAt: Date.now(),
                 quality,
+                ...(trackGain === undefined ? {} : { replayGain: { trackGain } }),
             };
         },
         getAvailability(song): ProviderSongAvailability {

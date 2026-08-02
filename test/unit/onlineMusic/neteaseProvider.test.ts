@@ -47,6 +47,26 @@ describe('neteaseProvider', () => {
         expect(neteaseApi.getSongUrl).toHaveBeenCalledWith(42, 'exhigh');
     });
 
+    it('maps NetEase track gain from the URL response and keeps negative dB values', async () => {
+        vi.mocked(neteaseApi.getSongUrl).mockResolvedValue({
+            data: [{ url: 'https://music.test/song.flac', gain: -7.25 }],
+        } as any);
+
+        await expect(neteaseProvider.playback!.getAudioSource(song, 'lossless')).resolves.toMatchObject({
+            replayGain: { trackGain: -7.25 },
+        });
+    });
+
+    it('does not create ReplayGain metadata when NetEase omits gain', async () => {
+        vi.mocked(neteaseApi.getSongUrl).mockResolvedValue({
+            data: [{ url: 'https://music.test/song.mp3' }],
+        } as any);
+
+        const source = await neteaseProvider.playback!.getAudioSource(song, 'high');
+
+        expect(source?.replayGain).toBeUndefined();
+    });
+
     it('exposes NetEase romanization alongside the parsed lyric result', async () => {
         vi.mocked(parseLyricsAsync).mockResolvedValue({
             lines: [{

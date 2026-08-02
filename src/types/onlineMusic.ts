@@ -1,4 +1,4 @@
-import type { LyricData, SongResult, UnifiedSong } from '../types';
+import type { LyricData, ReplayGainInfo, SongResult, UnifiedSong } from '../types';
 
 // src/types/onlineMusic.ts
 
@@ -79,6 +79,7 @@ export interface ProviderAudioSource {
     fetchedAt: number;
     expiresAt?: number;
     quality: AudioQualityPreference;
+    replayGain?: ReplayGainInfo;
 }
 
 export type ProviderSongAvailabilityState = 'playable' | 'unavailable' | 'unknown';

@@ -1,12 +1,14 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
-import { loadOnlineSongAudioSource } from '../../../services/onlinePlayback';
+import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource } from '../../../services/onlinePlayback';
 import type { SongResult } from '../../../types';
 import type { AudioQualityPreference } from '../../../types/onlineMusic';
 import {
     getPlaybackSongKey,
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
+    isSamePlaybackSong,
     isStagePlaybackSong,
+    replacePlaybackSongInQueue,
 } from '../../../utils/appPlaybackGuards';
 
 // src/components/app/playback/createOnlineRecoveryController.ts
@@ -24,6 +26,10 @@ type RecoveryControllerParams = {
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
     setAudioSrc: Dispatch<SetStateAction<string | null>>;
+    setCurrentSong: Dispatch<SetStateAction<SongResult | null>>;
+    setPlayQueue: Dispatch<SetStateAction<SongResult[]>>;
+    persistLastPlaybackCache: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
+    playQueue: SongResult[];
     onlineAudioUrlTtlMs: number;
     onlineAudioUrlRefreshBufferMs: number;
 };
@@ -42,6 +48,10 @@ export const createOnlineRecoveryController = ({
     lastAudioRecoverySourceRef,
     currentOnlineAudioUrlFetchedAtRef,
     setAudioSrc,
+    setCurrentSong,
+    setPlayQueue,
+    persistLastPlaybackCache,
+    playQueue,
     onlineAudioUrlTtlMs,
     onlineAudioUrlRefreshBufferMs,
 }: RecoveryControllerParams) => {
@@ -109,6 +119,21 @@ export const createOnlineRecoveryController = ({
 
                 if (audioResult.blobUrl) {
                     blobUrlRef.current = audioResult.blobUrl;
+                }
+
+                const resolvedSong = applyOnlineAudioSourceMetadata(song, audioResult.replayGain);
+                const replayGain = resolvedSong.replayGain;
+                if (replayGain) {
+                    setCurrentSong(prev => {
+                        if (!prev || !isSamePlaybackSong(prev, song)) return prev;
+                        return { ...prev, replayGain };
+                    });
+                    const resolvedQueue = replacePlaybackSongInQueue(playQueue, resolvedSong);
+                    setPlayQueue(resolvedQueue);
+                    void persistLastPlaybackCache(
+                        resolvedSong,
+                        resolvedQueue,
+                    );
                 }
 
                 pendingResumeTimeRef.current = Math.max(0, resumeAt ?? audioRef.current.currentTime ?? 0);

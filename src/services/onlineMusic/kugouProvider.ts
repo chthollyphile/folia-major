@@ -14,6 +14,7 @@ import type {
 import { parseLyricsByFormat } from '../../utils/lyrics/parserCore';
 import { isPureMusicLyricText } from '../../utils/lyrics/pureMusic';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { decibelsToLinearPeak, toFiniteNumber } from '../../utils/replayGain';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import {
     buildKugouLyricSearchQuery,
@@ -929,11 +930,20 @@ export const kugouProvider: OnlineMusicProvider = {
                     try {
                         const response = await requestKugou(requestVariant.operation, requestVariant.params);
                         const data = dataOf(response);
+                        const payload = Array.isArray(data) ? data[0] : data;
                         const url = audioUrlOf(
-                            valueOf(data, 'play_url', 'playUrl', 'url')
+                            valueOf(payload, 'play_url', 'playUrl', 'url')
                             ?? valueOf(data?.[0], 'url', 'play_url'),
                         );
                         if (url) {
+                            const trackGain = toFiniteNumber(valueOf(payload, 'volume'));
+                            const trackPeak = decibelsToLinearPeak(valueOf(payload, 'volume_peak'));
+                            const replayGain = trackGain === undefined && trackPeak === undefined
+                                ? undefined
+                                : {
+                                    ...(trackGain === undefined ? {} : { trackGain }),
+                                    ...(trackPeak === undefined ? {} : { trackPeak }),
+                                };
                             console.info('[KuGouProvider] playback:url-resolved', {
                                 hash,
                                 requestedQuality: quality,
@@ -945,6 +955,7 @@ export const kugouProvider: OnlineMusicProvider = {
                                 url,
                                 fetchedAt: Date.now(),
                                 quality: candidateQuality,
+                                ...(replayGain ? { replayGain } : {}),
                             };
                         }
                         console.warn('[KuGouProvider] playback:no-url', {

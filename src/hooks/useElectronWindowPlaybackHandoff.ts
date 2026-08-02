@@ -304,6 +304,7 @@ export function useElectronWindowPlaybackHandoff({
             blobUrlRef,
             currentOnlineAudioUrlFetchedAtRef,
             setCurrentSong,
+            setPlayQueue,
             setCachedCoverUrl,
             setAudioSrc,
             setLyrics,

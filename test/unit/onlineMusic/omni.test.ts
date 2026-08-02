@@ -54,6 +54,25 @@ describe('omni routing', () => {
         expect(activeSearch).toHaveBeenCalledWith('query', 10, 0);
     });
 
+    it('forwards normalized provider ReplayGain metadata through the audio facade', async () => {
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            playback: {
+                getSongDetail: async mediaId => song(providerId, String(mediaId)),
+                getAudioSource: async target => ({
+                    url: `https://${providerId}/${target.sourceRef?.mediaId}`,
+                    fetchedAt: 1,
+                    quality: 'standard',
+                    replayGain: { trackGain: -4.5 },
+                }),
+            },
+        });
+
+        await expect(omni.getAudioSource(song(providerId, 'gain-song'), 'standard')).resolves.toMatchObject({
+            replayGain: { trackGain: -4.5 },
+        });
+    });
+
     it('routes chorus range lookup through the song owner', async () => {
         const getChorusRanges = vi.fn(async () => [{ startTime: 10, endTime: 20 }]);
         registerOnlineMusicProvider({

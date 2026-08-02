@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PlayerState } from '../types';
-import type { ReplayGainMode, SongResult, StatusMessage } from '../types';
+import type { ReplayGainInfo, ReplayGainMode, SongResult, StatusMessage } from '../types';
 import type { LocalSong } from '../types';
 import { saveAudioBlob } from '../services/audioCache';
 import { hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
+import { calculateReplayGain } from '../utils/replayGain';
 import { saveToCache } from '../services/db';
 
 // src/hooks/usePlaybackAudioBridge.ts
@@ -64,6 +65,56 @@ export function usePlaybackAudioBridge({
     const previousAudioSrcRef = useRef<string | null>(null);
     const replayGainLogSignatureRef = useRef<string | null>(null);
 
+    // Recalculates source-specific gain after the audio graph or playback settings become ready.
+    const applyReplayGain = useCallback(() => {
+        if (!currentSong || !gainNodeRef.current || !audioContextRef.current) return;
+
+        let replayGainInfo: ReplayGainInfo | undefined;
+        const localSongId = (currentSong as SongResult & { localRef?: { songId: string } }).localRef?.songId;
+        const localData = localSongId ? localSongs.find(song => song.id === localSongId) : undefined;
+        if ((currentSong as SongResult & { isLocal?: boolean }).isLocal && localData) {
+            replayGainInfo = {
+                trackGain: typeof localData.replayGainTrackGain === 'number'
+                    ? localData.replayGainTrackGain
+                    : localData.replayGain,
+                trackPeak: localData.replayGainTrackPeak,
+                albumGain: localData.replayGainAlbumGain,
+                albumPeak: localData.replayGainAlbumPeak,
+            };
+        }
+
+        const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
+        const navidromeReplayGain = navidromeSong?.navidromeData.replayGain;
+        if (navidromeReplayGain) {
+            replayGainInfo = navidromeReplayGain;
+        }
+
+        if (currentSong.sourceRef?.kind === 'online') {
+            replayGainInfo = currentSong.replayGain;
+        }
+
+        const calculation = calculateReplayGain(replayGainInfo, replayGainMode);
+        replayGainLinearRef.current = calculation.linearGain;
+
+        try {
+            syncOutputGain(getTargetPlaybackVolume(), 0.1);
+            const replayGainLogSignature = JSON.stringify({
+                songId: currentSong.id,
+                mode: replayGainMode,
+                raw: calculation.gainDb,
+                effective: calculation.effectiveGainDb,
+                peak: calculation.peak ?? null,
+            });
+
+            if (replayGainLogSignatureRef.current !== replayGainLogSignature) {
+                replayGainLogSignatureRef.current = replayGainLogSignature;
+                console.log(`[AudioContext] ReplayGain mode=${replayGainMode} gain=${calculation.effectiveGainDb}dB (raw=${calculation.gainDb}dB, peak=${calculation.peak ?? 'n/a'}, linear=${calculation.linearGain.toFixed(2)})`);
+            }
+        } catch (error) {
+            console.warn('[AudioContext] Failed to apply ReplayGain', error);
+        }
+    }, [audioContextRef, currentSong, gainNodeRef, getTargetPlaybackVolume, localSongs, replayGainLinearRef, replayGainMode, syncOutputGain]);
+
     const setupAudioAnalyzer = useCallback(() => {
         if (!audioRef.current || sourceRef.current) return;
         try {
@@ -84,11 +135,12 @@ export function usePlaybackAudioBridge({
             gainNode.connect(analyser);
             analyser.connect(ctx.destination);
             sourceRef.current = source;
+            applyReplayGain();
             syncOutputGain(getTargetPlaybackVolume(), 0);
         } catch (error) {
             console.error('Audio Context Setup Failed:', error);
         }
-    }, [audioContextRef, audioRef, analyserRef, gainNodeRef, getTargetPlaybackVolume, sourceRef, syncOutputGain]);
+    }, [analyserRef, applyReplayGain, audioContextRef, audioRef, gainNodeRef, getTargetPlaybackVolume, sourceRef, syncOutputGain]);
 
     const cacheSongAssets = useCallback(async () => {
         if (!currentSong || !audioSrc || audioSrc.startsWith('blob:')) return;
@@ -135,74 +187,8 @@ export function usePlaybackAudioBridge({
     }, [replayGainMode]);
 
     useEffect(() => {
-        if (!currentSong || !gainNodeRef.current || !audioContextRef.current) return;
-
-        let replayGainDb = 0;
-        let replayGainPeak: number | undefined;
-        const localSongId = (currentSong as SongResult & { localRef?: { songId: string } }).localRef?.songId;
-        const localData = localSongId ? localSongs.find(song => song.id === localSongId) : undefined;
-        if ((currentSong as SongResult & { isLocal?: boolean }).isLocal && localData) {
-
-            if (replayGainMode === 'track') {
-                replayGainDb = typeof localData.replayGainTrackGain === 'number'
-                    ? localData.replayGainTrackGain
-                    : (typeof localData.replayGain === 'number' ? localData.replayGain : 0);
-                replayGainPeak = localData.replayGainTrackPeak;
-            } else if (replayGainMode === 'album') {
-                replayGainDb = typeof localData.replayGainAlbumGain === 'number'
-                    ? localData.replayGainAlbumGain
-                    : (typeof localData.replayGainTrackGain === 'number'
-                        ? localData.replayGainTrackGain
-                        : (typeof localData.replayGain === 'number' ? localData.replayGain : 0));
-                replayGainPeak = localData.replayGainAlbumPeak ?? localData.replayGainTrackPeak;
-            }
-        }
-
-        const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
-        const navidromeReplayGain = navidromeSong?.navidromeData.replayGain;
-        if (navidromeReplayGain) {
-            if (replayGainMode === 'track') {
-                replayGainDb = navidromeReplayGain.trackGain ?? 0;
-                replayGainPeak = navidromeReplayGain.trackPeak;
-            } else if (replayGainMode === 'album') {
-                replayGainDb = navidromeReplayGain.albumGain ?? navidromeReplayGain.trackGain ?? 0;
-                replayGainPeak = navidromeReplayGain.albumPeak ?? navidromeReplayGain.trackPeak;
-            }
-        }
-
-        let effectiveReplayGainDb = replayGainDb;
-        if (
-            replayGainMode !== 'off' &&
-            typeof replayGainPeak === 'number' &&
-            replayGainPeak > 0 &&
-            replayGainPeak <= 1 &&
-            replayGainDb > 0
-        ) {
-            const clipSafeGainDb = -20 * Math.log10(replayGainPeak);
-            effectiveReplayGainDb = Math.min(replayGainDb, clipSafeGainDb);
-        }
-
-        const linearGain = Math.pow(10, effectiveReplayGainDb / 20);
-        replayGainLinearRef.current = linearGain;
-
-        try {
-            syncOutputGain(getTargetPlaybackVolume(), 0.1);
-            const replayGainLogSignature = JSON.stringify({
-                songId: currentSong.id,
-                mode: replayGainMode,
-                raw: replayGainDb,
-                effective: effectiveReplayGainDb,
-                peak: replayGainPeak ?? null,
-            });
-
-            if (replayGainLogSignatureRef.current !== replayGainLogSignature) {
-                replayGainLogSignatureRef.current = replayGainLogSignature;
-                console.log(`[AudioContext] ReplayGain mode=${replayGainMode} gain=${effectiveReplayGainDb}dB (raw=${replayGainDb}dB, peak=${replayGainPeak ?? 'n/a'}, linear=${linearGain.toFixed(2)})`);
-            }
-        } catch (error) {
-            console.warn('[AudioContext] Failed to apply ReplayGain', error);
-        }
-    }, [audioContextRef, currentSong, gainNodeRef, getTargetPlaybackVolume, localSongs, replayGainLinearRef, replayGainMode, syncOutputGain]);
+        applyReplayGain();
+    }, [applyReplayGain]);
 
     useEffect(() => {
         const audioElement = audioRef.current;

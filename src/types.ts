@@ -921,6 +921,15 @@ export interface NoCopyrightRecommendation {
 export type LyricProviderSource = 'netease' | 'qq' | 'kugou' | 'amll';
 export type AmllDbPlatform = 'ncm' | 'qq';
 
+export interface ReplayGainInfo {
+  /** ReplayGain gain values in decibels. */
+  trackGain?: number;
+  albumGain?: number;
+  /** ReplayGain peak values as positive linear ratios. */
+  trackPeak?: number;
+  albumPeak?: number;
+}
+
 export interface SongResult {
   id: MediaId;
   name: string;
@@ -940,6 +949,7 @@ export interface SongResult {
   onlineLyricsState?: OnlineLyricsState;
   matchedLyricsSource?: LyricProviderSource;
   matchedLyricsProviderPlatform?: AmllDbPlatform;
+  replayGain?: ReplayGainInfo;
   qqMid?: string;
   kgHash?: string;
   amllDbPlatform?: AmllDbPlatform;

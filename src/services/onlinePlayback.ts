@@ -1,4 +1,4 @@
-import { LyricData, OnlineLyricsState, SongResult } from '../types';
+import { LyricData, OnlineLyricsState, ReplayGainInfo, SongResult } from '../types';
 import { saveToCache } from './db';
 import { PrefetchedSongData, isUrlValid, updatePrefetchedAudioUrl } from './prefetchService';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
@@ -19,18 +19,28 @@ export async function loadOnlineSongAudioSource(
     audioQuality: AudioQualityPreference,
     prefetched: PrefetchedSongData | null
 ): Promise<
-    | { kind: 'ok'; audioSrc: string; blobUrl?: string }
+    | { kind: 'ok'; audioSrc: string; blobUrl?: string; replayGain?: ReplayGainInfo }
     | { kind: 'unavailable' }
 > {
-    const audioCacheKey = getSongResourceCacheKey('audio', song);
     const cachedAudioBlob = await getCachedSongAudioBlob(song);
     if (cachedAudioBlob) {
         const blobUrl = createSafeObjectUrl(cachedAudioBlob);
-        if (blobUrl) return { kind: 'ok', audioSrc: blobUrl, blobUrl };
+        if (blobUrl) {
+            return {
+                kind: 'ok',
+                audioSrc: blobUrl,
+                blobUrl,
+                replayGain: song.replayGain ?? prefetched?.replayGain,
+            };
+        }
     }
 
     if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
-        return { kind: 'ok', audioSrc: prefetched.audioUrl };
+        return {
+            kind: 'ok',
+            audioSrc: prefetched.audioUrl,
+            replayGain: song.replayGain ?? prefetched.replayGain,
+        };
     }
 
     let source = null;
@@ -45,9 +55,17 @@ export async function loadOnlineSongAudioSource(
         return { kind: 'unavailable' };
     }
 
-    updatePrefetchedAudioUrl(song, url, audioQuality);
-    return { kind: 'ok', audioSrc: url };
+    const replayGain = applyOnlineAudioSourceMetadata(song, source?.replayGain).replayGain;
+    updatePrefetchedAudioUrl(song, url, audioQuality, replayGain);
+    return { kind: 'ok', audioSrc: url, replayGain };
 }
+
+export const applyOnlineAudioSourceMetadata = (
+    song: SongResult,
+    replayGain?: ReplayGainInfo,
+): SongResult => replayGain
+    ? { ...song, replayGain: { ...song.replayGain, ...replayGain } }
+    : song;
 
 export async function loadOnlineSongLyrics(
     song: SongResult,

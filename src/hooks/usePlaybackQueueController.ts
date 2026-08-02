@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
-import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
+import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
 import { getSongReplacement, isSongUnavailable } from '../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
@@ -19,6 +19,7 @@ import {
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
     isSamePlaybackSong,
+    replacePlaybackSongInQueue,
     resolveNavidromePlaybackCarrier,
 } from '../utils/appPlaybackGuards';
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
@@ -568,6 +569,10 @@ export function usePlaybackQueueController({
 
         shouldAutoPlayRef.current = true;
         const songKey = getPlaybackSongKey(song);
+        const resolvedSong = preloadedOnlineAudioResult?.kind === 'ok'
+            ? applyOnlineAudioSourceMetadata(song, preloadedOnlineAudioResult.replayGain)
+            : song;
+        const resolvedQueue = replacePlaybackSongInQueue(newQueue, resolvedSong);
         currentSongRef.current = songKey;
         pendingResumeTimeRef.current = null;
         lastAudioRecoverySourceRef.current = null;
@@ -579,7 +584,7 @@ export function usePlaybackQueueController({
         setCurrentLineIndex(-1);
         currentTime.set(0);
         setDuration(0);
-        setCurrentSong({ ...song, onlineLyricsState: onlineLyricsState ?? undefined });
+        setCurrentSong({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined });
         setCachedCoverUrl(null);
         setAudioSrc(null);
         setIsLyricsLoading(true);
@@ -590,10 +595,10 @@ export function usePlaybackQueueController({
         }
 
         if (queue.length > 0 || playQueue.length === 0) {
-            setPlayQueue(newQueue);
+            setPlayQueue(resolvedQueue);
         }
 
-        void persistLastPlaybackCache({ ...song, onlineLyricsState: onlineLyricsState ?? undefined }, newQueue);
+        void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, resolvedQueue);
 
         if (shouldNavigateToPlayer) {
             navigateToPlayer();
@@ -664,7 +669,7 @@ export function usePlaybackQueueController({
         }
 
         if (newQueue.length > 1) {
-            prefetchNearbySongs(song, newQueue, audioQuality, userId);
+            prefetchNearbySongs(resolvedSong, resolvedQueue, audioQuality, userId);
         }
     }, [
         audioQuality,
