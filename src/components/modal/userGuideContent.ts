@@ -13,7 +13,7 @@ export type UserGuideShortcut = {
 export type GuidePage = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const USER_GUIDE_PAGE_COUNT = 7;
-export const USER_GUIDE_AUTO_OPEN_VERSION: string | null = '0.6.8';
+export const USER_GUIDE_AUTO_OPEN_VERSION: string | null = '0.6.9';
 
 export const PLAYER_PAGE_SHORTCUTS: UserGuideShortcut[] = [
     {

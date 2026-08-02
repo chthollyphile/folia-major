@@ -1257,6 +1257,21 @@ export default {
     "noDescription": "No description available",
   },
   "releaseNotes": {
+    "v0_6_9": {
+      "intro": "Here are the new features and improvements in version 0.6.9.",
+      "sonnetVisualizer": {
+        "title": "Sonnet Lyric Visualizer",
+        "description": "A new Japanese-style lyric PV mode combines kinetic typography, camera motion, scene transitions, and configurable visual layers."
+      },
+      "replayGain": {
+        "title": "ReplayGain Loudness Balancing",
+        "description": "Apply track or album ReplayGain metadata to supported playback sources, with controls in the player, settings, and command palette."
+      },
+      "panelNavigationHint": {
+        "title": "Clearer Panel Navigation",
+        "description": "When the player panel is expanded, the back button now shows to make returning to the previous view easier."
+      }
+    },
     "v0_6_8": {
       "intro": "Here are the new features and improvements in version 0.6.8.",
       "navidromeRecent": {

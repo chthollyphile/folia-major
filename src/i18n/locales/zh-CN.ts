@@ -1258,6 +1258,21 @@ export default {
     "noDescription": "暂无详细介绍",
   },
   "releaseNotes": {
+    "v0_6_9": {
+      "intro": "以下是 0.6.9 的新功能与改进",
+      "sonnetVisualizer": {
+        "title": "全新视觉：商籁",
+        "description": "新增日式文字 PV 歌词可视化模式，结合动态排版、镜头运动与场景转场，并支持调整可见图层和渲染质量。"
+      },
+      "replayGain": {
+        "title": "ReplayGain 响度平衡",
+        "description": "支持对本地、Navidrome 与在线音乐应用单曲或专辑 ReplayGain 数据，并可在播放器、设置和命令面板中快速切换。"
+      },
+      "panelNavigationHint": {
+        "title": "播放器面板导航提示",
+        "description": "展开播放器面板时，返回按钮会短暂显示，更容易回到上一级视图。"
+      }
+    },
     "v0_6_8": {
       "intro": "以下是 0.6.8 的新功能与改进",
       "navidromeRecent": {

@@ -1070,6 +1070,21 @@ export default {
     "noDescription": "Tidak ada deskripsi tersedia",
   },
   "releaseNotes": {
+    "v0_6_9": {
+      "intro": "Berikut fitur dan peningkatan baru pada versi 0.6.9.",
+      "sonnetVisualizer": {
+        "title": "Visualizer Lirik Sonnet",
+        "description": "Mode PV lirik bergaya Jepang baru memadukan tipografi kinetik, gerakan kamera, transisi adegan, dan lapisan visual yang dapat dikonfigurasi."
+      },
+      "replayGain": {
+        "title": "Penyeimbangan Loudness ReplayGain",
+        "description": "Terapkan metadata ReplayGain track atau album pada sumber pemutaran yang didukung, dengan kontrol di pemutar, pengaturan, dan palet perintah."
+      },
+      "panelNavigationHint": {
+        "title": "Navigasi Panel yang Lebih Jelas",
+        "description": "Saat panel pemutar diperluas, tombol kembali kini menampilkan petunjuk geser singkat agar kembali ke tampilan sebelumnya lebih mudah."
+      }
+    },
     "v0_6_8": {
       "intro": "Berikut fitur dan peningkatan baru pada versi 0.6.8.",
       "navidromeRecent": {
