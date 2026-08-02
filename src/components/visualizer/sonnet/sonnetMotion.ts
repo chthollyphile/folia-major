@@ -1,4 +1,5 @@
 import type { SonnetParagraph, SonnetShot, SonnetShotKind, SonnetTransitionKind } from './types';
+import type { SonnetSegmentRole } from './sonnetTypographyLayout';
 
 // src/components/visualizer/sonnet/sonnetMotion.ts
 // Pure absolute-time motion evaluation keeps direct seeks identical to continuous playback.
@@ -53,6 +54,33 @@ export const resolveSegmentProgress = (startTime: number, endTime: number, time:
     // 使用更高张力的 ExpoOut 产生“打击感”的单字入场
     easeSonnetExpoOut(clamp01((time - startTime) / Math.max(endTime - startTime, 0.08)))
 );
+
+export const resolveSonnetSegmentDepth = (
+    role: SonnetSegmentRole,
+    random: () => number = Math.random,
+) => {
+    if (role !== 'decoration') return 0;
+    return random() > 0.5
+        ? 0.5 + random() * 0.8
+        : -0.5 - random() * 0.8;
+};
+
+export const resolveSonnetSegmentNormalOffset = (
+    role: SonnetSegmentRole,
+    vertical: boolean,
+    rotation: number,
+    fontSize: number,
+    randomValue: number,
+) => {
+    if (role !== 'support') return { x: 0, y: 0 };
+
+    const distance = (Math.min(1, Math.max(0, randomValue)) * 2 - 1) * fontSize * 0.3;
+    const normalAngle = rotation + (vertical ? 0 : Math.PI / 2);
+    return {
+        x: Math.cos(normalAngle) * distance,
+        y: Math.sin(normalAngle) * distance,
+    };
+};
 
 export interface SonnetShotMotionFrame {
     x: number;

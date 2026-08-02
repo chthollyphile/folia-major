@@ -3,6 +3,8 @@ import {
     resolveCubicBezier,
     resolveSegmentProgress,
     resolveSonnetFocusWeights,
+    resolveSonnetSegmentDepth,
+    resolveSonnetSegmentNormalOffset,
     resolveShotMotionFrame,
     resolveShotPathProgress,
 } from '@/components/visualizer/sonnet/sonnetMotion';
@@ -60,5 +62,28 @@ describe('Sonnet shot motion', () => {
         expect(middleGap[1]).toBeCloseTo(0.5, 5);
         expect(finalTail.reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1, 10);
         expect(finalTail[1]).toBeGreaterThan(0.999);
+    });
+
+    it('keeps primary lyric segments on one depth plane while decorations retain depth', () => {
+        const unexpectedRandom = () => {
+            throw new Error('primary lyric depth must not sample randomness');
+        };
+
+        expect(resolveSonnetSegmentDepth('hero', unexpectedRandom)).toBe(0);
+        expect(resolveSonnetSegmentDepth('support', unexpectedRandom)).toBe(0);
+        expect(resolveSonnetSegmentDepth('decoration', () => 0.75)).toBe(1.1);
+    });
+
+    it('jitters support lyrics only along the reading-direction normal', () => {
+        expect(resolveSonnetSegmentNormalOffset('support', false, 0, 100, 1)).toEqual({
+            x: expect.closeTo(0),
+            y: 30,
+        });
+        expect(resolveSonnetSegmentNormalOffset('support', true, 0, 100, 1)).toEqual({
+            x: 30,
+            y: 0,
+        });
+        expect(resolveSonnetSegmentNormalOffset('hero', false, 0, 100, 1)).toEqual({ x: 0, y: 0 });
+        expect(resolveSonnetSegmentNormalOffset('decoration', true, 0, 100, 1)).toEqual({ x: 0, y: 0 });
     });
 });

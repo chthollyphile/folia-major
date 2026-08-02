@@ -2,6 +2,8 @@ import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import 'pixi.js/advanced-blend-modes';
 import type { Theme } from '../../../types';
 import { buildSonnetGlyphLayout } from './sonnetGlyphLayout';
+import { resolveSonnetSegmentDepth, resolveSonnetSegmentNormalOffset } from './sonnetMotion';
+import { hashSonnetSeed } from './sonnetRandom';
 import { buildSonnetStaffView } from './sonnetStaffView';
 import { createSonnetGuide, type SonnetGuideView } from './sonnetGuides';
 import type { SonnetSemanticSegment } from './types';
@@ -94,6 +96,22 @@ export const buildSonnetTextView = (
     }
 
     const fontSize = options.baseFontSize * placement.fontScale;
+    const normalOffsetSeed = hashSonnetSeed([
+        segment.text,
+        segment.startOffset,
+        segment.endOffset,
+        options.segmentIndex,
+        'normal-offset',
+    ].join(':'));
+    const normalOffset = resolveSonnetSegmentNormalOffset(
+        placement.role,
+        placement.vertical,
+        placement.rotation,
+        fontSize,
+        normalOffsetSeed / 0xffffffff,
+    );
+    placement.x += normalOffset.x;
+    placement.y += normalOffset.y;
     const isKeyword = options.theme.wordColors?.find(w => w.word.toLowerCase() === segment.text.toLowerCase());
 
     // The main body of the text remains the primary color
@@ -109,9 +127,7 @@ export const buildSonnetTextView = (
     const fontSpec = `${renderWeight} ${fontSize}px ${options.fontFamily}`;
 
     // Parallax depth assignment
-    const zDepth = isDecoration
-        ? (Math.random() > 0.5 ? 0.5 + Math.random() * 0.8 : -0.5 - Math.random() * 0.8)
-        : (placement.role === 'support' ? (Math.random() - 0.5) * 0.25 : 0);
+    const zDepth = resolveSonnetSegmentDepth(placement.role);
 
     const blurAmount = Math.abs(zDepth) * fontSize * 0.12;
     const isBlurry = blurAmount > 2;
