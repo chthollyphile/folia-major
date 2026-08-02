@@ -928,7 +928,7 @@ export const buildSonnetShotMg = (
     // --- Component: Floating Particles ---
     const particleLayer = new Container();
     const particleCount = kind === 'type-impact' ? 24 : 12;
-    const hasIcons = theme.lyricsIcons && theme.lyricsIcons.length > 0;
+    const hasIcons = iconTextures.size > 0;
     const iconAnimations: SonnetIconAnimation[] = [];
     let smoothedIconAudio = 0;
     

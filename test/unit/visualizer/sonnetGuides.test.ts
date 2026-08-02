@@ -22,7 +22,7 @@ describe('Sonnet guide cues', () => {
 
         expect(cue.startTime).toBeLessThan(source.startTime);
         expect(source.startTime - cue.startTime).toBeGreaterThanOrEqual(0.2);
-        expect(cue.endTime).toBeCloseTo(source.startTime + 0.045);
+        expect(cue.endTime).toBeCloseTo(source.startTime + 0.65);
     });
 
     it('caps guide lead time for long semantic segments', () => {

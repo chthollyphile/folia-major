@@ -217,7 +217,7 @@ export class SonnetPixiRuntime {
 
     private drawOverlay(width: number, height: number) {
         destroySonnetContainerChildren(this.overlayContainer);
-        if (this.options.tuning.showOnlyText || !this.options.tuning.showBackgroundDecor) return;
+        if (this.options.tuning.showOnlyText || this.options.tuning.outerFrameMode === 'none') return;
         const g = new this.pixi.Graphics();
 
         const paddingX = Math.max(30, width * 0.05);

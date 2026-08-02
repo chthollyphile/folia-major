@@ -173,6 +173,7 @@ describe('Visual Settings Import and Export', () => {
         sonnetTuning: {
             ...DEFAULT_SONNET_TUNING,
             enableTransitions: true,
+            outerFrameMode: 'frame' as const,
         },
         songThemeAutoSwitchEnabled: true,
         songThemeAutoGenerateEnabled: true,
@@ -217,6 +218,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
         expect(decoded.sonnetTuning?.enableTransitions).toBe(true);
+        expect(decoded.sonnetTuning?.outerFrameMode).toBe('frame');
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
         expect(decoded.songThemeAutoGenerateEnabled).toBe(true);
 

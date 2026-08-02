@@ -186,20 +186,7 @@ export const createSonnetGuide = (
         trackingTrails.forEach(trail => {
             const localProg = (progress - trail.delay) / 0.55;
             if (localProg > -0.15 && fadeOut > 0) {
-                // 1. Draw the anticipating faint track (Slider Body)
-                const trackAlpha = Math.min(1, (localProg + 0.15) * 5) * strokeProps.alpha * 0.25 * fadeOut;
-                if (trackAlpha > 0) {
-                    const trackSteps = 30;
-                    let prevP = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, 0);
-                    graphics.moveTo(prevP.x, prevP.y);
-                    for (let i = 1; i <= trackSteps; i++) {
-                        const p = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, i / trackSteps);
-                        graphics.lineTo(p.x, p.y);
-                    }
-                    graphics.stroke({ color, width: isHero ? 2 : 1, alpha: trackAlpha });
-                }
-
-                // 2. Head and Tail sweep
+                // Head and tail sweep without drawing the full trajectory in advance.
                 if (localProg > 0 && localProg < 1.3) {
                     const headT = Math.min(1, localProg);
                     const tailT = Math.max(0, localProg - 0.35); // The comet tail length
@@ -222,7 +209,7 @@ export const createSonnetGuide = (
                         }
                     }
 
-                    // 3. Glowing Head and Follow Circle
+                    // Glowing head and follow circle
                     if (headT > 0 && headT < 1) {
                         const headPos = getBezier(trail.p0, trail.p1, trail.p2, trail.p3, headT);
                         graphics.circle(headPos.x, headPos.y, isHero ? 7 : 4).fill({ color, alpha: 0.9 * fadeOut });

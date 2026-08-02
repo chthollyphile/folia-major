@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
-import { DEFAULT_SONNET_TUNING, type SonnetTuning } from '../../../types';
+import { DEFAULT_SONNET_TUNING, type SonnetOuterFrameMode, type SonnetTuning } from '../../../types';
+import { colorWithAlpha } from '../colorMix';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import VisualizerPresetGroup, { type VisualizerPresetOption } from '../VisualizerPresetGroup';
+import { SonnetRangeControl, SonnetSettingsSection } from './SonnetSettingsControls';
 
 // src/components/visualizer/sonnet/SonnetSettingsPanel.tsx
 // Keeps Sonnet's tuning controls adjacent to the mode implementation.
@@ -21,6 +23,12 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { value: false, label: t('options.sonnetToggleOff') || '关闭' },
     ]), [t]);
 
+    const outerFrameOptions: VisualizerPresetOption<SonnetOuterFrameMode>[] = useMemo(() => ([
+        { value: 'none', label: t('options.sonnetOuterFrameNone') || '完全隐藏' },
+        { value: 'frame', label: t('options.sonnetOuterFrameFrame') || '仅显示框架' },
+        { value: 'full', label: t('options.sonnetOuterFrameFull') || '完全显示' },
+    ]), [t]);
+
     const visibilityControls: Array<{
         key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor' | 'enableTransitions'>;
         label: string;
@@ -34,23 +42,13 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { key: 'enableTransitions', label: t('options.sonnetEnableTransitions') || '场景转场' },
     ];
 
-    const controls: Array<{
-        key: Extract<keyof SonnetTuning, 'cameraIntensity' | 'typographyMotion' | 'mgDensity' | 'textureResolution'>;
+    const motionControls: Array<{
+        key: Extract<keyof SonnetTuning, 'cameraIntensity' | 'typographyMotion' | 'mgDensity'>;
         label: string;
-        min?: number;
-        max?: number;
-        step?: number;
     }> = [
         { key: 'cameraIntensity', label: t('options.sonnetCameraIntensity') },
         { key: 'typographyMotion', label: t('options.sonnetTypographyMotion') },
         { key: 'mgDensity', label: t('options.sonnetMgDensity') },
-        {
-            key: 'textureResolution',
-            label: t('options.sonnetTextureResolution'),
-            min: 0.5,
-            max: 4,
-            step: 0.25,
-        },
     ];
 
     return (
@@ -66,40 +64,69 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     {t('options.sonnetSettingsDesc')}
                 </div>
             </div>
-            {controls.map(control => (
-                <div key={control.key} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                        <span>{control.label}</span>
-                        <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                            {sonnetTuning[control.key].toFixed(2)}x
-                        </span>
-                    </div>
-                    <input
-                        type="range"
-                        min={control.min ?? 0}
-                        max={control.max ?? 2}
-                        step={control.step ?? 0.05}
-                        value={sonnetTuning[control.key]}
-                        onChange={event => onSonnetTuningChange?.({
-                            [control.key]: Number(event.target.value),
-                        })}
+
+            <SonnetSettingsSection title={t('options.sonnetQualitySection')}>
+                <div
+                    className="rounded-2xl border p-3.5 space-y-2.5"
+                    style={{
+                        borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
+                        backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
+                    }}
+                >
+                    <SonnetRangeControl
+                        label={t('options.sonnetTextureResolution')}
+                        value={sonnetTuning.textureResolution}
+                        min={0.5}
+                        max={4}
+                        step={0.25}
+                        rangeInputClass={rangeInputClass}
+                        onChange={textureResolution => onSonnetTuningChange?.({ textureResolution })}
                         onPointerDown={onSliderPointerDown}
                         onPointerUp={onSliderCommit}
-                        className={rangeInputClass}
                     />
+                    <p className="text-xs leading-relaxed opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                        {t('options.sonnetTexturePerformanceWarning')}
+                    </p>
                 </div>
-            ))}
-            {visibilityControls.map(control => (
+            </SonnetSettingsSection>
+
+            <SonnetSettingsSection title={t('options.sonnetMotionSection')}>
+                {motionControls.map(control => (
+                    <SonnetRangeControl
+                        key={control.key}
+                        label={control.label}
+                        value={sonnetTuning[control.key]}
+                        rangeInputClass={rangeInputClass}
+                        onChange={value => onSonnetTuningChange?.({ [control.key]: value })}
+                        onPointerDown={onSliderPointerDown}
+                        onPointerUp={onSliderCommit}
+                    />
+                ))}
+            </SonnetSettingsSection>
+
+            <SonnetSettingsSection title={t('options.sonnetDisplaySection')}>
                 <VisualizerPresetGroup
-                    key={control.key}
-                    label={control.label}
-                    value={sonnetTuning[control.key]}
-                    options={booleanOptions}
-                    onChange={(next) => onSonnetTuningChange?.({ [control.key]: next })}
+                    label={t('options.sonnetOuterFrameMode')}
+                    value={sonnetTuning.outerFrameMode}
+                    options={outerFrameOptions}
+                    onChange={outerFrameMode => onSonnetTuningChange?.({ outerFrameMode })}
                     isDaylight={isDaylight}
                     theme={theme}
                 />
-            ))}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {visibilityControls.map(control => (
+                        <VisualizerPresetGroup
+                            key={control.key}
+                            label={control.label}
+                            value={sonnetTuning[control.key]}
+                            options={booleanOptions}
+                            onChange={(next) => onSonnetTuningChange?.({ [control.key]: next })}
+                            isDaylight={isDaylight}
+                            theme={theme}
+                        />
+                    ))}
+                </div>
+            </SonnetSettingsSection>
         </div>
     );
 };

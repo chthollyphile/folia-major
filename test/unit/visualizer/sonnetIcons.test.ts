@@ -12,6 +12,12 @@ describe('Sonnet theme icons', () => {
         expect(resolveSonnetIconNames(['Moon', 'moon', 'heart', 'not-a-lucide-icon'])).toEqual(['Moon', 'Heart']);
     });
 
+    it('falls back to the Lucide flower when the theme provides no usable icon', () => {
+        expect(resolveSonnetIconNames(undefined)).toEqual(['Flower']);
+        expect(resolveSonnetIconNames([])).toEqual(['Flower']);
+        expect(resolveSonnetIconNames(['not-a-lucide-icon'])).toEqual(['Flower']);
+    });
+
     it('builds theme-colored SVG data and complete cache keys', () => {
         const url = buildSonnetIconDataUrl('Sparkles', '#ff00aa', 1.5, 192);
         expect(url).toContain('data:image/svg+xml');

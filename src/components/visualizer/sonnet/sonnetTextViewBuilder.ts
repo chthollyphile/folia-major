@@ -66,6 +66,7 @@ interface SonnetTextViewOptions {
     fontWeight: number;
     theme: Theme;
     glowEnabled: boolean;
+    showFixedGeo: boolean;
     guideLayer: import('pixi.js').Container;
     haloLayer: import('pixi.js').Container;
     textLayer: import('pixi.js').Container;
@@ -264,7 +265,11 @@ export const buildSonnetTextView = (
     const textSeed = segment.text.split('').reduce((a, b) => a + b.charCodeAt(0), 0) + options.segmentIndex * 13;
     const isChorusEffect = isChorusParagraph || ((textSeed % 100) < 35);
     const shapeThreshold = isChorusEffect ? 40 : 25; // Higher chance in chorus effect
-    const shouldAddBgShape = (textSeed % 100) < shapeThreshold && !isDecoration && segment.isWordLike && glyphs.length > 0;
+    const shouldAddBgShape = options.showFixedGeo
+        && (textSeed % 100) < shapeThreshold
+        && !isDecoration
+        && segment.isWordLike
+        && glyphs.length > 0;
 
     if (shouldAddBgShape) {
         const bgWrapper = new pixi.Container();

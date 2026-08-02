@@ -519,6 +519,8 @@ export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
   enableLineGlow: false,
 };
 
+export type SonnetOuterFrameMode = 'none' | 'frame' | 'full';
+
 export interface SonnetTuning {
   cameraIntensity: number;
   typographyMotion: number;
@@ -530,6 +532,7 @@ export interface SonnetTuning {
   showGiantDecorativeText: boolean;
   showBackgroundDecor: boolean;
   enableTransitions: boolean;
+  outerFrameMode: SonnetOuterFrameMode;
   textureResolution: number;
 }
 
@@ -544,6 +547,7 @@ export const DEFAULT_SONNET_TUNING: SonnetTuning = {
   showGiantDecorativeText: true,
   showBackgroundDecor: true,
   enableTransitions: true,
+  outerFrameMode: 'full',
   textureResolution: 1.5,
 };
 

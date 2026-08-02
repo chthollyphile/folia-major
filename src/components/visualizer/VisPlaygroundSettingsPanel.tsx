@@ -480,34 +480,52 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             isOptionActive={(option) => option.value === fontStyleValue}
                         />
 
-                        <PresetGroup
-                            label={t('options.fontSize')}
-                            value={fontScale}
-                            options={fontScaleOptions}
-                            onChange={onFontScaleChange}
-                            isDaylight={isDaylight}
-                            theme={theme}
-                        />
-
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
-                                <span>{t('options.fontSize')}</span>
-                                <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
-                                    {Math.round(fontScale * 100)}%
-                                </span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0.85"
-                                max="1.4"
-                                step="0.05"
+                        <fieldset
+                            disabled={visualizerMode === 'sonnet'}
+                            className={`space-y-4 transition-opacity ${visualizerMode === 'sonnet' ? 'opacity-40' : ''}`}
+                        >
+                            <PresetGroup
+                                label={t('options.fontSize')}
                                 value={fontScale}
-                                onChange={(event) => onFontScaleChange(parseFloat(event.target.value))}
-                                onPointerDown={onSliderPointerDown}
-                                onPointerUp={onSliderCommit}
-                                className={rangeInputClass}
+                                options={fontScaleOptions}
+                                onChange={onFontScaleChange}
+                                isDaylight={isDaylight}
+                                theme={theme}
                             />
-                        </div>
+
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm" style={{ color: theme.primaryColor }}>
+                                    <span>{t('options.fontSize')}</span>
+                                    <span className="font-mono opacity-70" style={{ color: theme.secondaryColor }}>
+                                        {Math.round(fontScale * 100)}%
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0.85"
+                                    max="1.4"
+                                    step="0.05"
+                                    value={fontScale}
+                                    onChange={(event) => onFontScaleChange(parseFloat(event.target.value))}
+                                    onPointerDown={onSliderPointerDown}
+                                    onPointerUp={onSliderCommit}
+                                    className={rangeInputClass}
+                                />
+                            </div>
+                        </fieldset>
+
+                        {visualizerMode === 'sonnet' && (
+                            <div
+                                className="rounded-2xl border px-3.5 py-3 text-xs leading-relaxed"
+                                style={{
+                                    color: theme.secondaryColor,
+                                    borderColor: colorWithAlpha(theme.accentColor, isDaylight ? 0.22 : 0.28),
+                                    backgroundColor: colorWithAlpha(theme.accentColor, isDaylight ? 0.06 : 0.1),
+                                }}
+                            >
+                                {t('options.sonnetFontSizeAutoNotice')}
+                            </div>
+                        )}
 
                         <ToggleRow
                             label={t('options.fontWeightAuto')}

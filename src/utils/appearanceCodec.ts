@@ -329,6 +329,7 @@ const compressSonnet = (t: any): any => ({
     sgdt: t.showGiantDecorativeText,
     sbd: t.showBackgroundDecor,
     et: t.enableTransitions,
+    ofm: t.outerFrameMode,
     tr: t.textureResolution,
 });
 const decompressSonnet = (o: any): any => ({
@@ -342,6 +343,7 @@ const decompressSonnet = (o: any): any => ({
     showGiantDecorativeText: o.sgdt !== undefined ? o.sgdt : DEFAULT_SONNET_TUNING.showGiantDecorativeText,
     showBackgroundDecor: o.sbd !== undefined ? o.sbd : DEFAULT_SONNET_TUNING.showBackgroundDecor,
     enableTransitions: o.et !== undefined ? o.et : DEFAULT_SONNET_TUNING.enableTransitions,
+    outerFrameMode: o.ofm !== undefined ? o.ofm : DEFAULT_SONNET_TUNING.outerFrameMode,
     textureResolution: o.tr !== undefined ? o.tr : DEFAULT_SONNET_TUNING.textureResolution,
 });
 

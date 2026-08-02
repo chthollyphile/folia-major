@@ -51,7 +51,7 @@ const drawMusicSteps = (
         graphic
             .moveTo(x - spacing * 0.12, baseline - height * heightRatio * 0.5)
             .lineTo(x + spacing * 0.12, baseline + height * heightRatio * 0.5)
-            .stroke({ color, width: Math.max(2, height * 0.025), alpha });
+            .stroke({ color, width: Math.max(2, height * 0.025), alpha: alpha * 0.52 });
     });
 };
 
@@ -73,7 +73,7 @@ const drawBentLines = (
             .moveTo(x - width * 0.16, topY)
             .lineTo(x, elbowY)
             .lineTo(x - width * 0.015, bottomY)
-            .stroke({ color, width: Math.max(2, height * 0.022), alpha });
+            .stroke({ color, width: Math.max(2, height * 0.022), alpha: alpha * 0.52 });
     }
 };
 

@@ -484,6 +484,11 @@ const readStoredSonnetTuning = (): SonnetTuning => {
             enableTransitions: typeof parsed.enableTransitions === 'boolean'
                 ? parsed.enableTransitions
                 : DEFAULT_SONNET_TUNING.enableTransitions,
+            outerFrameMode: parsed.outerFrameMode === 'none'
+                || parsed.outerFrameMode === 'frame'
+                || parsed.outerFrameMode === 'full'
+                ? parsed.outerFrameMode
+                : DEFAULT_SONNET_TUNING.outerFrameMode,
             textureResolution: resolvePendoloNumber(parsed.textureResolution, DEFAULT_SONNET_TUNING.textureResolution, 0.5, 4),
         };
     } catch {
@@ -2088,6 +2093,11 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             enableTransitions: typeof patch.enableTransitions === 'boolean'
                 ? patch.enableTransitions
                 : prev.enableTransitions,
+            outerFrameMode: patch.outerFrameMode === 'none'
+                || patch.outerFrameMode === 'frame'
+                || patch.outerFrameMode === 'full'
+                ? patch.outerFrameMode
+                : prev.outerFrameMode,
             textureResolution: resolvePendoloNumber(patch.textureResolution, prev.textureResolution, 0.5, 4),
         };
         if (typeof window !== 'undefined') localStorage.setItem('sonnet_tuning', JSON.stringify(next));

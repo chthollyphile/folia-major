@@ -10,9 +10,14 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons).filter(name => {
 });
 const LUCIDE_ICON_NAMES_BY_LOWERCASE = new Map(LUCIDE_ICON_NAMES.map(name => [name.toLowerCase(), name]));
 
-export const resolveSonnetIconNames = (names: string[] | undefined): string[] => (
-    [...new Set((names ?? []).map(name => LUCIDE_ICON_NAMES_BY_LOWERCASE.get(name.toLowerCase())).filter(Boolean))]
-) as string[];
+export const resolveSonnetIconNames = (names: string[] | undefined): string[] => {
+    const resolved = [
+        ...new Set((names ?? [])
+            .map(name => LUCIDE_ICON_NAMES_BY_LOWERCASE.get(name.toLowerCase()))
+            .filter(Boolean)),
+    ] as string[];
+    return resolved.length > 0 ? resolved : ['Flower'];
+};
 
 export const buildSonnetIconTextureKey = (
     name: string,

@@ -76,6 +76,7 @@ export const buildSonnetScene = (
     const showFixedGeo = !showOnlyText && options.tuning.showFixedGeo;
     const showBackgroundDecor = !showOnlyText && options.tuning.showBackgroundDecor;
     const showGuide = !showOnlyText && options.tuning.showGuide;
+    const showOuterMetadata = !showOnlyText && options.tuning.outerFrameMode === 'full';
     const sceneSeed = hashSonnetSeed(`${options.programSeed}:${paragraph.id}`);
     const postProcessProfile = resolveSonnetPostProcessProfile(
         options.theme,
@@ -121,7 +122,7 @@ export const buildSonnetScene = (
         nameText.rotation = -Math.PI / 2;
         nameText.position.set(20, height - 20);
         nameText.anchor.set(0, 1);
-        if (showBackgroundMg) sceneBackgroundLayer.addChild(nameText);
+        if (showOuterMetadata) sceneBackgroundLayer.addChild(nameText);
     }
     
     if (options.theme.description) {
@@ -138,7 +139,7 @@ export const buildSonnetScene = (
         descText.alpha = 0.3;
         descText.position.set(width - 20, 20);
         descText.anchor.set(1, 0);
-        if (showBackgroundMg) sceneBackgroundLayer.addChild(descText);
+        if (showOuterMetadata) sceneBackgroundLayer.addChild(descText);
     }
     container.addChild(sceneBackgroundLayer);
 
@@ -224,6 +225,7 @@ export const buildSonnetScene = (
                     fontWeight,
                     theme: options.theme,
                     glowEnabled: postProcessProfile.glowStrength > 0,
+                    showFixedGeo,
                     guideLayer,
                     haloLayer,
                     textLayer,
