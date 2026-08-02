@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
+import { DEFAULT_SONNET_TUNING } from '@/types';
 
 // test/unit/visualizer/visualSettingsImportExport.test.ts
 // Verifies visual settings configuration compression, base64 encoding, and decompression/restoration.
@@ -169,6 +170,10 @@ describe('Visual Settings Import and Export', () => {
             portraitOffsetX: -120,
             portraitStyle: 'square' as const,
         },
+        sonnetTuning: {
+            ...DEFAULT_SONNET_TUNING,
+            enableTransitions: true,
+        },
         songThemeAutoSwitchEnabled: true,
         songThemeAutoGenerateEnabled: true,
     };
@@ -211,6 +216,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.latentBackgroundTuning).toEqual(sampleConfig.latentBackgroundTuning);
         expect(decoded.monetTuning?.portraitOffsetX).toBe(-120);
         expect(decoded.monetTuning?.portraitStyle).toBe('square');
+        expect(decoded.sonnetTuning?.enableTransitions).toBe(true);
         expect(decoded.songThemeAutoSwitchEnabled).toBe(true);
         expect(decoded.songThemeAutoGenerateEnabled).toBe(true);
 

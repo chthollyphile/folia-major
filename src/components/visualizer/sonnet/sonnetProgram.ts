@@ -11,6 +11,7 @@ import type {
     SonnetShotKind,
     SonnetTransitionKind,
 } from './types';
+import { SONNET_TRANSITION_KINDS } from './types';
 import { hashSonnetSeed } from './sonnetRandom';
 import { buildSonnetSemanticSegments } from './sonnetSemantic';
 
@@ -25,13 +26,6 @@ const SHOT_KINDS: SonnetShotKind[] = [
     'tracking-ribbon',
     'mask-reveal',
     'quiet-tableau',
-];
-const TRANSITION_KINDS: SonnetTransitionKind[] = [
-    'whip-pan',
-    'match-cut',
-    'strip-slice',
-    'flash-frame',
-    'aperture-wipe',
 ];
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -220,14 +214,13 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
         const next = drafts[index + 1];
         const endTime = draft.lines.at(-1)!.renderEndTime;
         const gap = next ? next.lines[0].line.startTime - endTime : 0;
-        const availableTransitions = kind === 'chorus' 
-            ? TRANSITION_KINDS.filter(t => t !== 'flash-frame')
-            : TRANSITION_KINDS;
+        const availableTransitions = [...SONNET_TRANSITION_KINDS];
         const transitionKind = next
             ? chooseWithoutRepeat(availableTransitions, `${resolvedSeed}:${index}:transition`, previousTransition)
             : null;
         if (transitionKind) previousTransition = transitionKind;
-        const transitionDuration = next ? (gap >= 1.2 ? Math.min(0.8, gap * 0.65) : Math.min(0.22, Math.max(0.12, gap + 0.12))) : 0;
+        const transitionDuration = next ? Math.min(0.3, Math.max(0.16, gap > 0 ? gap * 0.5 : 0.2)) : 0;
+        const transitionEndTime = next?.lines[0].line.startTime ?? endTime;
         return {
             id: `sonnet-p${index}`,
             kind,
@@ -238,8 +231,8 @@ export const compileSonnetProgram = (lines: Line[], seed: string | number = 'son
             shots,
             transitionOut: transitionKind ? {
                 kind: transitionKind,
-                startTime: Math.max(draft.lines[0].line.startTime, endTime - transitionDuration),
-                endTime,
+                startTime: Math.max(draft.lines[0].line.startTime, transitionEndTime - transitionDuration),
+                endTime: transitionEndTime,
             } : null,
         };
     });

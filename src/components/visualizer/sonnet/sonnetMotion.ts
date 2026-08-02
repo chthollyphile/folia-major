@@ -1,4 +1,4 @@
-import type { SonnetParagraph, SonnetShot, SonnetShotKind, SonnetTransitionKind } from './types';
+import type { SonnetShot, SonnetShotKind } from './types';
 import type { SonnetSegmentRole } from './sonnetTypographyLayout';
 
 // src/components/visualizer/sonnet/sonnetMotion.ts
@@ -188,37 +188,4 @@ export const resolveTimelineShake = (time: number, intensity: number) => {
         y: shakeY * 0.02 * intensity,
         rotation: shakeRot * 0.005 * intensity,
     };
-};
-
-export interface SonnetTransitionFrame {
-    progress: number;
-    x: number;
-    y: number;
-    scale: number;
-    rotation: number;
-    alpha: number;
-    shakeIntensity: number;
-}
-
-export const resolveTransitionFrame = (
-    paragraph: SonnetParagraph,
-    time: number,
-): SonnetTransitionFrame => {
-    const transition = paragraph.transitionOut;
-    if (!transition || time < transition.startTime) {
-        return { progress: 0, x: 0, y: 0, scale: 1, rotation: 0, alpha: 1, shakeIntensity: 0 };
-    }
-    const progress = easeSonnetInOut(clamp01(
-        (time - transition.startTime) / Math.max(transition.endTime - transition.startTime, 0.001),
-    ));
-    const shakeIntensity = 0; // Removed extreme shaking per user request
-
-    const frames: Record<SonnetTransitionKind, Omit<SonnetTransitionFrame, 'progress' | 'shakeIntensity'>> = {
-        'whip-pan': { x: -0.15 * progress, y: 0.02 * progress, scale: 1.01, rotation: -0.005 * progress, alpha: 1 - progress },
-        'match-cut': { x: 0, y: 0, scale: 1 + progress * 0.1, rotation: 0, alpha: 1 - progress },
-        'strip-slice': { x: 0.05 * progress, y: -0.02 * progress, scale: 1, rotation: 0.01 * progress, alpha: 1 - progress },
-        'flash-frame': { x: 0, y: 0, scale: 1.02, rotation: 0, alpha: 1 - progress },
-        'aperture-wipe': { x: 0, y: 0, scale: Math.max(0.8, 1 - progress * 0.2), rotation: progress * 0.02, alpha: 1 - progress },
-    };
-    return { progress, shakeIntensity, ...frames[transition.kind] };
 };

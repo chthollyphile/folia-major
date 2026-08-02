@@ -46,6 +46,7 @@ describe('Sonnet settings', () => {
             showOnlyText: true,
             showGuide: false,
             showBackgroundMg: false,
+            enableTransitions: true,
             textureResolution: 1.75,
         });
 
@@ -54,12 +55,14 @@ describe('Sonnet settings', () => {
             showGuide: false,
             showBackgroundMg: false,
             showFixedGeo: true,
+            enableTransitions: true,
             textureResolution: 1.75,
         });
         expect(JSON.parse(storage.getItem('sonnet_tuning') ?? '{}')).toMatchObject({
             showOnlyText: true,
             showGuide: false,
             showBackgroundMg: false,
+            enableTransitions: true,
             textureResolution: 1.75,
         });
     });

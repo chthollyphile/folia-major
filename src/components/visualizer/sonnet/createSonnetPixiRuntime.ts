@@ -11,8 +11,14 @@ import {
     resolveShotMotionFrame,
     resolveShotProgress,
     resolveTimelineShake,
-    resolveTransitionFrame,
 } from './sonnetMotion';
+import { hashSonnetSeed } from './sonnetRandom';
+import {
+    IDLE_SONNET_TRANSITION_FRAME,
+    resolveSonnetEnterTransitionFrame,
+    resolveSonnetExitTransitionFrame,
+    resolveSonnetShotTransitionFrame,
+} from './sonnetTransitions';
 import { buildSonnetScene, type SceneView, type ShotView } from './sonnetSceneBuilder';
 import { getSonnetTexturePool } from './sonnetTexturePool';
 import {
@@ -574,7 +580,32 @@ export class SonnetPixiRuntime {
                 return;
             }
 
-            const transition = resolveTransitionFrame(scene.paragraph, time);
+            const transitionsEnabled = this.options.tuning.enableTransitions && !this.options.staticMode;
+            const transitionSeed = hashSonnetSeed(`${this.options.program.seed}:${scene.paragraph.id}:transition-frame`);
+            const previousTransition = index > 0
+                ? this.options.program.paragraphs[index - 1]?.transitionOut
+                : null;
+            const enterDuration = previousTransition
+                ? Math.max(0.16, Math.min(0.3, previousTransition.endTime - previousTransition.startTime))
+                : 0;
+            const entering = transitionsEnabled
+                && previousTransition !== null
+                && time >= scene.paragraph.startTime
+                && time <= scene.paragraph.startTime + enterDuration;
+            const paragraphTransitionFrame = entering
+                ? resolveSonnetEnterTransitionFrame(
+                    previousTransition.kind,
+                    time - scene.paragraph.startTime,
+                    enterDuration,
+                    true,
+                    transitionSeed,
+                )
+                : resolveSonnetExitTransitionFrame(
+                    scene.paragraph,
+                    time,
+                    transitionsEnabled,
+                    transitionSeed,
+                );
 
             // Strictly determine the single active shot within this scene to avoid intra-scene residues
             let activeShotIndex = 0;
@@ -586,11 +617,21 @@ export class SonnetPixiRuntime {
             }
 
             const visibleShotIndex = activeShotIndex;
+            const shotTransitionFrame = resolveSonnetShotTransitionFrame(
+                scene.shotTimeline,
+                visibleShotIndex,
+                time,
+                transitionsEnabled,
+                transitionSeed,
+            );
+            const transitionFrame = shotTransitionFrame !== IDLE_SONNET_TRANSITION_FRAME
+                ? shotTransitionFrame
+                : paragraphTransitionFrame;
             scene.shots.forEach((shot, shotIndex) => {
                 const isShotActive = shotIndex === visibleShotIndex;
                 shot.container.visible = isShotActive;
                 if (!isShotActive) return;
-                this.updateShot(shot, time, width, height, transition.shakeIntensity);
+                this.updateShot(shot, time, width, height, 0);
             });
             if (scene.activeShotIndex !== visibleShotIndex) {
                 const previousShot = scene.shots[scene.activeShotIndex];
@@ -598,39 +639,24 @@ export class SonnetPixiRuntime {
                 scene.activeShotIndex = visibleShotIndex;
             }
 
-            // If this is the active scene, we simulate an 'entrance' by reversing the previous scene's transition
-            let enterX = 0, enterY = 0, enterScale = 1, enterRotation = 0, enterAlpha = 1;
-            if (isActive && index > 0) {
-                const prevScene = this.sceneCache.get(index - 1);
-                if (prevScene && prevScene.paragraph.transitionOut) {
-                    const prevT = prevScene.paragraph.transitionOut;
-                    if (time >= prevT.startTime && time <= prevT.endTime + 0.1) {
-                        const inProgress = clamp01((time - prevT.startTime) / Math.max(0.001, prevT.endTime - prevT.startTime));
-                        const easedIn = easeSonnetInOut(inProgress);
-
-                        // Counter-animate against the previous scene's exit direction
-                        const tFrame = resolveTransitionFrame(prevScene.paragraph, prevT.startTime + (prevT.endTime - prevT.startTime) * 0.99);
-                        enterX = -tFrame.x * (1 - easedIn) * 0.5;
-                        enterY = -tFrame.y * (1 - easedIn) * 0.5;
-                        enterScale = 1 + (1 - easedIn) * 0.15;
-                        enterAlpha = easedIn;
-                    }
-                }
-            }
-
             const isFinalScene = index === this.options.program.paragraphs.length - 1;
             const lyricAlpha = isFinalScene && hasCredits ? creditsFrame.lyricAlpha : 1;
-            scene.container.alpha = (isActive ? enterAlpha : transition.alpha) * lyricAlpha;
+            scene.container.alpha = transitionFrame.alpha * lyricAlpha;
             scene.container.pivot.set(width / 2, height / 2);
-
-            const finalX = isActive ? enterX : transition.x;
-            const finalY = isActive ? enterY : transition.y;
-            const finalScale = isActive ? enterScale : transition.scale;
-            const finalRotation = isActive ? enterRotation : transition.rotation;
-
-            scene.container.position.set(width / 2 + finalX * width, height / 2 + finalY * height);
-            scene.container.scale.set(finalScale);
-            scene.container.rotation = finalRotation;
+            scene.container.position.set(
+                width / 2 + transitionFrame.x * width,
+                height / 2 + transitionFrame.y * height,
+            );
+            scene.container.scale.set(transitionFrame.scale);
+            scene.container.rotation = transitionFrame.rotation;
+            if (scene.transitionBlurFilter) {
+                scene.transitionBlurFilter.strength = transitionFrame.blur;
+                scene.transitionBlurFilter.enabled = transitionFrame.blur > 0.01;
+            }
+            if (scene.transitionGlitchEffect) {
+                scene.transitionGlitchEffect.update(transitionFrame.glitch, transitionFrame.glitchSeed);
+                scene.transitionGlitchEffect.filter.enabled = transitionFrame.glitch > 0.01;
+            }
 
             if (isFinalScene && hasCredits) {
                 this.updateOutroBlur(scene, creditsFrame.lyricBlur);

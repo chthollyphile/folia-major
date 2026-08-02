@@ -15,6 +15,7 @@ import {
     buildSonnetTextView,
     type SegmentView,
 } from './sonnetTextViewBuilder';
+import { createSonnetGlitchEffect, type SonnetGlitchEffect } from './sonnetGlitchFilter';
 
 // src/components/visualizer/sonnet/sonnetSceneBuilder.ts
 // Builds one bounded paragraph scene; playback-time mutation remains in the runtime controller.
@@ -40,7 +41,10 @@ export interface SceneView {
     paragraph: SonnetParagraph;
     container: import('pixi.js').Container;
     shots: ShotView[];
+    shotTimeline: SonnetShot[];
     postProcessFilters: import('pixi.js').Filter[];
+    transitionBlurFilter: import('pixi.js').BlurFilter | null;
+    transitionGlitchEffect: SonnetGlitchEffect | null;
     activeShotIndex: number;
 }
 
@@ -272,6 +276,30 @@ export const buildSonnetScene = (
             sceneSeed,
         ));
     }
+    const transitionBlurFilter = options.tuning.enableTransitions && !options.staticMode
+        ? new pixi.BlurFilter({ strength: 0, quality: 1, kernelSize: 5, resolution: 0.5 })
+        : null;
+    if (transitionBlurFilter) {
+        transitionBlurFilter.enabled = false;
+        container.filters = [...(container.filters ?? []), transitionBlurFilter];
+        postProcessFilters.push(transitionBlurFilter);
+    }
+    const transitionGlitchEffect = options.tuning.enableTransitions && !options.staticMode
+        ? createSonnetGlitchEffect(pixi)
+        : null;
+    if (transitionGlitchEffect) {
+        container.filters = [...(container.filters ?? []), transitionGlitchEffect.filter];
+        postProcessFilters.push(transitionGlitchEffect.filter);
+    }
     container.visible = false;
-    return { paragraph, container, shots, postProcessFilters, activeShotIndex: -1 };
+    return {
+        paragraph,
+        container,
+        shots,
+        shotTimeline: shots.map(shot => shot.shot),
+        postProcessFilters,
+        transitionBlurFilter,
+        transitionGlitchEffect,
+        activeShotIndex: -1,
+    };
 };

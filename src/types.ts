@@ -529,6 +529,7 @@ export interface SonnetTuning {
   showFixedGeo: boolean;
   showGiantDecorativeText: boolean;
   showBackgroundDecor: boolean;
+  enableTransitions: boolean;
   textureResolution: number;
 }
 
@@ -542,6 +543,7 @@ export const DEFAULT_SONNET_TUNING: SonnetTuning = {
   showFixedGeo: true,
   showGiantDecorativeText: true,
   showBackgroundDecor: true,
+  enableTransitions: true,
   textureResolution: 1.5,
 };
 

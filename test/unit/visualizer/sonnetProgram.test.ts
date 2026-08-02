@@ -108,4 +108,16 @@ describe('Sonnet program compiler', () => {
         expect(compiledFirst.renderEndTime).toBe(3);
         expect(program.paragraphs[0].shots[0].endTime).toBeGreaterThanOrEqual(3);
     });
+
+    it('holds the outgoing scene through a lyric gap and transitions immediately before the next scene', () => {
+        const program = compileSonnetProgram([
+            line('first', 1, 2, undefined, { blockIndex: 0 }),
+            line('second', 5, 6, undefined, { blockIndex: 1 }),
+        ], 'gap-hold');
+        const current = program.paragraphs[0];
+        const next = program.paragraphs[1];
+
+        expect(current.transitionOut?.endTime).toBe(next.startTime);
+        expect(current.transitionOut?.startTime).toBeGreaterThan(current.endTime);
+    });
 });

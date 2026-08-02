@@ -900,6 +900,7 @@ export default {
     "sonnetShowFixedGeo": "Text markers",
     "sonnetShowGiantDecorativeText": "Giant decorative outline text",
     "sonnetShowBackgroundDecor": "Background decorations",
+    "sonnetEnableTransitions": "Scene transitions",
     "sonnetToggleOn": "On",
     "sonnetToggleOff": "Off",
     "sonnetPerformanceWarningTitle": "Sonnet performance warning",

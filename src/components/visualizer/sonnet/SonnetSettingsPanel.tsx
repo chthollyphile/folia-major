@@ -22,7 +22,7 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     ]), [t]);
 
     const visibilityControls: Array<{
-        key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor'>;
+        key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor' | 'enableTransitions'>;
         label: string;
     }> = [
         { key: 'showOnlyText', label: t('options.sonnetShowOnlyText') || '仅显示文字' },
@@ -31,6 +31,7 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         { key: 'showFixedGeo', label: t('options.sonnetShowFixedGeo') || '文字浮标' },
         { key: 'showGiantDecorativeText', label: t('options.sonnetShowGiantDecorativeText') || '巨型装饰镂空文字' },
         { key: 'showBackgroundDecor', label: t('options.sonnetShowBackgroundDecor') || '背景装饰' },
+        { key: 'enableTransitions', label: t('options.sonnetEnableTransitions') || '场景转场' },
     ];
 
     const controls: Array<{

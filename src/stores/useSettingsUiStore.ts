@@ -481,6 +481,9 @@ const readStoredSonnetTuning = (): SonnetTuning => {
             showBackgroundDecor: typeof parsed.showBackgroundDecor === 'boolean'
                 ? parsed.showBackgroundDecor
                 : DEFAULT_SONNET_TUNING.showBackgroundDecor,
+            enableTransitions: typeof parsed.enableTransitions === 'boolean'
+                ? parsed.enableTransitions
+                : DEFAULT_SONNET_TUNING.enableTransitions,
             textureResolution: resolvePendoloNumber(parsed.textureResolution, DEFAULT_SONNET_TUNING.textureResolution, 0.5, 4),
         };
     } catch {
@@ -2082,6 +2085,9 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             showBackgroundDecor: typeof patch.showBackgroundDecor === 'boolean'
                 ? patch.showBackgroundDecor
                 : prev.showBackgroundDecor,
+            enableTransitions: typeof patch.enableTransitions === 'boolean'
+                ? patch.enableTransitions
+                : prev.enableTransitions,
             textureResolution: resolvePendoloNumber(patch.textureResolution, prev.textureResolution, 0.5, 4),
         };
         if (typeof window !== 'undefined') localStorage.setItem('sonnet_tuning', JSON.stringify(next));

@@ -903,6 +903,7 @@ export default {
     "sonnetShowFixedGeo": "文字浮标",
     "sonnetShowGiantDecorativeText": "巨型装饰镂空文字",
     "sonnetShowBackgroundDecor": "背景装饰",
+    "sonnetEnableTransitions": "场景转场",
     "sonnetToggleOn": "开启",
     "sonnetToggleOff": "关闭",
     "sonnetPerformanceWarningTitle": "商籁性能警告",

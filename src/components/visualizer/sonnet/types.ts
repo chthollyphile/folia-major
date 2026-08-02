@@ -12,12 +12,12 @@ export type SonnetShotKind =
     | 'tracking-ribbon'
     | 'mask-reveal'
     | 'quiet-tableau';
-export type SonnetTransitionKind =
-    | 'whip-pan'
-    | 'match-cut'
-    | 'strip-slice'
-    | 'flash-frame'
-    | 'aperture-wipe';
+export const SONNET_TRANSITION_KINDS = [
+    'fast-blur',
+    'mono-glitch',
+    'camera-pull',
+] as const;
+export type SonnetTransitionKind = typeof SONNET_TRANSITION_KINDS[number];
 
 export interface SonnetSemanticSegment {
     text: string;
