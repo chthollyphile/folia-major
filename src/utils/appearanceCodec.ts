@@ -6,6 +6,7 @@ import {
     DEFAULT_MONET_TUNING,
     DEFAULT_NOMAND_BACKGROUND_TUNING,
     DEFAULT_PENDOLO_TUNING,
+    DEFAULT_SONNET_TUNING,
     type DualTheme,
     type Theme,
 } from '../types';
@@ -317,6 +318,31 @@ const decompressPendolo = (o: any): any => ({
     enableLineGlow: o.elg !== undefined ? o.elg : DEFAULT_PENDOLO_TUNING.enableLineGlow,
 });
 
+const compressSonnet = (t: any): any => ({
+    ci: t.cameraIntensity,
+    tm: t.typographyMotion,
+    md: t.mgDensity,
+    sot: t.showOnlyText,
+    sg: t.showGuide,
+    sbm: t.showBackgroundMg,
+    sfg: t.showFixedGeo,
+    sgdt: t.showGiantDecorativeText,
+    sbd: t.showBackgroundDecor,
+    tr: t.textureResolution,
+});
+const decompressSonnet = (o: any): any => ({
+    cameraIntensity: o.ci !== undefined ? o.ci : DEFAULT_SONNET_TUNING.cameraIntensity,
+    typographyMotion: o.tm !== undefined ? o.tm : DEFAULT_SONNET_TUNING.typographyMotion,
+    mgDensity: o.md !== undefined ? o.md : DEFAULT_SONNET_TUNING.mgDensity,
+    showOnlyText: o.sot !== undefined ? o.sot : DEFAULT_SONNET_TUNING.showOnlyText,
+    showGuide: o.sg !== undefined ? o.sg : DEFAULT_SONNET_TUNING.showGuide,
+    showBackgroundMg: o.sbm !== undefined ? o.sbm : DEFAULT_SONNET_TUNING.showBackgroundMg,
+    showFixedGeo: o.sfg !== undefined ? o.sfg : DEFAULT_SONNET_TUNING.showFixedGeo,
+    showGiantDecorativeText: o.sgdt !== undefined ? o.sgdt : DEFAULT_SONNET_TUNING.showGiantDecorativeText,
+    showBackgroundDecor: o.sbd !== undefined ? o.sbd : DEFAULT_SONNET_TUNING.showBackgroundDecor,
+    textureResolution: o.tr !== undefined ? o.tr : DEFAULT_SONNET_TUNING.textureResolution,
+});
+
 export const compressConfig = (config: any): string => {
     const minified: any = {};
     if (config.theme) {
@@ -362,6 +388,7 @@ export const compressConfig = (config: any): string => {
     if (config.latentBackgroundTuning) minified.lbt = compressLatentBackground(config.latentBackgroundTuning);
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.pendoloTuning) minified.pdt = compressPendolo(config.pendoloTuning);
+    if (config.sonnetTuning) minified.snt = compressSonnet(config.sonnetTuning);
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
     if (config.songThemeAutoSwitchEnabled !== undefined) minified.stas = config.songThemeAutoSwitchEnabled;
@@ -411,7 +438,8 @@ export const decompressConfig = (str: string): any => {
         || parsed.sfw !== undefined
         || parsed.lff !== undefined
         || parsed.sfi !== undefined
-        || parsed.pdt !== undefined;
+        || parsed.pdt !== undefined
+        || parsed.snt !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -457,6 +485,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.lbt) decompressed.latentBackgroundTuning = decompressLatentBackground(parsed.lbt);
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.pdt) decompressed.pendoloTuning = decompressPendolo(parsed.pdt);
+        if (parsed.snt) decompressed.sonnetTuning = decompressSonnet(parsed.snt);
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
         if (parsed.stas !== undefined) decompressed.songThemeAutoSwitchEnabled = parsed.stas;
@@ -474,7 +503,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
             'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'monetTuning',
-            'pendoloTuning',
+            'pendoloTuning', 'sonnetTuning',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled',
         ];

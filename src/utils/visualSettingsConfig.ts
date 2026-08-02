@@ -60,6 +60,7 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     latentBackgroundTuning: store.latentBackgroundTuning,
     monetTuning: store.monetTuning,
     pendoloTuning: store.pendoloTuning,
+    sonnetTuning: store.sonnetTuning,
     urlBackgroundList: store.urlBackgroundList,
     urlBackgroundSelectedId: store.urlBackgroundSelectedId,
   };

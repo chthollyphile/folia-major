@@ -144,6 +144,7 @@ export class SonnetPixiRuntime {
 
     private drawCredits(width: number, height: number) {
         destroySonnetContainerChildren(this.creditsContainer);
+        if (this.options.tuning.showOnlyText) return;
         const metadata = {
             title: this.options.songTitle,
             artist: this.options.songArtist,
@@ -210,6 +211,7 @@ export class SonnetPixiRuntime {
 
     private drawOverlay(width: number, height: number) {
         destroySonnetContainerChildren(this.overlayContainer);
+        if (this.options.tuning.showOnlyText || !this.options.tuning.showBackgroundDecor) return;
         const g = new this.pixi.Graphics();
 
         const paddingX = Math.max(30, width * 0.05);
@@ -254,6 +256,7 @@ export class SonnetPixiRuntime {
     }
 
     private async preloadIcons() {
+        if (this.options.tuning.showOnlyText || !this.options.tuning.showBackgroundDecor) return;
         const names = resolveSonnetIconNames(this.options.theme.lyricsIcons).slice(0, 4);
         const resolution = this.options.tuning.textureResolution;
         const texturePool = getSonnetTexturePool(this.pixi);
@@ -464,7 +467,7 @@ export class SonnetPixiRuntime {
         view.segments.forEach(segmentView => {
             const guide = segmentView.guide;
             const guideActive = time >= guide.startTime && time <= guide.endTime;
-            guide.container.visible = guideActive;
+            guide.container.visible = guideActive && this.options.tuning.showGuide && !this.options.tuning.showOnlyText;
             if (guideActive) {
                 const guideProgress = clamp01(
                     (time - guide.startTime) / Math.max(0.001, guide.endTime - guide.startTime),
@@ -495,6 +498,12 @@ export class SonnetPixiRuntime {
                 const x = glyph.baseX + glyph.enterX * offset;
                 const y = glyph.baseY + glyph.enterY * offset;
                 const rotation = glyph.finalRotation + glyph.entryRotation * offset;
+                const isGiantDecorativeText = segmentView.role === 'decoration';
+                const showTextGlyph = glyph.isTextGlyph !== false;
+                const glyphVisible = this.options.tuning.showOnlyText
+                    ? showTextGlyph && (!isGiantDecorativeText || this.options.tuning.showGiantDecorativeText)
+                    : (!glyph.isBackgroundShape || this.options.tuning.showBackgroundDecor)
+                        && (!isGiantDecorativeText || this.options.tuning.showGiantDecorativeText);
 
                 // Simulated Parallax 3D effect
                 const depth = glyph.zDepth || 0;
@@ -505,6 +514,7 @@ export class SonnetPixiRuntime {
                 const depthScale = 1 + depth * 0.45;
 
                 glyph.display.alpha = coreAlpha;
+                glyph.display.visible = glyphVisible;
                 glyph.display.scale.set(scale * depthScale);
                 glyph.display.position.set(x + parallaxX, y + parallaxY);
                 glyph.display.rotation = rotation;
@@ -517,6 +527,8 @@ export class SonnetPixiRuntime {
 
                 // Animate Chromatic Aberration separation and merging
                 if (glyph.caCyan && glyph.caRed && glyph.caOffset) {
+                    glyph.caCyan.visible = glyphVisible && !this.options.tuning.showOnlyText;
+                    glyph.caRed.visible = glyphVisible && !this.options.tuning.showOnlyText;
                     // Starts separated (impact), and gently merges to a very subtle base offset
                     const mergeEased = easeSonnetInOut(glyphProgress);
                     const currentOffset = glyph.caOffset * (1 - mergeEased * 0.8); // 1.0 -> 0.2
@@ -626,7 +638,7 @@ export class SonnetPixiRuntime {
         });
 
         if (!creditsFrame.active || !hasCredits) this.clearOutroBlur();
-        this.creditsContainer.visible = creditsFrame.active && hasCredits;
+        this.creditsContainer.visible = creditsFrame.active && hasCredits && !this.options.tuning.showOnlyText;
         this.creditsContainer.alpha = creditsFrame.posterAlpha;
         this.creditsContainer.position.set(
             width / 2,

@@ -64,6 +64,7 @@ const SUBTITLE_FONT_FAMILY_STORAGE_KEY = 'subtitle_font_family';
 const SUBTITLE_FONT_FALLBACK_FAMILIES_STORAGE_KEY = 'subtitle_font_fallback_families';
 const SUBTITLE_FONT_WEIGHT_STORAGE_KEY = 'subtitle_font_weight';
 export const VISUALIZER_OPACITY_STORAGE_KEY = 'visualizer_opacity';
+export const SONNET_PERFORMANCE_WARNING_DISMISSED_STORAGE_KEY = 'sonnet_performance_warning_dismissed';
 
 const getStoredBoolean = (key: string, fallback: boolean) => {
     if (typeof window === 'undefined') {
@@ -186,6 +187,10 @@ const readStoredVisualizerMode = (): VisualizerMode => {
 
     return hasVisualizerMode(saved) ? saved : DEFAULT_VISUALIZER_MODE;
 };
+
+const readStoredSonnetPerformanceWarningDismissed = () => (
+    getStoredBoolean(SONNET_PERFORMANCE_WARNING_DISMISSED_STORAGE_KEY, false)
+);
 
 const readStoredVisualizerFrameRate = (): VisualizerFrameRate => {
     if (typeof window === 'undefined') {
@@ -458,6 +463,24 @@ const readStoredSonnetTuning = (): SonnetTuning => {
             cameraIntensity: resolvePendoloNumber(parsed.cameraIntensity, DEFAULT_SONNET_TUNING.cameraIntensity, 0, 2),
             typographyMotion: resolvePendoloNumber(parsed.typographyMotion, DEFAULT_SONNET_TUNING.typographyMotion, 0, 2),
             mgDensity: resolvePendoloNumber(parsed.mgDensity, DEFAULT_SONNET_TUNING.mgDensity, 0, 2),
+            showOnlyText: typeof parsed.showOnlyText === 'boolean'
+                ? parsed.showOnlyText
+                : DEFAULT_SONNET_TUNING.showOnlyText,
+            showGuide: typeof parsed.showGuide === 'boolean'
+                ? parsed.showGuide
+                : DEFAULT_SONNET_TUNING.showGuide,
+            showBackgroundMg: typeof parsed.showBackgroundMg === 'boolean'
+                ? parsed.showBackgroundMg
+                : DEFAULT_SONNET_TUNING.showBackgroundMg,
+            showFixedGeo: typeof parsed.showFixedGeo === 'boolean'
+                ? parsed.showFixedGeo
+                : DEFAULT_SONNET_TUNING.showFixedGeo,
+            showGiantDecorativeText: typeof parsed.showGiantDecorativeText === 'boolean'
+                ? parsed.showGiantDecorativeText
+                : DEFAULT_SONNET_TUNING.showGiantDecorativeText,
+            showBackgroundDecor: typeof parsed.showBackgroundDecor === 'boolean'
+                ? parsed.showBackgroundDecor
+                : DEFAULT_SONNET_TUNING.showBackgroundDecor,
             textureResolution: resolvePendoloNumber(parsed.textureResolution, DEFAULT_SONNET_TUNING.textureResolution, 0.5, 4),
         };
     } catch {
@@ -1121,6 +1144,10 @@ export type SettingsUiState = {
     isDaylight: boolean;
     visualizerMode: VisualizerMode;
     randomVisualizerModePerSong: boolean;
+    sonnetPerformanceWarningOpen: boolean;
+    sonnetPerformanceWarningDontShowAgain: boolean;
+    sonnetPerformanceWarningDismissed: boolean;
+    pendingVisualizerMode: VisualizerMode | null;
     classicTuning: ClassicTuning;
     cadenzaTuning: CadenzaTuning;
     partitaTuning: PartitaTuning;
@@ -1247,7 +1274,10 @@ export type SettingsUiState = {
     handleSetUrlBackgroundList: (items: UrlBackgroundItem[]) => void;
     handleSetVisualizerFrameRate: (frameRate: VisualizerFrameRate) => void;
     setDaylightPreference: (isDaylight: boolean) => void;
-    handleSetVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
+    handleSetVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean; skipSonnetWarning?: boolean }) => void;
+    handleSetSonnetPerformanceWarningDontShowAgain: (enabled: boolean) => void;
+    handleConfirmSonnetPerformanceWarning: () => void;
+    handleCancelSonnetPerformanceWarning: () => void;
     handleToggleRandomVisualizerModePerSong: (enable: boolean) => void;
     handleSetClassicTuning: (patch: Partial<ClassicTuning>) => void;
     handleResetClassicTuning: () => void;
@@ -1366,6 +1396,10 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     isDaylight: getStoredBoolean('default_theme_daylight', false),
     visualizerMode: readStoredVisualizerMode(),
     randomVisualizerModePerSong: getStoredBoolean('random_visualizer_mode_per_song', false),
+    sonnetPerformanceWarningOpen: false,
+    sonnetPerformanceWarningDontShowAgain: false,
+    sonnetPerformanceWarningDismissed: readStoredSonnetPerformanceWarningDismissed(),
+    pendingVisualizerMode: null,
     classicTuning: readStoredClassicTuning(),
     cadenzaTuning: readStoredCadenzaTuning(),
     partitaTuning: readStoredPartitaTuning(),
@@ -1825,7 +1859,22 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             void window.electron.setNativeTheme(enabled ? 'light' : 'dark');
         }
     },
+    // Gate first-time Sonnet entry behind an explicit performance acknowledgement.
     handleSetVisualizerMode: (mode, options) => {
+        if (
+            mode === 'sonnet'
+            && get().visualizerMode !== 'sonnet'
+            && !get().sonnetPerformanceWarningDismissed
+            && !options?.skipSonnetWarning
+        ) {
+            set({
+                sonnetPerformanceWarningOpen: true,
+                sonnetPerformanceWarningDontShowAgain: false,
+                pendingVisualizerMode: mode,
+            });
+            return;
+        }
+
         if (typeof window !== 'undefined') {
             localStorage.setItem('visualizer_mode', mode);
         }
@@ -1838,6 +1887,32 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
                 }),
             });
         }
+    },
+    handleSetSonnetPerformanceWarningDontShowAgain: (enabled) => {
+        set({ sonnetPerformanceWarningDontShowAgain: enabled });
+    },
+    handleConfirmSonnetPerformanceWarning: () => {
+        const pendingMode = get().pendingVisualizerMode;
+        const dismissWarning = get().sonnetPerformanceWarningDontShowAgain;
+        if (dismissWarning) {
+            setStoredBoolean(SONNET_PERFORMANCE_WARNING_DISMISSED_STORAGE_KEY, true);
+        }
+        set({
+            sonnetPerformanceWarningOpen: false,
+            sonnetPerformanceWarningDontShowAgain: false,
+            sonnetPerformanceWarningDismissed: get().sonnetPerformanceWarningDismissed || dismissWarning,
+            pendingVisualizerMode: null,
+        });
+        if (pendingMode) {
+            get().handleSetVisualizerMode(pendingMode, { skipSonnetWarning: true });
+        }
+    },
+    handleCancelSonnetPerformanceWarning: () => {
+        set({
+            sonnetPerformanceWarningOpen: false,
+            sonnetPerformanceWarningDontShowAgain: false,
+            pendingVisualizerMode: null,
+        });
     },
     handleToggleRandomVisualizerModePerSong: (enable) => {
         setStoredBoolean('random_visualizer_mode_per_song', enable);
@@ -1997,6 +2072,16 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
             cameraIntensity: resolvePendoloNumber(patch.cameraIntensity, prev.cameraIntensity, 0, 2),
             typographyMotion: resolvePendoloNumber(patch.typographyMotion, prev.typographyMotion, 0, 2),
             mgDensity: resolvePendoloNumber(patch.mgDensity, prev.mgDensity, 0, 2),
+            showOnlyText: typeof patch.showOnlyText === 'boolean' ? patch.showOnlyText : prev.showOnlyText,
+            showGuide: typeof patch.showGuide === 'boolean' ? patch.showGuide : prev.showGuide,
+            showBackgroundMg: typeof patch.showBackgroundMg === 'boolean' ? patch.showBackgroundMg : prev.showBackgroundMg,
+            showFixedGeo: typeof patch.showFixedGeo === 'boolean' ? patch.showFixedGeo : prev.showFixedGeo,
+            showGiantDecorativeText: typeof patch.showGiantDecorativeText === 'boolean'
+                ? patch.showGiantDecorativeText
+                : prev.showGiantDecorativeText,
+            showBackgroundDecor: typeof patch.showBackgroundDecor === 'boolean'
+                ? patch.showBackgroundDecor
+                : prev.showBackgroundDecor,
             textureResolution: resolvePendoloNumber(patch.textureResolution, prev.textureResolution, 0.5, 4),
         };
         if (typeof window !== 'undefined') localStorage.setItem('sonnet_tuning', JSON.stringify(next));
@@ -2620,6 +2705,8 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     isUserGuideModalOpen: state.isUserGuideModalOpen,
     visualizerMode: state.visualizerMode,
     randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+    sonnetPerformanceWarningOpen: state.sonnetPerformanceWarningOpen,
+    sonnetPerformanceWarningDontShowAgain: state.sonnetPerformanceWarningDontShowAgain,
     homeLayoutStyle: state.homeLayoutStyle,
     handleSetHomeLayoutStyle: state.handleSetHomeLayoutStyle,
     grid3dCardStyle: state.grid3dCardStyle,
@@ -2712,6 +2799,9 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     setLastSeenGuideVersion: state.setLastSeenGuideVersion,
     setIsUserGuideModalOpen: state.setIsUserGuideModalOpen,
     handleSetVisualizerMode: state.handleSetVisualizerMode,
+    handleSetSonnetPerformanceWarningDontShowAgain: state.handleSetSonnetPerformanceWarningDontShowAgain,
+    handleConfirmSonnetPerformanceWarning: state.handleConfirmSonnetPerformanceWarning,
+    handleCancelSonnetPerformanceWarning: state.handleCancelSonnetPerformanceWarning,
     handleToggleRandomVisualizerModePerSong: state.handleToggleRandomVisualizerModePerSong,
     handleSetClassicTuning: state.handleSetClassicTuning,
     handleResetClassicTuning: state.handleResetClassicTuning,

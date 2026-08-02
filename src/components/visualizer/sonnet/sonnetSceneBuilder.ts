@@ -30,6 +30,8 @@ export interface ShotView {
     basePivotY: number;
     haloLayer: import('pixi.js').Container;
     mgLayer: import('pixi.js').Container;
+    mgBackgroundLayer?: import('pixi.js').Container;
+    mgGeoLayer?: import('pixi.js').Container;
     mgParticleLayer?: import('pixi.js').Container;
     mgFixedGeoLayer?: import('pixi.js').Container;
 }
@@ -63,6 +65,13 @@ export const buildSonnetScene = (
     const width = Math.max(options.host.clientWidth, 320);
     const height = Math.max(options.host.clientHeight, 240);
     const container = new Container();
+    const sceneBackgroundLayer = new Container();
+    // Resolve visibility once while building; playback only mutates animation state afterward.
+    const showOnlyText = options.tuning.showOnlyText;
+    const showBackgroundMg = !showOnlyText && options.tuning.showBackgroundMg;
+    const showFixedGeo = !showOnlyText && options.tuning.showFixedGeo;
+    const showBackgroundDecor = !showOnlyText && options.tuning.showBackgroundDecor;
+    const showGuide = !showOnlyText && options.tuning.showGuide;
     const sceneSeed = hashSonnetSeed(`${options.programSeed}:${paragraph.id}`);
     const postProcessProfile = resolveSonnetPostProcessProfile(
         options.theme,
@@ -70,23 +79,25 @@ export const buildSonnetScene = (
         options.staticMode,
     );
     const postProcessFilters: import('pixi.js').Filter[] = [];
-    const density = Math.round(4 + options.tuning.mgDensity * 5);
-    container.addChild(new Graphics()
-        .rect(0, 0, width, height)
-        .fill({ color: colorNumber(pixi, options.theme.backgroundColor), alpha: 0.10 }));
+    if (showBackgroundMg) {
+        const density = Math.round(4 + options.tuning.mgDensity * 5);
+        sceneBackgroundLayer.addChild(new Graphics()
+            .rect(0, 0, width, height)
+            .fill({ color: colorNumber(pixi, options.theme.backgroundColor), alpha: 0.10 }));
 
-    for (let index = 0; index < density; index += 1) {
-        const x = ((sceneSeed + index * 97) % 997) / 997 * width;
-        const y = ((sceneSeed + index * 193) % 991) / 991 * height;
-        const length = 32 + ((sceneSeed + index * 43) % 180);
-        container.addChild(new Graphics()
-            .moveTo(x, y)
-            .lineTo(Math.min(width, x + length), y)
-            .stroke({
-                color: colorNumber(pixi, index % 2 ? options.theme.secondaryColor : options.theme.accentColor),
-                width: index % 3 === 0 ? 2 : 1,
-                alpha: 0.12 + (index % 4) * 0.04,
-            }));
+        for (let index = 0; index < density; index += 1) {
+            const x = ((sceneSeed + index * 97) % 997) / 997 * width;
+            const y = ((sceneSeed + index * 193) % 991) / 991 * height;
+            const length = 32 + ((sceneSeed + index * 43) % 180);
+            sceneBackgroundLayer.addChild(new Graphics()
+                .moveTo(x, y)
+                .lineTo(Math.min(width, x + length), y)
+                .stroke({
+                    color: colorNumber(pixi, index % 2 ? options.theme.secondaryColor : options.theme.accentColor),
+                    width: index % 3 === 0 ? 2 : 1,
+                    alpha: 0.12 + (index % 4) * 0.04,
+                }));
+        }
     }
 
     const { Text, TextStyle } = pixi;
@@ -106,7 +117,7 @@ export const buildSonnetScene = (
         nameText.rotation = -Math.PI / 2;
         nameText.position.set(20, height - 20);
         nameText.anchor.set(0, 1);
-        container.addChild(nameText);
+        if (showBackgroundMg) sceneBackgroundLayer.addChild(nameText);
     }
     
     if (options.theme.description) {
@@ -123,8 +134,9 @@ export const buildSonnetScene = (
         descText.alpha = 0.3;
         descText.position.set(width - 20, 20);
         descText.anchor.set(1, 0);
-        container.addChild(descText);
+        if (showBackgroundMg) sceneBackgroundLayer.addChild(descText);
     }
+    container.addChild(sceneBackgroundLayer);
 
 
 
@@ -166,14 +178,23 @@ export const buildSonnetScene = (
             iconTextures
         );
         shotContainer.addChild(mgLayer);
+        const mgBackgroundLayer = (mgLayer as any).bgLayer as import('pixi.js').Container | undefined;
+        const mgGeoLayer = (mgLayer as any).geoLayer as import('pixi.js').Container | undefined;
         const mgParticleLayer = (mgLayer as any).particleLayer as import('pixi.js').Container | undefined;
         const mgFixedGeoLayer = (mgLayer as any).fixedGeoLayer as import('pixi.js').Container | undefined;
+        mgLayer.visible = showBackgroundMg || showFixedGeo || showBackgroundDecor;
+        if (mgBackgroundLayer) mgBackgroundLayer.visible = showBackgroundMg;
+        if (mgGeoLayer) mgGeoLayer.visible = showBackgroundMg;
+        if (mgParticleLayer) mgParticleLayer.visible = showBackgroundDecor;
+        if (mgFixedGeoLayer) mgFixedGeoLayer.visible = showFixedGeo;
         const { layer: haloLayer, filters: haloFilters } = createSonnetHaloLayer(
             pixi,
             postProcessProfile,
         );
         const guideLayer = new Container();
         const textLayer = new Container();
+        guideLayer.visible = showGuide;
+        haloLayer.visible = !showOnlyText;
         shotContainer.addChild(guideLayer, haloLayer, textLayer);
         postProcessFilters.push(...haloFilters);
         // Virtual instrumental lines can share one shot; the complete staff belongs to the shot, not each line.
@@ -235,18 +256,22 @@ export const buildSonnetScene = (
             basePivotY: focusY,
             haloLayer,
             mgLayer,
+            mgBackgroundLayer,
+            mgGeoLayer,
             mgParticleLayer,
             mgFixedGeoLayer,
         };
     });
 
 
-    postProcessFilters.push(...applySonnetScenePostProcess(
-        pixi,
-        container,
-        postProcessProfile,
-        sceneSeed,
-    ));
+    if (!showOnlyText) {
+        postProcessFilters.push(...applySonnetScenePostProcess(
+            pixi,
+            container,
+            postProcessProfile,
+            sceneSeed,
+        ));
+    }
     container.visible = false;
     return { paragraph, container, shots, postProcessFilters, activeShotIndex: -1 };
 };

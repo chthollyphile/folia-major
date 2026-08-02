@@ -13,7 +13,7 @@ export function useRandomVisualizerMode({
     currentSong: SongResult | null;
     enabled: boolean;
     visualizerMode: VisualizerMode;
-    setVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
+    setVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean; skipSonnetWarning?: boolean }) => void;
 }) {
     const observedSongIdRef = useRef<string | null>(null);
     const wasEnabledRef = useRef(enabled);
@@ -51,6 +51,6 @@ export function useRandomVisualizerMode({
             .map(entry => entry.mode)
             .filter(mode => mode !== visualizerMode);
         const nextMode = candidates[Math.floor(Math.random() * candidates.length)] ?? visualizerMode;
-        setVisualizerMode(nextMode, { notify: false });
+        setVisualizerMode(nextMode, { notify: false, skipSonnetWarning: true });
     }, [currentSong, enabled, setVisualizerMode, visualizerMode]);
 }

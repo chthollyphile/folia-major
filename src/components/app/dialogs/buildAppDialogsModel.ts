@@ -4,6 +4,7 @@ import type NaviLyricMatchModal from '../../modal/NaviLyricMatchModal';
 import type OnlineLyricMatchModal from '../../modal/OnlineLyricMatchModal';
 import type UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
 import type SettingsModal from '../../modal/SettingsModal';
+import type SonnetPerformanceWarningDialog from '../../modal/SonnetPerformanceWarningDialog';
 import type ConfirmDialog from '../../shared/ConfirmDialog';
 import type { StatusMessage, SongResult, LocalSong } from '../../../types';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
@@ -15,6 +16,7 @@ type NaviLyricMatchDialogProps = React.ComponentProps<typeof NaviLyricMatchModal
 type OnlineLyricMatchDialogProps = React.ComponentProps<typeof OnlineLyricMatchModal>;
 type UnavailableReplacementDialogProps = React.ComponentProps<typeof UnavailableReplacementDialog>;
 type SettingsDialogProps = React.ComponentProps<typeof SettingsModal>;
+type SonnetPerformanceWarningDialogProps = React.ComponentProps<typeof SonnetPerformanceWarningDialog>;
 type ConfirmDialogProps = React.ComponentProps<typeof ConfirmDialog>;
 
 type AppStatusToast = StatusMessage & {
@@ -30,6 +32,7 @@ export type AppDialogsModel = {
     unavailableReplacementDialog?: UnavailableReplacementDialogProps | null;
     settingsDialog?: SettingsDialogProps | null;
     providerSwitchConfirmDialog?: ConfirmDialogProps | null;
+    sonnetPerformanceWarningDialog?: SonnetPerformanceWarningDialogProps | null;
 };
 
 type BuildAppDialogsModelParams = {
@@ -55,6 +58,11 @@ type BuildAppDialogsModelParams = {
     handleUnavailableReplacementConfirm: () => Promise<void>;
     settingsDialog?: SettingsDialogProps | null;
     providerSwitchConfirmDialog?: ConfirmDialogProps | null;
+    sonnetPerformanceWarningOpen: boolean;
+    sonnetPerformanceWarningDontShowAgain: boolean;
+    handleSetSonnetPerformanceWarningDontShowAgain: (enabled: boolean) => void;
+    handleConfirmSonnetPerformanceWarning: () => void;
+    handleCancelSonnetPerformanceWarning: () => void;
 };
 
 // Builds the centralized dialog model for toast, lyric matching, and unavailable-song replacement.
@@ -77,6 +85,11 @@ export const buildAppDialogsModel = ({
     handleUnavailableReplacementConfirm,
     settingsDialog = null,
     providerSwitchConfirmDialog = null,
+    sonnetPerformanceWarningOpen,
+    sonnetPerformanceWarningDontShowAgain,
+    handleSetSonnetPerformanceWarningDontShowAgain,
+    handleConfirmSonnetPerformanceWarning,
+    handleCancelSonnetPerformanceWarning,
 }: BuildAppDialogsModelParams): AppDialogsModel => ({
     statusToast: statusMsg
         ? {
@@ -123,4 +136,14 @@ export const buildAppDialogsModel = ({
     },
     settingsDialog,
     providerSwitchConfirmDialog,
+    sonnetPerformanceWarningDialog: sonnetPerformanceWarningOpen
+        ? {
+            isOpen: true,
+            isDaylight,
+            dontShowAgain: sonnetPerformanceWarningDontShowAgain,
+            onDontShowAgainChange: handleSetSonnetPerformanceWarningDontShowAgain,
+            onConfirm: handleConfirmSonnetPerformanceWarning,
+            onClose: handleCancelSonnetPerformanceWarning,
+        }
+        : null,
 });

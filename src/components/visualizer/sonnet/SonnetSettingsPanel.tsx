@@ -1,20 +1,40 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { DEFAULT_SONNET_TUNING, type SonnetTuning } from '../../../types';
 import type { VisualizerSettingsPanelProps } from '../definition';
+import VisualizerPresetGroup, { type VisualizerPresetOption } from '../VisualizerPresetGroup';
 
 // src/components/visualizer/sonnet/SonnetSettingsPanel.tsx
-// Keeps Sonnet's three visual-intensity controls adjacent to the mode implementation.
+// Keeps Sonnet's tuning controls adjacent to the mode implementation.
 const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     t,
-    controlCardBg,
+    isDaylight,
+    theme,
     rangeInputClass,
+    controlCardBg,
     sonnetTuning = DEFAULT_SONNET_TUNING,
     onSonnetTuningChange,
     onSliderPointerDown,
     onSliderCommit,
 }) => {
+    const booleanOptions: VisualizerPresetOption<boolean>[] = useMemo(() => ([
+        { value: true, label: t('options.sonnetToggleOn') || '开启' },
+        { value: false, label: t('options.sonnetToggleOff') || '关闭' },
+    ]), [t]);
+
+    const visibilityControls: Array<{
+        key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor'>;
+        label: string;
+    }> = [
+        { key: 'showOnlyText', label: t('options.sonnetShowOnlyText') || '仅显示文字' },
+        { key: 'showGuide', label: t('options.sonnetShowGuide') || '轨迹线' },
+        { key: 'showBackgroundMg', label: t('options.sonnetShowBackgroundMg') || '主场景' },
+        { key: 'showFixedGeo', label: t('options.sonnetShowFixedGeo') || '文字浮标' },
+        { key: 'showGiantDecorativeText', label: t('options.sonnetShowGiantDecorativeText') || '巨型装饰镂空文字' },
+        { key: 'showBackgroundDecor', label: t('options.sonnetShowBackgroundDecor') || '背景装饰' },
+    ];
+
     const controls: Array<{
-        key: keyof SonnetTuning;
+        key: Extract<keyof SonnetTuning, 'cameraIntensity' | 'typographyMotion' | 'mgDensity' | 'textureResolution'>;
         label: string;
         min?: number;
         max?: number;
@@ -67,6 +87,17 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                         className={rangeInputClass}
                     />
                 </div>
+            ))}
+            {visibilityControls.map(control => (
+                <VisualizerPresetGroup
+                    key={control.key}
+                    label={control.label}
+                    value={sonnetTuning[control.key]}
+                    options={booleanOptions}
+                    onChange={(next) => onSonnetTuningChange?.({ [control.key]: next })}
+                    isDaylight={isDaylight}
+                    theme={theme}
+                />
             ))}
         </div>
     );

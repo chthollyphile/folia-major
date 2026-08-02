@@ -298,6 +298,7 @@ export const buildSonnetShotMg = (
 
     // --- Component: Geometric Chaos ---
     let geo: AnimatedGraphics | undefined;
+    let fixedGeoLayer: import('pixi.js').Container | undefined;
     if (kind === 'type-impact' || kind === 'fragment-collage') {
         // Massive overlapping geometries
         geo = new AnimatedGraphics(pixi);
@@ -877,6 +878,20 @@ export const buildSonnetShotMg = (
         }
         
         container.addChild(geo!.display);
+
+        // Fixed geometry stays upright while the camera moves, so it can be toggled independently
+        // from the animated main scene and floating particles.
+        fixedGeoLayer = new Container();
+        const fixedGeo = new Graphics();
+        fixedGeo
+            .rect(-radius * 0.4, -radius * 0.2, radius * 0.6, radius * 0.15)
+            .fill({ color: primary, alpha: 0.7 });
+        fixedGeo
+            .rect(-radius * 0.1, radius * 0.1, radius * 0.5, radius * 0.3)
+            .stroke({ color: primary, width: 2, alpha: 0.6 });
+        fixedGeoLayer.addChild(fixedGeo);
+        drawHatching(-radius * 0.3, -radius * 0.4, radius * 0.4, radius * 0.25, 6, fixedGeoLayer);
+        container.addChild(fixedGeoLayer);
     } else if (kind === 'editorial-column') {
         // Strict grids
         for (let i = 1; i <= 6; i++) {
@@ -901,9 +916,12 @@ export const buildSonnetShotMg = (
     }
     
     (container as any).bg = bg;
+    (container as any).bgLayer = bg.display;
     if (geo) {
         (container as any).geo = geo;
+        (container as any).geoLayer = geo.display;
     }
+    (container as any).fixedGeoLayer = fixedGeoLayer;
 
     container.addChild(bg.display);
 

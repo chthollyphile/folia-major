@@ -438,6 +438,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 if (has('dioramaTuning') && config.dioramaTuning) store.handleSetDioramaTuning(config.dioramaTuning);
                 if (has('monetTuning') && config.monetTuning) store.handleSetMonetTuning(config.monetTuning);
                 if (has('pendoloTuning') && config.pendoloTuning) store.handleSetPendoloTuning(config.pendoloTuning);
+                if (has('sonnetTuning') && config.sonnetTuning) store.handleSetSonnetTuning(config.sonnetTuning);
             }
 
             if (has('monetBackgroundTuning') && config.monetBackgroundTuning) {

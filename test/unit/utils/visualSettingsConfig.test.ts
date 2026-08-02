@@ -14,6 +14,7 @@ import { buildVisualSettingsConfig } from '@/utils/visualSettingsConfig';
 import { readStoredThemeAutoGenerateEnabled, readStoredThemeAutoSwitchEnabled } from '@/services/themePreferences';
 import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
 import { extractCfgFromInput } from '@/utils/obsUrl';
+import { DEFAULT_SONNET_TUNING } from '@/types';
 import { useSettingsUiStore } from '@/stores/useSettingsUiStore';
 
 const switchMock = vi.mocked(readStoredThemeAutoSwitchEnabled);
@@ -79,5 +80,21 @@ describe('buildVisualSettingsConfig', () => {
         const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(buildVisualSettingsConfig()))));
         expect(restored.lyricsFontWeight).toBeNull();
         expect(restored.subtitleFontWeight).toBeNull();
+    });
+
+    it('carries Sonnet visibility tuning and round-trips it through a copied OBS URL', () => {
+        const sonnetTuning = {
+            ...DEFAULT_SONNET_TUNING,
+            showOnlyText: true,
+            showGuide: false,
+            showFixedGeo: false,
+            showBackgroundDecor: false,
+            textureResolution: 1.75,
+        };
+        useSettingsUiStore.setState({ sonnetTuning });
+
+        expect(buildVisualSettingsConfig()).toMatchObject({ sonnetTuning });
+        const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(buildVisualSettingsConfig()))));
+        expect(restored.sonnetTuning).toEqual(sonnetTuning);
     });
 });

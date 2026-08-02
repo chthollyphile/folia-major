@@ -523,6 +523,12 @@ export interface SonnetTuning {
   cameraIntensity: number;
   typographyMotion: number;
   mgDensity: number;
+  showOnlyText: boolean;
+  showGuide: boolean;
+  showBackgroundMg: boolean;
+  showFixedGeo: boolean;
+  showGiantDecorativeText: boolean;
+  showBackgroundDecor: boolean;
   textureResolution: number;
 }
 
@@ -530,7 +536,13 @@ export const DEFAULT_SONNET_TUNING: SonnetTuning = {
   cameraIntensity: 1,
   typographyMotion: 1,
   mgDensity: 1,
-  textureResolution: 2,
+  showOnlyText: false,
+  showGuide: true,
+  showBackgroundMg: true,
+  showFixedGeo: true,
+  showGiantDecorativeText: true,
+  showBackgroundDecor: true,
+  textureResolution: 1.5,
 };
 
 // Diorama's camera STYLE (calm/standard/chaotic) is not part of its tuning: like every other

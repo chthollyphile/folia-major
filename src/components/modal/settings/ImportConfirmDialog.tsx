@@ -85,6 +85,8 @@ const TUNING_MODES: Record<string, string> = {
     tiltTuning: 'tilt',
     dioramaTuning: 'diorama',
     monetTuning: 'monet',
+    pendoloTuning: 'pendolo',
+    sonnetTuning: 'sonnet',
 };
 
 interface BoxTone {

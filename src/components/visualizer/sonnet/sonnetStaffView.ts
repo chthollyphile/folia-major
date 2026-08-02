@@ -146,7 +146,7 @@ export const buildSonnetStaffView = (
     };
     
     return {
-        display: wrapper as any,
+        display: wrapper,
         halo: null,
         baseX: placement.x,
         baseY: placement.y,
@@ -157,6 +157,7 @@ export const buildSonnetStaffView = (
         startTime: shotStartTime,
         settleTime: shotStartTime + 0.5,
         zDepth: 0,
+        isTextGlyph: false,
         updateAnimation,
     };
 };

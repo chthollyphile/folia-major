@@ -15,7 +15,7 @@ import type {
 type PixiModule = typeof import('pixi.js');
 
 export interface GlyphView {
-    display: import('pixi.js').Text;
+    display: import('pixi.js').Container;
     halo: import('pixi.js').Text | null;
     caCyan?: import('pixi.js').Text;
     caRed?: import('pixi.js').Text;
@@ -29,6 +29,8 @@ export interface GlyphView {
     startTime: number;
     settleTime: number;
     zDepth: number;
+    isBackgroundShape?: boolean;
+    isTextGlyph?: boolean;
     updateAnimation?: (time: number) => void;
 }
 
@@ -221,7 +223,7 @@ export const buildSonnetTextView = (
         options.textLayer.addChild(wrapper);
 
         return {
-            display: wrapper as any,
+            display: wrapper,
             halo: null,
             caCyan: caCyanNode,
             caRed: caRedNode,
@@ -235,6 +237,7 @@ export const buildSonnetTextView = (
             startTime: glyph.startTime,
             settleTime: glyph.settleTime,
             zDepth,
+            isTextGlyph: true,
         };
     });
 
@@ -311,7 +314,7 @@ export const buildSonnetTextView = (
         
         const firstGlyph = glyphs[0];
         const bgGlyph: GlyphView = {
-            display: bgWrapper as any,
+            display: bgWrapper,
             halo: null,
             baseX: placement.x,
             baseY: placement.y,
@@ -322,6 +325,8 @@ export const buildSonnetTextView = (
             startTime: firstGlyph.startTime,
             settleTime: firstGlyph.settleTime,
             zDepth: -0.5 - (textSeed % 5) * 0.1, // background depth for parallax
+            isBackgroundShape: true,
+            isTextGlyph: false,
         };
         glyphs.unshift(bgGlyph);
     }
