@@ -20,6 +20,7 @@ export interface SonnetTypographyPlacement {
     enterX: number;
     enterY: number;
     vertical: boolean;
+    layoutDirection: 'horizontal' | 'vertical';
     timingPhase: number;
 }
 
@@ -199,6 +200,7 @@ export const resolveSonnetTypographyLayout = ({
             displayText,
             fontScale,
             vertical,
+            layoutDirection: 'horizontal' as 'horizontal' | 'vertical',
             rotation,
             measuredWidth,
             measuredHeight,
@@ -215,6 +217,8 @@ export const resolveSonnetTypographyLayout = ({
     // 2. Exact Layout Packing
     const heroBox = boxes[heroIndex];
     if (heroBox) {
+        // Reserve enough layout-space gap to remain visibly separated after camera downscaling.
+        const verticalStackGap = Math.max(24, baseFontSize * 0.32);
         if (shotKind === 'editorial-column') {
             if (editorialVariant === 0) heroBox.x = -width * 0.15;
             else if (editorialVariant === 1) heroBox.x = width * 0.15;
@@ -231,46 +235,46 @@ export const resolveSonnetTypographyLayout = ({
 
         // Implement diverse layout strategies based on shotKind
         if (shotKind === 'quiet-tableau') {
+            boxes.forEach(box => { box.layoutDirection = 'vertical'; });
             if (tableauVariant === 0) {
                 // 1a. Strict Vertical Stack (Centered)
-                // Use a spacing factor (e.g., 0.6) because measuredHeight (1.2x font size) is too generous for this specific layout
-                const spacingFactor = 0.6;
-                let currentY = heroBox.y - (heroBox.measuredHeight * spacingFactor) / 2 - 5;
+                let currentY = heroBox.y - heroBox.measuredHeight / 2 - verticalStackGap;
                 for (let i = heroIndex - 1; i >= 0; i--) {
                     const box = boxes[i];
                     box.x = heroBox.x;
-                    box.y = currentY - (box.measuredHeight * spacingFactor) / 2;
-                    currentY -= (box.measuredHeight * spacingFactor) + 5;
+                    box.y = currentY - box.measuredHeight / 2;
+                    currentY -= box.measuredHeight + verticalStackGap;
                     box.enterX = 0; box.enterY = 20;
                 }
-                currentY = heroBox.y + (heroBox.measuredHeight * spacingFactor) / 2 + 5;
+                currentY = heroBox.y + heroBox.measuredHeight / 2 + verticalStackGap;
                 for (let i = heroIndex + 1; i < boxes.length; i++) {
                     const box = boxes[i];
                     box.x = heroBox.x;
-                    box.y = currentY + (box.measuredHeight * spacingFactor) / 2;
-                    currentY += (box.measuredHeight * spacingFactor) + 5;
+                    box.y = currentY + box.measuredHeight / 2;
+                    currentY += box.measuredHeight + verticalStackGap;
                     box.enterX = 0; box.enterY = -20;
                 }
             } else {
                 // 1b. Flush-Left Vertical Stack (Modern Poster)
-                let currentY = heroBox.y - heroBox.measuredHeight / 2 - 10;
+                let currentY = heroBox.y - heroBox.measuredHeight / 2 - verticalStackGap;
                 for (let i = heroIndex - 1; i >= 0; i--) {
                     const box = boxes[i];
                     box.x = heroBox.x - heroBox.measuredWidth / 2 + box.measuredWidth / 2;
                     box.y = currentY - box.measuredHeight / 2;
-                    currentY -= box.measuredHeight + 10;
+                    currentY -= box.measuredHeight + verticalStackGap;
                     box.enterX = 20; box.enterY = 0;
                 }
-                currentY = heroBox.y + heroBox.measuredHeight / 2 + 10;
+                currentY = heroBox.y + heroBox.measuredHeight / 2 + verticalStackGap;
                 for (let i = heroIndex + 1; i < boxes.length; i++) {
                     const box = boxes[i];
                     box.x = heroBox.x - heroBox.measuredWidth / 2 + box.measuredWidth / 2;
                     box.y = currentY + box.measuredHeight / 2;
-                    currentY += box.measuredHeight + 10;
+                    currentY += box.measuredHeight + verticalStackGap;
                     box.enterX = -20; box.enterY = 0;
                 }
             }
         } else if (shotKind === 'tracking-ribbon') {
+            boxes.forEach(box => { box.layoutDirection = 'horizontal'; });
             if (ribbonVariant === 0) {
                 // 2a. Pure Horizontal Ribbon (Reading order line)
                 let currentX = heroBox.x - heroBox.measuredWidth / 2 - 15;
@@ -328,6 +332,7 @@ export const resolveSonnetTypographyLayout = ({
             }
         } else if (shotKind === 'editorial-column') {
             if (editorialVariant === 0) {
+                boxes.forEach(box => { box.layoutDirection = 'vertical'; });
                 // 3a. Editorial Column: Original (hero left, text on left and right)
                 let currentYLeft = heroBox.y - heroBox.measuredHeight / 2 + 20;
                 let currentYRight = heroBox.y - heroBox.measuredHeight / 2 + 20;
@@ -336,17 +341,18 @@ export const resolveSonnetTypographyLayout = ({
                     const box = boxes[i];
                     box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 25;
                     box.y = currentYLeft + box.measuredHeight / 2;
-                    currentYLeft += box.measuredHeight + 15;
+                    currentYLeft += box.measuredHeight + verticalStackGap;
                     box.enterX = 20; box.enterY = 0;
                 }
                 for (let i = heroIndex + 1; i < boxes.length; i++) {
                     const box = boxes[i];
                     box.x = heroBox.x + heroBox.measuredWidth / 2 + box.measuredWidth / 2 + 25;
                     box.y = currentYRight + box.measuredHeight / 2;
-                    currentYRight += box.measuredHeight + 15;
+                    currentYRight += box.measuredHeight + verticalStackGap;
                     box.enterX = -20; box.enterY = 0;
                 }
             } else if (editorialVariant === 1) {
+                boxes.forEach(box => { box.layoutDirection = 'vertical'; });
                 // 3b. Magazine Layout: Hero Vertical Right, all support text in a neat column on the left
                 let currentY = heroBox.y - heroBox.measuredHeight / 2 + 10;
                 for (let i = 0; i < boxes.length; i++) {
@@ -354,10 +360,11 @@ export const resolveSonnetTypographyLayout = ({
                     const box = boxes[i];
                     box.x = heroBox.x - heroBox.measuredWidth / 2 - box.measuredWidth / 2 - 40;
                     box.y = currentY + box.measuredHeight / 2;
-                    currentY += box.measuredHeight + 15;
+                    currentY += box.measuredHeight + verticalStackGap;
                     box.enterX = -20; box.enterY = 0;
                 }
             } else if (editorialVariant === 2) {
+                boxes.forEach(box => { box.layoutDirection = 'vertical'; });
                 // 3c. Magazine Header: Horizontal hero at top, text blocks below in two columns
                 let currentXLeft = heroBox.x - heroBox.measuredWidth * 0.25 - 10;
                 let currentXRight = heroBox.x + heroBox.measuredWidth * 0.25 + 10;
@@ -370,16 +377,17 @@ export const resolveSonnetTypographyLayout = ({
                     if (i % 2 === 0) {
                         box.x = currentXLeft - box.measuredWidth / 2;
                         box.y = leftY + box.measuredHeight / 2;
-                        leftY += box.measuredHeight + 12;
+                        leftY += box.measuredHeight + verticalStackGap;
                         box.enterX = -20; box.enterY = 0;
                     } else {
                         box.x = currentXRight + box.measuredWidth / 2;
                         box.y = rightY + box.measuredHeight / 2;
-                        rightY += box.measuredHeight + 12;
+                        rightY += box.measuredHeight + verticalStackGap;
                         box.enterX = 20; box.enterY = 0;
                     }
                 }
             } else if (editorialVariant === 3) {
+                boxes.forEach(box => { box.layoutDirection = 'horizontal'; });
                 // 3d. Double Hero Lines (Two massive focal points on two offset lines)
                 const firstHero = Math.min(heroIndex, secondaryHeroIndex);
                 
@@ -430,6 +438,9 @@ export const resolveSonnetTypographyLayout = ({
                 box.x = heroBox.x + Math.cos(angle) * (radius + box.measuredWidth / 2);
                 box.y = heroBox.y + Math.sin(angle) * (radius * 0.6 + box.measuredHeight / 2);
                 box.rotation = 0;
+                box.layoutDirection = Math.abs(Math.cos(angle)) >= Math.abs(Math.sin(angle))
+                    ? 'vertical'
+                    : 'horizontal';
                 box.enterX = Math.cos(angle) * -60;
                 box.enterY = Math.sin(angle) * -60;
             }
@@ -441,11 +452,11 @@ export const resolveSonnetTypographyLayout = ({
             const topCount = Math.floor(beforeCount / 2);
             const afterCount = boxes.length - 1 - heroIndex;
             const rightCount = Math.ceil(afterCount / 2);
-
             // Place Left words (heroIndex - 1 down to topCount). Read left-to-right.
             let currentXLeft = heroBox.x - heroBox.measuredWidth / 2 - 25;
             for (let i = heroIndex - 1; i >= topCount; i--) {
                 const box = boxes[i];
+                box.layoutDirection = 'horizontal';
                 box.x = currentXLeft - box.measuredWidth / 2;
                 box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
                 currentXLeft -= box.measuredWidth + 25;
@@ -456,9 +467,10 @@ export const resolveSonnetTypographyLayout = ({
             let currentYTop = heroBox.y - heroBox.measuredHeight / 2 - 20;
             for (let i = topCount - 1; i >= 0; i--) {
                 const box = boxes[i];
+                box.layoutDirection = 'vertical';
                 box.x = heroBox.x + (i % 2 === 0 ? 15 : -15);
                 box.y = currentYTop - box.measuredHeight / 2;
-                currentYTop -= box.measuredHeight + 15;
+                currentYTop -= box.measuredHeight + verticalStackGap;
                 box.enterX = 0; box.enterY = -30;
             }
 
@@ -466,6 +478,7 @@ export const resolveSonnetTypographyLayout = ({
             let currentXRight = heroBox.x + heroBox.measuredWidth / 2 + 25;
             for (let i = heroIndex + 1; i <= heroIndex + rightCount; i++) {
                 const box = boxes[i];
+                box.layoutDirection = 'horizontal';
                 box.x = currentXRight + box.measuredWidth / 2;
                 box.y = heroBox.y + (i % 2 === 0 ? 10 : -10);
                 currentXRight += box.measuredWidth + 25;
@@ -476,9 +489,10 @@ export const resolveSonnetTypographyLayout = ({
             let currentYBottom = heroBox.y + heroBox.measuredHeight / 2 + 20;
             for (let i = heroIndex + rightCount + 1; i < boxes.length; i++) {
                 const box = boxes[i];
+                box.layoutDirection = 'vertical';
                 box.x = heroBox.x + (i % 2 === 0 ? 15 : -15);
                 box.y = currentYBottom + box.measuredHeight / 2;
-                currentYBottom += box.measuredHeight + 15;
+                currentYBottom += box.measuredHeight + verticalStackGap;
                 box.enterX = 0; box.enterY = 30;
             }
         }
@@ -534,6 +548,7 @@ export const resolveSonnetTypographyLayout = ({
         enterX: box.enterX,
         enterY: box.enterY,
         vertical: box.vertical,
+        layoutDirection: box.layoutDirection,
         timingPhase: box.timingPhase,
     }));
 };

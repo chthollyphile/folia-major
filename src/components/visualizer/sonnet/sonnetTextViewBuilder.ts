@@ -105,7 +105,7 @@ export const buildSonnetTextView = (
     ].join(':'));
     const normalOffset = resolveSonnetSegmentNormalOffset(
         placement.role,
-        placement.vertical,
+        placement.layoutDirection,
         placement.rotation,
         fontSize,
         normalOffsetSeed / 0xffffffff,

@@ -34,6 +34,7 @@ const placement: SonnetTypographyPlacement = {
     enterX: 0,
     enterY: 90,
     vertical: true,
+    layoutDirection: 'vertical',
     timingPhase: 0.5,
 };
 

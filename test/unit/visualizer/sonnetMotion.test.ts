@@ -74,16 +74,16 @@ describe('Sonnet shot motion', () => {
         expect(resolveSonnetSegmentDepth('decoration', () => 0.75)).toBe(1.1);
     });
 
-    it('jitters support lyrics only along the reading-direction normal', () => {
-        expect(resolveSonnetSegmentNormalOffset('support', false, 0, 100, 1)).toEqual({
+    it('jitters support lyrics only along the segment-layout normal', () => {
+        expect(resolveSonnetSegmentNormalOffset('support', 'horizontal', 0, 100, 1)).toEqual({
             x: expect.closeTo(0),
             y: 30,
         });
-        expect(resolveSonnetSegmentNormalOffset('support', true, 0, 100, 1)).toEqual({
+        expect(resolveSonnetSegmentNormalOffset('support', 'vertical', 0, 100, 1)).toEqual({
             x: 30,
             y: 0,
         });
-        expect(resolveSonnetSegmentNormalOffset('hero', false, 0, 100, 1)).toEqual({ x: 0, y: 0 });
-        expect(resolveSonnetSegmentNormalOffset('decoration', true, 0, 100, 1)).toEqual({ x: 0, y: 0 });
+        expect(resolveSonnetSegmentNormalOffset('hero', 'horizontal', 0, 100, 1)).toEqual({ x: 0, y: 0 });
+        expect(resolveSonnetSegmentNormalOffset('decoration', 'vertical', 0, 100, 1)).toEqual({ x: 0, y: 0 });
     });
 });

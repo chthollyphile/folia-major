@@ -67,7 +67,7 @@ export const resolveSonnetSegmentDepth = (
 
 export const resolveSonnetSegmentNormalOffset = (
     role: SonnetSegmentRole,
-    vertical: boolean,
+    layoutDirection: 'horizontal' | 'vertical',
     rotation: number,
     fontSize: number,
     randomValue: number,
@@ -75,7 +75,7 @@ export const resolveSonnetSegmentNormalOffset = (
     if (role !== 'support') return { x: 0, y: 0 };
 
     const distance = (Math.min(1, Math.max(0, randomValue)) * 2 - 1) * fontSize * 0.3;
-    const normalAngle = rotation + (vertical ? 0 : Math.PI / 2);
+    const normalAngle = rotation + (layoutDirection === 'vertical' ? 0 : Math.PI / 2);
     return {
         x: Math.cos(normalAngle) * distance,
         y: Math.sin(normalAngle) * distance,

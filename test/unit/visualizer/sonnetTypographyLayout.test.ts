@@ -99,4 +99,44 @@ describe('Sonnet typography layout', () => {
         expect(layout.map(item => item.timingPhase)).toEqual([0, 0.5, 1]);
         expect(layout[0].x).toBeLessThan(layout[2].x);
     });
+
+    it('tracks the segment flow direction independently from glyph writing direction', () => {
+        const words = ['愛', 'を', '懐', 'い', 'て', '理想', 'を', '号', 'ん', 'だ'].map(text => segment(text));
+        const layout = resolveSonnetTypographyLayout({
+            lines: [words],
+            shotKind: 'type-impact',
+            paragraphKind: 'chorus',
+            width: 1280,
+            height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
+        }).filter(item => item.role !== 'decoration');
+
+        expect(layout.filter(item => [0, 1, 8, 9].includes(item.segmentIndex))
+            .every(item => item.layoutDirection === 'vertical')).toBe(true);
+        expect(layout.filter(item => [2, 3, 4, 6, 7].includes(item.segmentIndex))
+            .every(item => item.layoutDirection === 'horizontal')).toBe(true);
+
+        const bySegmentIndex = new Map(layout.map(item => [item.segmentIndex, item]));
+        expect(Math.abs(bySegmentIndex.get(0)!.y - bySegmentIndex.get(1)!.y)).toBeGreaterThanOrEqual(96);
+        expect(Math.abs(bySegmentIndex.get(8)!.y - bySegmentIndex.get(9)!.y)).toBeGreaterThanOrEqual(96);
+    });
+
+    it('keeps a visible gap in the compact centered vertical stack', () => {
+        const layout = resolveSonnetTypographyLayout({
+            lines: [[segment('傷'), segment('付け'), segment('合う')]],
+            shotKind: 'quiet-tableau',
+            paragraphKind: 'breath',
+            width: 1280,
+            height: 720,
+            baseFontSize: 40,
+            fontFamily: 'sans-serif',
+            fontWeight: 700,
+        });
+        const hero = layout.find(item => item.role === 'hero')!;
+        const supports = layout.filter(item => item.role === 'support');
+
+        expect(supports.every(item => Math.abs(item.y - hero.y) >= 122.4)).toBe(true);
+    });
 });
