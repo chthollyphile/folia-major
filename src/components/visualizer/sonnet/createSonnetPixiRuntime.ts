@@ -263,11 +263,11 @@ export class SonnetPixiRuntime {
 
     private async preloadIcons() {
         if (this.options.tuning.showOnlyText || !this.options.tuning.showBackgroundDecor) return;
-        const names = resolveSonnetIconNames(this.options.theme.lyricsIcons).slice(0, 4);
+        const names = resolveSonnetIconNames(this.options.theme.lyricsIcons);
         const resolution = this.options.tuning.textureResolution;
         const texturePool = getSonnetTexturePool(this.pixi);
         await Promise.all(names.map(async (name, index) => {
-            const size = 192 + index * 32;
+            const size = 192 + (index % 4) * 32;
             const colors = [
                 this.options.theme.accentColor,
                 this.options.theme.secondaryColor,

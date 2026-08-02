@@ -2,7 +2,7 @@ import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
-import type { HomeViewTab, LatentBackgroundTuning, LocalSong, PlayerState, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
@@ -66,6 +66,7 @@ export type CommandPaletteContext = {
     }) => Promise<boolean>;
     togglePlay: () => void;
     toggleLoop: () => void;
+    onReplayGainModeChange: (mode: ReplayGainMode) => void;
     handleNextTrack: () => void;
     handlePrevTrack: () => void;
     shuffleQueue: () => void;

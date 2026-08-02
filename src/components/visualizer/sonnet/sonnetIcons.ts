@@ -19,6 +19,36 @@ export const resolveSonnetIconNames = (names: string[] | undefined): string[] =>
     return resolved.length > 0 ? resolved : ['Flower'];
 };
 
+// Spreads icon particles through the scene while guaranteeing every available theme icon is used.
+export const buildSonnetIconParticleIndices = (
+    iconCount: number,
+    particleCount: number,
+    seed: number,
+): Array<number | null> => {
+    const safeIconCount = Math.max(0, Math.floor(iconCount));
+    const safeParticleCount = Math.max(0, Math.floor(particleCount));
+    if (safeIconCount === 0) {
+        return Array.from({ length: safeParticleCount }, () => null);
+    }
+
+    const iconParticleCount = Math.min(
+        safeParticleCount,
+        Math.max(Math.ceil(safeParticleCount / 4), safeIconCount),
+    );
+    let emittedIconCount = 0;
+    return Array.from({ length: safeParticleCount }, (_, index) => {
+        const previousBand = Math.floor(index * iconParticleCount / safeParticleCount);
+        const currentBand = Math.floor((index + 1) * iconParticleCount / safeParticleCount);
+        if (currentBand === previousBand) {
+            return null;
+        }
+
+        const iconIndex = ((seed + emittedIconCount) % safeIconCount + safeIconCount) % safeIconCount;
+        emittedIconCount += 1;
+        return iconIndex;
+    });
+};
+
 export const buildSonnetIconTextureKey = (
     name: string,
     color: string,

@@ -4,6 +4,7 @@ import type {
     DualTheme,
     LyricData,
     NowPlayingConnectionStatus,
+    ReplayGainMode,
     StageSource,
     StageStatus,
 } from '../../../types';
@@ -38,6 +39,8 @@ type BuildSettingsDialogModelParams = {
     playerCapConnectionStatus?: PlayerCapConnectionStatus;
     playerCapPlayers?: string[];
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
+    replayGainMode: ReplayGainMode;
+    onReplayGainModeChange: (mode: ReplayGainMode) => void;
     onToggleTransparentPlayerBackground: (enabled: boolean) => Promise<void> | void;
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     refreshObsBrowserSourceStatus?: () => Promise<ObsBrowserSourceStatus>;
@@ -65,6 +68,8 @@ export const buildSettingsDialogModel = ({
     playerCapConnectionStatus,
     playerCapPlayers,
     onAudioOutputDeviceChange,
+    replayGainMode,
+    onReplayGainModeChange,
     onToggleTransparentPlayerBackground,
     obsBrowserSourceStatus,
     refreshObsBrowserSourceStatus,
@@ -110,6 +115,8 @@ export const buildSettingsDialogModel = ({
             }
         },
         onAudioOutputDeviceChange,
+        replayGainMode,
+        onReplayGainModeChange,
         onToggleTransparentPlayerBackground,
         initialTab: state.initialTab,
         initialSubview: state.initialSubview ?? null,

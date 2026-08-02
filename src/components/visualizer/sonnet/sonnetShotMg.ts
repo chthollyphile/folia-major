@@ -7,6 +7,7 @@ import {
     drawSonnetTriangularPrism,
     resolveSonnetGeoVariant,
 } from './sonnetSpatialMgGeometry';
+import { buildSonnetIconParticleIndices } from './sonnetIcons';
 
 // src/components/visualizer/sonnet/sonnetShotMg.ts
 // Builds PV style high-density semantic decorative elements (HUD, Geometric Chaos, Particles)
@@ -928,18 +929,24 @@ export const buildSonnetShotMg = (
     // --- Component: Floating Particles ---
     const particleLayer = new Container();
     const particleCount = kind === 'type-impact' ? 24 : 12;
-    const hasIcons = iconTextures.size > 0;
+    const availableIconTextures = Array.from(iconTextures.values());
+    const iconParticleIndices = buildSonnetIconParticleIndices(
+        availableIconTextures.length,
+        particleCount,
+        seed,
+    );
+    const hasIcons = availableIconTextures.length > 0;
     const iconAnimations: SonnetIconAnimation[] = [];
     let smoothedIconAudio = 0;
     
     for (let i = 0; i < particleCount; i++) {
         const pSize = 4 + (seed + i) % 12;
-        const type = hasIcons ? (seed + i) % 4 : (seed + i) % 3; // 0: square, 1: diamond, 2: star, 3: icon
+        const iconTextureIndex = iconParticleIndices[i];
+        const type = iconTextureIndex === null ? (seed + i) % 3 : 3; // 0: square, 1: diamond, 2: star, 3: icon
         let p: import('pixi.js').Container;
         
-        if (type === 3 && hasIcons && iconTextures.size > 0) {
-            const availableTextures = Array.from(iconTextures.values());
-            const tex = availableTextures[(seed + i) % availableTextures.length];
+        if (type === 3 && hasIcons && iconTextureIndex !== null) {
+            const tex = availableIconTextures[iconTextureIndex];
             if (tex) {
                 const s = new Sprite(tex);
                 s.anchor.set(0.5);

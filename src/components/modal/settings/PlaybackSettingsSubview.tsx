@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Monitor, PlayCircle, RefreshCw, Settings2 } from 'lucide-react';
+import { AudioLines, Monitor, PlayCircle, RefreshCw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { LocalLyricsPriority, QueueAddBehavior, Theme } from '../../../types';
+import type { LocalLyricsPriority, QueueAddBehavior, ReplayGainMode, Theme } from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
 import { CustomSelect } from '../../shared/CustomSelect';
 import { LYRIC_MATCH_SOURCES } from '../../../utils/lyrics/lyricMatchSources';
@@ -24,6 +24,8 @@ type PlaybackSettingsSubviewProps = {
     isOpen: boolean;
     isDaylight: boolean;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
+    replayGainMode: ReplayGainMode;
+    onReplayGainModeChange: (mode: ReplayGainMode) => void;
     settingsCardClass: string;
     theme?: Theme;
     utilityGhostButtonClass: string;
@@ -37,6 +39,8 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
     isOpen,
     isDaylight,
     onAudioOutputDeviceChange,
+    replayGainMode,
+    onReplayGainModeChange,
     settingsCardClass,
     theme,
     utilityGhostButtonClass,
@@ -219,6 +223,39 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                                 </button>
                             );
                         })}
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <AudioLines size={14} /> {t('options.replayGainSettings')}
+                </h3>
+                <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>
+                    <div className="space-y-1">
+                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {t('options.replayGainMode')}
+                        </div>
+                        <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                            {t('options.replayGainModeDesc')}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { value: 'off', label: t('localMusic.replayGainOff') },
+                            { value: 'track', label: t('localMusic.replayGainTrack') },
+                            { value: 'album', label: t('localMusic.replayGainAlbum') },
+                        ] as Array<{ value: ReplayGainMode; label: string }>).map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => onReplayGainModeChange(option.value)}
+                                className="rounded-xl border px-3 py-2.5 text-center text-sm font-medium transition-colors"
+                                style={getAccentOptionStyle(replayGainMode === option.value)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </section>

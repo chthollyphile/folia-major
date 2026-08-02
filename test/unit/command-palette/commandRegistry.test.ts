@@ -23,6 +23,7 @@ const createContext = (overrides: Partial<CommandPaletteContext> = {}): CommandP
     submitSearch: vi.fn(async () => true),
     togglePlay: vi.fn(),
     toggleLoop: vi.fn(),
+    onReplayGainModeChange: vi.fn(),
     handleNextTrack: vi.fn(),
     handlePrevTrack: vi.fn(),
     shuffleQueue: vi.fn(),
@@ -109,6 +110,25 @@ describe('command palette registry', () => {
         match.command.execute(match.input, context);
 
         expect(context.openSettings).toHaveBeenCalledWith('options', 'playback');
+    });
+
+    it('switches ReplayGain modes from the command palette', () => {
+        const context = createContext();
+
+        const [trackMatch] = getCommandPaletteMatches('单曲增益');
+        expect(trackMatch.command.id).toBe('playback-replaygain-track');
+        trackMatch.command.execute(trackMatch.input, context);
+        expect(context.onReplayGainModeChange).toHaveBeenCalledWith('track');
+
+        const [albumMatch] = getCommandPaletteMatches('album gain');
+        expect(albumMatch.command.id).toBe('playback-replaygain-album');
+        albumMatch.command.execute(albumMatch.input, context);
+        expect(context.onReplayGainModeChange).toHaveBeenCalledWith('album');
+
+        const [offMatch] = getCommandPaletteMatches('关闭音频增益');
+        expect(offMatch.command.id).toBe('playback-replaygain-off');
+        offMatch.command.execute(offMatch.input, context);
+        expect(context.onReplayGainModeChange).toHaveBeenCalledWith('off');
     });
 
     it('matches sync server settings and manual sync commands', () => {
