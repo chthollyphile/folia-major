@@ -61,6 +61,9 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/chao92645"><img src="https://avatars.githubusercontent.com/u/125563355?v=4?s=100" width="100px;" alt="chao92645"/><br /><sub><b>chao92645</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Achao92645" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Axland233"><img src="https://avatars.githubusercontent.com/u/91722323?v=4?s=100" width="100px;" alt="夜痕今天emo了吗"/><br /><sub><b>夜痕今天emo了吗</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3AAxland233" title="Bug reports">🐛</a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Rubbishful"><img src="https://avatars.githubusercontent.com/u/89494687?v=4?s=100" width="100px;" alt="Yining Sun"/><br /><sub><b>Yining Sun</b></sub></a><br /><a href="#ideas-Rubbishful" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
   </tbody>
 </table>
 
