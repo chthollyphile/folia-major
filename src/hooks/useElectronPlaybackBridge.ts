@@ -3,7 +3,7 @@ import type React from 'react';
 import type { RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState } from '../types';
-import type { SongResult, LyricData } from '../types';
+import type { SongResult, LyricData, PlayerLoopMode } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlCommand, RemoteControlSnapshot } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
 import {
@@ -41,7 +41,7 @@ type UseElectronPlaybackBridgeOptions = {
     cachedCoverUrl: string | null;
     playerState: PlayerState;
     playQueue: SongResult[];
-    effectiveLoopMode: 'off' | 'all' | 'one';
+    effectiveLoopMode: PlayerLoopMode;
     isFmMode: boolean;
     isNowPlayingStageActive: boolean;
     mediaSessionPlayRef: RefObject<() => Promise<void>>;

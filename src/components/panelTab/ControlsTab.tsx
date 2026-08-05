@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Repeat, Repeat1, RepeatOff, Heart, Sparkles, Sparkle, ArrowUpDown, Check, Copy, RefreshCw, Cone, Layers, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Repeat, Repeat1, RepeatOff, Shuffle, Heart, Sparkles, Sparkle, ArrowUpDown, Check, Copy, RefreshCw, Cone, Layers, Sun, Moon, Settings, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { type LatentBackgroundDisplayMode, Theme, ThemeMode, type VisualizerBackgroundMode, VisualizerMode } from '../../types';
+import { type LatentBackgroundDisplayMode, type PlayerLoopMode, Theme, ThemeMode, type VisualizerBackgroundMode, VisualizerMode } from '../../types';
 import type { ThemeSourceModel } from '../../hooks/themeControllerState';
 import { getVisualizerModeLabel, VISUALIZER_REGISTRY } from '../visualizer/registry';
 import { getVisualizerBackgroundModeLabel, VISUALIZER_BACKGROUND_REGISTRY } from '../visualizer/backgrounds/registry';
@@ -15,7 +15,7 @@ import QuickEffectPicker from './QuickEffectPicker';
 // Controls tab composes compact visualizer and background pickers without changing player state flow.
 
 interface ControlsTabProps {
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     onToggleLoop: () => void;
     onLike: () => void;
     isLiked: boolean;
@@ -216,7 +216,13 @@ const ControlsTab: React.FC<ControlsTabProps> = ({
                         disabled={loopToggleDisabled}
                         className={`h-12 rounded-xl flex items-center justify-center transition-colors ${loopButtonBg} ${loopToggleDisabled ? 'opacity-35 cursor-not-allowed' : ''}`}
                     >
-                        {loopMode === 'off' ? <RepeatOff size={20} /> : loopMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
+                        {loopMode === 'off'
+                            ? <RepeatOff size={20} />
+                            : loopMode === 'one'
+                                ? <Repeat1 size={20} />
+                                : loopMode === 'shuffle'
+                                    ? <Shuffle size={20} />
+                                    : <Repeat size={20} />}
                     </button>
 
                     <button

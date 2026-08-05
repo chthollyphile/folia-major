@@ -333,7 +333,9 @@ export const prefetchNearbySongs = async (
     currentSong: SongResult,
     queue: SongResult[],
     audioQuality: AudioQualityPreference,
-    userId?: MediaId | null
+    userId?: MediaId | null,
+    // 随机播放时队列位置不代表播放顺序，由调用方按路线图给出真实的接下来几首。
+    explicitUpcoming?: SongResult[] | null
 ): Promise<void> => {
     // Cancel any ongoing prefetch
     if (currentPrefetchAbortController) {
@@ -353,23 +355,28 @@ export const prefetchNearbySongs = async (
     // Determine songs to prefetch
     const songsToPrefetch: SongResult[] = [];
 
-    // Previous songs
-    for (let i = 1; i <= PREFETCH_COUNT_PREV; i++) {
-        const idx = currentIndex - i;
-        if (idx >= 0) {
-            songsToPrefetch.push(queue[idx]);
+    if (explicitUpcoming && explicitUpcoming.length > 0) {
+        songsToPrefetch.push(...explicitUpcoming.slice(0, PREFETCH_COUNT_NEXT));
+        console.log(`[Prefetch] Will prefetch ${songsToPrefetch.length} songs from the shuffle order`);
+    } else {
+        // Previous songs
+        for (let i = 1; i <= PREFETCH_COUNT_PREV; i++) {
+            const idx = currentIndex - i;
+            if (idx >= 0) {
+                songsToPrefetch.push(queue[idx]);
+            }
         }
-    }
 
-    // Next songs
-    for (let i = 1; i <= PREFETCH_COUNT_NEXT; i++) {
-        const idx = currentIndex + i;
-        if (idx < queue.length) {
-            songsToPrefetch.push(queue[idx]);
+        // Next songs
+        for (let i = 1; i <= PREFETCH_COUNT_NEXT; i++) {
+            const idx = currentIndex + i;
+            if (idx < queue.length) {
+                songsToPrefetch.push(queue[idx]);
+            }
         }
-    }
 
-    console.log(`[Prefetch] Will prefetch ${songsToPrefetch.length} songs near index ${currentIndex}`);
+        console.log(`[Prefetch] Will prefetch ${songsToPrefetch.length} songs near index ${currentIndex}`);
+    }
 
     // Prefetch using requestIdleCallback for non-blocking execution
     const prefetchWithIdle = (songs: SongResult[], index: number) => {

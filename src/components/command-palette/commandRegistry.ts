@@ -319,6 +319,50 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
             return true;
         },
     },
+    {
+        id: 'desktop-toggle-close-to-tray',
+        group: 'settings',
+        title: 'Close to tray',
+        description: 'Toggle hiding the window to the tray instead of quitting when closing',
+        keywords: ['close to tray', 'minimize to tray', 'hide to tray', 'tray', '关闭到托盘', '最小化到托盘', '隐藏到托盘', '托盘', 'guanbidaotuopan', 'zuixiaohuadaotuopan', 'yincangdaotuopan', 'tuopan', 'gbdtp', 'zxhdtp', 'tp'],
+        execute: (_input, context) => {
+            context.toggleCloseToTray();
+            return true;
+        },
+    },
+    {
+        id: 'desktop-toggle-launch-at-login',
+        group: 'settings',
+        title: 'Launch at login',
+        description: 'Toggle starting Folia automatically when you sign in',
+        keywords: ['launch at login', 'auto start', 'autostart', 'startup', 'boot', '开机自启', '开机自动运行', '自启动', '开机启动', 'kaijizichi', 'kaijiqidong', 'zichidong', 'kjzq', 'kjzc', 'zqd'],
+        execute: (_input, context) => {
+            context.toggleLaunchAtLogin();
+            return true;
+        },
+    },
+    {
+        id: 'playback-toggle-autoplay-on-launch',
+        group: 'settings',
+        title: 'Autoplay on launch',
+        description: 'Toggle resuming playback automatically when the app starts',
+        keywords: ['autoplay on launch', 'auto play', 'play on startup', '启动自动播放', '自动播放', '开机播放', 'qidongzidongbofang', 'zidongbofang', 'qdzdbf', 'zdbf'],
+        execute: (_input, context) => {
+            context.toggleAutoplayOnLaunch();
+            return true;
+        },
+    },
+    {
+        id: 'playback-toggle-remember-position',
+        group: 'settings',
+        title: 'Remember playback position',
+        description: 'Toggle restoring the last playback position when the app starts',
+        keywords: ['remember playback position', 'resume position', 'continue where you left off', '记住播放进度', '播放进度', '续播', '记忆进度', 'jizhubofangjindu', 'bofangjindu', 'xubo', 'jzbfjd', 'bfjd', 'xb'],
+        execute: (_input, context) => {
+            context.toggleRememberPlaybackPosition();
+            return true;
+        },
+    },
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室', 'shiyan', 'shiyanshi', 'sy', 'sys'], 'options', 'lab'),
     createSettingsCommand('settings-visualizer', 'Visualizer settings', 'Open lyrics animation workbench', ['visualizer settings', 'visualizer workbench', '可视化', '歌词动画', 'keshihua', 'gecidonghua', 'ksh', 'gcdh', 'donghua'], 'options', 'visualizer'),
     createSettingsCommand('settings-theme-park', 'Color', 'Open theme editor', ['color', 'theme park', 'theme', '配色', '主题', '主题公园', 'peise', 'zhuti', 'zhutigongyuan', 'ps', 'zt', 'ztgy'], 'options', 'themePark'),
@@ -424,8 +468,8 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
         id: 'playback-loop',
         group: 'playback',
         title: 'Toggle loop',
-        description: 'Change loop mode',
-        keywords: ['loop', '循环', 'xunhuan', 'xh'],
+        description: 'Cycle through sequential, repeat all, repeat one and shuffle',
+        keywords: ['loop', 'repeat', 'shuffle', 'random', '循环', '随机', '随机播放', '单曲循环', '列表循环', '顺序播放', 'xunhuan', 'suiji', 'suijibofang', 'danqvxunhuan', 'liebiaoxunhuan', 'shunxvbofang', 'xh', 'sj', 'sjbf'],
         icon: Repeat,
         execute: (_input, context) => {
             context.toggleLoop();
@@ -801,6 +845,14 @@ export const getAvailableCommandPaletteCommands = (context?: CommandPaletteConte
     if (command.id === 'desktop-toggle-voice-input-pause') {
         const isElectron = typeof window !== 'undefined' && Boolean((window as any).electron);
         if (!isElectron || !context?.voiceInputPauseSupported) {
+            return false;
+        }
+    }
+
+    // 开机自启只在 macOS / Windows 生效，Linux 上直接隐藏而不是给一个无效开关。
+    if (command.id === 'desktop-toggle-launch-at-login') {
+        const isElectron = typeof window !== 'undefined' && Boolean((window as any).electron);
+        if (!isElectron || (context && !context.launchAtLoginSupported)) {
             return false;
         }
     }

@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Repeat, Repeat1, RepeatOff,ChartBar } from 'lucide-react';
+import { Play, Pause, Repeat, Repeat1, RepeatOff, Shuffle, ChartBar } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
-import { PlayerState, LyricData, Theme } from '../types';
+import { PlayerState, LyricData, Theme, type PlayerLoopMode } from '../types';
 import LyricsTimelineModal from './modal/LyricsTimelineModal';
 
 const CONTROL_LAYOUT_SPRING = {
@@ -22,7 +22,7 @@ interface FloatingPlayerControlsProps {
     currentTime: MotionValue<number>;
     lyricCurrentTime?: MotionValue<number>;
     duration: number;
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     currentView: 'home' | 'player';
     audioSrc: string | null;
     canTogglePlay?: boolean;
@@ -235,7 +235,7 @@ interface ExpandedViewProps {
     currentTime: MotionValue<number>;
     lyricCurrentTime?: MotionValue<number>;
     duration: number;
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     canTogglePlay: boolean;
     onSeek: (time: number) => void;
     onTogglePlay: () => void;
@@ -313,7 +313,9 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                         ? <RepeatOff size={20} className="sm:h-[18px] sm:w-[18px]" />
                         : loopMode === 'one'
                             ? <Repeat1 size={20} className="sm:h-[18px] sm:w-[18px]" />
-                            : <Repeat size={20} className="sm:h-[18px] sm:w-[18px]" />}
+                            : loopMode === 'shuffle'
+                                ? <Shuffle size={20} className="sm:h-[18px] sm:w-[18px]" />
+                                : <Repeat size={20} className="sm:h-[18px] sm:w-[18px]" />}
                 </button>
 
                 <button

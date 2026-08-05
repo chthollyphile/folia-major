@@ -14,7 +14,7 @@ import NaviTab from './panelTab/NaviTab';
 import OnlineLyricsTab from './panelTab/OnlineLyricsTab';
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
-import type { OnlineLyricsState } from '../types';
+import type { OnlineLyricsState, PlayerLoopMode } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSourceRef, getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
@@ -34,7 +34,7 @@ type UnifiedPanelPlaybackProps = {
     currentSong: SongResult | null;
     onAlbumSelect: (song: SongResult, album: Album) => void;
     onSelectArtist: (song: SongResult, artist: Artist) => void;
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     onToggleLoop: () => void;
     onLike: () => void;
     isLiked: boolean;

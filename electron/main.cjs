@@ -10,6 +10,8 @@ const { createKugouApiBridge } = require('./kugouApiBridge.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { getReleaseUrl, getUpdateProviderConfig, resolveReleaseChannel } = require('./updateChannels.cjs');
+const { shouldHideMainWindowOnClose: resolveHideMainWindowOnClose } = require('./trayWindowBehavior.cjs');
+const { isLaunchAtLoginSupported, buildLoginItemQuery, buildLoginItemSettings } = require('./launchAtLogin.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
 const isAppImageRuntime =
@@ -124,6 +126,8 @@ function getMainLocale() {
 let mainWindow = null;
 let remoteControlWindow = null;
 let appTray = null;
+// 标记应用正在真正退出，用于区分"关闭到托盘"应拦截的窗口 close 和退出流程中的 close。
+let isQuittingApp = false;
 let latestRemoteControlSnapshot = null;
 let obsBrowserSourceServer = null;
 let latestObsBrowserSourceConfig = null;
@@ -169,6 +173,9 @@ const OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY = 'OBS_BROWSER_SOURCE_TOKEN';
 const OBS_BROWSER_SOURCE_PORT_SETTING_KEY = 'OBS_BROWSER_SOURCE_PORT';
 const DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY = 'DISCORD_RICH_PRESENCE_ENABLED';
 const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
+const CLOSE_TO_TRAY_SETTING_KEY = 'CLOSE_TO_TRAY';
+const LAUNCH_AT_LOGIN_SETTING_KEY = 'LAUNCH_AT_LOGIN';
+const LAUNCH_AT_LOGIN_SUPPORTED_SETTING_KEY = 'LAUNCH_AT_LOGIN_SUPPORTED';
 const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
 const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY = 'REMOTE_CONTROL_SKIP_TASKBAR';
@@ -283,6 +290,9 @@ function getPublicSettings() {
   return {
     ...store.store,
     [MINIMIZE_TO_TRAY_SETTING_KEY]: readStoredBoolean(MINIMIZE_TO_TRAY_SETTING_KEY, false),
+    [CLOSE_TO_TRAY_SETTING_KEY]: readStoredBoolean(CLOSE_TO_TRAY_SETTING_KEY, false),
+    [LAUNCH_AT_LOGIN_SETTING_KEY]: getLaunchAtLoginEnabled(),
+    [LAUNCH_AT_LOGIN_SUPPORTED_SETTING_KEY]: isLaunchAtLoginSupported(process.platform),
     [HIDE_TASKBAR_ICON_SETTING_KEY]: readStoredBoolean(HIDE_TASKBAR_ICON_SETTING_KEY, false),
     [REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY, true),
     [REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY, false),
@@ -640,6 +650,61 @@ function toggleMainWindowVisibility() {
 
 function isMinimizeToTrayEnabled() {
   return readStoredBoolean(MINIMIZE_TO_TRAY_SETTING_KEY, false);
+}
+
+function isCloseToTrayEnabled() {
+  return readStoredBoolean(CLOSE_TO_TRAY_SETTING_KEY, false);
+}
+
+// 开机自启以系统登录项为真源，用户可能直接在系统设置里改动。
+function getLaunchAtLoginContext() {
+  return {
+    execPath: process.execPath,
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath(),
+  };
+}
+
+function getLaunchAtLoginEnabled() {
+  if (!isLaunchAtLoginSupported(process.platform)) {
+    return false;
+  }
+
+  try {
+    // 查询参数必须与写入时一致，否则 Windows 上匹配不到注册项。
+    return Boolean(app.getLoginItemSettings(buildLoginItemQuery(getLaunchAtLoginContext())).openAtLogin);
+  } catch (error) {
+    console.error('[Electron] Failed to read login item settings', error);
+    return readStoredBoolean(LAUNCH_AT_LOGIN_SETTING_KEY, false);
+  }
+}
+
+function setLaunchAtLoginEnabled(enabled) {
+  const nextEnabled = Boolean(enabled);
+  if (!isLaunchAtLoginSupported(process.platform)) {
+    return false;
+  }
+
+  try {
+    app.setLoginItemSettings(buildLoginItemSettings({
+      enabled: nextEnabled,
+      ...getLaunchAtLoginContext(),
+    }));
+  } catch (error) {
+    console.error('[Electron] Failed to write login item settings', error);
+    return getLaunchAtLoginEnabled();
+  }
+
+  return getLaunchAtLoginEnabled();
+}
+
+// 点击关闭按钮时是否应该隐藏到托盘而不是退出。
+function shouldHideMainWindowOnClose() {
+  return resolveHideMainWindowOnClose({
+    hasTray: Boolean(appTray),
+    isQuitting: isQuittingApp,
+    closeToTrayEnabled: isCloseToTrayEnabled(),
+  });
 }
 
 function setMainWindowSkipTaskbarEnabled(enabled) {
@@ -2810,8 +2875,13 @@ function createWindow(options = {}) {
   win.on('unmaximize', () => {
     saveWindowState(win);
   });
-  win.on('close', () => {
+  win.on('close', (event) => {
     saveWindowState(win);
+    // 只拦截当前主窗口；透明模式重建用的是 destroy()，不会经过这里。
+    if (win === mainWindow && shouldHideMainWindowOnClose()) {
+      event.preventDefault();
+      hideMainWindow();
+    }
   });
   win.on('closed', () => {
     if (mainWindow === win) {
@@ -2941,6 +3011,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  isQuittingApp = true;
   clearPendingWindowPlaybackHandoffRequests();
   voiceInputPauseMonitor.stop();
   void discordPresence.destroy();
@@ -2978,6 +3049,8 @@ ipcMain.handle('save-settings', (event, key, value) => {
   }
   if (
     key === MINIMIZE_TO_TRAY_SETTING_KEY ||
+    key === CLOSE_TO_TRAY_SETTING_KEY ||
+    key === LAUNCH_AT_LOGIN_SETTING_KEY ||
     key === HIDE_TASKBAR_ICON_SETTING_KEY ||
     key === REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY ||
     key === REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY ||
@@ -3055,6 +3128,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
 
   if (key === HIDE_TASKBAR_ICON_SETTING_KEY) {
     setMainWindowSkipTaskbarEnabled(nextValue);
+  }
+
+  if (key === LAUNCH_AT_LOGIN_SETTING_KEY) {
+    setLaunchAtLoginEnabled(nextValue);
   }
 
   if (key === REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY) {

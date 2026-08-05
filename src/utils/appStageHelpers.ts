@@ -19,6 +19,8 @@ export const getStageLyricsTimelineBounds = (lyricData: LyricData | null) => {
     };
 };
 
+// 循环模式切换链：顺序播放 → 列表循环 → 单曲循环 → 随机播放 → 顺序播放。
+// Stage 遥控与设置 store 共用这一份，避免两边分叉。
 export const getNextLoopMode = (currentLoopMode: StageLoopMode): StageLoopMode => {
     if (currentLoopMode === 'off') {
         return 'all';
@@ -26,6 +28,10 @@ export const getNextLoopMode = (currentLoopMode: StageLoopMode): StageLoopMode =
 
     if (currentLoopMode === 'all') {
         return 'one';
+    }
+
+    if (currentLoopMode === 'one') {
+        return 'shuffle';
     }
 
     return 'off';

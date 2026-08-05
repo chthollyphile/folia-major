@@ -1,6 +1,7 @@
-import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
+import { PlayerState, type LyricData, type PlaybackContext, type PlayerLoopMode, type SongResult, type StagePlayerSnapshot } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlSnapshot } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
+import { wrapsAroundQueue } from '../components/app/playback/shuffleOrder';
 import { getPlaybackSongKey, isLocalPlaybackSong, resolveNavidromePlaybackCarrier } from './appPlaybackGuards';
 import { buildStagePlayerSnapshot } from './stagePlayerSnapshot';
 import { getProviderSongMetadata } from '../services/onlineMusic/songMetadata';
@@ -51,7 +52,7 @@ export interface BuildPlaybackSyncBridgeModelArgs {
     playerState: PlayerState;
     coverUrl: string | null;
     cachedCoverUrl?: string | null;
-    effectiveLoopMode: 'off' | 'all' | 'one';
+    effectiveLoopMode: PlayerLoopMode;
     isFmMode: boolean;
     isStageActive: boolean;
     controlsDisabled: boolean;
@@ -147,11 +148,11 @@ export const buildPlaybackSyncBridgeModel = ({
         ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
         : -1;
     const hasQueueNeighbors = playQueue.length > 1;
-    const canGoPrevious = hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
+    const canGoPrevious = hasTrack && (currentIndex > 0 || (wrapsAroundQueue(effectiveLoopMode) && hasQueueNeighbors));
     const canGoNext = hasTrack && (
         isFmMode ||
         currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
-        (effectiveLoopMode === 'all' && hasQueueNeighbors)
+        (wrapsAroundQueue(effectiveLoopMode) && hasQueueNeighbors)
     );
     const safeCurrentTimeSec = Math.max(0, clampFiniteNumber(currentTimeSec));
     const safeDurationSec = Math.max(0, clampFiniteNumber(durationSec));

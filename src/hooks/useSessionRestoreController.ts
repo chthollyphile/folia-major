@@ -6,6 +6,10 @@ import { buildLocalQueue } from '../services/playbackAdapters';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
+import {
+    readPlaybackPositionSnapshot,
+    resolveResumablePosition,
+} from '../components/app/playback/playbackPositionCache';
 import { getPlaybackSongKey, isStagePlaybackSong, normalizePlaybackSongSource } from '../utils/appPlaybackGuards';
 import type { LyricData, SongResult, StatusMessage } from '../types';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
@@ -34,6 +38,10 @@ type UseSessionRestoreControllerParams = {
     loadLocalSongs: () => Promise<void>;
     loadLocalPlaylists: () => Promise<void>;
     canRestoreSession?: boolean;
+    autoplayOnLaunch?: boolean;
+    rememberPlaybackPosition?: boolean;
+    pendingResumeTimeRef: MutableRefObject<number | null>;
+    shouldAutoPlayRef: MutableRefObject<boolean>;
 };
 
 // Restores the main playback session without pushing more boot logic into App.tsx.
@@ -54,6 +62,10 @@ export function useSessionRestoreController({
     loadLocalSongs,
     loadLocalPlaylists,
     canRestoreSession = true,
+    autoplayOnLaunch = false,
+    rememberPlaybackPosition = false,
+    pendingResumeTimeRef,
+    shouldAutoPlayRef,
 }: UseSessionRestoreControllerParams) {
     const hasInitializedRef = useRef(false);
     const hasLoadedLocalLibraryRef = useRef(false);
@@ -131,6 +143,25 @@ export function useSessionRestoreController({
                         useOnlineProviderAccountStore.getState().setActiveProviderId(lastSong.sourceRef.providerId);
                     }
                 }
+
+                // 这两个 ref 必须在 setAudioSrc 之前就位：
+                // pendingResumeTimeRef 由 onLoadedMetadata 消费，shouldAutoPlayRef 由音频桥的 audioSrc effect 消费。
+                if (rememberPlaybackPosition) {
+                    try {
+                        const snapshot = await readPlaybackPositionSnapshot();
+                        const resumePosition = resolveResumablePosition(snapshot, lastSong);
+                        if (resumePosition !== null) {
+                            pendingResumeTimeRef.current = resumePosition;
+                        }
+                    } catch (error) {
+                        console.warn('Failed to restore last playback position', error);
+                    }
+                }
+
+                if (autoplayOnLaunch) {
+                    shouldAutoPlayRef.current = true;
+                }
+
                 setCurrentSong(lastSong);
                 setPlayQueue(lastQueue && lastQueue.length > 0 ? lastQueue : [lastSong]);
 

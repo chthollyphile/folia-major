@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
@@ -10,7 +10,20 @@ import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '..
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
 import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
-import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
+import type { LocalSong, PlayerLoopMode, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
+import { persistShuffleOrderState, readShuffleOrderState } from '../components/app/playback/playbackPositionCache';
+import {
+    advanceShuffleOrder,
+    createShuffleOrderState,
+    enqueueShuffleNext,
+    getUpcomingShuffleKeys,
+    isShuffleLoopMode,
+    peekNextShuffleKey,
+    rewindShuffleOrder,
+    syncShuffleOrderWithQueue,
+    wrapsAroundQueue,
+    type ShuffleOrderState,
+} from '../components/app/playback/shuffleOrder';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { NavidromeSong } from '../types/navidrome';
@@ -60,7 +73,7 @@ type UsePlaybackQueueControllerParams = {
     currentSong: SongResult | null;
     playQueue: SongResult[];
     playerState: PlayerState;
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     isFmMode: boolean;
     isNowPlayingStageActive: boolean;
     queueAddBehavior: QueueAddBehavior;
@@ -200,6 +213,50 @@ export function usePlaybackQueueController({
     lastAudioRecoverySourceRef,
 }: UsePlaybackQueueControllerParams) {
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
+    // 随机播放的路线图只在切歌时读写，不参与渲染，因此放 ref 而不是 state。
+    const shuffleOrderRef = useRef(createShuffleOrderState());
+
+    // 路线图跟着会话走，重启后按原随机顺序接着播。
+    const commitShuffleOrder = useCallback((state: ShuffleOrderState) => {
+        shuffleOrderRef.current = state;
+        void persistShuffleOrderState(state);
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        void readShuffleOrderState().then(restored => {
+            // 已经开始播放并生成了新路线图时不覆盖。
+            if (!cancelled && shuffleOrderRef.current.order.length === 0) {
+                shuffleOrderRef.current = restored;
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // 队列增删时让路线图跟上：已播部分不动，新歌进入本轮剩余部分。
+    useEffect(() => {
+        if (!isShuffleLoopMode(loopMode)) {
+            return;
+        }
+
+        shuffleOrderRef.current = syncShuffleOrderWithQueue(
+            shuffleOrderRef.current,
+            playQueue.map(song => getPlaybackSongKey(song)),
+            currentSong ? getPlaybackSongKey(currentSong) : null,
+            Math.random,
+        );
+    }, [currentSong, loopMode, playQueue]);
+
+    // 从队列里按 songKey 取歌，随机推进拿到的是键而不是对象。
+    const findQueueSongByKey = useCallback((key: string | null): SongResult | null => {
+        if (!key) {
+            return null;
+        }
+
+        return playQueue.find(song => getPlaybackSongKey(song) === key) ?? null;
+    }, [playQueue]);
 
     const appendOnlineSongsToMainQueue = useCallback((songs: SongResult[], options?: { suppressToast?: boolean }) => {
         if (songs.length === 0) {
@@ -238,6 +295,13 @@ export function usePlaybackQueueController({
         }
 
         if (changed && affectedSongs.length > 0) {
+            // 随机模式下队列位置不决定播放顺序，插队必须同步进路线图，否则"下一首播放"会失效。
+            if (queueAddBehavior === 'next' && isShuffleLoopMode(loopMode)) {
+                commitShuffleOrder(affectedSongs.reduce(
+                    (state, song) => enqueueShuffleNext(state, getPlaybackSongKey(song)),
+                    shuffleOrderRef.current,
+                ));
+            }
             void persistLastPlaybackCache(queueAnchorSong, nextQueue);
         }
 
@@ -259,7 +323,7 @@ export function usePlaybackQueueController({
             affectedSongs,
             addBehavior: queueAddBehavior,
         };
-    }, [activePlaybackContext, currentSong, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, queueAddBehavior, setPlayQueue, setStatusMsg, t]);
+    }, [activePlaybackContext, commitShuffleOrder, currentSong, loopMode, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, queueAddBehavior, setPlayQueue, setStatusMsg, t]);
 
     const addOnlineSongToQueue = useCallback((song: SongResult) => {
         if (isSongUnavailable(song)) {
@@ -311,7 +375,7 @@ export function usePlaybackQueueController({
             }
         }
 
-        if (loopMode === 'all' && queue.length > 1) {
+        if (wrapsAroundQueue(loopMode) && queue.length > 1) {
             for (let index = 0; index < currentIndex; index += 1) {
                 const candidate = queue[index];
                 if (isQueueSongPlayable(candidate)) {
@@ -669,7 +733,13 @@ export function usePlaybackQueueController({
         }
 
         if (newQueue.length > 1) {
-            prefetchNearbySongs(resolvedSong, resolvedQueue, audioQuality, userId);
+            // 随机播放时按路线图预取，否则预取队列邻居会全部落空。
+            const shuffleUpcoming = isShuffleLoopMode(loopMode)
+                ? getUpcomingShuffleKeys(shuffleOrderRef.current, 3)
+                      .map(key => resolvedQueue.find(song => getPlaybackSongKey(song) === key))
+                      .filter((song): song is SongResult => Boolean(song))
+                : null;
+            prefetchNearbySongs(resolvedSong, resolvedQueue, audioQuality, userId, shuffleUpcoming);
         }
     }, [
         audioQuality,
@@ -685,6 +755,7 @@ export function usePlaybackQueueController({
         isFmMode,
         lastAudioRecoverySourceRef,
         localSongs,
+        loopMode,
         navigateToPlayer,
         onPlayLocalSong,
         onPlayNavidromeSong,
@@ -850,13 +921,33 @@ export function usePlaybackQueueController({
             }
         }
 
+        // 随机播放不按队列下标推进，改由 shuffle 顺序决定下一首。
+        if (isShuffleLoopMode(loopMode) && !isFmMode && playQueue.length > 0) {
+            const { nextKey, state } = advanceShuffleOrder({
+                state: shuffleOrderRef.current,
+                queueKeys: playQueue.map(song => getPlaybackSongKey(song)),
+                currentKey: currentSong ? getPlaybackSongKey(currentSong) : null,
+                random: Math.random,
+            });
+            commitShuffleOrder(state);
+
+            const nextSong = findQueueSongByKey(nextKey);
+            if (nextSong) {
+                void playSong(nextSong, playQueue, isFmMode, {
+                    shouldNavigateToPlayer,
+                    unavailableSkipCount: options?.unavailableSkipCount,
+                });
+                return;
+            }
+        }
+
         let nextIndex = -1;
 
         if (currentIndex >= 0 && currentIndex < playQueue.length - 1) {
             nextIndex = currentIndex + 1;
         } else if (currentIndex < 0 && playQueue.length > 0) {
             nextIndex = 0;
-        } else if (loopMode === 'all') {
+        } else if (wrapsAroundQueue(loopMode)) {
             nextIndex = 0;
         }
 
@@ -871,7 +962,7 @@ export function usePlaybackQueueController({
             }
             setPlayerState(PlayerState.IDLE);
         }
-    }, [audioRef, currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState]);
+    }, [audioRef, commitShuffleOrder, currentSong, findQueueSongByKey, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState]);
 
     const handlePrevTrack = useCallback(() => {
         if (isNowPlayingStageActive) return;
@@ -879,18 +970,34 @@ export function usePlaybackQueueController({
 
         const currentSongKey = getPlaybackSongKey(currentSong);
         const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
+
+        // 随机播放的上一首沿播放历史回退；没有历史时退化成队列上一首。
+        if (isShuffleLoopMode(loopMode) && !isFmMode) {
+            const { nextKey, state } = rewindShuffleOrder(
+                shuffleOrderRef.current,
+                playQueue.map(song => getPlaybackSongKey(song)),
+            );
+            commitShuffleOrder(state);
+
+            const prevSong = findQueueSongByKey(nextKey);
+            if (prevSong) {
+                void playSong(prevSong, playQueue, isFmMode);
+                return;
+            }
+        }
+
         let prevIndex = -1;
 
         if (currentIndex > 0) {
             prevIndex = currentIndex - 1;
-        } else if (loopMode === 'all') {
+        } else if (wrapsAroundQueue(loopMode)) {
             prevIndex = playQueue.length - 1;
         }
 
         if (prevIndex >= 0) {
             void playSong(playQueue[prevIndex], playQueue, isFmMode);
         }
-    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong]);
+    }, [commitShuffleOrder, currentSong, findQueueSongByKey, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong]);
 
     const skipAfterPlaybackFailure = useCallback(() => {
         clearPendingUnavailableSkip();
@@ -901,7 +1008,7 @@ export function usePlaybackQueueController({
             : -1;
         const hasNextTrack = currentIndex >= 0 && (
             currentIndex < playQueue.length - 1 ||
-            (loopMode === 'all' && playQueue.length > 1)
+            (wrapsAroundQueue(loopMode) && playQueue.length > 1)
         );
 
         if (!hasNextTrack || skipCount >= MAX_UNAVAILABLE_AUTO_SKIP_COUNT) {
@@ -945,11 +1052,11 @@ export function usePlaybackQueueController({
             playerState,
             positionMs: Math.max(0, Math.floor(audioCurrentTimeSec * 1000)),
             durationMs: fallbackDurationMs,
-            canGoPrevious: hasCurrentSong && (queueCurrentIndex > 0 || (loopMode === 'all' && hasQueueNeighbors)),
+            canGoPrevious: hasCurrentSong && (queueCurrentIndex > 0 || (wrapsAroundQueue(loopMode) && hasQueueNeighbors)),
             canGoNext: hasCurrentSong && (
                 isFmMode
                 || queueCurrentIndex >= 0 && queueCurrentIndex < nextQueue.length - 1
-                || (loopMode === 'all' && hasQueueNeighbors)
+                || (wrapsAroundQueue(loopMode) && hasQueueNeighbors)
             ),
             coverUrl: getProviderSongMetadata(nextCurrentSong).coverUrl || null,
         });

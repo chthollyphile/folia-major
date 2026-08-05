@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type React from 'react';
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LocalLyricsPriority, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type QueueAddBehavior, type SonnetTuning, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type SubtitleContentMode, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { getNextLoopMode } from '../utils/appStageHelpers';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type CadenzaTuning, type CappellaAvatarImage, type CappellaAvatarSource, type CappellaEmojiImage, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LocalLyricsPriority, type LyricProviderSource, type MonetBackgroundImage, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitImage, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type PlayerLoopMode, type QueueAddBehavior, type SonnetTuning, type StatusMessage, type StoredCappellaAvatarImage, type StoredCappellaEmojiImage, type StoredCustomLyricsFont, type StoredMonetBackgroundImage, type StoredMonetPortraitImage, type SubtitleContentMode, type Theme, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { DEFAULT_VISUALIZER_MODE, getVisualizerModeLabel, getVisualizerRegistryEntry, hasVisualizerMode } from '../components/visualizer/registry';
 import { DEFAULT_VISUALIZER_BACKGROUND_MODE, hasVisualizerBackgroundMode } from '../components/visualizer/backgrounds/registry';
 import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from '../components/visualizer/diorama/dioramaMoteField';
@@ -45,6 +46,10 @@ export type SettingsModalState = {
 };
 
 export const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
+export const CLOSE_TO_TRAY_STORAGE_KEY = 'close_to_tray';
+export const LAUNCH_AT_LOGIN_STORAGE_KEY = 'launch_at_login';
+export const AUTOPLAY_ON_LAUNCH_STORAGE_KEY = 'autoplay_on_launch';
+export const REMEMBER_PLAYBACK_POSITION_STORAGE_KEY = 'remember_playback_position';
 export const VOICE_INPUT_PAUSE_STORAGE_KEY = 'voice_input_pause_enabled';
 export const HIDE_TASKBAR_ICON_STORAGE_KEY = 'hide_taskbar_icon';
 export const REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY = 'remote_control_skip_taskbar';
@@ -1041,13 +1046,13 @@ const readStoredLyricFilterPattern = (): string => {
     return localStorage.getItem('lyrics_filter_pattern')?.trim() || '';
 };
 
-const readStoredLoopMode = (): 'off' | 'all' | 'one' => {
+const readStoredLoopMode = (): PlayerLoopMode => {
     if (typeof window === 'undefined') {
         return 'off';
     }
 
     const saved = localStorage.getItem('player_loop_mode');
-    return saved === 'all' || saved === 'one' ? saved : 'off';
+    return saved === 'all' || saved === 'one' || saved === 'shuffle' ? saved : 'off';
 };
 
 const readStoredQueueAddBehavior = (): QueueAddBehavior => {
@@ -1143,6 +1148,11 @@ export type SettingsUiState = {
     disableVisualizerVignette: boolean;
     disableVisualizerGeometricBackground: boolean;
     minimizeToTray: boolean;
+    closeToTray: boolean;
+    launchAtLogin: boolean;
+    launchAtLoginSupported: boolean;
+    autoplayOnLaunch: boolean;
+    rememberPlaybackPosition: boolean;
     voiceInputPauseEnabled: boolean;
     hideTaskbarIcon: boolean;
     hideRemoteControlTaskbarIcon: boolean;
@@ -1219,7 +1229,7 @@ export type SettingsUiState = {
     audioOutputDeviceId: string;
     volume: number;
     isMuted: boolean;
-    loopMode: 'off' | 'all' | 'one';
+    loopMode: PlayerLoopMode;
     homeLayoutStyle: 'carousel' | 'grid';
     grid3dCardStyle: 'image' | 'card';
     showHomeTabPlaylist: boolean;
@@ -1237,7 +1247,7 @@ export type SettingsUiState = {
     setAudioQuality: (quality: AudioQuality) => void;
     setTransparentPlayerBackgroundFromSystem: (enabled: boolean) => void;
     handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
-    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; }) => void;
+    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; LAUNCH_AT_LOGIN?: unknown; LAUNCH_AT_LOGIN_SUPPORTED?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; }) => void;
     setStoredCappellaEmojiPack: (pack: StoredCappellaEmojiImage[]) => void;
     setCappellaCustomEmojiImages: (images: CappellaEmojiImage[]) => void;
     setIsLoadingCappellaCustomEmojiPack: (loading: boolean) => void;
@@ -1272,6 +1282,10 @@ export type SettingsUiState = {
     handleToggleDisableVisualizerVignette: (disable: boolean) => void;
     handleToggleDisableVisualizerGeometricBackground: (disable: boolean) => void;
     handleToggleMinimizeToTray: (enable: boolean) => void;
+    handleToggleCloseToTray: (enable: boolean) => void;
+    handleToggleLaunchAtLogin: (enable: boolean) => void;
+    handleToggleAutoplayOnLaunch: (enable: boolean) => void;
+    handleToggleRememberPlaybackPosition: (enable: boolean) => void;
     handleToggleVoiceInputPause: (enable: boolean) => void;
     handleToggleHideTaskbarIcon: (enable: boolean) => void;
     handleToggleHideRemoteControlTaskbarIcon: (enable: boolean) => void;
@@ -1404,6 +1418,11 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     disableVisualizerVignette: getStoredBoolean('disable_visualizer_vignette', false),
     disableVisualizerGeometricBackground: getStoredBoolean('disable_visualizer_geometric_background', false),
     minimizeToTray: getStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, false),
+    closeToTray: getStoredBoolean(CLOSE_TO_TRAY_STORAGE_KEY, false),
+    launchAtLogin: getStoredBoolean(LAUNCH_AT_LOGIN_STORAGE_KEY, false),
+    launchAtLoginSupported: false,
+    autoplayOnLaunch: getStoredBoolean(AUTOPLAY_ON_LAUNCH_STORAGE_KEY, false),
+    rememberPlaybackPosition: getStoredBoolean(REMEMBER_PLAYBACK_POSITION_STORAGE_KEY, false),
     voiceInputPauseEnabled: getStoredBoolean(VOICE_INPUT_PAUSE_STORAGE_KEY, false),
     hideTaskbarIcon: getStoredBoolean(HIDE_TASKBAR_ICON_STORAGE_KEY, false),
     hideRemoteControlTaskbarIcon: getStoredBoolean(REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY, false),
@@ -1529,6 +1548,18 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         if (typeof settings.MINIMIZE_TO_TRAY === 'boolean') {
             patch.minimizeToTray = settings.MINIMIZE_TO_TRAY;
             setStoredBoolean(MINIMIZE_TO_TRAY_STORAGE_KEY, settings.MINIMIZE_TO_TRAY);
+        }
+        if (typeof settings.CLOSE_TO_TRAY === 'boolean') {
+            patch.closeToTray = settings.CLOSE_TO_TRAY;
+            setStoredBoolean(CLOSE_TO_TRAY_STORAGE_KEY, settings.CLOSE_TO_TRAY);
+        }
+        // 开机自启以系统登录项为真源，主进程回传的状态直接覆盖本地缓存。
+        if (typeof settings.LAUNCH_AT_LOGIN === 'boolean') {
+            patch.launchAtLogin = settings.LAUNCH_AT_LOGIN;
+            setStoredBoolean(LAUNCH_AT_LOGIN_STORAGE_KEY, settings.LAUNCH_AT_LOGIN);
+        }
+        if (typeof settings.LAUNCH_AT_LOGIN_SUPPORTED === 'boolean') {
+            patch.launchAtLoginSupported = settings.LAUNCH_AT_LOGIN_SUPPORTED;
         }
         if (typeof settings.VOICE_INPUT_PAUSE_ENABLED === 'boolean') {
             patch.voiceInputPauseEnabled = settings.VOICE_INPUT_PAUSE_ENABLED;
@@ -1723,6 +1754,44 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, {
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'minimizeToTray' : 'minimizeToTaskbar')),
+        });
+    },
+    handleToggleCloseToTray: (enable) => {
+        setStoredBoolean(CLOSE_TO_TRAY_STORAGE_KEY, enable);
+        set({ closeToTray: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('CLOSE_TO_TRAY', enable);
+        }
+        notify(get, {
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'closeToTray' : 'closeToQuit')),
+        });
+    },
+    handleToggleLaunchAtLogin: (enable) => {
+        setStoredBoolean(LAUNCH_AT_LOGIN_STORAGE_KEY, enable);
+        set({ launchAtLogin: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('LAUNCH_AT_LOGIN', enable);
+        }
+        notify(get, {
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'launchAtLoginOn' : 'launchAtLoginOff')),
+        });
+    },
+    handleToggleAutoplayOnLaunch: (enable) => {
+        setStoredBoolean(AUTOPLAY_ON_LAUNCH_STORAGE_KEY, enable);
+        set({ autoplayOnLaunch: enable });
+        notify(get, {
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'autoplayOnLaunchOn' : 'autoplayOnLaunchOff')),
+        });
+    },
+    handleToggleRememberPlaybackPosition: (enable) => {
+        setStoredBoolean(REMEMBER_PLAYBACK_POSITION_STORAGE_KEY, enable);
+        set({ rememberPlaybackPosition: enable });
+        notify(get, {
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'rememberPlaybackPositionOn' : 'rememberPlaybackPositionOff')),
         });
     },
     handleToggleVoiceInputPause: (enable) => {
@@ -2673,12 +2742,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         set({ isMuted: next });
     },
     handleToggleLoopMode: () => {
-        const prev = get().loopMode;
-        const next = prev === 'off'
-            ? 'all'
-            : prev === 'all'
-                ? 'one'
-                : 'off';
+        // 切换链与 Stage 遥控共用 getNextLoopMode，两边不能分叉。
+        const next = getNextLoopMode(get().loopMode);
         if (typeof window !== 'undefined') {
             localStorage.setItem('player_loop_mode', next);
         }
@@ -2751,6 +2816,11 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     disableVisualizerVignette: state.disableVisualizerVignette,
     disableVisualizerGeometricBackground: state.disableVisualizerGeometricBackground,
     minimizeToTray: state.minimizeToTray,
+    closeToTray: state.closeToTray,
+    launchAtLogin: state.launchAtLogin,
+    launchAtLoginSupported: state.launchAtLoginSupported,
+    autoplayOnLaunch: state.autoplayOnLaunch,
+    rememberPlaybackPosition: state.rememberPlaybackPosition,
     voiceInputPauseEnabled: state.voiceInputPauseEnabled,
     hideTaskbarIcon: state.hideTaskbarIcon,
     hideRemoteControlTaskbarIcon: state.hideRemoteControlTaskbarIcon,
@@ -2843,6 +2913,10 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     handleToggleDisableVisualizerVignette: state.handleToggleDisableVisualizerVignette,
     handleToggleDisableVisualizerGeometricBackground: state.handleToggleDisableVisualizerGeometricBackground,
     handleToggleMinimizeToTray: state.handleToggleMinimizeToTray,
+    handleToggleCloseToTray: state.handleToggleCloseToTray,
+    handleToggleLaunchAtLogin: state.handleToggleLaunchAtLogin,
+    handleToggleAutoplayOnLaunch: state.handleToggleAutoplayOnLaunch,
+    handleToggleRememberPlaybackPosition: state.handleToggleRememberPlaybackPosition,
     handleToggleVoiceInputPause: state.handleToggleVoiceInputPause,
     handleToggleHideTaskbarIcon: state.handleToggleHideTaskbarIcon,
     handleToggleHideRemoteControlTaskbarIcon: state.handleToggleHideRemoteControlTaskbarIcon,

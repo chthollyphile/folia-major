@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AudioLines, Monitor, PlayCircle, RefreshCw, Settings2 } from 'lucide-react';
+import { AudioLines, History, Monitor, Play, PlayCircle, RefreshCw, Rocket, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { LocalLyricsPriority, QueueAddBehavior, ReplayGainMode, Theme } from '../../../types';
@@ -56,6 +56,10 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
         onPreferredAlternativeLyricSourceChange,
         onLocalLyricsPriorityChange,
         onQueueAddBehaviorChange,
+        autoplayOnLaunch,
+        rememberPlaybackPosition,
+        onToggleAutoplayOnLaunch,
+        onToggleRememberPlaybackPosition,
     } = useSettingsUiStore(useShallow(state => ({
         audioOutputDeviceId: state.audioOutputDeviceId,
         autoUseBestLyric: state.autoUseBestLyric,
@@ -66,6 +70,10 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
         onPreferredAlternativeLyricSourceChange: state.handleSetPreferredAlternativeLyricSource,
         onLocalLyricsPriorityChange: state.handleSetLocalLyricsPriority,
         onQueueAddBehaviorChange: state.handleSetQueueAddBehavior,
+        autoplayOnLaunch: state.autoplayOnLaunch,
+        rememberPlaybackPosition: state.rememberPlaybackPosition,
+        onToggleAutoplayOnLaunch: state.handleToggleAutoplayOnLaunch,
+        onToggleRememberPlaybackPosition: state.handleToggleRememberPlaybackPosition,
     })));
     const [audioOutputDevices, setAudioOutputDevices] = useState<AudioOutputDeviceOption[]>([]);
     const [isAudioOutputDevicesLoading, setIsAudioOutputDevicesLoading] = useState(false);
@@ -186,6 +194,38 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
 
     return (
         <div className="space-y-5">
+            <section>
+                <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <Rocket size={14} /> {t('options.launchPlaybackSettings')}
+                </h3>
+                <div className={`rounded-xl border overflow-hidden ${settingsCardClass}`}>
+                    <div className="p-4 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                <Play size={14} />
+                                {t('options.autoplayOnLaunch')}
+                            </div>
+                            <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.autoplayOnLaunchDesc')}
+                            </div>
+                        </div>
+                        {renderToggle(autoplayOnLaunch, () => onToggleAutoplayOnLaunch(!autoplayOnLaunch))}
+                    </div>
+                    <div className="p-4 flex items-center justify-between gap-4 border-t" style={{ borderColor: 'var(--border-primary, rgba(255,255,255,0.06))' }}>
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                <History size={14} />
+                                {t('options.rememberPlaybackPosition')}
+                            </div>
+                            <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
+                                {t('options.rememberPlaybackPositionDesc')}
+                            </div>
+                        </div>
+                        {renderToggle(rememberPlaybackPosition, () => onToggleRememberPlaybackPosition(!rememberPlaybackPosition))}
+                    </div>
+                </div>
+            </section>
+
             <section>
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
                     <PlayCircle size={14} />                    {t('options.queueSettings')}

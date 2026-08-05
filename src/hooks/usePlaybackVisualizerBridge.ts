@@ -3,7 +3,8 @@ import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { findLatestActiveLineIndex } from '../utils/appPlaybackHelpers';
 import { PlayerState } from '../types';
-import type { AudioBands, LyricData } from '../types';
+import { wrapsAroundQueue } from '../components/app/playback/shuffleOrder';
+import type { AudioBands, LyricData, PlayerLoopMode } from '../types';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -18,7 +19,7 @@ type UsePlaybackVisualizerBridgeParams = {
     lyrics: LyricData | null;
     playerState: PlayerState;
     duration: number;
-    effectiveLoopMode: 'off' | 'all' | 'one';
+    effectiveLoopMode: PlayerLoopMode;
     isNowPlayingStageActive: boolean;
     isPlayerCapStageActive: boolean;
     stageActiveEntryKind: string | null;
@@ -155,7 +156,7 @@ export function usePlaybackVisualizerBridge({
             }
 
             if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                if (effectiveLoopMode === 'one' || wrapsAroundQueue(effectiveLoopMode)) {
                     syncNowPlayingClock(0, duration, false);
                     currentTime.set(0);
                     if (lyrics) {
@@ -202,7 +203,7 @@ export function usePlaybackVisualizerBridge({
             }
 
             if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                if (effectiveLoopMode === 'one' || wrapsAroundQueue(effectiveLoopMode)) {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
                     const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);

@@ -69,6 +69,7 @@ import { useRandomVisualizerMode } from './hooks/useRandomVisualizerMode';
 import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
 import { ObsBrowserSourceLyrics } from './components/obs/ObsBrowserSourceLyrics';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
+import { usePlaybackPositionPersistence } from './hooks/usePlaybackPositionPersistence';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
@@ -303,6 +304,11 @@ export default function App() {
         disableVisualizerVignette,
         disableVisualizerGeometricBackground,
         minimizeToTray,
+        closeToTray,
+        launchAtLogin,
+        launchAtLoginSupported,
+        autoplayOnLaunch,
+        rememberPlaybackPosition,
         hideTaskbarIcon,
         openPlayerOnLaunch,
         enableMediaCache,
@@ -377,6 +383,10 @@ export default function App() {
         handleToggleDisableVisualizerVignette,
         handleToggleDisableVisualizerGeometricBackground,
         handleToggleMinimizeToTray,
+        handleToggleCloseToTray,
+        handleToggleLaunchAtLogin,
+        handleToggleAutoplayOnLaunch,
+        handleToggleRememberPlaybackPosition,
         handleToggleHideTaskbarIcon,
         handleToggleOpenPlayerOnLaunch,
         voiceInputPauseEnabled,
@@ -1215,6 +1225,18 @@ export default function App() {
         loadLocalSongs,
         loadLocalPlaylists,
         canRestoreSession: windowPlaybackHandoffRestoreStatus === 'none',
+        autoplayOnLaunch,
+        rememberPlaybackPosition,
+        pendingResumeTimeRef,
+        shouldAutoPlayRef: shouldAutoPlay,
+    });
+
+    usePlaybackPositionPersistence({
+        enabled: rememberPlaybackPosition,
+        currentSong,
+        currentTime,
+        duration,
+        isPlaying: playerState === PlayerState.PLAYING,
     });
 
     const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
@@ -1971,6 +1993,23 @@ export default function App() {
         toggleVoiceInputPause: () => {
             handleToggleVoiceInputPause(!voiceInputPauseEnabled);
         },
+        closeToTray,
+        toggleCloseToTray: () => {
+            handleToggleCloseToTray(!closeToTray);
+        },
+        launchAtLogin,
+        launchAtLoginSupported,
+        toggleLaunchAtLogin: () => {
+            handleToggleLaunchAtLogin(!launchAtLogin);
+        },
+        autoplayOnLaunch,
+        toggleAutoplayOnLaunch: () => {
+            handleToggleAutoplayOnLaunch(!autoplayOnLaunch);
+        },
+        rememberPlaybackPosition,
+        toggleRememberPlaybackPosition: () => {
+            handleToggleRememberPlaybackPosition(!rememberPlaybackPosition);
+        },
         setAppLanguagePreference: handleSetAppLanguagePreference,
         runAutoMatchBestLyric: handleAutoMatchBestLyricForCurrentSong,
         setIsUserGuideModalOpen,
@@ -2018,6 +2057,15 @@ export default function App() {
         toggleDaylightMode,
         voiceInputPauseEnabled,
         handleToggleVoiceInputPause,
+        closeToTray,
+        handleToggleCloseToTray,
+        launchAtLogin,
+        launchAtLoginSupported,
+        handleToggleLaunchAtLogin,
+        autoplayOnLaunch,
+        handleToggleAutoplayOnLaunch,
+        rememberPlaybackPosition,
+        handleToggleRememberPlaybackPosition,
 
         subtitleContentMode,
         subtitleOverlayBackground,

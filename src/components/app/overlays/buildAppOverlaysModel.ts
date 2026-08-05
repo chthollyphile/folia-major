@@ -4,7 +4,7 @@ import type FloatingPlayerControls from '../../FloatingPlayerControls';
 import type SearchWorkspace from '../search/SearchWorkspace';
 import type DevDebugOverlay from '../../DevDebugOverlay';
 import { PlayerState } from '../../../types';
-import type { SongResult, UnifiedSong, LyricData } from '../../../types';
+import type { SongResult, UnifiedSong, LyricData, PlayerLoopMode } from '../../../types';
 
 // src/components/app/overlays/buildAppOverlaysModel.ts
 
@@ -38,7 +38,7 @@ type BuildAppOverlaysModelParams = {
     currentSong: SongResult | null;
     playerState: PlayerState;
     duration: number;
-    effectiveLoopMode: 'off' | 'all' | 'one';
+    effectiveLoopMode: PlayerLoopMode;
     audioSrc: string | null;
     canToggleCurrentPlayback: boolean;
     isNowPlayingControlDisabled: boolean;

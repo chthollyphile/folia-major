@@ -121,7 +121,10 @@ export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio
 
 export type PlaybackContext = 'main' | 'stage';
 export type StageSource = 'stage-api' | 'now-playing' | 'playercap';
-export type StageLoopMode = 'off' | 'all' | 'one';
+// 播放循环模式。shuffle 表示随机播放：队列顺序不变，但推进顺序随机且一轮内不重复。
+export type PlayerLoopMode = 'off' | 'all' | 'one' | 'shuffle';
+// Stage 对外协议与内部播放模式保持一致，外部集成才能读到真实模式。
+export type StageLoopMode = PlayerLoopMode;
 export type QueueAddBehavior = 'append' | 'next';
 export type StageActiveEntryKind = 'lyrics' | 'media';
 

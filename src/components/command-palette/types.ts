@@ -96,6 +96,15 @@ export type CommandPaletteContext = {
     voiceInputPauseEnabled: boolean;
     voiceInputPauseSupported: boolean;
     toggleVoiceInputPause: () => void;
+    closeToTray: boolean;
+    toggleCloseToTray: () => void;
+    launchAtLogin: boolean;
+    launchAtLoginSupported: boolean;
+    toggleLaunchAtLogin: () => void;
+    autoplayOnLaunch: boolean;
+    toggleAutoplayOnLaunch: () => void;
+    rememberPlaybackPosition: boolean;
+    toggleRememberPlaybackPosition: () => void;
     setAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void> | void;
     runAutoMatchBestLyric: () => Promise<boolean>;
     setIsUserGuideModalOpen: (isOpen: boolean) => void;
