@@ -23,12 +23,20 @@ import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
 import OnlineProviderSwitcher from './app/home/OnlineProviderSwitcher';
 import OnlineProviderConnectPanel from './app/home/OnlineProviderConnectPanel';
 import OnlineProviderLoginModal from './app/home/OnlineProviderLoginModal';
+import QqLoginChannelSelector from './app/home/QqLoginChannelSelector';
 import { resolveOnlineProviderAccountView } from './app/home/onlineProviderAccountView';
 import type { MediaId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
 
 // src/components/Grid3D.tsx
 // Glassmorphic interactive desktop home view replacing the legacy 3D carousel.
 // Supports cover sliding with auto-fading header controls and delegates GridView opening upward.
+
+// Each provider scans from its own app, so the modal copy is keyed here instead of nested in the JSX.
+const LOGIN_COPY_BY_PROVIDER: Record<string, { title: string; note: string }> = {
+    kugou: { title: 'home.loginTitleKugou', note: 'home.loginNoteKugou' },
+    qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
+};
+const NETEASE_LOGIN_COPY = { title: 'home.loginTitle', note: 'home.loginNote' };
 
 interface Grid3DProps {
     onlineProviderPlatform?: OnlineProviderPlatformState;
@@ -700,6 +708,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         getActionLabel={provider => provider.status === 'authenticated'
                             ? t('home.switchToProvider', { provider: provider.shortName || provider.displayName })
                             : t('home.connectProviderAccount', { provider: provider.shortName || provider.displayName })}
+                        renderProviderAccessory={provider => provider.providerId === 'qq' && provider.status !== 'authenticated' && provider.availability.configured
+                            ? <QqLoginChannelSelector isDaylight={isDaylight} />
+                            : null}
                         onSelect={provider => {
                             if (provider.status === 'authenticated') {
                                 void onlineProviderPlatform?.switchProvider(provider.providerId);
@@ -780,8 +791,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             <AnimatePresence>
                 {showLoginModal && (
                     <OnlineProviderLoginModal
-                        title={t(loginProviderId === 'kugou' ? 'home.loginTitleKugou' : 'home.loginTitle')}
-                        note={t(loginProviderId === 'kugou' ? 'home.loginNoteKugou' : 'home.loginNote')}
+                        title={t((LOGIN_COPY_BY_PROVIDER[loginProviderId] || NETEASE_LOGIN_COPY).title)}
+                        note={t((LOGIN_COPY_BY_PROVIDER[loginProviderId] || NETEASE_LOGIN_COPY).note)}
                         qrCodeImg={qrCodeImg}
                         statusText={qrStatusText}
                         state={qrState}
