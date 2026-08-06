@@ -2132,6 +2132,10 @@ const {
   refreshAnonymousToken,
   resolveXeapiPublicKey,
 } = require('./neteaseApiStartup.cjs');
+const {
+  isBundleAvailable: isQqApiBundleAvailable,
+  startQqApi: startQqApiServer,
+} = require('./qqApiStartup.cjs');
 
 const net = require('net');
 let assignedPort = 30000; // default fallback
@@ -2228,6 +2232,75 @@ async function startApi() {
   } catch (e) {
     updateNeteaseApiStatus({ status: 'error', port: null, error: serializeError(e) });
     console.error('Failed to start Netease API', e);
+  }
+}
+
+const QQ_API_STATUS_CHANNEL = 'qq-api-status-changed';
+let qqApiStatus = {
+  status: 'starting',
+  port: null,
+  error: null,
+  updatedAt: Date.now(),
+};
+
+function updateQqApiStatus(nextStatus) {
+  qqApiStatus = {
+    ...qqApiStatus,
+    ...nextStatus,
+    updatedAt: Date.now(),
+  };
+
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send(QQ_API_STATUS_CHANNEL, qqApiStatus);
+    }
+  });
+}
+
+let qqApiHandle = null;
+
+// Runs the bundled qq-music-api in-process. The device context lives under userData and holds only
+// Android device identifiers, never a musickey, MQTT token or any account credential.
+async function startQqApi() {
+  updateQqApiStatus({ status: 'starting', port: null, error: null });
+  try {
+    if (!isQqApiBundleAvailable()) {
+      updateQqApiStatus({
+        status: 'unavailable',
+        port: null,
+        error: 'QQ API bundle is missing. Run npm run build:qq-api before packaging.',
+      });
+      console.warn('[QQ API] Bundle missing; QQ provider will stay unavailable in this build');
+      return;
+    }
+
+    const freePort = await getFreePort();
+    // getFreePort only observes that the port was free a moment ago, so the bind can still lose a
+    // race. Awaiting the handle means 'running' is only published once the socket is really bound.
+    qqApiHandle = await startQqApiServer({
+      port: freePort,
+      stateFilePath: path.join(app.getPath('userData'), 'qq-auth-state', 'qq-device.json'),
+    });
+    updateQqApiStatus({ status: 'running', port: freePort, error: null });
+    console.log('QQ API started on port', freePort);
+  } catch (error) {
+    qqApiHandle = null;
+    updateQqApiStatus({ status: 'error', port: null, error: serializeError(error) });
+    console.error('Failed to start QQ API', error);
+  }
+}
+
+async function stopQqApi() {
+  const handle = qqApiHandle;
+  qqApiHandle = null;
+  if (!handle) {
+    return;
+  }
+
+  try {
+    await handle.close();
+  } catch (error) {
+    console.error('Failed to stop QQ API', error);
   }
 }
 
@@ -2913,6 +2986,7 @@ app.whenReady().then(async () => {
 
   setupAutoUpdater();
   await startApi();
+  await startQqApi();
   try {
     await stageApi.startStageServerIfNeeded();
   } catch (error) {
@@ -2950,6 +3024,7 @@ app.on('before-quit', () => {
   voiceInputPauseMonitor.stop();
   displaySleepBlocker.stop();
   void discordPresence.destroy();
+  void stopQqApi();
 });
 
 // Settings Management IPC
@@ -3238,6 +3313,11 @@ ipcMain.handle('get-netease-port', () => {
 ipcMain.handle('get-netease-api-status', () => {
   return neteaseApiStatus;
 });
+
+// Retrieve dynamic port of the embedded QQ API server; null until it is running.
+ipcMain.handle('get-qq-port', () => qqApiStatus.port);
+
+ipcMain.handle('get-qq-api-status', () => qqApiStatus);
 
 ipcMain.handle('kugou-api-status', () => kugouApiBridge.getStatus());
 ipcMain.handle('kugou-api-request', (_event, operation, params) => kugouApiBridge.request(operation, params));

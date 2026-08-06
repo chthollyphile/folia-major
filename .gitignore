@@ -28,6 +28,10 @@ dist-ssr
 
 dev-dist/
 example/
+
+# packaging/build-qq-api-bundle.mjs 的产物（bundle 与随附的第三方 MIT 声明），
+# 随 Electron 打包生成，不提交
+electron/vendor/
 release/
 packaging/aur/folia-major-bin/FIRST_RELEASE.md
 packaging/aur/folia-major-bin/README.md
