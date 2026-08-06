@@ -85,6 +85,32 @@ describe('autoMatchBestLyric', () => {
         expect(cloudSearchMock).not.toHaveBeenCalled();
     });
 
+    it('reuses the active QQ provider candidate without searching or fetching QQ again', async () => {
+        const qqSong = {
+            id: 201,
+            qqMid: 'qq-mid',
+            name: 'Song Title',
+            artists: [{ id: 1, name: 'Artist Name' }],
+            album: { id: 2, name: 'Album' },
+            durationMs: 200000,
+            sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: 'qq-mid' },
+        };
+        const lyrics = { lines: [], isWordByWord: true };
+
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+            preferredSource: 'qq',
+            providerCandidate: {
+                providerId: 'qq',
+                song: qqSong,
+                lyricsResult: { lyrics, isPureMusic: false },
+            },
+        });
+
+        expect(result).toMatchObject({ source: 'qq', id: 201, qqMid: 'qq-mid', lyrics });
+        expect(searchQQLyricsMock).not.toHaveBeenCalled();
+        expect(fetchQQLyricsMock).not.toHaveBeenCalled();
+    });
+
     it('bridges a KuGou baseline through a scored NetEase id before probing AMLLDB', async () => {
         searchQQLyricsMock.mockResolvedValue([]);
         cloudSearchMock.mockResolvedValue({ result: { songs: [{

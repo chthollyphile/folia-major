@@ -29,7 +29,7 @@ const getProviderChorusRanges = (providerId: OnlineProviderId, song: SongResult)
 );
 
 export interface AutoMatchProviderCandidate {
-    providerId: 'netease' | 'kugou';
+    providerId: 'netease' | 'kugou' | 'qq';
     song: SongResult;
     lyricsResult: ProviderLyricsResult;
 }
@@ -236,6 +236,10 @@ export async function autoMatchBestLyric(
         if (qqBestCandidate !== undefined) {
             return qqBestCandidate;
         }
+        if (providerCandidate?.providerId === 'qq') {
+            qqBestCandidate = providerCandidate.song;
+            return qqBestCandidate;
+        }
         const qqSongs = (await withTimeout(
             searchQQLyrics(searchQuery, 1, AUTO_MATCH_SEARCH_LIMIT),
             PROVIDER_SEARCH_TIMEOUT_MS,
@@ -304,6 +308,34 @@ export async function autoMatchBestLyric(
             `Kugou lyric fetch for ${song.id}`,
             null,
         );
+    };
+
+    const getQqProcessed = async (song: SongResult): Promise<ProviderLyricsResult | null> => {
+        const songIdentity = String(song.qqMid ?? (
+            song.sourceRef?.kind === 'online' ? song.sourceRef.mediaId : song.id
+        ));
+        const candidateIdentity = providerCandidate?.providerId === 'qq'
+            ? String(providerCandidate.song.qqMid ?? (
+                providerCandidate.song.sourceRef?.kind === 'online'
+                    ? providerCandidate.song.sourceRef.mediaId
+                    : providerCandidate.song.id
+            ))
+            : '';
+        if (providerCandidate?.providerId === 'qq' && candidateIdentity === songIdentity) {
+            return providerCandidate.lyricsResult;
+        }
+
+        const lyrics = await withTimeout(
+            fetchQQLyrics(song, {
+                chorusRanges: activeProviderChorusRanges.length > 0
+                    ? activeProviderChorusRanges
+                    : discoveredNeteaseChorusRanges,
+            }),
+            PROVIDER_LYRIC_TIMEOUT_MS,
+            `QQ lyric fetch for ${song.id}`,
+            null,
+        );
+        return lyrics ? { lyrics, isPureMusic: false } : null;
     };
 
     // Applies chorus behavior from the active provider result to whichever lyric source wins.
@@ -440,16 +472,11 @@ export async function autoMatchBestLyric(
 
                 for (const song of candidateSongs) {
                     console.log(`[autoMatchBestLyric] Checking QQ candidate: "${song.name}" by "${song.artists?.map((a: any) => a.name).join(', ')}"`);
-                    const parsedLyrics = await withTimeout(
-                        fetchQQLyrics(song, {
-                            chorusRanges: activeProviderChorusRanges.length > 0
-                                ? activeProviderChorusRanges
-                                : discoveredNeteaseChorusRanges,
-                        }),
-                        PROVIDER_LYRIC_TIMEOUT_MS,
-                        `QQ lyric fetch for ${song.id}`,
-                        null
-                    );
+                    const processed = await getQqProcessed(song);
+                    if (processed?.isPureMusic) {
+                        return { isPureMusic: true, source: 'qq', id: song.id };
+                    }
+                    const parsedLyrics = processed?.lyrics ?? null;
                     const acceptsExactNonWordByWord = options.exactMatchOnly
                         && isSelectedMetadataCandidate('qq', song, options.metadataCandidate);
                     if (parsedLyrics && (parsedLyrics.isWordByWord || acceptsExactNonWordByWord)) {
