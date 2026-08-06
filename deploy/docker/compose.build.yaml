@@ -26,6 +26,12 @@ services:
       context: ../..
       dockerfile: deploy/docker/images/kugou-api.Dockerfile
 
+  qq-api:
+    image: folia-local/qq-api:check
+    build:
+      context: ../..
+      dockerfile: deploy/docker/images/qq-api.Dockerfile
+
   sync-server:
     image: folia-local/sync-server:check
     build:

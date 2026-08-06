@@ -1,0 +1,16 @@
+{
+  "source": "qq-music-api",
+  "branch": "feature/qq-music-provider",
+  "commit": "b1a69c7b201d3ff0c9e48c5dc4421ff7c34552a3",
+  "files": [
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "scripts/prepare-runtime-assets.js"
+  ],
+  "directories": [
+    "src",
+    "public"
+  ]
+}

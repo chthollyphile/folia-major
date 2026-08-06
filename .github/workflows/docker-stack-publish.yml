@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
           if [[ "${FORCE_REPUBLISH}" != "true" ]]; then
-            for image in folia-web folia-web-api folia-netease-api folia-kugou-api; do
+            for image in folia-web folia-web-api folia-netease-api folia-kugou-api folia-qq-api; do
               if docker manifest inspect "docker.io/${IMAGE_NAMESPACE}/${image}:${VERSION}" >/dev/null 2>&1; then
                 echo "${image}:${VERSION} already exists. Use force_republish only for recovery." >&2
                 exit 1
@@ -89,6 +89,8 @@ jobs:
             dockerfile: deploy/docker/images/netease-api.Dockerfile
           - image: folia-kugou-api
             dockerfile: deploy/docker/images/kugou-api.Dockerfile
+          - image: folia-qq-api
+            dockerfile: deploy/docker/images/qq-api.Dockerfile
 
     steps:
       - name: Check out repository
@@ -148,7 +150,7 @@ jobs:
           MAJOR: ${{ needs.prepare.outputs.major }}
           MINOR: ${{ needs.prepare.outputs.minor }}
         run: |
-          for image in folia-web folia-web-api folia-netease-api folia-kugou-api; do
+          for image in folia-web folia-web-api folia-netease-api folia-kugou-api folia-qq-api; do
             source="docker.io/${IMAGE_NAMESPACE}/${image}:${VERSION}"
             docker buildx imagetools create \
               --tag "docker.io/${IMAGE_NAMESPACE}/${image}:${MINOR}" \

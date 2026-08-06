@@ -1,0 +1,11 @@
+*
+!deploy/
+!deploy/docker/
+!deploy/docker/qq-api/
+# 第三方 MIT 全文要随镜像分发，必须进构建上下文。
+!deploy/docker/qq-api/LICENSE
+!deploy/docker/qq-api/source/
+!deploy/docker/qq-api/source/**
+deploy/docker/qq-api/source/VENDOR.json
+# 本机为了打 Electron bundle 会在 vendored 副本里装依赖；镜像构建自己 npm ci，不要带进上下文。
+deploy/docker/qq-api/source/node_modules

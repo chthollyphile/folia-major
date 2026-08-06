@@ -15,15 +15,18 @@ export FOLIA_SYNC_PORT="${FOLIA_SYNC_PORT:-13000}"
 export FOLIA_SYNC_DATA_DIR="$sync_data_dir"
 export SYNC_TOKEN="${SYNC_TOKEN:-docker-smoke-token}"
 
-compose_files="-f $compose_dir/compose.yaml -f $compose_dir/compose.build.yaml"
+# 用函数包住 compose 文件参数，避免仓库路径含空格时被词分割。
+compose() {
+  docker compose -f "$compose_dir/compose.yaml" -f "$compose_dir/compose.build.yaml" "$@"
+}
 
 cleanup() {
-  docker compose $compose_files down --volumes --remove-orphans
+  compose down --volumes --remove-orphans
   rm -rf "$sync_data_dir"
 }
 trap cleanup EXIT INT TERM
 
-docker compose $compose_files up -d --wait
+compose up -d --wait
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/healthz" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/api/healthz" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_SYNC_PORT/health" >/dev/null
@@ -31,9 +34,11 @@ curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/" | grep -q
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/runtime-config.js" | grep -q 'aiProvider:"gemini"'
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/netease/" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/kugou/" >/dev/null
+# QQ 用 /login/status 而不是 /：它只读进程内会话状态，不会建立 QR session 或注册装置。
+curl --fail --silent --show-error "http://127.0.0.1:$FOLIA_HTTP_PORT/qq/login/status" >/dev/null
 
-for service in backend netease-api kugou-api; do
-  container_id="$(docker compose $compose_files ps -q "$service")"
+for service in backend netease-api kugou-api qq-api; do
+  container_id="$(compose ps -q "$service")"
   bindings="$(docker inspect "$container_id" --format '{{json .HostConfig.PortBindings}}')"
   if [ "$bindings" != "{}" ] && [ "$bindings" != "null" ]; then
     echo "$service unexpectedly publishes a host port" >&2
