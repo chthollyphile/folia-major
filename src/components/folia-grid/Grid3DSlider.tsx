@@ -80,6 +80,18 @@ export const resolveGrid3DWheelInput = (
     };
 };
 
+/**
+ * Identifies the layout the cached card centers were measured in. The card count alone is not
+ * enough: `coverSize` and `edgePadding` move every card whenever a container breakpoint flips or
+ * the floating player appears, and neither changes the count.
+ */
+export const getGrid3DCardGeometryKey = (
+    cardCount: number,
+    viewportWidth: number,
+    firstCardWidth: number,
+    firstCardOffsetLeft: number,
+): string => `${cardCount}:${viewportWidth}:${firstCardWidth}:${firstCardOffsetLeft}`;
+
 const clampFocusedIndex = (index: number, itemCount: number) => {
     if (itemCount <= 0 || !Number.isFinite(index)) {
         return 0;
@@ -119,7 +131,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
     const wheelSmoothingLastTimeRef = useRef(0);
     const wheelSmoothingStartedAtRef = useRef(0);
     const cardCentersRef = useRef<number[]>([]);
-    const scrollViewportWidthRef = useRef<number | null>(null);
+    const cardGeometryKeyRef = useRef<string>('');
     const isDraggingRef = useRef(false);
     const startXRef = useRef(0);
     const scrollLeftRef = useRef(0);
@@ -238,20 +250,31 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         let closestIndex = 0;
         let minPixelDist = Infinity;
 
-        if (
-            cardCentersRef.current.length !== cards.length
-            || scrollViewportWidthRef.current === null
-        ) {
+        // Card positions also move when `coverSize` / `edgePadding` change, which the container
+        // height breakpoints and the floating player both feed without the card count changing.
+        // This runs from scroll handlers too, so during a resize one of those can repopulate the
+        // cache from a half-applied layout. Keying it on measured geometry makes every caller
+        // self-heal instead of depending on which call wins the race.
+        const viewportWidth = container.clientWidth;
+        const firstCard = cards[0] as HTMLElement | undefined;
+        const geometryKey = getGrid3DCardGeometryKey(
+            cards.length,
+            viewportWidth,
+            firstCard?.offsetWidth ?? 0,
+            firstCard?.offsetLeft ?? 0,
+        );
+
+        if (cardGeometryKeyRef.current !== geometryKey) {
             const nextCenters = new Array<number>(cards.length);
-            scrollViewportWidthRef.current = container.clientWidth;
             for (let i = 0; i < cards.length; i++) {
                 const el = cards[i] as HTMLElement;
                 nextCenters[i] = el.offsetLeft + el.offsetWidth / 2;
             }
             cardCentersRef.current = nextCenters;
+            cardGeometryKeyRef.current = geometryKey;
         }
 
-        const containerCenter = container.scrollLeft + (scrollViewportWidthRef.current ?? 0) / 2;
+        const containerCenter = container.scrollLeft + viewportWidth / 2;
         for (let i = 0; i < cards.length; i++) {
             const el = cards[i] as HTMLElement;
             const cardCenter = cardCentersRef.current[i];
@@ -609,12 +632,13 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         };
     }, [isInteractive, smoothDiscreteWheelBy, startMomentum, stopMomentum, stopWheelSmoothing]);
 
+    // Repaints the transforms once the new layout is committed; `updateCardTransforms` decides on
+    // its own whether the cached centers are still valid. `coverSize` / `edgePadding` are listed
+    // because the floating player can change them without changing `containerSize`.
     useEffect(() => {
-        cardCentersRef.current = [];
-        scrollViewportWidthRef.current = null;
         const frameId = requestAnimationFrame(() => updateCardTransforms());
         return () => cancelAnimationFrame(frameId);
-    }, [containerSize, isLoading, itemsSignature, slicedItems.length, updateCardTransforms]);
+    }, [containerSize, coverSize, edgePadding, isLoading, itemsSignature, slicedItems.length, updateCardTransforms]);
 
     useEffect(() => {
         return () => {
