@@ -1,7 +1,7 @@
 {
   "source": "qq-music-api",
   "branch": "feature/qq-music-provider",
-  "commit": "a4122d813b82dc1c0bcf39785e4151a98bada767",
+  "commit": "39e618a8f44846db18c62f99ffc42c10aef9255d",
   "files": [
     "package.json",
     "package-lock.json",
