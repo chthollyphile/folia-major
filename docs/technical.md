@@ -120,6 +120,7 @@ vercel env pull .env.local
 | --- | --- | --- |
 | `VITE_NETEASE_API_BASE` | 网易云音乐 API 实例地址 | 是 |
 | `VITE_KUGOU_API_BASE` | Web 版的 KuGouMusicApi 实例地址；Electron 不使用此项 | 否，默认留空 |
+| `VITE_QQ_API_BASE` | QQ 音乐 API 实例地址；留空时 QQ 入口可见但不可用 | 否，默认留空 |
 | `VITE_AI_PROVIDER` | AI 提供商，`google` 或 `openai` | 是 |
 | `GEMINI_API_KEY` | Gemini API Key | 使用 Gemini 时需要 |
 | `OPENAI_API_KEY` | OpenAI 兼容 API Key | 使用 OpenAI兼容接口 时需要 |
@@ -141,6 +142,29 @@ GEMINI_API_KEY=your_google_gemini_api_key
 Web 版要使用酷狗时，需要自行部署 [KuGouMusicApi](https://github.com/MakcRe/KuGouMusicApi) 并填写 `VITE_KUGOU_API_BASE`。该变量没有默认公共实例；开发调试时可在 `.env.local` 中临时指向调试服务。Electron 版在主进程中直接调用内置的 KuGouMusicApi Node 模块，不会再启动一个酷狗 HTTP 服务。
 
 Electron 的酷狗登录与账号刷新日志位于 `%APPDATA%\Folia\logs\kugou-provider.log`。日志只记录请求阶段、状态、字段名和错误摘要，token、Cookie、userid、dfid 会被脱敏。
+
+本机同时验收 Folia、网易云扫码和 QQ 扫码时，Vite 使用 `3000`，因此网易云 API 应改用 `3300`，QQ API 使用 `3200`。在 `folia-major/.env.local` 设置：
+
+```env
+VITE_NETEASE_API_BASE=http://localhost:3300
+VITE_QQ_API_BASE=http://localhost:3200
+```
+
+然后分别打开三个 PowerShell 窗口并保持运行：
+
+```powershell
+# qq-music-api repo
+$env:PORT = '3200'
+npm start
+
+# folia-major repo：网易云 API
+npx cross-env PORT=3300 api
+
+# folia-major repo：前端
+npm run dev
+```
+
+修改 `.env.local` 后必须重启 Vite。关闭对应窗口或按 `Ctrl+C` 会停止服务。
 
 OpenAI 兼容接口示例：
 

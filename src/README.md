@@ -100,10 +100,13 @@ src/
 ### Services
 
 - `services/onlineMusic/omni.ts`
-  普通在线数据的唯一公开入口。首页请求按 active provider 路由，已有歌曲和集合按自身 provider 路由；组件、hooks 和 stores 不应直连 provider registry 或具体 API。支持网易云与酷狗多在线 provider。
+  普通在线数据的唯一公开入口。首页请求按 active provider 路由，已有歌曲和集合按自身 provider 路由；组件、hooks 和 stores 不应直连 provider registry 或具体 API。支持网易云、酷狗与 QQ 音乐多在线 provider。
 
 - `services/onlineMusic/kugouTransport.ts` / `kugouProvider.ts`
   酷狗薄 transport 与 provider 适配层。Electron 优先走 preload IPC，Web 仅在明确配置 `VITE_KUGOU_API_BASE` 时启用，运行中不会跨 transport 自动降级。支持账号登录刷新、搜歌、歌词与音源。
+
+- `services/onlineMusic/qqTransport.ts` / `qqProvider.ts`
+  QQ 音乐 Web transport 与 provider 适配层。通过 `VITE_QQ_API_BASE` 连接私有 QQ API，opaque session 只用于登录态请求；支持 QQ 音乐 App／微信通道扫码、账号歌单、喜欢歌曲、搜歌、歌单曲目、音源与 QRC 逐字歌词。
 
 - `services/netease.ts`
   网易云原始 API 封装，仅由网易 provider 清洗后提供给 Omni。
@@ -213,7 +216,7 @@ src/
 ## 6. Project-Specific Notes
 
 - 这是统一播放模型，不要把网易云 / 酷狗 / 本地 / Navidrome 分成多套播放器状态。
-- 主播放队列支持多来源（网易云 / 酷狗 / 本地 / Navidrome）混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
+- 主播放队列支持多来源（网易云 / 酷狗 / QQ 音乐 / 本地 / Navidrome）混合排列；队列去重、定位和切歌必须使用来源感知的稳定歌曲键，不能只比较数字 `id`。混合队列暂不支持直接保存为单一来源歌单。
 - `SettingsModal.tsx` 是设置中心与帮助入口，内部按子视图分栏结构组织。
 - 新增设置时先判断是否适用 `settings-feature-integration`：视觉相关设置必须接入外观配置导入导出；功能性设置或可执行动作必须接入 command palette。
 - `PlayerPanel.tsx` 是当前 app-level 面板入口，负责消费 View Model 并转接到 `UnifiedPanel.tsx` 及其子 tab；不要重新把面板逻辑和超长 props 塞回 `App.tsx`。
