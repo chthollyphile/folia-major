@@ -13,13 +13,13 @@
 | 作者 | Rain120 |
 | 许可证 | MIT，全文见同级目录的 [`LICENSE`](./LICENSE) |
 | 版本 | `source/package.json` 的 `qq-music-api@2.0.0` |
-| 直接来源 | [yakult-green-tea/qq-music-api](https://github.com/yakult-green-tea/qq-music-api) 的 `feature/qq-music-provider` 分支 |
+| 集成基线 | `feature/qq-music-provider` 分支；固定提交见 `source/VENDOR.json` |
 
 `source/` 是**经过修改**的副本，不是上游原始码的逐字复制：为接入 folia-major 增加了原生扫码登录、
 微信扫码通道、账号歌单与「我喜欢」等改动。修改同样以 MIT 释出。
 
-`source/VENDOR.json` 里的 `commit` 可以在上表「直接来源」的仓库中解析；要重跑同步脚本，
-先把该仓库 clone 到 folia-major 的同级目录（或用 `QQ_MUSIC_API_DIR` 指定路径）。
+`source/VENDOR.json` 里的 `commit` 用于标识精确的同步基线；要重跑同步脚本，
+先把对应的 `qq-music-api` 工作树放到 folia-major 的同级目录（或用 `QQ_MUSIC_API_DIR` 指定路径）。
 
 `LICENSE` 刻意放在 `source/` **之外**：同步脚本会先删除整个 `source/` 再重新复制，
 放在里面会被下一次同步清掉，也会被 `--check` 当成漂移。
