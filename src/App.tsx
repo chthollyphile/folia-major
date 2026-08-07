@@ -48,6 +48,7 @@ import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useKugouLibrary } from './hooks/useKugouLibrary';
+import { useQqLibrary } from './hooks/useQqLibrary';
 import { useOnlineProviderPlatform } from './hooks/useOnlineProviderPlatform';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
@@ -866,15 +867,21 @@ export default function App() {
         logout: logoutKugouLibrary,
         checkLoginStatus: checkKugouLoginStatus,
     } = useKugouLibrary();
+    const {
+        refresh: refreshQqLibrary,
+        logout: logoutQqLibrary,
+    } = useQqLibrary();
     const [isProviderSyncing, setIsProviderSyncing] = useState(false);
     const onlineProviderRefreshers = useMemo(() => ({
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
-    }), [refreshKugouLibrary, refreshUserData]);
+        qq: refreshQqLibrary,
+    }), [refreshKugouLibrary, refreshQqLibrary, refreshUserData]);
     const onlineProviderLogouts = useMemo(() => ({
         netease: handleLogout,
         kugou: logoutKugouLibrary,
-    }), [handleLogout, logoutKugouLibrary]);
+        qq: logoutQqLibrary,
+    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary]);
     const [providerSwitchPending, setProviderSwitchPending] = useState<{
         nextProviderId: OnlineProviderId;
         resolve: (confirmed: boolean) => void;
@@ -2977,6 +2984,8 @@ export default function App() {
                     currentTime.set(e.currentTarget.currentTime);
                     setupAudioAnalyzer();
                     playbackAutoSkipCountRef.current = 0;
+                    // The source plays, so a later TTL refresh of the same media is legitimate again.
+                    lastAudioRecoverySourceRef.current = null;
                     setPlayerState(PlayerState.PLAYING);
                 }}
                 onPause={(e) => {

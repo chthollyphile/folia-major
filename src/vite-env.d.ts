@@ -48,6 +48,14 @@ declare global {
     updatedAt: number;
   }
 
+  // `unavailable` means the packaged build shipped without the bundled qq-music-api.
+  interface ElectronQqApiStatus {
+    status: 'starting' | 'running' | 'error' | 'unavailable';
+    port: number | null;
+    error: string | null;
+    updatedAt: number;
+  }
+
   interface ElectronKugouApiStatus {
     available: boolean;
     error: string | null;
@@ -502,6 +510,9 @@ declare global {
         operation: ElectronKugouOperation,
         params?: Record<string, string | number | boolean | undefined>,
       ) => Promise<unknown>;
+      getQqPort: () => Promise<number | null>;
+      getQqApiStatus: () => Promise<ElectronQqApiStatus>;
+      onQqApiStatusChanged: (callback: (status: ElectronQqApiStatus) => void) => () => void;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;

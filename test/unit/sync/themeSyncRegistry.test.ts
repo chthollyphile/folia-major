@@ -42,6 +42,9 @@ describe('themeSyncRegistry migration', () => {
         upsertEntriesMock.mockReset();
         localStorage = createLocalStorageMock();
         vi.stubGlobal('window', { localStorage });
+        // Modules pulled in transitively read the bare `localStorage` global after a `typeof window` guard,
+        // so stubbing it on `window` alone is not enough under the node test environment.
+        vi.stubGlobal('localStorage', localStorage);
         vi.stubGlobal('indexedDB', {} as IDBFactory);
     });
 

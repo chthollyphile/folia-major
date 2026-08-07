@@ -164,6 +164,11 @@ jobs:
           APP_RELEASE_CHANNEL: realeco
         run: npm run build
 
+      # Bundles the vendored qq-music-api into electron/vendor; without it the packaged app ships
+      # without the embedded QQ API and the provider stays unavailable.
+      - name: Bundle embedded QQ API
+        run: npm run build:qq-api
+
       - name: Package Electron app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false

@@ -25,6 +25,8 @@ services:
         condition: service_healthy
       kugou-api:
         condition: service_healthy
+      qq-api:
+        condition: service_healthy
     networks:
       - folia-edge
       - folia-internal
@@ -107,6 +109,31 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  qq-api:
+    image: ${FOLIA_IMAGE_NAMESPACE:?Set FOLIA_IMAGE_NAMESPACE}/folia-qq-api:${FOLIA_STACK_VERSION:-latest}
+    restart: unless-stopped
+    read_only: true
+    environment:
+      PORT: "3000"
+      QQ_AUTH_STATE_PATH: /app/.auth-state/qq-device.json
+    expose:
+      - "3000"
+    volumes:
+      - qq-api-state:/app/.auth-state
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    networks:
+      - folia-internal
+      - folia-egress
+    security_opt:
+      - no-new-privileges:true
+
   sync-server:
     image: ${FOLIA_IMAGE_NAMESPACE:?Set FOLIA_IMAGE_NAMESPACE}/folia-sync-server:${FOLIA_SYNC_VERSION:-latest}
     restart: unless-stopped
@@ -132,6 +159,10 @@ services:
       - folia-sync
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  # QQ 原生扫码登录的 Android device context；只存装置识别值，不存用户凭证。
+  qq-api-state:
 
 networks:
   folia-edge:
