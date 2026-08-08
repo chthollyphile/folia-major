@@ -2,7 +2,7 @@
 
 当前目录提供面向 Docker 部署的完整 Web 堆栈：前端网关、Folia Web API、在线音乐接口和独立的 Sync Server。对外只发布 Web 网关与 Sync Server 两个端口，其余服务仅通过 Docker 网络互访。
 
-Compose 文件边界：`compose.yaml` 是发布版完整栈，`compose.sync.yaml` 只构建 Sync Server，`compose.build.yaml` 将服务切到本地构建镜像；`backend/`、`netease-api/`、`kugou-api/` 和 `gateway/` 是内部服务实现。Web 服务从 gateway 暴露，客户端的 Sync API 直接连接独立 sync-server，不通过 Web gateway 转发。
+Compose 文件边界：`compose.yaml` 是发布版完整栈，`compose.sync.yaml` 只构建 Sync Server，`compose.build.yaml` 将服务切到本地构建镜像；`backend/`、`netease-api/`、`kugou-api/`、`qq-api/` 和 `gateway/` 是内部服务实现。Web 服务从 gateway 暴露，客户端的 Sync API 直接连接独立 sync-server，不通过 Web gateway 转发。
 
 ## 快速启动
 
@@ -59,7 +59,7 @@ docker compose ps
 
 网易云、酷狗、QQ 音乐和 Folia Web API 没有宿主机端口，不能绕过 gateway 直接访问。Sync Server 位于独立网络，不与 Web 内部服务互通。
 
-当前健康检查入口分别是 gateway 的 `/healthz`、`/api/healthz`、`/runtime-config.js`、`/netease/`、`/kugou/`，以及 Sync Server 的 `/health`。本地镜像验证脚本 `scripts/smoke-test.sh` 会检查这些路径和网络隔离。
+当前健康检查入口分别是 gateway 的 `/healthz`、`/api/healthz`、`/runtime-config.js`、`/netease/`、`/kugou/`、`/qq/login/status`，以及 Sync Server 的 `/health`。本地镜像验证脚本 `scripts/smoke-test.sh` 会检查这些路径和网络隔离。
 
 ## 环境变量
 
@@ -87,7 +87,7 @@ docker compose up -d --force-recreate gateway
 
 ## QQ 音乐服务
 
-`qq-api` 由 npm 包 [`@yakult-green-tea/qq-music-api`](./qq-api/README.md) 提供，网页端通过 gateway 的 `/qq/` 访问，登录走 QQ 音乐 APP 原生扫码。
+`qq-api` 由 npm 包 `@yakult-green-tea/qq-music-api` 提供，网页端通过 gateway 的 `/qq/` 访问，登录走 QQ 音乐 App 原生扫码。独立部署方式、环境变量表、serverless 支持情况与常见错误见 [`qq-api/README.md`](./qq-api/README.md)。
 
 装置状态存放在具名卷 `qq-api-state`（容器内 `/app/.auth-state/qq-device.json`），只包含 Android device 识别值，不含 `musickey`、MQTT token 或任何账号凭证。QIMEI 与 device session 跨容器重启复用，因此正常更新不需要重新注册装置。
 
@@ -99,7 +99,7 @@ docker volume rm folia_qq-api-state
 docker compose up -d --wait
 ```
 
-同一时间只允许一个活跃扫码会话；上一个二维码未结束时新请求会返回 409，可先访问 `/qq/logout` 再重试。上游装置注册失败时服务返回 502 加 `Retry-After`，随后返回 429，属于预期的退避行为。多实例部署不要共用同一个装置状态卷。
+同一时间只允许一个活跃扫码会话。没有被扫过的旧二维码会被下一次登录请求直接接管，只有正在手机上确认的会话才会让新请求收到 409。上游装置注册失败时服务返回 502 加 `Retry-After`，随后返回 429，属于预期的退避行为。多实例部署不要共用同一个装置状态卷。
 
 ## HTTPS 与浏览器安全上下文
 

@@ -612,7 +612,7 @@ describe('qqProvider', () => {
             providerData: { albumMid: '0016l2F430zMux' },
         });
 
-        // 缺了歌手 mid 也必须冪等，否则专辑卡片水合一次就掉名字。
+        // 缺了歌手 mid 也必须幂等，否则专辑卡片水合一次就掉名字。
         const album = normalizeQqCollection(SINGER_ALBUM_ITEM_UPSTREAM, 'album');
         expect(normalizeQqCollection(album, album.type)).toEqual(album);
     });

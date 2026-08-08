@@ -65,6 +65,8 @@ windowrule {
 
 如果使用前端版本的话，需要先自行部署该 API 服务。
 
+QQ 音乐是可选音源，由 npm 包 `@yakult-green-tea/qq-music-api` 提供。它需要一个常驻的 Node 进程（Docker 容器、裸 Node，或 Electron 主进程内嵌），因为原生扫码依赖 MQTT over WebSocket 长连线与进程内会话，暂不支持 Cloudflare Workers 与 Vercel Serverless。部署方式、环境变量、装置状态与 serverless 的完整说明见 [`deploy/docker/qq-api/README.md`](../deploy/docker/qq-api/README.md)。Web 版把 `VITE_QQ_API_BASE` 指向实例地址即可；Electron 版在主进程内直接启动该包，不需要单独部署。
+
 ### AI 能力
 
 Folia 当前支持以下两类 AI 提供方式：

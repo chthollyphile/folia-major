@@ -11,11 +11,13 @@ UI / hooks / stores / app services
             -> neteaseProvider.ts
             -> kugouProvider.ts
                  -> kugouTransport.ts（酷狗请求/IPC 边界）
+            -> qqProvider.ts
+                 -> qqTransport.ts（QQ 音乐请求边界）
        -> providerAccountCache.ts / providerStorage.ts
   -> src/types/onlineMusic.ts（共享合同）
 ```
 
-当前 registry 注册 `netease` 和 `kugou`。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
+当前 registry 注册 `netease`、`kugou` 和 `qq`。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
 ## Public contract
 
@@ -41,6 +43,7 @@ UI / hooks / stores / app services
 - `providerRegistry.ts`：注册、查找、按歌曲 `sourceRef` 选择 provider、能力检查。
 - `neteaseProvider.ts`：网易云 adapter，归一化到 Omni contract。
 - `kugouProvider.ts`：酷狗 adapter；请求细节在 `kugouTransport.ts`，具体接口需结合 `docs/ku-go-api-docs.md` 和 `skills/kugou-provider-alignment`。
+- `qqProvider.ts`：QQ 音乐 adapter；请求与 opaque session 细节在 `qqTransport.ts`，归一化在 `qqNormalize.ts`。集合身份一律用 mid，数字 `albumid` / `singer.id` 会被上游拒收（返回 HTTP 200 但 `code` 非 0，只表现成空白页）。后端由 `VITE_QQ_API_BASE` 指向的私有 QQ API 提供，未配置时该 provider 不可用。
 - `providerAccountCache.ts`：按 provider 保存用户、集合、点赞 ID、hydration/freshness 快照；刷新失败保留旧快照。
 - `providerStorage.ts`：provider session/account 持久化边界。
 - `resourceCache.ts` / `resourceKeys.ts`：在线资源缓存键和缓存层。
@@ -89,7 +92,7 @@ await omni.getCollectionTracks(collection, { limit: 50, offset: 0 });
 ```powershell
 rg -n "export const omni|searchSongs|getLyrics|getAudioSource|updateCollectionTracks" src/services/onlineMusic/omni.ts
 rg -n "OnlineMusicProvider|OmniProvider|UnifiedSong|OmniLyricsResult|OmniAudioSource" src/types/onlineMusic.ts
-rg -n "registerOnlineMusicProvider|neteaseProvider|kugouProvider|providerSupports" src/services/onlineMusic/providerRegistry.ts
+rg -n "registerOnlineMusicProvider|neteaseProvider|kugouProvider|qqProvider|providerSupports" src/services/onlineMusic/providerRegistry.ts
 ```
 
 先确认 Omni 是否已有能力；没有时扩展 `types/onlineMusic.ts`、`omni.ts` 和适用 adapter，不要新增第二条公开 bypass。

@@ -55,7 +55,7 @@ const qqCatalogRef = (
 );
 
 // 正规化后的条目把 mid 同时写进 `id` 与 `catalogRef`。缓存水合会把结果再喂回来，
-// 从 `catalogRef` 取回比去猜 `id` 里装的是 mid 还是数字可靠，冪等也不依赖字符串形状。
+// 从 `catalogRef` 取回比去猜 `id` 里装的是 mid 还是数字可靠，幂等也不依赖字符串形状。
 const catalogRefMid = (raw: any, kind: ProviderCatalogRef['kind']): string => {
     const ref = raw?.catalogRef;
     return ref?.providerId === 'qq' && ref?.kind === kind ? text(ref.id) : '';
