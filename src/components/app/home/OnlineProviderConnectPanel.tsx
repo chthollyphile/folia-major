@@ -41,7 +41,12 @@ const OnlineProviderConnectPanel = ({
             <h2 className="text-2xl font-bold opacity-90">{title}</h2>
             <p className="opacity-50 text-sm leading-6 whitespace-pre-line">{prompt}</p>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-3.5 max-w-md w-full pt-2">
+        {/*
+          * 上限从 max-w-md（448px）放宽到 max-w-3xl（768px）：本 PR 之前只有网易云与酷狗两个按钮，
+          * 448px 装得下；加入 QQ 音乐后三个按钮简体下要 566px、英文下要 730px，会被挤到第二行。
+          * flex-wrap 保留，窗口真的窄下去仍然照常换行。
+          */}
+        <div className="flex flex-wrap items-center justify-center gap-3.5 max-w-3xl w-full pt-2">
             {providers.map(provider => {
                 const configured = provider.availability.configured;
                 const isCurrentActive = provider.providerId === activeProviderId;

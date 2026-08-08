@@ -1,4 +1,4 @@
-import type { SongResult } from '../../types';
+import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
     MediaId,
@@ -119,6 +119,53 @@ const getSongDetail = async (id: MediaId) => {
     if (!track || typeof track !== 'object') return null;
     const song = normalizeQqSong(track);
     return song.qqMid ? song : null;
+};
+
+const qqSongDetailRequests = new Map<string, Promise<UnifiedSong | null>>();
+
+// 同一首歌的专辑与歌手会各触发一次解析，两次落到同一个 songmid 上，去重掉重复请求。
+const requestQqSongDetail = (songmid: string): Promise<UnifiedSong | null> => {
+    const cached = qqSongDetailRequests.get(songmid);
+    if (cached) return cached;
+
+    const request = getSongDetail(songmid).finally(() => {
+        if (qqSongDetailRequests.get(songmid) === request) qqSongDetailRequests.delete(songmid);
+    });
+    qqSongDetailRequests.set(songmid, request);
+    return request;
+};
+
+const hasQqCatalogRefs = (song: UnifiedSong): boolean => Boolean(
+    song.album?.catalogRef
+    && song.artists.length > 0
+    && song.artists.every(artist => Boolean(artist.catalogRef)),
+);
+
+// 搜索复用的是 `utils/lyrics` 里那条 `u.y.qq.com` 歌词搜索，它只把数字 `album.id` /
+// `singer.id` 带出来，albummid 与 singermid 在那一层就被丢掉了。点专辑 / 歌手时补一次
+// `/getSongInfo` 取回 mid —— 与 kugou 补 KRM 元数据是同一套契约，只在真的要导航时才发请求。
+export const resolveQqSongCatalogRefs = async (song: UnifiedSong): Promise<UnifiedSong> => {
+    if (hasQqCatalogRefs(song)) return song;
+
+    const songmid = getQqSongMid(song);
+    if (!songmid) return song;
+
+    const detail = await requestQqSongDetail(songmid);
+    if (!detail) return song;
+
+    return {
+        ...song,
+        // 歌手整组替换：解析后的每一项都带 mid，混用两份会让 catalogRefs 的按名匹配对上没有 mid 的那个。
+        artists: detail.artists.length > 0 ? detail.artists : song.artists,
+        album: {
+            ...song.album,
+            ...(detail.album.catalogRef
+                ? { id: detail.album.id, catalogRef: detail.album.catalogRef }
+                : {}),
+            name: song.album.name || detail.album.name,
+            coverUrl: song.album.coverUrl || detail.album.coverUrl,
+        },
+    };
 };
 
 const getAudioSource = async (song: SongResult, quality: AudioQualityPreference) => {
@@ -492,6 +539,9 @@ export const qqProvider: OnlineMusicProvider = {
     // 所以不实现 library.getUserAlbums；omni 会自动返回空页，专辑页仍可从搜索结果与歌曲详情进入。
     library: { getUserPlaylists, getLikedSongIds },
     catalog: {
+        // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。
+        canResolveSongCatalogRefs: song => Boolean(getQqSongMid(song)),
+        resolveSongCatalogRefs: resolveQqSongCatalogRefs,
         getPlaylistTracks,
         getAlbumDetail,
         getAlbumTracks,

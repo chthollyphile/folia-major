@@ -92,6 +92,40 @@ const readJsonBody = async (response: Response): Promise<any> => {
     }
 };
 
+// 曲库三条路由被上游拒收时仍然回 HTTP 200，状态码藏在响应体里，而且层级还不一样：
+// `/getAlbumInfo` 直接是 `response.code`（参数类型错时是 1101 `para error!`），
+// 两条歌手路由的 `response.code` 恒为 0，真正的状态在 `response.singer.code`（400 / 104400）。
+// 不看这两层就会把「被拒收」当成「这个专辑没有曲目」，UI 只剩一片空白，线上很难定位。
+// 登录与播放路由用的是另一套码值（如 `login_status` 回 200），故不纳入此检查。
+const CATALOG_STATUS_NODES: Partial<Record<QqOperation, string[][]>> = {
+    album_info: [['response']],
+    artist_songs: [['response'], ['response', 'singer']],
+    artist_albums: [['response'], ['response', 'singer']],
+};
+
+const readNode = (body: any, path: string[]): any => (
+    path.reduce((node, key) => (node === null || node === undefined ? node : node[key]), body)
+);
+
+const assertUpstreamAccepted = (operation: QqOperation, body: any): void => {
+    for (const path of CATALOG_STATUS_NODES[operation] ?? []) {
+        const node = readNode(body, path);
+        const code = Number(node?.code);
+        if (!Number.isFinite(code) || code === 0) continue;
+
+        const subcode = Number(node?.subcode);
+        const message = typeof node?.message === 'string' ? node.message.trim() : '';
+        throw new OnlineProviderError(
+            'invalid-response',
+            `QQMusicApi ${operation} was rejected upstream at ${path.join('.')} (code ${code}`
+            + `${Number.isFinite(subcode) && subcode !== code ? `, subcode ${subcode}` : ''})`
+            + `${message ? `: ${message}` : ''}`,
+            'qq',
+            node,
+        );
+    }
+};
+
 const persistConfirmedSession = (operation: QqOperation, body: any): void => {
     if (operation !== 'login_qr_check' || Number(body?.code) !== QR_CONFIRMED_CODE) return;
     const cookie = body?.cookie;
@@ -169,6 +203,7 @@ export const requestQq = async <T = unknown>(operation: QqOperation, params: QqP
     if (body === undefined) {
         throw new OnlineProviderError('invalid-response', `QQMusicApi returned an unreadable ${operation} body`, 'qq');
     }
+    assertUpstreamAccepted(operation, body);
     persistConfirmedSession(operation, body);
     return body as T;
 };

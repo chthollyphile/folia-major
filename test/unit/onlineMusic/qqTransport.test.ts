@@ -157,6 +157,60 @@ describe('QQ Music Web transport', () => {
         expect(urls[2].searchParams.get('page')).toBe('3');
     });
 
+    // 被上游拒收时 HTTP 仍是 200，状态码只在响应体里。放过它的代价是人工验收看到的那个现象：
+    // 专辑页与歌手页全空，日志里没有任何一条错误，只能靠抓包才知道 id 传错了类型。
+    it('surfaces an upstream rejection that arrives as HTTP 200', async () => {
+        // 每次都新建 Response：body 只能读一次，复用同一个实例第二次会读成空。
+        const fetchMock = vi.fn().mockImplementation(async () => Response.json({
+            response: { code: 1101, subcode: 1101, message: 'para error!' },
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('album_info', { albummid: '88971' })).rejects.toMatchObject({
+            code: 'invalid-response',
+            message: expect.stringContaining('1101'),
+        });
+        await expect(requestQq('album_info', { albummid: '88971' })).rejects.toThrow(/para error!/);
+    });
+
+    // 两条歌手路由的外层 code 恒为 0，真正的状态藏在 `response.singer.code` 里。
+    it('surfaces a singer rejection nested below an all-clear envelope', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(Response.json({
+                response: { code: 0, singer: { code: 400, data: { songlist: [] } } },
+            }))
+            .mockResolvedValueOnce(Response.json({
+                response: { code: 0, singer: { code: 104400, data: { albumList: [], total: 0 } } },
+            }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('artist_songs', { singermid: '4286' })).rejects.toMatchObject({
+            code: 'invalid-response',
+            message: expect.stringContaining('response.singer'),
+        });
+        await expect(requestQq('artist_albums', { singermid: '4286' })).rejects.toThrow(/104400/);
+    });
+
+    it('lets an accepted catalog response through untouched', async () => {
+        const body = {
+            response: { code: 0, singer: { code: 0, data: { songlist: [], total_song: 0 } } },
+        };
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(body)));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('artist_songs', { singermid: '0025NhlN2yWrP4' })).resolves.toEqual(body);
+    });
+
+    // 登录路由用的是另一套码值（`login_status` 正常就回 200），不能被曲库那条规则误伤。
+    it('leaves non-catalog operations out of the upstream status check', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ code: 200, data: {} })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('login_status')).resolves.toEqual({ code: 200, data: {} });
+    });
+
     it('rejects a missing required path parameter before issuing a request', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);

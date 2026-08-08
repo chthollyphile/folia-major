@@ -138,12 +138,6 @@ describe('qqProvider', () => {
             name: '海阔天空',
             qqMid: '003rJSwm3TechU',
             durationMs: 326_000,
-            artists: [{ id: 4558, name: 'Beyond' }],
-        });
-        expect(song.album).toEqual({
-            id: 8112,
-            name: '乐与怒',
-            coverUrl: 'https://y.gtimg.cn/music/photo_new/T002R300x300M0000016l2F430zMux.jpg?max_age=2592000',
         });
         expect(song.sourceRef).toEqual({
             kind: 'online',
@@ -156,6 +150,68 @@ describe('qqProvider', () => {
                 mediaMid: '001MediaMidFixture',
             },
         });
+    });
+
+    // 上游同一条目里数字 id 与 mid 并存，选错一个的代价是专辑页 / 歌手页整片空白：
+    // `/getAlbumInfo?albummid=8112` 回的是 HTTP 200 加 `code: 1101 para error!`。
+    it('picks the album and singer mid over the numeric ids that sit beside them', () => {
+        const song = normalizeQqSong(SEARCH_ITEM);
+
+        expect(song.album).toEqual({
+            id: '0016l2F430zMux',
+            name: '乐与怒',
+            coverUrl: 'https://y.gtimg.cn/music/photo_new/T002R300x300M0000016l2F430zMux.jpg?max_age=2592000',
+            catalogRef: { providerId: 'qq', kind: 'album', id: '0016l2F430zMux' },
+        });
+        expect(song.artists).toEqual([{
+            id: '0025NhlN2yWrP4',
+            name: 'Beyond',
+            catalogRef: { providerId: 'qq', kind: 'artist', id: '0025NhlN2yWrP4' },
+        }]);
+
+        // 数字 id 一个都不该出现在身份位上。
+        expect(song.album.id).not.toBe(SEARCH_ITEM.album.id);
+        expect(song.artists[0]?.id).not.toBe(SEARCH_ITEM.singer[0]?.id);
+    });
+
+    // `/getAlbumInfo` 的曲目条目没有嵌套 album 节点，albummid 平铺在顶层。
+    it('reads a flat albummid from an album track entry', () => {
+        const song = normalizeQqSong({
+            songmid: '000B3Ekk1I79hc',
+            songid: 449195,
+            songname: '稻香',
+            albumid: 36062,
+            albummid: '002Neh8l0uciQZ',
+            albumname: '魔杰座',
+            singer: [{ id: 4558, mid: '0025NhlN2yWrP4', name: '周杰伦' }],
+        });
+
+        expect(song.album).toMatchObject({
+            id: '002Neh8l0uciQZ',
+            catalogRef: { providerId: 'qq', kind: 'album', id: '002Neh8l0uciQZ' },
+        });
+        expect(song.artists[0]).toMatchObject({ id: '0025NhlN2yWrP4' });
+    });
+
+    // 上游一个 mid 都不给时，数字 id 只能留作显示用的键，且不得伪装成可导航的集合。
+    it('keeps a mid-less entry unnavigable instead of falling back to the numeric id', () => {
+        const song = normalizeQqSong({
+            songmid: '003rJSwm3TechU',
+            songname: '海阔天空',
+            album: { id: 8112, name: '乐与怒' },
+            singer: [{ id: 4558, name: 'Beyond' }],
+        });
+
+        expect(song.album.id).toBe(8112);
+        expect(song.album.catalogRef).toBeUndefined();
+        // 歌手连显示用的数字 id 都不保留：下标够用，而数字 id 会被误当成 singermid。
+        expect(song.artists).toEqual([{ id: 0, name: 'Beyond' }]);
+    });
+
+    // 缓存水合会把正规化结果再喂回来，mid 必须原样活下来。
+    it('keeps album and artist mids across a normalize round trip', () => {
+        const once = normalizeQqSong(SEARCH_ITEM);
+        expect(normalizeQqSong(once)).toEqual(once);
     });
 
     it('keeps a normalized song stable when it is normalized again from cache', () => {
@@ -370,7 +426,11 @@ describe('qqProvider', () => {
             type: 'album',
             coverUrl: 'https://y.gtimg.cn/music/photo_new/T002R300x300M0000016l2F430zMux.jpg?max_age=2592000',
             trackCount: 10,
-            artists: [{ id: '0025NhlN2yWrP4', name: 'Beyond' }],
+            artists: [{
+                id: '0025NhlN2yWrP4',
+                name: 'Beyond',
+                catalogRef: { providerId: 'qq', kind: 'artist', id: '0025NhlN2yWrP4' },
+            }],
             publishedAt: Date.parse('1993-05-01'),
             providerData: { albumMid: '0016l2F430zMux' },
         });
@@ -562,6 +622,123 @@ describe('qqProvider', () => {
         requestMock.mockClear();
         await expect(qqProvider.catalog!.getArtistDetail!('')).resolves.toBeNull();
         expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    // 人工验收时专辑页与歌手页都是空的：请求发的是 `albummid=88971` / `singermid=4286`，
+    // 那是数字 album id 与 singer id。搜索复用的歌词搜索接口只带出数字 id，mid 在那一层就丢了，
+    // 所以点击时必须先补一次 `/getSongInfo` 才拿得到 mid。
+    describe('catalog id resolution', () => {
+        // 真实 `searchQQLyrics` 的产出形状：数字 id 齐全，一个 mid 都没有。
+        const SEARCH_RESULT_WITHOUT_MIDS = {
+            id: 5105918,
+            name: '海阔天空',
+            artists: [{ id: 4286, name: 'Beyond' }],
+            album: { id: 88971, name: '乐与怒' },
+            durationMs: 326_000,
+            qqMid: '003rJSwm3TechU',
+        };
+
+        const trackInfoResponse = {
+            response: { songinfo: { data: { track_info: SEARCH_ITEM } } },
+        };
+
+        it('trades the numeric album and singer ids for mids before navigation', async () => {
+            requestMock.mockResolvedValue(trackInfoResponse);
+
+            const song = normalizeQqSong(SEARCH_RESULT_WITHOUT_MIDS);
+            // 正规化救不回丢掉的 mid，只能保证数字 id 不会被当成可导航的身份。
+            expect(song.album.catalogRef).toBeUndefined();
+            expect(song.artists[0]?.catalogRef).toBeUndefined();
+
+            const resolved = await qqProvider.catalog!.resolveSongCatalogRefs!(song);
+
+            expect(requestMock).toHaveBeenCalledWith('song_info', { songmid: '003rJSwm3TechU' });
+            expect(resolved.album).toMatchObject({
+                id: '0016l2F430zMux',
+                catalogRef: { providerId: 'qq', kind: 'album', id: '0016l2F430zMux' },
+            });
+            expect(resolved.artists).toEqual([{
+                id: '0025NhlN2yWrP4',
+                name: 'Beyond',
+                catalogRef: { providerId: 'qq', kind: 'artist', id: '0025NhlN2yWrP4' },
+            }]);
+            // 数字 id 一个都不许留在身份位上——它们正是 1101 para error 的来源。
+            expect(resolved.album.id).not.toBe(88971);
+            expect(resolved.artists[0]?.id).not.toBe(4286);
+        });
+
+        it('sends the mid, never the numeric id, to every catalog endpoint', async () => {
+            requestMock.mockResolvedValue(trackInfoResponse);
+            const resolved = await qqProvider.catalog!.resolveSongCatalogRefs!(
+                normalizeQqSong(SEARCH_RESULT_WITHOUT_MIDS),
+            );
+            const albumId = resolved.album.catalogRef!.id;
+            const artistId = resolved.artists[0]!.catalogRef!.id;
+
+            requestMock.mockReset();
+            requestMock.mockResolvedValue({
+                response: {
+                    code: 0,
+                    data: { mid: '0016l2F430zMux', name: '乐与怒', list: [] },
+                    singer: { data: { songlist: [], albumList: [], singer_info: SINGER_INFO_BLOCK } },
+                },
+            });
+
+            await qqProvider.catalog!.getAlbumDetail!(albumId);
+            await qqProvider.catalog!.getAlbumTracks!(albumId, 10, 0);
+            await qqProvider.catalog!.getArtistDetail!(artistId);
+            await qqProvider.catalog!.getArtistSongs!(artistId, 20, 0);
+            await qqProvider.catalog!.getArtistAlbums!(artistId, 20, 0);
+
+            expect(requestMock.mock.calls).toEqual([
+                ['album_info', { albummid: '0016l2F430zMux' }],
+                ['album_info', { albummid: '0016l2F430zMux' }],
+                ['artist_songs', { singermid: '0025NhlN2yWrP4', limit: 1, page: 1 }],
+                ['artist_songs', { singermid: '0025NhlN2yWrP4', limit: 20, page: 1 }],
+                ['artist_albums', { singermid: '0025NhlN2yWrP4', limit: 20, page: 0 }],
+            ]);
+            requestMock.mock.calls.forEach(([, params]) => {
+                const sent = String((params as any).albummid ?? (params as any).singermid);
+                expect(sent).not.toMatch(/^\d+$/);
+            });
+        });
+
+        it('skips the extra request when the mids already survived normalization', async () => {
+            const song = normalizeQqSong(SEARCH_ITEM);
+            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toBe(song);
+            expect(requestMock).not.toHaveBeenCalled();
+        });
+
+        it('resolves album and artist through a single shared song_info request', async () => {
+            requestMock.mockResolvedValue(trackInfoResponse);
+            const song = normalizeQqSong(SEARCH_RESULT_WITHOUT_MIDS);
+
+            await Promise.all([
+                qqProvider.catalog!.resolveSongCatalogRefs!(song),
+                qqProvider.catalog!.resolveSongCatalogRefs!(song),
+            ]);
+
+            expect(requestMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves the song untouched when the detail lookup yields nothing', async () => {
+            requestMock.mockResolvedValue({ response: { songinfo: { data: {} } } });
+            const song = normalizeQqSong(SEARCH_RESULT_WITHOUT_MIDS);
+
+            await expect(qqProvider.catalog!.resolveSongCatalogRefs!(song)).resolves.toBe(song);
+        });
+
+        // 拿不到 QQ 的歌曲标识就没有可查的对象，UI 据此不把专辑 / 歌手显示成可点击的。
+        it('reports whether a song carries a QQ identity to resolve from', () => {
+            expect(qqProvider.catalog!.canResolveSongCatalogRefs!(normalizeQqSong(SEARCH_ITEM))).toBe(true);
+
+            const localSong = {
+                ...normalizeQqSong(SEARCH_ITEM),
+                qqMid: undefined,
+                sourceRef: { kind: 'local' as const, mediaId: 'file-1' },
+            };
+            expect(qqProvider.catalog!.canResolveSongCatalogRefs!(localSong)).toBe(false);
+        });
     });
 
     it('declares the playback, catalog, and likes capabilities for the QQ provider', () => {

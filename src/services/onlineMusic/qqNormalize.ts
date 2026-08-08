@@ -1,5 +1,11 @@
-import type { UnifiedSong } from '../../types';
-import type { JsonValue, MediaId, ProviderCollection, ProviderUser } from '../../types/onlineMusic';
+import type { Artist, UnifiedSong } from '../../types';
+import type {
+    JsonValue,
+    MediaId,
+    ProviderCatalogRef,
+    ProviderCollection,
+    ProviderUser,
+} from '../../types/onlineMusic';
 
 // src/services/onlineMusic/qqNormalize.ts
 
@@ -38,14 +44,39 @@ export const getQqSingerAvatarUrl = (singerMid: string): string | undefined => (
     singerMid ? `${SINGER_AVATAR_BASE}${singerMid}.jpg?max_age=2592000` : undefined
 );
 
-const normalizeArtists = (raw: any): Array<{ id: MediaId; name: string }> => {
+// 专辑与歌手的集合身份一律用 mid。上游同时给出数字 `albumid` / `singer.id`，但那两个不是
+// `/getAlbumInfo` 与 `/getSingerHotsong` 认的参数：传数字进去会拿到 HTTP 200 加
+// `code: 1101 para error`（歌手路由则是 `singer.code: 400`），页面只剩空白且难以定位。
+const qqCatalogRef = (
+    kind: ProviderCatalogRef['kind'],
+    mid: string,
+): ProviderCatalogRef | undefined => (
+    mid ? { providerId: 'qq', kind, id: mid } : undefined
+);
+
+// 正规化后的条目把 mid 同时写进 `id` 与 `catalogRef`。缓存水合会把结果再喂回来，
+// 从 `catalogRef` 取回比去猜 `id` 里装的是 mid 还是数字可靠，冪等也不依赖字符串形状。
+const catalogRefMid = (raw: any, kind: ProviderCatalogRef['kind']): string => {
+    const ref = raw?.catalogRef;
+    return ref?.providerId === 'qq' && ref?.kind === kind ? text(ref.id) : '';
+};
+
+const normalizeArtists = (raw: any): Artist[] => {
     const singers = pick(raw, 'singer', 'singers', 'artists');
     if (!Array.isArray(singers)) return [];
     return singers
-        .map((singer: any, index: number) => ({
-            id: (pick(singer, 'id', 'mid', 'singerid') ?? index) as MediaId,
-            name: text(pick(singer, 'name', 'title', 'singername')),
-        }))
+        .map((singer: any, index: number) => {
+            // 数字 `singer.id` 不参与身份判定，上游完全不给 mid 时宁可退回下标，
+            // 也不要放一个会被上游拒收的 id 进来假装可以导航。
+            const singerMid = text(pick(singer, 'mid', 'singermid', 'singerMID', 'singerMid'))
+                || catalogRefMid(singer, 'artist');
+            const ref = qqCatalogRef('artist', singerMid);
+            return {
+                id: (singerMid || index) as MediaId,
+                name: text(pick(singer, 'name', 'title', 'singername')),
+                ...(ref ? { catalogRef: ref } : {}),
+            };
+        })
         .filter(artist => artist.name);
 };
 
@@ -65,7 +96,13 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
     const rawSongId = pick(item, 'songid', 'songId') ?? pick(providerData, 'songId') ?? item.id;
     const numericSongId = Number(rawSongId);
     const songId: MediaId = Number.isFinite(numericSongId) && numericSongId > 0 ? numericSongId : songMid;
-    const albumMid = text(pick(album, 'mid', 'albummid') ?? pick(item, 'albummid') ?? pick(providerData, 'albumMid'));
+    // `/getAlbumInfo` 的曲目条目没有嵌套的 album 节点，albummid 平铺在顶层，所以两处都要看。
+    const albumMid = text(
+        pick(album, 'mid', 'albummid', 'albumMid', 'albumMID')
+        ?? pick(item, 'albummid', 'albumMid')
+        ?? pick(providerData, 'albumMid'),
+    ) || catalogRefMid(album, 'album');
+    const albumRef = qqCatalogRef('album', albumMid);
     const mediaMid = text(
         pick(file, 'media_mid', 'mediaMid')
         ?? pick(item, 'mediaMid')
@@ -81,9 +118,12 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
         name: text(pick(item, 'title', 'name', 'songname')) || 'Unknown Song',
         artists: normalizeArtists(item),
         album: {
-            id: (pick(album, 'id', 'albumid') ?? albumMid ?? '') as MediaId,
+            // albummid 优先于数字 albumid：后者只在上游一个 mid 都不给时留作显示用的键，
+            // 而那种条目不会带 catalogRef，导航层也就不会把它当成可查询的专辑 id。
+            id: (albumMid || pick(album, 'id', 'albumid') || '') as MediaId,
             name: text(pick(album, 'name', 'title', 'albumname')),
             ...(coverUrl ? { coverUrl } : {}),
+            ...(albumRef ? { catalogRef: albumRef } : {}),
         },
         durationMs: Number.isFinite(durationMs) && durationMs > 0
             ? durationMs
@@ -135,20 +175,26 @@ const timestamp = (value: unknown): number | undefined => {
 };
 
 // 专辑条目的歌手可能是数组，也可能只在顶层给一组 singerMID / singerName。
-const normalizeCollectionArtists = (raw: any): Array<{ id: MediaId; name: string }> => {
+const normalizeCollectionArtists = (raw: any): Artist[] => {
     const singers = pick(raw, 'singer', 'singers', 'artists');
     const list = Array.isArray(singers)
         ? singers
         : [{
-            id: pick(raw, 'singerMID', 'singermid', 'singerMid'),
+            mid: pick(raw, 'singerMID', 'singermid', 'singerMid'),
             name: pick(raw, 'singerName', 'singername', 'singer_name'),
         }];
     return list
-        .map((singer: any, index: number) => ({
-            // 识别键一律用 mid，与歌曲用 songmid 的判断一致；数字 id 只是上游的请求参数。
-            id: (pick(singer, 'mid', 'singerMID', 'singermid', 'id') ?? index) as MediaId,
-            name: text(pick(singer, 'name', 'singerName', 'singername', 'title')),
-        }))
+        .map((singer: any, index: number) => {
+            // 识别键一律用 mid，与歌曲的处理一致；数字 id 只是上游别处的请求参数，不是集合身份。
+            const singerMid = text(pick(singer, 'mid', 'singerMID', 'singermid', 'singerMid'))
+                || catalogRefMid(singer, 'artist');
+            const ref = qqCatalogRef('artist', singerMid);
+            return {
+                id: (singerMid || index) as MediaId,
+                name: text(pick(singer, 'name', 'singerName', 'singername', 'title')),
+                ...(ref ? { catalogRef: ref } : {}),
+            };
+        })
         .filter(artist => artist.name);
 };
 
