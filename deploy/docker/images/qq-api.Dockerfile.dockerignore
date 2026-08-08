@@ -1,0 +1,6 @@
+*
+!deploy/
+!deploy/docker/
+!deploy/docker/qq-api/
+!deploy/docker/qq-api/package.json
+!deploy/docker/qq-api/package-lock.json

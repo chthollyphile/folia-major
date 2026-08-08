@@ -1,0 +1,8 @@
+{
+  "name": "folia-docker-qq-api",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@yakult-green-tea/qq-music-api": "2.1.0"
+  }
+}

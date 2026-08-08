@@ -1,5 +1,6 @@
 import { User } from 'lucide-react';
 import type { ProviderAccountSummary } from '../../../types/onlineMusic';
+import qqMusicIcon from '../../../assets/providers/qq-music.svg';
 
 // src/components/app/home/OnlineProviderConnectPanel.tsx
 
@@ -13,9 +14,13 @@ type OnlineProviderConnectPanelProps = {
     onSelect: (provider: ProviderAccountSummary) => void;
 };
 
-const providerBadge = (provider: ProviderAccountSummary): { label: string; className: string } => {
+// 网易云与酷狗维持文字徽章不动，只有 QQ 音乐换成图标。
+const providerBadge = (
+    provider: ProviderAccountSummary,
+): { label: string; iconUrl?: string; className: string } => {
     if (provider.providerId === 'netease') return { label: '云', className: 'bg-red-600' };
     if (provider.providerId === 'kugou') return { label: 'K', className: 'bg-blue-600' };
+    if (provider.providerId === 'qq') return { label: 'Q', iconUrl: qqMusicIcon, className: 'bg-white' };
     return { label: provider.shortName.slice(0, 1), className: 'bg-zinc-600' };
 };
 
@@ -52,8 +57,10 @@ const OnlineProviderConnectPanel = ({
                             : (isDaylight ? 'bg-white/60 hover:bg-white/90 text-zinc-900 border-black/5 shadow-sm' : 'bg-white/5 hover:bg-white/10 text-white border-white/10')
                             } ${!configured ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white ${badge.className}`}>
-                            {badge.label}
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white overflow-hidden ${badge.className}`}>
+                            {badge.iconUrl
+                                ? <img src={badge.iconUrl} alt="" aria-hidden="true" className="w-4 h-4 object-contain" />
+                                : badge.label}
                         </span>
                         <span>{getActionLabel(provider)}</span>
                     </button>

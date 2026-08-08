@@ -47,7 +47,9 @@ export const useOnlineProviderQrLogin = ({
         }
     }, []);
 
-    const start = useCallback(async (providerIdOverride?: OnlineProviderId) => {
+    // methodId 是可选的扫码登录方式（provider 通过 getQrLoginMethods 声明）；
+    // 不传即由 provider 自己取默认值，只有单一方式的 provider 完全不受影响。
+    const start = useCallback(async (providerIdOverride?: OnlineProviderId, methodId?: string) => {
         const targetProviderId = providerIdOverride || providerId;
         stopChecking();
         const sessionId = sessionIdRef.current;
@@ -61,7 +63,7 @@ export const useOnlineProviderQrLogin = ({
         }
 
         try {
-            const { key, imageUrl } = await omni.createQrLogin(targetProviderId);
+            const { key, imageUrl } = await omni.createQrLogin(targetProviderId, methodId);
             if (sessionId !== sessionIdRef.current) return;
             setQrCodeImg(imageUrl);
             setQrState('waiting');

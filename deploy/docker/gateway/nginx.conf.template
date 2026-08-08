@@ -61,6 +61,15 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
 
+        location /qq/ {
+            proxy_pass http://qq-api:3000/;
+            proxy_hide_header Set-Cookie;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Proto $folia_forwarded_proto;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
         location /api/ {
             proxy_pass http://backend:3000;
             proxy_set_header Host $host;

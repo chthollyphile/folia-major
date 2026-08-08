@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 // test/unit/onlineMusic/omniArchitecture.test.ts
 
 const roots = ['src/components', 'src/hooks', 'src/stores'];
-const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|services\/netease)['"]/;
+const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|qqTransport|services\/netease)['"]/;
 
 const collectSourceFiles = async (path: string): Promise<string[]> => {
     const entry = await stat(path);

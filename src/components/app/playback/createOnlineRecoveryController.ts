@@ -34,6 +34,27 @@ type RecoveryControllerParams = {
     onlineAudioUrlRefreshBufferMs: number;
 };
 
+// Provider stream URLs carry a per-request token in the query (QQ mints a fresh `vkey`/`guid`
+// every call), so comparing whole URLs never matches and the error -> refresh -> error cycle
+// runs unbounded. The origin+path identifies the media file itself, which is what "we already
+// refreshed this and it still failed" actually means. Cleared again once playback succeeds.
+export const getOnlineRecoveryKey = (src: string | null | undefined): string | null => {
+    if (!src) {
+        return null;
+    }
+
+    try {
+        const parsedUrl = new URL(src);
+        // Only remote streams carry a token in the query; blob: and friends have no meaningful origin.
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            return src;
+        }
+        return `${parsedUrl.origin}${parsedUrl.pathname}`;
+    } catch {
+        return src;
+    }
+};
+
 // Creates online-stream refresh and recovery helpers without tying them to a React hook.
 export const createOnlineRecoveryController = ({
     audioQuality,
@@ -88,7 +109,7 @@ export const createOnlineRecoveryController = ({
             return false;
         }
 
-        const normalizedFailedSrc = failedSrc || audioElement.currentSrc || audioSrc || null;
+        const normalizedFailedSrc = getOnlineRecoveryKey(failedSrc || audioElement.currentSrc || audioSrc || null);
         if (normalizedFailedSrc && lastAudioRecoverySourceRef.current === normalizedFailedSrc) {
             return false;
         }

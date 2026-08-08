@@ -1,7 +1,19 @@
-import { Loader2, RotateCcw, X } from 'lucide-react';
+import { Check, Loader2, RotateCcw, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 // src/components/app/home/OnlineProviderLoginModal.tsx
+
+// 可选的登录方式选择（两步式）。provider 不声明就不传，弹窗完全维持原本的单步外观。
+// 所有文案都由调用方翻译好再传进来，与 title / statusText 的既有做法一致。
+type LoginMethodsProps = {
+    title: string;
+    hint: string;
+    pendingText: string;
+    currentText: string;
+    options: Array<{ id: string; label: string; iconUrl: string }>;
+    selectedId: string | null;
+    onSelect: (id: string) => void;
+};
 
 type OnlineProviderLoginModalProps = {
     title: string;
@@ -11,6 +23,7 @@ type OnlineProviderLoginModalProps = {
     state: 'idle' | 'loading' | 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'error';
     retryLabel: string;
     closeLabel: string;
+    loginMethods?: LoginMethodsProps;
     onRetry: () => void;
     onClose: () => void;
 };
@@ -23,10 +36,13 @@ const OnlineProviderLoginModal = ({
     state,
     retryLabel,
     closeLabel,
+    loginMethods,
     onRetry,
     onClose,
 }: OnlineProviderLoginModalProps) => {
-    const canRetry = state === 'expired' || state === 'error';
+    // 步骤一：还没选登录方式，二维码区显示占位框，且不会向后端发出任何请求。
+    const awaitingMethod = Boolean(loginMethods) && loginMethods?.selectedId == null;
+    const canRetry = (state === 'expired' || state === 'error') && !awaitingMethod;
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -55,8 +71,46 @@ const OnlineProviderLoginModal = ({
                     <X size={16} />
                 </button>
                 <h3 className="text-lg font-bold mb-6" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+                {loginMethods && (
+                    <div className="mb-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-45 mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                            {loginMethods.title}
+                        </p>
+                        <p className="text-[11px] leading-snug whitespace-pre-line opacity-55 mb-3" style={{ color: 'var(--text-secondary)' }}>
+                            {loginMethods.hint}
+                        </p>
+                        <div className="flex items-center justify-center gap-3">
+                            {loginMethods.options.map(option => {
+                                const selected = loginMethods.selectedId === option.id;
+                                return (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        aria-pressed={selected}
+                                        onClick={() => loginMethods.onSelect(option.id)}
+                                        className={`relative flex flex-1 flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-semibold transition-colors cursor-pointer ${selected
+                                            ? 'border-green-500 bg-green-500/10 text-white'
+                                            : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
+                                    >
+                                        {selected && (
+                                            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-white">
+                                                <Check size={11} strokeWidth={3} />
+                                            </span>
+                                        )}
+                                        <img src={option.iconUrl} alt="" aria-hidden="true" className="w-6 h-6 object-contain" />
+                                        <span>{option.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
                 <div className="relative inline-block bg-white p-2 rounded-xl mb-4 shadow-inner">
-                    {qrCodeImg ? (
+                    {awaitingMethod ? (
+                        <div className="w-40 h-40 flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 px-4 text-center text-[11px] font-medium leading-snug text-gray-400">
+                            {loginMethods?.pendingText}
+                        </div>
+                    ) : qrCodeImg ? (
                         <img src={qrCodeImg} alt="QR Code" className="w-40 h-40" />
                     ) : (
                         <div className="w-40 h-40 flex items-center justify-center bg-gray-100 rounded-lg">
@@ -64,8 +118,14 @@ const OnlineProviderLoginModal = ({
                         </div>
                     )}
                 </div>
+                {loginMethods && !awaitingMethod && (
+                    <p className="text-[11px] font-medium opacity-45" style={{ color: 'var(--text-secondary)' }}>
+                        {loginMethods.currentText}
+                    </p>
+                )}
+                {/* 步骤一不显示状态文案：关窗重开时 hook 里还留着上一轮的状态，照原样显示会是过期信息。 */}
                 <p className={`text-xs font-medium mt-2 ${state === 'confirmed' ? 'text-green-400' : 'opacity-60'}`} style={{ color: state === 'confirmed' ? undefined : 'var(--text-secondary)' }}>
-                    {statusText}
+                    {awaitingMethod ? '' : statusText}
                 </p>
                 {canRetry && (
                     <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-xs font-semibold transition-colors">

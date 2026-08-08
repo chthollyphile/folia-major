@@ -25,10 +25,25 @@ import OnlineProviderConnectPanel from './app/home/OnlineProviderConnectPanel';
 import OnlineProviderLoginModal from './app/home/OnlineProviderLoginModal';
 import { resolveOnlineProviderAccountView } from './app/home/onlineProviderAccountView';
 import type { MediaId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
+import qqIcon from '../assets/providers/qq.svg';
+import wechatIcon from '../assets/providers/wechat.svg';
 
 // src/components/Grid3D.tsx
 // Glassmorphic interactive desktop home view replacing the legacy 3D carousel.
 // Supports cover sliding with auto-fading header controls and delegates GridView opening upward.
+
+// Each provider scans from its own app, so the modal copy is keyed here instead of nested in the JSX.
+const LOGIN_COPY_BY_PROVIDER: Record<string, { title: string; note: string }> = {
+    kugou: { title: 'home.loginTitleKugou', note: 'home.loginNoteKugou' },
+    qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
+};
+const NETEASE_LOGIN_COPY = { title: 'home.loginTitle', note: 'home.loginNote' };
+
+// provider 只声明 iconKey 字符串，静态资源的映射留在 UI 层，services 层不碰 .svg。
+const LOGIN_METHOD_ICONS: Record<string, string> = {
+    qq: qqIcon,
+    wechat: wechatIcon,
+};
 
 interface Grid3DProps {
     onlineProviderPlatform?: OnlineProviderPlatformState;
@@ -245,6 +260,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // Login QR State
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [loginProviderId, setLoginProviderId] = useState(activeProviderId);
+    // 泛型：provider 声明了多种扫码登录方式才走两步式，没声明的回空数组、维持单步流程。
+    const [selectedLoginMethodId, setSelectedLoginMethodId] = useState<string | null>(null);
+    const loginMethodOptions = useMemo(
+        () => omni.getQrLoginMethods(loginProviderId),
+        [loginProviderId],
+    );
     const {
         qrCodeImg,
         qrState,
@@ -269,7 +290,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         if (summary && !summary.availability.configured) return;
         setLoginProviderId(providerId);
         setShowLoginModal(true);
+        setSelectedLoginMethodId(null);
+        // 有多种登录方式时先停在步骤一，选定之前不向后端要二维码。
+        if (omni.getQrLoginMethods(providerId).length > 0) return;
         await startQrLogin(providerId);
+    };
+
+    const selectLoginMethod = (methodId: string) => {
+        setSelectedLoginMethodId(methodId);
+        void startQrLogin(loginProviderId, methodId);
     };
 
     // Online provider collection details
@@ -780,14 +809,34 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             <AnimatePresence>
                 {showLoginModal && (
                     <OnlineProviderLoginModal
-                        title={t(loginProviderId === 'kugou' ? 'home.loginTitleKugou' : 'home.loginTitle')}
-                        note={t(loginProviderId === 'kugou' ? 'home.loginNoteKugou' : 'home.loginNote')}
+                        title={t((LOGIN_COPY_BY_PROVIDER[loginProviderId] || NETEASE_LOGIN_COPY).title)}
+                        note={t((LOGIN_COPY_BY_PROVIDER[loginProviderId] || NETEASE_LOGIN_COPY).note)}
                         qrCodeImg={qrCodeImg}
                         statusText={qrStatusText}
                         state={qrState}
                         retryLabel={t('home.retryQr')}
                         closeLabel={t('home.closeLogin')}
-                        onRetry={() => void startQrLogin(loginProviderId)}
+                        loginMethods={loginMethodOptions.length > 0
+                            ? {
+                                title: t('home.qqLoginMethodTitle'),
+                                hint: t('home.qqLoginMethodHint'),
+                                pendingText: t('home.qqLoginMethodPending'),
+                                currentText: selectedLoginMethodId
+                                    ? t('home.qqLoginMethodCurrent', {
+                                        method: t(loginMethodOptions.find(option => option.id === selectedLoginMethodId)?.labelKey || ''),
+                                    })
+                                    : '',
+                                options: loginMethodOptions.map(option => ({
+                                    id: option.id,
+                                    label: t(option.labelKey),
+                                    iconUrl: LOGIN_METHOD_ICONS[option.iconKey] || '',
+                                })),
+                                selectedId: selectedLoginMethodId,
+                                onSelect: selectLoginMethod,
+                            }
+                            : undefined}
+                        // 刷新时保留已选的登录方式，否则用户会被踢回步骤一。
+                        onRetry={() => void startQrLogin(loginProviderId, selectedLoginMethodId ?? undefined)}
                         onClose={() => {
                             setShowLoginModal(false);
                             stopQrLogin();

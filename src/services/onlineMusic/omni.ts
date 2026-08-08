@@ -16,6 +16,7 @@ import type {
     OmniUser,
     OnlineMusicProvider,
     ProviderCatalogEntityKind,
+    QrLoginMethod,
     QrLoginState,
 } from '../../types/onlineMusic';
 import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
@@ -170,11 +171,16 @@ export const omni = {
         await provider.auth.logout();
     },
 
-    async createQrLogin(providerId: OmniProviderId): Promise<{ key: string; imageUrl: string }> {
+    // 没有这个能力就回空数组，UI 据此走单步流程；netease / kugou 完全不受影响。
+    getQrLoginMethods(providerId: OmniProviderId): QrLoginMethod[] {
+        return requireOnlineMusicProvider(providerId).auth?.getQrLoginMethods?.() ?? [];
+    },
+
+    async createQrLogin(providerId: OmniProviderId, methodId?: string): Promise<{ key: string; imageUrl: string }> {
         const provider = requireOnlineMusicProvider(providerId);
         const auth = provider.auth;
         if (!auth?.getQrKey || !auth.createQr) return unsupported(providerId, 'qr-login');
-        const key = await auth.getQrKey();
+        const key = await auth.getQrKey(methodId);
         return { key, imageUrl: await auth.createQr(key) };
     },
 
