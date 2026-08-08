@@ -143,6 +143,19 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
     };
 };
 
+// 微信凭据的 `musicid` 是占位的 `0`，真正的账号 ID 只在 `str_musicid` 里 —— 后端每一条上游调用
+// 认的都是后者，所以这里跟着同一个优先序，并且把占位值当成「这个字段没给」。
+const ACCOUNT_ID_PLACEHOLDER = '0';
+
+const accountId = (raw: any, ...keys: string[]): string | number | undefined => {
+    for (const key of keys) {
+        const value = pick(raw, key);
+        if (value === undefined || text(value) === ACCOUNT_ID_PLACEHOLDER) continue;
+        if (typeof value === 'string' || typeof value === 'number') return value;
+    }
+    return undefined;
+};
+
 // Reads `/login/status` (`{ data: { profile } }`), `/user/detail` (`{ profile }`) and a cached ProviderUser.
 export const normalizeQqUser = (raw: unknown): ProviderUser => {
     const source = record(raw);
@@ -150,8 +163,8 @@ export const normalizeQqUser = (raw: unknown): ProviderUser => {
     // GetLoginUserInfo keeps the account fields under `info`; its top level only carries banners and portals.
     const info = record(profile.info);
 
-    const id = pick(profile, 'musicid', 'str_musicid', 'uin', 'id')
-        ?? pick(info, 'musicid', 'str_musicid', 'uin');
+    const id = accountId(profile, 'str_musicid', 'musicid', 'uin', 'id')
+        ?? accountId(info, 'str_musicid', 'musicid', 'uin');
     // Display-name candidates observed while probing the upstream API; the acceptance test account returned none of them.
     const nickname = text(
         pick(profile, 'nickname', 'nick', 'name', 'userName')
@@ -163,7 +176,7 @@ export const normalizeQqUser = (raw: unknown): ProviderUser => {
     const avatarUrl = text(pick(profile, 'avatarUrl') ?? pick(info, 'logo', 'avatarUrl'));
 
     return {
-        id: (typeof id === 'number' || typeof id === 'string' ? id : '') as MediaId,
+        id: (id ?? '') as MediaId,
         nickname,
         ...(avatarUrl ? { avatarUrl } : {}),
     };
@@ -174,6 +187,13 @@ const timestamp = (value: unknown): number | undefined => {
     if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : undefined;
     const parsed = Date.parse(text(value));
     return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+// 收藏专辑那条 CGI 的 pubtime 是秒级 epoch，与其他专辑端点给的日期串、以及缓存回填的毫秒数
+// 都不是同一种东西 —— 交给 timestamp() 会被当成毫秒，一律落到 1970 年。
+const epochSeconds = (value: unknown): number | undefined => {
+    const seconds = Number(value);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 };
 
 // 专辑条目的歌手可能是数组，也可能只在顶层给一组 singerMID / singerName。
@@ -204,11 +224,14 @@ const normalizeCollectionArtists = (raw: any): Artist[] => {
 const normalizeQqAlbum = (item: any, existing: any): ProviderCollection => {
     const albumMid = text(pick(item, 'albumMID', 'albummid', 'albumMid', 'mid') ?? pick(existing, 'albumMid'));
     const name = text(pick(item, 'albumName', 'albumname', 'name', 'title'));
-    const coverUrl = text(pick(item, 'coverUrl', 'picUrl', 'albumPic')) || getQqAlbumCoverUrl(albumMid);
+    // `pic` 是收藏专辑那条 CGI 给的完整 URL；拿得到就不必再按 mid 拼一个。
+    const coverUrl = text(pick(item, 'coverUrl', 'picUrl', 'albumPic', 'pic')) || getQqAlbumCoverUrl(albumMid);
     const description = text(pick(item, 'desc', 'description'));
     const publisher = text(pick(item, 'company', 'publisher'));
-    const publishedAt = timestamp(pick(item, 'publishDate', 'publictime', 'publish_time', 'aDate', 'publishedAt'));
-    const trackCount = Number(pick(item, 'total_song_num', 'totalSongNum', 'song_num', 'songNum', 'cur_song_num', 'total', 'trackCount'));
+    // `ordertime` 是收藏时间不是发行时间，刻意不列入候选。
+    const publishedAt = timestamp(pick(item, 'publishDate', 'publictime', 'publish_time', 'aDate', 'publishedAt'))
+        ?? epochSeconds(pick(item, 'pubtime'));
+    const trackCount = Number(pick(item, 'total_song_num', 'totalSongNum', 'song_num', 'songNum', 'songnum', 'cur_song_num', 'total', 'trackCount'));
     const artists = normalizeCollectionArtists(item);
 
     return {

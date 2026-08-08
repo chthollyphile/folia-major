@@ -5,7 +5,7 @@ import { readProviderSessionValue, removeProviderSessionValue, writeProviderSess
 
 export const QQ_OPERATIONS = [
     'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',
-    'user_detail', 'user_playlist', 'user_liked_songs', 'music_play', 'song_list_detail', 'song_info',
+    'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'music_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
 ] as const;
 
@@ -21,6 +21,7 @@ const ENDPOINTS: Record<QqOperation, string> = {
     logout: '/logout',
     user_detail: '/user/detail',
     user_playlist: '/user/playlist',
+    user_albums: '/user/albums',
     user_liked_songs: '/user/liked-songs',
     music_play: '/getMusicPlay',
     song_list_detail: '/getSongListDetail',

@@ -283,6 +283,15 @@ describe('qqProvider', () => {
         expect(normalizeQqUser({ info: {}, banner: {}, errMsg: '' })).toEqual({ id: '', nickname: '' });
     });
 
+    // 🔴 微信凭据的 `musicid` 是占位的 0，真正的账号 ID 只在 `str_musicid` 里。
+    it('ignores the placeholder account id a WeChat credential carries', () => {
+        expect(normalizeQqUser({ data: { profile: { musicid: 0, str_musicid: '456' } } }))
+            .toMatchObject({ id: '456' });
+        // 占位值是「这个字段没给」，不是一个可用的账号 ID。
+        expect(normalizeQqUser({ data: { profile: { musicid: 0, str_musicid: '0' } } }))
+            .toMatchObject({ id: '' });
+    });
+
     it('reads the display name and avatar out of the nested GetLoginUserInfo profile', () => {
         // 真实 `/login/status` 的形状：账号字段全在 `data.profile.info` 里，
         // 顶层只有 errMsg / banner / 各种运营位；整个响应没有 `avatarUrl` 这个名字。
@@ -349,7 +358,7 @@ describe('qqProvider', () => {
         requestMock.mockResolvedValue({ code: 200, playlist, total: 3, more: false });
 
         const firstPage = await qqProvider.library!.getUserPlaylists(123, 2, 0);
-        expect(requestMock).toHaveBeenCalledWith('user_playlist', { uid: '123' });
+        expect(requestMock).toHaveBeenCalledWith('user_playlist', {});
         expect(firstPage.items.map(item => item.name)).toEqual(['我喜欢', '收藏歌单']);
         expect(firstPage).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
 
@@ -361,12 +370,87 @@ describe('qqProvider', () => {
         expect(pastEnd).toMatchObject({ items: [], hasMore: false, nextOffset: 4 });
     });
 
-    it('omits uid when the profile did not expose an account id', async () => {
+    // 条目形状取自 2026-08-08 对真实账号的实测：收藏专辑走的是 profile-asset CGI，
+    // 字段名与 `/getAlbumInfo` 那条不同（pic / songnum / pubtime 都是这条独有的拼写）。
+    const FAVORITE_ALBUM = {
+        albumid: 88971,
+        albummid: '000MkMni19ClKG',
+        albumname: '范特西',
+        pic: 'https://y.qq.com/music/photo_new/T002R300x300M000000MkMni19ClKG.jpg',
+        songnum: 12,
+        pubtime: 1419609600,
+        ordertime: 1754600000,
+        singerid: 4286,
+        singermid: '0025NhlN2yWrP4',
+        singername: '周杰伦',
+        singer: [{ mid: '0025NhlN2yWrP4', name: '周杰伦' }],
+        status: 0,
+    };
+
+    it('maps a favourite album onto the collection shape without inventing an id', async () => {
+        requestMock.mockResolvedValue({ code: 200, albums: [FAVORITE_ALBUM], total: 1, more: false });
+
+        const page = await qqProvider.library!.getUserAlbums!(123, 20, 0);
+
+        expect(requestMock).toHaveBeenCalledWith('user_albums', { offset: 0, limit: 20 });
+        // 身份一律用 mid：数字 albumid 传给上游只会换来 1101，页面表现成一片空白。
+        expect(page.items[0]).toMatchObject({
+            providerId: 'qq',
+            id: '000MkMni19ClKG',
+            type: 'album',
+            name: '范特西',
+            coverUrl: FAVORITE_ALBUM.pic,
+            trackCount: 12,
+            publishedAt: 1419609600000,
+        });
+        expect(page.items[0].artists?.[0]).toMatchObject({ id: '0025NhlN2yWrP4', name: '周杰伦' });
+        expect(page).toMatchObject({ total: 1, hasMore: false, nextOffset: 1 });
+    });
+
+    it('keeps the favourite album shape stable when a cached collection is fed back in', async () => {
+        requestMock.mockResolvedValue({ code: 200, albums: [FAVORITE_ALBUM], total: 1, more: false });
+        const [normalized] = (await qqProvider.library!.getUserAlbums!(123, 20, 0)).items;
+
+        // 缓存水合会把已正规化的结果再喂回来一次，不幂等就会把封面与发行时间洗掉。
+        expect(normalizeQqCollection(normalized, 'album')).toEqual(normalized);
+    });
+
+    it('pages the favourite albums through the backend and stops on an empty page', async () => {
+        requestMock
+            .mockResolvedValueOnce({ code: 200, albums: [FAVORITE_ALBUM], total: 2, more: true })
+            .mockResolvedValueOnce({ code: 200, albums: [], total: 2, more: true });
+
+        const firstPage = await qqProvider.library!.getUserAlbums!(123, 1, 0);
+        expect(requestMock).toHaveBeenLastCalledWith('user_albums', { offset: 0, limit: 1 });
+        expect(firstPage).toMatchObject({ total: 2, hasMore: true, nextOffset: 1 });
+
+        // 后端说还有下一页却一条都没给：继续翻就是死循环，必须就地停住。
+        const emptyPage = await qqProvider.library!.getUserAlbums!(123, 1, 1);
+        expect(requestMock).toHaveBeenLastCalledWith('user_albums', { offset: 1, limit: 1 });
+        expect(emptyPage).toMatchObject({ items: [], hasMore: false, nextOffset: 1 });
+    });
+
+    it('reports an empty favourite album collection as an empty page', async () => {
+        requestMock.mockResolvedValue({ code: 200, albums: [], total: 0, more: false });
+
+        await expect(qqProvider.library!.getUserAlbums!(123, 20, 0)).resolves.toMatchObject({
+            items: [],
+            total: 0,
+            hasMore: false,
+            nextOffset: 0,
+        });
+    });
+
+    // 🔴 回归：微信凭据的 `musicid` 是占位的 0，把它当账号 ID 送上去，后端就会拿 `uin=0` 去查
+    // GetPlaylistByUin，自建歌单整段消失，只剩走 encryptUin 的收藏歌单。
+    // 会话账号本来就是这条 route 唯一读得到的账号，任何账号 ID 都不该由前端来选。
+    it('never lets a client-side account id select the playlist account', async () => {
         requestMock.mockResolvedValue({ code: 200, playlist: [PLAYLIST_ITEM], total: 1, more: false });
 
-        await qqProvider.library!.getUserPlaylists('', 50, 0);
-
-        expect(requestMock).toHaveBeenCalledWith('user_playlist', {});
+        for (const userId of ['', 0, '0', 123]) {
+            await qqProvider.library!.getUserPlaylists(userId, 50, 0);
+            expect(requestMock).toHaveBeenLastCalledWith('user_playlist', {});
+        }
     });
 
     it('short-circuits the login status without a stored session', async () => {
@@ -827,8 +911,8 @@ describe('qqProvider', () => {
         expect(qqProvider.catalog?.getArtistSongs).toBeTypeOf('function');
         expect(qqProvider.catalog?.getArtistAlbums).toBeTypeOf('function');
         expect(qqProvider.library?.getLikedSongIds).toBeTypeOf('function');
-        // 上游没有收藏专辑的路由，这个能力是刻意不实现的。
-        expect(qqProvider.library?.getUserAlbums).toBeUndefined();
+        // 后端 2.2.0 起有 `/user/albums`，收藏专辑不再是空页。
+        expect(qqProvider.library?.getUserAlbums).toBeTypeOf('function');
         expect(qqProvider.getAvailability?.()).toEqual({ configured: true });
     });
 });

@@ -145,6 +145,19 @@ describe('QQ Music Web transport', () => {
         expect(urls[2].searchParams.get('songid')).toBeNull();
     });
 
+    it('reads the favourite albums from the paged user route', async () => {
+        const fetchMock = vi.fn().mockImplementation(async () => Response.json({ code: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await requestQq('user_albums', { offset: 20, limit: 20 });
+
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.pathname).toBe('/user/albums');
+        expect(url.searchParams.get('offset')).toBe('20');
+        expect(url.searchParams.get('limit')).toBe('20');
+    });
+
     // 专辑 / 歌手路由虽然声明了路径参数，但 controller 只读 `ctx.query`，
     // 走路径参数会被静默忽略，上游只会回 400。
     it('sends every album and artist identifier as a query parameter instead of a path segment', async () => {

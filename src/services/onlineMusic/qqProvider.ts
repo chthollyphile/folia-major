@@ -317,13 +317,13 @@ const checkQr = async (key: string): Promise<QrLoginState> => {
 // `/user/playlist` returns the whole GetPlaylistByUin list and takes no upstream paging parameters,
 // so the Omni page window is applied locally instead of being forwarded.
 const getUserPlaylists = async (
-    userId: MediaId,
+    _userId: MediaId,
     limit: number,
     offset: number,
 ): Promise<ProviderPage<ProviderCollection>> => {
-    const uid = String(userId ?? '');
-    // Without `uid` the backend falls back to the session account, which is the only account a session can read.
-    const response = await requestQq<any>('user_playlist', uid ? { uid } : {});
+    // 不传 `uid`：会话账号是这条 route 唯一读得到的账号，而后端从凭据里挑出来的账号 ID 比前端
+    // 手上这个展示用的可靠 —— 微信凭据的 `musicid` 是占位的 0，回传它只会让自建歌单整段消失。
+    const response = await requestQq<any>('user_playlist', {});
     const playlists = Array.isArray(response?.playlist) ? response.playlist : [];
     const items = playlists
         .slice(offset, offset + Math.max(0, limit))
@@ -362,6 +362,30 @@ const getLikedSongIds = async (_userId: MediaId): Promise<MediaId[]> => {
         .map(normalizeQqSong)
         .map(item => item.sourceRef?.kind === 'online' ? item.sourceRef.mediaId : item.id)
         .filter((id): id is MediaId => id !== undefined && id !== null && id !== '');
+};
+
+const getUserAlbums = async (
+    _userId: MediaId,
+    limit: number,
+    offset: number,
+): Promise<ProviderPage<ProviderCollection>> => {
+    // 这条 route 只读会话账号，没有 uid 参数 —— 与 `/user/playlist` 的 uid 兜底不同。
+    // 分页也是后端做的，不像歌单那样一次全取回来再本地切片。
+    const safeOffset = Math.max(0, offset);
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const response = await requestQq<any>('user_albums', { offset: safeOffset, limit: safeLimit });
+    const albums = Array.isArray(response?.albums) ? response.albums : [];
+    const items = albums.map((item: unknown) => normalizeQqCollection(item, 'album'));
+    const nextOffset = safeOffset + items.length;
+    const total = Number(response?.total);
+
+    return {
+        items,
+        ...(Number.isFinite(total) && total >= 0 ? { total } : {}),
+        // 空页一律终止翻页：后端说 more 但一条都没给的话，继续翻就是死循环。
+        hasMore: Boolean(response?.more) && items.length > 0,
+        nextOffset,
+    };
 };
 
 // `/getAlbumInfo` 一次返回专辑详情与全部曲目，专辑详情与曲目两个方法共用同一份响应形状。
@@ -550,10 +574,7 @@ export const qqProvider: OnlineMusicProvider = {
             });
         },
     },
-    // 后端目前只有 `/user/playlist`（GetPlaylistByUin，只返回歌单），没有「收藏的专辑」这条 route，
-    // 所以不实现 library.getUserAlbums；omni 会自动返回空页，专辑页仍可从搜索结果与歌曲详情进入。
-    // 这是后端的 route 缺口，不是 QQ 音乐没有这项能力 —— 补齐要先确认现行私有接口，不在本次改动范围内。
-    library: { getUserPlaylists, getLikedSongIds },
+    library: { getUserPlaylists, getUserAlbums, getLikedSongIds },
     catalog: {
         // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。
         canResolveSongCatalogRefs: song => Boolean(getQqSongMid(song)),

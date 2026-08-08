@@ -3,6 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@yakult-green-tea/qq-music-api": "2.1.0"
+    "@yakult-green-tea/qq-music-api": "2.2.1"
   }
 }
