@@ -157,8 +157,10 @@ export const normalizeQqUser = (raw: unknown): ProviderUser => {
         pick(profile, 'nickname', 'nick', 'name', 'userName')
         ?? pick(info, 'nickname', 'nick', 'name', 'userName'),
     );
-    // No upstream avatar field has been captured yet, so only a cached ProviderUser can supply one.
-    const avatarUrl = text(pick(profile, 'avatarUrl'));
+    // 头像在 `info.logo`，是一条完整的 https URL（`.../qqmusic/avatar/<hash>-<ts>/140`），
+    // 上游整个响应里没有 `avatarUrl` 这个名字 —— 那是后端凭据兜底路径给的字段名，
+    // 也是正规化结果自己回填时的字段名，所以两个都要认，缓存水合才不会把头像洗掉。
+    const avatarUrl = text(pick(profile, 'avatarUrl') ?? pick(info, 'logo', 'avatarUrl'));
 
     return {
         id: (typeof id === 'number' || typeof id === 'string' ? id : '') as MediaId,

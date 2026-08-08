@@ -190,6 +190,17 @@ export const omni = {
         return provider.auth.checkQr(key);
     },
 
+    // 没有这个能力就静默 no-op：netease / kugou 的扫码流程完全不受影响。
+    async cancelQrLogin(providerId: OmniProviderId, key: string): Promise<void> {
+        await requireOnlineMusicProvider(providerId).auth?.cancelQr?.(key);
+    },
+
+    // 只有明确声明了二维码寿命的 provider 才由前端计时；其余照旧只认后端报出的过期状态。
+    getQrTtlMs(providerId: OmniProviderId): number | null {
+        const ttlMs = requireOnlineMusicProvider(providerId).auth?.getQrTtlMs?.();
+        return typeof ttlMs === 'number' && ttlMs > 0 ? ttlMs : null;
+    },
+
     async getUserPlaylists(userId: MediaId, page: PageInput): Promise<OmniPage<OmniCollection>> {
         return withActiveProvider(async provider => provider.library?.getUserPlaylists?.(userId, page.limit, page.offset) ?? emptyPage(page.offset));
     },

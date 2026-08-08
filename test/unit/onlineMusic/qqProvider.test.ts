@@ -51,6 +51,40 @@ const PLAYLIST_ITEM = {
     bigpicUrl: 'https://img.example.test/big.jpg',
 };
 
+// 脱敏后的 `/login/status`（`GetLoginUserInfo`）响应，形状取自真实账号：
+// 账号字段全在 `data.profile.info` 里，顶层只有 errMsg 与几个运营位（挂件、横幅、动态头像入口）。
+// 🔴 整个响应里**没有 musicid / uin**，所以 `id` 只能是空串 —— 那不是映射漏了，是上游这条路由不给。
+const LOGIN_STATUS_RESPONSE = {
+    code: 200,
+    data: {
+        profile: {
+            errMsg: 'OK',
+            identify: 0,
+            info: {
+                nick: '多多绿🍵',
+                logo: 'https://pic6.y.qq.com/qqmusic/avatar/6f4b366b-1739203735/140',
+                hasUnuditLogo: 0,
+                gender: 0,
+                birthday: 0,
+                city: '',
+                singerID: 0,
+                logos: null,
+                isAiLogo: false,
+                bgPic: '',
+            },
+            celebrityInfo: { uin: 0, name: '', pic: '', singerid: 0 },
+            pendantInfo: {
+                staticImg: 'http://y.gtimg.cn/music/common/upload/t_music_pendant_conf/6535071.png',
+                dynamicImg: 'http://y.gtimg.cn/music/common/upload/t_music_pendant_conf/6535071.png',
+                status: 1,
+                id: 478,
+            },
+            aiLogoPortal: { isShow: true, icon: 'https://music-file6.y.qq.com/ocs/ai.png', text: '设置魔法百变头像' },
+            banner: { isShow: true, picOfBanner: 'https://music-file6.y.qq.com/ocs/banner.png' },
+        },
+    },
+};
+
 // 脱敏后的 `/getAlbumInfo`（`fcg_v8_album_info_cp.fcg`）响应：一次同时给出专辑详情与完整曲目表。
 const ALBUM_INFO_RESPONSE = {
     response: {
@@ -249,6 +283,23 @@ describe('qqProvider', () => {
         expect(normalizeQqUser({ info: {}, banner: {}, errMsg: '' })).toEqual({ id: '', nickname: '' });
     });
 
+    it('reads the display name and avatar out of the nested GetLoginUserInfo profile', () => {
+        // 真实 `/login/status` 的形状：账号字段全在 `data.profile.info` 里，
+        // 顶层只有 errMsg / banner / 各种运营位；整个响应没有 `avatarUrl` 这个名字。
+        const user = normalizeQqUser(LOGIN_STATUS_RESPONSE);
+
+        expect(user).toEqual({
+            id: '',
+            nickname: '多多绿🍵',
+            avatarUrl: 'https://pic6.y.qq.com/qqmusic/avatar/6f4b366b-1739203735/140',
+        });
+        // 缓存水合会把正规化结果再喂回来，那一份用的是 `avatarUrl`，不能因为只认 `info.logo` 而洗掉。
+        expect(normalizeQqUser(user)).toEqual(user);
+        // 运营位里也有图片 URL（挂件、横幅），一个都不该被当成头像。
+        expect(user.avatarUrl).not.toContain('pendant');
+        expect(user.avatarUrl).not.toContain('music-file6');
+    });
+
     it('maps every QR state translated by the backend', async () => {
         requestMock
             .mockResolvedValueOnce({ code: 801, message: 'Waiting for QR scan' })
@@ -278,6 +329,19 @@ describe('qqProvider', () => {
 
         expect(requestMock).toHaveBeenCalledWith('login_qr_check', { key: 'qr-key' });
         expect(writeSessionValueMock).toHaveBeenCalledExactlyOnceWith('qq', 'cookie', 'qqmusic_session=opaque-token');
+    });
+
+    it('cancels one QR session by key and never lets the failure reach the caller', async () => {
+        requestMock.mockResolvedValueOnce({ code: 200 });
+        await expect(qqProvider.auth!.cancelQr!('qr-key')).resolves.toBeUndefined();
+        expect(requestMock).toHaveBeenCalledExactlyOnceWith('login_qr_cancel', { key: 'qr-key' });
+
+        // 调用方在关窗时 fire-and-forget，抛出去只会让 UI 卡在一个用户无从处理的错误上。
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => { });
+        requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 503', 'qq'));
+        await expect(qqProvider.auth!.cancelQr!('qr-key')).resolves.toBeUndefined();
+        expect(warn).toHaveBeenCalledOnce();
+        warn.mockRestore();
     });
 
     it('pages the unpaginated user playlist response locally', async () => {

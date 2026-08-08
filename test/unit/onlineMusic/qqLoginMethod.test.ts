@@ -47,6 +47,15 @@ describe('QQ login method selection', () => {
         expect(omni.getQrLoginMethods('kugou')).toEqual([]);
     });
 
+    it('declares the QR lifetime only for QQ, whose session TTL we own', () => {
+        // 后端 qq-music-api 的会话寿命是 180 秒，前端要早一步收手才有意义。
+        expect(omni.getQrTtlMs('qq')).toBe(175_000);
+        expect(omni.getQrTtlMs('qq')).toBeLessThan(180_000);
+        // netease / kugou 的二维码能活多久我们无从得知，交给它们各自的后端去报过期。
+        expect(omni.getQrTtlMs('netease')).toBeNull();
+        expect(omni.getQrTtlMs('kugou')).toBeNull();
+    });
+
     it('sends no request until a method is chosen', () => {
         omni.getQrLoginMethods('qq');
 

@@ -77,6 +77,19 @@ describe('QQ Music Web transport', () => {
         expect(urls[3].searchParams.get('channel')).toBeNull();
     });
 
+    it('cancels a QR session on the documented keyed route', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(Response.json({ code: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('login_qr_cancel', { key: 'qr-key' })).resolves.toEqual({ code: 200 });
+
+        const requestUrl = new URL(fetchMock.mock.calls[0][0]);
+        expect(requestUrl.pathname).toBe('/login/qr/cancel');
+        // 取消必须是 keyed 的：后端没有、也不该有全局清空的入口。
+        expect(requestUrl.searchParams.get('key')).toBe('qr-key');
+    });
+
     it('stores the opaque cookie verbatim on 803 and replays it as a query parameter', async () => {
         const fetchMock = vi.fn()
             .mockResolvedValueOnce(Response.json({

@@ -284,6 +284,10 @@ const QQ_LOGIN_METHODS: QrLoginMethod[] = [
 
 const DEFAULT_QQ_LOGIN_METHOD_ID = QQ_LOGIN_METHODS[0].id;
 
+// 后端的会话寿命是 180 秒（qq-music-api 的 `QR_TTL_MS`），前端早 5 秒收手：
+// 二维码失效时用户看到的是可重试的「已过期」，而不是一个还在轮询的死码。
+const QQ_QR_TTL_MS = 175_000;
+
 const checkQr = async (key: string): Promise<QrLoginState> => {
     const response = await requestQq<any>('login_qr_check', { key });
     const code = Number(response?.code);
@@ -534,9 +538,21 @@ export const qqProvider: OnlineMusicProvider = {
             return String(response?.data?.qrimg || '');
         },
         checkQr,
+        getQrTtlMs: () => QQ_QR_TTL_MS,
+        async cancelQr(key) {
+            // 后端对未知 key 也回 200，所以失败只可能是网络层。调用方在关窗时 fire-and-forget，
+            // 抛出去只会让 UI 卡在一个用户无从处理的错误上，而残留会话最迟 3 分钟后自己过期。
+            await requestQq('login_qr_cancel', { key }).catch(error => {
+                console.warn('[QQProvider] qr-cancel:failed', {
+                    name: error instanceof Error ? error.name : 'Error',
+                    message: error instanceof Error ? error.message : String(error),
+                });
+            });
+        },
     },
-    // 上游只有 `/user/playlist`（GetPlaylistByUin，只返回歌单），没有收藏专辑的端点，
+    // 后端目前只有 `/user/playlist`（GetPlaylistByUin，只返回歌单），没有「收藏的专辑」这条 route，
     // 所以不实现 library.getUserAlbums；omni 会自动返回空页，专辑页仍可从搜索结果与歌曲详情进入。
+    // 这是后端的 route 缺口，不是 QQ 音乐没有这项能力 —— 补齐要先确认现行私有接口，不在本次改动范围内。
     library: { getUserPlaylists, getLikedSongIds },
     catalog: {
         // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。

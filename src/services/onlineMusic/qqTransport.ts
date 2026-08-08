@@ -4,7 +4,7 @@ import { readProviderSessionValue, removeProviderSessionValue, writeProviderSess
 // src/services/onlineMusic/qqTransport.ts
 
 export const QQ_OPERATIONS = [
-    'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_status', 'logout',
+    'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',
     'user_detail', 'user_playlist', 'user_liked_songs', 'music_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
 ] as const;
@@ -16,6 +16,7 @@ const ENDPOINTS: Record<QqOperation, string> = {
     login_qr_key: '/login/qr/key',
     login_qr_create: '/login/qr/create',
     login_qr_check: '/login/qr/check',
+    login_qr_cancel: '/login/qr/cancel',
     login_status: '/login/status',
     logout: '/logout',
     user_detail: '/user/detail',
