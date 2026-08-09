@@ -21,6 +21,10 @@ compose() {
 }
 
 cleanup() {
+  # sync-server 启动时会把 bind mount 的 /app/data 改为 node:node。
+  # 清理前恢复为宿主用户，避免 /tmp 的 sticky bit 阻止 runner 删除临时目录。
+  compose exec -T --user root sync-server \
+    chown -R "$(id -u):$(id -g)" /app/data 2>/dev/null || true
   compose down --volumes --remove-orphans
   rm -rf "$sync_data_dir"
 }
