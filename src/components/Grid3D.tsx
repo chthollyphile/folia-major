@@ -718,7 +718,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 ) : isOnlineTab && activeAccountView === 'guest' ? (
                     <OnlineProviderConnectPanel
                         providers={onlineProviderPlatform?.providers || omni.getProviderSummaries()}
-                        activeProviderId={activeProviderId}
                         isDaylight={isDaylight}
                         title={activeProviderNeedsRelogin ? t('status.loginExpired') : t('home.guestTitle')}
                         prompt={activeProviderNeedsRelogin

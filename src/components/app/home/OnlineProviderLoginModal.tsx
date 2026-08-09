@@ -88,7 +88,7 @@ const OnlineProviderLoginModal = ({
                                         type="button"
                                         aria-pressed={selected}
                                         onClick={() => loginMethods.onSelect(option.id)}
-                                        className={`relative flex flex-1 flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-semibold transition-colors cursor-pointer ${selected
+                                        className={`relative flex flex-1 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-semibold transition-colors cursor-pointer ${selected
                                             ? 'border-green-500 bg-green-500/10 text-white'
                                             : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'}`}
                                     >

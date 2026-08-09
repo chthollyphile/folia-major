@@ -3,7 +3,6 @@ import { ChevronRight, LogIn, LogOut, UserRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
-import qqMusicIcon from '../../../assets/providers/qq-music.svg';
 
 // src/components/app/home/OnlineProviderSwitcher.tsx
 
@@ -16,11 +15,11 @@ type OnlineProviderSwitcherProps = {
     onBackToPlayer: () => void;
 };
 
-// 网易云与酷狗维持文字徽章不动，只有 QQ 音乐换成图标。
+// 在线平台使用统一的纯色圆形文字徽章。
 const AVATAR_BADGE_BY_PROVIDER: Record<string, { label: string; iconUrl?: string; className: string }> = {
     netease: { label: '云', className: 'bg-red-600' },
     kugou: { label: 'K', className: 'bg-blue-600' },
-    qq: { label: 'Q', iconUrl: qqMusicIcon, className: 'bg-white' },
+    qq: { label: 'Q', className: 'bg-green-600' },
 };
 
 const ProviderAvatar = ({ provider, className }: { provider: ProviderAccountSummary; className: string }) => {
