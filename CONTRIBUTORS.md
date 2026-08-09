@@ -63,6 +63,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Rubbishful"><img src="https://avatars.githubusercontent.com/u/89494687?v=4?s=100" width="100px;" alt="Yining Sun"/><br /><sub><b>Yining Sun</b></sub></a><br /><a href="#ideas-Rubbishful" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/yakult-green-tea"><img src="https://avatars.githubusercontent.com/u/143932026?v=4?s=100" width="100px;" alt="多多绿"/><br /><sub><b>多多绿</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=yakult-green-tea" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
