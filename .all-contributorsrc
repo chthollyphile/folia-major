@@ -406,6 +406,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "yakult-green-tea",
+      "name": "多多绿",
+      "avatar_url": "https://avatars.githubusercontent.com/u/143932026?v=4",
+      "profile": "https://github.com/yakult-green-tea",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commit": false,
