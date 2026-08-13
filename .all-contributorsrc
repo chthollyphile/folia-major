@@ -442,6 +442,16 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "KurumizawaRio",
+      "name": "KurumizawaRio",
+      "avatar_url": "https://avatars.githubusercontent.com/u/71334741?v=4",
+      "profile": "https://github.com/KurumizawaRio",
+      "contributions": [
+        "bug",
+        "ideas"
+      ]
     }
   ],
   "commit": false,
