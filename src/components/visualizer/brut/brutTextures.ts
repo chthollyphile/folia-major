@@ -24,7 +24,7 @@ export const createBrutConcreteTexture = (seed: number): THREE.CanvasTexture => 
     const image = context.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
 
     for (let offset = 0; offset < image.data.length; offset += 4) {
-        const grain = 116 + Math.floor((random() - 0.5) * 34);
+        const grain = 142 + Math.floor((random() - 0.5) * 32);
         image.data[offset] = grain;
         image.data[offset + 1] = grain;
         image.data[offset + 2] = grain - 2;

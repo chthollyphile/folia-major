@@ -46,6 +46,7 @@ const VisualizerBrut: React.FC<VisualizerSharedProps> = (props) => {
                     gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
                     onCreated={({ gl }) => {
                         gl.shadowMap.type = THREE.PCFSoftShadowMap;
+                        gl.toneMappingExposure = 1.16;
                     }}
                 >
                     <BrutScene

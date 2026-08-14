@@ -49,7 +49,7 @@ const WallChunk: React.FC<{
                         <meshBasicMaterial
                             map={softShadowTexture}
                             transparent
-                            opacity={0.34}
+                            opacity={0.2}
                             depthWrite={false}
                             polygonOffset
                             polygonOffsetFactor={-1}
@@ -93,14 +93,14 @@ const LyricSign: React.FC<{
     const width = Math.min(9.4, height * raster.aspect);
     const y = -index * BRUT_LINE_SPACING;
     const x = ((index % 3) - 1) * 1.15;
-    const signColor = active ? theme.accentColor : mixColors(theme.primaryColor, theme.secondaryColor, 0.22);
+    const signColor = active ? theme.accentColor : mixColors(theme.primaryColor, theme.secondaryColor, 0.5);
     const steelColor = mixColors(theme.backgroundColor, theme.secondaryColor, 0.22);
 
     return (
         <group position={[x, y, 0.5]}>
             <mesh position={[0.14, -0.14, -0.475]} renderOrder={1}>
                 <planeGeometry args={[width + 0.9, height + 0.62]} />
-                <meshBasicMaterial map={softShadowTexture} transparent opacity={0.28} depthWrite={false} />
+                <meshBasicMaterial map={softShadowTexture} transparent opacity={0.17} depthWrite={false} />
             </mesh>
             <mesh castShadow position={[0, 0, -0.18]}>
                 <boxGeometry args={[width + 0.5, 0.09, 0.09]} />
@@ -121,8 +121,8 @@ const LyricSign: React.FC<{
                     alphaTest={0.12}
                     roughness={0.3}
                     metalness={0.42}
-                    emissive={active ? theme.accentColor : '#000000'}
-                    emissiveIntensity={active ? 0.2 : 0}
+                    emissive={active ? theme.accentColor : theme.primaryColor}
+                    emissiveIntensity={active ? 0.18 : 0.055}
                     side={THREE.DoubleSide}
                 />
             </mesh>
@@ -146,8 +146,8 @@ const BrutScene: React.FC<BrutSceneProps> = ({
     useEffect(() => () => softShadowTexture.dispose(), [softShadowTexture]);
     const fontFamily = resolveThemeFontStack(theme);
     const fontWeight = resolveThemeFontWeight(theme, 700);
-    const concreteColor = mixColors(theme.backgroundColor, theme.secondaryColor, 0.46);
-    const sceneBackground = mixColors(theme.backgroundColor, theme.primaryColor, 0.055);
+    const concreteColor = mixColors(theme.backgroundColor, theme.secondaryColor, 0.6);
+    const sceneBackground = mixColors(theme.backgroundColor, theme.primaryColor, 0.1);
     const safeIndex = Math.max(0, currentLineIndex);
     const chunkIndex = Math.floor((safeIndex * BRUT_LINE_SPACING) / BRUT_CHUNK_HEIGHT);
     const chunks = useMemo(
@@ -161,8 +161,9 @@ const BrutScene: React.FC<BrutSceneProps> = ({
         <>
             <color attach="background" args={[sceneBackground]} />
             <fog attach="fog" args={[sceneBackground, 12, 28]} />
-            <ambientLight intensity={0.38} color={theme.secondaryColor} />
-            <hemisphereLight args={[theme.primaryColor, theme.backgroundColor, 0.42]} />
+            <ambientLight intensity={0.58} color={theme.secondaryColor} />
+            <hemisphereLight args={[theme.primaryColor, theme.backgroundColor, 0.66]} />
+            <directionalLight position={[5, 2, 7]} intensity={0.38} color={theme.primaryColor} />
             <BrutCamera
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}

@@ -3,8 +3,8 @@ import { normalizeVisualizerAudioLevel } from '../audioLevels';
 // src/components/visualizer/brut/brutLighting.ts
 // Keeps the key-light audio response bounded and smooth across analyser peaks.
 
-export const BRUT_LIGHT_MIN_INTENSITY = 38;
-export const BRUT_LIGHT_MAX_INTENSITY = 48;
+export const BRUT_LIGHT_MIN_INTENSITY = 56;
+export const BRUT_LIGHT_MAX_INTENSITY = 68;
 
 export const stepBrutAudioEnvelope = (
     currentEnvelope: number,
