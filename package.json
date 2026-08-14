@@ -167,6 +167,7 @@
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.11",
     "react-window": "^2.3.0",
+    "skeleton-tracing-js": "^1.0.4",
     "three": "^0.185.1",
     "twgl.js": "^7.0.0",
     "wanakana": "^5.3.1",

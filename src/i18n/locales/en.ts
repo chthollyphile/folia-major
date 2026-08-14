@@ -347,6 +347,7 @@ export default {
     "visualizerDiorama": "Diorama",
     "visualizerPendolo": "Pendolo",
     "visualizerSonnet": "Sonnet",
+    "visualizerElegy": "Elegy",
     "cadenzeTuning": "Mindscape Tuning",
     "resetVisualizerTuning": "Reset Lyrics Animation Tuning",
     "livePreview": "Live preview",

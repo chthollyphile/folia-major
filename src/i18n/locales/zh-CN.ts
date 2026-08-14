@@ -348,6 +348,7 @@ export default {
     "visualizerDiorama": "镜台",
     "visualizerPendolo": "时计",
     "visualizerSonnet": "商籁",
+    "visualizerElegy": "挽歌",
     "cadenzeTuning": "心象参数",
     "resetVisualizerTuning": "重置歌词动画参数",
     "livePreview": "实时预览",

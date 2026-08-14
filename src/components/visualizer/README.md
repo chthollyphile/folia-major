@@ -43,6 +43,7 @@ App / ThemePark / VisPlayground / OBS source
 | `diorama` | 镜台 | `diorama/VisualizerDiorama.tsx`、`diorama/DioramaScene.tsx`、`diorama/dioramaTextRaster.ts` |
 | `pendolo` | Pendolo | `pendolo/VisualizerPendolo.tsx`、`pendolo/pendoloTextLayout.ts`、`pendolo/pendoloTimeline.ts` |
 | `sonnet` | 商籁 | `sonnet/VisualizerSonnet.tsx`、`sonnet/createSonnetPixiRuntime.ts`、`sonnet/*` |
+| `elegy` | 挽歌 | `elegy/VisualizerElegy.tsx`、`elegy/createElegyPixiRuntime.ts`、`elegy/elegyGlyph.worker.ts` |
 
 `registry.tsx` 的默认模式是 `classic`。模式枚举/共享 tuning map 见 `src/types.ts`、`definition.ts`、`tuningRegistry.ts`。
 
@@ -121,6 +122,10 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 ### Sonnet
 
 `sonnet/VisualizerSonnet.tsx` 负责 React shell/subtitle，`createSonnetPixiRuntime.ts` 创建 Pixi runtime；其余 `sonnet*` 文件按 scene builder、shot flow、glyph/typography、post-process、resource pool 分工。注意 Pixi runtime、纹理和 RAF 的销毁；当前还存在 `SonnetPerformanceWarningDialog` 这一 app dialog。
+
+### Elegy
+
+`elegy/VisualizerElegy.tsx` 只负责 React shell、行切换和 subtitle；`createElegyPixiRuntime.ts` 在 Pixi ticker 中按绝对播放时间更新遮罩，`elegyGlyph.worker.ts` 使用字体光栅的二值 mask 离线生成并缓存任意字形骨架。该实验模式通过 entry 自动注册，当前没有 tuning 或设置面板。
 
 ## Host surfaces
 

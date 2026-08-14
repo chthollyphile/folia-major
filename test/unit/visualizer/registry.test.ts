@@ -23,6 +23,7 @@ describe('visualizer registry', () => {
             'cappella',
             'diorama',
             'sonnet',
+            'elegy',
         ]);
     });
 
@@ -35,6 +36,7 @@ describe('visualizer registry', () => {
     it('recognizes registered modes and rejects unknown modes', () => {
         expect(hasVisualizerMode('classic')).toBe(true);
         expect(hasVisualizerMode('fume')).toBe(true);
+        expect(hasVisualizerMode('elegy')).toBe(true);
         expect(hasVisualizerMode('missing-mode')).toBe(false);
         expect(DEFAULT_VISUALIZER_MODE).toBe('classic');
     });
