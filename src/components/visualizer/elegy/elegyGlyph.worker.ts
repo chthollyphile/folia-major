@@ -29,6 +29,7 @@ workerScope.onmessage = (event: MessageEvent<ElegyTraceRequest>) => {
                 request.width,
                 request.height,
                 result.polylines,
+                request.mask,
             ),
         };
         workerScope.postMessage(response);

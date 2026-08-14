@@ -43,4 +43,53 @@ describe('Elegy glyph geometry', () => {
         expect(stroke.length).toBe(1);
         expect(glyph.totalLength).toBe(1);
     });
+
+    it('merges the straight continuation through a T junction but keeps the branch separate', () => {
+        const glyph = prepareWritingGlyph('T', 100, 100, [
+            [[10, 50], [50, 50]],
+            [[50, 50], [90, 50]],
+            [[50, 50], [50, 90]],
+        ]);
+
+        expect(glyph.strokes).toHaveLength(2);
+        expect(glyph.strokes.map(stroke => stroke.length).sort((a, b) => b - a))
+            .toEqual([0.8, 0.4]);
+    });
+
+    it('only bridges a small collinear gap when the original glyph mask covers it', () => {
+        const paths: Array<Array<[number, number]>> = [
+            [[10, 50], [40, 50]],
+            [[42, 50], [90, 50]],
+        ];
+        const disconnectedMask = new Uint8Array(100 * 100);
+        for (let x = 10; x <= 40; x += 1) disconnectedMask[50 * 100 + x] = 1;
+        for (let x = 42; x <= 90; x += 1) disconnectedMask[50 * 100 + x] = 1;
+        const connectedMask = disconnectedMask.slice();
+        connectedMask[50 * 100 + 41] = 1;
+
+        expect(prepareWritingGlyph('=', 100, 100, paths, disconnectedMask).strokes).toHaveLength(2);
+        expect(prepareWritingGlyph('=', 100, 100, paths, connectedMask).strokes).toHaveLength(1);
+    });
+
+    it('does not merge nearby paths whose endpoint tangents form a corner', () => {
+        const glyph = prepareWritingGlyph('L', 100, 100, [
+            [[10, 10], [50, 10]],
+            [[50, 10], [50, 50]],
+        ]);
+
+        expect(glyph.strokes).toHaveLength(2);
+    });
+
+    it('reconstructs a continuous chain when source fragments use mixed directions', () => {
+        const glyph = prepareWritingGlyph('一', 100, 100, [
+            [[10, 50], [30, 50]],
+            [[50, 50], [30, 50]],
+            [[50, 50], [90, 50]],
+        ]);
+
+        expect(glyph.strokes).toHaveLength(1);
+        expect(glyph.strokes[0].length).toBeCloseTo(0.8);
+        expect(glyph.strokes[0].points[0]).toEqual({ x: 0.1, y: 0.5 });
+        expect(glyph.strokes[0].points.at(-1)).toEqual({ x: 0.9, y: 0.5 });
+    });
 });

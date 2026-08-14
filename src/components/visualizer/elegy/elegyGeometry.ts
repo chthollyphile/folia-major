@@ -1,4 +1,5 @@
 import type { WritingGlyph, WritingPoint, WritingStroke } from './types';
+import { mergeContinuousPaths } from './elegyPathMerging';
 
 // src/components/visualizer/elegy/elegyGeometry.ts
 // Converts raw skeleton fragments into compact, ordered, arc-length-prepared paths.
@@ -97,18 +98,20 @@ export const prepareWritingGlyph = (
     rasterWidth: number,
     rasterHeight: number,
     polylines: RawPoint[][],
+    mask?: ArrayLike<number>,
 ): WritingGlyph => {
     const glyphSize = Math.max(rasterWidth, rasterHeight, 1);
     const minLength = 0.01;
     const epsilon = 0.002;
-    const strokes = polylines
+    const cleanedPaths = polylines
         .map(polyline => simplifyPolyline(polyline.map(([x, y]) => ({
             x: x / glyphSize,
             y: y / glyphSize,
         })), epsilon))
         .filter(points => points.length >= 2)
-        .map(prepareStroke)
-        .filter(stroke => stroke.length >= minLength);
+        .filter(points => prepareStroke(points).length >= minLength);
+    const strokes = mergeContinuousPaths(cleanedPaths, rasterWidth, rasterHeight, mask)
+        .map(prepareStroke);
     const ordered = orderStrokes(strokes);
 
     return {
