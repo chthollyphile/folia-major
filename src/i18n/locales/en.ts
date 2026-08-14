@@ -346,6 +346,7 @@ export default {
     "visualizerTilt": "Tilt",
     "visualizerCladdagh": "Claddagh",
     "visualizerDiorama": "Diorama",
+    "visualizerBrut": "Brut",
     "visualizerPendolo": "Pendolo",
     "visualizerSonnet": "Sonnet",
     "cadenzeTuning": "Mindscape Tuning",

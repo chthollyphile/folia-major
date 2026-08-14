@@ -347,6 +347,7 @@ export default {
     "visualizerTilt": "倾诉",
     "visualizerCladdagh": "回环",
     "visualizerDiorama": "镜台",
+    "visualizerBrut": "砼垣",
     "visualizerPendolo": "时计",
     "visualizerSonnet": "商籁",
     "cadenzeTuning": "心象参数",

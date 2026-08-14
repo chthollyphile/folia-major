@@ -512,6 +512,15 @@ describe('command palette registry', () => {
         expect(context.setVisualizerMode).toHaveBeenCalledWith('diorama');
     });
 
+    it('matches and executes the Brut visualizer command', () => {
+        const context = createContext();
+        const [match] = getCommandPaletteMatches('混凝土墙');
+
+        expect(match.command.id).toBe('visualizer-brut');
+        match.command.execute('', context);
+        expect(context.setVisualizerMode).toHaveBeenCalledWith('brut');
+    });
+
     it('matches and executes desktop window toggle commands', async () => {
         vi.stubGlobal('window', { electron: {} });
 

@@ -1136,10 +1136,10 @@ export type ReplayGainMode = 'off' | 'track' | 'album';
 import { MotionValue } from 'framer-motion';
 
 export interface AudioBands {
-    bass: MotionValue<number>;    // 20-150Hz (Circles)
-    lowMid: MotionValue<number>;  // 150-400Hz (Squares)
-    mid: MotionValue<number>;     // 400-1200Hz (Triangles)
-    vocal: MotionValue<number>;   // 1000-3500Hz (Icons)
-    treble: MotionValue<number>;  // 3500Hz+ (Crosses)
+    bass: MotionValue<number>;    // 20-150Hz, analyser magnitude 0..255
+    lowMid: MotionValue<number>;  // 150-400Hz, analyser magnitude 0..255
+    mid: MotionValue<number>;     // 400-1200Hz, analyser magnitude 0..255
+    vocal: MotionValue<number>;   // 1000-3500Hz, analyser magnitude 0..255
+    treble: MotionValue<number>;  // 3500Hz+, analyser magnitude 0..255
     spectrum?: MotionValue<Uint8Array<ArrayBuffer>>; // Raw analyser FFT magnitude bins for full-spectrum visualizers
   }

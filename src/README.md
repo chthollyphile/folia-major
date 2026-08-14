@@ -92,7 +92,7 @@ App.tsx
 - grapheme timing：`utils/lyrics/graphemeTiming.ts`。
 - 共享字体、颜色、播放身份：`utils/fontStacks.ts`、`components/visualizer/colorMix.ts`、`utils/appPlaybackGuards.ts`。
 - Visualizer 共享入口、契约和运行时：`components/visualizer/VisualizerRenderer.tsx`、`definition.ts`、`registry.tsx`、`tuningRegistry.ts`、`runtime.ts`、`VisualizerShell.tsx`。
-- 模式清单与具体入口：`components/visualizer/<mode>/entry.tsx`；当前有 `classic`、`cadenza`、`partita`、`fume`、`cappella`、`tilt`、`claddagh`、`monet`、`diorama`、`pendolo`、`sonnet`。
+- 模式清单与具体入口：`components/visualizer/<mode>/entry.tsx`；当前有 `classic`、`cadenza`、`partita`、`fume`、`cappella`、`tilt`、`claddagh`、`monet`、`diorama`、`brut`、`pendolo`、`sonnet`。
 - 背景 registry：`components/visualizer/backgrounds/registry.tsx`；当前 entry 有 `common`、`latent`、`monet`、`nomand`、`sora`、`url`。
 - 模式设置：优先看各模式目录的 `tuning.ts` / `*SettingsPanel.tsx`，再看 `VisPlaygroundSettingsPanel.tsx`。
 

@@ -573,6 +573,7 @@ export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = [
     createVisualizerCommand('claddagh', 'Visualizer: Claddagh', 'Switch to Claddagh visualizer', ['visualizer claddagh', 'claddagh', '回环', 'huihuan', 'hh']),
     createVisualizerCommand('monet', 'Visualizer: Monet', 'Switch to Monet visualizer', ['visualizer monet', 'monet', '莫奈', 'monai', 'mn', '切换到可视化：莫奈', '切换到可视化莫奈']),
     createVisualizerCommand('diorama', 'Visualizer: Diorama', 'Switch to Diorama visualizer', ['visualizer diorama', 'diorama', '镜台', 'jingtai', 'jt', '切换到可视化：镜台', '切换到可视化镜台']),
+    createVisualizerCommand('brut', 'Visualizer: Brut', 'Switch to the brutalist lyric wall', ['visualizer brut', 'brut', 'brutalism', '粗野主义', '混凝土墙', 'cuyezhuyi', 'hntq']),
     createVisualizerCommand('pendolo', 'Visualizer: Pendolo', 'Switch to Pendolo visualizer', ['visualizer pendolo', 'pendolo', '擒纵', '摆轮', 'qinzong', 'bailun', 'pd', '切换到可视化：擒纵', '切换到可视化擒纵']),
     createVisualizerCommand('sonnet', 'Visualizer: Sonnet', 'Switch to Sonnet visualizer', ['visualizer sonnet', 'sonnet', '商籁', 'shanglai', 'sl', '文字 pv', 'mg pv', 'vocaloid']),
     {

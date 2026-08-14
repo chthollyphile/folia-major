@@ -36,6 +36,7 @@ import {
     VIS_PLAYGROUND_PREVIEW_LOOP_DURATION,
 } from '../visualizer/PreviewPlaceholder';
 import { getVisualizerModeLabel, getVisualizerScopedSeed } from '../visualizer/registry';
+import { toVisualizerAudioLevel } from '../visualizer/audioLevels';
 import { normalizeThemeHexColor, sanitizeDualTheme } from '../../services/themeSanitizer';
 import type { VisualizerTuningBundle } from '../visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../visualizer/backgrounds/definition';
@@ -343,12 +344,12 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     const isMouseDownOnOverlayRef = useRef(false);
     const [isPaused, setIsPaused] = useState(false);
     const currentTime = useMotionValue(getPreviewPlaceholderStartOffset(visualizerMode, VIS_PLAYGROUND_PREVIEW_LOOP_DURATION));
-    const audioPower = useMotionValue(0.24);
-    const bass = useMotionValue(0.18);
-    const lowMid = useMotionValue(0.15);
-    const mid = useMotionValue(0.12);
-    const vocal = useMotionValue(0.2);
-    const treble = useMotionValue(0.1);
+    const audioPower = useMotionValue(toVisualizerAudioLevel(0.24));
+    const bass = useMotionValue(toVisualizerAudioLevel(0.18));
+    const lowMid = useMotionValue(toVisualizerAudioLevel(0.15));
+    const mid = useMotionValue(toVisualizerAudioLevel(0.12));
+    const vocal = useMotionValue(toVisualizerAudioLevel(0.2));
+    const treble = useMotionValue(toVisualizerAudioLevel(0.1));
     const normalizedInitialTheme = useMemo(() => normalizeThemeParkDualTheme(initialTheme), [initialTheme]);
     const [draftTheme, setDraftTheme] = useState<DualTheme>(() => normalizedInitialTheme);
     const [currentLineIndex, setCurrentLineIndex] = useState(() => findPreviewPlaceholderLineIndex(VIS_PLAYGROUND_PREVIEW_LINES, getPreviewPlaceholderStartOffset(visualizerMode, VIS_PLAYGROUND_PREVIEW_LOOP_DURATION)));
@@ -393,12 +394,12 @@ const ThemePark: React.FC<ThemeParkProps> = ({
             const wave = (offset: number, speed: number, floor: number, amplitude: number) =>
                 floor + (Math.sin(waveTime * speed + offset) * 0.5 + 0.5) * amplitude;
 
-            audioPower.set(wave(0.2, 0.0024, 0.16, 0.18));
-            bass.set(wave(0.9, 0.0032, 0.14, 0.2));
-            lowMid.set(wave(1.7, 0.0028, 0.12, 0.16));
-            mid.set(wave(2.6, 0.0023, 0.1, 0.14));
-            vocal.set(wave(3.4, 0.0038, 0.16, 0.22));
-            treble.set(wave(4.2, 0.0046, 0.08, 0.14));
+            audioPower.set(toVisualizerAudioLevel(wave(0.2, 0.0024, 0.16, 0.18)));
+            bass.set(toVisualizerAudioLevel(wave(0.9, 0.0032, 0.14, 0.2)));
+            lowMid.set(toVisualizerAudioLevel(wave(1.7, 0.0028, 0.12, 0.16)));
+            mid.set(toVisualizerAudioLevel(wave(2.6, 0.0023, 0.1, 0.14)));
+            vocal.set(toVisualizerAudioLevel(wave(3.4, 0.0038, 0.16, 0.22)));
+            treble.set(toVisualizerAudioLevel(wave(4.2, 0.0046, 0.08, 0.14)));
 
             frameId = window.requestAnimationFrame(tick);
         };

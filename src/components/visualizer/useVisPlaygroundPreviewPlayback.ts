@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { type MotionValue } from 'framer-motion';
 import { type VisualizerMode } from '../../types';
 import { getPreviewPlaceholderStartOffset } from './PreviewPlaceholder';
+import { toVisualizerAudioLevel } from './audioLevels';
 
 // Drives preview-only motion values without putting frame-by-frame data into React state.
 interface VisPlaygroundPreviewPlaybackOptions {
@@ -59,12 +60,12 @@ export const useVisPlaygroundPreviewPlayback = ({
             const wave = (offset: number, speed: number, floor: number, amplitude: number) =>
                 floor + (Math.sin(now * speed + offset) * 0.5 + 0.5) * amplitude;
 
-            audioPower.set(wave(0.2, 0.0024, 0.16, 0.18));
-            bass.set(wave(0.9, 0.0032, 0.14, 0.2));
-            lowMid.set(wave(1.7, 0.0028, 0.12, 0.16));
-            mid.set(wave(2.6, 0.0023, 0.1, 0.14));
-            vocal.set(wave(3.4, 0.0038, 0.16, 0.22));
-            treble.set(wave(4.2, 0.0046, 0.08, 0.14));
+            audioPower.set(toVisualizerAudioLevel(wave(0.2, 0.0024, 0.16, 0.18)));
+            bass.set(toVisualizerAudioLevel(wave(0.9, 0.0032, 0.14, 0.2)));
+            lowMid.set(toVisualizerAudioLevel(wave(1.7, 0.0028, 0.12, 0.16)));
+            mid.set(toVisualizerAudioLevel(wave(2.6, 0.0023, 0.1, 0.14)));
+            vocal.set(toVisualizerAudioLevel(wave(3.4, 0.0038, 0.16, 0.22)));
+            treble.set(toVisualizerAudioLevel(wave(4.2, 0.0046, 0.08, 0.14)));
 
             const nextSpectrum = new Uint8Array(64);
             for (let index = 0; index < nextSpectrum.length; index += 1) {

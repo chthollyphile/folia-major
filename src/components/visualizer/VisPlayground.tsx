@@ -50,6 +50,7 @@ import {
     type PreviewPlaceholderId,
 } from './PreviewPlaceholder';
 import { getVisualizerModeLabel, getVisualizerRegistryEntry, getVisualizerScopedSeed } from './registry';
+import { toVisualizerAudioLevel } from './audioLevels';
 import VisPlaygroundPreviewHotspots, { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
 import VisPlaygroundSettingsPanel from './VisPlaygroundSettingsPanel';
 import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
@@ -380,12 +381,12 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     const monetBackgroundTuning = backgroundConfig?.monet?.tuning ?? DEFAULT_MONET_BACKGROUND_TUNING;
     const latentBackgroundTuning = backgroundConfig?.latent?.tuning ?? DEFAULT_LATENT_BACKGROUND_TUNING;
     const currentTime = useMotionValue(0);
-    const audioPower = useMotionValue(0.24);
-    const bass = useMotionValue(0.18);
-    const lowMid = useMotionValue(0.15);
-    const mid = useMotionValue(0.12);
-    const vocal = useMotionValue(0.2);
-    const treble = useMotionValue(0.1);
+    const audioPower = useMotionValue(toVisualizerAudioLevel(0.24));
+    const bass = useMotionValue(toVisualizerAudioLevel(0.18));
+    const lowMid = useMotionValue(toVisualizerAudioLevel(0.15));
+    const mid = useMotionValue(toVisualizerAudioLevel(0.12));
+    const vocal = useMotionValue(toVisualizerAudioLevel(0.2));
+    const treble = useMotionValue(toVisualizerAudioLevel(0.1));
     const spectrum = useMotionValue(new Uint8Array(64));
     const [previewPlaceholderId, setPreviewPlaceholderId] = useState<PreviewPlaceholderId>('default');
     const previewPlaceholder = VIS_PLAYGROUND_PREVIEW_PLACEHOLDERS[previewPlaceholderId];
