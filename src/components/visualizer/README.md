@@ -41,7 +41,7 @@ App / ThemePark / VisPlayground / OBS source
 | `claddagh` | Claddagh | `claddagh/VisualizerCladdagh.tsx`、`claddagh/tuning.ts` |
 | `monet` | Monet | `monet/VisualizerMonet.tsx`、`monet/monetLyricsModel.ts`、`monet/tuning.ts` |
 | `diorama` | 镜台 | `diorama/VisualizerDiorama.tsx`、`diorama/DioramaScene.tsx`、`diorama/dioramaTextRaster.ts` |
-| `brut` | 砼垣 | `brut/VisualizerBrut.tsx`、`brut/BrutScene.tsx`、`brut/brutTextures.ts` |
+| `brut` | 砼垣 | `brut/VisualizerBrut.tsx`、`brut/BrutScene.tsx`、`brut/BrutShaft.tsx`、`brut/BrutLyricInstall.tsx`、`brut/brutUnitLayout.ts`、`brut/brutConcreteTextures.ts` |
 | `pendolo` | Pendolo | `pendolo/VisualizerPendolo.tsx`、`pendolo/pendoloTextLayout.ts`、`pendolo/pendoloTimeline.ts` |
 | `sonnet` | 商籁 | `sonnet/VisualizerSonnet.tsx`、`sonnet/createSonnetPixiRuntime.ts`、`sonnet/*` |
 
@@ -76,6 +76,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 - `src/utils/lyrics/renderHints.ts`：`getLineRenderHints`、`getLineRenderEndTime`、短句/快速 reveal
 - `src/utils/lyrics/cjkSemanticLayout.ts`：CJK semantic grouping、sticky punctuation、display units
 - `src/utils/lyrics/graphemeTiming.ts`：逐 grapheme timing
+- `src/utils/lyrics/graphemeUnits.ts`：grapheme → 显示单元分组（CJK 逐字、拉丁整词），供逐字模式复用
 - `wordColoring.ts`：共享词高亮范围
 - `src/utils/fontStacks.ts`：DOM、Canvas、pretext 和光栅化路径统一字重/字体栈
 - `colorMix.ts`：主题色 alpha 与混合

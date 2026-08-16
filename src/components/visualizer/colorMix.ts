@@ -88,6 +88,25 @@ export const parseColorChannels = (color: string) => {
     return null;
 };
 
+/**
+ * Pulls a color toward its own Rec.709 luma. Visualizers that simulate a real material (concrete,
+ * paper, metal) need this so saturated AI themes tint the material instead of replacing it.
+ */
+export const desaturateColor = (color: string, amount: number, alpha = 1) => {
+    const channels = parseColorChannels(color);
+    if (!channels) {
+        return colorWithAlpha(color, alpha);
+    }
+
+    const normalizedAmount = clamp(amount, 0, 1);
+    const luma = channels.r * 0.2126 + channels.g * 0.7152 + channels.b * 0.0722;
+    return formatRgba({
+        r: mix(channels.r, luma, normalizedAmount),
+        g: mix(channels.g, luma, normalizedAmount),
+        b: mix(channels.b, luma, normalizedAmount),
+    }, clamp(alpha, 0, 1));
+};
+
 export const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
     const normalizedAmount = clamp(amount, 0, 1);
     const fromChannels = parseColorChannels(from);

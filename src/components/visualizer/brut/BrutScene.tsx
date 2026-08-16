@@ -1,20 +1,29 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
 import { type MotionValue } from 'framer-motion';
-import * as THREE from 'three';
-import { type Line, type Theme } from '../../../types';
-import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
-import { mixColors } from '../colorMix';
+import { type AudioBands, type Line, type Theme } from '../../../types';
 import {
-    BRUT_CHUNK_HEIGHT,
-    BRUT_LINE_SPACING,
-    BRUT_WALL_WIDTH,
-    buildBrutReliefBlocks,
-} from './brutGeometry';
-import { createBrutConcreteTexture, createBrutLyricTexture, createBrutSoftShadowTexture } from './brutTextures';
+    BRUT_FOG_FAR,
+    BRUT_FOG_NEAR,
+    BRUT_SHELL_TILE_U,
+    BRUT_SHELL_TILE_V,
+} from './brutConstants';
+import { cloneBrutConcreteTextures, createBrutConcreteTextures } from './brutConcreteTextures';
+import { createBrutEnvironment } from './brutEnvironment';
+import { hashStringSeed } from './brutHash';
+import { buildBrutLinePlacements } from './brutLyricPlacement';
+import { buildBrutPalette } from './brutPalette';
 import BrutCamera from './BrutCamera';
+import BrutDust from './BrutDust';
+import BrutLightChannels from './BrutLightChannels';
+import BrutLyricInstall from './BrutLyricInstall';
+import BrutShaft from './BrutShaft';
+import BrutShaftDecals from './BrutShaftDecals';
+import BrutSkyShaft from './BrutSkyShaft';
 
 // src/components/visualizer/brut/BrutScene.tsx
-// Renders the recycled concrete modules and raised, shadow-casting lyric signs.
+// Assembly only: fog, environment, lights and the six subsystems of the shaft. Geometry, materials
+// and per-frame work all live in the child modules.
 
 interface BrutSceneProps {
     currentTime: MotionValue<number>;
@@ -22,113 +31,14 @@ interface BrutSceneProps {
     lines: Line[];
     theme: Theme;
     audioPower: MotionValue<number>;
+    audioBands: AudioBands;
     showText: boolean;
     staticMode: boolean;
     lyricsFontScale: number;
+    seed?: string | number;
 }
 
-const WallChunk: React.FC<{
-    index: number;
-    texture: THREE.Texture;
-    softShadowTexture: THREE.Texture;
-    concreteColor: string;
-}> = ({ index, texture, softShadowTexture, concreteColor }) => {
-    const blocks = useMemo(() => buildBrutReliefBlocks(index), [index]);
-    const y = -index * BRUT_CHUNK_HEIGHT;
-
-    return (
-        <group position={[0, y, 0]}>
-            <mesh receiveShadow position={[0, 0, -0.62]}>
-                <boxGeometry args={[BRUT_WALL_WIDTH, BRUT_CHUNK_HEIGHT - 0.06, 1.25]} />
-                <meshStandardMaterial map={texture} color={concreteColor} roughness={0.96} metalness={0.02} />
-            </mesh>
-            {blocks.map((block, blockIndex) => (
-                <group key={blockIndex}>
-                    <mesh position={[block.x + 0.13, block.y - 0.16, 0.012]} renderOrder={1}>
-                        <planeGeometry args={[block.width + 0.52, block.height + 0.52]} />
-                        <meshBasicMaterial
-                            map={softShadowTexture}
-                            transparent
-                            opacity={0.2}
-                            depthWrite={false}
-                            polygonOffset
-                            polygonOffsetFactor={-1}
-                        />
-                    </mesh>
-                    <mesh
-                        castShadow
-                        receiveShadow
-                        position={[block.x, block.y, block.depth / 2 + 0.015]}
-                    >
-                        <boxGeometry args={[block.width, block.height, block.depth]} />
-                        <meshStandardMaterial map={texture} color={concreteColor} roughness={0.92} metalness={0.025} />
-                    </mesh>
-                </group>
-            ))}
-            <mesh position={[0, -BRUT_CHUNK_HEIGHT / 2 + 0.03, 0.02]} receiveShadow>
-                <boxGeometry args={[BRUT_WALL_WIDTH, 0.065, 0.08]} />
-                <meshStandardMaterial color={mixColors(concreteColor, '#000000', 0.42)} roughness={1} />
-            </mesh>
-        </group>
-    );
-};
-
-const LyricSign: React.FC<{
-    line: Line;
-    index: number;
-    active: boolean;
-    fontFamily: string;
-    fontWeight: number;
-    theme: Theme;
-    scale: number;
-    softShadowTexture: THREE.Texture;
-}> = ({ line, index, active, fontFamily, fontWeight, theme, scale, softShadowTexture }) => {
-    const raster = useMemo(
-        () => createBrutLyricTexture(line.fullText, fontFamily, fontWeight),
-        [fontFamily, fontWeight, line.fullText],
-    );
-    useEffect(() => () => raster.texture.dispose(), [raster]);
-
-    const height = Math.min(1.02, 0.78 * scale);
-    const width = Math.min(9.4, height * raster.aspect);
-    const y = -index * BRUT_LINE_SPACING;
-    const x = ((index % 3) - 1) * 1.15;
-    const signColor = active ? theme.accentColor : mixColors(theme.primaryColor, theme.secondaryColor, 0.5);
-    const steelColor = mixColors(theme.backgroundColor, theme.secondaryColor, 0.22);
-
-    return (
-        <group position={[x, y, 0.5]}>
-            <mesh position={[0.14, -0.14, -0.475]} renderOrder={1}>
-                <planeGeometry args={[width + 0.9, height + 0.62]} />
-                <meshBasicMaterial map={softShadowTexture} transparent opacity={0.17} depthWrite={false} />
-            </mesh>
-            <mesh castShadow position={[0, 0, -0.18]}>
-                <boxGeometry args={[width + 0.5, 0.09, 0.09]} />
-                <meshStandardMaterial color={steelColor} roughness={0.5} metalness={0.72} />
-            </mesh>
-            {[-1, 1].map(side => (
-                <mesh key={side} castShadow position={[side * Math.max(0.45, width * 0.35), 0, -0.08]}>
-                    <boxGeometry args={[0.055, height * 1.25, 0.32]} />
-                    <meshStandardMaterial color={steelColor} roughness={0.45} metalness={0.78} />
-                </mesh>
-            ))}
-            <mesh castShadow position={[0, 0, 0.13]}>
-                <planeGeometry args={[width, height]} />
-                <meshStandardMaterial
-                    map={raster.texture}
-                    color={signColor}
-                    transparent
-                    alphaTest={0.12}
-                    roughness={0.3}
-                    metalness={0.42}
-                    emissive={active ? theme.accentColor : theme.primaryColor}
-                    emissiveIntensity={active ? 0.18 : 0.055}
-                    side={THREE.DoubleSide}
-                />
-            </mesh>
-        </group>
-    );
-};
+const TEXTURE_SEED = 48021;
 
 const BrutScene: React.FC<BrutSceneProps> = ({
     currentTime,
@@ -136,66 +46,102 @@ const BrutScene: React.FC<BrutSceneProps> = ({
     lines,
     theme,
     audioPower,
+    audioBands,
     showText,
     staticMode,
     lyricsFontScale,
+    seed,
 }) => {
-    const concreteTexture = useMemo(() => createBrutConcreteTexture(48021), []);
-    const softShadowTexture = useMemo(() => createBrutSoftShadowTexture(), []);
-    useEffect(() => () => concreteTexture.dispose(), [concreteTexture]);
-    useEffect(() => () => softShadowTexture.dispose(), [softShadowTexture]);
-    const fontFamily = resolveThemeFontStack(theme);
-    const fontWeight = resolveThemeFontWeight(theme, 700);
-    const concreteColor = mixColors(theme.backgroundColor, theme.secondaryColor, 0.6);
-    const sceneBackground = mixColors(theme.backgroundColor, theme.primaryColor, 0.1);
-    const safeIndex = Math.max(0, currentLineIndex);
-    const chunkIndex = Math.floor((safeIndex * BRUT_LINE_SPACING) / BRUT_CHUNK_HEIGHT);
-    const chunks = useMemo(
-        () => Array.from({ length: 7 }, (_, index) => chunkIndex - 3 + index),
-        [chunkIndex],
+    const { gl, scene } = useThree();
+    const palette = useMemo(() => buildBrutPalette(theme), [theme]);
+    const patternSeed = useMemo(() => hashStringSeed(String(seed ?? 'brut')), [seed]);
+    const table = useMemo(() => buildBrutLinePlacements(lines, patternSeed), [lines, patternSeed]);
+
+    const concrete = useMemo(() => createBrutConcreteTextures(TEXTURE_SEED), []);
+    // The shell bakes its UVs in world units, so it tiles at repeat 1; the relief boxes need their
+    // own sampler. A deliberately non-round repeat keeps the tile period off the module period.
+    const shellTextures = useMemo(
+        () => cloneBrutConcreteTextures(concrete, 1, 1),
+        [concrete],
     );
-    const lyricStart = Math.max(0, safeIndex - 5);
-    const lyricEnd = Math.min(lines.length, safeIndex + 7);
+    const reliefTextures = useMemo(
+        () => cloneBrutConcreteTextures(concrete, BRUT_SHELL_TILE_U / 3.7, BRUT_SHELL_TILE_V / 2.9),
+        [concrete],
+    );
+    useEffect(() => () => {
+        shellTextures.dispose();
+        reliefTextures.dispose();
+        concrete.dispose();
+    }, [concrete, reliefTextures, shellTextures]);
+
+    useEffect(() => {
+        const environment = createBrutEnvironment(gl, palette.sky, palette.concreteDeep);
+        scene.environment = environment?.texture ?? null;
+        scene.environmentIntensity = 0.4;
+        return () => {
+            scene.environment = null;
+            environment?.dispose();
+        };
+    }, [gl, palette.concreteDeep, palette.sky, scene]);
+
+    // Written by the lyric layer each frame, read by the camera so it can frame the active line.
+    const activeFrameRef = useRef({ width: 3, height: 1.2 });
+
+    const songStart = lines[0]?.startTime ?? 0;
+    const songEnd = lines[lines.length - 1]?.endTime ?? songStart + 1;
 
     return (
         <>
-            <color attach="background" args={[sceneBackground]} />
-            <fog attach="fog" args={[sceneBackground, 12, 28]} />
-            <ambientLight intensity={0.58} color={theme.secondaryColor} />
-            <hemisphereLight args={[theme.primaryColor, theme.backgroundColor, 0.66]} />
-            <directionalLight position={[5, 2, 7]} intensity={0.38} color={theme.primaryColor} />
+            <color attach="background" args={[palette.concreteDeep]} />
+            <fog attach="fog" args={[palette.fog, BRUT_FOG_NEAR, BRUT_FOG_FAR]} />
+            <hemisphereLight args={[palette.sky, palette.concreteDeep, 0.52]} />
             <BrutCamera
                 currentTime={currentTime}
                 currentLineIndex={currentLineIndex}
                 lines={lines}
+                table={table}
                 audioPower={audioPower}
                 staticMode={staticMode}
+                palette={palette}
+                activeFrameRef={activeFrameRef}
             />
-            {chunks.map(index => (
-                <WallChunk
-                    key={index}
-                    index={index}
-                    texture={concreteTexture}
-                    softShadowTexture={softShadowTexture}
-                    concreteColor={concreteColor}
+            <BrutShaft
+                table={table}
+                patternSeed={patternSeed}
+                palette={palette}
+                shellTextures={shellTextures}
+                reliefTextures={reliefTextures}
+            />
+            <BrutShaftDecals patternSeed={patternSeed} palette={palette} />
+            <BrutLightChannels
+                patternSeed={patternSeed}
+                palette={palette}
+                audioBands={audioBands}
+                staticMode={staticMode}
+            />
+            <BrutSkyShaft
+                currentTime={currentTime}
+                songStart={songStart}
+                songEnd={songEnd}
+                palette={palette}
+                audioBands={audioBands}
+                staticMode={staticMode}
+            />
+            <BrutDust palette={palette} audioBands={audioBands} staticMode={staticMode} />
+            {showText && (
+                <BrutLyricInstall
+                    lines={lines}
+                    currentLineIndex={currentLineIndex}
+                    table={table}
+                    theme={theme}
+                    palette={palette}
+                    currentTime={currentTime}
+                    audioBands={audioBands}
+                    staticMode={staticMode}
+                    lyricsFontScale={lyricsFontScale}
+                    activeFrameRef={activeFrameRef}
                 />
-            ))}
-            {showText && lines.slice(lyricStart, lyricEnd).map((line, offset) => {
-                const index = lyricStart + offset;
-                return line.fullText.trim() ? (
-                    <LyricSign
-                        key={`${index}-${line.startTime}-${line.fullText}`}
-                        line={line}
-                        index={index}
-                        active={index === currentLineIndex}
-                        fontFamily={fontFamily}
-                        fontWeight={fontWeight}
-                        theme={theme}
-                        scale={lyricsFontScale}
-                        softShadowTexture={softShadowTexture}
-                    />
-                ) : null;
-            })}
+            )}
         </>
     );
 };

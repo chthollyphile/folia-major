@@ -64,6 +64,15 @@ const STICKY_TRAILING_PUNCTUATION_REGEX = /^[,.;:!?，。！？、：；）】�
 
 const hasCjkText = (text: string) => CJK_REGEX.test(text);
 
+// Exposed so renderers that group by grapheme (rather than by parser word) can apply the same
+// sticky rules instead of hand-rolling a second punctuation list.
+export const isStickyTrailingPunctuation = (text: string): boolean => (
+    STICKY_TRAILING_PUNCTUATION_REGEX.test(text)
+);
+
+/** True for the tail of a split contraction, e.g. the `s` of `It | ’ | s`. */
+export const isContractionSuffix = (text: string): boolean => CONTRACTION_SUFFIX_REGEX.test(text);
+
 export const createSingleWordLayoutUnits = (words: Word[]): LyricLayoutUnit[] => words.map(word => ({
     text: word.text,
     words: [word],
@@ -108,7 +117,7 @@ const appendUnitToStickyUnit = (target: LyricLayoutUnit, unit: LyricLayoutUnit) 
 
 const canAttachToPrevious = (text: string) => TRAILING_WORD_CHAR_REGEX.test(text.trimEnd());
 
-const endsWithApostrophe = (text: string) => TRAILING_APOSTROPHE_REGEX.test(text.trimEnd());
+export const endsWithApostrophe = (text: string) => TRAILING_APOSTROPHE_REGEX.test(text.trimEnd());
 
 const isApostropheOnlyUnit = (unit: LyricLayoutUnit) => APOSTROPHE_ONLY_REGEX.test(unit.text.trim());
 

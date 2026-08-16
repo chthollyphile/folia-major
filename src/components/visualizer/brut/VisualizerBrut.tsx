@@ -5,6 +5,7 @@ import { useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
+import { BRUT_CAMERA_FAR, BRUT_CAMERA_NEAR, BRUT_ORBIT_RADIUS } from './brutConstants';
 import BrutScene from './BrutScene';
 
 // src/components/visualizer/brut/VisualizerBrut.tsx
@@ -29,6 +30,7 @@ const VisualizerBrut: React.FC<VisualizerSharedProps> = (props) => {
         showSubtitleTranslation,
         subtitleContentMode,
         staticMode = false,
+        seed,
     } = props;
     const { activeLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
         currentTime,
@@ -42,11 +44,17 @@ const VisualizerBrut: React.FC<VisualizerSharedProps> = (props) => {
                 <Canvas
                     shadows
                     dpr={[1, 1.75]}
-                    camera={{ position: [0, 0.25, 13.5], fov: 48, near: 0.1, far: 50 }}
+                    camera={{
+                        position: [0, 0.25, BRUT_ORBIT_RADIUS],
+                        fov: 62,
+                        near: BRUT_CAMERA_NEAR,
+                        far: BRUT_CAMERA_FAR,
+                    }}
                     gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
                     onCreated={({ gl }) => {
-                        gl.shadowMap.type = THREE.PCFSoftShadowMap;
-                        gl.toneMappingExposure = 1.16;
+                        // PCFSoftShadowMap is deprecated in three r185 and silently downgrades, so
+                        // the renderer keeps its default PCF map.
+                        gl.toneMappingExposure = 0.92;
                     }}
                 >
                     <BrutScene
@@ -55,9 +63,11 @@ const VisualizerBrut: React.FC<VisualizerSharedProps> = (props) => {
                         lines={lines}
                         theme={theme}
                         audioPower={audioPower}
+                        audioBands={audioBands}
                         showText={showText}
                         staticMode={staticMode}
                         lyricsFontScale={lyricsFontScale}
+                        seed={seed}
                     />
                 </Canvas>
             </div>

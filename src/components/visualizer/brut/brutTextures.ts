@@ -1,66 +1,11 @@
 import * as THREE from 'three';
 
 // src/components/visualizer/brut/brutTextures.ts
-// Builds the procedural concrete grain and browser-shaped lyric masks used by the Brut 3D scene.
+// Small shared gradient sprites: contact-shadow decals, the falloff on the fake light cones, the
+// dust mote and the shaft-mouth flare. The concrete maps live in brutConcreteTextures.ts and the
+// lyric rasters in brutLyricRaster.ts.
 
-const TEXTURE_SIZE = 512;
-const LYRIC_TEXTURE_WIDTH = 1536;
-const LYRIC_TEXTURE_HEIGHT = 320;
-
-const mulberry32 = (seed: number) => () => {
-    let value = seed += 0x6D2B79F5;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-};
-
-/** Creates a tileable-looking concrete albedo with aggregate, pores, and faint shutter seams. */
-export const createBrutConcreteTexture = (seed: number): THREE.CanvasTexture => {
-    const random = mulberry32(seed);
-    const canvas = document.createElement('canvas');
-    canvas.width = TEXTURE_SIZE;
-    canvas.height = TEXTURE_SIZE;
-    const context = canvas.getContext('2d')!;
-    const image = context.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
-
-    for (let offset = 0; offset < image.data.length; offset += 4) {
-        const grain = 142 + Math.floor((random() - 0.5) * 32);
-        image.data[offset] = grain;
-        image.data[offset + 1] = grain;
-        image.data[offset + 2] = grain - 2;
-        image.data[offset + 3] = 255;
-    }
-    context.putImageData(image, 0, 0);
-
-    context.globalAlpha = 0.17;
-    for (let index = 0; index < 310; index += 1) {
-        const radius = 0.5 + random() * 2.3;
-        context.fillStyle = random() > 0.25 ? '#171717' : '#ece9df';
-        context.beginPath();
-        context.arc(random() * TEXTURE_SIZE, random() * TEXTURE_SIZE, radius, 0, Math.PI * 2);
-        context.fill();
-    }
-
-    context.globalAlpha = 0.2;
-    context.strokeStyle = '#252525';
-    context.lineWidth = 1;
-    [0.34, 0.68].forEach(position => {
-        context.beginPath();
-        context.moveTo(0, TEXTURE_SIZE * position);
-        context.lineTo(TEXTURE_SIZE, TEXTURE_SIZE * position);
-        context.stroke();
-    });
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2.4, 2.4);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 4;
-    return texture;
-};
-
-/** Produces one reusable blurred contact-shadow decal for facade relief and sign mounting frames. */
+/** One reusable blurred contact-shadow decal for facade relief and mounting frames. */
 export const createBrutSoftShadowTexture = (): THREE.CanvasTexture => {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -78,46 +23,57 @@ export const createBrutSoftShadowTexture = (): THREE.CanvasTexture => {
     return texture;
 };
 
-export interface BrutLyricRaster {
-    texture: THREE.CanvasTexture;
-    aspect: number;
-}
-
-/** Rasterises one complete lyric line into an alpha-tested sign face with full browser font fallback. */
-export const createBrutLyricTexture = (
-    text: string,
-    fontFamily: string,
-    fontWeight: number,
-): BrutLyricRaster => {
+/** Soft round sprite used for dust motes and the mouth flare. */
+export const createBrutRadialSpriteTexture = (softness = 0.55): THREE.CanvasTexture => {
+    const size = 128;
     const canvas = document.createElement('canvas');
-    canvas.width = LYRIC_TEXTURE_WIDTH;
-    canvas.height = LYRIC_TEXTURE_HEIGHT;
+    canvas.width = size;
+    canvas.height = size;
     const context = canvas.getContext('2d')!;
-    const fontSize = 154;
-    context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-    const measuredWidth = Math.max(1, context.measureText(text).width);
-    const contentWidth = Math.min(LYRIC_TEXTURE_WIDTH - 80, measuredWidth);
-    const scale = Math.min(1, contentWidth / measuredWidth);
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.save();
-    context.translate(canvas.width / 2, canvas.height / 2);
-    context.scale(scale, scale);
-    context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.lineJoin = 'round';
-    context.strokeStyle = 'rgba(255,255,255,0.98)';
-    context.fillStyle = '#ffffff';
-    context.lineWidth = 3;
-    context.strokeText(text, 0, 4);
-    context.fillText(text, 0, 4);
-    context.restore();
+    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(softness, 'rgba(255,255,255,0.34)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
-    const aspect = Math.min(6.2, Math.max(1.2, (measuredWidth / fontSize) * 0.98));
-    return { texture, aspect };
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+};
+
+/**
+ * Falloff for the fake volumetric cones: bright at the top where the light enters, transparent at
+ * the rim so the cone has no visible silhouette edge.
+ */
+export const createBrutBeamFalloffTexture = (): THREE.CanvasTexture => {
+    const width = 64;
+    const height = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d')!;
+
+    const vertical = context.createLinearGradient(0, 0, 0, height);
+    vertical.addColorStop(0, 'rgba(255,255,255,0.92)');
+    vertical.addColorStop(0.45, 'rgba(255,255,255,0.35)');
+    vertical.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = vertical;
+    context.fillRect(0, 0, width, height);
+
+    const horizontal = context.createLinearGradient(0, 0, width, 0);
+    horizontal.addColorStop(0, 'rgba(0,0,0,1)');
+    horizontal.addColorStop(0.5, 'rgba(0,0,0,0)');
+    horizontal.addColorStop(1, 'rgba(0,0,0,1)');
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = horizontal;
+    context.fillRect(0, 0, width, height);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
 };
