@@ -3,7 +3,6 @@ import {
     BRUT_FACE_COUNT,
     BRUT_FACE_STEP_INTERVAL,
     BRUT_FRAME_MAX_ROLL,
-    BRUT_FRAME_MAX_YAW,
     BRUT_LINE_RISE,
     BRUT_PAD_HALF_WIDTH,
     BRUT_SHAFT_HALF,
@@ -29,8 +28,7 @@ export interface BrutLinePlacement {
     y: number;
     /** Offset along the wall from its centre. */
     lateral: number;
-    /** Rotation off the wall toward the shaft axis, so side-wall text still faces the viewer. */
-    yaw: number;
+    /** In-plane rotation only; see BRUT_FRAME_MAX_ROLL for why a block may not yaw or pitch. */
     roll: number;
 }
 
@@ -56,13 +54,6 @@ const EMPTY_TABLE: BrutPlacementTable = {
 };
 
 const isRenderableLine = (line: Line | undefined): boolean => Boolean(line?.fullText?.trim());
-
-/** Yaw that turns a frame at `lateral` back toward the shaft axis, softened and clamped. */
-const resolveFrameYaw = (lateral: number, jitter: number): number => {
-    const toAxis = -Math.atan2(lateral, BRUT_SHAFT_HALF * 2) * 0.85;
-    const yaw = toAxis + jitter * 0.08;
-    return Math.max(-BRUT_FRAME_MAX_YAW, Math.min(BRUT_FRAME_MAX_YAW, yaw));
-};
 
 /** Builds the whole line -> wall table in one O(n) pass. Memoise on (lines, patternSeed). */
 export const buildBrutLinePlacements = (lines: Line[], patternSeed: number): BrutPlacementTable => {
@@ -98,7 +89,6 @@ export const buildBrutLinePlacements = (lines: Line[], patternSeed: number): Bru
             face,
             y: ordinal * BRUT_LINE_RISE,
             lateral,
-            yaw: resolveFrameYaw(lateral, hashSigned(seed + 3)),
             roll: hashSigned(seed + 4) * 2 * BRUT_FRAME_MAX_ROLL,
         };
 

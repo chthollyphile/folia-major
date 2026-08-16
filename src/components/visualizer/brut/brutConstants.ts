@@ -38,11 +38,14 @@ export const BRUT_GRAFFITI_PER_MODULE = 4;
 
 /** Mounting pad the lyric frame is bolted onto. Fixed size so relief stays independent of raster width. */
 export const BRUT_PAD_HALF_WIDTH = 2.6;
-export const BRUT_PAD_HEIGHT = 1.5;
+export const BRUT_PAD_HEIGHT = 2.65;
 export const BRUT_PAD_DEPTH = 0.46;
 
-/** How far a frame may yaw off its wall toward the shaft axis, for legibility on side walls. */
-export const BRUT_FRAME_MAX_YAW = 0.31;
+/**
+ * Only ROLL is allowed on a lyric block. Roll turns the block in its own plane and costs nothing;
+ * a yaw or a pitch would tilt the plane off the wall, and across a block several units wide that
+ * swings the far end deeper than the mount itself - which is how tokens end up buried in concrete.
+ */
 export const BRUT_FRAME_MAX_ROLL = 0.02;
 
 /** A face change may only happen after this many ordinals, and only ever by one step. */
@@ -61,7 +64,12 @@ export const BRUT_UNIT_ROW_EM = 17;
 export const BRUT_UNIT_ROW_STEP_EM = 1.9;
 export const BRUT_UNIT_GAP_EM = 0.36;
 
-/** How many already-sung lines stay bolted to the wall behind the active one. */
+/** Depth of the slab that pushes out of the wall to carry one token. */
+export const BRUT_SLAB_DEPTH = 0.17;
+/** Slab overhang around its token, wide enough to still frame it during the ignition swell. */
+export const BRUT_SLAB_MARGIN_EM = 0.2;
+
+/** How many already-sung lines stay on the wall behind the active one. */
 export const BRUT_INSTALLED_LINES = 2;
 
 /** Raster + install budgets. */
@@ -73,7 +81,8 @@ export const BRUT_RASTER_FONT_PX = 128;
 export const BRUT_RASTER_MAX_CANVAS_PX = 2048;
 
 /** World width a lyric frame may never exceed. */
-export const BRUT_FRAME_MAX_WIDTH = 8;
+/** A block never exceeds its mounting pad, so every token slab has flat wall to grow from. */
+export const BRUT_FRAME_MAX_WIDTH = 4.9;
 
 /** Camera. */
 /**
@@ -81,8 +90,7 @@ export const BRUT_FRAME_MAX_WIDTH = 8;
  * seen edge-on and becomes unreadable, so the eye trails the frame and the frame tilts down to meet
  * it - which is also how signage on a real facade is mounted.
  */
-export const BRUT_EYE_LEAD = -2.05;
-export const BRUT_FRAME_PITCH = 0.3;
+export const BRUT_EYE_LEAD = -1.35;
 /**
  * The camera does not sit at a fixed distance: it backs off until the active line fills a constant
  * share of the frame, so a 40-character line is not rendered a third the height of a 10-character

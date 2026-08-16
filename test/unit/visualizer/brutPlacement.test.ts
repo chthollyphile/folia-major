@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
     BRUT_FACE_STEP_INTERVAL,
-    BRUT_FRAME_MAX_YAW,
+    BRUT_FRAME_MAX_ROLL,
     BRUT_LINE_RISE,
+    BRUT_PAD_HALF_WIDTH,
+    BRUT_SHAFT_HALF,
 } from '@/components/visualizer/brut/brutConstants';
 import { resolveBrutFaceYaw } from '@/components/visualizer/brut/brutFaceBasis';
 import {
@@ -54,12 +56,12 @@ describe('buildBrutLinePlacements', () => {
         }
     });
 
-    it('keeps the frame yaw bounded and turned toward the shaft axis', () => {
+    it('only ever rolls a block in its own plane, and keeps its pad inside the wall', () => {
+        // A yaw or pitch would tilt the block off the wall and bury its far tokens in the concrete.
         buildBrutLinePlacements(SONG, 12.5).ordinals.forEach((placement) => {
-            expect(Math.abs(placement.yaw)).toBeLessThanOrEqual(BRUT_FRAME_MAX_YAW + 1e-9);
-            if (Math.abs(placement.lateral) > 1.5) {
-                expect(Math.sign(placement.yaw)).toBe(-Math.sign(placement.lateral));
-            }
+            expect(Object.keys(placement)).not.toContain('yaw');
+            expect(Math.abs(placement.roll)).toBeLessThanOrEqual(BRUT_FRAME_MAX_ROLL + 1e-9);
+            expect(Math.abs(placement.lateral) + BRUT_PAD_HALF_WIDTH).toBeLessThanOrEqual(BRUT_SHAFT_HALF);
         });
     });
 

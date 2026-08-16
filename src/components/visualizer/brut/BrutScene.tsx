@@ -13,6 +13,7 @@ import { createBrutEnvironment } from './brutEnvironment';
 import { hashStringSeed } from './brutHash';
 import { buildBrutLinePlacements } from './brutLyricPlacement';
 import { buildBrutPalette } from './brutPalette';
+import BrutBloom from './BrutBloom';
 import BrutCamera from './BrutCamera';
 import BrutDust from './BrutDust';
 import BrutLightChannels from './BrutLightChannels';
@@ -137,11 +138,13 @@ const BrutScene: React.FC<BrutSceneProps> = ({
                     palette={palette}
                     currentTime={currentTime}
                     audioBands={audioBands}
+                    slabTextures={reliefTextures}
                     staticMode={staticMode}
                     lyricsFontScale={lyricsFontScale}
                     activeFrameRef={activeFrameRef}
                 />
             )}
+            <BrutBloom />
         </>
     );
 };

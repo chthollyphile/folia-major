@@ -7,18 +7,19 @@ import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fo
 import { getLineRenderHints } from '../../../utils/lyrics/renderHints';
 import {
     BRUT_FRAME_MAX_WIDTH,
-    BRUT_FRAME_PITCH,
     BRUT_GLYPH_EM,
     BRUT_GLYPH_SLOTS,
     BRUT_INSTALLED_LINES,
     BRUT_PAD_DEPTH,
+    BRUT_SLAB_DEPTH,
+    BRUT_SLAB_MARGIN_EM,
 } from './brutConstants';
+import { type BrutConcreteTextures } from './brutConcreteTextures';
 import { brutFacePointToWorld, resolveBrutFaceAngle } from './brutFaceBasis';
-import { createBrutBracketGeometry } from './brutFrameGeometry';
 import {
-    createBrutBracketState,
-    resolveBrutBracketState,
+    createBrutSlabState,
     resolveBrutRevealTiming,
+    resolveBrutSlabState,
 } from './brutInstallMotion';
 import { type BrutPlacementTable } from './brutLyricPlacement';
 import { type BrutPalette } from './brutPalette';
@@ -27,9 +28,9 @@ import BrutLyricLine from './BrutLyricLine';
 import { useBrutLyricRasters, type BrutRasterEntry } from './useBrutLyricRasters';
 
 // src/components/visualizer/brut/BrutLyricInstall.tsx
-// Owns the lyric window. Each line's tokens are scattered over the wall by brutUnitLayout and
-// bolted on one at a time; the lines already sung stay on the wall behind the active one, so the
-// shaft accumulates the song as the camera rises.
+// Owns the lyric window. Each line's tokens are scattered over the wall by brutUnitLayout; for each
+// one a concrete slab pushes out of the facade just before its word, and the token then lights up
+// on that slab's face. Lines already sung keep their slabs, so the shaft accumulates the song.
 
 interface BrutLyricInstallProps {
     lines: Line[];
@@ -37,6 +38,7 @@ interface BrutLyricInstallProps {
     table: BrutPlacementTable;
     theme: Theme;
     palette: BrutPalette;
+    slabTextures: BrutConcreteTextures;
     currentTime: MotionValue<number>;
     audioBands: AudioBands;
     staticMode: boolean;
@@ -54,17 +56,17 @@ interface RenderedLine {
     settled: boolean;
 }
 
-const BRACKET_SLOTS = (BRUT_INSTALLED_LINES + 1) * BRUT_GLYPH_SLOTS;
-const MOUNT_DEPTH = BRUT_PAD_DEPTH + 0.14;
+const SLAB_SLOTS = (BRUT_INSTALLED_LINES + 1) * BRUT_GLYPH_SLOTS;
 
 const scratchPoint = { x: 0, y: 0, z: 0 };
 const scratchPosition = new THREE.Vector3();
 const scratchQuaternion = new THREE.Quaternion();
 const scratchEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const scratchScale = new THREE.Vector3();
+const scratchColor = new THREE.Color();
 const lineMatrix = new THREE.Matrix4();
 const localMatrix = new THREE.Matrix4();
-const bracketMatrix = new THREE.Matrix4();
+const slabMatrix = new THREE.Matrix4();
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 const BrutLyricInstall: React.FC<BrutLyricInstallProps> = ({
@@ -73,22 +75,21 @@ const BrutLyricInstall: React.FC<BrutLyricInstallProps> = ({
     table,
     theme,
     palette,
+    slabTextures,
     currentTime,
     audioBands,
     staticMode,
     lyricsFontScale,
     activeFrameRef,
 }) => {
-    const bracketRef = useRef<THREE.InstancedMesh>(null);
+    const slabRef = useRef<THREE.InstancedMesh>(null);
+    const slabState = useMemo(() => createBrutSlabState(), []);
+    const slabColor = useMemo(() => new THREE.Color(palette.concrete), [palette.concrete]);
 
     const fontStack = resolveThemeFontStack(theme);
     const fontWeight = resolveThemeFontWeight(theme, 700);
     const activeIndex = Math.max(0, currentLineIndex);
     const rasters = useBrutLyricRasters({ lines, activeIndex, fontStack, fontWeight, enabled: true });
-
-    const bracketGeometry = useMemo(() => createBrutBracketGeometry(), []);
-    const bracketState = useMemo(() => createBrutBracketState(), []);
-    useEffect(() => () => bracketGeometry.dispose(), [bracketGeometry]);
 
     const emScale = BRUT_GLYPH_EM * lyricsFontScale;
 
@@ -120,9 +121,18 @@ const BrutLyricInstall: React.FC<BrutLyricInstallProps> = ({
     activeFrameRef.current.width = active ? active.block.widthEm * active.scale : 3;
     activeFrameRef.current.height = active ? active.block.heightEm * active.scale : 1.2;
 
+    useEffect(() => {
+        const slabs = slabRef.current;
+        if (!slabs) return;
+        for (let instance = 0; instance < SLAB_SLOTS; instance += 1) {
+            slabs.setColorAt(instance, slabColor);
+        }
+        if (slabs.instanceColor) slabs.instanceColor.needsUpdate = true;
+    }, [slabColor]);
+
     useFrame(() => {
-        const brackets = bracketRef.current;
-        if (!brackets) return;
+        const slabs = slabRef.current;
+        if (!slabs) return;
 
         const now = currentTime.get();
         let instance = 0;
@@ -131,70 +141,71 @@ const BrutLyricInstall: React.FC<BrutLyricInstallProps> = ({
             const placement = table.placements[item.index];
             if (!placement) return;
 
-            brutFacePointToWorld(placement.face, placement.lateral, placement.y, MOUNT_DEPTH, scratchPoint);
+            brutFacePointToWorld(placement.face, placement.lateral, placement.y, BRUT_PAD_DEPTH, scratchPoint);
             scratchPosition.set(scratchPoint.x, scratchPoint.y, scratchPoint.z);
-            scratchEuler.set(
-                BRUT_FRAME_PITCH,
-                resolveBrutFaceAngle(placement.face) + placement.yaw,
-                placement.roll,
-            );
+            scratchEuler.set(0, resolveBrutFaceAngle(placement.face), placement.roll);
             scratchQuaternion.setFromEuler(scratchEuler);
             scratchScale.set(1, 1, 1);
             lineMatrix.compose(scratchPosition, scratchQuaternion, scratchScale);
 
             const timing = resolveBrutRevealTiming(getLineRenderHints(item.line));
             const bandHalf = item.entry.raster.bandEm * item.scale * 0.5;
+            const margin = BRUT_SLAB_MARGIN_EM * item.scale;
 
-            for (let slot = 0; slot < BRUT_GLYPH_SLOTS && instance < BRACKET_SLOTS; slot += 1) {
+            for (let slot = 0; slot < BRUT_GLYPH_SLOTS && instance < SLAB_SLOTS; slot += 1) {
                 const unit = item.entry.units[slot];
                 const rect = item.entry.raster.rects[slot];
                 const layout = item.block.slots[slot];
                 if (!unit || !rect || !layout) continue;
 
-                // The bracket extends out of the concrete ahead of its token rather than popping in.
                 const state = staticMode || item.settled
-                    ? resolveBrutBracketState(unit, unit.endTime + 5, timing, bracketState)
-                    : resolveBrutBracketState(unit, now, timing, bracketState);
+                    ? resolveBrutSlabState(unit, unit.endTime + 5, timing, slabState)
+                    : resolveBrutSlabState(unit, now, timing, slabState);
                 if (!state.visible) {
-                    brackets.setMatrixAt(instance, HIDDEN);
+                    slabs.setMatrixAt(instance, HIDDEN);
                     instance += 1;
                     continue;
                 }
 
-                localMatrix.makeTranslation(
-                    layout.x * item.scale,
-                    layout.y * item.scale - bandHalf * layout.scale - 0.05,
-                    layout.depth + state.z,
-                );
+                // The slab grows forward off the wall, so its BACK stays anchored in the concrete.
+                const depth = (BRUT_SLAB_DEPTH + layout.depth) * state.extend;
+                localMatrix.makeTranslation(layout.x * item.scale, layout.y * item.scale, depth / 2);
                 scratchScale.set(
-                    (rect.widthEm * item.scale * layout.scale + 0.18) * state.extend,
-                    state.extend,
-                    1,
+                    rect.widthEm * item.scale * layout.scale + margin,
+                    bandHalf * 2 * layout.scale + margin,
+                    depth,
                 );
-                brackets.setMatrixAt(
-                    instance,
-                    bracketMatrix.multiplyMatrices(lineMatrix, localMatrix).scale(scratchScale),
-                );
+                slabMatrix.multiplyMatrices(lineMatrix, localMatrix).scale(scratchScale);
+                slabs.setMatrixAt(instance, slabMatrix);
                 instance += 1;
             }
         });
 
-        for (; instance < BRACKET_SLOTS; instance += 1) {
-            brackets.setMatrixAt(instance, HIDDEN);
+        for (; instance < SLAB_SLOTS; instance += 1) {
+            slabs.setMatrixAt(instance, HIDDEN);
         }
-        brackets.instanceMatrix.needsUpdate = true;
+        slabs.instanceMatrix.needsUpdate = true;
     });
 
     return (
         <>
             <instancedMesh
-                ref={bracketRef}
-                args={[bracketGeometry, undefined, BRACKET_SLOTS]}
+                ref={slabRef}
+                args={[undefined, undefined, SLAB_SLOTS]}
                 frustumCulled={false}
                 castShadow
                 receiveShadow
             >
-                <meshStandardMaterial color={palette.steel} roughness={0.4} metalness={0.84} envMapIntensity={0.9} />
+                <boxGeometry args={[1, 1, 1]} />
+                <meshStandardMaterial
+                    map={slabTextures.map}
+                    normalMap={slabTextures.normalMap}
+                    roughnessMap={slabTextures.roughnessMap}
+                    color={palette.concrete}
+                    roughness={0.95}
+                    metalness={0.02}
+                    envMapIntensity={0.6}
+                />
             </instancedMesh>
             {rendered.map(item => (
                 <BrutLyricLine

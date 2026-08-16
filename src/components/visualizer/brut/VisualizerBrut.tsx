@@ -42,7 +42,9 @@ const VisualizerBrut: React.FC<VisualizerSharedProps> = (props) => {
         <VisualizerShell theme={theme} audioPower={audioPower} audioBands={audioBands} sharedProps={props}>
             <div className="absolute inset-0 z-0">
                 <Canvas
-                    shadows
+                    // 'percentage' is PCFShadowMap; R3F's shadows={true} asks for the deprecated
+                    // PCFSoftShadowMap, which three r185 warns about and silently downgrades anyway.
+                    shadows="percentage"
                     dpr={[1, 1.75]}
                     camera={{
                         position: [0, 0.25, BRUT_ORBIT_RADIUS],

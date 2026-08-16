@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
     createBrutInstallState,
+    createBrutSlabState,
+    resolveBrutIgniteDuration,
     resolveBrutInstallState,
     resolveBrutRevealTiming,
-    resolveBrutUnitSlam,
+    resolveBrutSlabState,
 } from '@/components/visualizer/brut/brutInstallMotion';
 import type { BrutInstallUnit } from '@/components/visualizer/brut/brutLyricUnits';
 
 // test/unit/visualizer/brutInstallMotion.test.ts
-// The install curve is a pure function of absolute time - that is what makes seeking free, because
-// there is no animation state to reset, the curve simply evaluates to the terminal pose.
+// The slab and ignition curves are pure functions of absolute time - that is what makes seeking
+// free, because there is no animation state to reset, the curve evaluates to the terminal pose.
 
 const unit = (startTime: number, endTime: number): BrutInstallUnit => ({
     text: '字',
@@ -27,30 +29,33 @@ const NORMAL = resolveBrutRevealTiming({
     wordRevealMode: 'normal',
 });
 
+const MICRO = resolveBrutRevealTiming({
+    rawDuration: 0.05,
+    timingClass: 'micro',
+    renderEndTime: 0.07,
+    lineTransitionMode: 'none',
+    wordRevealMode: 'instant',
+});
+
 describe('resolveBrutRevealTiming', () => {
     it('collapses micro lines to an instant reveal', () => {
-        const timing = resolveBrutRevealTiming({
-            rawDuration: 0.05,
-            timingClass: 'micro',
-            renderEndTime: 0.07,
-            lineTransitionMode: 'none',
-            wordRevealMode: 'instant',
-        });
-        expect(timing.instant).toBe(true);
-        expect(resolveBrutUnitSlam(unit(0, 0.05), timing)).toBe(0);
+        expect(MICRO.instant).toBe(true);
+        expect(resolveBrutIgniteDuration(unit(0, 0.05), MICRO)).toBe(0);
     });
 
     it('compresses short lines without making them instant', () => {
-        const timing = resolveBrutRevealTiming({
+        const fast = resolveBrutRevealTiming({
             rawDuration: 0.15,
             timingClass: 'short',
             renderEndTime: 0.2,
             lineTransitionMode: 'fast',
             wordRevealMode: 'fast',
         });
-        expect(timing.instant).toBe(false);
-        expect(timing.pre).toBeLessThan(NORMAL.pre);
-        expect(resolveBrutUnitSlam(unit(0, 1), timing)).toBeLessThan(resolveBrutUnitSlam(unit(0, 1), NORMAL));
+        expect(fast.instant).toBe(false);
+        expect(fast.lead).toBeLessThan(NORMAL.lead);
+        expect(fast.emerge).toBeLessThan(NORMAL.emerge);
+        expect(resolveBrutIgniteDuration(unit(0, 1), fast))
+            .toBeLessThan(resolveBrutIgniteDuration(unit(0, 1), NORMAL));
     });
 
     it('falls back to the normal curve without hints', () => {
@@ -58,41 +63,71 @@ describe('resolveBrutRevealTiming', () => {
     });
 });
 
+describe('resolveBrutSlabState', () => {
+    const state = createBrutSlabState();
+
+    it('keeps the slab inside the wall until its lead-in', () => {
+        expect(resolveBrutSlabState(unit(10, 10.4), 5, NORMAL, state).visible).toBe(false);
+        expect(state.extend).toBe(0);
+    });
+
+    it('is fully extruded before its token arrives', () => {
+        const result = resolveBrutSlabState(unit(10, 10.4), 10 - NORMAL.lead, NORMAL, state);
+        expect(result.visible).toBe(true);
+        expect(result.extend).toBeCloseTo(1, 6);
+    });
+
+    it('grows monotonically and stays bounded', () => {
+        let previous = 0;
+        for (let time = 9; time < 10.5; time += 0.01) {
+            const { extend } = resolveBrutSlabState(unit(10, 10.4), time, NORMAL, state);
+            expect(extend).toBeGreaterThanOrEqual(0);
+            expect(extend).toBeLessThanOrEqual(1);
+            expect(extend).toBeGreaterThanOrEqual(previous - 1e-9);
+            previous = extend;
+        }
+    });
+
+    it('is already out for a micro line', () => {
+        expect(resolveBrutSlabState(unit(10, 10.05), 10, MICRO, state).extend).toBeCloseTo(1, 6);
+    });
+});
+
 describe('resolveBrutInstallState', () => {
     const state = createBrutInstallState();
 
-    it('hides a plate well before its slot opens', () => {
-        const result = resolveBrutInstallState(unit(10, 10.4), 5, NORMAL, 0, state);
+    it('stays dark until its own word starts', () => {
+        const result = resolveBrutInstallState(unit(10, 10.4), 9.99, NORMAL, state);
         expect(result.visible).toBe(false);
         expect(result.alpha).toBe(0);
+        expect(result.ignite).toBe(0);
     });
 
-    it('shows the empty recessed slot during the lead-in', () => {
-        const result = resolveBrutInstallState(unit(10, 10.4), 9.9, NORMAL, 0, state);
-        expect(result.visible).toBe(true);
-        expect(result.z).toBeLessThan(0);
-        expect(result.alpha).toBeGreaterThan(0);
-        expect(result.alpha).toBeLessThan(0.3);
-        expect(result.tint).toBe(0);
-    });
-
-    it('reaches the terminal pose long after the slam, so a seek needs no reset', () => {
-        const result = resolveBrutInstallState(unit(10, 10.4), 400, NORMAL, 0.03, state);
+    it('reaches the terminal pose long after ignition, so a seek needs no reset', () => {
+        const result = resolveBrutInstallState(unit(10, 10.4), 400, NORMAL, state);
         expect(result.visible).toBe(true);
         expect(result.alpha).toBe(1);
+        expect(result.ignite).toBe(1);
         expect(result.scale).toBeCloseTo(1, 6);
-        expect(result.z).toBeCloseTo(0.02, 6);
-        expect(result.roll).toBeCloseTo(0.03, 6);
         expect(result.tint).toBe(1);
         expect(result.flash).toBe(0);
     });
 
+    it('peaks its flash at the moment the word starts', () => {
+        const onset = resolveBrutInstallState(unit(10, 10.4), 10, NORMAL, state).flash;
+        const later = resolveBrutInstallState(unit(10, 10.4), 10.15, NORMAL, state).flash;
+        expect(onset).toBeCloseTo(1, 6);
+        expect(later).toBeLessThan(onset);
+    });
+
     it('keeps every output bounded and finite across the whole curve', () => {
         for (let time = 9.5; time < 11.5; time += 0.01) {
-            const result = resolveBrutInstallState(unit(10, 10.4), time, NORMAL, 0.02, state);
-            expect(Number.isFinite(result.z)).toBe(true);
+            const result = resolveBrutInstallState(unit(10, 10.4), time, NORMAL, state);
+            expect(Number.isFinite(result.scale)).toBe(true);
             expect(result.alpha).toBeGreaterThanOrEqual(0);
             expect(result.alpha).toBeLessThanOrEqual(1);
+            expect(result.ignite).toBeGreaterThanOrEqual(0);
+            expect(result.ignite).toBeLessThanOrEqual(1);
             expect(result.tint).toBeGreaterThanOrEqual(0);
             expect(result.tint).toBeLessThanOrEqual(1);
             expect(result.flash).toBeGreaterThanOrEqual(0);
@@ -101,22 +136,15 @@ describe('resolveBrutInstallState', () => {
     });
 
     it('produces no NaN for a zero-duration unit', () => {
-        const result = resolveBrutInstallState(unit(10, 10), 10, NORMAL, 0, state);
+        const result = resolveBrutInstallState(unit(10, 10), 10, NORMAL, state);
         expect(Number.isFinite(result.alpha)).toBe(true);
         expect(Number.isFinite(result.tint)).toBe(true);
         expect(Number.isFinite(result.scale)).toBe(true);
     });
 
-    it('installs instantly when the line is a micro line', () => {
-        const timing = resolveBrutRevealTiming({
-            rawDuration: 0.05,
-            timingClass: 'micro',
-            renderEndTime: 0.07,
-            lineTransitionMode: 'none',
-            wordRevealMode: 'instant',
-        });
-        const result = resolveBrutInstallState(unit(10, 10.05), 10, timing, 0, state);
-        expect(result.scale).toBeCloseTo(1, 6);
+    it('lights a micro line immediately', () => {
+        const result = resolveBrutInstallState(unit(10, 10.05), 10, MICRO, state);
+        expect(result.ignite).toBe(1);
         expect(result.alpha).toBe(1);
     });
 });

@@ -162,6 +162,7 @@
     "music-metadata": "^11.14.0",
     "opencc-js": "^1.4.1",
     "pixi.js": "^8.19.0",
+    "postprocessing": "^6.39.4",
     "react": "^19.2.8",
     "react-colorful": "^5.8.0",
     "react-dom": "^19.2.8",
