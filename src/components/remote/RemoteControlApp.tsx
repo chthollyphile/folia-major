@@ -16,6 +16,7 @@ import {
 } from '../../types/videoExport';
 import type { VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
 import { extractColors } from '../../utils/colorExtractor';
+import { isOutroGlowVisible, resolveTrackHandoffProgress } from './remoteTrackTransition';
 import { useTranslation } from 'react-i18next';
 
 // src/components/remote/RemoteControlApp.tsx
@@ -35,6 +36,10 @@ const REMOTE_CONTROL_DOCUMENT_TITLE = 'Folia Remote';
 const REMOTE_VIDEO_EXPORT_PRESET_VALUES_STORAGE_KEY = 'remote_video_export_preset_values';
 const REMOTE_BACKGROUND_MODE_STORAGE_KEY = 'remote_background_mode';
 const REMOTE_TITLEBAR_REVEAL_THRESHOLD = 44;
+/** 邻居取色缓存上限，够覆盖来回切几首，不至于把 blob URL 一直攥在手里 */
+const COVER_COLOR_CACHE_LIMIT = 8;
+/** 手动切歌意图的有效期：超过这个时间还没换歌，就当成是自然播完 */
+const NAV_INTENT_TTL_MS = 5000;
 
 type BackgroundMode = 'default' | 'cover' | 'transparent';
 
@@ -64,6 +69,7 @@ const readStoredVideoExportPresetValues = (): VideoExportPresetValues => {
 
 const emptySnapshot: RemoteControlSnapshot = {
     hasTrack: false,
+    trackKey: null,
     title: null,
     artist: null,
     coverUrl: null,
@@ -73,8 +79,14 @@ const emptySnapshot: RemoteControlSnapshot = {
     loopMode: 'off',
     canGoPrevious: false,
     canGoNext: false,
+    prevTrackKey: null,
     prevTrackTitle: null,
+    prevTrackArtist: null,
+    prevTrackCoverUrl: null,
+    nextTrackKey: null,
     nextTrackTitle: null,
+    nextTrackArtist: null,
+    nextTrackCoverUrl: null,
     controlsDisabled: true,
     isStageActive: false,
     transparentModeEnabled: false,
@@ -92,6 +104,25 @@ const emptySnapshot: RemoteControlSnapshot = {
 };
 
 type RemotePanelMode = 'playback' | 'export' | 'transparent-controls';
+
+/**
+ * 遥控窗口同时最多渲染两张"面"：当前曲目，以及自然播完前预读进来的下一首。
+ * 交接期两张面按 opacity 交叉淡入淡出，切歌真正发生时下一首那张的 key 正好
+ * 变成当前曲目的 key，React 复用同一节点，所以不会再抖一下。
+ */
+type RemoteTrackFace = {
+    key: string;
+    title: string;
+    artist: string;
+    coverUrl: string | null;
+    opacity: number;
+    /** incoming 是交接淡入的那张，用线性长过渡；current 走手动切歌的方向性短过渡 */
+    mode: 'current' | 'incoming';
+};
+
+const HANDOFF_FACE_TRANSITION = { duration: 0.55, ease: 'linear' } as const;
+const SWITCH_FACE_TRANSITION = { duration: 0.42, ease: [0.22, 1, 0.36, 1] } as const;
+const SWITCH_TEXT_TRANSITION = { duration: 0.32, ease: [0.22, 1, 0.36, 1] } as const;
 
 const RemoteControlApp: React.FC = () => {
     const { t } = useTranslation();
@@ -121,6 +152,12 @@ const RemoteControlApp: React.FC = () => {
     const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
     const isDraggingRef = useRef(false);
     const lastSeekTimeRef = useRef(0);
+    const coverColorCacheRef = useRef<Map<string, string[]>>(new Map());
+    const navIntentRef = useRef<{ direction: 'prev' | 'next'; fromKey: string | null; at: number }>({
+        direction: 'next',
+        fromKey: null,
+        at: 0,
+    });
     const exportPresets = useMemo(() => createVideoExportPresets(presetValues), [presetValues]);
     const selectedPreset = exportPresets.find(preset => preset.id === selectedPresetId) ?? exportPresets[1];
 
@@ -176,17 +213,76 @@ const RemoteControlApp: React.FC = () => {
         window.localStorage.setItem(REMOTE_BACKGROUND_MODE_STORAGE_KEY, backgroundMode);
     }, [backgroundMode]);
 
+    // 换歌时先看预读缓存：命中就直接铺色，背景不用等取色算完再跳一次色
+    const rememberCoverColors = React.useCallback((url: string, colors: string[]) => {
+        const cache = coverColorCacheRef.current;
+        cache.delete(url);
+        cache.set(url, colors);
+        while (cache.size > COVER_COLOR_CACHE_LIMIT) {
+            const oldest = cache.keys().next().value;
+            if (oldest === undefined) {
+                break;
+            }
+            cache.delete(oldest);
+        }
+    }, []);
+
     useEffect(() => {
         let mounted = true;
         if (backgroundMode === 'cover' && snapshot.coverUrl) {
+            const cached = coverColorCacheRef.current.get(snapshot.coverUrl);
+            if (cached) {
+                setCoverColors(cached);
+                return;
+            }
+
             extractColors(snapshot.coverUrl, 3).then(colors => {
-                if (mounted) setCoverColors(colors);
+                if (!mounted) return;
+                setCoverColors(colors);
+                if (colors.length > 0 && snapshot.coverUrl) {
+                    rememberCoverColors(snapshot.coverUrl, colors);
+                }
             }).catch(() => {
                 if (mounted) setCoverColors([]);
             });
         }
         return () => { mounted = false; };
-    }, [snapshot.coverUrl, backgroundMode]);
+    }, [snapshot.coverUrl, backgroundMode, rememberCoverColors]);
+
+    // 预读队列邻居：让浏览器先把封面解码进缓存，顺手把取色也算好。
+    // 真正切歌时封面与背景色就能同帧到位，过渡不会先空一拍再补图。
+    useEffect(() => {
+        const neighborCovers = [snapshot.nextTrackCoverUrl, snapshot.prevTrackCoverUrl]
+            .filter((url): url is string => Boolean(url));
+        if (neighborCovers.length === 0) {
+            return;
+        }
+
+        let mounted = true;
+        neighborCovers.forEach(url => {
+            const warmup = new Image();
+            warmup.crossOrigin = 'Anonymous';
+            warmup.src = url;
+        });
+
+        if (backgroundMode !== 'cover') {
+            return;
+        }
+
+        neighborCovers.forEach(url => {
+            if (coverColorCacheRef.current.has(url)) {
+                return;
+            }
+
+            extractColors(url, 3).then(colors => {
+                if (mounted && colors.length > 0) {
+                    rememberCoverColors(url, colors);
+                }
+            }).catch(() => { /* 预读失败无所谓，切过去时会照常现取 */ });
+        });
+
+        return () => { mounted = false; };
+    }, [snapshot.nextTrackCoverUrl, snapshot.prevTrackCoverUrl, backgroundMode, rememberCoverColors]);
 
     useEffect(() => {
         let mounted = true;
@@ -222,6 +318,24 @@ const RemoteControlApp: React.FC = () => {
             unsubscribe?.();
         };
     }, []);
+
+    // 没有 trackKey 的旧快照（或空闲态）退回用封面/标题拼一个，保证过渡不会漏触发
+    const trackIdentity = snapshot.trackKey ?? snapshot.coverUrl ?? snapshot.title ?? 'no-track';
+    // 手动点上一首时整块内容往回滑；自然播完或点下一首都往前滑。
+    // 依赖 trackIdentity 记忆化，动画进行中重渲染不会中途改方向。
+    const trackTransitionDirection = useMemo<'prev' | 'next'>(() => {
+        const intent = navIntentRef.current;
+        const isFreshIntent = intent.fromKey !== null
+            && intent.fromKey !== trackIdentity
+            && Date.now() - intent.at < NAV_INTENT_TTL_MS;
+        return isFreshIntent ? intent.direction : 'next';
+    }, [trackIdentity]);
+    const trackEnterOffset = trackTransitionDirection === 'next' ? 10 : -10;
+
+    const navigateTrack = (direction: 'prev' | 'next') => {
+        navIntentRef.current = { direction, fromKey: trackIdentity, at: Date.now() };
+        sendCommand({ type: direction === 'prev' ? 'previous' : 'next' });
+    };
 
     const currentTime = pendingSeek ?? snapshot.currentTime;
     const duration = Number.isFinite(snapshot.duration) && snapshot.duration > 0 ? snapshot.duration : 0;
@@ -274,14 +388,66 @@ const RemoteControlApp: React.FC = () => {
         lastStatusRef.current = exportState.status;
     }, [exportState.status]);
 
-    const coverStyle = useMemo<React.CSSProperties>(() => ({
-        backgroundImage: snapshot.coverUrl ? `url(${snapshot.coverUrl})` : undefined,
-    }), [snapshot.coverUrl]);
-
     const noDragStyle = { WebkitAppRegion: 'no-drag' } as React.CSSProperties;
     const dragStyle = { WebkitAppRegion: 'drag' } as React.CSSProperties;
 
     const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
+
+    // 最后 30 秒进入 outro：进度条发光提示曲目即将结束
+    const remainingSeconds = duration > 0 ? duration - progressValue : Number.POSITIVE_INFINITY;
+    const trackTiming = { hasTrack: snapshot.hasTrack, duration, remainingSeconds };
+    const isOutroGlowActive = isOutroGlowVisible(trackTiming);
+    const outroGlowColor = isDaylight ? 'rgba(28, 25, 23, 0.45)' : 'rgba(255, 255, 255, 0.8)';
+
+    // 收尾窗口里把封面、标题、艺术家和背景色一起交接给预读好的下一首：
+    // 播到 0 的那一刻画面已经是下一首了，不会在切歌瞬间硬跳一下。
+    // 暂停会把进度退回 0，看到的仍然是当前这首。
+    const nextFace = useMemo<Omit<RemoteTrackFace, 'opacity' | 'mode'> | null>(() => {
+        const key = snapshot.nextTrackKey ?? snapshot.nextTrackCoverUrl ?? snapshot.nextTrackTitle;
+        if (!key || !snapshot.canGoNext) {
+            return null;
+        }
+
+        return {
+            key,
+            title: snapshot.nextTrackTitle || 'Folia',
+            artist: snapshot.nextTrackArtist || 'Unknown artist',
+            coverUrl: snapshot.nextTrackCoverUrl,
+        };
+    }, [snapshot.nextTrackKey, snapshot.nextTrackCoverUrl, snapshot.nextTrackTitle, snapshot.nextTrackArtist, snapshot.canGoNext]);
+
+    const handoffProgress = resolveTrackHandoffProgress({ ...trackTiming, isPlaying });
+    const isHandoffActive = handoffProgress > 0 && nextFace !== null && nextFace.key !== trackIdentity;
+
+    const trackFaces = useMemo<RemoteTrackFace[]>(() => {
+        const currentFace: RemoteTrackFace = {
+            key: trackIdentity,
+            title,
+            artist,
+            coverUrl: snapshot.coverUrl,
+            opacity: isHandoffActive ? 1 - handoffProgress : 1,
+            mode: 'current',
+        };
+
+        return isHandoffActive && nextFace
+            ? [currentFace, { ...nextFace, opacity: handoffProgress, mode: 'incoming' }]
+            : [currentFace];
+    }, [trackIdentity, title, artist, snapshot.coverUrl, isHandoffActive, handoffProgress, nextFace]);
+
+    // 下一首没有封面（本地曲目常见）时别把当前封面淡成占位符，封面这一层就不参与交接
+    const coverFaces = useMemo<RemoteTrackFace[]>(() => {
+        const faces = trackFaces.filter(face => face.coverUrl);
+        return faces.length === 1 && faces[0].mode === 'current'
+            ? [{ ...faces[0], opacity: 1 }]
+            : faces;
+    }, [trackFaces]);
+
+    // 交接过半就把背景换成下一首的配色，剩下的交给背景本身 700ms 的颜色过渡。
+    // 预读没算完就维持当前配色，切过去后常规取色会补上。
+    const handoffCoverColors = isHandoffActive && handoffProgress >= 0.5 && snapshot.nextTrackCoverUrl
+        ? coverColorCacheRef.current.get(snapshot.nextTrackCoverUrl)
+        : undefined;
+    const activeCoverColors = handoffCoverColors ?? coverColors;
 
     useEffect(() => {
         window.localStorage.setItem(REMOTE_VIDEO_EXPORT_PRESET_VALUES_STORAGE_KEY, JSON.stringify(presetValues));
@@ -398,17 +564,17 @@ const RemoteControlApp: React.FC = () => {
                 {backgroundMode !== 'transparent' && (
                     <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none transition-opacity duration-300">
                         {/* Base layer */}
-                        <div className={`absolute inset-0 transition-colors duration-300 ${backgroundMode === 'cover' && coverColors.length > 0
+                        <div className={`absolute inset-0 transition-colors duration-300 ${backgroundMode === 'cover' && activeCoverColors.length > 0
                             ? (isDaylight ? 'bg-zinc-100' : 'bg-zinc-950')
                             : (isDaylight ? 'bg-[#f5f5f4]' : 'bg-[#060814]')
                             }`} />
 
                         {/* Blurry blobs */}
-                        {backgroundMode === 'cover' && coverColors.length >= 2 ? (
+                        {backgroundMode === 'cover' && activeCoverColors.length >= 2 ? (
                             <>
-                                <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full blur-[40px] transition-all duration-700 ease-in-out" style={{ backgroundColor: coverColors[0], opacity: isDaylight ? 0.35 : 0.25 }} />
-                                <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full blur-[50px] transition-all duration-700 ease-in-out" style={{ backgroundColor: coverColors[1], opacity: isDaylight ? 0.35 : 0.25 }} />
-                                <div className="absolute top-1/4 right-1/4 w-32 h-32 rounded-full blur-[30px] transition-all duration-700 ease-in-out" style={{ backgroundColor: coverColors[2] || coverColors[0], opacity: isDaylight ? 0.25 : 0.15 }} />
+                                <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full blur-[40px] transition-all duration-700 ease-in-out" style={{ backgroundColor: activeCoverColors[0], opacity: isDaylight ? 0.35 : 0.25 }} />
+                                <div className="absolute -bottom-16 -right-16 w-52 h-52 rounded-full blur-[50px] transition-all duration-700 ease-in-out" style={{ backgroundColor: activeCoverColors[1], opacity: isDaylight ? 0.35 : 0.25 }} />
+                                <div className="absolute top-1/4 right-1/4 w-32 h-32 rounded-full blur-[30px] transition-all duration-700 ease-in-out" style={{ backgroundColor: activeCoverColors[2] || activeCoverColors[0], opacity: isDaylight ? 0.25 : 0.15 }} />
                             </>
                         ) : isDaylight ? (
                             <>
@@ -507,12 +673,22 @@ const RemoteControlApp: React.FC = () => {
                                     F
                                 </div>
                             )}
-                            {snapshot.coverUrl && (
-                                <div
-                                    className="h-full w-full bg-cover bg-center"
-                                    style={coverStyle}
-                                />
-                            )}
+                            {/* 手动切歌是方向性淡入，最后 10 秒的交接则是两张封面缓慢互换 */}
+                            <AnimatePresence initial={false}>
+                                {coverFaces.map(face => (
+                                    <motion.div
+                                        key={`cover-${face.key}`}
+                                        initial={face.mode === 'incoming'
+                                            ? { opacity: 0, scale: 1.02, y: 0 }
+                                            : { opacity: 0, scale: 1.06, y: trackEnterOffset }}
+                                        animate={{ opacity: face.opacity, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.97, y: -trackEnterOffset }}
+                                        transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_FACE_TRANSITION}
+                                        className="absolute inset-0 h-full w-full bg-cover bg-center"
+                                        style={{ backgroundImage: `url(${face.coverUrl})` }}
+                                    />
+                                ))}
+                            </AnimatePresence>
                             {activePanel !== 'playback' && (
                                 <button
                                     type="button"
@@ -552,8 +728,22 @@ const RemoteControlApp: React.FC = () => {
                             <div className="min-w-0 pr-6">
                                 {/* Preview Sound Name */}
                                 <div className="relative h-5 min-w-0">
-                                    <div className={`absolute inset-0 truncate text-[15px] font-bold leading-5 tracking-[-0.01em] transition-opacity duration-200 ${previewTitle ? 'opacity-0' : 'opacity-100'
-                                        }`}>{title}</div>
+                                    <AnimatePresence initial={false}>
+                                        {trackFaces.map(face => (
+                                            <motion.div
+                                                key={`title-${face.key}`}
+                                                initial={face.mode === 'incoming'
+                                                    ? { opacity: 0, x: 0 }
+                                                    : { opacity: 0, x: trackEnterOffset }}
+                                                animate={{ opacity: previewTitle ? 0 : face.opacity, x: 0 }}
+                                                exit={{ opacity: 0, x: -trackEnterOffset }}
+                                                transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_TEXT_TRANSITION}
+                                                className="absolute inset-0 truncate text-[15px] font-bold leading-5 tracking-[-0.01em]"
+                                            >
+                                                {face.title}
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
                                     <div
                                         aria-hidden
                                         className="absolute inset-0 truncate text-[15px] font-bold leading-5 tracking-[-0.01em] transition-opacity duration-200"
@@ -562,8 +752,27 @@ const RemoteControlApp: React.FC = () => {
                                         {previewTitle}
                                     </div>
                                 </div>
-                                <div className={`truncate text-xs font-medium mt-0.5 transition-colors ${isDaylight ? 'text-black/50' : 'text-white/40'
-                                    }`}>{artist}</div>
+                                <div className={`relative h-4 mt-0.5 min-w-0 transition-colors ${isDaylight ? 'text-black/50' : 'text-white/40'
+                                    }`}>
+                                    <AnimatePresence initial={false}>
+                                        {trackFaces.map(face => (
+                                            <motion.div
+                                                key={`artist-${face.key}`}
+                                                initial={face.mode === 'incoming'
+                                                    ? { opacity: 0, x: 0 }
+                                                    : { opacity: 0, x: trackEnterOffset }}
+                                                animate={{ opacity: face.opacity, x: 0 }}
+                                                exit={{ opacity: 0, x: -trackEnterOffset }}
+                                                transition={face.mode === 'incoming'
+                                                    ? HANDOFF_FACE_TRANSITION
+                                                    : { ...SWITCH_TEXT_TRANSITION, delay: 0.04 }}
+                                                className="absolute inset-0 truncate text-xs font-medium leading-4"
+                                            >
+                                                {face.artist}
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
                             </div>
 
                             {/* Dynamic Panel with Framer Motion transitions */}
@@ -591,6 +800,19 @@ const RemoteControlApp: React.FC = () => {
                                                             style={{ width: `${progressPercent}%` }}
                                                         />
                                                     </div>
+
+                                                    {/* Outro Glow (last 30s) */}
+                                                    {isOutroGlowActive && (
+                                                        <div
+                                                            aria-hidden
+                                                            className="remote-progress-outro-glow pointer-events-none absolute left-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full"
+                                                            style={{
+                                                                width: `${progressPercent}%`,
+                                                                backgroundColor: activeColor,
+                                                                ['--outro-glow-color' as string]: outroGlowColor,
+                                                            } as React.CSSProperties}
+                                                        />
+                                                    )}
 
                                                     {/* Transparent Large Hitbox Input Range */}
                                                     <input
@@ -660,7 +882,7 @@ const RemoteControlApp: React.FC = () => {
                                                                         disabled={primaryDisabled || !snapshot.canGoPrevious}
                                                                         onMouseEnter={() => setHoverNavSide('prev')}
                                                                         onMouseLeave={() => setHoverNavSide(null)}
-                                                                        onClick={() => sendCommand({ type: 'previous' })}
+                                                                        onClick={() => navigateTrack('prev')}
                                                                         className={transportButtonClass}
                                                                     >
                                                                         <SkipBack size={17} strokeWidth={2} />
@@ -683,7 +905,7 @@ const RemoteControlApp: React.FC = () => {
                                                                         disabled={primaryDisabled || !snapshot.canGoNext}
                                                                         onMouseEnter={() => setHoverNavSide('next')}
                                                                         onMouseLeave={() => setHoverNavSide(null)}
-                                                                        onClick={() => sendCommand({ type: 'next' })}
+                                                                        onClick={() => navigateTrack('next')}
                                                                         className={transportButtonClass}
                                                                     >
                                                                         <SkipForward size={17} strokeWidth={2} />

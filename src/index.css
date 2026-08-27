@@ -131,3 +131,33 @@ html[data-click-through='active'] body .click-through-interactive,
 html[data-click-through='active'] body .click-through-interactive * {
   pointer-events: auto !important;
 }
+
+/* Remote control: through a track's final stretch the progress bar breathes a
+   soft glow, so the outro reads at a glance without watching the timestamps.
+   The glow rides on an overlay sibling because the track itself clips overflow
+   to keep the fill's rounded ends, which would cut any shadow off the fill. */
+@keyframes remote-progress-outro-glow {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    box-shadow: 0 0 4px 0 var(--outro-glow-color), 0 0 9px 0 var(--outro-glow-color);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 7px 1px var(--outro-glow-color), 0 0 16px 3px var(--outro-glow-color);
+  }
+}
+
+.remote-progress-outro-glow {
+  animation: remote-progress-outro-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remote-progress-outro-glow {
+    animation: none;
+    opacity: 0.85;
+    box-shadow: 0 0 6px 0 var(--outro-glow-color);
+  }
+}

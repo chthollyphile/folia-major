@@ -1,10 +1,10 @@
 import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlSnapshot } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
-import { getPlaybackSongKey, isLocalPlaybackSong, resolveNavidromePlaybackCarrier } from './appPlaybackGuards';
+import { getPlaybackSongKey, isLocalPlaybackSong } from './appPlaybackGuards';
 import { buildStagePlayerSnapshot } from './stagePlayerSnapshot';
-import { getProviderSongMetadata } from '../services/onlineMusic/songMetadata';
 import { resolvePlaybackNeighbors } from './playbackNeighbors';
+import { resolvePlaybackSongArtist, resolvePlaybackSongCoverUrl } from './playbackSongMeta';
 
 // src/utils/playbackSyncBridge.ts
 // Derives shared playback publisher models before adapting them to Electron-facing protocols.
@@ -93,26 +93,12 @@ const clampFiniteNumber = (value: number, fallback = 0): number => {
     return Number.isFinite(value) ? value : fallback;
 };
 
-const getPlaybackSyncBridgeArtist = (song: SongResult | null): string | null => {
-    if (!song) {
-        return null;
-    }
-
-    const primaryArtists = getProviderSongMetadata(song).artists.map(artist => artist.name).filter(Boolean);
-    if (primaryArtists.length > 0) {
-        return primaryArtists.join(', ');
-    }
-
-    const navidromeSong = resolveNavidromePlaybackCarrier(song);
-    return navidromeSong?.artists?.map(artist => artist.name).filter(Boolean).join(', ') || null;
-};
-
 const getPlaybackSyncBridgeCoverUrl = (
     song: SongResult | null,
     coverUrl: string | null,
     cachedCoverUrl: string | null | undefined,
 ): string | null => {
-    return coverUrl || cachedCoverUrl || getProviderSongMetadata(song).coverUrl || null;
+    return coverUrl || cachedCoverUrl || resolvePlaybackSongCoverUrl(song);
 };
 
 // Builds the single playback model used by Electron publishers with protocol-specific adapters.
@@ -165,7 +151,7 @@ export const buildPlaybackSyncBridgeModel = ({
         playQueue,
         hasTrack,
         title: currentSong?.name ?? null,
-        artist: getPlaybackSyncBridgeArtist(currentSong),
+        artist: resolvePlaybackSongArtist(currentSong),
         coverUrl: getPlaybackSyncBridgeCoverUrl(currentSong, coverUrl, cachedCoverUrl),
         currentIndex,
         currentTimeSec: safeCurrentTimeSec,
@@ -208,6 +194,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
 
     return {
     hasTrack: model.hasTrack,
+    trackKey: model.currentSong ? getPlaybackSongKey(model.currentSong) : null,
     title: model.title,
     artist: model.artist,
     coverUrl: model.coverUrl,
@@ -217,8 +204,14 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
     loopMode: model.loopMode,
     canGoPrevious: model.canGoPrevious,
     canGoNext: model.canGoNext,
+    prevTrackKey: neighbors.prev.key,
     prevTrackTitle: neighbors.prev.title,
+    prevTrackArtist: neighbors.prev.artist,
+    prevTrackCoverUrl: neighbors.prev.coverUrl,
+    nextTrackKey: neighbors.next.key,
     nextTrackTitle: neighbors.next.title,
+    nextTrackArtist: neighbors.next.artist,
+    nextTrackCoverUrl: neighbors.next.coverUrl,
     controlsDisabled: model.controlsDisabled,
     isStageActive: model.isStageActive,
     transparentModeEnabled: model.transparentModeEnabled,

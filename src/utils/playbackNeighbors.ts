@@ -1,12 +1,19 @@
 import { getPlaybackSongKey } from './appPlaybackGuards';
+import { resolvePlaybackSongArtist, resolvePlaybackSongCoverUrl } from './playbackSongMeta';
 import type { SongResult } from '../types';
 // src/utils/playbackNeighbors.ts
 
 export type PlaybackNeighbor = {
     /** 该方向是否可以跳转 */
     canGo: boolean;
+    /** 目标曲目标识；与快照里的 trackKey 同一套规则，便于遥控窗口把预读的面和切歌后的面认成同一个 */
+    key: string | null;
     /** 目标曲目标题；可跳但目标未知时为 null */
     title: string | null;
+    /** 目标曲目艺术家；用于遥控窗口提前渲染下一首 */
+    artist: string | null;
+    /** 目标曲目封面；用于遥控窗口提前预热图片与取色 */
+    coverUrl: string | null;
 };
 
 export type PlaybackNeighbors = {
@@ -14,9 +21,12 @@ export type PlaybackNeighbors = {
     next: PlaybackNeighbor;
 };
 
+const UNKNOWN_NEIGHBOR: PlaybackNeighbor = { canGo: true, key: null, title: null, artist: null, coverUrl: null };
+const BLOCKED_NEIGHBOR: PlaybackNeighbor = { canGo: false, key: null, title: null, artist: null, coverUrl: null };
+
 const BLOCKED: PlaybackNeighbors = {
-    prev: { canGo: false, title: null },
-    next: { canGo: false, title: null },
+    prev: BLOCKED_NEIGHBOR,
+    next: BLOCKED_NEIGHBOR,
 };
 
 type ResolvePlaybackNeighborsParams = {
@@ -29,8 +39,8 @@ type ResolvePlaybackNeighborsParams = {
 
 /**
  * 按 usePlaybackQueueController 中 handlePrevTrack / handleNextTrack 的同一套下标规则，
- * 推导上一首/下一首能否跳转以及目标标题。
- * FM 模式停在队列最后一首时，跳转会现拉新曲目，此时 canGo 为 true 但 title 未知。
+ * 推导上一首/下一首能否跳转，以及目标曲目的标题、艺术家与封面。
+ * FM 模式停在队列最后一首时，跳转会现拉新曲目，此时 canGo 为 true 但目标信息未知。
  */
 export const resolvePlaybackNeighbors = ({
     playQueue,
@@ -48,7 +58,16 @@ export const resolvePlaybackNeighbors = ({
     const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentKey);
     const lastIndex = playQueue.length - 1;
 
-    const titleAt = (index: number): string | null => playQueue[index]?.name ?? null;
+    const neighborAt = (index: number): PlaybackNeighbor => {
+        const song = playQueue[index] ?? null;
+        return {
+            canGo: true,
+            key: song ? getPlaybackSongKey(song) : null,
+            title: song?.name ?? null,
+            artist: resolvePlaybackSongArtist(song),
+            coverUrl: resolvePlaybackSongCoverUrl(song),
+        };
+    };
 
     let prevIndex = -1;
     if (currentIndex > 0) {
@@ -70,13 +89,11 @@ export const resolvePlaybackNeighbors = ({
     const fmWillFetch = isFmMode && currentIndex === lastIndex;
 
     return {
-        prev: prevIndex >= 0
-            ? { canGo: true, title: titleAt(prevIndex) }
-            : { canGo: false, title: null },
+        prev: prevIndex >= 0 ? neighborAt(prevIndex) : BLOCKED_NEIGHBOR,
         next: fmWillFetch
-            ? { canGo: true, title: null }
+            ? UNKNOWN_NEIGHBOR
             : nextIndex >= 0
-                ? { canGo: true, title: titleAt(nextIndex) }
-                : { canGo: false, title: null },
+                ? neighborAt(nextIndex)
+                : BLOCKED_NEIGHBOR,
     };
 };

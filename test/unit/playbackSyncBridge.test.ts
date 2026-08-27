@@ -7,6 +7,7 @@ import {
     buildStagePlayerSnapshotFromPlaybackSyncBridge,
     buildTaskbarControlsFromPlaybackSyncBridge,
 } from '../../src/utils/playbackSyncBridge';
+import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
 
 // test/unit/playbackSyncBridge.test.ts
 // Verifies shared playback publishing model adapters stay aligned.
@@ -72,8 +73,15 @@ describe('playbackSyncBridge', () => {
             loopMode: 'off',
             canGoPrevious: true,
             canGoNext: true,
+            trackKey: getPlaybackSongKey(currentSong),
+            prevTrackKey: getPlaybackSongKey(model.playQueue[0]),
             prevTrackTitle: 'Previous Song',
+            prevTrackArtist: 'Artist 1',
+            prevTrackCoverUrl: 'https://example.com/1.jpg',
+            nextTrackKey: getPlaybackSongKey(model.playQueue[2]),
             nextTrackTitle: 'Next Song',
+            nextTrackArtist: 'Artist 3',
+            nextTrackCoverUrl: 'https://example.com/3.jpg',
             playerChromeVisibilityMode: 'auto-hide',
             updatedAt: 1234,
         });
@@ -134,8 +142,15 @@ describe('playbackSyncBridge', () => {
             hasTrack: false,
             controlsDisabled: true,
             isStageActive: true,
+            trackKey: getPlaybackSongKey(currentSong),
+            prevTrackKey: null,
             prevTrackTitle: null,
+            prevTrackArtist: null,
+            prevTrackCoverUrl: null,
+            nextTrackKey: null,
             nextTrackTitle: null,
+            nextTrackArtist: null,
+            nextTrackCoverUrl: null,
             playerChromeVisibilityMode: 'always-hidden',
         });
         expect(buildTaskbarControlsFromPlaybackSyncBridge(model)).toEqual({

@@ -28,6 +28,8 @@ export type RemoteControlCommand =
 
 export interface RemoteControlSnapshot {
     hasTrack: boolean;
+    /** 当前曲目标识，遥控窗口据此判断"换歌了"并触发过渡 */
+    trackKey: string | null;
     title: string | null;
     artist: string | null;
     coverUrl: string | null;
@@ -37,8 +39,14 @@ export interface RemoteControlSnapshot {
     loopMode: 'off' | 'all' | 'one';
     canGoPrevious: boolean;
     canGoNext: boolean;
+    prevTrackKey: string | null;
     prevTrackTitle: string | null;
+    prevTrackArtist: string | null;
+    prevTrackCoverUrl: string | null;
+    nextTrackKey: string | null;
     nextTrackTitle: string | null;
+    nextTrackArtist: string | null;
+    nextTrackCoverUrl: string | null;
     controlsDisabled: boolean;
     isStageActive: boolean;
     transparentModeEnabled: boolean;

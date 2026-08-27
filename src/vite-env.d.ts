@@ -134,6 +134,7 @@ declare global {
 
   interface ElectronRemoteControlSnapshot {
     hasTrack: boolean;
+    trackKey: string | null;
     title: string | null;
     artist: string | null;
     coverUrl: string | null;
@@ -143,8 +144,14 @@ declare global {
     loopMode: 'off' | 'all' | 'one';
     canGoPrevious: boolean;
     canGoNext: boolean;
+    prevTrackKey: string | null;
     prevTrackTitle: string | null;
+    prevTrackArtist: string | null;
+    prevTrackCoverUrl: string | null;
+    nextTrackKey: string | null;
     nextTrackTitle: string | null;
+    nextTrackArtist: string | null;
+    nextTrackCoverUrl: string | null;
     controlsDisabled: boolean;
     isStageActive: boolean;
     transparentModeEnabled: boolean;
