@@ -4,8 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Folia Component Probes</title>
+    <style>
+      /* 探针页面需要随内容滚动；正式应用的全局样式会锁定 body。 */
+      body.dev-probe-body {
+        overflow-y: auto;
+      }
+    </style>
   </head>
-  <body>
+  <body class="dev-probe-body">
     <div id="root"></div>
     <script type="module" src="/dev/probes/main.tsx"></script>
   </body>
