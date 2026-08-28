@@ -67,11 +67,21 @@ interface PulsingBorderProgressProps {
     /** 已完成段底色，缺省跟第一个光斑颜色走 */
     baseColor?: string;
     tuning?: Partial<BorderTuning>;
+    /** 画布相对 CSS 尺寸的最小渲染倍率，默认 2（超采样换抗锯齿）；吃不消时降到 1 */
+    minPixelRatio?: number;
+    maxPixelCount?: number;
     className?: string;
     style?: React.CSSProperties;
 }
 
 const clampProgress = (value: number) => Math.min(1, Math.max(0, value / 100));
+
+/** 描边路径的周长（px），用来把「进度变化」换算成「端点走了几个像素」 */
+const strokePerimeter = (width: number, height: number, pad: number, radius: number) => {
+    const rx = Math.max(width / 2 - pad - radius, 0);
+    const ry = Math.max(height / 2 - pad - radius, 0);
+    return Math.max(1, 4 * (rx + ry) + 2 * Math.PI * radius);
+};
 
 const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
     progress,
@@ -83,26 +93,38 @@ const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
     trackColor = '#ffffff',
     baseColor,
     tuning,
+    minPixelRatio,
+    maxPixelCount,
     className,
     style,
 }) => {
     const elementRef = useRef<PaperShaderElement>(null);
     const latestProgress = useRef(clampProgress(progress.get()));
+    const sentProgress = useRef(latestProgress.current);
     const merged = { ...DEFAULT_BORDER_TUNING, ...tuning };
-
-    // 进度只写 uniform：MotionValue 每帧变化都在这里落地，不触发 React 重渲染
-    useLayoutEffect(() => {
-        const apply = (value: number) => {
-            latestProgress.current = clampProgress(value);
-            elementRef.current?.paperShaderMount?.setUniforms({ u_progress: latestProgress.current });
-        };
-        apply(progress.get());
-        return progress.on('change', apply);
-    }, [progress]);
 
     // 描边半宽 = min(halfSize) - pad，圆角按它归一化成着色器要的 0-1
     const strokeHalfSpan = Math.max(1, Math.min(width, height) / 2 - pad);
     const radiusPx = cornerRadius ?? strokeHalfSpan;
+    const perimeterPx = strokePerimeter(width, height, pad, radiusPx);
+
+    // 进度只写 uniform，不进 React。setUniforms 会立刻重绘一帧，而着色器自己还在 rAF 里画，
+    // 所以攒够「端点移动半个像素」再写，避免动画期间每帧多画一整张画布。
+    useLayoutEffect(() => {
+        const threshold = 0.5 / perimeterPx;
+        const apply = (value: number) => {
+            const next = clampProgress(value);
+            latestProgress.current = next;
+            const settled = next <= 0 || next >= 1;
+            if (!settled && Math.abs(next - sentProgress.current) < threshold) return;
+            sentProgress.current = next;
+            elementRef.current?.paperShaderMount?.setUniforms({ u_progress: next });
+        };
+        sentProgress.current = clampProgress(progress.get());
+        apply(progress.get());
+        return progress.on('change', apply);
+    }, [progress, perimeterPx]);
+
     const uniforms = buildProgressBorderUniforms({
         colors,
         colorBack: '#00000000',
@@ -134,6 +156,8 @@ const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
             fragmentShader={pulsingBorderProgressFragmentShader}
             uniforms={uniforms}
             speed={merged.speed}
+            minPixelRatio={minPixelRatio}
+            maxPixelCount={maxPixelCount}
             width={width}
             height={height}
             style={{ width, height, ...style }}
