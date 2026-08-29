@@ -42,8 +42,8 @@ describe('resolveTrackHandoffProgress', () => {
 
     it('aligns visual dominance with an off-centre audio crossover', () => {
         expect(resolveTrackHandoffProgress(playing(7, 0.7))).toBeCloseTo(0.5);
-        expect(resolveTrackHandoffProgress(playing(3.5, 0.7))).toBeCloseTo(0.25);
-        expect(resolveTrackHandoffProgress(playing(8.5, 0.7))).toBeCloseTo(0.75);
+        expect(resolveTrackHandoffProgress(playing(3.5, 0.7))).toBeCloseTo(0.15625);
+        expect(resolveTrackHandoffProgress(playing(8.5, 0.7))).toBeCloseTo(0.84375);
     });
 
     it('falls back to the current track while paused or without a cue', () => {
@@ -62,7 +62,10 @@ describe('local transition clock calibration', () => {
 
     it('maps the exact audio crossover to equal visual opacity', () => {
         expect(mapTrackHandoffProgress(0.7, 0.7)).toBeCloseTo(0.5);
-        expect(mapTrackHandoffProgress(0.35, 0.7)).toBeCloseTo(0.25);
-        expect(mapTrackHandoffProgress(0.85, 0.7)).toBeCloseTo(0.75);
+    });
+
+    it('shortens the interval where both track faces are strongly visible', () => {
+        expect(mapTrackHandoffProgress(0.25, 0.5)).toBeCloseTo(0.15625);
+        expect(mapTrackHandoffProgress(0.75, 0.5)).toBeCloseTo(0.84375);
     });
 });

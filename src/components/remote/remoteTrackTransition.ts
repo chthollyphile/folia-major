@@ -36,7 +36,7 @@ export const resolveTransitionClock = (timing: RemoteTransitionTiming): {
     };
 };
 
-/** Maps linear cue time onto the point where the incoming track becomes visually dominant. */
+/** Maps cue time through a peaked-speed curve while keeping 50% on the audio crossover. */
 export const mapTrackHandoffProgress = (timeProgress: number, crossover: number): number => {
     const safeProgress = clamp01(timeProgress);
     const safeCrossover = clamp01(crossover);
@@ -44,13 +44,14 @@ export const mapTrackHandoffProgress = (timeProgress: number, crossover: number)
     if (safeProgress <= 0) return 0;
     if (safeProgress >= 1) return 1;
 
-    if (safeProgress <= safeCrossover) {
-        return safeCrossover > 0 ? 0.5 * safeProgress / safeCrossover : 0.5;
-    }
+    const crossoverAlignedProgress = safeProgress <= safeCrossover
+        ? safeCrossover > 0 ? 0.5 * safeProgress / safeCrossover : 0.5
+        : safeCrossover < 1
+            ? 0.5 + 0.5 * (safeProgress - safeCrossover) / (1 - safeCrossover)
+            : 1;
 
-    return safeCrossover < 1
-        ? 0.5 + 0.5 * (safeProgress - safeCrossover) / (1 - safeCrossover)
-        : 1;
+    // smoothstep 的速度是一座中间高、两端低的抛物线：快速穿过双标题都明显可见的区域。
+    return crossoverAlignedProgress * crossoverAlignedProgress * (3 - 2 * crossoverAlignedProgress);
 };
 
 /** 只在实际音频过渡的 cue 时间窗内点亮进度条。 */
