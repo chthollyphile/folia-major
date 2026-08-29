@@ -1917,7 +1917,9 @@ export default function App() {
         t: (key: string, fallback?: string) => t(key, fallback ?? ''),
     });
 
-    const usesCustomWindowChrome = isElectronWindow;
+    // Wallpaper mode removes normal window semantics (no minimize/maximize/close, no dragging, and
+    // click-through is managed by the main process), so the whole custom titlebar strip stays off.
+    const usesCustomWindowChrome = isElectronWindow && !wallpaperMode;
     const isPlayerPageTransparent = transparentPlayerBackground || enablePlayerPageNativeBlur;
     const shouldUseTransparentAppBackground = currentView === 'player' && isPlayerPageTransparent;
     const appStyle = useMemo(() => buildAppStyle({
@@ -2294,6 +2296,7 @@ export default function App() {
         toggleBrowserFullscreen,
         toggleRemoteControlWindow,
         toggleMainWindowAlwaysOnTop,
+        isWallpaperMode: wallpaperMode,
 
         setPanelTab,
         setIsPanelOpen,
@@ -3741,9 +3744,6 @@ export default function App() {
             }}
         />
     );
-    // X11 wallpaper mode cannot use click-through:because it would let clicks raise other background window above Folia. Hide the toggle.
-    const isX11WallpaperMode = isElectronWindow && window.electron?.isLinuxX11 === true && wallpaperMode;
-
     return (
         <AppShell
             appStyle={appStyle}
@@ -3755,7 +3755,7 @@ export default function App() {
             isTitlebarRevealed={isTitlebarRevealed}
             alwaysShowMainWindowTitlebar={alwaysShowMainWindowTitlebar}
             isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}
-            showMainWindowClickThroughToggle={!isX11WallpaperMode && (isMainWindowClickThroughEnabled ? isClickThroughToggleHotspotActive : isTitlebarRevealed)}
+            showMainWindowClickThroughToggle={isMainWindowClickThroughEnabled ? isClickThroughToggleHotspotActive : isTitlebarRevealed}
             isDaylight={isDaylight}
             onToggleMainWindowClickThrough={() => {
                 const nextEnabled = !isMainWindowClickThroughEnabled;

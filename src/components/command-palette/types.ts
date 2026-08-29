@@ -136,6 +136,8 @@ export type CommandPaletteNavigationContext = {
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;
     toggleMainWindowAlwaysOnTop: () => Promise<boolean>;
+    /** Window-level toggles (fullscreen, always-on-top) are meaningless in wallpaper mode. */
+    isWallpaperMode: boolean;
 };
 
 export type CommandPalettePanelContext = {

@@ -77,6 +77,11 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-mode-changed', listener);
         return () => ipcRenderer.removeListener('wallpaper-mode-changed', listener);
     },
+    onWallpaperTransparentRefused: (callback) => {
+        const listener = (_event, settings) => callback(settings);
+        ipcRenderer.on('wallpaper-transparent-refused', listener);
+        return () => ipcRenderer.removeListener('wallpaper-transparent-refused', listener);
+    },
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
     setAppLocale: (localeKey) => ipcRenderer.invoke('set-app-locale', localeKey),
     getCacheDirectory: () => ipcRenderer.invoke('get-cache-directory'),

@@ -1596,6 +1596,7 @@ export type SettingsUiState = {
     handleToggleAlwaysShowTrackSwitchButtons: (enable: boolean) => void;
     handleToggleAlwaysShowMainWindowTitlebar: (enable: boolean) => void;
     handleToggleTransparentPlayerBackground: (enable: boolean) => void;
+    handleWallpaperTransparentRefused: () => void;
     handleToggleAutoHidePlayerChrome: (enable: boolean) => void;
     handleToggleDisableVisualizerVignette: (disable: boolean) => void;
     handleToggleDisableVisualizerGeometricBackground: (disable: boolean) => void;
@@ -2083,6 +2084,14 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         notify(get, {
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'transparentBgOn' : 'transparentBgOff')),
+        });
+    },
+    // Main-process guard fired the refusal (classic Windows wallpaper mode cannot present a
+    // transparent wallpaper window): surface why the toggle did not take effect.
+    handleWallpaperTransparentRefused: () => {
+        notify(get, {
+            type: 'warning',
+            text: i18n.t('notifications.transparentBgWallpaperUnsupported'),
         });
     },
     handleToggleDisableVisualizerVignette: (disable) => {

@@ -1,0 +1,25 @@
+[package]
+name = "folia-wallpaper-helper"
+version = "0.1.0"
+edition = "2021"
+description = "Windows desktop-wallpaper attach helper for Folia (WorkerW parenting + raw-input mouse forwarding)"
+license = "AGPL-3.0"
+
+# The windows crate is target-gated so `cargo test` (pure-logic modules: cli.rs / events.rs)
+# still builds and runs on non-Windows hosts, e.g. a Linux dev machine or CI lint job.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Accessibility",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_System_LibraryLoader",
+] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

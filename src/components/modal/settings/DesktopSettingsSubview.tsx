@@ -116,6 +116,7 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
         onToggleWallpaperMode,
     } = preferences;
     const isLinux = isElectron && window.electron?.platform === 'linux';
+    const isWindows = isElectron && window.electron?.platform === 'win32';
     const {
         canDownloadUpdate,
         canEnableAutoUpdate,
@@ -253,7 +254,7 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                 )}
             </section>
 
-            {isLinux && (
+            {(isLinux || isWindows) && (
                 <section className="space-y-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-60" style={{ color: 'var(--text-secondary)' }}>
                         <AppWindow size={14} className="opacity-70" /> {t('options.wallpaperMode') || 'Wallpaper Mode'}

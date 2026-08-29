@@ -131,7 +131,7 @@ jobs:
         run: npm ci
 
       - name: Install Rust toolchain
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' || runner.os == 'Windows'
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -141,6 +141,19 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: .windowtolayer-src
+
+      - name: Cache wallpaper-helper Cargo build
+        if: runner.os == 'Windows'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packaging/windows/wallpaper-helper
+
+      - name: Build wallpaper helper (Windows only)
+        if: runner.os == 'Windows'
+        run: |
+          # Builds packaging/windows/wallpaper-helper (WorkerW attach + raw-input mouse forward)
+          # into build/folia-wallpaper-helper.exe for the win extraResources. No-op elsewhere.
+          node packaging/windows/build-wallpaper-helper.mjs
 
       - name: Build windowtolayer from upstream + patch (Linux only)
         if: runner.os == 'Linux'

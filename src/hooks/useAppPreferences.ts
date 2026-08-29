@@ -159,6 +159,14 @@ export function useAppPreferences(setStatusMsg: StatusSetter) {
     }, [setDesktopPreferenceSnapshot]);
 
     useEffect(() => {
+        // Main refused a transparent-enable toggle (classic Windows wallpaper mode): the toggle
+        // stays in its previous state, this only explains why nothing happened.
+        return window.electron?.onWallpaperTransparentRefused?.(() => {
+            useSettingsUiStore.getState().handleWallpaperTransparentRefused();
+        });
+    }, []);
+
+    useEffect(() => {
         let isCancelled = false;
 
         const loadCustomEmojiPack = async () => {

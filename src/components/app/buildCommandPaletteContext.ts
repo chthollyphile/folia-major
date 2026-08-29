@@ -60,6 +60,7 @@ export type CommandPaletteContextDeps = {
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;
     toggleMainWindowAlwaysOnTop: () => Promise<boolean>;
+    isWallpaperMode: boolean;
 
     setPanelTab: (tab: PanelTab) => void;
     setIsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -175,6 +176,7 @@ export const buildCommandPaletteContext = (deps: CommandPaletteContextDeps): Com
         toggleBrowserFullscreen: deps.toggleBrowserFullscreen,
         toggleRemoteControlWindow: deps.toggleRemoteControlWindow,
         toggleMainWindowAlwaysOnTop: deps.toggleMainWindowAlwaysOnTop,
+        isWallpaperMode: deps.isWallpaperMode,
     },
     panel: {
         setPanelTab: deps.setPanelTab,

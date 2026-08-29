@@ -10,6 +10,7 @@ const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { registerModProtocolSchemes } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const wallpaperWatchdogModule = require('./wallpaperWatchdog.cjs');
+const windowsWallpaperModule = require('./windowsWallpaperController.cjs');
 const { createKugouApiBridge } = require('./kugouApiBridge.cjs');
 const { createQqAuthSessionRepository } = require('./qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -140,6 +141,9 @@ const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStora
 // Settings keys follow the existing electron-store key/value chain; values are normalized here in
 // the main process so stale or dirty stored values never reach the windowtolayer CLI.
 const WALLPAPER_MODE_SETTING_KEY = 'wallpaper_mode';
+// Windows-only helper switches; both default to on (missing = enabled).
+const WALLPAPER_FORWARD_MOUSE_SETTING_KEY = 'wallpaper_forward_mouse';
+const WALLPAPER_ZGUARD_SETTING_KEY = 'wallpaper_zguard';
 
 // Thin wrappers over electron/wallpaperWatchdog.cjs so the call sites across the file keep their
 // existing signatures while the predicates stay a single source of truth in the module.
@@ -224,9 +228,233 @@ const wallpaperWatchdog = wallpaperWatchdogModule.createWallpaperWatchdog({
   probeIntervalMs: 2000,
 });
 
+// --- Windows wallpaper mode (WorkerW parenting via folia-wallpaper-helper.exe) ---
+// Unlike the Linux paths there is no relaunch: the helper parents the existing window into the
+// WorkerW layer at runtime. Mode toggles recreate the window in place with a playback handoff.
+
+// Windows wallpaper mode: the main window is parented below the desktop icons. Click-through
+// is refused here as well — after SetParent the clicks never reach the window anyway, so an
+// ignore-mouse state would only leave the UI answering clicks that cannot happen.
+function isWindowsWallpaperMode() {
+  return process.platform === 'win32' && wallpaperWatchdogModule.isWallpaperModeEnabled(store);
+}
+
+// Desktop architecture the wallpaper helper last attached to, as reported by its `attached`
+// event ('raised' = Win11 24H2+ layered shell view, 'classic' = Win10/early Win11). Persisted
+// because it is a per-machine property: the window builder needs it before the first attach.
+// A transparent Electron window only keeps presenting after SetParent on the raised desktop —
+// on classic the WS_EX_LAYERED redirection surface dies with the re-parent and the wallpaper
+// presents black (renderer keeps painting; only the window surface is lost, verified on
+// Win10 17763), so classic-mode wallpaper windows are always built opaque.
+const WALLPAPER_WINDOWS_ATTACH_MODE_KEY = 'wallpaper_windows_attach_mode';
+let wallpaperWindowsAttachMode = store.get(WALLPAPER_WINDOWS_ATTACH_MODE_KEY) === 'raised' ? 'raised' : 'classic';
+
+function isWindowsWallpaperTransparentSupported() {
+  return wallpaperWindowsAttachMode === 'raised';
+}
+
+// The user preference (TRANSPARENT_PLAYER_BACKGROUND) is independent of what the current
+// window can render: wallpaper mode on the classic desktop derives an opaque window. After an
+// attach reports a different architecture than the window was built for, bring them back in
+// sync with one rebuild.
+function reconcileWindowsWallpaperWindowTransparency() {
+  if (process.platform !== 'win32' || !isWindowsWallpaperMode() || !isTransparentPlayerBackgroundEnabled()) {
+    return;
+  }
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.__wallpaperWindowTransparent !== true) {
+    return;
+  }
+  recreateMainWindowWithTransparencyMode(true, null);
+}
+
+// The helper ships as resources/folia-wallpaper-helper.exe (built by
+// packaging/windows/build-wallpaper-helper.mjs). FOLIA_WALLPAPER_HELPER_PATH overrides it for
+// non-packaged (dev) runs, mirroring FOLIA_WINDOWTOLAYER_PATH. A missing binary just disables
+// wallpaper mode (attach reports 'missing' and the renderer learns via wallpaper-mode-changed).
+function resolveWallpaperHelperPath() {
+  const override = process.env.FOLIA_WALLPAPER_HELPER_PATH;
+  if (override) {
+    return fs.existsSync(override) ? override : null;
+  }
+  const candidate = path.join(process.resourcesPath, 'folia-wallpaper-helper.exe');
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function getMainWindowNativeHwnd() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return null;
+  }
+  try {
+    const handle = mainWindow.getNativeWindowHandle();
+    return handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0);
+  } catch {
+    return null;
+  }
+}
+
+// --- Windows wallpaper mode mouse injection (sendInputEvent) ---
+// The helper reports desktop mouse input (move + left button) as JSONL events in 96-DPI
+// virtualized screen pixels (its process is DPI-unaware, which is exactly Electron's DIP
+// space); here they are made window-relative and injected at the Chromium input-pipeline
+// level. Posting WM_MOUSEMOVE/WM_LBUTTONDOWN to the window directly is not an option: Chromium
+// arms TrackMouseEvent on the first processed WM_MOUSEMOVE, but the real cursor physically
+// sits on the desktop icon layer above the wallpaper window, so the system instantly answers
+// WM_MOUSELEAVE and hover is torn down between every forwarded move (measured 300–500
+// enter/leave pairs per second).
+let lastWallpaperMouseDown = { at: 0, x: 0, y: 0 };
+// Tracks the primary button between helper mousedown/mouseup reports: injected mouseMove
+// events carry no button state of their own, and Chromium derives MouseEvent.buttons from the
+// 'leftbuttondown' modifier — without it a drag is torn down by the first forwarded move.
+let wallpaperPrimaryButtonHeld = false;
+
+// Injects one helper mouse event into the main window's renderer.
+function forwardWallpaperMouseInput(event) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  // Helper coordinates are already in DIP screen space — only shift by the window origin.
+  const bounds = mainWindow.getContentBounds();
+  const x = event.x - bounds.x;
+  const y = event.y - bounds.y;
+  switch (event.event) {
+    case 'mousemove': {
+      // Outside the window (taskbar, other monitor) there is nothing to hover; button events
+      // still go through so a drag that strays out of bounds cannot stick the pressed state.
+      if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+        return;
+      }
+      const moveEvent = { type: 'mouseMove', x, y };
+      if (wallpaperPrimaryButtonHeld) {
+        moveEvent.modifiers = ['leftbuttondown'];
+      }
+      mainWindow.webContents.sendInputEvent(moveEvent);
+      return;
+    }
+    case 'mousedown': {
+      wallpaperPrimaryButtonHeld = true;
+      // clickCount must be synthesized: injected events bypass the OS multi-click detection.
+      const now = Date.now();
+      const isDoubleClick =
+        now - lastWallpaperMouseDown.at < 500 &&
+        Math.abs(event.x - lastWallpaperMouseDown.x) <= 8 &&
+        Math.abs(event.y - lastWallpaperMouseDown.y) <= 8;
+      lastWallpaperMouseDown = { at: now, x: event.x, y: event.y };
+      mainWindow.webContents.sendInputEvent({
+        type: 'mouseDown',
+        x,
+        y,
+        button: 'left',
+        clickCount: isDoubleClick ? 2 : 1,
+        modifiers: ['leftbuttondown'],
+      });
+      return;
+    }
+    case 'mouseup': {
+      wallpaperPrimaryButtonHeld = false;
+      mainWindow.webContents.sendInputEvent({
+        type: 'mouseUp',
+        x,
+        y,
+        button: 'left',
+        clickCount: 1,
+      });
+      return;
+    }
+    case 'mousewheel': {
+      // Scrollable content only exists inside the window; outside (taskbar, other monitor)
+      // the packet is dropped like a stray mousemove.
+      if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+        return;
+      }
+      // Helper deltas are raw-input notches (multiples of WHEEL_DELTA=120; hi-res wheels send
+      // smaller increments). Chromium's mouseWheel wants CSS pixels: ~100px per notch. The
+      // vertical sign passes through unchanged — sendInputEvent's injected deltaY semantics
+      // are inverted relative to native wheel events (calibrated on the real machine, where
+      // negating the raw delta produced reversed scrolling); horizontal keeps its sign
+      // (positive = scroll right).
+      const notch = (raw) => Math.round(((raw || 0) / 120) * 100);
+      mainWindow.webContents.sendInputEvent({
+        type: 'mouseWheel',
+        x,
+        y,
+        deltaX: notch(event.deltaX),
+        deltaY: notch(event.deltaY),
+      });
+      return;
+    }
+  }
+}
+
+// Helper process lifecycle + heartbeat watchdog + crash-loop breaker. The recovery callbacks
+// rebuild the main window when the helper cannot keep it (window destroyed with its WorkerW,
+// renderer crash, repeated failures) — degrade clears wallpaper_mode and comes back as a
+// normal window without an app relaunch.
+const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController({
+  store,
+  helperPath: () => resolveWallpaperHelperPath(),
+  getHwnd: getMainWindowNativeHwnd,
+  onDegrade: () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
+    }
+    recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
+  },
+  onReattachNeeded: () => {
+    rebuildWindowsWallpaperSession();
+  },
+  onAttachMode: (mode) => {
+    if (mode !== 'raised' && mode !== 'classic') {
+      return;
+    }
+    if (mode === wallpaperWindowsAttachMode) {
+      return;
+    }
+    wallpaperWindowsAttachMode = mode;
+    store.set(WALLPAPER_WINDOWS_ATTACH_MODE_KEY, mode);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
+    }
+    reconcileWindowsWallpaperWindowTransparency();
+  },
+  onMouseInput: forwardWallpaperMouseInput,
+});
+
+// Renderer crash / WorkerW teardown broke the wallpaper session: attach the helper to a live
+// window, or rebuild one first when the Folia window was destroyed together with the WorkerW.
+function rebuildWindowsWallpaperSession() {
+  if (process.platform !== 'win32' || !isWindowsWallpaperMode()) {
+    return;
+  }
+  windowsWallpaper.killHelper();
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = null;
+    createWindow();
+  }
+  windowsWallpaper.attach();
+}
+
 // Runtime change (save-settings IPC): relaunch the whole process so the new mode takes effect.
 // The store value is already written by the save-settings handler before this runs.
-function relaunchForWallpaperModeChange(nextEnabled) {
+async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = null) {
+  // Windows: the window must be RECREATED with the wallpaper option set, not just re-parented.
+  // A normal window is built with thickFrame:true; once the helper parents it into the WorkerW,
+  // Chromium keeps the client-frame compensation it computed at creation, and the rendered
+  // content sits inside a ~10px gap (measured at 150% scaling). Startup with the setting on
+  // creates the window borderless (thickFrame:false) and has no gap — so the runtime toggle
+  // recreates the window to match, and the playback handoff carries the session across the
+  // renderer reload.
+  if (process.platform === 'win32') {
+    const handoff = await requestWindowPlaybackHandoff();
+    if (expectedGeneration !== null && expectedGeneration !== wallpaperModeRelaunchGeneration) {
+      return;
+    }
+    if (!nextEnabled) {
+      // Release the helper before its hwnd is destroyed (the recreate path would only kill it).
+      windowsWallpaper.detach();
+    }
+    recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), handoff);
+    return;
+  }
   if (nextEnabled) {
     if (isWallpaperWrapped()) {
       return; // already a wallpaper session, nothing to do
@@ -259,6 +487,15 @@ function scheduleWallpaperModeRelaunch(nextEnabled) {
 
   wallpaperModeRelaunchTimer = setTimeout(async () => {
     wallpaperModeRelaunchTimer = null;
+    // Windows detaches/recreates the window in place (no process relaunch); the playback
+    // handoff inside keeps the session alive across the renderer reload.
+    if (process.platform === 'win32') {
+      if (generation !== wallpaperModeRelaunchGeneration) {
+        return;
+      }
+      await relaunchForWallpaperModeChange(nextEnabled, generation);
+      return;
+    }
     await requestWindowPlaybackHandoff();
     if (generation !== wallpaperModeRelaunchGeneration) {
       return;
@@ -616,6 +853,7 @@ function getPublicSettings() {
     [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
     [UPDATE_CHANNEL_SETTING_KEY]: getCurrentReleaseChannel().id,
     'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
+    'wallpaper_attach_mode': process.platform === 'win32' ? wallpaperWindowsAttachMode : null,
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
   };
 }
@@ -807,7 +1045,10 @@ function clearWindowStateSaveTimer() {
 }
 
 function saveWindowState(win, options = {}) {
-  if (!win || win.isDestroyed() || isX11WallpaperMode() || x11WallpaperWindows.has(win)) {
+  // A wallpaper window's geometry is dictated by the display; persisting it would clobber the
+  // bounds a normal window restores to after leaving wallpaper mode (same reason as the X11
+  // guards — the Windows wallpaper path just has no separate window set to check against).
+  if (!win || win.isDestroyed() || isX11WallpaperMode() || x11WallpaperWindows.has(win) || win.__wallpaperGeometry === true) {
     return;
   }
 
@@ -1076,6 +1317,11 @@ function applyMainWindowAlwaysOnTop() {
 }
 
 function setMainWindowAlwaysOnTop(enabled) {
+  // Always-on-top would fight the wallpaper's desktop-layer z-order, so wallpaper mode refuses it.
+  if (Boolean(enabled) && isWallpaperModeEnabled()) {
+    return mainWindowAlwaysOnTop;
+  }
+
   mainWindowAlwaysOnTop = Boolean(enabled);
   store.set(MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY, mainWindowAlwaysOnTop);
   applyMainWindowAlwaysOnTop();
@@ -1098,8 +1344,9 @@ function isMainWindowOverlayPresetActive() {
 // on-top flag has to be set before the rebuild and click-through re-applied after it.
 async function setMainWindowOverlayPreset(enabled) {
   const nextEnabled = Boolean(enabled);
-  // Click-through is refused in X11 wallpaper mode, which would leave the preset half applied.
-  if (nextEnabled && isX11WallpaperMode()) {
+  // Click-through is refused in wallpaper mode (X11 and Windows by setMainWindowClickThroughEnabled,
+  // which would leave the preset half applied), so the preset refuses up front for every platform.
+  if (nextEnabled && isWallpaperModeEnabled()) {
     return false;
   }
 
@@ -3215,7 +3462,9 @@ function applyMainWindowMouseIgnoreState() {
 function setMainWindowClickThroughEnabled(enabled) {
   // Refuse to enable on X11 wallpaper mode: clicks would reach the KDE desktop window and KWin
   // would raise it above Folia (both desktop-type), covering the wallpaper. The state stays off.
-  if (Boolean(enabled) && isX11WallpaperMode()) {
+  // Windows wallpaper mode refuses too: the window sits below the icon layer, so real clicks
+  // never reach it and forwarding them back via the helper makes more sense than a hole.
+  if (Boolean(enabled) && (isX11WallpaperMode() || isWindowsWallpaperMode())) {
     return mainWindowClickThroughEnabled;
   }
 
@@ -3518,17 +3767,25 @@ function createWindow(options = {}) {
   // _NET_WM_WINDOW_TYPE_DESKTOP) covering the whole work area. Wayland ignores the
   // type option, so this branch is mutually exclusive with the windowtolayer path.
   const useDesktopWindowType = isX11WallpaperMode();
+  // Windows wallpaper mode: an ordinary frameless window that the helper parents into the
+  // WorkerW layer right after creation. It shares the fullscreen-primary-display geometry with
+  // the X11 branch, but the window type stays default.
+  const useWindowsWallpaper = isWindowsWallpaperMode();
+  const useWallpaperGeometry = useDesktopWindowType || useWindowsWallpaper;
   // On a scaled X11 desktop (KWin display scale > 1) the bounds from the screen module are
   // device-independent pixels, and Chromium clamps a window that is mapped immediately to the
   // work-area width (which excludes panels). The window must therefore be mapped hidden, sized to
   // the full display, and then shown — a fresh map at the explicit bounds covers the whole screen.
   const deferShowForDesktopSizing = useDesktopWindowType && showImmediately;
   const { bounds: storedBounds, isMaximized: storedMaximized } = getStoredWindowState();
-  const windowBounds = useDesktopWindowType
+  const windowBounds = useWallpaperGeometry
     ? screen.getPrimaryDisplay().bounds
     : ensureWindowBoundsVisible(storedBounds);
-  const isMaximized = useDesktopWindowType ? false : storedMaximized;
-  const useTransparentWindow = isTransparentPlayerBackgroundEnabled();
+  const isMaximized = useWallpaperGeometry ? false : storedMaximized;
+  // Classic-desktop wallpaper windows must be opaque (see the attach-mode note above); the
+  // window remembers what it was built as so the reconcile path can detect mismatches.
+  const useTransparentWindow = isTransparentPlayerBackgroundEnabled()
+    && !(useWindowsWallpaper && !isWindowsWallpaperTransparentSupported());
   const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
   let win;
   try {
@@ -3540,7 +3797,10 @@ function createWindow(options = {}) {
       frame: false,
       transparent: useTransparentWindow,
       hasShadow: !useTransparentWindow,
-      thickFrame: process.platform === 'win32' ? !useTransparentWindow : undefined,
+      // Windows wallpaper mode must drop WS_THICKFRAME entirely: with it, Windows treats the
+      // window as frame-bearing and the geometry work leaves frame-width gaps at the screen
+      // edges (and the pre-attach bounds get adjusted off the requested display rect).
+      thickFrame: process.platform === 'win32' ? !useTransparentWindow && !useWindowsWallpaper : undefined,
       backgroundColor: (useTransparentWindow || enableNativeBlur) ? '#00000000' : '#09090b',
       vibrancy: (!useTransparentWindow && enableNativeBlur) && process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
       backgroundMaterial: (!useTransparentWindow && enableNativeBlur) && process.platform === 'win32' ? 'acrylic' : undefined,
@@ -3548,7 +3808,15 @@ function createWindow(options = {}) {
       icon: APP_ICON_PATH,
       skipTaskbar: mainWindowSkipTaskbarEnabled,
       // Desktop windows already live below every normal window; alwaysOnTop is meaningless here.
-      alwaysOnTop: useDesktopWindowType ? false : mainWindowAlwaysOnTop,
+      alwaysOnTop: useWallpaperGeometry ? false : mainWindowAlwaysOnTop,
+      // A wallpaper window must not be user-resizable; the helper owns the geometry.
+      // NOTE: the key must be omitted entirely in normal mode — passing `resizable: undefined`
+      // makes Electron treat the option as false and create a non-resizable window.
+      ...(useWindowsWallpaper ? { resizable: false } : {}),
+      // Same for dragging: moving a wallpaper window out of the desktop geometry (e.g. out of the
+      // WorkerW hierarchy on Windows) breaks the wallpaper. Key omitted in normal mode, same
+      // undefined-option caveat as `resizable` above.
+      ...(useWallpaperGeometry ? { movable: false } : {}),
       show: showImmediately && !deferShowForDesktopSizing,
       webPreferences: {
         preload: path.join(__dirname, 'preload.cjs'),
@@ -3565,6 +3833,8 @@ function createWindow(options = {}) {
     wallpaperWatchdog.handleWindowBuildFailure();
     throw error;
   }
+  win.__wallpaperWindowTransparent = useTransparentWindow;
+  win.__wallpaperGeometry = useWallpaperGeometry;
 
   if (useDesktopWindowType) {
     x11WallpaperWindows.add(win);
@@ -3573,6 +3843,14 @@ function createWindow(options = {}) {
   // Watchdog trigger point 1: a crashed renderer breaks the wallpaper connection.
   win.webContents.on('render-process-gone', (_event, details) => {
     wallpaperWatchdog.handleRendererGone(details);
+    // Windows: a renderer crash kills only the page — the BrowserWindow (and its place in the
+    // WorkerW) survives, so the helper keeps the still-valid hwnd and must NOT be touched.
+    // Reloading the webContents restores the UI in place; the full window rebuild
+    // (rebuildWindowsWallpaperSession) is reserved for the window-destroyed case where the
+    // WorkerW teardown took the window with it.
+    if (useWindowsWallpaper && details?.reason === 'crashed' && !win.isDestroyed()) {
+      win.webContents.reload();
+    }
   });
 
   // Wallpaper desktop windows: re-assert the full display bounds while still hidden, then show.
@@ -3580,7 +3858,7 @@ function createWindow(options = {}) {
   // deferShowForDesktopSizing), leaving an uncovered strip. When showImmediately is false the
   // caller (e.g. recreateMainWindowWithTransparencyMode) owns the show, but the bounds fix still
   // applies so the window is full-size by the time it appears.
-  if (useDesktopWindowType) {
+  if (useWallpaperGeometry) {
     win.setBounds(screen.getPrimaryDisplay().bounds);
   }
   if (deferShowForDesktopSizing) {
@@ -3600,8 +3878,9 @@ function createWindow(options = {}) {
   ensureTray();
   setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
   // Full initializer, not just applyMainWindowMouseIgnoreState(): when click-through is on at
-  // startup (wallpaper mode) this also starts the unlock-hotspot monitor, so the user can still
-  // reveal the lock button to turn click-through back off.
+  // startup (Wayland wallpaper mode) this also starts the unlock-hotspot monitor, so hover near
+  // the titlebar corner can temporarily restore mouse interaction even though the lock toggle
+  // itself is no longer rendered in wallpaper mode.
   setMainWindowClickThroughEnabled(mainWindowClickThroughEnabled);
   updateWindowThumbarButtons();
   win.on('resize', () => {
@@ -3643,9 +3922,21 @@ function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
   store.set(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, Boolean(enabled));
   rememberWindowPlaybackHandoff(handoff);
 
+  // Windows wallpaper mode: whatever window ends up as the main window must be re-attached —
+  // the helper holds the old window's hwnd, which is about to be destroyed. Detach (graceful)
+  // so the old window is un-parented from the WorkerW before its destroy — killing the helper
+  // instead would leave the destroyed window's last frame stuck on the desktop layer.
+  const reattachWindowsWallpaper = process.platform === 'win32' && isWindowsWallpaperMode();
+  if (reattachWindowsWallpaper) {
+    windowsWallpaper.detach();
+  }
+
   if (!mainWindow || mainWindow.isDestroyed()) {
     const createdWindow = createWindow();
     focusMainWindow();
+    if (reattachWindowsWallpaper) {
+      windowsWallpaper.attach();
+    }
     return createdWindow;
   }
 
@@ -3671,6 +3962,9 @@ function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
       previousWindow.destroy();
     }
     focusMainWindow();
+    if (reattachWindowsWallpaper) {
+      windowsWallpaper.attach();
+    }
   });
 
   return nextWindow;
@@ -3678,6 +3972,15 @@ function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
 
 async function setMainWindowTransparentMode(enabled, handoff = null) {
   const nextEnabled = Boolean(enabled);
+  // Classic-desktop wallpaper windows cannot present a transparent surface after SetParent
+  // (the wallpaper goes black); refuse the toggle instead of recreating into a broken state.
+  // The renderer keeps its previous state and shows the unsupported hint.
+  if (nextEnabled && process.platform === 'win32' && isWindowsWallpaperMode() && !isWindowsWallpaperTransparentSupported()) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('wallpaper-transparent-refused', getPublicSettings());
+    }
+    return false;
+  }
   patchRemoteControlSnapshot({
     transparentModeEnabled: nextEnabled,
     mainWindowClickThroughEnabled: false,
@@ -3766,6 +4069,64 @@ app.whenReady().then(async () => {
   ensureTray();
   createWindow();
   focusMainWindow();
+  // Windows wallpaper mode: attach the helper once the window exists (startup with the setting
+  // on; runtime toggles go through scheduleWallpaperModeRelaunch → relaunchForWallpaperModeChange).
+  if (isWindowsWallpaperMode()) {
+    const attachResult = windowsWallpaper.attach();
+    if (attachResult === 'missing') {
+      // Clearing the setting is not enough: the window above was already created with the
+      // wallpaper options (thickFrame:false, resizable:false, movable:false). It must be
+      // recreated as an ordinary window or the user is left with a borderless, immovable
+      // shell — same recovery the degrade path performs.
+      store.set(WALLPAPER_MODE_SETTING_KEY, false);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
+      }
+      recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
+    }
+  }
+  // Display hotplug / resolution change: re-assert the fullscreen geometry (DIP) and ask the
+  // helper to re-fill the monitor in physical pixels.
+  // Registered outside the startup-mode branch: the Windows toggle recreates the window
+  // without a process relaunch, so wallpaper mode can be entered long after startup and the
+  // geometry must keep following display changes.
+  if (process.platform === 'win32') {
+    // Display changes arrive as event bursts with different shapes: a resolution edit emits
+    // display-metrics-changed, but a topology switch (monitor plug/unplug, Win+P, lid) emits
+    // only display-removed + display-added — a metrics-changed listener alone misses it and the
+    // wallpaper keeps the dead monitor's size. Coalesce the burst and re-assert the geometry
+    // once it settles: DIP bounds follow getPrimaryDisplay(), physical geometry is delegated to
+    // the helper `move` (MonitorFromWindow also covers the window sitting on a removed display).
+    let wallpaperGeometryTimer = null;
+    const reassertWallpaperGeometry = () => {
+      if (!isWindowsWallpaperMode() || !windowsWallpaper.isAttached()) {
+        return;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setBounds(screen.getPrimaryDisplay().bounds);
+      }
+      const helperPath = resolveWallpaperHelperPath();
+      const hwnd = getMainWindowNativeHwnd();
+      if (helperPath && hwnd !== null) {
+        const child = spawn(helperPath, ['move', '--hwnd', String(hwnd)], { stdio: 'ignore' });
+        child.on('error', (err) => {
+          console.warn('[WallpaperWin] helper move failed', err);
+        });
+      }
+    };
+    const scheduleWallpaperGeometryReassert = () => {
+      if (wallpaperGeometryTimer) {
+        clearTimeout(wallpaperGeometryTimer);
+      }
+      wallpaperGeometryTimer = setTimeout(() => {
+        wallpaperGeometryTimer = null;
+        reassertWallpaperGeometry();
+      }, 200);
+    };
+    screen.on('display-added', scheduleWallpaperGeometryReassert);
+    screen.on('display-removed', scheduleWallpaperGeometryReassert);
+    screen.on('display-metrics-changed', scheduleWallpaperGeometryReassert);
+  }
   scheduleStartupUpdateCheck();
   voiceInputPauseMonitor.syncState();
 
@@ -3795,14 +4156,29 @@ app.whenReady().then(async () => {
   });
 });
 
+// Set in before-quit so window-all-closed can tell an intentional shutdown apart from the main
+// window being destroyed externally (see the Windows wallpaper branch below).
+let isAppQuitting = false;
+
 app.on('window-all-closed', () => {
   clearPendingWindowPlaybackHandoffRequests();
+  // Windows wallpaper mode: the main window is a child of a WorkerW, so an explorer restart
+  // destroys it together with the desktop hierarchy. Quitting here would turn a recoverable
+  // session into a dead wallpaper — rebuild the window instead (the helper's own
+  // window-destroyed recovery may also arrive later over the pipe; whichever wins, the
+  // attach latch and the stdout ownership guard dedupe the two paths). Intentional quits run
+  // before-quit first and take the regular path below.
+  if (process.platform === 'win32' && isWindowsWallpaperMode() && !isAppQuitting) {
+    rebuildWindowsWallpaperSession();
+    return;
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('before-quit', () => {
+  isAppQuitting = true;
   clearPendingWindowPlaybackHandoffRequests();
   if (modSystem) {
     try {
@@ -3813,6 +4189,11 @@ app.on('before-quit', () => {
   }
   voiceInputPauseMonitor.stop();
   displaySleepBlocker.stop();
+  // Detach (graceful) instead of killing: the helper un-parents the window from the WorkerW
+  // and repaints the layer before the window is destroyed — a window torn down while still
+  // parented leaves its last frame stuck on the desktop. killHelper() is the fallback for
+  // anything that races the graceful path (the helper also self-detaches on stdin EOF).
+  windowsWallpaper.detach();
   void discordPresence.destroy();
   void stopQqApi();
   void lyricApi.stop();
@@ -3875,7 +4256,9 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY ||
     key === PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY ||
     key === MOD_SYSTEM_ENABLED_SETTING_KEY ||
-    key === WALLPAPER_MODE_SETTING_KEY
+    key === WALLPAPER_MODE_SETTING_KEY ||
+    key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
+    key === WALLPAPER_ZGUARD_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }
@@ -3896,6 +4279,18 @@ ipcMain.handle('save-settings', (event, key, value) => {
     // Let the renderer receive its save-settings response before the process relaunches, while
     // coalescing rapid toggles into one handoff/relaunch operation.
     scheduleWallpaperModeRelaunch(Boolean(nextValue));
+  }
+
+  // Windows helper flags are process launch arguments: restart the helper in place so the new
+  // switch takes effect. Kill + re-attach keeps the window welded to the WorkerW throughout
+  // (a graceful detach would race the fresh attach over the same window).
+  if (
+    process.platform === 'win32' &&
+    (key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY || key === WALLPAPER_ZGUARD_SETTING_KEY) &&
+    isWindowsWallpaperMode()
+  ) {
+    windowsWallpaper.killHelper();
+    windowsWallpaper.attach();
   }
 
   if (key === 'enable_player_page_native_blur') {
@@ -4230,6 +4625,11 @@ ipcMain.handle('window-minimize', () => {
     return false;
   }
 
+  // Wallpaper windows have no minimize semantics; leaving wallpaper mode goes through the setting.
+  if (isWallpaperModeEnabled()) {
+    return false;
+  }
+
   if (isMinimizeToTrayEnabled()) {
     return hideMainWindow();
   }
@@ -4242,6 +4642,10 @@ ipcMain.handle('window-minimize', () => {
 ipcMain.handle('window-toggle-maximize', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return false;
+  }
+
+  if (isWallpaperModeEnabled()) {
+    return mainWindow.isMaximized();
   }
 
   if (mainWindow.isMaximized()) {
@@ -4258,6 +4662,11 @@ ipcMain.handle('window-toggle-fullscreen', (event) => {
     return false;
   }
 
+  // Fullscreen would tear the wallpaper window out of its desktop-layer geometry.
+  if (isWallpaperModeEnabled()) {
+    return mainWindow.isFullScreen();
+  }
+
   const nextFullscreen = !mainWindow.isFullScreen();
   mainWindow.setFullScreen(nextFullscreen);
   return nextFullscreen;
@@ -4265,6 +4674,11 @@ ipcMain.handle('window-toggle-fullscreen', (event) => {
 
 ipcMain.handle('window-close', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  // Closing a wallpaper window is meaningless; exit goes through the wallpaper mode setting.
+  if (isWallpaperModeEnabled()) {
     return false;
   }
 

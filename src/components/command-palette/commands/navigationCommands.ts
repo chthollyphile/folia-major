@@ -13,6 +13,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
         title: 'Fullscreen',
         description: 'Toggle browser fullscreen',
         keywords: ['fullscreen', 'full screen', 'f11', 'browser fullscreen', '全屏', '浏览器全屏', 'quanping', 'liulanqiquanping', 'qp', 'llqqp'],
+        isAvailable: (context) => !context?.navigation.isWallpaperMode,
         execute: (_input, context) => context.navigation.toggleBrowserFullscreen(),
     },
     createHomeTabCommand('playlist', 'Open playlists', 'Open playlist home tab', ['playlist', 'playlists', '歌单', 'gedan', 'gd']),
@@ -36,6 +37,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
         title: 'Toggle main window always on top',
         description: 'Pin or unpin the main window above other windows',
         keywords: ['always on top', 'main window on top', 'pin main window', '主窗口置顶', '切换主窗口置顶', '取消主窗口置顶', 'zhuchuangkouzhiding', 'qiehuanzhuchuangkouzhiding', 'zckzd', 'qhzckzd'],
+        isAvailable: (context) => !context?.navigation.isWallpaperMode,
         execute: (_input, context) => context.navigation.toggleMainWindowAlwaysOnTop(),
     }
 ];

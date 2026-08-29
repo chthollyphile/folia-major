@@ -74,6 +74,10 @@ start-folia.ps1
 mods/*.zip
 
 
+# Built by packaging/windows/build-wallpaper-helper.mjs (Windows wallpaper mode helper).
+build/folia-wallpaper-helper.exe
+packaging/windows/wallpaper-helper/target/
+
 # Python bytecode from the htdemucs runner, written beside it by the downloaded runtime.
 __pycache__/
 

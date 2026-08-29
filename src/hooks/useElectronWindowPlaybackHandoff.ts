@@ -379,7 +379,12 @@ export function useElectronWindowPlaybackHandoff({
     const toggleTransparentModeWithHandoff = useCallback(async (enabled: boolean) => {
         if (isElectronWindow && window.electron?.setWindowTransparentMode) {
             const handoff = captureWindowPlaybackHandoff();
-            await window.electron.setWindowTransparentMode(enabled, handoff);
+            const applied = await window.electron.setWindowTransparentMode(enabled, handoff);
+            // Main refuses the enable toggle when the current desktop cannot present a
+            // transparent wallpaper window (classic Windows wallpaper mode); keep the old state.
+            if (applied === false) {
+                return;
+            }
         }
         applyTransparentPlayerBackground(enabled);
     }, [applyTransparentPlayerBackground, captureWindowPlaybackHandoff, isElectronWindow]);
