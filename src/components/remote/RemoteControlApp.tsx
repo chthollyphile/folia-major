@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { ChevronLeft, Heart, Lock, LockOpen, Pause, Pin, PinOff, Play, Repeat, Repeat1, RepeatOff, SkipBack, SkipForward, Video, MirrorRectangular, X, Check, Sliders, Palette } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { animate, motion, AnimatePresence, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import { PlayerState } from '../../types';
 import RemoteVideoExportPanel from './RemoteVideoExportPanel';
 import RemoteLyricOverlay from './RemoteLyricOverlay';
@@ -16,7 +16,7 @@ import {
 } from '../../types/videoExport';
 import type { VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
 import { extractColors } from '../../utils/colorExtractor';
-import { isOutroGlowVisible, resolveTrackHandoffProgress } from './remoteTrackTransition';
+import { mapTrackHandoffProgress, resolveTransitionClock } from './remoteTrackTransition';
 import { useTranslation } from 'react-i18next';
 
 // src/components/remote/RemoteControlApp.tsx
@@ -116,8 +116,7 @@ type RemoteTrackFace = {
     title: string;
     artist: string;
     coverUrl: string | null;
-    opacity: number;
-    /** incoming 是交接淡入的那张，用线性长过渡；current 走手动切歌的方向性短过渡 */
+    /** incoming 是交接淡入的那张；current 在无 cue 时仍走手动切歌的方向性短过渡 */
     mode: 'current' | 'incoming';
 };
 
@@ -394,15 +393,92 @@ const RemoteControlApp: React.FC = () => {
 
     const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
 
-    // 最后 30 秒进入 outro：进度条发光提示曲目即将结束
-    const remainingSeconds = duration > 0 ? duration - progressValue : Number.POSITIVE_INFINITY;
-    const trackTiming = { hasTrack: snapshot.hasTrack, duration, remainingSeconds };
-    const isOutroGlowActive = isOutroGlowVisible(trackTiming);
-    const outroGlowColor = isDaylight ? 'rgba(28, 25, 23, 0.45)' : 'rgba(255, 255, 255, 0.8)';
+    const transitionStartedAtMs = snapshot.trackTransition?.startedAtMs ?? null;
+    const transitionDurationSec = snapshot.trackTransition?.durationSec ?? null;
+    const transitionCrossover = Math.max(0, Math.min(1, snapshot.trackTransition?.crossover ?? 0.5));
+    const transitionCrossoverRef = useRef(transitionCrossover);
+    transitionCrossoverRef.current = transitionCrossover;
+    const handoffTimeProgress = useMotionValue(0);
+    const handoffIncomingOpacity = useTransform(
+        handoffTimeProgress,
+        progress => mapTrackHandoffProgress(progress, transitionCrossoverRef.current),
+    );
+    const handoffOutgoingOpacity = useTransform(handoffIncomingOpacity, progress => 1 - progress);
+    const [isTransitionGlowActive, setIsTransitionGlowActive] = useState(false);
+    const [isIncomingDominant, setIsIncomingDominant] = useState(false);
+    const transitionGlowColor = isDaylight ? 'rgba(28, 25, 23, 0.45)' : 'rgba(255, 255, 255, 0.8)';
 
-    // AutoMix 真正开始出声后，把封面、标题、艺术家和背景色一起交接给预读好的下一首。
+    // 背景主导权直接跟随本地时间轴穿越 crossover，只在阈值变化时触发一次 React 更新。
+    useMotionValueEvent(handoffTimeProgress, 'change', progress => {
+        const nextDominant = progress >= transitionCrossoverRef.current;
+        setIsIncomingDominant(current => current === nextDominant ? current : nextDominant);
+    });
+
+    // A snapshot starts the clock, but does not drive it. The MotionValue advances locally until
+    // the cue ends, so repeated 500ms snapshots for the same cue cannot turn opacity into steps.
+    useEffect(() => {
+        handoffTimeProgress.stop();
+        let startTimer: number | null = null;
+        let endTimer: number | null = null;
+        let playback: ReturnType<typeof animate> | null = null;
+
+        if (
+            !isPlaying
+            || transitionStartedAtMs === null
+            || transitionDurationSec === null
+            || !Number.isFinite(transitionStartedAtMs)
+            || !Number.isFinite(transitionDurationSec)
+            || transitionDurationSec <= 0
+        ) {
+            handoffTimeProgress.set(0);
+            setIsTransitionGlowActive(false);
+            setIsIncomingDominant(false);
+            return;
+        }
+
+        const startLocalTimeline = () => {
+            const transition = {
+                startedAtMs: transitionStartedAtMs,
+                durationSec: transitionDurationSec,
+                crossover: transitionCrossover,
+            };
+            const clock = resolveTransitionClock({ transition, isPlaying: true, nowMs: Date.now() });
+            if (!clock || clock.timeProgress >= 1) {
+                handoffTimeProgress.set(1);
+                setIsTransitionGlowActive(false);
+                setIsIncomingDominant(true);
+                return;
+            }
+
+            handoffTimeProgress.set(clock.timeProgress);
+            setIsTransitionGlowActive(true);
+            setIsIncomingDominant(clock.timeProgress >= transitionCrossover);
+
+            const remainingSec = Math.max(0, transitionDurationSec - Math.max(0, clock.elapsedSec));
+            playback = animate(handoffTimeProgress, 1, { duration: remainingSec, ease: 'linear' });
+            endTimer = window.setTimeout(() => setIsTransitionGlowActive(false), remainingSec * 1000);
+        };
+
+        const startsInMs = transitionStartedAtMs - Date.now();
+        if (startsInMs > 0) {
+            handoffTimeProgress.set(0);
+            setIsTransitionGlowActive(false);
+            setIsIncomingDominant(false);
+            startTimer = window.setTimeout(startLocalTimeline, startsInMs);
+        } else {
+            startLocalTimeline();
+        }
+
+        return () => {
+            playback?.stop();
+            if (startTimer !== null) window.clearTimeout(startTimer);
+            if (endTimer !== null) window.clearTimeout(endTimer);
+        };
+    }, [handoffTimeProgress, isPlaying, transitionCrossover, transitionDurationSec, transitionStartedAtMs]);
+
+    // AutoMix/Crossfade 真正开始出声后，把封面、标题、艺术家和背景色一起交接给预读好的下一首。
     // 过渡时长和主导权切换点都来自音频引擎，不再用文件结尾倒推一个固定窗口。
-    const nextFace = useMemo<Omit<RemoteTrackFace, 'opacity' | 'mode'> | null>(() => {
+    const nextFace = useMemo<Omit<RemoteTrackFace, 'mode'> | null>(() => {
         const key = snapshot.nextTrackKey ?? snapshot.nextTrackCoverUrl ?? snapshot.nextTrackTitle;
         if (!key || !snapshot.canGoNext) {
             return null;
@@ -416,12 +492,12 @@ const RemoteControlApp: React.FC = () => {
         };
     }, [snapshot.nextTrackKey, snapshot.nextTrackCoverUrl, snapshot.nextTrackTitle, snapshot.nextTrackArtist, snapshot.canGoNext]);
 
-    const handoffProgress = resolveTrackHandoffProgress({
-        transition: snapshot.trackTransition,
-        isPlaying,
-        nowMs: Date.now(),
-    });
-    const isHandoffActive = handoffProgress > 0 && nextFace !== null && nextFace.key !== trackIdentity;
+    const isHandoffActive = Boolean(
+        isPlaying
+        && snapshot.trackTransition
+        && nextFace
+        && nextFace.key !== trackIdentity,
+    );
 
     const trackFaces = useMemo<RemoteTrackFace[]>(() => {
         const currentFace: RemoteTrackFace = {
@@ -429,26 +505,23 @@ const RemoteControlApp: React.FC = () => {
             title,
             artist,
             coverUrl: snapshot.coverUrl,
-            opacity: isHandoffActive ? 1 - handoffProgress : 1,
             mode: 'current',
         };
 
         return isHandoffActive && nextFace
-            ? [currentFace, { ...nextFace, opacity: handoffProgress, mode: 'incoming' }]
+            ? [currentFace, { ...nextFace, mode: 'incoming' }]
             : [currentFace];
-    }, [trackIdentity, title, artist, snapshot.coverUrl, isHandoffActive, handoffProgress, nextFace]);
+    }, [trackIdentity, title, artist, snapshot.coverUrl, isHandoffActive, nextFace]);
 
     // 下一首没有封面（本地曲目常见）时别把当前封面淡成占位符，封面这一层就不参与交接
     const coverFaces = useMemo<RemoteTrackFace[]>(() => {
-        const faces = trackFaces.filter(face => face.coverUrl);
-        return faces.length === 1 && faces[0].mode === 'current'
-            ? [{ ...faces[0], opacity: 1 }]
-            : faces;
+        return trackFaces.filter(face => face.coverUrl);
     }, [trackFaces]);
+    const hasIncomingCoverFace = coverFaces.some(face => face.mode === 'incoming');
 
     // 交接过半就把背景换成下一首的配色，剩下的交给背景本身 700ms 的颜色过渡。
     // 预读没算完就维持当前配色，切过去后常规取色会补上。
-    const handoffCoverColors = isHandoffActive && handoffProgress >= 0.5 && snapshot.nextTrackCoverUrl
+    const handoffCoverColors = isHandoffActive && isIncomingDominant && snapshot.nextTrackCoverUrl
         ? coverColorCacheRef.current.get(snapshot.nextTrackCoverUrl)
         : undefined;
     const activeCoverColors = handoffCoverColors ?? coverColors;
@@ -677,21 +750,29 @@ const RemoteControlApp: React.FC = () => {
                                     F
                                 </div>
                             )}
-                            {/* 手动切歌是方向性淡入，最后 10 秒的交接则是两张封面缓慢互换 */}
+                            {/* 手动切歌走方向性淡入；音频过渡则由本地 MotionValue 连续互换两张封面。 */}
                             <AnimatePresence initial={false}>
-                                {coverFaces.map(face => (
-                                    <motion.div
-                                        key={`cover-${face.key}`}
-                                        initial={face.mode === 'incoming'
-                                            ? { opacity: 0, scale: 1.02, y: 0 }
-                                            : { opacity: 0, scale: 1.06, y: trackEnterOffset }}
-                                        animate={{ opacity: face.opacity, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.97, y: -trackEnterOffset }}
-                                        transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_FACE_TRANSITION}
-                                        className="absolute inset-0 h-full w-full bg-cover bg-center"
-                                        style={{ backgroundImage: `url(${face.coverUrl})` }}
-                                    />
-                                ))}
+                                {coverFaces.map(face => {
+                                    const localOpacity = face.mode === 'incoming'
+                                        ? handoffIncomingOpacity
+                                        : isHandoffActive && hasIncomingCoverFace ? handoffOutgoingOpacity : undefined;
+                                    return (
+                                        <motion.div
+                                            key={`cover-${face.key}`}
+                                            initial={face.mode === 'incoming'
+                                                ? { opacity: 0, scale: 1.02, y: 0 }
+                                                : { opacity: 0, scale: 1.06, y: trackEnterOffset }}
+                                            animate={{ opacity: localOpacity ? undefined : 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.97, y: -trackEnterOffset }}
+                                            transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_FACE_TRANSITION}
+                                            className="absolute inset-0 h-full w-full bg-cover bg-center"
+                                            style={{
+                                                backgroundImage: `url(${face.coverUrl})`,
+                                                ...(localOpacity ? { opacity: localOpacity } : {}),
+                                            }}
+                                        />
+                                    );
+                                })}
                             </AnimatePresence>
                             {activePanel !== 'playback' && (
                                 <button
@@ -733,20 +814,27 @@ const RemoteControlApp: React.FC = () => {
                                 {/* Preview Sound Name */}
                                 <div className="relative h-5 min-w-0">
                                     <AnimatePresence initial={false}>
-                                        {trackFaces.map(face => (
-                                            <motion.div
-                                                key={`title-${face.key}`}
-                                                initial={face.mode === 'incoming'
-                                                    ? { opacity: 0, x: 0 }
-                                                    : { opacity: 0, x: trackEnterOffset }}
-                                                animate={{ opacity: previewTitle ? 0 : face.opacity, x: 0 }}
-                                                exit={{ opacity: 0, x: -trackEnterOffset }}
-                                                transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_TEXT_TRANSITION}
-                                                className="absolute inset-0 truncate text-[15px] font-bold leading-5 tracking-[-0.01em]"
-                                            >
-                                                {face.title}
-                                            </motion.div>
-                                        ))}
+                                        {trackFaces.map(face => {
+                                            const localOpacity = face.mode === 'incoming'
+                                                ? handoffIncomingOpacity
+                                                : isHandoffActive ? handoffOutgoingOpacity : undefined;
+                                            const renderedOpacity = previewTitle ? 0 : localOpacity;
+                                            return (
+                                                <motion.div
+                                                    key={`title-${face.key}`}
+                                                    initial={face.mode === 'incoming'
+                                                        ? { opacity: 0, x: 0 }
+                                                        : { opacity: 0, x: trackEnterOffset }}
+                                                    animate={{ opacity: renderedOpacity === undefined ? 1 : undefined, x: 0 }}
+                                                    exit={{ opacity: 0, x: -trackEnterOffset }}
+                                                    transition={face.mode === 'incoming' ? HANDOFF_FACE_TRANSITION : SWITCH_TEXT_TRANSITION}
+                                                    className="absolute inset-0 truncate text-[15px] font-bold leading-5 tracking-[-0.01em]"
+                                                    style={renderedOpacity === undefined ? undefined : { opacity: renderedOpacity }}
+                                                >
+                                                    {face.title}
+                                                </motion.div>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                     <div
                                         aria-hidden
@@ -759,22 +847,28 @@ const RemoteControlApp: React.FC = () => {
                                 <div className={`relative h-4 mt-0.5 min-w-0 transition-colors ${isDaylight ? 'text-black/50' : 'text-white/40'
                                     }`}>
                                     <AnimatePresence initial={false}>
-                                        {trackFaces.map(face => (
-                                            <motion.div
-                                                key={`artist-${face.key}`}
-                                                initial={face.mode === 'incoming'
-                                                    ? { opacity: 0, x: 0 }
-                                                    : { opacity: 0, x: trackEnterOffset }}
-                                                animate={{ opacity: face.opacity, x: 0 }}
-                                                exit={{ opacity: 0, x: -trackEnterOffset }}
-                                                transition={face.mode === 'incoming'
-                                                    ? HANDOFF_FACE_TRANSITION
-                                                    : { ...SWITCH_TEXT_TRANSITION, delay: 0.04 }}
-                                                className="absolute inset-0 truncate text-xs font-medium leading-4"
-                                            >
-                                                {face.artist}
-                                            </motion.div>
-                                        ))}
+                                        {trackFaces.map(face => {
+                                            const localOpacity = face.mode === 'incoming'
+                                                ? handoffIncomingOpacity
+                                                : isHandoffActive ? handoffOutgoingOpacity : undefined;
+                                            return (
+                                                <motion.div
+                                                    key={`artist-${face.key}`}
+                                                    initial={face.mode === 'incoming'
+                                                        ? { opacity: 0, x: 0 }
+                                                        : { opacity: 0, x: trackEnterOffset }}
+                                                    animate={{ opacity: localOpacity ? undefined : 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -trackEnterOffset }}
+                                                    transition={face.mode === 'incoming'
+                                                        ? HANDOFF_FACE_TRANSITION
+                                                        : { ...SWITCH_TEXT_TRANSITION, delay: 0.04 }}
+                                                    className="absolute inset-0 truncate text-xs font-medium leading-4"
+                                                    style={localOpacity ? { opacity: localOpacity } : undefined}
+                                                >
+                                                    {face.artist}
+                                                </motion.div>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                 </div>
                             </div>
@@ -805,15 +899,15 @@ const RemoteControlApp: React.FC = () => {
                                                         />
                                                     </div>
 
-                                                    {/* Outro Glow (last 30s) */}
-                                                    {isOutroGlowActive && (
+                                                    {/* Glow only while the audio transition cue is active. */}
+                                                    {isTransitionGlowActive && (
                                                         <div
                                                             aria-hidden
-                                                            className="remote-progress-outro-glow pointer-events-none absolute left-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full"
+                                                            className="remote-progress-transition-glow pointer-events-none absolute left-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full"
                                                             style={{
                                                                 width: `${progressPercent}%`,
                                                                 backgroundColor: activeColor,
-                                                                ['--outro-glow-color' as string]: outroGlowColor,
+                                                                ['--transition-glow-color' as string]: transitionGlowColor,
                                                             } as React.CSSProperties}
                                                         />
                                                     )}

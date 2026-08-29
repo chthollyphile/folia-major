@@ -434,7 +434,7 @@ build-up 占据 `swap` 之前的若干小节，**结束于 `swap`**。所谓的 
 | `src/hooks/usePlaybackAudioBridge.ts` | `rampGain`、`AutomixDeckChain`、`autoplayHeld` | 播放桥拥有节点链上 ReplayGain 那一级（每路 deck 各一个，在汇合点之前，故 `referenceDb` 要把它读进来）；过渡待命期间它压住自动播放。**两路 deck 接进共用的 `mixNode`，均衡器、效果器、音量、分析器依次接在其后**——均衡器与分析器因此永远作用于两曲之和，两种模式一视同仁 |
 | `src/services/playbackGraph.ts` | `buildPlaybackGraph` | 汇合点之后的接线顺序都在这一个函数里，可被断言。音量推子在效果器**之后**：黑胶噪声、比特降质、punch 是绝对效果，推子在其上游会改变它们做什么而不是多响（实测数据写在该文件顶部）。均衡器是相对的，故不受此位置影响 |
 | `src/services/prefetchService.ts` | `ensureTrackProfile` | 预取下几首时顺带分析 |
-| `src/components/app/overlays/AutomixTransitionAnimation.tsx` / `src/hooks/useElectronPlaybackBridge.ts` | `subscribeToTransitionCue` | 主窗口绘制与实际音频跨度一致的过渡环；Electron 桥把同一个实际 cue 投影进 Remote 快照，使封面、标题与背景交接对齐音频 crossover。设置页 preview cue 带 `preview` 标记，不会发布到 Remote |
+| `src/components/app/overlays/AutomixTransitionAnimation.tsx` / `src/hooks/useElectronPlaybackBridge.ts` | `subscribeToTransitionCue` | 主窗口绘制与实际音频跨度一致的 AutoMix 过渡环；Electron 桥把 AutoMix 或 Crossfade 的同一个实际 cue 投影进 Remote 快照，使封面、标题与背景交接对齐音频 crossover。设置页 preview cue 带 `preview` 标记，不会发布到 Remote |
 | `electron/analysis/worker.cjs` | `onnxruntime-node` + `models/*.onnx` | 两个模型都在此，运行于不拥有窗口的进程（见 §6.4） |
 | `electron/analysis/host.cjs` | `utilityProcess` | 主进程侧：拉起 worker、匹配请求与回复、闲置两分钟终止、崩溃自动重试一次 |
 | `electron/preload.cjs` / `electron/main.cjs` | `automix-beat-this`、`automix-htdemucs` | 两个 IPC 通道，主进程仅转发 |

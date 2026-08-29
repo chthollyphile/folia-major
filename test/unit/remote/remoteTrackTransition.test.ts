@@ -1,49 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import {
-    isOutroGlowVisible,
-    OUTRO_GLOW_SECONDS,
+    isTrackTransitionGlowVisible,
+    mapTrackHandoffProgress,
     resolveTrackHandoffProgress,
+    resolveTransitionClock,
 } from '../../../src/components/remote/remoteTrackTransition';
 
 // test/unit/remote/remoteTrackTransition.test.ts
-// 遥控窗口的收尾时序：曲尾提示仍看剩余时间，内容交接则必须跟随 AutoMix 实际 cue。
+// 遥控窗口的进度条提示与内容交接必须共用实际混音 cue。
 
-const timing = (remainingSeconds: number, duration = 200) => ({
-    hasTrack: true,
-    duration,
-    remainingSeconds,
+const playing = (elapsedSec: number, crossover = 0.5) => ({
+    transition: {
+        startedAtMs: 10_000,
+        durationSec: 10,
+        crossover,
+    },
+    isPlaying: true,
+    nowMs: 10_000 + elapsedSec * 1000,
 });
 
-describe('isOutroGlowVisible', () => {
-    it('lights up only inside the final 30 seconds', () => {
-        expect(isOutroGlowVisible(timing(OUTRO_GLOW_SECONDS + 1))).toBe(false);
-        expect(isOutroGlowVisible(timing(OUTRO_GLOW_SECONDS))).toBe(true);
-        expect(isOutroGlowVisible(timing(1))).toBe(true);
+describe('isTrackTransitionGlowVisible', () => {
+    it('lights only inside the actual transition span', () => {
+        expect(isTrackTransitionGlowVisible(playing(-0.1))).toBe(false);
+        expect(isTrackTransitionGlowVisible(playing(0))).toBe(true);
+        expect(isTrackTransitionGlowVisible(playing(5))).toBe(true);
+        expect(isTrackTransitionGlowVisible(playing(10))).toBe(false);
     });
 
-    it('stays dark once the track is over, without a track, or on short tracks', () => {
-        expect(isOutroGlowVisible(timing(0))).toBe(false);
-        expect(isOutroGlowVisible({ ...timing(5), hasTrack: false })).toBe(false);
-        expect(isOutroGlowVisible(timing(5, OUTRO_GLOW_SECONDS * 2))).toBe(false);
-    });
-
-    it('ignores tracks with an unknown duration', () => {
-        expect(isOutroGlowVisible({ hasTrack: true, duration: 0, remainingSeconds: Number.POSITIVE_INFINITY }))
-            .toBe(false);
+    it('stays dark while paused or without a cue', () => {
+        expect(isTrackTransitionGlowVisible({ ...playing(2), isPlaying: false })).toBe(false);
+        expect(isTrackTransitionGlowVisible({ ...playing(2), transition: null })).toBe(false);
     });
 });
 
 describe('resolveTrackHandoffProgress', () => {
-    const playing = (elapsedSec: number, crossover = 0.5) => ({
-        transition: {
-            startedAtMs: 10_000,
-            durationSec: 10,
-            crossover,
-        },
-        isPlaying: true,
-        nowMs: 10_000 + elapsedSec * 1000,
-    });
-
     it('ramps from 0 to 1 across the cue wall-clock span', () => {
         expect(resolveTrackHandoffProgress(playing(0))).toBe(0);
         expect(resolveTrackHandoffProgress(playing(5))).toBeCloseTo(0.5);
@@ -59,5 +49,20 @@ describe('resolveTrackHandoffProgress', () => {
     it('falls back to the current track while paused or without a cue', () => {
         expect(resolveTrackHandoffProgress({ ...playing(2), isPlaying: false })).toBe(0);
         expect(resolveTrackHandoffProgress({ ...playing(2), transition: null })).toBe(0);
+    });
+});
+
+describe('local transition clock calibration', () => {
+    it('compensates for a delayed snapshot without moving the absolute cue position', () => {
+        const clock = resolveTransitionClock(playing(3.25, 0.7));
+
+        expect(clock?.elapsedSec).toBeCloseTo(3.25);
+        expect(clock?.timeProgress).toBeCloseTo(0.325);
+    });
+
+    it('maps the exact audio crossover to equal visual opacity', () => {
+        expect(mapTrackHandoffProgress(0.7, 0.7)).toBeCloseTo(0.5);
+        expect(mapTrackHandoffProgress(0.35, 0.7)).toBeCloseTo(0.25);
+        expect(mapTrackHandoffProgress(0.85, 0.7)).toBeCloseTo(0.75);
     });
 });

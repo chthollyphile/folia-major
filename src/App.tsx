@@ -1817,8 +1817,8 @@ export default function App() {
         onExternalPlayRequest: handleStageExternalPlayRequest,
         onRemoteCycleLoopMode: handleToggleLoopMode,
         onRemoteTransitionSeek: seekDuringTransition,
-        publishAutomixTrackTransition: automixEnabled && transitionMode === 'automix',
-        isAutomixTransitionAudible: automix.isTransitionAudible,
+        publishTrackTransition: automixEnabled,
+        isTrackTransitionAudible: automix.isTransitionAudible,
         // Keyed on the displayed track, so the like state matches the song the remote is showing
         // while a blend is held rather than the one arriving underneath it.
         isLiked: (() => {

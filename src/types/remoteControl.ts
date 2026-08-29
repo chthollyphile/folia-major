@@ -6,9 +6,9 @@ import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from '
 export type PlayerChromeVisibilityMode = 'always-hidden' | 'always-visible' | 'auto-hide';
 
 export interface RemoteTrackTransition {
-    /** Unix time when the audible AutoMix transition started. */
+    /** Unix time when the audible AutoMix/Crossfade transition started. */
     startedAtMs: number;
-    /** Actual wall-clock span scheduled by the AutoMix session. */
+    /** Actual wall-clock span scheduled by the shared transition session. */
     durationSec: number;
     /** Point inside the span where the incoming track becomes dominant, 0..1. */
     crossover: number;
@@ -56,7 +56,7 @@ export interface RemoteControlSnapshot {
     nextTrackTitle: string | null;
     nextTrackArtist: string | null;
     nextTrackCoverUrl: string | null;
-    /** Present only while an evidence-backed AutoMix transition is audible. */
+    /** Present while an AutoMix or explicitly selected Crossfade transition is audible. */
     trackTransition: RemoteTrackTransition | null;
     controlsDisabled: boolean;
     isStageActive: boolean;

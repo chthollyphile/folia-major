@@ -87,10 +87,10 @@ type UseElectronPlaybackBridgeOptions = {
      * (and the ordinary seek runs) when no blend is in flight.
      */
     onRemoteTransitionSeek?: (time: number) => boolean;
-    /** Publishes only evidence-backed AutoMix cues, not plain crossfade mode. */
-    publishAutomixTrackTransition: boolean;
+    /** Publishes the audible transition cue for either AutoMix or Crossfade mode. */
+    publishTrackTransition: boolean;
     /** Filters out settings previews and cues emitted outside a live deck transition. */
-    isAutomixTransitionAudible: () => boolean;
+    isTrackTransitionAudible: () => boolean;
     isLiked: boolean;
     onLike?: () => void;
 };
@@ -143,18 +143,18 @@ export const useElectronPlaybackBridge = ({
     onExternalPlayRequest,
     onRemoteCycleLoopMode,
     onRemoteTransitionSeek,
-    publishAutomixTrackTransition,
-    isAutomixTransitionAudible,
+    publishTrackTransition,
+    isTrackTransitionAudible,
     isLiked,
     onLike,
 }: UseElectronPlaybackBridgeOptions) => {
     const [playbackSyncBridgeStatus, setPlaybackSyncBridgeStatus] = useState<ElectronPlaybackSyncBridgeStatus>(() => emptyPlaybackSyncBridgeStatus());
     const pausedByVoiceInputRef = useRef(false);
     const remoteTrackTransitionRef = useRef<RemoteTrackTransition | null>(null);
-    const publishAutomixTrackTransitionRef = useRef(publishAutomixTrackTransition);
-    const isAutomixTransitionAudibleRef = useRef(isAutomixTransitionAudible);
-    publishAutomixTrackTransitionRef.current = publishAutomixTrackTransition;
-    isAutomixTransitionAudibleRef.current = isAutomixTransitionAudible;
+    const publishTrackTransitionRef = useRef(publishTrackTransition);
+    const isTrackTransitionAudibleRef = useRef(isTrackTransitionAudible);
+    publishTrackTransitionRef.current = publishTrackTransition;
+    isTrackTransitionAudibleRef.current = isTrackTransitionAudible;
     const currentSongSource = currentSong ? getPlaybackSourceRef(currentSong) : null;
     const canLikeCurrentSong = Boolean(
         currentSong
@@ -175,8 +175,8 @@ export const useElectronPlaybackBridge = ({
         if (
             cue === null
             || cue.preview
-            || !publishAutomixTrackTransitionRef.current
-            || !isAutomixTransitionAudibleRef.current()
+            || !publishTrackTransitionRef.current
+            || !isTrackTransitionAudibleRef.current()
         ) {
             remoteTrackTransitionRef.current = null;
             return;
@@ -280,7 +280,7 @@ export const useElectronPlaybackBridge = ({
                 includeLyrics: options.includeLyrics,
                 lyrics,
                 playerChromeVisibilityMode,
-                trackTransition: publishAutomixTrackTransitionRef.current && isAutomixTransitionAudibleRef.current()
+                trackTransition: publishTrackTransitionRef.current && isTrackTransitionAudibleRef.current()
                     ? remoteTrackTransitionRef.current
                     : null,
             },
