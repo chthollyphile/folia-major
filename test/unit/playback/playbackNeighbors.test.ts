@@ -6,7 +6,8 @@ import type { SongResult } from '../../../src/types';
 // test/unit/playback/playbackNeighbors.test.ts
 // 这些用例锁定的是「浮动播放条箭头」与 usePlaybackQueueController 的下标规则保持一致，
 // 任何一侧改了跳转规则，另一侧必须同步，否则箭头会显示成可点却跳不动（或反过来）。
-// 邻居还带着艺术家/封面，遥控窗口靠它预读下一首，字段缺了过渡就会退化成硬切。
+// 邻居还带着艺术家/封面，遥控窗口靠它预读下一首，字段缺了过渡就会退化成硬切；
+// 这两项要走 provider 元数据，所以只在 withMetadata 时解析。
 
 const song = (id: string, name: string): SongResult => ({
     id,
@@ -81,12 +82,32 @@ describe('resolvePlaybackNeighbors', () => {
             } as SongResult,
         ];
 
-        expect(resolve({ playQueue: detailedQueue }).next).toEqual({
+        expect(resolve({ playQueue: detailedQueue, withMetadata: true }).next).toEqual({
             canGo: true,
             key: keyOf(detailedQueue[2]),
             title: 'Charlie',
             artist: 'Charlie Artist',
             coverUrl: 'https://example.com/charlie.jpg',
+        });
+    });
+
+    it('skips provider metadata unless the caller asks for it', () => {
+        const detailedQueue = [
+            song('a', 'Alpha'),
+            queue[1],
+            {
+                ...song('c', 'Charlie'),
+                artists: [{ id: 1, name: 'Charlie Artist' }],
+                album: { id: 1, name: 'Charlie Album', coverUrl: 'https://example.com/charlie.jpg' },
+            } as SongResult,
+        ];
+
+        expect(resolve({ playQueue: detailedQueue }).next).toEqual({
+            canGo: true,
+            key: keyOf(detailedQueue[2]),
+            title: 'Charlie',
+            artist: null,
+            coverUrl: null,
         });
     });
 

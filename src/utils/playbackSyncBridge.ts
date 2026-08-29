@@ -191,11 +191,15 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
         loopMode: model.loopMode,
         isFmMode: model.isFmMode,
         isStageActive: model.isStageActive,
+        // 遥控窗口要靠邻居的艺术家与封面预读下一首
+        withMetadata: true,
     });
 
     return {
     hasTrack: model.hasTrack,
-    trackKey: model.currentSong ? getPlaybackSongKey(model.currentSong) : null,
+    // 没有可控曲目时（舞台播放）与 prev/nextTrackKey 保持一致地置空，
+    // 否则占位面会被 key 到一首歌上，之后真正播这首时节点被复用、动画不触发
+    trackKey: model.hasTrack && model.currentSong ? getPlaybackSongKey(model.currentSong) : null,
     title: model.title,
     artist: model.artist,
     coverUrl: model.coverUrl,

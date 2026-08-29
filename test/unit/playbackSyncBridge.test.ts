@@ -147,7 +147,7 @@ describe('playbackSyncBridge', () => {
             hasTrack: false,
             controlsDisabled: true,
             isStageActive: true,
-            trackKey: getPlaybackSongKey(currentSong),
+            trackKey: null,
             prevTrackKey: null,
             prevTrackTitle: null,
             prevTrackArtist: null,

@@ -153,8 +153,11 @@ export const useElectronPlaybackBridge = ({
     const remoteTrackTransitionRef = useRef<RemoteTrackTransition | null>(null);
     const publishTrackTransitionRef = useRef(publishTrackTransition);
     const isTrackTransitionAudibleRef = useRef(isTrackTransitionAudible);
-    publishTrackTransitionRef.current = publishTrackTransition;
-    isTrackTransitionAudibleRef.current = isTrackTransitionAudible;
+    // 渲染期改 ref 会让被丢弃的那次渲染也留下痕迹；这两个只在事件与定时发布里读，放进 effect 即可。
+    useEffect(() => {
+        publishTrackTransitionRef.current = publishTrackTransition;
+        isTrackTransitionAudibleRef.current = isTrackTransitionAudible;
+    }, [publishTrackTransition, isTrackTransitionAudible]);
     const currentSongSource = currentSong ? getPlaybackSourceRef(currentSong) : null;
     const canLikeCurrentSong = Boolean(
         currentSong
@@ -172,9 +175,14 @@ export const useElectronPlaybackBridge = ({
     // The cue is event-shaped in the main renderer. Keep only the current low-frequency snapshot
     // in a ref so the Remote's existing 500ms publisher can carry it without a React render loop.
     useEffect(() => subscribeToTransitionCue(cue => {
+        // 设置面板的演示 cue 既不是交接的开始也不是结束：真实混音正跑到一半时把它当成
+        // cue 结束会直接取消遥控窗口的交接，所以这里整条忽略。
+        if (cue?.preview) {
+            return;
+        }
+
         if (
             cue === null
-            || cue.preview
             || !publishTrackTransitionRef.current
             || !isTrackTransitionAudibleRef.current()
         ) {

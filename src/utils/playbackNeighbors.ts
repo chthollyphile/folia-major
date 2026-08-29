@@ -21,13 +21,9 @@ export type PlaybackNeighbors = {
     next: PlaybackNeighbor;
 };
 
-const UNKNOWN_NEIGHBOR: PlaybackNeighbor = { canGo: true, key: null, title: null, artist: null, coverUrl: null };
-const BLOCKED_NEIGHBOR: PlaybackNeighbor = { canGo: false, key: null, title: null, artist: null, coverUrl: null };
-
-const BLOCKED: PlaybackNeighbors = {
-    prev: BLOCKED_NEIGHBOR,
-    next: BLOCKED_NEIGHBOR,
-};
+// 每次现造，不共享实例：调用方拿到的是普通对象，写一下就会污染后续所有结果
+const unknownNeighbor = (): PlaybackNeighbor => ({ canGo: true, key: null, title: null, artist: null, coverUrl: null });
+const blockedNeighbor = (): PlaybackNeighbor => ({ canGo: false, key: null, title: null, artist: null, coverUrl: null });
 
 type ResolvePlaybackNeighborsParams = {
     playQueue: SongResult[];
@@ -35,6 +31,11 @@ type ResolvePlaybackNeighborsParams = {
     loopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
     isStageActive: boolean;
+    /**
+     * 是否连艺术家与封面一起解析。这两项要走 provider 元数据（注册表查找 + 新建元数据对象），
+     * 只有需要预读下一首的遥控窗口用得上；浮动播放条只读 canGo 与 title，默认不付这份开销。
+     */
+    withMetadata?: boolean;
 };
 
 /**
@@ -48,10 +49,11 @@ export const resolvePlaybackNeighbors = ({
     loopMode,
     isFmMode,
     isStageActive,
+    withMetadata = false,
 }: ResolvePlaybackNeighborsParams): PlaybackNeighbors => {
     // 舞台播放时两个 handler 都会直接 return，这里必须同步禁用，否则箭头点了没反应
     if (isStageActive || !currentSong || playQueue.length === 0) {
-        return BLOCKED;
+        return { prev: blockedNeighbor(), next: blockedNeighbor() };
     }
 
     const currentKey = getPlaybackSongKey(currentSong);
@@ -64,8 +66,8 @@ export const resolvePlaybackNeighbors = ({
             canGo: true,
             key: song ? getPlaybackSongKey(song) : null,
             title: song?.name ?? null,
-            artist: resolvePlaybackSongArtist(song),
-            coverUrl: resolvePlaybackSongCoverUrl(song),
+            artist: withMetadata ? resolvePlaybackSongArtist(song) : null,
+            coverUrl: withMetadata ? resolvePlaybackSongCoverUrl(song) : null,
         };
     };
 
@@ -89,11 +91,11 @@ export const resolvePlaybackNeighbors = ({
     const fmWillFetch = isFmMode && currentIndex === lastIndex;
 
     return {
-        prev: prevIndex >= 0 ? neighborAt(prevIndex) : BLOCKED_NEIGHBOR,
+        prev: prevIndex >= 0 ? neighborAt(prevIndex) : blockedNeighbor(),
         next: fmWillFetch
-            ? UNKNOWN_NEIGHBOR
+            ? unknownNeighbor()
             : nextIndex >= 0
                 ? neighborAt(nextIndex)
-                : BLOCKED_NEIGHBOR,
+                : blockedNeighbor(),
     };
 };
