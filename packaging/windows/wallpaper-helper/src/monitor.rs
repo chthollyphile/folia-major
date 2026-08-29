@@ -242,6 +242,9 @@ fn spawn_reattach() {
     }
     std::thread::spawn(|| unsafe {
         for attempt in 0..REATTACH_MAX_ATTEMPTS {
+            if crate::DETACH_REQUESTED.load(Ordering::SeqCst) {
+                break;
+            }
             let Some(folia) = with_state(|state| state.folia_hwnd) else {
                 break;
             };
@@ -259,6 +262,10 @@ fn spawn_reattach() {
             }
             match crate::attach::attach_window(hwnd) {
                 Ok((worker_w, mode)) => {
+                    if crate::DETACH_REQUESTED.load(Ordering::SeqCst) {
+                        let _ = crate::attach::detach_window(hwnd);
+                        break;
+                    }
                     with_state(|state| {
                         state.worker_w = worker_w.0 as isize;
                         state.last_zassert = None;

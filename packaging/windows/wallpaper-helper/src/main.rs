@@ -55,7 +55,7 @@ fn run(command: Command) {
 use windows::Win32::Foundation::HWND;
 
 #[cfg(windows)]
-static DETACH_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) static DETACH_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(windows)]
 fn run_windows(command: Command) {

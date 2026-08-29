@@ -136,6 +136,7 @@ function createWindowsWallpaperController(options = {}) {
     attached = false;
     attaching = false;
     stopHeartbeatMonitor();
+    stopHealthyReset();
     try {
       child.kill();
     } catch {
@@ -170,15 +171,20 @@ function createWindowsWallpaperController(options = {}) {
     return false;
   }
 
-  // Crash-loop breaker: a session that stays healthy for the uptime window proves the last
-  // failures were transient, so the counter resets (mirrors wallpaperWatchdog.recordWrappedLaunch).
-  function scheduleHealthyReset() {
+  function stopHealthyReset() {
     if (healthyTimer) {
       clearTimeoutFn(healthyTimer);
+      healthyTimer = null;
     }
+  }
+
+  function scheduleHealthyReset() {
+    stopHealthyReset();
     healthyTimer = setTimeoutFn(() => {
       healthyTimer = null;
-      resetFailureCount();
+      if (helperProcess && attached && Date.now() - attachedAt >= crashLoopHealthyUptimeMs) {
+        resetFailureCount();
+      }
     }, crashLoopHealthyUptimeMs);
     if (typeof healthyTimer?.unref === 'function') {
       healthyTimer.unref();
@@ -205,7 +211,6 @@ function createWindowsWallpaperController(options = {}) {
         attached = true;
         attaching = false;
         attachedAt = Date.now();
-        resetFailureCount();
         scheduleHealthyReset();
         startHeartbeatMonitor();
         if (typeof event.mode === 'string') {
@@ -327,6 +332,7 @@ function createWindowsWallpaperController(options = {}) {
       attached = false;
       attaching = false;
       stopHeartbeatMonitor();
+      stopHealthyReset();
       if (degraded) {
         return; // degrade path owns recovery now
       }
@@ -389,6 +395,7 @@ function createWindowsWallpaperController(options = {}) {
       return;
     }
     stopHeartbeatMonitor();
+    stopHealthyReset();
     if (reattachTimer) {
       clearTimeoutFn(reattachTimer);
       reattachTimer = null;

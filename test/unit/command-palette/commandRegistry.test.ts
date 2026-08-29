@@ -59,6 +59,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleBrowserFullscreen: vi.fn(async () => true),
             toggleRemoteControlWindow: vi.fn(async () => true),
             toggleMainWindowAlwaysOnTop: vi.fn(async () => true),
+            isWallpaperMode: false,
         },
         panel: {
             setPanelTab: vi.fn(),

@@ -183,17 +183,11 @@ describe('attach lifecycle', () => {
     expect(children).toHaveLength(0);
   });
 
-  it('marks itself attached on the attached event and resets failures', () => {
-    const { controller, children, store } = createHarness({
-      store: createFakeStore({
-        [WALLPAPER_MODE_SETTING_KEY]: true,
-        [WALLPAPER_WINDOWS_FAILURE_COUNT_KEY]: 2,
-      }),
-    });
+  it('marks itself attached on the attached event', () => {
+    const { controller, children } = createHarness();
     controller.attach();
     children[0].writeStdout('{"event":"attached","hwnd":1234,"workerw":9,"mode":"raised"}\n');
     expect(controller.isAttached()).toBe(true);
-    expect(store.get(WALLPAPER_WINDOWS_FAILURE_COUNT_KEY)).toBe(0);
   });
 
   it('feeds partial stdout chunks through the JSONL splitter', () => {
@@ -316,6 +310,43 @@ describe('watchdog state machine', () => {
     expect(onDegrade).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(60_000);
     expect(children).toHaveLength(3);
+  });
+
+  it('keeps prior failures across an attach and resets only after a full healthy window', () => {
+    const { controller, children, store } = createHarness({
+      store: createFakeStore({
+        [WALLPAPER_MODE_SETTING_KEY]: true,
+        [WALLPAPER_WINDOWS_FAILURE_COUNT_KEY]: 2,
+      }),
+    });
+    controller.attach();
+    children[0].writeStdout('{"event":"attached","hwnd":1234,"workerw":9,"mode":"raised"}\n');
+    expect(controller.isAttached()).toBe(true);
+    // Attaching alone must NOT clear the counter: a flapping helper (attaches, then dies young,
+    // repeatedly) would reset it every cycle and never trip the degrade latch.
+    expect(store.get(WALLPAPER_WINDOWS_FAILURE_COUNT_KEY)).toBe(2);
+    for (let elapsed = 0; elapsed < 61_000; elapsed += 5000) {
+      vi.advanceTimersByTime(5000);
+      if (children.length === 1) {
+        children[0].writeStdout('{"event":"heartbeat"}\n');
+      }
+    }
+    expect(store.get(WALLPAPER_WINDOWS_FAILURE_COUNT_KEY)).toBe(0);
+  });
+
+  it('degrades when helpers attach but die young repeatedly (flapping)', () => {
+    const { controller, children, store, onDegrade } = createHarness();
+    controller.attach();
+    for (let died = 1; died <= 3; died += 1) {
+      const child = children[children.length - 1];
+      child.writeStdout('{"event":"attached","hwnd":1234,"workerw":9,"mode":"classic"}\n');
+      vi.advanceTimersByTime(10_000);
+      child.emitExit(1);
+      vi.advanceTimersByTime(3000);
+    }
+    expect(children).toHaveLength(3);
+    expect(store.get(WALLPAPER_MODE_SETTING_KEY)).toBe(false);
+    expect(onDegrade).toHaveBeenCalledTimes(1);
   });
 
   it('degrades when helpers repeatedly hang before the first heartbeat', () => {

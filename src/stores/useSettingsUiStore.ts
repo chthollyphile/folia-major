@@ -2090,7 +2090,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     // transparent wallpaper window): surface why the toggle did not take effect.
     handleWallpaperTransparentRefused: () => {
         notify(get, {
-            type: 'warning',
+            type: 'info',
             text: i18n.t('notifications.transparentBgWallpaperUnsupported'),
         });
     },
