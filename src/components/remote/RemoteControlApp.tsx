@@ -430,7 +430,9 @@ const RemoteControlApp: React.FC = () => {
             || !Number.isFinite(transitionDurationSec)
             || transitionDurationSec <= 0
         ) {
-            handoffTimeProgress.set(0);
+            // AnimatePresence keeps removed faces alive for their exit animation. Preserve the
+            // last cue position so a fully faded outgoing title cannot flash back to opacity 1
+            // between cue removal and DOM removal. Every new cue calibrates this value below.
             setIsTransitionGlowActive(false);
             setIsIncomingDominant(false);
             return;
