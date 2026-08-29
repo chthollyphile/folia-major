@@ -1782,6 +1782,7 @@ export default {
     "importGroupFonts": "字体",
     "importGroupBackground": "背景",
     "importGroupSongTheme": "歌曲主题自动化",
+    "importGroupTrackCard": "歌曲信息卡片",
     "importDerivedUnpin": "将同时关闭「固定自定义主题」",
     "importDerivedUploadedFont": "你上传的字体将被替换并删除，需要重新上传",
     "importFontUnavailable": "本机未安装此字体，导入后会回落到内置字体栈",

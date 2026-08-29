@@ -1779,6 +1779,7 @@ export default {
     "importGroupFonts": "Fonts",
     "importGroupBackground": "Background",
     "importGroupSongTheme": "Song theme automation",
+    "importGroupTrackCard": "Track card",
     "importDerivedUnpin": "This will also turn off \"prefer custom theme\"",
     "importDerivedUploadedFont": "Your uploaded font will be replaced and deleted — you would need to upload it again",
     "importFontUnavailable": "This font is not installed here, so it will fall back to the builtin stack",

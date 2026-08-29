@@ -530,6 +530,27 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 store.handleToggleFollowSystemTheme(Boolean(config.followSystemTheme));
             }
 
+            // The now playing card. Applied through the panel's own props, the same setters the three
+            // controls below use, so an import and a click land in the same place.
+            //
+            // The mode is checked against the three known values rather than handed straight to the
+            // setter: it is persisted verbatim, so an unknown string would be stored and only fall
+            // back to 'auto' on the next read - a setting that says one thing and behaves another.
+            // A malformed timeout is skipped rather than defaulted, so the import never applies a
+            // number that was in neither configuration; the setter clamps the rest to 3-60 itself.
+            if (has('stageTrackPillMode')
+                && (config.stageTrackPillMode === 'auto'
+                    || config.stageTrackPillMode === 'always'
+                    || config.stageTrackPillMode === 'never')) {
+                onChangeStageTrackPillMode(config.stageTrackPillMode);
+            }
+            if (has('stageTrackPillTimeoutSec') && Number.isFinite(Number(config.stageTrackPillTimeoutSec))) {
+                onChangeStageTrackPillTimeoutSec(Number(config.stageTrackPillTimeoutSec));
+            }
+            if (has('stageTrackPillOnHome')) {
+                onToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
+            }
+
             store.statusSetter?.({ type: 'success', text: t('options.importSuccess') });
             setImportText('');
             setPendingImport(null);

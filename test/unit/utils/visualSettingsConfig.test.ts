@@ -168,4 +168,48 @@ describe('buildVisualSettingsConfig', () => {
         const restored = decompressConfig(compressConfig(config));
         expect(restored.themeGenerationSource).toBe('cover');
     });
+
+    // All three legs of the now playing card together. Changing any of them only wrote localStorage,
+    // so a copied configuration omitted them and an import could not restore them. 'never' and false
+    // are the interesting values: a truthy-only guard anywhere along the way drops them, and the
+    // failure looks like "the card came back" rather than like a lost setting.
+    it('carries the now playing card settings and round-trips them through a copied OBS URL', () => {
+        useSettingsUiStore.setState({
+            stageTrackPillMode: 'always',
+            stageTrackPillTimeoutSec: 24,
+            stageTrackPillOnHome: true,
+        });
+
+        const config = buildVisualSettingsConfig();
+        expect(config).toMatchObject({
+            stageTrackPillMode: 'always',
+            stageTrackPillTimeoutSec: 24,
+            stageTrackPillOnHome: true,
+        });
+
+        const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(config))));
+        expect(restored).toMatchObject({
+            stageTrackPillMode: 'always',
+            stageTrackPillTimeoutSec: 24,
+            stageTrackPillOnHome: true,
+        });
+    });
+
+    it('round-trips a card that is turned off and kept off the home page', () => {
+        useSettingsUiStore.setState({ stageTrackPillMode: 'never', stageTrackPillOnHome: false });
+
+        const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(buildVisualSettingsConfig()))));
+        expect(restored.stageTrackPillMode).toBe('never');
+        expect(restored.stageTrackPillOnHome).toBe(false);
+    });
+
+    // A hand-written JSON carrying only the card has to be recognised as the minified shape; the
+    // long-name branch would reject all three as invalid keys.
+    it('decodes a minified config that carries only the card', () => {
+        expect(decompressConfig(JSON.stringify({ stp: 'always', stpt: 12, stph: true }))).toMatchObject({
+            stageTrackPillMode: 'always',
+            stageTrackPillTimeoutSec: 12,
+            stageTrackPillOnHome: true,
+        });
+    });
 });

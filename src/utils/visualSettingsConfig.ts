@@ -78,6 +78,12 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     temperaTuning: store.temperaTuning,
     urlBackgroundList: store.urlBackgroundList,
     urlBackgroundSelectedId: store.urlBackgroundSelectedId,
+    // The now playing card. Not a visualizer setting, but it is chrome the listener sees over the
+    // same picture, and all three legs are needed together: the mode alone restores a card that
+    // hides after someone else's timeout, and on a page the importer never asked for.
+    stageTrackPillMode: store.stageTrackPillMode,
+    stageTrackPillTimeoutSec: store.stageTrackPillTimeoutSec,
+    stageTrackPillOnHome: store.stageTrackPillOnHome,
   };
 }
 

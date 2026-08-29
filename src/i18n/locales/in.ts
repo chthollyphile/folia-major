@@ -1718,6 +1718,7 @@ export default {
     "importGroupFonts": "Font",
     "importGroupBackground": "Latar Belakang",
     "importGroupSongTheme": "Otomatisasi tema lagu",
+    "importGroupTrackCard": "Kartu lagu",
     "importDerivedUnpin": "Ini juga akan mematikan \"utamakan tema kustom\"",
     "importDerivedUploadedFont": "Font yang Anda unggah akan diganti dan dihapus — Anda perlu mengunggahnya lagi",
     "importFontUnavailable": "Font ini tidak diinstal di sini, jadi akan kembali ke tumpukan bawaan",

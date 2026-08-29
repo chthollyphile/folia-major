@@ -17,9 +17,9 @@ import type { UrlBackgroundItem } from '../types';
 // auto-switch value can also flip "prefer custom theme" — a setting that is not in the config at
 // all and would otherwise change with no warning.
 
-export type ImportGroup = 'theme' | 'visualizer' | 'fonts' | 'background' | 'songTheme';
+export type ImportGroup = 'theme' | 'visualizer' | 'fonts' | 'background' | 'songTheme' | 'trackCard';
 
-export const IMPORT_GROUPS: ImportGroup[] = ['theme', 'visualizer', 'fonts', 'background', 'songTheme'];
+export const IMPORT_GROUPS: ImportGroup[] = ['theme', 'visualizer', 'fonts', 'background', 'songTheme', 'trackCard'];
 
 export interface ImportChange {
     group: ImportGroup;
@@ -124,6 +124,13 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     songThemeAutoGenerateEnabled: 'songTheme',
     themeGenerationSource: 'songTheme',
     followSystemTheme: 'theme',
+
+    // Its own group rather than folded into visualizer: the card is chrome around the picture, not
+    // part of it, and the three rows are read together — someone taking a configuration for its
+    // colours has a reason to leave the card alone, and a reason to take all three of it at once.
+    stageTrackPillMode: 'trackCard',
+    stageTrackPillTimeoutSec: 'trackCard',
+    stageTrackPillOnHome: 'trackCard',
 };
 
 // Fields the import applies only when the incoming value is truthy, so an incoming null means "the
@@ -157,6 +164,9 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'nomandBackgroundTuning',
     'latentBackgroundTuning',
     'urlBackgroundSelectedId',
+    // applyImportedConfig only applies the card's mode for the three known values, all truthy
+    // strings, so an absent one is skipped there the same as here.
+    'stageTrackPillMode',
 ]);
 
 // Per-renderer tunings the import skips whenever the visualizerTunings bundle is present. The three
