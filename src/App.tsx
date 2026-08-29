@@ -4002,17 +4002,25 @@ export default function App() {
             <AppOverlays model={appOverlaysModel} />
 
             {/* Not in the overlays model: it takes no state from this file and no click from anyone.
-                Mounted only under the same condition it draws on, so the lazy animejs chunk loads only
-                when the animation is actually wanted; the fallback is empty because it draws nothing
-                until a cue arrives anyway.
+                Mounted whenever the animation is switched on, so the lazy animejs chunk loads only
+                when it is wanted; the fallback is empty because it draws nothing until a cue arrives
+                anyway.
 
-                Stands down while the now playing card is on screen: there the blend is drawn on the
-                card's own border instead (NowPlayingToastTransitionBorder), and two pictures of the
-                same transition is one too many. The card's own flag is the condition, so this can
-                never disagree with what the card decided. */}
-            {transitionAnimation && transitionMode === 'automix' && !appOverlaysModel.nowPlayingToast?.transitionBorder && (
+                Stands down while the now playing card is on screen - there the blend is drawn on the
+                card's own border instead, and two pictures of the same transition is one too many -
+                but stands down by hiding, not by unmounting. A cue is announced and not replayed, and
+                which of the two renderers is up can change mid-blend (navigating between home and the
+                lyrics page, or the card's own setting), so unmounting this one meant the other side of
+                that handoff had nothing to draw for the rest of the transition. Staying subscribed
+                covers the card-goes-away direction; the card seeds itself from
+                `getActiveTransitionCue` for the other one. */}
+            {transitionAnimation && transitionMode === 'automix' && (
                 <Suspense fallback={null}>
-                    <AutomixTransitionAnimation theme={theme} isDaylight={isDaylight} />
+                    <AutomixTransitionAnimation
+                        theme={theme}
+                        isDaylight={isDaylight}
+                        suppressed={Boolean(appOverlaysModel.nowPlayingToast?.transitionBorder)}
+                    />
                 </Suspense>
             )}
 

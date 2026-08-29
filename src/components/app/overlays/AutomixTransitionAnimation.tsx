@@ -47,9 +47,21 @@ const NORMAL_END_SLACK_MS = 400;
 type AutomixTransitionAnimationProps = {
     theme?: Theme;
     isDaylight: boolean;
+    /**
+     * The now playing card is drawing this blend on its own border instead.
+     *
+     * Hidden rather than unmounted, and that is the whole point of the prop. A cue is announced, not
+     * stored for whoever turns up next, so a renderer that mounts mid-blend has nothing to draw for
+     * the rest of it. Both of these can appear and disappear mid-blend - navigating between home and
+     * the lyrics page moves the card, and so does its own setting - so this one stays mounted and
+     * subscribed the whole time the animation is switched on, and only stops being looked at. When
+     * the card goes away in the middle of a transition, this is already running at the right
+     * position and just becomes visible.
+     */
+    suppressed?: boolean;
 };
 
-const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({ theme, isDaylight }) => {
+const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({ theme, isDaylight, suppressed = false }) => {
     const [cue, setCue] = useState<TransitionCue | null>(null);
 
     const rootRef = useRef<HTMLDivElement | null>(null);
@@ -126,8 +138,12 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
     // Any key, any left click. Capture, because the point is to get out of the way of whatever the
     // listener is about to do - and something further down stopping the event does not make them
     // any less busy.
+    //
+    // Not while suppressed: nothing of this is on screen then, so a click was aimed at something
+    // else, and taking it as a dismissal would throw away the run that has to be ready in case the
+    // card leaves before the blend is over.
     useEffect(() => {
-        if (!cue) return;
+        if (!cue || suppressed) return;
         const onKey = () => dismiss();
         const onMouse = (event: MouseEvent) => {
             if (event.button === 0) dismiss();
@@ -138,7 +154,18 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
             window.removeEventListener('keydown', onKey, { capture: true });
             window.removeEventListener('mousedown', onMouse, { capture: true });
         };
-    }, [cue, dismiss]);
+    }, [cue, suppressed, dismiss]);
+
+    // Hiding is written straight to the node rather than through the style prop, because the
+    // timeline owns this element's `opacity` and React re-applying a style object would fight it:
+    // reveal is meant to show a run already at the right position, not reset one to zero.
+    //
+    // visibility, not display or unmounting: the animation has to keep running while nobody is
+    // looking at it, so that the moment the card leaves mid-blend there is something to reveal.
+    useEffect(() => {
+        const root = rootRef.current;
+        if (root) root.style.visibility = suppressed ? 'hidden' : 'visible';
+    }, [suppressed, cue]);
 
     useEffect(() => {
         if (!cue) return;

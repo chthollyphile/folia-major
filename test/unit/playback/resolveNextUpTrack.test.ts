@@ -52,10 +52,20 @@ describe('resolveNextUpTrack', () => {
         expect(resolve({ playQueue: [] })).toBeNull();
     });
 
-    // FM 在队列尾部附近会现拉新曲目，那一首此刻还不存在
-    it('returns null within two tracks of the FM tail', () => {
-        expect(resolve({ song: queue[1], isFmMode: true })).toBeNull();
+    // FM 只在队尾那一首上不确定：它的后继是刚拉回来的第一首，此刻还不存在。
+    it('returns null on the last FM track', () => {
         expect(resolve({ song: queue[2], isFmMode: true })).toBeNull();
+    });
+
+    // 倒数第二首上 handleNextTrack 也会去拉新曲目，但拉完播的是 nextQueue[currentIndex + 1]，
+    // 也就是旧队列的最后一首 —— 已经在手里了，所以这一首照常预览。
+    it('previews the known successor on the penultimate FM track', () => {
+        expect(resolve({ song: queue[1], isFmMode: true })?.name).toBe('Charlie');
+    });
+
+    // 队尾也不能落到 loopMode === 'all' 那条：FM 到底是拉新歌，不是回到队首。
+    it('does not offer the FM queue head as the successor of the last track', () => {
+        expect(resolve({ song: queue[2], isFmMode: true, loopMode: 'all' })).toBeNull();
     });
 
     it('still previews further from the FM tail', () => {

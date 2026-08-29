@@ -19,8 +19,14 @@ import { clamp01, hexToHsl, hslToHex, normalizeHue } from '../../../../utils/the
 
 /** 画布比卡片大一圈，留给辉光，否则描边外侧会被画布裁掉 */
 const GLOW_PAD = 22;
-/** 描边路径比卡片边缘再外扩一点：描边画在卡片底下，贴边的话内侧一半会被卡片背景盖住 */
-const STROKE_OFFSET = 3;
+/**
+ * 描边路径相对卡片边缘的外扩量（px）。
+ *
+ * 0 = 正好压在卡片边框上。之前留了 3px，结果卡片边框和描边之间夹着一圈暗缝，读起来是好几层
+ * 边框套在一起——正是要避免的那个。压在边上意味着描边内侧那一半被卡片背景盖掉，看得见的是外
+ * 侧和辉光，也就是卡片边框自己在发光。
+ */
+const STROKE_OFFSET = 0;
 
 const ENTER_SEC = 0.45;
 
@@ -33,11 +39,14 @@ const ENTER_SEC = 0.45;
  * 其余各项（thickness/softness/spots/spotSize/pulse/smoke/fade/speed）保持探针上的值。
  */
 const TUNING = {
-    intensity: 0.2,
-    bloom: 0.35,
-    head: 0.38,
-    base: 0.55,
-    track: 0.16,
+    // 比探针默认的 0.015 粗一倍：描边压在卡片边框上（STROKE_OFFSET = 0），内侧那一半被卡片背景
+    // 盖掉，能看见的只有外侧——照原来的粗细就只剩边缘上一丝。
+    thickness: 0.032,
+    intensity: 0.3,
+    bloom: 0.45,
+    head: 0.5,
+    base: 0.72,
+    track: 0.2,
 };
 
 /**
@@ -70,6 +79,8 @@ const buildSpotColors = (accent: string): string[] => {
 type NowPlayingToastTransitionBorderProps = {
     /** 正在进行的混音；调用方保证非空时才挂载本组件 */
     cue: TransitionCue;
+    /** 这次混音已经走过的毫秒数。中途接手时不为 0，描边从对应的进度起步。 */
+    startAtMs?: number;
     /** 卡片的 CSS 尺寸（px）；量出来才知道画布要多大 */
     cardWidth: number;
     cardHeight: number;
@@ -81,6 +92,7 @@ type NowPlayingToastTransitionBorderProps = {
 
 const NowPlayingToastTransitionBorder: React.FC<NowPlayingToastTransitionBorderProps> = ({
     cue,
+    startAtMs = 0,
     cardWidth,
     cardHeight,
     cardRadius,
@@ -92,11 +104,18 @@ const NowPlayingToastTransitionBorder: React.FC<NowPlayingToastTransitionBorderP
     // 线性，而且必须线性：这条描边就是这次混音的时钟，缓动会把端点放到音频不在的位置上。
     // 进度只写 MotionValue 不进 state：逐帧 setState 会把整个 App 重渲染一遍，而
     // PulsingBorderProgress 是直接把它写进 uniform 的。
+    //
+    // 起点和时长都按 startAtMs 折算：混音中途接手时（比如从首页切到歌词页）要从当前进度接着走，
+    // 从 0 重跑一遍会让描边和听到的音频差一大截。
     useEffect(() => {
-        progress.set(0);
-        const controls = animate(progress, 100, { duration: cue.seconds, ease: 'linear' });
+        const totalMs = cue.seconds * 1000;
+        const from = Math.min(100, Math.max(0, (startAtMs / totalMs) * 100));
+        const remainingSec = Math.max(0, (totalMs - startAtMs) / 1000);
+        progress.set(from);
+        if (remainingSec <= 0) return;
+        const controls = animate(progress, 100, { duration: remainingSec, ease: 'linear' });
         return () => controls.stop();
-    }, [cue, progress]);
+    }, [cue, startAtMs, progress]);
 
     const canvasWidth = cardWidth + GLOW_PAD * 2;
     const canvasHeight = cardHeight + GLOW_PAD * 2;

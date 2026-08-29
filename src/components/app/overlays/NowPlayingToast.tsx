@@ -138,7 +138,8 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                             {transitionCue && cardSize.width > 0 && (
                                 <NowPlayingToastTransitionBorder
                                     key="transition-border"
-                                    cue={transitionCue}
+                                    cue={transitionCue.cue}
+                                    startAtMs={transitionCue.startAtMs}
                                     cardWidth={cardSize.width}
                                     cardHeight={cardSize.height}
                                     cardRadius={CARD_RADIUS}
@@ -148,34 +149,41 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                             )}
                         </AnimatePresence>
                     </Suspense>
-                    {/* Toast 卡片（playing-toast 样式）。key=trackKey 在换歌时重放进场
-                        动画：没有 AnimatePresence 的 keyed 元素卸载是即时的，旧内容不会
-                        残留，所以切到 next playing 时不会闪一下当前的歌。
+                    {/* Toast 卡片（playing-toast 样式）。
+
+                        没有 key，所以卡片在场期间不会因为换内容重挂：正在播放 → 预告下一首 →
+                        那首真的播起来，是一条连续的事，中间不该滑出再滑进来。内容就地换掉，宽度
+                        由 layout="size" 补间过去——短的正在播放跳到长的接下来播放，看到的是卡片
+                        自己变长。进场动画留给「卡片出现」那一次（外层 AnimatePresence 管挂载）。
+
+                        layout="size" 只管尺寸，位移和按下反馈留给 initial/whileTap，不进 layout。
 
                         给了 onActivate 就渲染成真的 button：键盘和焦点环白送，而且外层那层
                         pointer-events-none 只在这一个元素上翻回来——描边和扫光都还是不吃鼠标的。 */}
                     <motion.button
-                        key={trackKey}
                         data-toast-card=""
                         type="button"
+                        layout="size"
                         onClick={onActivate}
                         disabled={!onActivate}
                         aria-label={onActivate ? activateLabel : undefined}
                         initial={{ opacity: 0, x: -24 }}
                         animate={{ opacity: 1, x: 0 }}
-                        whileTap={onActivate ? { scale: 0.97 } : undefined}
+                        whileTap={onActivate ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                        className={`relative flex min-w-[240px] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
                         } ${onActivate
                             ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
                             : ''}`}
                     >
-                        {/* 顶部光线（进场的横向扫光） */}
+                        {/* 顶部光线（进场的横向扫光）。混音期间收掉：描边现在正压在卡片边框上，
+                            再叠一条亮线就是同一条边上两层东西，读起来是好几层边框套在一起。 */}
                         <motion.span
                             aria-hidden
+                            data-toast-sheen=""
                             initial={{ scaleX: 0 }}
-                            animate={{ scaleX: 1 }}
+                            animate={{ scaleX: 1, opacity: transitionCue ? 0 : 1 }}
                             transition={{ duration: 0.5, ease: 'easeOut' }}
                             className={`absolute inset-x-0 top-0 h-[2px] origin-left ${
                                 isDaylight
@@ -183,22 +191,40 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                     : 'bg-gradient-to-r from-transparent via-white/50 to-transparent'
                             }`}
                         />
-                        <div
+                        {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
+                            没有自己 layout 的子节点会被一起拉扁。带上它俩，framer 会逐层把缩放
+                            反解掉，封面不变形、歌名不横向压扁。 */}
+                        <motion.div
+                            layout
                             className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-cover bg-center ${
                                 isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'
                             }`}
                             style={shown.coverUrl ? { backgroundImage: `url(${shown.coverUrl})` } : undefined}
                         >
                             {!shown.coverUrl && <Music size={18} className={isDaylight ? 'text-black/35' : 'text-white/35'} />}
-                        </div>
-                        <div className="min-w-0 max-w-[200px]">
-                            {/* 正在播放 / 接下来播放：歌名上方 */}
+                        </motion.div>
+                        <motion.div layout className="min-w-0 max-w-[200px] flex-1">
+                            {/* 正在播放 / 接下来播放：歌名上方。切歌那一刻整张卡片不重挂，所以这
+                                一行是自己淡入淡出换掉的，不跟着进场动画走。
+                                高度写死成和 leading 一样的 10px：mode="wait" 换字的中途这一行是
+                                空的，不占住高度的话歌名会往上跳一下再落回来。 */}
                             <div
-                                className={`text-[9px] font-semibold uppercase leading-[10px] tracking-[0.14em] select-none ${
+                                className={`h-[10px] text-[9px] font-semibold uppercase leading-[10px] tracking-[0.14em] select-none ${
                                     isDaylight ? 'text-black/45' : 'text-white/45'
                                 }`}
                             >
-                                {label}
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.span
+                                        key={label}
+                                        className="block"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                                    >
+                                        {label}
+                                    </motion.span>
+                                </AnimatePresence>
                             </div>
                             <div className="truncate text-[13px] font-bold leading-4">{shown.title}</div>
                             <div
@@ -208,7 +234,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                             >
                                 {shown.artist || t('ui.unknownArtist')}
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.button>
                 </motion.div>
             )}

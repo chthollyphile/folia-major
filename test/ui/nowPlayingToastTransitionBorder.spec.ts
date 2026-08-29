@@ -69,3 +69,99 @@ test('卡片本身可点，外面那层不吃鼠标', async ({ page }) => {
     await page.keyboard.press('Enter');
     await expect(page.locator('[data-probe-activations="2"]')).toBeAttached();
 });
+
+// 预告「接下来播放」再真的播起来，是一件连续的事：卡片上已经是那首歌了，切过去的那一刻只有标签
+// 要变。用 trackKey 做 key 时它恰好在那一刻变，于是重挂 + 重放一次进场——这一组钉的就是这个。
+test.describe('切歌交接', () => {
+    /** 在当前卡片节点上盖个戳。React 重挂会换掉 DOM 节点，戳就没了。 */
+    const stamp = (page: import('@playwright/test').Page) => page.evaluate(() => {
+        const card = document.querySelector('[data-toast-card]') as HTMLElement | null;
+        if (card) card.dataset.probeStamp = 'kept';
+    });
+
+    test('预告那首落地时不重挂，只换标签', async ({ page }) => {
+        await page.goto(PROBE_URL);
+        const card = page.locator('[data-toast-card]');
+        await expect(card).toBeVisible();
+        await stamp(page);
+
+        // 正在播放 → 预告下一首 → 那首真的播起来，全程同一个 DOM 节点
+        await page.locator('[data-probe-action="next-up"]').click();
+        await expect(card).toContainText('接下来播放');
+        expect(await card.getAttribute('data-probe-stamp')).toBe('kept');
+
+        await page.locator('[data-probe-action="handover"]').click();
+        await expect(card).toContainText('正在播放');
+        expect(await card.getAttribute('data-probe-stamp')).toBe('kept');
+    });
+
+    // 标签是 mode="wait" 换掉的，中途那一行是空的。不占住高度的话歌名会往上跳一下再落回来,
+    // 本来是为了不硬切,结果换来一次抖动。
+    test('换标签的中途歌名不上下跳', async ({ page }) => {
+        await page.goto(PROBE_URL);
+        const title = page.locator('[data-toast-card] .truncate').first();
+        await page.locator('[data-probe-action="next-up"]').click();
+        await page.waitForTimeout(700);
+        const before = (await title.boundingBox())!;
+
+        await page.locator('[data-probe-action="handover"]').click();
+        // 淡出淡入之间，标签那一行没有字
+        await page.waitForTimeout(150);
+        const during = (await title.boundingBox())!;
+        expect(Math.abs(during.y - before.y)).toBeLessThan(1);
+    });
+
+    // 换歌也不重挂：短的正在播放跳到长的下一首，看到的应该是卡片自己变长，而不是滑出再滑入。
+    test('换歌是宽度补间，不是滑出再滑入', async ({ page }) => {
+        await page.goto(PROBE_URL);
+        const card = page.locator('[data-toast-card]');
+        await expect(card).toBeVisible();
+
+        // 先走到第三首（标题一个字，宽度压在 240 的下限上）
+        await page.locator('[data-probe-action="skip"]').click();
+        await page.locator('[data-probe-action="skip"]').click();
+        await expect(card).toContainText('雨');
+        await page.waitForTimeout(700);
+        const short = (await card.boundingBox())!;
+        await stamp(page);
+
+        // 回到第一首的长标题
+        await page.locator('[data-probe-action="skip"]').click();
+        await page.waitForTimeout(700);
+        const long = (await card.boundingBox())!;
+
+        expect(await card.getAttribute('data-probe-stamp')).toBe('kept');
+        expect(long.width).toBeGreaterThan(short.width);
+        // 整卡没有横向滑出：x 是外层给的，全程不动
+        expect(Math.abs(long.x - short.x)).toBeLessThan(1);
+    });
+});
+
+test('短标题也不会把卡片缩到 240px 以下', async ({ page }) => {
+    await page.goto(PROBE_URL);
+    const card = page.locator('[data-toast-card]');
+    await expect(card).toBeVisible();
+
+    // 第三首标题只有一个字，是最容易缩过头的那种
+    await page.locator('[data-probe-action="skip"]').click();
+    await page.locator('[data-probe-action="skip"]').click();
+    await expect(card).toContainText('雨');
+    await page.waitForTimeout(600);
+
+    const box = (await card.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(240);
+});
+
+// 描边自己就沿着上边缘画，两条亮线隔着几个像素并排，读起来是好几层边框套在一起。
+test('混音期间收掉顶部的扫光条', async ({ page }) => {
+    await page.goto(PROBE_URL);
+    const sheen = page.locator('[data-toast-sheen]');
+    await expect(sheen).toBeAttached();
+    await page.waitForTimeout(700);
+    expect(Number(await sheen.evaluate(el => getComputedStyle(el).opacity))).toBeGreaterThan(0.9);
+
+    await page.locator('[data-probe-action="cue"]').click();
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 10_000 });
+    await page.waitForTimeout(900);
+    expect(Number(await sheen.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(0.05);
+});

@@ -32,8 +32,15 @@ const DEMO_COVER = `data:image/svg+xml,${encodeURIComponent(`
   <circle cx="100" cy="86" r="34" fill="#fff3d6" opacity="0.85"/>
 </svg>`)}`;
 
-const SONG = { title: '秘密のメリーゴーランド (ft. Sohbana)', artist: 'ミカヅキ BIGWAVE', coverUrl: DEMO_COVER };
-const NEXT_UP = { title: 'Neon Aquarium', artist: 'Sunset Rollercoaster', coverUrl: null };
+/**
+ * 三首，最后一首标题很短——用来看最小宽度（240px）有没有把卡片撑住，以及标题长短变化时
+ * 卡片宽度是补间过去的还是硬切。
+ */
+const TRACKS = [
+    { key: 'track-a', title: '秘密のメリーゴーランド (ft. Sohbana)', artist: 'ミカヅキ BIGWAVE', coverUrl: DEMO_COVER },
+    { key: 'track-b', title: 'Neon Aquarium', artist: 'Sunset Rollercoaster', coverUrl: null },
+    { key: 'track-c', title: '雨', artist: 'ヨルシカ', coverUrl: null },
+];
 
 /** 和设置页开开关时广播的那条预览一样：十秒、交接点略过中点、120 BPM */
 const PREVIEW_CUE = { seconds: 10, crossover: 0.55, periodSec: 0.5 };
@@ -46,6 +53,9 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
     const [transitionBorder, setTransitionBorder] = React.useState(true);
     const [isNextUp, setIsNextUp] = React.useState(false);
     const [accent, setAccent] = React.useState(ACCENTS[0]);
+    // 播放到第几首。预告的那首固定是下一首，落地就是「index 前进一格 + 预告收掉」——和真实
+    // app 里 automix 交接的那一刻一模一样，卡片上的内容前后不变，只有标签要换。
+    const [index, setIndex] = React.useState(0);
     // 点卡片的动作在真实 app 里按页面分岔（首页跳播放页，播放页展开歌曲卡片），这里只数次数：
     // 要验的是外层那层 pointer-events-none 之下这个 button 真的收得到点击。
     const [activations, setActivations] = React.useState(0);
@@ -56,6 +66,9 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
     }, [transitionBorder]);
 
     const buttonClass = 'rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10';
+
+    const song = TRACKS[index % TRACKS.length];
+    const next = TRACKS[(index + 1) % TRACKS.length];
 
     return (
         <div className={`min-h-screen p-8 ${isDaylight ? 'bg-zinc-200' : 'bg-zinc-900'}`}>
@@ -85,8 +98,32 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
                 <button type="button" className={buttonClass} onClick={() => setTransitionBorder(v => !v)}>
                     描边：{transitionBorder ? '开' : '关'}
                 </button>
-                <button type="button" className={buttonClass} onClick={() => setIsNextUp(v => !v)}>
+                <button type="button" data-probe-action="next-up" className={buttonClass} onClick={() => setIsNextUp(v => !v)}>
                     接下来播放：{isNextUp ? '开' : '关'}
+                </button>
+                {/* 交接：预告的那首开始播了。卡片上的内容前后不变，只有标签要换。 */}
+                <button
+                    type="button"
+                    data-probe-action="handover"
+                    className={`${buttonClass} disabled:opacity-40`}
+                    disabled={!isNextUp}
+                    onClick={() => {
+                        setIndex(i => i + 1);
+                        setIsNextUp(false);
+                    }}
+                >
+                    落地（预告那首开始播）
+                </button>
+                {/* 换歌：内容和长度都变了。卡片同样不重挂，宽度是补间过去的——第三首标题只有
+                    一个字，从它跳回第一首那种长标题，看到的应该是卡片自己变长。 */}
+                <button
+                    type="button"
+                    data-probe-action="skip"
+                    className={`${buttonClass} disabled:opacity-40`}
+                    disabled={isNextUp}
+                    onClick={() => setIndex(i => i + 1)}
+                >
+                    直接换歌
                 </button>
                 <button type="button" className={buttonClass} onClick={() => setIsDaylight(v => !v)}>
                     {isDaylight ? '白天' : '夜晚'}
@@ -112,12 +149,12 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
             </p>
 
             <NowPlayingToast
-                song={SONG}
-                trackKey="probe-track"
+                song={{ title: song.title, artist: song.artist, coverUrl: song.coverUrl }}
+                trackKey={song.key}
                 isDaylight={isDaylight}
                 mode="auto"
                 timeoutSec={3}
-                nextUp={NEXT_UP}
+                nextUp={{ title: next.title, artist: next.artist, coverUrl: next.coverUrl }}
                 isNextUp={isNextUp}
                 transitionBorder={transitionBorder}
                 theme={{ accentColor: accent } as never}
