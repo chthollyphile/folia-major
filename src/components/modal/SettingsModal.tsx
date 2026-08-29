@@ -306,6 +306,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleSetSubtitleFontFallbackFamilies: onSubtitleFontFallbackFamiliesChange,
         handleToggleOpenPanelCloseButton: onToggleOpenPanelCloseButton,
         handleSetGrid3dCardStyle: onChangeGrid3dCardStyle,
+        stageTrackPillMode,
+        stageTrackPillTimeoutSec,
+        handleSetStageTrackPillMode: onChangeStageTrackPillMode,
+        handleSetStageTrackPillTimeoutSec: onChangeStageTrackPillTimeoutSec,
     } = useSettingsUiStore(useShallow(selectSettingsUiSnapshot));
     const resolvedToggleTransparentPlayerBackground = onToggleTransparentPlayerBackground ?? onToggleTransparentPlayerBackgroundFromStore;
     const setIsSubSettingsViewOpen = useSettingsUiStore(state => state.setIsSubSettingsViewOpen);
@@ -1591,6 +1595,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 toggleOffBackgroundClass={toggleOffBackgroundClass}
                                                 transparentPlayerBackground={transparentPlayerBackground}
                                                 autoHidePlayerChrome={autoHidePlayerChrome}
+                                                stageTrackPillMode={stageTrackPillMode}
+                                                stageTrackPillTimeoutSec={stageTrackPillTimeoutSec}
+                                                onChangeStageTrackPillMode={onChangeStageTrackPillMode}
+                                                onChangeStageTrackPillTimeoutSec={onChangeStageTrackPillTimeoutSec}
                                                 utilityGhostButtonClass={utilityGhostButtonClass}
                                                 grid3dCardStyle={grid3dCardStyle}
                                                 onChangeGrid3dCardStyle={onChangeGrid3dCardStyle}

@@ -4,10 +4,12 @@ import type FloatingPlayerControls from '../../FloatingPlayerControls';
 import type SearchWorkspace from '../search/SearchWorkspace';
 import type DevDebugOverlay from '../../DevDebugOverlay';
 import type MemoryMonitorWindow from '../../debug/MemoryMonitorWindow';
+import type NowPlayingToast from './NowPlayingToast';
 import { PlayerState } from '../../../types';
 import type { SongResult, UnifiedSong, LyricData } from '../../../types';
 import { resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 
 // src/components/app/overlays/buildAppOverlaysModel.ts
 
@@ -15,12 +17,14 @@ type SearchOverlayProps = React.ComponentProps<typeof SearchWorkspace>;
 type FloatingControlsProps = React.ComponentProps<typeof FloatingPlayerControls>;
 type DebugOverlayProps = React.ComponentProps<typeof DevDebugOverlay>;
 type MemoryMonitorProps = React.ComponentProps<typeof MemoryMonitorWindow>;
+type NowPlayingToastProps = React.ComponentProps<typeof NowPlayingToast>;
 
 export type AppOverlaysModel = {
     searchOverlay?: SearchOverlayProps | null;
     debugOverlay?: DebugOverlayProps | null;
     memoryMonitor?: MemoryMonitorProps | null;
     floatingControls?: FloatingControlsProps | null;
+    nowPlayingToast?: NowPlayingToastProps | null;
 };
 
 type BuildAppOverlaysModelParams = {
@@ -71,6 +75,15 @@ type BuildAppOverlaysModelParams = {
     handleNextTrack: () => void;
     prevTrackLabel: string;
     nextTrackLabel: string;
+    /** now playing 卡片（playing-toast 样式） */
+    coverUrl: string | null;
+    cachedCoverUrl: string | null;
+    stageTrackPillMode: 'auto' | 'always' | 'never';
+    stageTrackPillTimeoutSec: number;
+    /** 自动切歌预览（下一首）；isNextUp 时整卡展示它 */
+    stageNextUp: { title: string; artist: string | null; coverUrl: string | null } | null;
+    /** 预览态：接下来播放标签 + 挂起 auto 隐藏计时 */
+    stageIsNextUp: boolean;
 };
 
 // Builds the full overlay model, including detail overlays and floating playback controls.
@@ -122,7 +135,30 @@ export const buildAppOverlaysModel = ({
     handleNextTrack,
     prevTrackLabel,
     nextTrackLabel,
+    coverUrl,
+    cachedCoverUrl,
+    stageTrackPillMode,
+    stageTrackPillTimeoutSec,
+    stageNextUp,
+    stageIsNextUp,
 }: BuildAppOverlaysModelParams): AppOverlaysModel => ({
+    // Gated on the mode as well as the view: "never" means the card never mounts, rather than
+    // mounting and rendering nothing.
+    nowPlayingToast: currentView === 'player' && currentSong && stageTrackPillMode !== 'never'
+        ? {
+            song: {
+                title: currentSong.name || '',
+                artist: getSongArtistLabel(currentSong) || null,
+                coverUrl: coverUrl || cachedCoverUrl || null,
+            },
+            trackKey: getPlaybackSongKey(currentSong),
+            isDaylight,
+            mode: stageTrackPillMode,
+            timeoutSec: stageTrackPillTimeoutSec,
+            nextUp: stageNextUp,
+            isNextUp: stageIsNextUp,
+        }
+        : null,
     searchOverlay: currentView === 'home'
         ? {
             theme,

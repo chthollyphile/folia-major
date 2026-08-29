@@ -54,6 +54,10 @@ type AppearanceSettingsSubviewProps = {
     toggleOffBackgroundClass: string;
     transparentPlayerBackground: boolean;
     autoHidePlayerChrome: boolean;
+    stageTrackPillMode: 'auto' | 'always' | 'never';
+    stageTrackPillTimeoutSec: number;
+    onChangeStageTrackPillMode: (mode: 'auto' | 'always' | 'never') => void;
+    onChangeStageTrackPillTimeoutSec: (sec: number) => void;
     utilityGhostButtonClass: string;
     grid3dCardStyle: 'image' | 'card';
     onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
@@ -93,6 +97,10 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     toggleOffBackgroundClass,
     transparentPlayerBackground,
     autoHidePlayerChrome,
+    stageTrackPillMode,
+    stageTrackPillTimeoutSec,
+    onChangeStageTrackPillMode,
+    onChangeStageTrackPillTimeoutSec,
     utilityGhostButtonClass,
     grid3dCardStyle,
     onChangeGrid3dCardStyle,
@@ -768,6 +776,49 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                             >
                                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${autoHidePlayerChrome ? 'translate-x-6' : 'translate-x-0'}`} />
                             </button>
+                        </div>
+                        <div className="pt-2 border-t border-white/5 space-y-3">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.stageTrackPill')}
+                                </div>
+                                <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.stageTrackPillDesc')}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                {(['auto', 'always', 'never'] as const).map(pillMode => (
+                                    <button
+                                        key={pillMode}
+                                        onClick={() => onChangeStageTrackPillMode(pillMode)}
+                                        className="px-2 py-1.5 rounded-lg text-xs border transition-all"
+                                        style={getAccentOptionStyle(stageTrackPillMode === pillMode)}
+                                    >
+                                        {t(`options.stageTrackPillMode_${pillMode}`)}
+                                    </button>
+                                ))}
+                            </div>
+                            {stageTrackPillMode === 'auto' && (
+                                <div className="flex items-center justify-between gap-4 pt-1">
+                                    <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('options.stageTrackPillTimeout')}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <input
+                                            type="range"
+                                            min={3}
+                                            max={60}
+                                            step={1}
+                                            value={stageTrackPillTimeoutSec}
+                                            onChange={(e) => onChangeStageTrackPillTimeoutSec(Number(e.target.value))}
+                                            className="w-36 accent-current"
+                                        />
+                                        <span className="text-xs font-mono w-12 text-right" style={{ color: 'var(--text-primary)' }}>
+                                            {stageTrackPillTimeoutSec}s
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

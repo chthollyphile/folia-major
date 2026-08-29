@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { useMotionValue, motion } from 'framer-motion';
+import { useMotionValue, motion, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
@@ -38,6 +38,7 @@ import { createLyricsSetter } from './components/app/playback/createLyricsSetter
 import { createOnlineRecoveryController } from './components/app/playback/createOnlineRecoveryController';
 import { persistPlaybackCache } from './components/app/playback/persistPlaybackCache';
 import { buildAppOverlaysModel } from './components/app/overlays/buildAppOverlaysModel';
+import { resolveNextUpTrack } from './components/app/overlays/now-playing-toast/resolveNextUpTrack';
 import {
     createSearchAlbumCollection,
     createSearchArtistCollection,
@@ -114,6 +115,8 @@ const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
 const HOME_PROVIDER_REFRESH_COOLDOWN_MS = 5_000;
 const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
 const LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC = 3;
+/** How many seconds before a track ends the now playing card previews the queue's next track. */
+const NEXT_UP_LEAD_SEC = 5;
 
 export default function App() {
     const { t } = useTranslation();
@@ -420,6 +423,8 @@ export default function App() {
         queueAddBehavior,
         audioOutputDeviceId,
         loopMode,
+        stageTrackPillMode,
+        stageTrackPillTimeoutSec,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleDisableHomeDynamicBackground,
@@ -1584,6 +1589,65 @@ export default function App() {
         // the user tunes in Lab settings, and re-running this effect on it would fight the panel value.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [displaySong?.id, lyricCurrentTime]);
+
+    /**
+     * The queue track a plain track-end would advance to, or null when nothing resolvable.
+     * Mirrors handleNextTrack's index rules so the preview is always the track that will actually play.
+     */
+    const nextUpTrack = useMemo(() => resolveNextUpTrack({
+        playQueue,
+        song: currentSong,
+        loopMode: effectiveLoopMode,
+        isFmMode,
+        isStageActive: isNowPlayingStageActive,
+        fallbackToQueueHead: true,
+    }), [playQueue, currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive]);
+
+    /**
+     * The track a running blend is bringing in: the queue successor of the DISPLAYED song.
+     * The displayed picture is frozen on the outgoing track for the whole blend, while currentSong
+     * advances asynchronously at the arm — reading the successor of the displayed song is correct
+     * from the first frame and stays correct until settle. No queue-head fallback here: mid-blend a
+     * song missing from the queue means the queue moved under the blend, and guessing would announce
+     * a track that is not arriving.
+     */
+    const blendNextUpTrack = useMemo(() => (isShowingTail ? resolveNextUpTrack({
+        playQueue,
+        song: displaySong,
+        loopMode: effectiveLoopMode,
+        isFmMode,
+        isStageActive: isNowPlayingStageActive,
+    }) : null), [isShowingTail, displaySong, playQueue, effectiveLoopMode, isFmMode, isNowPlayingStageActive]);
+
+    /** True while the card previews the next track (plain track-end countdown, not the blend). */
+    const [countdownActive, setCountdownActive] = useState(false);
+    useMotionValueEvent(currentTime, 'change', (time) => {
+        const shouldPreview = stageTrackPillMode !== 'never'
+            && currentView === 'player'
+            && nextUpTrack !== null
+            && Number.isFinite(displayDuration)
+            && displayDuration > 0
+            && displayDuration - time > 0
+            && displayDuration - time <= NEXT_UP_LEAD_SEC;
+        setCountdownActive(prev => (prev === shouldPreview ? prev : shouldPreview));
+    });
+
+    /**
+     * The track the card shows while announcing a switch.
+     * During a blend the arriving track comes from the queue successor of the displayed
+     * (outgoing) song — never from currentSong, which lags the arm by a few async frames and
+     * briefly made the card announce the OUTGOING song as "next".
+     */
+    const stageNextUpTrack = isShowingTail ? blendNextUpTrack : nextUpTrack;
+    const stageNextUp = useMemo(() => {
+        if (stageTrackPillMode === 'never' || !stageNextUpTrack) return null;
+        return {
+            title: stageNextUpTrack.name || '',
+            artist: getSongArtistLabel(stageNextUpTrack) || null,
+            coverUrl: getSongCoverUrl(stageNextUpTrack) ?? null,
+        };
+    }, [stageTrackPillMode, stageNextUpTrack]);
+    const stageIsNextUp = stageNextUp !== null && (isShowingTail || countdownActive);
 
     const displaySongArtist = useMemo(
         () => (displaySong ? getSongArtistLabel(displaySong) || null : null),
@@ -3334,6 +3398,12 @@ export default function App() {
         handleNextTrack,
         prevTrackLabel: t('ui.previousTrack'),
         nextTrackLabel: t('ui.nextTrack'),
+        coverUrl,
+        cachedCoverUrl,
+        stageTrackPillMode,
+        stageTrackPillTimeoutSec,
+        stageNextUp,
+        stageIsNextUp,
     }), [
         activePlaybackContext,
         audioSrc,
@@ -3350,6 +3420,12 @@ export default function App() {
         isFmMode,
         isNowPlayingStageActive,
         playQueue,
+        coverUrl,
+        cachedCoverUrl,
+        stageTrackPillMode,
+        stageTrackPillTimeoutSec,
+        stageNextUp,
+        stageIsNextUp,
         handleSearchResultAddToQueue,
         handleSearchResultAlbumOpen,
         handleSearchResultArtistOpen,

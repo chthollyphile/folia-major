@@ -1337,6 +1337,26 @@ const readStoredLoopMode = (): 'off' | 'all' | 'one' => {
     return saved === 'all' || saved === 'one' ? saved : 'off';
 };
 
+export type StageTrackPillMode = 'auto' | 'always' | 'never';
+
+const readStoredStageTrackPillMode = (): StageTrackPillMode => {
+    if (typeof window === 'undefined') {
+        return 'auto';
+    }
+
+    const saved = localStorage.getItem('stage_track_pill_mode');
+    return saved === 'always' || saved === 'never' ? saved : 'auto';
+};
+
+const readStoredStageTrackPillTimeoutSec = (): number => {
+    if (typeof window === 'undefined') {
+        return 10;
+    }
+
+    const saved = Number(localStorage.getItem('stage_track_pill_timeout_sec'));
+    return Number.isFinite(saved) && saved >= 3 && saved <= 60 ? Math.round(saved) : 10;
+};
+
 const readStoredQueueAddBehavior = (): QueueAddBehavior => {
     if (typeof window === 'undefined') {
         return 'append';
@@ -1547,6 +1567,10 @@ export type SettingsUiState = {
     volume: number;
     isMuted: boolean;
     loopMode: 'off' | 'all' | 'one';
+    /** 歌词页左下角曲目卡片显示模式：auto=显示一段时间后隐藏，always=常驻，never=不显示 */
+    stageTrackPillMode: StageTrackPillMode;
+    /** auto 模式下的显示时长（秒），3-60 */
+    stageTrackPillTimeoutSec: number;
     homeLayoutStyle: 'carousel' | 'grid';
     grid3dCardStyle: 'image' | 'card';
     showHomeTabPlaylist: boolean;
@@ -1709,6 +1733,8 @@ export type SettingsUiState = {
     handleSetVolume: (val: number) => void;
     handleToggleMute: () => void;
     handleToggleLoopMode: () => void;
+    handleSetStageTrackPillMode: (mode: StageTrackPillMode) => void;
+    handleSetStageTrackPillTimeoutSec: (sec: number) => void;
     handleSetHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     handleSetGrid3dCardStyle: (style: 'image' | 'card') => void;
     handleToggleHomeTabPlaylist: (show: boolean) => void;
@@ -1846,6 +1872,8 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     volume: readStoredVolume(),
     isMuted: getStoredBoolean('player_is_muted', false),
     loopMode: readStoredLoopMode(),
+    stageTrackPillMode: readStoredStageTrackPillMode(),
+    stageTrackPillTimeoutSec: readStoredStageTrackPillTimeoutSec(),
     homeLayoutStyle: readStoredHomeLayoutStyle(),
     grid3dCardStyle: readStoredGrid3dCardStyle(),
     showHomeTabPlaylist: getStoredBoolean('show_home_tab_playlist', true),
@@ -3229,6 +3257,19 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ loopMode: next });
     },
+    handleSetStageTrackPillMode: (mode) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('stage_track_pill_mode', mode);
+        }
+        set({ stageTrackPillMode: mode });
+    },
+    handleSetStageTrackPillTimeoutSec: (sec) => {
+        const next = Math.max(3, Math.min(60, Math.round(sec)));
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('stage_track_pill_timeout_sec', String(next));
+        }
+        set({ stageTrackPillTimeoutSec: next });
+    },
     handleSetHomeLayoutStyle: () => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('home_layout_style', 'grid');
@@ -3384,6 +3425,10 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     queueAddBehavior: state.queueAddBehavior,
     audioOutputDeviceId: state.audioOutputDeviceId,
     loopMode: state.loopMode,
+    stageTrackPillMode: state.stageTrackPillMode,
+    stageTrackPillTimeoutSec: state.stageTrackPillTimeoutSec,
+    handleSetStageTrackPillMode: state.handleSetStageTrackPillMode,
+    handleSetStageTrackPillTimeoutSec: state.handleSetStageTrackPillTimeoutSec,
     handleToggleCoverColorBg: state.handleToggleCoverColorBg,
     handleToggleStaticMode: state.handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground: state.handleToggleDisableHomeDynamicBackground,
