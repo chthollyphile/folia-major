@@ -1,5 +1,5 @@
 import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
-import type { PlayerChromeVisibilityMode, RemoteControlSnapshot } from '../types/remoteControl';
+import type { PlayerChromeVisibilityMode, RemoteControlSnapshot, RemoteTrackTransition } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
 import { getPlaybackSongKey, isLocalPlaybackSong } from './appPlaybackGuards';
 import { buildStagePlayerSnapshot } from './stagePlayerSnapshot';
@@ -76,6 +76,7 @@ export interface RemoteControlSnapshotOptions {
     lyrics?: LyricData | null;
     includeLyrics?: boolean;
     playerChromeVisibilityMode: PlayerChromeVisibilityMode;
+    trackTransition?: RemoteTrackTransition | null;
 }
 
 export interface DiscordPresenceSnapshot {
@@ -212,6 +213,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
     nextTrackTitle: neighbors.next.title,
     nextTrackArtist: neighbors.next.artist,
     nextTrackCoverUrl: neighbors.next.coverUrl,
+    trackTransition: options.trackTransition ?? null,
     controlsDisabled: model.controlsDisabled,
     isStageActive: model.isStageActive,
     transparentModeEnabled: model.transparentModeEnabled,

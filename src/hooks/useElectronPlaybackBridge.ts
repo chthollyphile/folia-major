@@ -4,7 +4,12 @@ import type { RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState } from '../types';
 import type { SongResult, LyricData } from '../types';
-import type { PlayerChromeVisibilityMode, RemoteControlCommand, RemoteControlSnapshot } from '../types/remoteControl';
+import type {
+    PlayerChromeVisibilityMode,
+    RemoteControlCommand,
+    RemoteControlSnapshot,
+    RemoteTrackTransition,
+} from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
 import {
     buildDiscordPresenceSnapshotFromPlaybackSyncBridge,
@@ -16,6 +21,7 @@ import {
 import { resolveStagePlayerPositionSec } from '../utils/stagePlayerSnapshot';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { omni } from '../services/onlineMusic/omni';
+import { subscribeToTransitionCue } from '../services/automix/transitionCue';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
@@ -81,6 +87,10 @@ type UseElectronPlaybackBridgeOptions = {
      * (and the ordinary seek runs) when no blend is in flight.
      */
     onRemoteTransitionSeek?: (time: number) => boolean;
+    /** Publishes only evidence-backed AutoMix cues, not plain crossfade mode. */
+    publishAutomixTrackTransition: boolean;
+    /** Filters out settings previews and cues emitted outside a live deck transition. */
+    isAutomixTransitionAudible: () => boolean;
     isLiked: boolean;
     onLike?: () => void;
 };
@@ -133,11 +143,18 @@ export const useElectronPlaybackBridge = ({
     onExternalPlayRequest,
     onRemoteCycleLoopMode,
     onRemoteTransitionSeek,
+    publishAutomixTrackTransition,
+    isAutomixTransitionAudible,
     isLiked,
     onLike,
 }: UseElectronPlaybackBridgeOptions) => {
     const [playbackSyncBridgeStatus, setPlaybackSyncBridgeStatus] = useState<ElectronPlaybackSyncBridgeStatus>(() => emptyPlaybackSyncBridgeStatus());
     const pausedByVoiceInputRef = useRef(false);
+    const remoteTrackTransitionRef = useRef<RemoteTrackTransition | null>(null);
+    const publishAutomixTrackTransitionRef = useRef(publishAutomixTrackTransition);
+    const isAutomixTransitionAudibleRef = useRef(isAutomixTransitionAudible);
+    publishAutomixTrackTransitionRef.current = publishAutomixTrackTransition;
+    isAutomixTransitionAudibleRef.current = isAutomixTransitionAudible;
     const currentSongSource = currentSong ? getPlaybackSourceRef(currentSong) : null;
     const canLikeCurrentSong = Boolean(
         currentSong
@@ -151,6 +168,26 @@ export const useElectronPlaybackBridge = ({
     const likeUnavailableProvider = currentSongSource?.kind === 'online' && !canLikeCurrentSong
         ? omni.getProviderLabel(currentSongSource.providerId)
         : undefined;
+
+    // The cue is event-shaped in the main renderer. Keep only the current low-frequency snapshot
+    // in a ref so the Remote's existing 500ms publisher can carry it without a React render loop.
+    useEffect(() => subscribeToTransitionCue(cue => {
+        if (
+            cue === null
+            || cue.preview
+            || !publishAutomixTrackTransitionRef.current
+            || !isAutomixTransitionAudibleRef.current()
+        ) {
+            remoteTrackTransitionRef.current = null;
+            return;
+        }
+
+        remoteTrackTransitionRef.current = {
+            startedAtMs: Date.now(),
+            durationSec: cue.seconds,
+            crossover: cue.crossover,
+        };
+    }), []);
     const stageSnapshotCacheRef = useRef<{
         playQueue: SongResult[];
         currentSong: SongResult | null;
@@ -243,6 +280,9 @@ export const useElectronPlaybackBridge = ({
                 includeLyrics: options.includeLyrics,
                 lyrics,
                 playerChromeVisibilityMode,
+                trackTransition: publishAutomixTrackTransitionRef.current && isAutomixTransitionAudibleRef.current()
+                    ? remoteTrackTransitionRef.current
+                    : null,
             },
             ),
             canLike: canLikeCurrentSong,

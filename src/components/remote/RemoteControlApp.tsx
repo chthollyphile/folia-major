@@ -87,6 +87,7 @@ const emptySnapshot: RemoteControlSnapshot = {
     nextTrackTitle: null,
     nextTrackArtist: null,
     nextTrackCoverUrl: null,
+    trackTransition: null,
     controlsDisabled: true,
     isStageActive: false,
     transparentModeEnabled: false,
@@ -399,9 +400,8 @@ const RemoteControlApp: React.FC = () => {
     const isOutroGlowActive = isOutroGlowVisible(trackTiming);
     const outroGlowColor = isDaylight ? 'rgba(28, 25, 23, 0.45)' : 'rgba(255, 255, 255, 0.8)';
 
-    // 收尾窗口里把封面、标题、艺术家和背景色一起交接给预读好的下一首：
-    // 播到 0 的那一刻画面已经是下一首了，不会在切歌瞬间硬跳一下。
-    // 暂停会把进度退回 0，看到的仍然是当前这首。
+    // AutoMix 真正开始出声后，把封面、标题、艺术家和背景色一起交接给预读好的下一首。
+    // 过渡时长和主导权切换点都来自音频引擎，不再用文件结尾倒推一个固定窗口。
     const nextFace = useMemo<Omit<RemoteTrackFace, 'opacity' | 'mode'> | null>(() => {
         const key = snapshot.nextTrackKey ?? snapshot.nextTrackCoverUrl ?? snapshot.nextTrackTitle;
         if (!key || !snapshot.canGoNext) {
@@ -416,7 +416,11 @@ const RemoteControlApp: React.FC = () => {
         };
     }, [snapshot.nextTrackKey, snapshot.nextTrackCoverUrl, snapshot.nextTrackTitle, snapshot.nextTrackArtist, snapshot.canGoNext]);
 
-    const handoffProgress = resolveTrackHandoffProgress({ ...trackTiming, isPlaying });
+    const handoffProgress = resolveTrackHandoffProgress({
+        transition: snapshot.trackTransition,
+        isPlaying,
+        nowMs: Date.now(),
+    });
     const isHandoffActive = handoffProgress > 0 && nextFace !== null && nextFace.key !== trackIdentity;
 
     const trackFaces = useMemo<RemoteTrackFace[]>(() => {

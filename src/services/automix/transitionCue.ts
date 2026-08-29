@@ -15,6 +15,8 @@ export interface TransitionCue {
     crossover: number;
     /** Wall-clock seconds per beat of the outgoing track, or null when nothing measured a tempo. */
     periodSec: number | null;
+    /** Settings-only demonstration; never publish this as a real track handoff. */
+    preview?: true;
 }
 
 type TransitionCueListener = (cue: TransitionCue | null) => void;

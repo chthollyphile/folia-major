@@ -154,6 +154,7 @@ declare global {
     nextTrackTitle: string | null;
     nextTrackArtist: string | null;
     nextTrackCoverUrl: string | null;
+    trackTransition: import('./types/remoteControl').RemoteTrackTransition | null;
     controlsDisabled: boolean;
     isStageActive: boolean;
     transparentModeEnabled: boolean;

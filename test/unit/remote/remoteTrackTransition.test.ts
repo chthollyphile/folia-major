@@ -3,12 +3,10 @@ import {
     isOutroGlowVisible,
     OUTRO_GLOW_SECONDS,
     resolveTrackHandoffProgress,
-    TRACK_HANDOFF_SECONDS,
 } from '../../../src/components/remote/remoteTrackTransition';
 
 // test/unit/remote/remoteTrackTransition.test.ts
-// 遥控窗口的收尾时序：发光提示要在最后 30 秒亮起，内容交接要在最后 10 秒内走完，
-// 而不是等切歌那一刻才硬跳。短曲目两者都必须整首不触发。
+// 遥控窗口的收尾时序：曲尾提示仍看剩余时间，内容交接则必须跟随 AutoMix 实际 cue。
 
 const timing = (remainingSeconds: number, duration = 200) => ({
     hasTrack: true,
@@ -36,23 +34,30 @@ describe('isOutroGlowVisible', () => {
 });
 
 describe('resolveTrackHandoffProgress', () => {
-    const playing = (remainingSeconds: number, duration = 200) => ({
-        ...timing(remainingSeconds, duration),
+    const playing = (elapsedSec: number, crossover = 0.5) => ({
+        transition: {
+            startedAtMs: 10_000,
+            durationSec: 10,
+            crossover,
+        },
         isPlaying: true,
+        nowMs: 10_000 + elapsedSec * 1000,
     });
 
-    it('ramps from 0 to 1 across the final 10 seconds', () => {
-        expect(resolveTrackHandoffProgress(playing(TRACK_HANDOFF_SECONDS + 1))).toBe(0);
-        expect(resolveTrackHandoffProgress(playing(TRACK_HANDOFF_SECONDS))).toBe(0);
-        expect(resolveTrackHandoffProgress(playing(TRACK_HANDOFF_SECONDS / 2))).toBeCloseTo(0.5);
-        expect(resolveTrackHandoffProgress(playing(0.5))).toBeCloseTo(0.95);
+    it('ramps from 0 to 1 across the cue wall-clock span', () => {
+        expect(resolveTrackHandoffProgress(playing(0))).toBe(0);
+        expect(resolveTrackHandoffProgress(playing(5))).toBeCloseTo(0.5);
+        expect(resolveTrackHandoffProgress(playing(10))).toBe(1);
     });
 
-    it('falls back to the current track while paused', () => {
+    it('aligns visual dominance with an off-centre audio crossover', () => {
+        expect(resolveTrackHandoffProgress(playing(7, 0.7))).toBeCloseTo(0.5);
+        expect(resolveTrackHandoffProgress(playing(3.5, 0.7))).toBeCloseTo(0.25);
+        expect(resolveTrackHandoffProgress(playing(8.5, 0.7))).toBeCloseTo(0.75);
+    });
+
+    it('falls back to the current track while paused or without a cue', () => {
         expect(resolveTrackHandoffProgress({ ...playing(2), isPlaying: false })).toBe(0);
-    });
-
-    it('never hands off on tracks shorter than twice the window', () => {
-        expect(resolveTrackHandoffProgress(playing(2, TRACK_HANDOFF_SECONDS * 2))).toBe(0);
+        expect(resolveTrackHandoffProgress({ ...playing(2), transition: null })).toBe(0);
     });
 });

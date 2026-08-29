@@ -25,7 +25,7 @@ import AutomixModelsSection from './AutomixModelsSection';
  * with the handover slightly past the middle. Long enough to clear the animation's own minimum,
  * and shaped like the blends it will actually be drawing rather than like a demo.
  */
-const PREVIEW_CUE = { seconds: 10, crossover: 0.55, periodSec: 0.5 };
+const PREVIEW_CUE = { seconds: 10, crossover: 0.55, periodSec: 0.5, preview: true } as const;
 
 type TransitionSettingsSectionProps = {
     isDaylight: boolean;

@@ -1,10 +1,10 @@
+import type { RemoteTrackTransition } from '../../types/remoteControl';
+
 // src/components/remote/remoteTrackTransition.ts
-// 遥控窗口收尾阶段的两段时间逻辑：进度条发光提示，以及切歌前的内容交接。
+// 遥控窗口的两段时间逻辑：曲尾提示，以及跟随 AutoMix cue 的内容交接。
 
 /** 进度条开始发光的剩余秒数 */
 export const OUTRO_GLOW_SECONDS = 30;
-/** 自然播完前多少秒开始把封面/文字/背景色交接给下一首 */
-export const TRACK_HANDOFF_SECONDS = 10;
 
 type RemoteTrackTiming = {
     hasTrack: boolean;
@@ -32,17 +32,42 @@ export const isOutroGlowVisible = (timing: RemoteTrackTiming): boolean => (
     isInsideOutroWindow(timing, OUTRO_GLOW_SECONDS)
 );
 
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
 /**
- * 最后 10 秒：0 → 1 的交接进度，1 表示画面已经完全是下一首。
- * 暂停时回到 0，看到的仍然是当前这首。
+ * 把时间进度映射成视觉交接进度，并让 50% 视觉主导权对齐音频 cue 的 crossover。
+ * Remote 每 500ms 收一次快照；连续帧交给 Framer Motion 插值，不写入 React 高频 state。
  */
 export const resolveTrackHandoffProgress = (
-    timing: RemoteTrackTiming & { isPlaying: boolean },
+    timing: {
+        transition: RemoteTrackTransition | null;
+        isPlaying: boolean;
+        nowMs: number;
+    },
 ): number => {
-    if (!timing.isPlaying || !isInsideOutroWindow(timing, TRACK_HANDOFF_SECONDS)) {
+    const transition = timing.transition;
+    if (
+        !timing.isPlaying
+        || !transition
+        || !Number.isFinite(transition.startedAtMs)
+        || !Number.isFinite(transition.durationSec)
+        || transition.durationSec <= 0
+    ) {
         return 0;
     }
 
-    const elapsedInWindow = TRACK_HANDOFF_SECONDS - timing.remainingSeconds;
-    return Math.max(0, Math.min(1, elapsedInWindow / TRACK_HANDOFF_SECONDS));
+    const elapsedSec = (timing.nowMs - transition.startedAtMs) / 1000;
+    const timeProgress = clamp01(elapsedSec / transition.durationSec);
+    const crossover = clamp01(transition.crossover);
+
+    if (timeProgress <= 0) return 0;
+    if (timeProgress >= 1) return 1;
+
+    if (timeProgress <= crossover) {
+        return crossover > 0 ? 0.5 * timeProgress / crossover : 0.5;
+    }
+
+    return crossover < 1
+        ? 0.5 + 0.5 * (timeProgress - crossover) / (1 - crossover)
+        : 1;
 };
