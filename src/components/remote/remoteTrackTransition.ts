@@ -9,6 +9,12 @@ type RemoteTransitionTiming = {
     nowMs: number;
 };
 
+export type RemoteTrackHandoffPair = {
+    startedAtMs: number;
+    outgoingKey: string;
+    incomingKey: string;
+};
+
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 export const resolveTransitionClock = (timing: RemoteTransitionTiming): {
@@ -53,6 +59,12 @@ export const mapTrackHandoffProgress = (timeProgress: number, crossover: number)
     // smoothstep 的速度是一座中间高、两端低的抛物线：快速穿过双标题都明显可见的区域。
     return crossoverAlignedProgress * crossoverAlignedProgress * (3 - 2 * crossoverAlignedProgress);
 };
+
+/** Keeps a completed handoff at B, but restores A when the same handoff is cancelled. */
+export const resolveStoppedTrackHandoffProgress = (
+    pair: RemoteTrackHandoffPair | null,
+    currentTrackKey: string,
+): number => pair?.incomingKey === currentTrackKey ? 1 : 0;
 
 /** 只在实际音频过渡的 cue 时间窗内点亮进度条。 */
 export const isTrackTransitionGlowVisible = (timing: RemoteTransitionTiming): boolean => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     isTrackTransitionGlowVisible,
     mapTrackHandoffProgress,
+    resolveStoppedTrackHandoffProgress,
     resolveTrackHandoffProgress,
     resolveTransitionClock,
 } from '../../../src/components/remote/remoteTrackTransition';
@@ -67,5 +68,25 @@ describe('local transition clock calibration', () => {
     it('shortens the interval where both track faces are strongly visible', () => {
         expect(mapTrackHandoffProgress(0.25, 0.5)).toBeCloseTo(0.15625);
         expect(mapTrackHandoffProgress(0.75, 0.5)).toBeCloseTo(0.84375);
+    });
+});
+
+describe('resolveStoppedTrackHandoffProgress', () => {
+    const pair = {
+        startedAtMs: 10_000,
+        outgoingKey: 'track-a',
+        incomingKey: 'track-b',
+    };
+
+    it('keeps the end position after B becomes the current track', () => {
+        expect(resolveStoppedTrackHandoffProgress(pair, 'track-b')).toBe(1);
+    });
+
+    it('restores the start position when cancellation returns to A', () => {
+        expect(resolveStoppedTrackHandoffProgress(pair, 'track-a')).toBe(0);
+    });
+
+    it('defaults to the current face when no handoff pair was observed', () => {
+        expect(resolveStoppedTrackHandoffProgress(null, 'track-a')).toBe(0);
     });
 });

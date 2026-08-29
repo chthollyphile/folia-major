@@ -16,7 +16,12 @@ import {
 } from '../../types/videoExport';
 import type { VideoExportPresetValues, VideoExportStartMode } from '../../types/videoExport';
 import { extractColors } from '../../utils/colorExtractor';
-import { mapTrackHandoffProgress, resolveTransitionClock } from './remoteTrackTransition';
+import {
+    mapTrackHandoffProgress,
+    resolveStoppedTrackHandoffProgress,
+    resolveTransitionClock,
+    type RemoteTrackHandoffPair,
+} from './remoteTrackTransition';
 import { useTranslation } from 'react-i18next';
 
 // src/components/remote/RemoteControlApp.tsx
@@ -158,6 +163,7 @@ const RemoteControlApp: React.FC = () => {
         fromKey: null,
         at: 0,
     });
+    const handoffPairRef = useRef<RemoteTrackHandoffPair | null>(null);
     const exportPresets = useMemo(() => createVideoExportPresets(presetValues), [presetValues]);
     const selectedPreset = exportPresets.find(preset => preset.id === selectedPresetId) ?? exportPresets[1];
 
@@ -321,6 +327,7 @@ const RemoteControlApp: React.FC = () => {
 
     // 没有 trackKey 的旧快照（或空闲态）退回用封面/标题拼一个，保证过渡不会漏触发
     const trackIdentity = snapshot.trackKey ?? snapshot.coverUrl ?? snapshot.title ?? 'no-track';
+    const nextTrackIdentity = snapshot.nextTrackKey ?? snapshot.nextTrackCoverUrl ?? snapshot.nextTrackTitle;
     // 手动点上一首时整块内容往回滑；自然播完或点下一首都往前滑。
     // 依赖 trackIdentity 记忆化，动画进行中重渲染不会中途改方向。
     const trackTransitionDirection = useMemo<'prev' | 'next'>(() => {
@@ -408,6 +415,24 @@ const RemoteControlApp: React.FC = () => {
     const [isIncomingDominant, setIsIncomingDominant] = useState(false);
     const transitionGlowColor = isDaylight ? 'rgba(28, 25, 23, 0.45)' : 'rgba(255, 255, 255, 0.8)';
 
+    // 一条 cue 只锁定一组 A→B；队列推进后 next 会变成 C，不能拿它改写本次交接结果。
+    useEffect(() => {
+        if (
+            transitionStartedAtMs === null
+            || !nextTrackIdentity
+            || nextTrackIdentity === trackIdentity
+            || handoffPairRef.current?.startedAtMs === transitionStartedAtMs
+        ) {
+            return;
+        }
+
+        handoffPairRef.current = {
+            startedAtMs: transitionStartedAtMs,
+            outgoingKey: trackIdentity,
+            incomingKey: nextTrackIdentity,
+        };
+    }, [nextTrackIdentity, trackIdentity, transitionStartedAtMs]);
+
     // 背景主导权直接跟随本地时间轴穿越 crossover，只在阈值变化时触发一次 React 更新。
     useMotionValueEvent(handoffTimeProgress, 'change', progress => {
         const nextDominant = progress >= transitionCrossoverRef.current;
@@ -430,9 +455,9 @@ const RemoteControlApp: React.FC = () => {
             || !Number.isFinite(transitionDurationSec)
             || transitionDurationSec <= 0
         ) {
-            // AnimatePresence keeps removed faces alive for their exit animation. Preserve the
-            // last cue position so a fully faded outgoing title cannot flash back to opacity 1
-            // between cue removal and DOM removal. Every new cue calibrates this value below.
+            // 正常完成时 current 已经是 B，保留终点避免 A 在 exit 阶段闪回；暂停/取消时
+            // current 仍是 A，复位起点让仍被 AnimatePresence 保留的 B 立即变透明。
+            handoffTimeProgress.set(resolveStoppedTrackHandoffProgress(handoffPairRef.current, trackIdentity));
             setIsTransitionGlowActive(false);
             setIsIncomingDominant(false);
             return;
@@ -481,7 +506,7 @@ const RemoteControlApp: React.FC = () => {
     // AutoMix/Crossfade 真正开始出声后，把封面、标题、艺术家和背景色一起交接给预读好的下一首。
     // 过渡时长和主导权切换点都来自音频引擎，不再用文件结尾倒推一个固定窗口。
     const nextFace = useMemo<Omit<RemoteTrackFace, 'mode'> | null>(() => {
-        const key = snapshot.nextTrackKey ?? snapshot.nextTrackCoverUrl ?? snapshot.nextTrackTitle;
+        const key = nextTrackIdentity;
         if (!key || !snapshot.canGoNext) {
             return null;
         }
@@ -492,7 +517,7 @@ const RemoteControlApp: React.FC = () => {
             artist: snapshot.nextTrackArtist || 'Unknown artist',
             coverUrl: snapshot.nextTrackCoverUrl,
         };
-    }, [snapshot.nextTrackKey, snapshot.nextTrackCoverUrl, snapshot.nextTrackTitle, snapshot.nextTrackArtist, snapshot.canGoNext]);
+    }, [nextTrackIdentity, snapshot.nextTrackCoverUrl, snapshot.nextTrackTitle, snapshot.nextTrackArtist, snapshot.canGoNext]);
 
     const isHandoffActive = Boolean(
         isPlaying
