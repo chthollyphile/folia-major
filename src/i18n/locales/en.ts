@@ -1891,6 +1891,7 @@ export default {
     "sortDirection": "Sort direction",
     "sortByFileName": "File name",
     "sortByModifiedDate": "Modified date",
+    "sortByAlbumTrack": "Album number",
     "sortAscending": "Ascending",
     "sortDescending": "Descending",
     "importFolder": "Import Folder",

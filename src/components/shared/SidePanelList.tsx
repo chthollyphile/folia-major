@@ -161,6 +161,8 @@ export const TrackListItem = React.memo<{
     isUnavailable?: boolean;
     isActive?: boolean;
 }>(({ track, index, style, onPlay, onAddToQueue, isUnavailable, isActive }) => {
+    albumTrackLabel?: string | null;
+}>(({ track, index, style, onPlay, onAddToQueue, isUnavailable, isActive, albumTrackLabel }) => {
     const { t } = useTranslation();
     const coverUrl = getSongCoverUrl(track) || '';
     const artistName = getSongArtistLabel(track).split(',')[0]?.trim() || 'Unknown Artist';
@@ -197,6 +199,14 @@ export const TrackListItem = React.memo<{
                 </div>
                 <div className="flex flex-col min-w-0 flex-1 justify-center">
                     <div className="text-sm font-semibold truncate leading-tight">{track.name}</div>
+                    <div className="flex min-w-0 items-baseline gap-1.5 leading-tight">
+                        <span className="text-sm font-semibold truncate">{track.name}</span>
+                        {albumTrackLabel && (
+                            <span className="shrink-0 text-[10px] font-medium tabular-nums opacity-45">
+                                {albumTrackLabel}
+                            </span>
+                        )}
+                    </div>
                     <div className="text-[10px] opacity-60 truncate leading-tight mt-0.5">{artistName}</div>
                 </div>
                 {!isUnavailable && onAddToQueue && (

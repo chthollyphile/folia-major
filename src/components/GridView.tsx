@@ -35,7 +35,7 @@ import {
 } from './folia-grid/progressiveGrid';
 import { useProgressiveItemEntrance } from './folia-grid/useProgressiveItemEntrance';
 import { useLocalCoverPreloader } from '../hooks/useLocalCoverPreloader';
-import { compareLocalFolderSongs, type LocalSongFolderSortDirection, type LocalSongFolderSortField } from '../utils/localSongSorting';
+import { compareLocalFolderSongs, formatLocalAlbumTrackLabel, type LocalSongFolderSortDirection, type LocalSongFolderSortField } from '../utils/localSongSorting';
 import { resolveGridViewContextTracks } from './folia-grid/gridViewContextActions';
 import {
     resolveGridTrackAlbumTargetId,
@@ -124,7 +124,7 @@ const LOCAL_TRACK_SORT_DIRECTION_STORAGE_KEY = 'local_track_sort_direction';
 
 const getStoredLocalTrackSortField = (): LocalSongFolderSortField => {
     const stored = localStorage.getItem(LOCAL_TRACK_SORT_FIELD_STORAGE_KEY);
-    return stored === 'fileLastModified' ? stored : 'fileName';
+    return stored === 'fileLastModified' || stored === 'albumTrack' ? stored : 'fileName';
 };
 
 const getStoredLocalTrackSortDirection = (): LocalSongFolderSortDirection => {
@@ -782,6 +782,12 @@ export const GridView: React.FC<GridViewProps> = ({
         && collection?.type !== 'playlist'
         && Boolean(sourceActions?.navidrome?.onAddToPlaylist || sourceActions?.navidrome?.onCreatePlaylist);
     const localSongsById = useMemo(() => new Map(localSongs?.map(song => [song.id, song])), [localSongs]);
+    const getAlbumTrackLabel = useCallback((track: SongResult): string | null => {
+        const localRef = (track as UnifiedSong).localRef;
+        if (!localRef) return null;
+        const localSong = localSongsById.get(localRef.songId);
+        return localSong ? formatLocalAlbumTrackLabel(localSong) : null;
+    }, [localSongsById]);
     const displayTracks = useMemo(() => {
         const filteredTracks = baseDisplayTracks.filter((track, index) => (
             !removedExternalTrackKeys.has(`${getPlaybackSongKey(track)}-${index}`)
@@ -2647,6 +2653,7 @@ export const GridView: React.FC<GridViewProps> = ({
                             style={style}
                             isUnavailable={isSongUnavailable(track)}
                             isActive={index === focusedIndex}
+                            albumTrackLabel={getAlbumTrackLabel(track)}
                             onPlay={() => {
                                 onSelectTrack?.(track, playableTracks);
                             }}

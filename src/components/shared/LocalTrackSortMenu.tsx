@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDownAZ, ArrowUpAZ, CalendarClock, Check, Type } from 'lucide-react';
+import { ArrowDownAZ, ArrowUpAZ, CalendarClock, Check, ListOrdered, Type } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../utils/localSongSorting';
 
 // src/components/shared/LocalTrackSortMenu.tsx
 // Compact sort controls used by the local folder track list.
+
+const FIELD_ICONS: Record<LocalSongFolderSortField, React.ComponentType<{ size?: number }>> = {
+    fileName: Type,
+    fileLastModified: CalendarClock,
+    albumTrack: ListOrdered,
+};
 
 type LocalTrackSortMenuProps = {
     field: LocalSongFolderSortField;
@@ -16,7 +22,7 @@ export const LocalTrackSortMenu: React.FC<LocalTrackSortMenuProps> = ({ field, o
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const StrategyIcon = field === 'fileName' ? Type : CalendarClock;
+    const StrategyIcon = FIELD_ICONS[field] ?? Type;
 
     useEffect(() => {
         const closeOnOutsideClick = (event: MouseEvent) => {
@@ -66,6 +72,12 @@ export const LocalTrackSortMenu: React.FC<LocalTrackSortMenuProps> = ({ field, o
                             icon={<CalendarClock size={15} />}
                             label={t('localMusic.sortByModifiedDate')}
                             onClick={() => onFieldChange('fileLastModified')}
+                        />
+                        <SortFieldButton
+                            active={field === 'albumTrack'}
+                            icon={<ListOrdered size={15} />}
+                            label={t('localMusic.sortByAlbumTrack')}
+                            onClick={() => onFieldChange('albumTrack')}
                         />
                     </motion.div>
                 )}

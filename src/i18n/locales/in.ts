@@ -1830,6 +1830,7 @@ export default {
     "sortDirection": "Arah pengurutan",
     "sortByFileName": "Nama file",
     "sortByModifiedDate": "Tanggal modifikasi",
+    "sortByAlbumTrack": "Nomor album",
     "sortAscending": "Menaik",
     "sortDescending": "Menurun",
     "importFolder": "Impor Folder",
