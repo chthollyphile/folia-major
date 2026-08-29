@@ -1,0 +1,16 @@
+/*
+ * src/mods/export/modExportPage.css
+ * The export page reuses the application stylesheet but must override the
+ * global dark background so the hidden window composites with a fully
+ * transparent canvas for alpha-channel video export. The inline container
+ * background (theme mode) is applied per-config inside the page component.
+ */
+html,
+body,
+#mod-export-root {
+    background-color: transparent !important;
+}
+
+body {
+    overflow: hidden;
+}

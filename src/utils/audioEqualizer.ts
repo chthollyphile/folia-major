@@ -178,11 +178,21 @@ export const resolveAudioEqualizerSettings = (value: unknown): AudioEqualizerSet
     const hasStoredEffects = Boolean(candidate.effects) && typeof candidate.effects === 'object';
     const storedEffects = hasStoredEffects ? normalizeAudioEffects(candidate.effects) : createNeutralAudioEffects();
     const preset = resolveModeId(candidate.preset, gains, storedEffects);
-    // Settings persisted before the effect chain existed only carried EQ gains, so a still-supported
-    // preset id keeps its intended character instead of collapsing to a neutral chain.
-    const effects = !hasStoredEffects && isAudioSoundPresetId(candidate.preset)
-        ? { ...AUDIO_SOUND_PRESETS[candidate.preset].effects }
-        : storedEffects;
+    // Settings written before the effect chain existed keep a NEUTRAL chain, even when the preset
+    // id they carry is one that now has effects attached to it.
+    //
+    // Upstream adopts the preset's effects here, on the reading that the id names a character and
+    // the character now includes them. The stored value is a record of what someone chose, though,
+    // and what they chose in that build was a tone curve: "Lo-Fi" meant a shape, not vinyl crackle
+    // and bit crush. Honouring the name changes what their music sounds like during an update,
+    // with no notice and no consent - reported here as "severe noise" by someone who never asked
+    // for any.
+    //
+    // The two mistakes are not the same size. Adding an effect costs the listener noticing it,
+    // finding the panel and switching it off; withholding one costs a click on a preset that is
+    // still right there, still named the same, and still selected - resolveModeId keeps the id,
+    // so re-picking it applies the full modern character deliberately.
+    const effects = storedEffects;
 
     return {
         enabled: candidate.enabled === true,

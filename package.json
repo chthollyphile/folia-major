@@ -31,6 +31,7 @@
     "audit:lyrics-sources": "npx tsx test/manual/lyric-audit/index.ts",
     "probe:netease-xeapi": "node test/manual/netease_xeapi_probe.cjs",
     "manual:wallpaper-watchdog": "npx tsx test/manual/wallpaper-watchdog-sim.ts",
+    "manual:analysis-idle": "node test/manual/analysis_idle_release.mts",
     "manual:visualizer-memory": "node test/manual/visualizer-memory-probe.mjs",
     "stage:client": "vite --open /stage-client.html",
     "dev:electron": "cross-env ELECTRON_DEV=true FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer concurrently -k \"vite\" \"wait-on tcp:3000 && electron .\"",
@@ -44,7 +45,8 @@
     "build:electron": "cross-env ELECTRON_DEV=false ELECTRON=true vite build && npm run build:windowtolayer && electron-builder",
     "build:windowtolayer": "node packaging/linux/build-windowtolayer.mjs",
     "contributors:add": "npx all-contributors-cli add",
-    "contributors:generate": "npx all-contributors-cli generate"
+    "contributors:generate": "npx all-contributors-cli generate",
+    "models:fetch": "node build/fetchModels.mjs"
   },
   "build": {
     "appId": "top.izuna.foliamajor",
@@ -67,6 +69,9 @@
       "package.json",
       "build/miao.png",
       "build/thumbar/*.png"
+    ],
+    "asarUnpack": [
+      "electron/analysis/htdemucs_runner.py"
     ],
     "extraResources": [
       {
@@ -161,6 +166,7 @@
     "@xhayper/discord-rpc": "^1.3.4",
     "@xmldom/xmldom": "^0.9.10",
     "@yakult-green-tea/qq-music-api": "^3.1.0",
+    "animejs": "^4.5.0",
     "axios": "^1.18.1",
     "blueimp-md5": "^2.19.0",
     "buffer": "^6.0.3",
@@ -175,6 +181,7 @@
     "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
     "lucide-react": "^1.31.0",
     "music-metadata": "^11.14.0",
+    "onnxruntime-node": "^1.27.0",
     "opencc-js": "^1.4.1",
     "pixi.js": "^8.19.0",
     "react": "^19.2.8",

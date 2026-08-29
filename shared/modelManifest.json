@@ -1,0 +1,109 @@
+{
+  "_comment": [
+    "The analysis model weights: what they are, where they come from, and how to know a copy is",
+    "intact. Read by build/fetchModels.mjs (the developer's copy) and by the Electron main process",
+    "(the listener's download), so the two cannot disagree about which file is the right file.",
+    "",
+    "The hash is the point of this file, not the URLs. 'Downloaded successfully' and 'usable' are",
+    "different claims, and four separate times in this project a publisher's weights arrived intact",
+    "and still would not load. A truncated or mirror-substituted ONNX does not fail loudly - it",
+    "loads and answers confidently and wrongly, which for a beat grid means every transition lands",
+    "off the beat with nothing in the log to say why. That risk goes UP once the file can come from",
+    "a mirror, a netdisk, or a folder the listener pointed us at.",
+    "",
+    "Mirrors are tried in order and the first one whose bytes match the hash wins. hf-mirror is",
+    "first because it is the only route reachable from mainland China, which is where most of",
+    "Folia's listeners are; it serves everyone else too, so this is not a special case, it is the",
+    "order that works for the most people. The GitHub release is our own mirror of last resort.",
+    "",
+    "Both models are MIT, which is what makes hosting our own copies allowed at all. A CC-BY-NC",
+    "model could never be listed here while Folia is AGPL-3.0 - see the licence field.",
+    "",
+    "The third entry is not a model - it is the Python the model runs in, and it is the one entry",
+    "with a `platforms` block because there is a different archive per OS. A platform missing from",
+    "that block cannot run separation at all: `darwin-x64` is absent because every onnxruntime that",
+    "loads this htdemucs export is arm64-only on macOS, and every version with an Intel Mac wheel",
+    "refuses to load it. That is reported as unsupported rather than offered as a download."
+  ],
+  "_manualComment": [
+    "Shown only when every mirror has failed. An empty list = the settings page does not offer the",
+    "manual route at all, which is right: an empty link is worse than no link. Adding a route is a",
+    "data change with no code edit, which is the point of it living here.",
+    "",
+    "Two netdisks rather than one because the failure they cover is regional and account-shaped:",
+    "Baidu throttles or demands a client, Quark does not, and which of the two a given listener can",
+    "actually use is not something we can know from here. Each carries its own extraction code, so",
+    "the code belongs to the link and not to the block.",
+    "",
+    "The manual route ends at the same place the automatic one does - a file in the models",
+    "directory - so what the app does with a netdisk download is verify it and copy it in, exactly",
+    "what it does with a downloaded one. There is no second trust level for files a human carried."
+  ],
+  "manual": {
+    "links": [
+      {
+        "label": "百度网盘",
+        "url": "https://pan.baidu.com/s/19TRe8VtDs3ENiv9J93JfqQ",
+        "code": "f86x"
+      },
+      {
+        "label": "夸克网盘",
+        "url": "https://pan.quark.cn/s/aed84d726374",
+        "code": "qWGi"
+      }
+    ],
+    "note": ""
+  },
+  "mirrors": [
+    "https://hf-mirror.com/HUAI4236/folia-models/resolve/main/{file}",
+    "https://huggingface.co/HUAI4236/folia-models/resolve/main/{file}",
+    "https://github.com/AZURE-HUAI/folia-models/releases/download/weights-v1/{file}"
+  ],
+  "models": [
+    {
+      "name": "beat_this",
+      "file": "beat_this.onnx",
+      "bytes": 83077778,
+      "sha256": "c5c1466e08abdb03fdeb50668a06f244b787d564c212490482231a9cfbe9ccbd",
+      "enables": "beatGrid",
+      "license": "MIT",
+      "upstream": "https://github.com/mosynthkey/beat_this_cpp",
+      "note": "Beat This! (CPJKU, ISMIR 2024), the community ONNX export of the authors' own final0 checkpoint."
+    },
+    {
+      "name": "htdemucs",
+      "file": "htdemucs.onnx",
+      "bytes": 108644650,
+      "sha256": "099b5be76c1f6922124d07f850250f39d1f33f254a0b8cc90f4ec0dfd0912329",
+      "enables": "stems",
+      "license": "MIT",
+      "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
+      "note": "htdemucs (Meta Research), single-file four-stem variant, fp16 weights, and the upstream repo's 'transparent' re-export, which makes the STFT a real DFT operator instead of an unrolled loop, taking the graph from 24917 nodes to 1556, so ORT's optimizer costs 353MB and 0.65s where the ordinary export cost 4594MB and 3.9s. The one edit that is ours is on top of that: build/htdemucs_halve_segment.py halves the welded-in segment, 343980 to 172032 samples (7.8s to 3.9s): peak working set 789MB to 483MB and 19% FASTER, because attention is quadratic in the token count and the segment sets it. A blind A/B on four rendered transitions could not separate the two segment lengths."
+    },
+    {
+      "name": "runtime",
+      "unpack": "runtime",
+      "enables": "stems",
+      "license": "PSF-2.0 (CPython), MIT (onnxruntime), BSD-3-Clause (numpy)",
+      "upstream": "https://github.com/astral-sh/python-build-standalone",
+      "note": "CPython 3.11.16 + onnxruntime 1.29.0 + numpy 2.4.6, built by build/buildPythonRuntime.mjs. Separation runs here rather than in Electron's own onnxruntime-node because `enable_mem_reuse` is bound only by onnxruntime's Python API, and turning it off is what takes one separation from 2543MB to under 500MB. A directory rather than a file: it is unpacked into <models>/runtime/ and the interpreter is <models>/runtime/python.exe, or bin/python3 off Windows.",
+      "platforms": {
+        "win32-x64": {
+          "file": "folia-runtime-win32-x64.zip",
+          "bytes": 35633855,
+          "sha256": "50a5829ac928071ab2eecaf2667e5dab9c3af2b4b44fb5bb4b7acfb9863cdacd"
+        },
+        "darwin-arm64": {
+          "file": "folia-runtime-darwin-arm64.zip",
+          "bytes": 44380755,
+          "sha256": "f8313150254d699396b4ff4c9289bdd2864ba3268bd137e5aeb17963be318cde"
+        },
+        "linux-x64": {
+          "file": "folia-runtime-linux-x64.zip",
+          "bytes": 60509680,
+          "sha256": "cf1347f5621fed74f8b2dea243ea1365824ac77ab52ddc2183ca8a77180b60da"
+        }
+      }
+    }
+  ]
+}

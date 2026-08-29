@@ -28,6 +28,15 @@ describe('prefetched online ReplayGain metadata', () => {
         });
     });
 
+    it('keeps the media-cache sentinel, which has no quality to mismatch', () => {
+        // 'CACHED_IN_DB' says the bytes are already on disk. It is not a URL, so there is nothing
+        // to re-fetch at a different quality - but the mismatch branch answered by nulling it,
+        // and a cached track therefore reported itself as uncached the first time anything asked.
+        updatePrefetchedAudioUrl(song, 'CACHED_IN_DB', 'standard');
+
+        expect(getPrefetchedData(song, 'hires')).toMatchObject({ audioUrl: 'CACHED_IN_DB' });
+    });
+
     it('invalidates URL metadata together on a quality mismatch', () => {
         updatePrefetchedAudioUrl(song, 'https://audio.test/song.flac', 'high', { trackGain: -7.1 });
 

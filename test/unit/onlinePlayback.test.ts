@@ -32,7 +32,10 @@ vi.mock('@/utils/lyrics/autoMatchBestLyric', () => ({
     autoMatchBestLyric: autoMatchMock,
 }));
 
-vi.mock('@/utils/onlineLyricsState', () => ({
+// Spread the real module so markOnlineLyricsPureMusic stays real - the shape it writes is the
+// thing under test, and a stubbed one would assert nothing.
+vi.mock('@/utils/onlineLyricsState', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/utils/onlineLyricsState')>()),
     loadOnlineLyricsState: loadLyricsStateMock,
     resolveOnlineLyrics: (_state: unknown, lyrics: unknown) => lyrics,
     saveOnlineLyricsState: saveLyricsStateMock,
@@ -52,6 +55,7 @@ vi.mock('@/utils/blobGuards', () => ({
 }));
 
 import { loadOnlineSongAudioSource, loadOnlineSongLyrics } from '@/services/onlinePlayback';
+import { markOnlineLyricsPureMusic } from '@/utils/onlineLyricsState';
 import type { SongResult } from '@/types';
 
 // test/unit/onlinePlayback.test.ts
@@ -179,5 +183,128 @@ describe('online QQ lyric candidate plumbing', () => {
             }),
         }));
         expect(saveLyricsStateMock).not.toHaveBeenCalled();
+    });
+
+    it('reports done before the auto-match search finishes, so audio never waits on it', async () => {
+        // onDone is what releases playback. Auto-match asks every provider for a BETTER lyric file
+        // and takes seconds when it finds none - an instrumental interlude matches nothing
+        // anywhere. Holding the audio for an optional upgrade turned every such song change into
+        // seconds of silence, and with a blended change the outgoing track has already ended by
+        // then, so silence is all that is left.
+        const lyrics = {
+            lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [] }],
+            isWordByWord: false,
+        };
+        lyricsMock.mockResolvedValue({
+            lyrics,
+            mainText: '[00:00.00]line',
+            wordByWordText: null,
+            translationText: null,
+            isPureMusic: false,
+            chorusRanges: [],
+        });
+
+        let finishAutoMatch = () => { };
+        autoMatchMock.mockReturnValue(new Promise(resolve => {
+            finishAutoMatch = () => resolve(null);
+        }));
+
+        const onDone = vi.fn();
+        const onLyrics = vi.fn();
+        const pending = loadOnlineSongLyrics(song, null, null, {
+            isCurrent: () => true,
+            onLyrics,
+            onDone,
+        });
+
+        await vi.waitFor(() => expect(autoMatchMock).toHaveBeenCalled());
+
+        // Still inside the search, and playback has already been let go.
+        expect(onDone).toHaveBeenCalled();
+        expect(onLyrics).toHaveBeenCalledWith(lyrics);
+
+        finishAutoMatch();
+        await pending;
+    });
+});
+
+describe('instrumental tracks, once auto-match has settled them', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        songCacheMock.mockResolvedValue(null);
+        loadLyricsStateMock.mockResolvedValue(null);
+    });
+
+    it('stores the verdict, so the search is not repeated on every play', async () => {
+        // Without a stored answer `hasOnlineOverride` stays false, which is the flag that decides
+        // whether to auto-match at all - so every instrumental in the library re-ran the full
+        // QQ/NetEase/AMLLDB/Kugou search on every prefetch pass and every play, forever.
+        lyricsMock.mockResolvedValue({
+            lyrics: null,
+            mainText: null,
+            wordByWordText: null,
+            translationText: null,
+            isPureMusic: true,
+            chorusRanges: [],
+        });
+        autoMatchMock.mockResolvedValue({ isPureMusic: true, source: 'netease', id: 1 });
+
+        const onLyrics = vi.fn();
+        await loadOnlineSongLyrics(song, null, null, {
+            isCurrent: () => true,
+            onLyrics,
+            onDone: vi.fn(),
+        });
+
+        expect(saveLyricsStateMock).toHaveBeenCalledWith(song, expect.objectContaining({
+            hasOnlineOverride: true,
+            matchedIsPureMusic: true,
+        }));
+        expect(onLyrics).toHaveBeenCalledWith(null);
+    });
+
+    it('does not mistake a match from the track\'s own provider for an instrumental', async () => {
+        // A MATCH object also carries `isPureMusic: false`, so the old `'isPureMusic' in bestMatch`
+        // test was true for it too. A best match that came from the track's own provider fails the
+        // override branch above, fell into this one, and had its perfectly good lyrics discarded.
+        const lyrics = {
+            lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [] }],
+            isWordByWord: false,
+        };
+        lyricsMock.mockResolvedValue({
+            lyrics,
+            mainText: '[00:00.00]line',
+            wordByWordText: null,
+            translationText: null,
+            isPureMusic: false,
+            chorusRanges: [],
+        });
+        // song.sourceRef.providerId is 'kugou', so this is the same-provider case.
+        autoMatchMock.mockResolvedValue({ lyrics, source: 'kugou', id: 'online-song', song, isPureMusic: false });
+
+        const onLyrics = vi.fn();
+        const onPureMusicChange = vi.fn();
+        await loadOnlineSongLyrics(song, null, null, {
+            isCurrent: () => true,
+            onLyrics,
+            onPureMusicChange,
+            onDone: vi.fn(),
+        });
+
+        expect(onLyrics).toHaveBeenLastCalledWith(lyrics);
+        expect(onPureMusicChange).not.toHaveBeenCalledWith(true);
+        expect(saveLyricsStateMock).not.toHaveBeenCalled();
+    });
+
+    it('never takes an imported selection away from the listener', async () => {
+        // A background auto-match can run over a track the listener imported lyrics for. Recording
+        // the instrumental verdict must not replace their choice - resolveOnlineLyrics still
+        // prefers the import.
+        const imported = { lines: [], isWordByWord: false };
+        const merged = markOnlineLyricsPureMusic({ lyricsSource: 'imported', importedLyrics: imported });
+
+        expect(merged.lyricsSource).toBe('imported');
+        expect(merged.importedLyrics).toBe(imported);
+        expect(merged.matchedIsPureMusic).toBe(true);
     });
 });

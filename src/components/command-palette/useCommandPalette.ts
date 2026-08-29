@@ -8,7 +8,7 @@ import { resolvePinnedCommandSlots } from './pinnedCommandPreferences';
 // src/components/command-palette/useCommandPalette.ts
 // Manages palette state, keyboard opening, and selected autocomplete item.
 
-const isTextEntryTarget = (target: EventTarget | null) => {
+export const isTextEntryTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
         return false;
     }

@@ -53,6 +53,29 @@ commit.md
 .codebuff-ai/reasson/conf.jsonc
 scripts/*
 docs/TODO.md
+
+# Model weights: fetched and hash-verified by build/fetchModels.mjs, shipped in the installer,
+# never committed - 83MB that never changes does not belong in every clone's history.
+models/
 build/windowtolayer
 build/windowtolayer-COPYING
 .windowtolayer-src/
+# Local reference clone of upstream main used for pollution review; never ship.
+original/
+# Bundled local ffmpeg source tree + binaries for the mod export pipeline; users
+# provide their own ffmpeg (env var FOLIA_FFMPEG_PATH or ffmpeg-8.1.2 next to app).
+ffmpeg-8.1.2/
+# PR preparation notes and local development helpers; never ship.
+pr/
+modlogo.txt
+start-folia.cmd
+start-folia.ps1
+# Local hand-made zip bundles of mods (drag-drop install test files); never ship.
+mods/*.zip
+
+
+# Python bytecode from the htdemucs runner, written beside it by the downloaded runtime.
+__pycache__/
+
+# Built by build/buildPythonRuntime.mjs - binary artifacts that live on the mirrors, not in git.
+dist-runtime/

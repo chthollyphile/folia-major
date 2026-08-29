@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { CommandPaletteContext } from '../command-palette/types';
-import type { HomeViewTab, LatentBackgroundTuning, LocalSong, MonetBackgroundTuning, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerBackgroundMode, VisualizerMode } from '../../types';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, MonetBackgroundTuning, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerBackgroundMode, VisualizerMode } from '../../types';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
 import type { SearchSource } from '../../stores/useSearchNavigationStore';
 import type { PanelTab } from '../UnifiedPanel';
@@ -8,6 +8,7 @@ import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/us
 import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
+import type { TransitionMode } from '../../services/automix/transitionStrategy';
 import type { PersonalFmSelection } from '../../services/onlineMusic/fmModes';
 import type { QueueBatchAction } from '../command-palette/queueQuery';
 
@@ -19,6 +20,7 @@ export type CommandPaletteContextDeps = {
     t: (key: string, fallback?: string) => string;
     setStatusMsg: React.Dispatch<React.SetStateAction<StatusMessage | null>>;
     currentSong: SongResult | null;
+    lyrics: LyricData | null;
     playerState: PlayerState;
 
     currentSearchSourceTab: SearchSource;
@@ -84,11 +86,20 @@ export type CommandPaletteContextDeps = {
     setAlwaysShowMainWindowTitlebar: (next: boolean) => void;
     voiceInputPauseEnabled: boolean;
     voiceInputPauseSupported: boolean;
+    modSystemEnabled: boolean;
     setVoiceInputPauseEnabled: (next: boolean) => void;
     preventDisplaySleepDuringPlayback: boolean;
     setPreventDisplaySleepDuringPlayback: (next: boolean) => void;
     wallpaperMode: boolean;
     setWallpaperMode: (next: boolean) => void;
+
+    sleepTimerEnabled: boolean;
+    setSleepTimerEnabled: (next: boolean) => void;
+    sleepTimerHours: number;
+    setSleepTimerHours: (next: number) => void;
+    sleepTimerMinutes: number;
+    setSleepTimerMinutes: (next: number) => void;
+    sleepTimerDeadlineMs: number | null;
 
     canGenerateAITheme: boolean;
     isGeneratingTheme: boolean;
@@ -97,6 +108,14 @@ export type CommandPaletteContextDeps = {
     canOpenThemeQuickEditor: boolean;
     themeGenerationSource: ThemeGenerationSource;
     setThemeGenerationSource: (source: ThemeGenerationSource) => void;
+
+    automixEnabled: boolean;
+    transitionMode: TransitionMode;
+    transitionPerformance: boolean;
+    handleToggleAutomix: (enable: boolean) => void;
+    handleSetTransitionMode: (mode: TransitionMode) => void;
+    handleToggleTransitionPerformance: (enable: boolean) => void;
+    canUseTransitionPerformance: () => boolean;
 
     visualizerMode: VisualizerMode;
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
@@ -113,6 +132,7 @@ export const buildCommandPaletteContext = (deps: CommandPaletteContextDeps): Com
         t: deps.t,
         setStatusMsg: deps.setStatusMsg,
         currentSong: deps.currentSong,
+        lyrics: deps.lyrics,
         playerState: deps.playerState,
     },
     search: {
@@ -176,9 +196,17 @@ export const buildCommandPaletteContext = (deps: CommandPaletteContextDeps): Com
         toggleAlwaysShowTrackSwitchButtons: () => deps.setAlwaysShowTrackSwitchButtons(!deps.alwaysShowTrackSwitchButtons),
         toggleAlwaysShowMainWindowTitlebar: () => deps.setAlwaysShowMainWindowTitlebar(!deps.alwaysShowMainWindowTitlebar),
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
+        modSystemEnabled: deps.modSystemEnabled,
         toggleVoiceInputPause: () => deps.setVoiceInputPauseEnabled(!deps.voiceInputPauseEnabled),
         togglePreventDisplaySleepDuringPlayback: () => deps.setPreventDisplaySleepDuringPlayback(!deps.preventDisplaySleepDuringPlayback),
         toggleWallpaperMode: () => deps.setWallpaperMode(!deps.wallpaperMode),
+        sleepTimerEnabled: deps.sleepTimerEnabled,
+        setSleepTimerEnabled: deps.setSleepTimerEnabled,
+        sleepTimerHours: deps.sleepTimerHours,
+        setSleepTimerHours: deps.setSleepTimerHours,
+        sleepTimerMinutes: deps.sleepTimerMinutes,
+        setSleepTimerMinutes: deps.setSleepTimerMinutes,
+        sleepTimerDeadlineMs: deps.sleepTimerDeadlineMs,
         canGenerateAITheme: deps.canGenerateAITheme,
         isGeneratingTheme: deps.isGeneratingTheme,
         generateAITheme: deps.generateAITheme,
@@ -186,6 +214,13 @@ export const buildCommandPaletteContext = (deps: CommandPaletteContextDeps): Com
         canOpenThemeQuickEditor: deps.canOpenThemeQuickEditor,
         themeGenerationSource: deps.themeGenerationSource,
         setThemeGenerationSource: deps.setThemeGenerationSource,
+        automixEnabled: deps.automixEnabled,
+        transitionMode: deps.transitionMode,
+        transitionPerformance: deps.transitionPerformance,
+        toggleAutomix: () => deps.handleToggleAutomix(!deps.automixEnabled),
+        setTransitionMode: deps.handleSetTransitionMode,
+        toggleTransitionPerformance: () => deps.handleToggleTransitionPerformance(!deps.transitionPerformance),
+        canUseTransitionPerformance: deps.canUseTransitionPerformance,
     },
     visualizer: {
         visualizerMode: deps.visualizerMode,

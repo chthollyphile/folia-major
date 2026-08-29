@@ -46,7 +46,7 @@ UI / hooks / stores / app services
 - `qqProvider.ts`：QQ 音乐 adapter；请求与 opaque session 细节在 `qqTransport.ts`，归一化在 `qqNormalize.ts`。集合身份一律用 mid，数字 `albumid` / `singer.id` 会被上游拒收（返回 HTTP 200 但 `code` 非 0，只表现成空白页）。后端由 `VITE_QQ_API_BASE` 指向的私有 QQ API 提供，未配置时该 provider 不可用；填相对路径（`/api/qq`）时走的是本仓库内置的 serverless 入口（`worker/qq.ts` / `api-ts/qq.ts`）。扫码通道由后端 `/login/channels` 声明；打开登录时 UI 会等待能力发现并使用同一份结果决定流程，只宣告一个通道时直接进入单步流程。旧后端没有这条路由时回落到硬编码的 `qq` / `wechat` 两条，暂时性探测失败允许后续重试。
 - `providerAccountCache.ts`：按 provider 保存用户、集合、点赞 ID、hydration/freshness 快照；刷新失败保留旧快照。
 - `providerStorage.ts`：renderer 的 provider session/account 持久化边界。QQ 这里只保存 opaque `qqmusic_session`；真实 credential 始终由 QQ API 后端持有。Electron 通过主进程的 `safeStorage` 加密仓库跨重启恢复，独立 Node / Docker 后端可用 `QQ_AUTH_SESSION_PATH` 与 `QQ_SESSION_SECRET` 启用加密文件仓库；serverless 形态下 credential 加密在 token 里，服务端不存。送出方式按部署形态分岔：同源 base 用 `X-QQ-Session` header 送裸 token，外部 URL 与 Electron 维持 `?cookie=` 送整串 cookie，两者语义不同不可互换。酷狗 Web transport 仍在这里保存远端 API 请求所需的 session；Electron transport 只保留非敏感 `userid` 提示，`token`、cookie 与 `dfid` 由主进程加密持有，不得复制到 renderer。
-- `resourceCache.ts` / `resourceKeys.ts`：在线资源缓存键和缓存层。
+- `resourceCache.ts` / `resourceKeys.ts`：在线资源缓存键和缓存层。当前 kind：`audio`、`lyric`、`cover`、`theme`、`replayGain`。**新增 kind 必须同时在 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 与 `matchesCategory` 里登记前缀**，否则条目会静默落进 `api_cache` 兜底表、不属于任何一个「清除缓存」分类，变成清不掉的孤儿；若该 kind 是按歌曲存一份，还要确认它没有被计进 `mediaCount`（那个数字的语义是「已缓存歌曲数」，会翻倍）。
 - `songMetadata.ts` / `songAvailability.ts`：歌曲元数据、可播放性和替代歌曲相关共享逻辑。
 - `catalogRefs.ts`：歌曲、歌单、专辑、歌手的 provider-aware catalog 引用。
 

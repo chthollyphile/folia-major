@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, Check, Copy, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
+import { discordIconUrl, openDiscordInvite } from '../shared/discordCommunity';
 
 // src/components/modal/AiHelpPromptModal.tsx
 
@@ -117,6 +118,25 @@ export const AiHelpPromptModal: React.FC<AiHelpPromptModalProps> = ({
                                     <ExternalLink size={14} />
                                 </span>
                             </a>
+
+                            {/* 文档之后、问 AI 之前：卡住的人先有个能找到人的地方。 */}
+                            <button
+                                type="button"
+                                onClick={openDiscordInvite}
+                                className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left transition hover:-translate-y-0.5 ${panelBg}`}
+                            >
+                                <img src={discordIconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 rounded-xl" />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold">{t('aiHelp.discordTitle', 'Ask in the Discord community')}</span>
+                                    <span className={`mt-1 block text-xs leading-5 ${textSecondary}`}>
+                                        {t('aiHelp.discordDescription', 'Get help from other users and the developers, and hear about new releases first.')}
+                                    </span>
+                                </span>
+                                <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${textSecondary}`}>
+                                    {t('aiHelp.openDiscord', 'Join')}
+                                    <ExternalLink size={14} />
+                                </span>
+                            </button>
 
                             <div>
                                 <h3 className="text-sm font-semibold">{t('aiHelp.askAiTitle', 'Still need help? Ask AI')}</h3>

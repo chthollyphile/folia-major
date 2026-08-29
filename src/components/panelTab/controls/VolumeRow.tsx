@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { SlidersHorizontal, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Blend, SlidersHorizontal, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
@@ -29,6 +29,8 @@ const VolumeRow: React.FC<VolumeRowProps> = ({
     const { t } = useTranslation();
     const audioEqualizerSettings = useSettingsUiStore(state => state.audioEqualizerSettings);
     const openAudioEqualizer = useSettingsUiStore(state => state.openAudioEqualizer);
+    const automixEnabled = useSettingsUiStore(state => state.automixEnabled);
+    const toggleAutomix = useSettingsUiStore(state => state.handleToggleAutomix);
     const [sliderVolume, setSliderVolume] = useState(isMuted ? 0 : volume);
     const isDraggingRef = useRef(false);
     const pendingVolumeRef = useRef(sliderVolume);
@@ -101,6 +103,18 @@ const VolumeRow: React.FC<VolumeRowProps> = ({
                 aria-label={t('ui.openEqualizer')}
             >
                 <SlidersHorizontal size={14} />
+            </button>
+
+            <button
+                type="button"
+                onClick={() => toggleAutomix(!automixEnabled)}
+                className={`shrink-0 rounded-md transition-opacity hover:opacity-100 ${automixEnabled ? 'opacity-100' : 'opacity-40'}`}
+                style={automixEnabled ? { color: theme.accentColor } : undefined}
+                title={t('ui.automix')}
+                aria-label={t('ui.automix')}
+                aria-pressed={automixEnabled}
+            >
+                <Blend size={14} />
             </button>
         </div>
     );

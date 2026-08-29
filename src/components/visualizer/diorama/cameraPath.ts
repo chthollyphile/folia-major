@@ -693,6 +693,36 @@ export const resolveShotOffset = (kind: DioramaShotKind, ctx: DioramaShotContext
     };
 };
 
+/** How long a finished line is held before its shot starts resolving, and how long the resolve takes.
+ *
+ * 3s is not a taste number: `attachInterludes` fills every gap longer than 3s with an interlude line,
+ * and the diorama holds the read-head through interludes instead of framing them. So a hold that
+ * outlasts 3s is exactly a hold the lyric file itself calls a gap, and a shorter one cannot happen -
+ * the next line is already on its way. Below the threshold this returns exactly 1, so ordinary
+ * line-to-line playback is untouched to the pixel. */
+const HOLD_SETTLE_DELAY = 3;
+const HOLD_SETTLE_EASE = 5;
+
+/**
+ * How much of a line's READING COMPOSITION still applies, `secondsHeld` after its reading window
+ * closed. 1 through the line and through any normal gap, easing to 0 once the camera has been parked
+ * on a finished line longer than the shot language has anything to say.
+ *
+ * The composition is three things that all point the same way: the shot's excursion away from the
+ * neutral trailing pose, the truck that follows the sung word out to the END of the line, and the
+ * rule-of-thirds look offset that deliberately pushes the line off-centre. Each is right while the
+ * line is live - the camera is moving and the next line is seconds away. Held through an instrumental
+ * they stop being composition: `progress` is pinned at 1, so the shot freezes at its most extreme
+ * pose and the two lateral offsets park the lyric hard against the edge of frame with nothing moving
+ * to justify it. Measured over the shot language at default settings, 21.7% of held frames have an
+ * end of the current line off screen, against 3.3% mid-line; releasing all three takes it to 0%
+ * (test/manual/diorama_hold_framing.mts).
+ */
+export const resolveHoldSettle = (secondsHeld: number): number => {
+    const t = clamp01((secondsHeld - HOLD_SETTLE_DELAY) / HOLD_SETTLE_EASE);
+    return 1 - t * t * (3 - 2 * t);
+};
+
 export interface DioramaCameraDrift {
     swayX: number;
     swayY: number;

@@ -4,12 +4,14 @@ import { buildObsCustomCss } from '../../../utils/obsCustomCss';
 import { hasUploadedObsAsset } from '../../../utils/visualSettingsConfig';
 import type { CommandPaletteCommand } from '../types';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand } from '../commandFactories';
+import { sleepTimerCommand } from './sleepTimerCommand';
 
 // src/components/command-palette/commands/settingsCommands.ts
 // Commands in the `settings` group: settings subviews, app toggles, theme, sync, and desktop-only switches.
 
 export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsCommand('settings-help', 'Open Help', 'Open help and shortcuts', ['help', '帮助', 'bangzhu', 'bz'], 'help', null, { executeShortcut: 'h' }),
+    sleepTimerCommand,
     {
         id: 'show-user-guide',
         group: 'settings',
@@ -27,6 +29,60 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsCommand('settings-playback', 'Playback settings', 'Open playback behavior settings', ['playback settings', 'playback', '播放', '播放设置', 'bofang', 'bofangshezhi', 'bf', 'bfsz'], 'options', 'playback'),
     createSettingsCommand('settings-local-lyrics-priority', 'Local song lyrics priority', 'Choose whether local songs prefer local or online lyrics', ['local lyrics priority', 'online lyrics first', 'local song lyrics', '本地歌曲歌词优先级', '在线优先', '本地歌词', 'bendigeciyouxianji', 'zaixianyouxian', 'bdgcyxj', 'zxyx'], 'options', 'playback'),
     createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Now Playing, and Navidrome settings', ['integration', 'stage', 'now playing', 'navidrome settings', '集成', '连接', 'jicheng', 'lianjie', 'jc', 'lj'], 'options', 'integration'),
+    {
+        id: 'automix-toggle',
+        group: 'settings',
+        title: 'Smart transition',
+        description: 'Turn FOLIA smart transitions on or off',
+        keywords: ['automix', 'smart transition', 'blend', 'auto mix', 'transition', '智能过渡', '自动混音', '过渡', '开启过渡', 'zhinengguodu', 'zidonghunyin', 'guodu', 'znguodu', 'zdhy', 'gd'],
+        execute: (_input, context) => {
+            context.settings.toggleAutomix();
+            return true;
+        },
+    },
+    {
+        id: 'transition-mode-crossfade',
+        isAvailable: context => (context ? context.settings.transitionMode !== 'crossfade' : true),
+        group: 'settings',
+        title: 'Transition mode: Folia Crossfade',
+        description: 'Use the simple one-out one-in crossfade',
+        keywords: ['crossfade', 'folia crossfade', 'transition mode crossfade', '交叉淡化', '过渡模式交叉淡化', 'jiaochadanhua', 'guodumoshijiaochadanhua', 'jcdh', 'gdmscf'],
+        execute: (_input, context) => {
+            if (context.settings.transitionMode === 'crossfade') return false;
+            context.settings.setTransitionMode('crossfade');
+            return true;
+        },
+    },
+    {
+        id: 'transition-mode-automix',
+        isAvailable: context => (context ? context.settings.transitionMode !== 'automix' : true),
+        group: 'settings',
+        title: 'Transition mode: Folia Automix',
+        description: 'Analyse both tracks and mix them automatically',
+        keywords: ['automix', 'folia automix', 'transition mode automix', '自动混音', '过渡模式自动混音', 'zidonghunyin', 'guodumoshizidonghunyin', 'zdhy', 'gdmsauto'],
+        execute: (_input, context) => {
+            if (context.settings.transitionMode === 'automix') return false;
+            context.settings.setTransitionMode('automix');
+            return true;
+        },
+    },
+    {
+        id: 'transition-performance-toggle',
+        platform: ['electron'],
+        // Hidden without a stem model, matching the disabled switch in the transition settings.
+        // Without this the command could persist `transitionPerformance = true` in a state the
+        // settings panel refuses to produce, and the mode would then be silently on the moment a
+        // model finished downloading.
+        isAvailable: context => (context ? context.settings.canUseTransitionPerformance() : true),
+        group: 'settings',
+        title: 'Transition performance mode',
+        description: 'Toggle the more aggressive transition (needs the stem model)',
+        keywords: ['performance mode', 'transition performance', 'aggressive transition', '表现模式', '过渡表现', '性能模式', 'biaoxianmoshi', 'guodubiaoxian', 'bxms', 'gdbx'],
+        execute: (_input, context) => {
+            context.settings.toggleTransitionPerformance();
+            return true;
+        },
+    },
     createSettingsCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'bofangzhuangtai', 'dc', 'zt'], 'options', 'integration'),
     createSettingsCommand('settings-obs-browser-source', 'OBS browser source', 'Open OBS browser source settings', ['obs', 'browser source', 'live source', '直播源', '浏览器源', 'zhiboyuan', 'liulanqiyuan', 'zby', 'llqy'], 'options', 'integration'),
     {

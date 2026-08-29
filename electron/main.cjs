@@ -6,6 +6,8 @@ const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
+const { createModSystem } = require('./modSystem/modSystem.cjs');
+const { registerModProtocolSchemes } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const wallpaperWatchdogModule = require('./wallpaperWatchdog.cjs');
 const { createKugouApiBridge } = require('./kugouApiBridge.cjs');
@@ -16,6 +18,10 @@ const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createLyricApi } = require('./lyricApi.cjs');
 const { createLocalCoverAssetStore, getLocalCoverAssetDirectory } = require('./localCoverAssets.cjs');
 const { getReleaseUrl, getUpdateProviderConfig, resolveReleaseChannel } = require('./updateChannels.cjs');
+const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
+const { createAnalysisHost } = require('./analysis/host.cjs');
+const { createDebugHost } = require('./debug/debugHost.cjs');
+const { createModelStore } = require('./analysis/modelStore.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const useLinuxGraphicsDebugMode = process.env.ELECTRON_LINUX_PACKAGED_GRAPHICS === 'true';
@@ -37,6 +43,9 @@ protocol.registerSchemesAsPrivileged([{
     stream: true,
   },
 }]);
+
+// Must run before app ready, alongside the folia-cover scheme above.
+registerModProtocolSchemes(protocol);
 
 // Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
 app.on('certificate-error', (event, _webContents, requestUrl, error, _certificate, callback) => {
@@ -399,16 +408,24 @@ function detectSystemLocaleKey() {
   return 'en';
 }
 
-function getMainLocale() {
+// The locale key the main process should speak in, honouring the app setting
+// and falling back to the system locale. Split out from getMainLocale so
+// modules with their own dialog copy (the mod loader) can ask for the key.
+function getMainLocaleKey() {
   const stored = store.get(APP_LOCALE_KEY);
   if (stored === 'zh-CN' || stored === 'en' || stored === 'in') {
-    return mainLocale[stored];
+    return stored;
   }
-  return mainLocale[detectSystemLocaleKey()];
+  return detectSystemLocaleKey();
+}
+
+function getMainLocale() {
+  return mainLocale[getMainLocaleKey()];
 }
 
 
 let mainWindow = null;
+let modSystem = null;
 let remoteControlWindow = null;
 let appTray = null;
 let latestRemoteControlSnapshot = null;
@@ -452,6 +469,7 @@ const DEFAULT_WINDOW_BOUNDS = {
 };
 const WINDOW_STATE_SAVE_DEBOUNCE_MS = 300;
 const CACHE_DIRECTORY_SETTING_KEY = 'CACHE_DIRECTORY';
+const MODELS_DIRECTORY_SETTING_KEY = 'MODELS_DIRECTORY';
 const ENABLE_UPDATE_CHECK_SETTING_KEY = 'ENABLE_UPDATE_CHECK';
 const ENABLE_AUTO_UPDATE_SETTING_KEY = 'ENABLE_AUTO_UPDATE';
 const UPDATE_CHANNEL_SETTING_KEY = 'UPDATE_CHANNEL';
@@ -473,6 +491,10 @@ const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY = 'VOICE_INPUT_PAUSE_ENABLED';
 const PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY = 'PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK';
+// Master switch for the experimental mod system. Off by default: with it off no
+// mod is discovered, activated or reachable over IPC, so an unfinished
+// apiVersion 1 costs nothing to anyone who has not opted in.
+const MOD_SYSTEM_ENABLED_SETTING_KEY = 'MOD_SYSTEM_ENABLED';
 
 const DEFAULT_STAGE_API_PORT = 32107;
 const DEFAULT_OBS_BROWSER_SOURCE_PORT = 32108;
@@ -591,6 +613,7 @@ function getPublicSettings() {
     [LYRIC_API_ENABLED_SETTING_KEY]: readStoredBoolean(LYRIC_API_ENABLED_SETTING_KEY, false),
     [VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY]: readStoredBoolean(VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY, false),
     [PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY]: readStoredBoolean(PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY, false),
+    [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
     [UPDATE_CHANNEL_SETTING_KEY]: getCurrentReleaseChannel().id,
     'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
@@ -690,6 +713,13 @@ const voiceInputPauseMonitor = createVoiceInputPauseMonitor({
   getOwnExePath: () => process.execPath,
 });
 const displaySleepBlocker = createDisplaySleepBlocker(powerSaveBlocker);
+// Both models, in a child process. Registers their IPC handlers; the renderer falls back to its
+// own estimators whenever they answer null, which is what the web build always gets.
+// The developer debug module: the runtime log and the memory monitor, both switched from
+// Settings > Developer. Created BEFORE the analysis host, which logs through it.
+createDebugHost({ app, ipcMain, store, BrowserWindow });
+
+const analysisHost = createAnalysisHost({ app, ipcMain, getModelsDirs: getModelsDirectories });
 
 function buildPlaybackSyncBridgeStatus() {
   return {
@@ -871,6 +901,34 @@ function getConfiguredCacheDirectory() {
   return typeof configured === 'string' && configured.trim().length > 0
     ? configured
     : getDefaultCacheDirectory();
+}
+
+// The analysis model weights - 83MB and 166MB of ONNX - and the three places they are allowed to
+// live, best first.
+//
+// They used to be one place: `resources/models` inside the install directory, shipped in the
+// installer. That put 249MB into a 436MB download that most listeners never turn the feature on for,
+// and it put them somewhere an update or a reinstall overwrites - so "you do not have to download
+// the models again" was not true even though nothing about them had changed.
+//
+// Now: whatever directory the user pointed us at, then the app's own download directory under
+// userData (which no update touches), then the bundled copy - kept so a build that still ships them
+// works unchanged, and so `npm run models:fetch` keeps working in a dev checkout.
+function getDefaultModelsDirectory() {
+  return path.join(app.getPath('userData'), 'models');
+}
+
+function getConfiguredModelsDirectory() {
+  const configured = store.get(MODELS_DIRECTORY_SETTING_KEY);
+  return typeof configured === 'string' && configured.trim().length > 0 ? configured.trim() : null;
+}
+
+function getBundledModelsDirectory() {
+  return path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..'), 'models');
+}
+
+function getModelsDirectories() {
+  return [getConfiguredModelsDirectory(), getDefaultModelsDirectory(), getBundledModelsDirectory()];
 }
 
 function getAudioCacheDirectory() {
@@ -2362,6 +2420,12 @@ async function readAudioCacheEntry(cacheKey) {
       fsp.readFile(metaPath, 'utf-8').catch(() => null),
     ]);
 
+    // Mark it as recently used, so pruning evicts by last play rather than by first download.
+    // Access time would say this without a write, but Windows ships with atime updates off, so
+    // the only field that survives a round trip is the one we set ourselves.
+    const now = new Date();
+    fsp.utimes(dataPath, now, now).catch(() => {});
+
     let mimeType = 'audio/mpeg';
     if (rawMeta) {
       try {
@@ -2388,7 +2452,36 @@ async function readAudioCacheEntry(cacheKey) {
   }
 }
 
-async function writeAudioCacheEntry(cacheKey, data, mimeType) {
+/**
+ * Drops the least recently played files until the cache fits under `limitBytes`.
+ *
+ * Run after every write, which is the only moment the cache can grow, so there is nowhere for it
+ * to exceed the ceiling unobserved. Which files go is decided in audioCachePrune.cjs.
+ */
+async function pruneAudioCache(limitBytes) {
+  if (resolveCacheLimit(limitBytes) === Infinity) return;
+
+  const audioDirectory = getAudioCacheDirectory();
+  try {
+    const names = (await fsp.readdir(audioDirectory)).filter((name) => name.endsWith('.bin'));
+    const entries = await Promise.all(names.map(async (name) => {
+      const stat = await fsp.stat(path.join(audioDirectory, name));
+      return { name, size: stat.size, usedAt: stat.mtimeMs };
+    }));
+
+    for (const name of selectEvictions(entries, limitBytes)) {
+      const base = path.join(audioDirectory, name.replace(/\.bin$/, ''));
+      await Promise.allSettled([
+        fsp.rm(`${base}.bin`, { force: true }),
+        fsp.rm(`${base}.json`, { force: true }),
+      ]);
+    }
+  } catch (error) {
+    console.warn('[AudioCache] Failed to prune cache directory', error);
+  }
+}
+
+async function writeAudioCacheEntry(cacheKey, data, mimeType, limitBytes) {
   const { dataPath, metaPath } = getAudioCachePaths(cacheKey);
   await ensureAudioCacheDirectory();
 
@@ -2405,6 +2498,8 @@ async function writeAudioCacheEntry(cacheKey, data, mimeType) {
       updatedAt: Date.now(),
     }), 'utf-8'),
   ]);
+
+  await pruneAudioCache(limitBytes);
 }
 
 async function getAudioCacheUsageBytes() {
@@ -3674,6 +3769,23 @@ app.whenReady().then(async () => {
   scheduleStartupUpdateCheck();
   voiceInputPauseMonitor.syncState();
 
+  try {
+    modSystem = createModSystem({
+      app,
+      BrowserWindow,
+      getMainWindow: () => mainWindow,
+      getLocaleKey: getMainLocaleKey,
+      isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
+    });
+    modSystem.registerIpc();
+    modSystem.loadAll();
+    if (readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false)) {
+      void modSystem.probeFfmpeg();
+    }
+  } catch (error) {
+    console.error('[Mods] Failed to initialize the mod system', error);
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -3692,6 +3804,13 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   clearPendingWindowPlaybackHandoffRequests();
+  if (modSystem) {
+    try {
+      modSystem.dispose();
+    } catch (error) {
+      console.error('[Mods] Failed to dispose the mod system', error);
+    }
+  }
   voiceInputPauseMonitor.stop();
   displaySleepBlocker.stop();
   void discordPresence.destroy();
@@ -3755,11 +3874,23 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY ||
     key === VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY ||
     key === PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY ||
+    key === MOD_SYSTEM_ENABLED_SETTING_KEY ||
     key === WALLPAPER_MODE_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }
   store.set(key, nextValue);
+
+  if (key === MOD_SYSTEM_ENABLED_SETTING_KEY && modSystem) {
+    // Turning the switch off deactivates every running mod immediately rather
+    // than only hiding the UI; turning it on discovers and activates whatever
+    // the user had already confirmed.
+    try {
+      modSystem.loadAll();
+    } catch (error) {
+      console.error('[Mods] Failed to apply the mod system switch', error);
+    }
+  }
 
   if (key === WALLPAPER_MODE_SETTING_KEY) {
     // Let the renderer receive its save-settings response before the process relaunches, while
@@ -3910,6 +4041,66 @@ ipcMain.handle('reset-cache-directory', () => {
   };
 });
 
+// Where a fetched model is written: the directory the user pointed us at, or the app's own under
+// userData. Never the bundled copy - that lives in the install folder and is not ours to write into.
+// The settings page reads the live location off `automix-model-status`, so these handlers only DO
+// the change and let the page re-read; their own return value is not consumed.
+const modelsDownloadDir = () => getConfiguredModelsDirectory() ?? getDefaultModelsDirectory();
+
+ipcMain.handle('choose-models-directory', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { canceled: true };
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose model directory',
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: modelsDownloadDir(),
+  });
+  if (result.canceled || result.filePaths.length === 0) return { canceled: true };
+
+  store.set(MODELS_DIRECTORY_SETTING_KEY, result.filePaths[0]);
+  // The running worker took its directories as argv, so it has to be restarted to see the new one.
+  analysisHost.reload();
+  return { canceled: false };
+});
+
+ipcMain.handle('reset-models-directory', () => {
+  store.delete(MODELS_DIRECTORY_SETTING_KEY);
+  analysisHost.reload();
+});
+
+// Getting the weights onto this machine. Everything about HOW is in analysis/modelStore.cjs; what
+// is here is the window it reports progress to and the file picker it cannot open for itself.
+const modelStore = createModelStore({
+  getModelsDirs: getModelsDirectories,
+  // Never the bundled directory: that one lives inside the install folder and is not ours to write
+  // into, and on a packaged app it may not even be writable.
+  getDownloadDir: modelsDownloadDir,
+  onProgress: (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('automix-model-progress', event);
+    }
+  },
+  // A model appearing or moving has to reach the worker, which took its directories as argv when it
+  // was forked. Restarting is how; it is what the idle timer does anyway.
+  onChanged: () => { analysisHost.reload(); },
+});
+
+ipcMain.handle('automix-model-status', () => modelStore.status());
+ipcMain.handle('automix-model-download', (_event, name) => modelStore.download(name));
+ipcMain.handle('automix-model-cancel', (_event, name) => modelStore.cancel(name));
+ipcMain.handle('automix-model-scan', () => modelStore.scan(scanHintDirectories()));
+ipcMain.handle('automix-model-install', (_event, name, source) => modelStore.installLocal(name, source));
+
+ipcMain.handle('automix-model-remove-all', () => modelStore.removeAll());
+
+// Where a manually downloaded file is likely to be. Passed to the scan rather than baked into it,
+// because these come from Electron's own path lookups and modelStore is plain Node.
+function scanHintDirectories() {
+  return ['downloads', 'desktop', 'documents']
+    .map((key) => { try { return app.getPath(key); } catch { return null; } })
+    .filter(Boolean);
+}
+
 ipcMain.handle('updates-get-status', () => {
   return getUpdateStatus();
 });
@@ -3959,8 +4150,8 @@ ipcMain.handle('has-audio-cache', async (event, cacheKey) => {
   return hasAudioCacheEntry(cacheKey);
 });
 
-ipcMain.handle('save-audio-cache', async (event, cacheKey, data, mimeType) => {
-  await writeAudioCacheEntry(cacheKey, data, mimeType);
+ipcMain.handle('save-audio-cache', async (event, cacheKey, data, mimeType, limitBytes) => {
+  await writeAudioCacheEntry(cacheKey, data, mimeType, limitBytes);
   return true;
 });
 
@@ -4078,6 +4269,16 @@ ipcMain.handle('window-close', () => {
   }
 
   mainWindow.close();
+  return true;
+});
+
+// Sleep timer and other explicit "exit the whole app" paths. Unlike window-close this
+// quits even when closing-to-tray is enabled, and runs the before-quit cleanup.
+ipcMain.handle('app-quit', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return false;
+  }
+  app.quit();
   return true;
 });
 

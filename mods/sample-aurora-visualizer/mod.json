@@ -1,0 +1,19 @@
+{
+  "id": "sample-aurora-visualizer",
+  "name": "虹光歌词动画（样例）",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "author": "Folia Mod Samples",
+  "description": "通过模组贡献的全屏歌词动画：当前句居中展示，逐字虹光扫过。演示 v2 visualizer 贡献能力，可用于播放与透明导出。",
+  "entry": "index.cjs",
+  "depends": [],
+  "permissions": ["visualizer.register"],
+  "visualizers": [
+    {
+      "id": "aurora-text",
+      "entry": "visualizer.mjs",
+      "label": { "zh-CN": "虹光", "en": "Aurora" },
+      "order": 420
+    }
+  ]
+}

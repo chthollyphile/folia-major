@@ -3,14 +3,14 @@ import { saveToCache } from './db';
 import { PrefetchedSongData, isUrlValid, updatePrefetchedAudioUrl } from './prefetchService';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
-import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
+import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { useSettingsUiStore } from '../stores/useSettingsUiStore';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { createSafeObjectUrl } from '../utils/blobGuards';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { omni } from './onlineMusic/omni';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
-import { getCachedSongAudioBlob, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
+import { getCachedSongAudioBlob, getCachedSongReplayGain, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
 import { toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 
@@ -26,12 +26,14 @@ export async function loadOnlineSongAudioSource(
     if (cachedAudioBlob) {
         const blobUrl = createSafeObjectUrl(cachedAudioBlob);
         if (blobUrl) {
-            return {
-                kind: 'ok',
-                audioSrc: blobUrl,
-                blobUrl,
-                replayGain: song.replayGain ?? prefetched?.replayGain,
-            };
+            // Nothing on this path ever asks the provider again, so the stored gain is the only
+            // one a cached track can have. Without it every cached track reaches the fader at 0dB.
+            let replayGain = song.replayGain ?? prefetched?.replayGain;
+            if (!replayGain) {
+                replayGain = await getCachedSongReplayGain(song);
+                if (replayGain) console.log(`[Cache] ReplayGain recovered for "${song.name}" from the store, not the provider`);
+            }
+            return { kind: 'ok', audioSrc: blobUrl, blobUrl, replayGain };
         }
     }
 
@@ -165,6 +167,16 @@ export async function loadOnlineSongLyrics(
     const shouldAutoMatch = settings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
 
     if (shouldAutoMatch) {
+        // The lyrics in hand are already displayable, so hand them over and report done BEFORE the
+        // search below. `onDone` is what releases the audio: playback waits on it, and this search
+        // asks every provider for a better lyric file - seconds when it finds none, which is
+        // exactly what an instrumental interlude does. Holding the audio for an OPTIONAL upgrade
+        // is what turned a song change into several seconds of silence, and with blended changes
+        // the outgoing track has already ended by then, so the silence is all the listener gets.
+        // A better match, if one turns up, replaces these below.
+        if (resolvedLyrics) onLyrics(resolvedLyrics);
+        onDone();
+
         try {
             onAutoMatchStart?.();
             const metadata = getProviderSongMetadata(song);
@@ -202,9 +214,16 @@ export async function loadOnlineSongLyrics(
                 resolvedLyrics = bestMatch.lyrics;
                 finalState = overrideState;
                 onStateChange?.(overrideState);
-            } else if (bestMatch && 'isPureMusic' in bestMatch) {
+            } else if (bestMatch?.isPureMusic) {
+                // Checked against `true`, not with `in`: a MATCH object also carries
+                // `isPureMusic: false`, so `'isPureMusic' in bestMatch` was true for it too - and
+                // a best match from the track's own provider (which fails the branch above) then
+                // landed here and had its perfectly good lyrics thrown away as instrumental.
+                const pureMusic = markOnlineLyricsPureMusic(onlineLyricsState);
+                await saveOnlineLyricsState(song, pureMusic);
                 resolvedLyrics = null;
-                onPureMusicChange?.(true);
+                finalState = pureMusic;
+                onStateChange?.(pureMusic);
             }
         } catch (error) {
             console.warn('[OnlinePlayback] Failed to auto-match best lyric:', error);

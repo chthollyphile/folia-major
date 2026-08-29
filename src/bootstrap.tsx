@@ -8,9 +8,35 @@ import ObsBrowserSourceApp from './components/obs/ObsBrowserSourceApp';
 import ObsNowPlayingSourceApp from './components/obs/ObsNowPlayingSourceApp';
 import ObsPlayerCapSourceApp from './components/obs/ObsPlayerCapSourceApp';
 import { initializeLocalCoverRuntime } from './services/localCoverRuntime';
+import { initModVisualizers } from './mods/modVisualizers';
+import { hasVisualizerMode } from './components/visualizer/registry';
+import { useSettingsUiStore } from './stores/useSettingsUiStore';
 
 // src/bootstrap.tsx
 // Mounts the React app after index.tsx installs runtime-level browser shims.
+
+// A mod visualizer saved to localStorage can only survive a restart if its
+// registry entry exists before the settings store validates the stored mode.
+// The store initializes eagerly through the static import graph, so the mode it
+// read may already have fallen back to classic; after mod contributions are
+// registered we restore the stored mode when it is now a valid, registered entry.
+const restoreStoredModVisualizer = () => {
+    try {
+        const saved = localStorage.getItem('visualizer_mode');
+        if (!saved || !saved.startsWith('mod:')) {
+            return;
+        }
+        if (!hasVisualizerMode(saved)) {
+            return;
+        }
+        const store = useSettingsUiStore.getState();
+        if (store.visualizerMode !== saved) {
+            store.handleSetVisualizerMode(saved, { notify: false });
+        }
+    } catch {
+        // Best-effort: a restore failure must never block app startup.
+    }
+};
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -38,4 +64,8 @@ const renderApp = () => root.render(
     </React.StrictMode>
   );
 
-void initializeLocalCoverRuntime().finally(renderApp);
+void initModVisualizers()
+    .then(restoreStoredModVisualizer)
+    .finally(() => {
+        void initializeLocalCoverRuntime().finally(renderApp);
+    });

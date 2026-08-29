@@ -35,7 +35,6 @@ function isAllowedLyricProxyHost(hostname) {
     return hostname === 'qq.com' || hostname.endsWith('.qq.com') ||
         hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' || hostname.endsWith('.kugou.com') ||
-        hostname === 'kgimg.com' || hostname.endsWith('.kgimg.com') ||
         hostname === 'amll-ttml-db.stevexmh.net';
 }
 function isAmllDbHost(hostname) {

@@ -37,8 +37,23 @@ const AudioEffectGrid: React.FC<AudioEffectGridProps> = ({ effects, styles, onEf
                     return (
                         <label key={control.id} className="flex flex-col gap-1">
                             <span className="flex items-baseline justify-between gap-2">
-                                <span className={`text-[11px] font-semibold ${styles.inactiveText}`}>
+                                <span className={`flex items-baseline gap-1.5 text-[11px] font-semibold ${styles.inactiveText}`}>
                                     {t(`ui.equalizerEffect.${control.id}`)}
+                                    {/* Shown whether or not the slider is up: the point is to answer
+                                        "where is this noise coming from" BEFORE it is turned on. */}
+                                    {control.addsNoise && (
+                                        <span
+                                            className="rounded-full border px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.08em] opacity-70"
+                                            style={isNeutral ? undefined : {
+                                                color: styles.selectedAccentColor,
+                                                borderColor: styles.selectedAccentColor,
+                                                opacity: 1,
+                                            }}
+                                            title={t('ui.equalizerEffectNoiseTagHint')}
+                                        >
+                                            {t('ui.equalizerEffectNoiseTag')}
+                                        </span>
+                                    )}
                                 </span>
                                 <span
                                     className={`text-[10px] font-semibold tabular-nums ${styles.valueTextClass}`}

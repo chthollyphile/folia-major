@@ -56,3 +56,27 @@ export const resolveOnlineLyrics = (
 
 export const getOnlineLyricsSourceLabel = (state: OnlineLyricsState | null | undefined): 'online' | 'imported' =>
     state?.lyricsSource === 'imported' ? 'imported' : 'online';
+
+/**
+ * The state to store once auto-match has concluded a track simply has no lyrics.
+ *
+ * "Every source agrees this one is instrumental" is an ANSWER and has to be persisted like any
+ * other match. Storing nothing leaves `hasOnlineOverride` false, which is the flag that decides
+ * whether to auto-match at all - so the full multi-provider search runs again on every prefetch
+ * pass and every play, forever, for every instrumental in the library.
+ *
+ * Merged onto whatever was already there rather than replacing it: an imported selection stays
+ * imported, and `resolveOnlineLyrics` keeps preferring it, so a background auto-match can never
+ * take the listener's own choice away.
+ */
+export const markOnlineLyricsPureMusic = (
+    previous: OnlineLyricsState | null | undefined,
+): OnlineLyricsState => ({
+    ...previous,
+    lyricsSource: previous?.lyricsSource ?? 'online',
+    hasOnlineOverride: true,
+    // The override IS "there are none". Spelled out rather than left undefined so the stored state
+    // reads the same way `resolveOnlineLyrics` will read it.
+    onlineOverrideLyrics: null,
+    matchedIsPureMusic: true,
+});

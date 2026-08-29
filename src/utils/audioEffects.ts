@@ -22,6 +22,19 @@ export type AudioEffectControl = {
     neutral: number;
     scale: 'linear' | 'log';
     unit: 'hz' | 'ratio';
+    /**
+     * This control adds a noise floor of its own, rather than shaping the music.
+     *
+     * The two that do are easy to mistake for a fault, because that is exactly what they sound
+     * like: hiss and crackle that is loudest where the music is quietest, which on a soft intro
+     * reads as a broken build rather than as an effect. Both were reported that way. The panel
+     * marks them so the answer to "where is this noise coming from" is on screen next to the
+     * slider that is causing it.
+     *
+     * Saturation and wow are deliberately NOT marked: they distort and detune the signal, which
+     * is audible but is not a noise floor - turn the music off and they make no sound at all.
+     */
+    addsNoise?: boolean;
 };
 
 // Slider order follows the signal flow: tone shaping, then colour, then space.
@@ -29,9 +42,9 @@ export const AUDIO_EFFECT_CONTROLS: readonly AudioEffectControl[] = [
     { id: 'highpass', min: 20, max: 2000, step: 1, neutral: 20, scale: 'log', unit: 'hz' },
     { id: 'lowpass', min: 500, max: 20000, step: 1, neutral: 20000, scale: 'log', unit: 'hz' },
     { id: 'drive', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },
-    { id: 'crush', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },
+    { id: 'crush', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio', addsNoise: true },
     { id: 'wow', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },
-    { id: 'noise', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },
+    { id: 'noise', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio', addsNoise: true },
     { id: 'width', min: 0, max: 2, step: 0.01, neutral: 1, scale: 'linear', unit: 'ratio' },
     { id: 'space', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },
     { id: 'punch', min: 0, max: 1, step: 0.01, neutral: 0, scale: 'linear', unit: 'ratio' },

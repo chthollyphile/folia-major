@@ -66,6 +66,19 @@ export async function getCachedCoverUrl(cacheKey: string): Promise<string | null
     return createSafeObjectUrl(cachedCover);
 }
 
+/**
+ * Whether a cover is already stored, without minting an object URL to find out.
+ *
+ * `getCachedCoverUrl` is the wrong question to ask when nothing is going to be displayed: it reads
+ * the bytes and hands back a URL that a caller checking for mere existence then has to remember to
+ * revoke. Reads the descriptor only, and accepts the legacy raw-Blob shape the same way the reader
+ * above does, so a cover written before the asset store existed still counts as cached.
+ */
+export async function hasCachedCover(cacheKey: string): Promise<boolean> {
+    const stored = await getFromCache<unknown>(cacheKey);
+    return isBlob(stored) || isStoredCoverDescriptor(stored);
+}
+
 export async function loadCachedOrFetchCover(cacheKey: string, coverUrl?: string | null): Promise<string | null> {
     if (!coverUrl) return null;
 

@@ -8,6 +8,7 @@ import { useAudioOutputDevices } from '../../../hooks/useAudioOutputDevices';
 import { CustomSelect } from '../../shared/CustomSelect';
 import { LYRIC_MATCH_SOURCES } from '../../../utils/lyrics/lyricMatchSources';
 import { getLyricProviderPreferenceLabel } from '../../../utils/lyrics/lyricSourceLabels';
+import TransitionSettingsSection from './TransitionSettingsSection';
 
 // src/components/modal/settings/PlaybackSettingsSubview.tsx
 // Playback behavior and output-device settings extracted from the global settings modal.
@@ -191,6 +192,12 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                     </div>
                 </div>
             </section>
+
+            <TransitionSettingsSection
+                isDaylight={isDaylight}
+                settingsCardClass={settingsCardClass}
+                theme={theme}
+            />
 
             <section>
                 <h3 className="text-sm font-bold uppercase tracking-wider opacity-50 mb-4 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>

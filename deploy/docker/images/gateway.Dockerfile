@@ -5,7 +5,7 @@ WORKDIR /app
 ARG VCS_REF=local
 ARG STACK_VERSION=local
 ARG REQUIRE_COMMIT_NAME=false
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY . .

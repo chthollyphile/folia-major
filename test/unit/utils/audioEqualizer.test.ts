@@ -67,7 +67,11 @@ describe('audio equalizer model', () => {
 });
 
 describe('audio effect model', () => {
-    it('restores preset effects for settings persisted before the effect chain existed', () => {
+    // Deliberately the opposite of upstream, which restores the preset's effects here. Someone who
+    // picked "Lo-Fi" in a build where it was a tone curve gets vinyl crackle and bit crush pushed
+    // into their music by an update they did not read - reported on this branch as severe noise.
+    // The preset id survives (see below), so the modern character is one deliberate click away.
+    it('leaves the chain neutral for settings persisted before the effect chain existed', () => {
         const settings = resolveAudioEqualizerSettings({
             enabled: true,
             gains: AUDIO_EQUALIZER_PRESETS.lofi,
@@ -75,8 +79,22 @@ describe('audio effect model', () => {
             customGains: Array(10).fill(0),
         });
 
-        expect(settings.effects).toEqual(AUDIO_SOUND_PRESETS.lofi.effects);
+        expect(settings.effects).toEqual(createNeutralAudioEffects());
+        // The tone curve they chose is still theirs, and the panel still shows which one it is.
+        expect(settings.gains).toEqual(AUDIO_EQUALIZER_PRESETS.lofi);
+        expect(settings.preset).toBe('lofi');
         expect(settings.customSlots[0].effects).toEqual(createNeutralAudioEffects());
+    });
+
+    it('keeps honouring effects that were actually persisted', () => {
+        const settings = resolveAudioEqualizerSettings({
+            enabled: true,
+            gains: AUDIO_EQUALIZER_PRESETS.lofi,
+            preset: 'lofi',
+            effects: AUDIO_SOUND_PRESETS.lofi.effects,
+        });
+
+        expect(settings.effects).toEqual(AUDIO_SOUND_PRESETS.lofi.effects);
     });
 
     it('clamps malformed effect values and fills missing ones with their neutral value', () => {

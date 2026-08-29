@@ -12,6 +12,16 @@ import {
 // Bridges Folia playback state to the browser Media Session API.
 type UseMediaSessionBridgeOptions = {
     audioRef: RefObject<HTMLAudioElement | null>;
+    /**
+     * The deck the displayed track is playing on, or null when the picture is live.
+     *
+     * Metadata, clock and source have to describe the same deck. `currentSong` is already the
+     * DISPLAYED track - the outgoing one for the length of a blend - while `audioRef` names the
+     * active deck, which by then is the arriving track. Publishing the two together put the outgoing
+     * track's title on the incoming track's duration and position, so the system panel showed one
+     * song's name over another song's progress. `audioSrc` is passed to match this element.
+     */
+    getDisplayAudioElement?: () => HTMLAudioElement | null;
     audioSrc: string | null;
     currentSong: SongResult | null;
     cachedCoverUrl: string | null;
@@ -27,6 +37,7 @@ type UseMediaSessionBridgeOptions = {
 
 export const useMediaSessionBridge = ({
     audioRef,
+    getDisplayAudioElement,
     audioSrc,
     currentSong,
     cachedCoverUrl,
@@ -110,7 +121,9 @@ export const useMediaSessionBridge = ({
             return;
         }
 
-        const audio = audioRef.current;
+        // The displayed track's own deck, so the position published below belongs to the title
+        // published beside it. Falls back to the active deck whenever no blend is holding a picture.
+        const audio = getDisplayAudioElement?.() ?? audioRef.current;
         if (!audio || !audioSrc) {
             return;
         }
@@ -176,7 +189,7 @@ export const useMediaSessionBridge = ({
             audio.removeEventListener('playing', publish);
             if (disposableArtworkUrl) URL.revokeObjectURL(disposableArtworkUrl);
         };
-    }, [audioRef, audioSrc, cachedCoverUrl, currentSong, unknownArtistLabel]);
+    }, [audioRef, audioSrc, cachedCoverUrl, currentSong, getDisplayAudioElement, unknownArtistLabel]);
 
     useEffect(() => {
         if (!('mediaSession' in navigator)) {

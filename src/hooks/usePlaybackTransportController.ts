@@ -32,6 +32,16 @@ type UsePlaybackTransportControllerParams = {
     }) => Promise<boolean>;
     getSyntheticStageLyricsTime: () => number;
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
+    /**
+     * Handles a pause that lands during an automix blend, returning true when it did.
+     *
+     * Mid-blend `audioRef` names the deck the next track is ARRIVING on, so the pause below would
+     * stop a deck the listener cannot hear and leave the one they can hear playing on into the
+     * next song - "I pressed pause and it jumped to the next track". This cancels the blend back
+     * onto the deck still sounding the displayed track and pauses that, the same cancel a mid-blend
+     * seek uses. Returns false (and the ordinary pause runs) when no blend is in flight.
+     */
+    pauseDuringTransition?: () => boolean;
     t: (key: string) => string;
 };
 
@@ -55,6 +65,7 @@ export function usePlaybackTransportController({
     recoverOnlinePlaybackSource,
     getSyntheticStageLyricsTime,
     syncStageLyricsClock,
+    pauseDuringTransition,
     t,
 }: UsePlaybackTransportControllerParams) {
     const resumePlayback = useCallback(async () => {
@@ -136,6 +147,15 @@ export function usePlaybackTransportController({
             return;
         }
 
+        // Before the element is touched, because mid-blend `audioRef` is the wrong element to touch:
+        // it names the deck the next track is arriving on. The cancel pauses the deck that is
+        // actually sounding, so there is nothing left here but to settle the transport.
+        if (pauseDuringTransition?.()) {
+            syncOutputGain(getTargetPlaybackVolume(), 0);
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
+
         if (!audioRef.current) {
             return;
         }
@@ -143,7 +163,7 @@ export function usePlaybackTransportController({
         audioRef.current.pause();
         syncOutputGain(getTargetPlaybackVolume(), 0);
         setPlayerState(PlayerState.PAUSED);
-    }, [activePlaybackContext, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, setPlayerState, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock]);
+    }, [activePlaybackContext, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, pauseDuringTransition, setPlayerState, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock]);
 
     return {
         resumePlayback,

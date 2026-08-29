@@ -47,8 +47,14 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         const clampedValue = duration > 0 ? Math.min(safeValue, duration) : safeValue;
         const displayedSecond = Math.floor(clampedValue);
 
-        if (progressRef.current) {
-            const progress = duration > 0 ? Math.min(1, clampedValue / duration) : 0;
+        // Nothing is painted without a duration, and that is the fix for the flash at the start of
+        // a blend: the app switches to the incoming track the moment the overlap begins, but its
+        // duration arrives a beat later - automix logs the same gap as `no duration for this track
+        // yet`. Treating unknown as zero drew one frame of empty bar and then snapped back, which
+        // reads as the bar being re-created. Holding the last fill for those few frames is the only
+        // honest option: the fraction is genuinely unknown until the denominator exists.
+        if (progressRef.current && duration > 0) {
+            const progress = Math.min(1, clampedValue / duration);
             const hiddenPercent = ((1 - progress) * 100).toFixed(4);
             progressRef.current.style.clipPath = `inset(0 ${hiddenPercent}% 0 0 round 999px)`;
         }

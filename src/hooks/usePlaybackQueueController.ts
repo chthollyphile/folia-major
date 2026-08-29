@@ -7,6 +7,7 @@ import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
+import { retireBlobUrl } from '../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
 import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
@@ -129,6 +130,16 @@ type UsePlaybackQueueControllerParams = {
     pendingResumeTimeRef: MutableRefObject<number | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;
+    /**
+     * The track the LISTENER is on, or null when that is just `currentSong`.
+     *
+     * Non-null only while an automix blend holds the now-playing picture, where the queue has
+     * already advanced to the arriving track seconds before anyone hears it. Queue navigation has
+     * to step from what is on screen, or it is off by a song in both directions.
+     */
+    getDisplaySong?: () => SongResult | null;
+    /** Ends a blend that a manual skip has overtaken. Called before navigating away from it. */
+    endHeldTransition?: () => void;
 };
 
 const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
@@ -198,6 +209,8 @@ export function usePlaybackQueueController({
     pendingResumeTimeRef,
     currentOnlineAudioUrlFetchedAtRef,
     lastAudioRecoverySourceRef,
+    getDisplaySong,
+    endHeldTransition,
 }: UsePlaybackQueueControllerParams) {
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
 
@@ -589,10 +602,11 @@ export function usePlaybackQueueController({
         setAudioSrc(null);
         setIsLyricsLoading(true);
 
-        if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-            blobUrlRef.current = null;
-        }
+        // Handed over rather than revoked here: during a blend the song this replaces is still
+        // sounding on the other deck, and taking its URL away leaves that deck unable to seek. See
+        // `retireBlobUrl` - the failure is silent and permanent, with no error event to notice it by.
+        retireBlobUrl(blobUrlRef.current);
+        blobUrlRef.current = null;
 
         if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(resolvedQueue);
@@ -845,7 +859,18 @@ export function usePlaybackQueueController({
         }
 
         const shouldNavigateToPlayer = options?.shouldNavigateToPlayer ?? true;
-        const currentSongKey = getPlaybackSongKey(currentSong);
+        // Which track to step from. During a blend the queue has already advanced, so `currentSong`
+        // is the one ARRIVING while the listener is still hearing - and pressing next about - the
+        // one that is finishing. Stepping from the internal one is off by a song: "next" jumps over
+        // the track being blended in. Non-null only while a blend holds the picture, and skipped
+        // entirely for the callers that really do mean the internal track (see `fromSong`).
+        const heldSong = options?.fromSong ? null : getDisplaySong?.() ?? null;
+        // A skip the listener asked for overtakes the blend, and the blend has to be told. Without
+        // this, "next" targets the very track being blended in - which `handleSongChanged` waves
+        // through as the transition's own doing - leaving the fade running against a deck that is
+        // reloading underneath it.
+        if (heldSong) endHeldTransition?.();
+        const currentSongKey = getPlaybackSongKey(heldSong ?? options?.fromSong ?? currentSong);
         const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
 
         if (isFmMode && currentIndex >= playQueue.length - 2) {
@@ -883,13 +908,18 @@ export function usePlaybackQueueController({
         } else if (options?.allowStopOnMissing) {
             stopAtQueueEnd();
         }
-    }, [audioRef, currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState]);
+    }, [audioRef, currentSong, endHeldTransition, getDisplaySong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState]);
 
     const handlePrevTrack = useCallback(() => {
         if (isNowPlayingStageActive) return;
         if (!currentSong || playQueue.length === 0) return;
 
-        const currentSongKey = getPlaybackSongKey(currentSong);
+        // Same as handleNextTrack, and more visibly wrong without it: stepping back from the track
+        // a blend has already advanced to lands on the one the listener is hearing, so "previous"
+        // replays the current song instead of going past it.
+        const heldSong = getDisplaySong?.() ?? null;
+        if (heldSong) endHeldTransition?.();
+        const currentSongKey = getPlaybackSongKey(heldSong ?? currentSong);
         const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
         let prevIndex = -1;
 
@@ -902,7 +932,7 @@ export function usePlaybackQueueController({
         if (prevIndex >= 0) {
             void playSong(playQueue[prevIndex], playQueue, isFmMode);
         }
-    }, [currentSong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong]);
+    }, [currentSong, endHeldTransition, getDisplaySong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong]);
 
     const skipAfterPlaybackFailure = useCallback(() => {
         clearPendingUnavailableSkip();
@@ -928,6 +958,9 @@ export function usePlaybackQueueController({
                 allowStopOnMissing: true,
                 shouldNavigateToPlayer: false,
                 unavailableSkipCount: nextSkipCount,
+                // The track that failed is the one on the active deck, which mid-blend is NOT the
+                // one on screen. Skipping from the displayed track would step onto the broken one.
+                fromSong: currentSong ?? undefined,
             });
         });
     }, [clearPendingUnavailableSkip, currentSong, handleNextTrack, loopMode, playQueue, playbackAutoSkipCountRef, setPlayerState, showTimedSkipPrompt]);

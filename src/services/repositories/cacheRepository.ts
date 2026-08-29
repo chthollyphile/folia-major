@@ -9,7 +9,7 @@ import {
 // src/services/repositories/cacheRepository.ts
 // Centralizes cache routing, legacy user-cache migration, prefix operations, cleanup, and usage metrics.
 
-export type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media';
+export type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media' | 'analysis';
 export type CacheTableName = 'api_cache' | 'user_cache' | 'media_cache' | 'metadata_cache';
 
 const CACHE_TABLE_NAMES: CacheTableName[] = [
@@ -31,14 +31,26 @@ export const getCacheTableName = (key: string): CacheTableName => {
   if (key === 'last_song' || key === 'last_queue' || key === 'last_theme') return 'api_cache';
   if (key.startsWith('audio_') || key.startsWith('cover_')) return 'media_cache';
   if (
+    key.startsWith('automix_profile_') ||
     key.startsWith('lyric_') ||
     key.startsWith('theme_') ||
+    key.startsWith('replayGain_') ||
     key.startsWith('playlist_tracks_') ||
     key.startsWith('playlist_detail_') ||
     (key.startsWith('online_provider_') && (key.includes('_playlist_tracks_') || key.includes('_playlist_detail_')))
   ) return 'metadata_cache';
   return 'api_cache';
 };
+
+/**
+ * Keys written to the `api_cache` fall-through before their prefix was registered above, and so
+ * not in the table `getCacheTableName` now resolves for them.
+ *
+ * Deliberately a list rather than "check api_cache on every miss": a miss is the ordinary case for
+ * covers and lyrics, and a blanket fallback would put a second lookup on all of them.
+ */
+const movedOutOfApiCache = (key: string): boolean =>
+  USER_CACHE_KEYS.has(key) || key.startsWith('automix_profile_');
 
 const getTable = (name: CacheTableName): Table<StoredCacheEntry, string> => appDatabase.table(name);
 
@@ -51,12 +63,16 @@ export const readCacheEntry = async <T>(key: string): Promise<T | null> => {
   const entry = await getTable(tableName).get(key);
   if (entry) return entry.data as T;
 
-  if (tableName !== 'user_cache' || !USER_CACHE_KEYS.has(key)) return null;
+  // Found where it used to live and moved on the way past. That is the whole migration: no version
+  // bump, no startup sweep, and a key nobody reads again is still cleared with its category like
+  // any other, because clearing scans every table.
+  if (tableName === 'api_cache' || !movedOutOfApiCache(key)) return null;
   const legacy = await appDatabase.api_cache.get(key);
   if (!legacy) return null;
 
-  await appDatabase.transaction('rw', appDatabase.user_cache, appDatabase.api_cache, async () => {
-    await appDatabase.user_cache.put({ ...legacy, timestamp: Date.now() });
+  const table = getTable(tableName);
+  await appDatabase.transaction('rw', table, appDatabase.api_cache, async () => {
+    await table.put({ ...legacy, timestamp: Date.now() });
     await appDatabase.api_cache.delete(key);
   });
   return legacy.data as T;
@@ -127,7 +143,17 @@ const matchesCategory = (key: string, category: CacheCategory): boolean => {
   if (category === 'playlist') return key === 'user_playlists' || key.startsWith('playlist_') || (key.startsWith('online_provider_') && key.includes('_playlist'));
   if (category === 'lyrics') return key.startsWith('lyric_');
   if (category === 'cover') return key.startsWith('cover_');
-  return key.startsWith('audio_');
+  // Automix's measurement of a track: tempo, bar line, silence edges, loudness. Its own category
+  // rather than riding with the audio, because the two are not thrown away for the same reasons.
+  // ReplayGain below is cleared with the audio since it ARRIVES with the audio and comes back free
+  // with it; a profile costs a full decode and a model pass to rebuild, and stays true whether or
+  // not the bytes it was measured from are still on this machine. Someone reclaiming five gigabytes
+  // of audio has no reason to pay for that again.
+  if (category === 'analysis') return key.startsWith('automix_profile_');
+  // A track's ReplayGain describes the audio and arrives with it, so it is cleared with it. It is
+  // counted here but NOT in mediaCount below, which means "songs cached" and would otherwise
+  // double for every track that has both.
+  return key.startsWith('audio_') || key.startsWith('replayGain_');
 };
 
 export const getBrowserCacheUsage = async (): Promise<number> => {
@@ -136,16 +162,17 @@ export const getBrowserCacheUsage = async (): Promise<number> => {
 };
 
 export const getBrowserCacheUsageByCategory = async () => {
-  const usage = { playlist: 0, lyrics: 0, cover: 0, media: 0, mediaCount: 0 };
+  const usage = { playlist: 0, lyrics: 0, cover: 0, media: 0, analysis: 0, mediaCount: 0 };
   const entries = (await Promise.all(CACHE_TABLE_NAMES.map(name => getTable(name).toArray()))).flat();
   entries.forEach(entry => {
     const size = getEntrySize(entry);
     if (matchesCategory(entry.key, 'playlist') || USER_CACHE_KEYS.has(entry.key)) usage.playlist += size;
     else if (matchesCategory(entry.key, 'lyrics')) usage.lyrics += size;
     else if (matchesCategory(entry.key, 'cover')) usage.cover += size;
+    else if (matchesCategory(entry.key, 'analysis')) usage.analysis += size;
     else if (matchesCategory(entry.key, 'media')) {
       usage.media += size;
-      usage.mediaCount += 1;
+      if (entry.key.startsWith('audio_')) usage.mediaCount += 1;
     }
   });
   return usage;

@@ -152,6 +152,7 @@ export const getCacheUsageByCategory = async (): Promise<{
   lyrics: number;
   cover: number;
   media: number;
+  analysis: number;
   mediaCount: number;
 }> => {
   try {
@@ -166,7 +167,7 @@ export const getCacheUsageByCategory = async (): Promise<{
     usage.cover += await getCoverAssetUsage();
     return usage;
   } catch {
-    return { playlist: 0, lyrics: 0, cover: 0, media: 0, mediaCount: 0 };
+    return { playlist: 0, lyrics: 0, cover: 0, media: 0, analysis: 0, mediaCount: 0 };
   }
 };
 

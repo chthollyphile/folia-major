@@ -8,6 +8,7 @@ import { ensureLocalSongCoverAsset, getAudioFromLocalSong } from '../services/lo
 import { addSongsToLocalPlaylist, createLocalPlaylist, getLocalPlaylists, setLocalSongFavorite } from '../services/localPlaylistService';
 import { applyLocalLibraryEntityDisplay, buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong, resolveLocalSongMetadata } from '../services/playbackAdapters';
 import { getPrefetchedData } from '../services/prefetchService';
+import { retireBlobUrl } from '../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { hasRenderableLyrics } from '../utils/appPlaybackHelpers';
 import {
@@ -571,7 +572,9 @@ export function useLibraryPlaybackController({
         const preparedLocalSong = await ensureLocalSongCoverAsset(localSong);
         const initialMeta = await resolveLocalMetadataUI(preparedLocalSong, null);
 
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+        // Handed over, not revoked here: a blend is still playing the song this replaces on the
+        // other deck, and a revoked URL is a deck that can no longer be seeked. See `retireBlobUrl`.
+        retireBlobUrl(blobUrlRef.current);
         blobUrlRef.current = blobUrl;
 
         shouldAutoPlayRef.current = true;

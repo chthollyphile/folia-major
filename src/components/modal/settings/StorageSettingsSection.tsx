@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Cloud, Command, Database, Disc3, Download, FolderOpen, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload, X } from 'lucide-react';
+import { AudioWaveform, Check, Cloud, Command, Database, Disc3, Download, FolderOpen, HardDrive, Layers, Loader2, Pencil, PlayCircle, RefreshCw, Trash2, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { getSyncConfig, getSyncStatus, saveSyncConfig, setSyncStatus, subscribeSyncConfig, subscribeSyncStatus } from '../../../services/sync/syncConfig';
@@ -7,11 +7,12 @@ import { exportSyncLibraryBundle, importSyncLibraryBundle, isSyncLibraryExportBu
 import { createSyncLibraryZipBlob, readSyncLibraryZipFile } from '../../../services/sync/syncArchive';
 import { SYNC_PROVIDER, type SyncProviderConfig, type SyncRuntimeStatus } from '../../../services/sync/syncTypes';
 import { createSafeObjectUrl } from '../../../utils/blobGuards';
+import { CustomSelect } from '../../shared/CustomSelect';
 
 // src/components/modal/settings/StorageSettingsSection.tsx
 // Shared storage and media cache settings used by the main options page and storage subview.
 
-type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media';
+type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media' | 'analysis';
 
 type CacheSizes = Record<CacheCategory, string>;
 
@@ -23,11 +24,14 @@ type StorageSettingsSectionProps = {
     enableMediaCache: boolean;
     errorTextColor: string;
     isCleaning: string | null;
+    isDaylight?: boolean;
     isElectron: boolean;
+    mediaCacheLimitGb: number;
     mediaCount: number;
     onChooseCacheDirectory: () => void;
     onClear: (category: CacheCategory) => void;
     onClearAll: () => void;
+    onSetMediaCacheLimitGb: (gigabytes: number) => void;
     onToggleMediaCache: (enabled: boolean) => void;
     settingsCardClass: string;
     settingsIconClass?: string;
@@ -44,11 +48,14 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     enableMediaCache,
     errorTextColor,
     isCleaning,
+    isDaylight = false,
     isElectron,
+    mediaCacheLimitGb,
     mediaCount,
     onChooseCacheDirectory,
     onClear,
     onClearAll,
+    onSetMediaCacheLimitGb,
     onToggleMediaCache,
     settingsCardClass,
     settingsIconClass,
@@ -70,11 +77,18 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
     const iconClass = useInsetCacheRows && settingsIconClass
         ? `p-2 rounded-lg opacity-60 ${settingsIconClass}`
         : 'p-2 bg-white/5 rounded-lg opacity-60';
+    // Zero is "no ceiling", which is a real answer rather than a missing one, so it gets a label
+    // instead of an empty field.
+    const cacheLimitOptions = [1, 2, 5, 10, 20, 50, 0].map((gigabytes) => ({
+        value: String(gigabytes),
+        label: gigabytes === 0 ? (t('options.mediaCacheLimitNone') || 'No limit') : `${gigabytes} GB`,
+    }));
     const cacheItems = [
         { id: 'playlist' as const, label: t('options.playlistData') || 'Playlist Data', size: cacheSizes.playlist, icon: Layers },
         { id: 'lyrics' as const, label: t('options.lyrics') || 'Lyrics', size: cacheSizes.lyrics, icon: Command },
         { id: 'cover' as const, label: t('options.covers') || 'Covers', size: cacheSizes.cover, icon: Disc3 },
         { id: 'media' as const, label: t('options.mediaFiles') || 'Media Files', size: cacheSizes.media, icon: PlayCircle },
+        { id: 'analysis' as const, label: t('options.analysisData') || 'Analysis Data', size: cacheSizes.analysis, icon: AudioWaveform },
     ];
     const syncConfigDirty = JSON.stringify(syncConfig) !== JSON.stringify(draftSyncConfig);
     const syncConfigured = Boolean(draftSyncConfig.workerBaseUrl.trim() && draftSyncConfig.authToken.trim());
@@ -473,9 +487,33 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                         </div>
                     )}
 
+                    {isElectron && (
+                        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    <HardDrive size={14} />
+                                    {t('options.mediaCacheLimit') || 'Cache Limit'}
+                                </div>
+                                <div className="text-xs opacity-50 max-w-[240px]" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('options.mediaCacheLimitDesc') || 'Once past this, the songs you have not played in longest are dropped first.'}
+                                </div>
+                            </div>
+                            <div className="w-32 shrink-0">
+                                <CustomSelect
+                                    value={String(mediaCacheLimitGb)}
+                                    onChange={(value) => onSetMediaCacheLimitGb(Number(value))}
+                                    options={cacheLimitOptions}
+                                    ariaLabel={t('options.mediaCacheLimit') || 'Cache Limit'}
+                                    isDaylight={isDaylight}
+                                    theme={theme}
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="pt-3 border-t border-white/10 flex justify-between items-center text-xs opacity-50">
                         <span>{t('options.cachedSongsCount') || 'Cached Songs'}:</span>
-                        <span className="font-mono">{mediaCount}</span>
+                        <span className="font-mono">{mediaCount} · {cacheSizes.media}</span>
                     </div>
                 </div>
             </section>

@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+import type { ModExportProgress, ModFfmpegStatus, ModLogEntry, ModRuntimeInfo, ModRuntimeSnapshot } from './mods/types';
+
 declare global {
   const __COMMIT_HASH__: string;
   const __GIT_BRANCH__: string;
@@ -479,8 +481,181 @@ declare global {
     result?: unknown;
   }
 
+  /**
+   * One downloadable as the settings page sees it. `path` is null when it is not installed.
+   *
+   * Not all of them are models: `runtime` is the Python separation runs in, which is a different
+   * archive per platform and unpacks to a directory rather than landing as a file. It is in the
+   * same list because everything the page does with it - size, progress, install, remove - is the
+   * same, and the two differences it does have are the two fields below.
+   */
+  interface ElectronAutomixModelEntry {
+    name: string;
+    /** null on a platform with no build, where there is no archive to name. */
+    file: string | null;
+    bytes: number;
+    /** Which capability this buys: the beat grid, or the stems. */
+    enables: 'beatGrid' | 'stems';
+    license: string;
+    /**
+     * False only for `runtime`, and only where no build exists for this OS and architecture -
+     * today that is Intel Macs. The row is still drawn; it offers no download.
+     */
+    supported: boolean;
+    path: string | null;
+    downloading: boolean;
+  }
+
+  interface ElectronAutomixModelStatus {
+    /**
+     * The netdisk routes, offered only once every mirror has failed. An empty list = not offered.
+     * The extraction code belongs to the link rather than to the block: the two disks have
+     * different ones, and a code shown beside the wrong link is worse than no code.
+     */
+    manual: { links: Array<{ label: string; url: string; code?: string }>; note: string };
+    downloadDir: string;
+    models: ElectronAutomixModelEntry[];
+  }
+
+  /** A verified copy of a model found somewhere on this machine. Matched by hash, not by name. */
+  interface ElectronAutomixModelFound {
+    name: string;
+    file: string;
+    path: string;
+    bytes: number;
+  }
+
+  interface ElectronAutomixModelProgress {
+    name: string;
+    status: 'downloading' | 'ready' | 'failed';
+    received: number;
+    total: number;
+    /** Which mirror is answering, or null before one has been reached. */
+    host: string | null;
+  }
+
+  /** One process's share of a memory sample. Sizes are whole megabytes; see electron/debug/memoryMonitor.cjs. */
+  interface DebugMemoryProcess {
+    pid: number;
+    /** `Browser`, `Tab`, `GPU`, `Utility/folia-analysis` and so on - the type plus its service name. */
+    type: string;
+    workingSetMB: number;
+    /** This process's OWN high-water mark, reached whenever. Never summed across processes. */
+    peakWorkingSetMB: number;
+    /**
+     * Windows via the metrics table, any platform for a process that answered for itself; null
+     * where neither applies (GPU, utility), never 0 as a stand-in.
+     */
+    privateMB: number | null;
+    /** Memory shared with other processes. Self-reported, so renderer and main only. */
+    sharedMB: number | null;
+    /** This process's V8 heap. Self-reported; null for the ones that cannot be asked. */
+    heapMB: number | null;
+    /** Blink's own allocations - DOM, CSS, decoded images. Renderer processes only. */
+    blinkMB: number | null;
+    cpuPercent: number;
+  }
+
+  /** One tick of the memory monitor: the whole app at one instant, plus the session's figures so far. */
+  interface DebugMemorySample {
+    at: string;
+    uptimeSec: number;
+    totalWorkingSetMB: number;
+    totalPrivateMB: number | null;
+    cpuPercent: number;
+    processCount: number;
+    /** Peak / floor / mean of the SIMULTANEOUS total, over this monitoring run. */
+    peakMB: number;
+    floorMB: number;
+    avgMB: number;
+    samples: number;
+    mainHeapUsedMB: number | null;
+    mainHeapTotalMB: number | null;
+    /** The renderer's heap - the one that separates leaked JS objects from native growth. */
+    rendererHeapUsedMB: number | null;
+    /**
+     * The renderer's own private memory. Needs no summing, so unlike `totalPrivateMB` it exists on
+     * every platform - and the renderer is the largest process in this app anyway.
+     */
+    rendererPrivateMB: number | null;
+    systemFreeMB: number | null;
+    systemTotalMB: number | null;
+    processes: DebugMemoryProcess[];
+  }
+
+  /** Whether each log is recording, how it opens its file, and where the files are. */
+  interface DebugModuleState {
+    runtimeLogEnabled: boolean;
+    runtimeLogMode: 'append' | 'overwrite';
+    memoryMonitorEnabled: boolean;
+    memoryLogMode: 'append' | 'overwrite';
+    memoryIntervalMs: number;
+    logsRoot: string;
+    runtimeFile: string | null;
+    memoryFile: string | null;
+  }
+
   interface Window {
     electron?: {
+      webUtils?: {
+        /** Resolves the OS path of a dropped File (File.path was removed in modern Electron). */
+        getPathForFile: (file: File) => string;
+      };
+      /** Beat This! inference in the main process. Null when the weights or runtime are absent. */
+      runBeatThis?: (
+        chunks: Array<{ data: Float32Array; frames: number }>,
+      ) => Promise<{ beat: Float32Array[]; downbeat: Float32Array[] } | null>;
+      /**
+       * htdemucs separation in the main process, for one window of one track at 44.1kHz.
+       * `other` is not returned - it is derived by subtraction so the stems sum to the mix exactly.
+       */
+      separateStems?: (
+        request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> },
+      ) => Promise<Record<
+        'drums' | 'bass' | 'vocals',
+        // Never shared memory: this crosses the IPC boundary by structured clone, which always
+        // reconstitutes a plain ArrayBuffer on this side.
+        { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
+      > | null>;
+      /**
+       * Which model files are on disk, answered without loading them.
+       *
+       * Absent in the browser build, which is why every reader treats a missing function as "no
+       * weights" rather than as "unknown".
+       */
+      getAutomixModelsPresent?: () => Promise<{ beat_this: boolean; htdemucs: boolean }>;
+      chooseModelsDirectory?: () => Promise<{ canceled: boolean }>;
+      resetModelsDirectory?: () => Promise<void>;
+      getAutomixModelStatus?: () => Promise<ElectronAutomixModelStatus>;
+      downloadAutomixModel?: (name: string) => Promise<{ ok: boolean; skipped?: string[]; path?: string }>;
+      cancelAutomixModelDownload?: (name: string) => Promise<boolean>;
+      scanForAutomixModels?: () => Promise<{ found: ElectronAutomixModelFound[]; scanned: number }>;
+      installAutomixModel?: (name: string, source: string) => Promise<{ ok: boolean; reason?: string }>;
+      /**
+       * Deletes every copy of every model the app can reach, plus any `.part` leftovers.
+       * `failed` is non-empty when a copy could not be removed - typically one inside the
+       * installer's own read-only directory, which stays installed and is reported as such.
+       */
+      removeAllAutomixModels?: () => Promise<{
+        ok: boolean;
+        removed: string[];
+        freed: number;
+        failed: Array<{ name: string; reason: string }>;
+      }>;
+      onAutomixModelProgress?: (
+        callback: (progress: ElectronAutomixModelProgress) => void,
+      ) => () => void;
+      /** Developer debug module. Absent in the browser build, where every caller no-ops. */
+      debugGetState?: () => Promise<DebugModuleState>;
+      debugSetState?: (patch: Partial<Pick<DebugModuleState, 'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => Promise<DebugModuleState>;
+      debugOpenLogs?: (which?: 'runtime' | 'memory') => Promise<boolean>;
+      debugWriteRuntimeLines?: (lines: Array<{ at: number; level: string; tag: string | null; text: string }>) => void;
+      /** What this process can say about itself that the metrics table cannot see from outside. */
+      debugRendererMemory?: () => Promise<{ pid: number; privateKB: number; sharedKB: number; blinkAllocatedKB: number } | null>;
+      debugReportRendererMemory?: (report: { pid: number; privateKB?: number; sharedKB?: number; blinkAllocatedKB?: number; heapUsedKB?: number }) => void;
+      onDebugMemorySample?: (callback: (sample: DebugMemorySample) => void) => () => void;
+      /** One-way stage marks from the automix session into the runtime log. */
+      diagMark?: (text: string) => void;
       platform: string;
       isLinuxX11: boolean;
       getSettings: () => Promise<any>;
@@ -501,7 +676,8 @@ declare global {
       onUpdateStatusChanged: (callback: (status: ElectronUpdateStatus) => void) => () => void;
       getAudioCache: (cacheKey: string) => Promise<ElectronAudioCacheEntry>;
       hasAudioCache: (cacheKey: string) => Promise<boolean>;
-      saveAudioCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string) => Promise<boolean>;
+      /** `limitBytes` is the cache ceiling to prune down to afterwards; 0 means no ceiling. */
+      saveAudioCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string, limitBytes?: number) => Promise<boolean>;
       getAudioCacheUsage: () => Promise<number>;
       getAudioCacheStats: () => Promise<ElectronAudioCacheStats>;
       clearAudioCache: () => Promise<boolean>;
@@ -538,6 +714,7 @@ declare global {
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;
       closeWindow: () => Promise<boolean>;
+      quitApp: () => Promise<boolean>;
       isWindowMaximized: () => Promise<boolean>;
       getWindowTransparentMode: () => Promise<boolean>;
       setWindowTransparentMode: (
@@ -613,6 +790,20 @@ declare global {
       onStageExternalPlayRequest: (callback: (request: StageExternalPlayRequest) => void) => () => void;
       onStagePlayerControlRequest: (callback: (request: StagePlayerControlRequest) => void) => () => void;
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;
+      mods?: {
+        listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[] }>;
+        setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;
+        reloadMods: () => Promise<{ mods: ModRuntimeInfo[] }>;
+        cancelExport: () => Promise<{ ok: boolean }>;
+        invokeModCommand: (modId: string, commandId: string, params: Record<string, unknown>) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        pushRuntimeSnapshot: (snapshot: ModRuntimeSnapshot) => Promise<{ ok: boolean }>;
+        getFfmpegStatus: () => Promise<{ ffmpeg: ModFfmpegStatus }>;
+        openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;
+        installModFromZip: (zipPath: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
+        onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
+        onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
+        onModLog: (callback: (entry: ModLogEntry) => void) => () => void;
+      };
     };
   }
 }

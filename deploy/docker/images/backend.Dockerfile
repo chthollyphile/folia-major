@@ -2,7 +2,7 @@ FROM node:24-alpine AS api-builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY api-ts ./api-ts

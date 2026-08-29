@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';
 import type { ThemeMode, DualTheme, LyricData, LyricAlternateText, LyricBackgroundVocal, LyricSyllable } from '../types';
 import { sonnetDebugState, type SonnetDebugShotInfo } from './visualizer/sonnet/sonnetDebug';
+import ConsoleLogPanel from './shared/ConsoleLogPanel';
+import DraggableDebugWindow from './shared/DraggableDebugWindow';
+import { isConsoleCaptureEnabled, subscribeToConsoleLog } from '../utils/consoleLogBuffer';
 
 export interface DevDebugLineSnapshot {
     text: string | null;
@@ -88,6 +91,8 @@ interface DevDebugOverlayProps {
     currentTime: MotionValue<number>;
     lyricCurrentTime: MotionValue<number>;
     isDaylight: boolean;
+    /** The window has a close button now, so the chord is no longer the only way out of it. */
+    onClose: () => void;
 }
 
 interface BrowserHeapMemory {
@@ -600,8 +605,15 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
     currentTime,
     lyricCurrentTime,
     isDaylight,
+    onClose,
 }) => {
-    const [activeTab, setActiveTab] = useState<'memory' | 'playback' | 'lyrics' | 'theme' | 'sonnet'>('memory');
+    // Console first: on the desktop build this overlay is the only console there is, so reading it
+    // is what the shortcut is pressed for.
+    const [activeTab, setActiveTab] = useState<'console' | 'memory' | 'playback' | 'lyrics' | 'theme' | 'sonnet'>('console');
+    // The switch in Settings > Developer governs this whole overlay, not just its Console tab. It
+    // is the debug back room's switch: off means the chord opens nothing at all. Hiding one tab and
+    // leaving the other five was reading the switch as "the log" when it is named for the room.
+    const capturing = useSyncExternalStore(subscribeToConsoleLog, isConsoleCaptureEnabled);
     const [liveCurrentTime, setLiveCurrentTime] = useState(() => currentTime.get());
     const [liveLyricCurrentTime, setLiveLyricCurrentTime] = useState(() => lyricCurrentTime?.get() ?? currentTime.get());
     const [memoryHistory, setMemoryHistory] = useState<MemorySample[]>([]);
@@ -721,34 +733,43 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
         };
     }, [memoryHistory]);
 
-    const shellClass = isDaylight
-        ? 'bg-white/76 text-zinc-900 border border-black/10 shadow-[0_18px_60px_rgba(0,0,0,0.14)]'
-        : 'bg-black/58 text-white border border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.32)]';
     const panelClass = isDaylight
         ? 'rounded-xl border border-black/10 bg-black/[0.04]'
         : 'rounded-xl border border-white/10 bg-black/15';
     const chartBarClass = isDaylight ? 'bg-emerald-600/75' : 'bg-emerald-400/80';
 
+    // Placed after the hooks rather than at the top, because the rule is unconditional hooks, not
+    // unconditional work. The chord still flips its boolean; there is simply nothing behind it.
+    if (!capturing) return null;
+
     return (
-        <aside className="pointer-events-none fixed top-4 right-4 z-[55] w-[min(34rem,calc(100vw-2rem))]">
-            <div
-                className={`pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain rounded-2xl backdrop-blur-2xl px-4 py-3 font-mono ${shellClass}`}
-            >
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <div className="text-[10px] uppercase tracking-[0.24em] opacity-60">Dev Debug Overlay</div>
-                        <div className="mt-1 text-sm font-semibold break-words">{snapshot.songName || 'No Track'}</div>
-                    </div>
-                    <div className="text-[10px] opacity-70 whitespace-nowrap">{snapshot.shortcutLabel}</div>
-                </div>
+        // The shell - drag handle, close button, remembered position, stacking - is shared with the
+        // memory monitor. It used to be pinned to the top-right corner, which is where whatever you
+        // are debugging usually is.
+        <DraggableDebugWindow
+            id="console"
+            title="Dev Debug Overlay"
+            shortcutLabel={snapshot.shortcutLabel}
+            isDaylight={isDaylight}
+            onClose={onClose}
+        >
+            <div>
+                <div className="text-sm font-semibold break-words">{snapshot.songName || 'No Track'}</div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                    <TabButton label="Console" isActive={activeTab === 'console'} onClick={() => setActiveTab('console')} isDaylight={isDaylight} />
                     <TabButton label="Memory" isActive={activeTab === 'memory'} onClick={() => setActiveTab('memory')} isDaylight={isDaylight} />
                     <TabButton label="Playback" isActive={activeTab === 'playback'} onClick={() => setActiveTab('playback')} isDaylight={isDaylight} />
                     <TabButton label="Lyrics" isActive={activeTab === 'lyrics'} onClick={() => setActiveTab('lyrics')} isDaylight={isDaylight} />
                     <TabButton label="Theme" isActive={activeTab === 'theme'} onClick={() => setActiveTab('theme')} isDaylight={isDaylight} />
                     <TabButton label="Sonnet" isActive={activeTab === 'sonnet'} onClick={() => setActiveTab('sonnet')} isDaylight={isDaylight} />
                 </div>
+
+                {activeTab === 'console' && (
+                    <div className="mt-3 grid gap-3">
+                        <ConsoleLogPanel isDaylight={isDaylight} className={panelClass} />
+                    </div>
+                )}
 
                 {activeTab === 'memory' && (
                     <div className="mt-3 grid gap-3">
@@ -975,7 +996,7 @@ const DevDebugOverlay: React.FC<DevDebugOverlayProps> = ({
                     </div>
                 )}
             </div>
-            </aside>
+        </DraggableDebugWindow>
     );
 };
 

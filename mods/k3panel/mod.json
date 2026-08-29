@@ -1,0 +1,11 @@
+{
+  "id": "k3panel",
+  "name": "K3Panel 商籁深度精调",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "author": "Folia Mod Samples",
+  "description": "面向商籁（sonnet）动画的深度精调面板，暴露原版设置未提供的相机、逐字运动、视差、转场等参数，拖动实时生效。",
+  "entry": "index.cjs",
+  "depends": [],
+  "permissions": []
+}

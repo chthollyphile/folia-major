@@ -1535,6 +1535,29 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
     return null;
 }
 
+/**
+ * The local file's raw bytes, for callers that need the audio itself rather than a URL to it.
+ *
+ * Automix separation is the caller: it must not mint a blob URL only to read it once and then have to
+ * revoke it, and a local file never enters the online media cache, so its bytes are reachable only
+ * from its own handle. Mirrors getAudioFromLocalSong's resolution (accessible handle, else a recover)
+ * but returns the ArrayBuffer. Null when no handle can be reached - permission not restored, or moved.
+ */
+export async function getLocalSongArrayBuffer(song: LocalSong): Promise<ArrayBuffer | null> {
+    const fileHandle = await getAccessibleFileHandle(song);
+    if (!fileHandle) {
+        console.warn(`[LocalMusic] No accessible handle for song ${song.id} (automix bytes)`);
+        return null;
+    }
+    try {
+        return await (await fileHandle.getFile()).arrayBuffer();
+    } catch (error) {
+        console.error('[LocalMusic] Failed to read local bytes:', error);
+        fileHandleMap.delete(song.id);
+        return null;
+    }
+}
+
 // Extracts and persists one song's embedded cover after an explicit playback-time request.
 async function extractAndPersistSongCover(
     song: LocalSong,

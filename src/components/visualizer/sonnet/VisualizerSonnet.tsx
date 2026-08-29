@@ -7,6 +7,7 @@ import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fo
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import type { VisualizerSharedProps } from '../definition';
 import { useVisualizerRuntime } from '../runtime';
+import { useModVisualizerModulation } from '@/mods/visualizerModulation';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import type { SonnetPixiRuntime, SonnetSongMetadata } from './createSonnetPixiRuntime';
@@ -45,6 +46,9 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     } = props;
     const transparentBackground = background?.transparent ?? false;
     const { t } = useTranslation();
+    // Mod-driven per-frame multipliers (K3Panel etc.). Read once per render; the
+    // runtime hot-swaps them via setModulation so the Pixi context is never rebuilt.
+    const modulation = useModVisualizerModulation('sonnet');
     const hostRef = useRef<HTMLDivElement>(null);
     const runtimeRef = useRef<SonnetPixiRuntime | null>(null);
     const pausedRef = useRef(paused);
@@ -146,6 +150,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                     songArtist: metadata.artist,
                     songAlbum: metadata.album,
                     signal: abortController.signal,
+                    modulation,
                 });
             })
             .then(runtime => {
@@ -193,6 +198,10 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     useEffect(() => {
         runtimeRef.current?.setPaused(paused);
     }, [paused]);
+
+    useEffect(() => {
+        runtimeRef.current?.setModulation(modulation);
+    }, [modulation]);
 
     useEffect(() => currentTime.on('change', () => {
         if (paused) runtimeRef.current?.renderOnce();

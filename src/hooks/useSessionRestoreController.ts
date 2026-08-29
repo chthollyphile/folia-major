@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { getFromCache, getLocalSongs } from '../services/db';
 import { getLocalLibraryCatalogSnapshot } from '../services/localLibraryEntityRepository';
 import { buildLocalQueue } from '../services/playbackAdapters';
+import { prefetchNearbySongs } from '../services/prefetchService';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
@@ -153,6 +154,13 @@ export function useSessionRestoreController({
                 } catch (error) {
                     console.warn('Failed to restore audio/lyrics for last session', error);
                 }
+
+                // Restoring a session sets up the current song and stops, so until the listener
+                // changes track nothing around it has been fetched: the next song's URL and lyrics
+                // are cold, and neither track has been measured for automix. That makes the first
+                // song change of every session the slowest one and the only one that blends blind.
+                // Every other entry into playback prefetches; this one was simply never wired to.
+                void prefetchNearbySongs(lastSong, lastQueue || [lastSong], audioQuality, userId);
             } catch (error) {
                 console.error('Session restore failed', error);
             }

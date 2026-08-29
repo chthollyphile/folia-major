@@ -58,6 +58,10 @@ description: Use when adding, changing, refactoring, or reviewing user-facing se
 
 新增设置子视图时，至少添加一个能打开该子视图的 settings command；新增开关或动作时，添加能直接执行的命令，除非该操作危险、不可撤销或需要复杂确认（例如开启桌面端 Acrylic 效果需弹窗确认防护）。
 
+例外：开发者设置子视图（`SettingsModal.tsx` 的 `developer` 导航项）刻意不提供命令入口，因此也不在 `SettingsSubviewId` 里。它面向的是排查问题时的手动操作，不属于日常功能性设置；`openSettings(tab, 'developer')` 不可用是预期行为，不要按上面这条补命令。
+
+`isAvailable` 必须与设置 UI 用同一个判断，不要在命令里重新推导一遍能力检测。反例：`transition-performance-toggle` 曾只按 `platform: ['electron']` 过滤，而设置面板是按 `transitionCapabilities().stems` 置灰，命令因此能把开关持久化成面板不允许产生的状态。需要新的能力判断时，经 `buildCommandPaletteContext` 透出；结果会随运行时变化（例如模型下载完成）的，用函数而不是快照值。
+
 ## Settings UI Placement
 
 设置 UI 采用分栏导航结构（`SettingsModal.tsx`），优先放在现有分区：

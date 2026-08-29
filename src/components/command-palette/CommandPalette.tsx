@@ -6,6 +6,7 @@ import type { Theme } from '../../types';
 import type { CommandPaletteContext, CommandPaletteMatch, CommandPaletteCommand } from './types';
 import type { CommandPaletteSurface, CommandSurfaceRenderArgs } from './surfaces/types';
 import { getCommandDescription, getCommandTitle } from './commandText';
+import { isTextEntryTarget } from './useCommandPalette';
 import PinnedCommandRow from './PinnedCommandRow';
 
 // src/components/command-palette/CommandPalette.tsx
@@ -174,7 +175,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                 return;
             }
 
-            if (event.key === 'Backspace' && query === '' && activeCommand) {
+            if (event.key === 'Backspace' && query === '' && activeCommand && !isTextEntryTarget(event.target)) {
                 event.preventDefault();
                 const firstKw = activeCommand.keywords[0] || '';
                 onActiveCommandChange(null);

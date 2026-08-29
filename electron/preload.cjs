@@ -1,6 +1,73 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
+    webUtils: {
+      // File.path was removed in modern Electron; this is the supported way to
+      // resolve the OS path of a dropped file from the renderer.
+      getPathForFile: (file) => webUtils.getPathForFile(file),
+    },
+    // Beat This! inference. Returns null whenever the weights or the runtime are not there,
+    // which is the browser build's permanent answer and any desktop install missing the model.
+    runBeatThis: (chunks) => ipcRenderer.invoke('automix-beat-this', chunks),
+    separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
+    // Which weights exist, answered without loading them. See the handler for why the settings page
+    // is not allowed to infer this from "am I running in Electron".
+    getAutomixModelsPresent: () => ipcRenderer.invoke('automix-models-present'),
+    // One-way stage marks from the automix session into the runtime log. See services/automix/diag.ts.
+    diagMark: (text) => ipcRenderer.send('automix-diag', text),
+    // Developer debug module: the runtime log and the memory monitor. See electron/debug/debugHost.cjs.
+    debugGetState: () => ipcRenderer.invoke('debug-get-state'),
+    debugSetState: (patch) => ipcRenderer.invoke('debug-set-state', patch),
+    debugOpenLogs: (which) => ipcRenderer.invoke('debug-open-logs', which),
+    // Batched by the caller - one message per line would cost more than the logging it records.
+    debugWriteRuntimeLines: (lines) => ipcRenderer.send('debug-runtime-lines', lines),
+    /**
+     * What only this process can answer about itself.
+     *
+     * `app.getAppMetrics()` reports `privateBytes` on Windows and nowhere else - it is guarded
+     * `#if IS_WIN` in Chromium. `ProcessMemoryInfo.private` has no such guard, and on macOS the
+     * docs say it is the MORE meaningful of the two figures, because in-memory page compression
+     * makes the resident set there smaller than the memory actually in use. The catch is that it
+     * only ever describes the calling process, which is why this is asked of the renderer rather
+     * than read off the metrics table.
+     */
+    debugRendererMemory: async () => {
+        try {
+            const memory = await process.getProcessMemoryInfo();
+            const blink = process.getBlinkMemoryInfo();
+            return {
+                pid: process.pid,
+                privateKB: memory.private,
+                sharedKB: memory.shared,
+                blinkAllocatedKB: blink.allocated,
+            };
+        } catch {
+            return null;
+        }
+    },
+    debugReportRendererMemory: (report) => ipcRenderer.send('debug-renderer-memory', report),
+    onDebugMemorySample: (callback) => {
+        const listener = (_event, sample) => callback(sample);
+        ipcRenderer.on('debug-memory-sample', listener);
+        return () => ipcRenderer.removeListener('debug-memory-sample', listener);
+    },
+    // Where the weights are kept. The settings page reads the live location off the model status;
+    // these two only change it.
+    chooseModelsDirectory: () => ipcRenderer.invoke('choose-models-directory'),
+    resetModelsDirectory: () => ipcRenderer.invoke('reset-models-directory'),
+    // Getting the weights onto this machine: over the network, off a file already here, or by
+    // pointing at one. All three end at the same verified file - see analysis/modelStore.cjs.
+    getAutomixModelStatus: () => ipcRenderer.invoke('automix-model-status'),
+    downloadAutomixModel: (name) => ipcRenderer.invoke('automix-model-download', name),
+    cancelAutomixModelDownload: (name) => ipcRenderer.invoke('automix-model-cancel', name),
+    scanForAutomixModels: () => ipcRenderer.invoke('automix-model-scan'),
+    installAutomixModel: (name, source) => ipcRenderer.invoke('automix-model-install', name, source),
+    removeAllAutomixModels: () => ipcRenderer.invoke('automix-model-remove-all'),
+    onAutomixModelProgress: (callback) => {
+        const listener = (_event, progress) => callback(progress);
+        ipcRenderer.on('automix-model-progress', listener);
+        return () => ipcRenderer.removeListener('automix-model-progress', listener);
+    },
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,
     getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -29,7 +96,7 @@ contextBridge.exposeInMainWorld('electron', {
     },
     getAudioCache: (cacheKey) => ipcRenderer.invoke('get-audio-cache', cacheKey),
     hasAudioCache: (cacheKey) => ipcRenderer.invoke('has-audio-cache', cacheKey),
-    saveAudioCache: (cacheKey, data, mimeType) => ipcRenderer.invoke('save-audio-cache', cacheKey, data, mimeType),
+    saveAudioCache: (cacheKey, data, mimeType, limitBytes) => ipcRenderer.invoke('save-audio-cache', cacheKey, data, mimeType, limitBytes),
     getAudioCacheUsage: () => ipcRenderer.invoke('get-audio-cache-usage'),
     getAudioCacheStats: () => ipcRenderer.invoke('get-audio-cache-stats'),
     clearAudioCache: () => ipcRenderer.invoke('clear-audio-cache'),
@@ -64,6 +131,7 @@ contextBridge.exposeInMainWorld('electron', {
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     toggleFullscreenWindow: () => ipcRenderer.invoke('window-toggle-fullscreen'),
     closeWindow: () => ipcRenderer.invoke('window-close'),
+    quitApp: () => ipcRenderer.invoke('app-quit'),
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     getWindowTransparentMode: () => ipcRenderer.invoke('window-get-transparent-mode'),
     setWindowTransparentMode: (enabled, handoff) => ipcRenderer.invoke('window-set-transparent-mode', enabled, handoff),
@@ -187,4 +255,30 @@ contextBridge.exposeInMainWorld('electron', {
         return () => ipcRenderer.removeListener('stage-player-queue-request', listener);
     },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
+    mods: {
+        listMods: () => ipcRenderer.invoke('folia-mods:list'),
+        setModEnabled: (modId, enabled) => ipcRenderer.invoke('folia-mods:set-enabled', modId, enabled),
+        reloadMods: () => ipcRenderer.invoke('folia-mods:reload'),
+        invokeModCommand: (modId, commandId, params) => ipcRenderer.invoke('folia-mods:invoke', modId, commandId, params),
+        cancelExport: () => ipcRenderer.invoke('folia-mods:export-cancel'),
+        pushRuntimeSnapshot: (snapshot) => ipcRenderer.invoke('folia-mods:push-runtime-snapshot', snapshot),
+        getFfmpegStatus: () => ipcRenderer.invoke('folia-mods:ffmpeg-status'),
+        openModsDirectory: () => ipcRenderer.invoke('folia-mods:open-directory'),
+        installModFromZip: (zipPath) => ipcRenderer.invoke('folia-mods:install-zip', zipPath),
+        onModsStateChanged: (callback) => {
+            const listener = (_event, mods) => callback(mods);
+            ipcRenderer.on('folia-mods:state-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:state-changed', listener);
+        },
+        onExportProgress: (callback) => {
+            const listener = (_event, progress) => callback(progress);
+            ipcRenderer.on('folia-mods:export-progress', listener);
+            return () => ipcRenderer.removeListener('folia-mods:export-progress', listener);
+        },
+        onModLog: (callback) => {
+            const listener = (_event, entry) => callback(entry);
+            ipcRenderer.on('folia-mods:log', listener);
+            return () => ipcRenderer.removeListener('folia-mods:log', listener);
+        },
+    },
 });

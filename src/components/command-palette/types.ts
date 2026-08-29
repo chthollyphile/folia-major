@@ -2,12 +2,13 @@ import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
-import type { HomeViewTab, LatentBackgroundTuning, LocalSong, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
+import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { SettingsModalInitialTab, SettingsSubviewId } from '../../stores/useSettingsUiStore';
 import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
+import type { TransitionMode } from '../../services/automix/transitionStrategy';
 import type { PersonalFmSelection } from '../../services/onlineMusic/fmModes';
 import type { QueueBatchAction, QueueFacetKind } from './queueQuery';
 import type { CommandPlatform } from './availability';
@@ -66,6 +67,19 @@ export type CommandPaletteSharedContext = {
     t: (key: string, fallback?: string) => string;
     setStatusMsg: React.Dispatch<React.SetStateAction<StatusMessage | null>>;
     currentSong: SongResult | null;
+    /**
+     * The lyrics currently on screen (the automix transition display included),
+     * so a surface that needs them gets what the player renders rather than
+     * having to rebuild them from the song's stored lyric state.
+     */
+    lyrics: LyricData | null;
+    /**
+     * The transport as the listener hears it, not the raw one.
+     *
+     * An armed transition drops the raw state to IDLE while the outgoing deck keeps playing, so the
+     * commands below have to be given the same corrected state the main controls, the remote and the
+     * taskbar are given. Reading the raw one made Play pause and Pause do nothing for the whole arm.
+     */
     playerState: PlayerState;
 };
 
@@ -143,9 +157,18 @@ export type CommandPaletteSettingsContext = {
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     voiceInputPauseSupported: boolean;
+    /** Lab switch for the experimental mod system; gates the `mods` command. */
+    modSystemEnabled: boolean;
     toggleVoiceInputPause: () => void;
     togglePreventDisplaySleepDuringPlayback: () => void;
     toggleWallpaperMode: () => void;
+    sleepTimerEnabled: boolean;
+    setSleepTimerEnabled: (enabled: boolean) => void;
+    sleepTimerHours: number;
+    setSleepTimerHours: (hours: number) => void;
+    sleepTimerMinutes: number;
+    setSleepTimerMinutes: (minutes: number) => void;
+    sleepTimerDeadlineMs: number | null;
     canGenerateAITheme: boolean;
     isGeneratingTheme: boolean;
     generateAITheme: () => void;
@@ -153,6 +176,23 @@ export type CommandPaletteSettingsContext = {
     canOpenThemeQuickEditor: boolean;
     themeGenerationSource: ThemeGenerationSource;
     setThemeGenerationSource: (source: ThemeGenerationSource) => void;
+    /** The FOLIA smart-transition switches, stated in each command's title the way the pickers do. */
+    automixEnabled: boolean;
+    transitionMode: TransitionMode;
+    transitionPerformance: boolean;
+    toggleAutomix: () => void;
+    setTransitionMode: (mode: TransitionMode) => void;
+    toggleTransitionPerformance: () => void;
+    /**
+     * Whether performance mode has anything to run on - the same `capabilities.stems` the settings
+     * panel disables its switch by.
+     *
+     * A function rather than a value because the answer changes when a model download finishes, and
+     * nothing re-renders the app to say so. `isAvailable` is asked each time the palette opens, so a
+     * getter is read fresh; a snapshot taken when this context was memoised would keep saying "no
+     * model" for the rest of the session.
+     */
+    canUseTransitionPerformance: () => boolean;
 };
 
 export type CommandPaletteVisualizerContext = {

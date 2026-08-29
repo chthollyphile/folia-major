@@ -64,6 +64,8 @@ export interface SonnetRuntimeOptions {
     songArtist?: string | null;
     songAlbum?: string | null;
     signal?: AbortSignal;
+    /** Mod-driven per-frame multipliers (e.g. `{ cameraScale: 1.4 }`). Defaults to 1 = no change. */
+    modulation?: Record<string, number>;
 }
 
 export class SonnetPixiRuntime {
@@ -341,8 +343,8 @@ export class SonnetPixiRuntime {
 
     private updateShot(view: ShotView, time: number, width: number, height: number, shakeIntensity: number) {
         const progress = resolveShotProgress(view.shot, time);
-        const motion = this.options.tuning.typographyMotion * resolveSonnetAnimationScale(this.options.theme);
-        const camera = this.options.tuning.cameraIntensity * resolveSonnetAnimationScale(this.options.theme);
+        const motion = this.options.tuning.typographyMotion * resolveSonnetAnimationScale(this.options.theme) * this.mod('motionScale');
+        const camera = this.options.tuning.cameraIntensity * resolveSonnetAnimationScale(this.options.theme) * this.mod('cameraScale');
         const cameraFrame = resolveShotMotionFrame(view.shot.kind, progress);
 
         // Add a slow continuous pan during the time gap to prevent the scene from looking frozen
@@ -359,7 +361,7 @@ export class SonnetPixiRuntime {
             // speed = 0.8 means it takes 1.25 seconds of gap to drift the same distance 
             // the camera covered in the last 20% of the shot.
             const maxDrift = 2.0;
-            const driftSpeed = (1 - Math.exp(-gapTime * 0.4)) * maxDrift;
+            const driftSpeed = (1 - Math.exp(-gapTime * 0.4)) * maxDrift * this.mod('driftScale');
             cameraFrame.x += dx * driftSpeed;
             cameraFrame.y += dy * driftSpeed;
             cameraFrame.scale += dScale * driftSpeed;
@@ -382,10 +384,11 @@ export class SonnetPixiRuntime {
         if (breathWeight > 0) {
             const breathPhase = (hashSonnetSeed(view.shot.id) % 1024) / 1024 * Math.PI * 2;
             const breath = resolveSonnetCameraBreath(time, breathPhase);
-            cameraFrame.x += breath.x * breathWeight;
-            cameraFrame.y += breath.y * breathWeight;
-            cameraFrame.scale += breath.scale * breathWeight;
-            cameraFrame.rotation += breath.rotation * breathWeight;
+            const breathScale = this.mod('breathScale');
+            cameraFrame.x += breath.x * breathWeight * breathScale;
+            cameraFrame.y += breath.y * breathWeight * breathScale;
+            cameraFrame.scale += breath.scale * breathWeight * breathScale;
+            cameraFrame.rotation += breath.rotation * breathWeight * breathScale;
         }
 
         let currentFocusX = view.basePivotX;
@@ -439,12 +442,12 @@ export class SonnetPixiRuntime {
 
         if (view.mgParticleLayer) {
             // Create a slight time-difference/parallax effect for decorative elements
-            const particleParallaxX = (cameraFrame.x * width + shake.x * width) * camera * 0.4;
-            const particleParallaxY = (cameraFrame.y * height + shake.y * height) * camera * 0.4;
+            const particleParallaxX = (cameraFrame.x * width + shake.x * width) * camera * 0.4 * this.mod('parallaxScale');
+            const particleParallaxY = (cameraFrame.y * height + shake.y * height) * camera * 0.4 * this.mod('parallaxScale');
             view.mgParticleLayer.position.set(particleParallaxX, particleParallaxY);
             
             // Continuous independent rotation based on shot time
-            view.mgParticleLayer.rotation = (time - view.shot.startTime) * 0.05;
+            view.mgParticleLayer.rotation = (time - view.shot.startTime) * 0.05 * this.mod('mgSwimScale');
             // Slower scale response creates depth illusion
             view.mgParticleLayer.scale.set(1 + (cameraFrame.scale - 1) * 0.3);
         }
@@ -525,11 +528,12 @@ export class SonnetPixiRuntime {
 
                 // Simulated Parallax 3D effect
                 const depth = glyph.zDepth || 0;
+                const parallaxScale = this.mod('parallaxScale');
                 // Move faster/slower than camera
-                const parallaxX = (cameraFrame.x * width + shake.x * width) * camera * depth * 2.5;
-                const parallaxY = (cameraFrame.y * height + shake.y * height) * camera * depth * 2.5;
+                const parallaxX = (cameraFrame.x * width + shake.x * width) * camera * depth * 2.5 * parallaxScale;
+                const parallaxY = (cameraFrame.y * height + shake.y * height) * camera * depth * 2.5 * parallaxScale;
                 // Scale larger if closer to camera (positive depth)
-                const depthScale = 1 + depth * 0.45;
+                const depthScale = 1 + depth * 0.45 * parallaxScale;
 
                 glyph.display.alpha = coreAlpha;
                 glyph.display.visible = glyphVisible;
@@ -549,7 +553,7 @@ export class SonnetPixiRuntime {
                     glyph.caRed.visible = glyphVisible && !this.options.tuning.showOnlyText;
                     // Starts separated (impact), and gently merges to a very subtle base offset
                     const mergeEased = easeSonnetInOut(glyphProgress);
-                    const currentOffset = glyph.caOffset * (1 - mergeEased * 0.8); // 1.0 -> 0.2
+                    const currentOffset = glyph.caOffset * (1 - mergeEased * 0.8) * this.mod('caScale'); // 1.0 -> 0.2
 
                     glyph.caCyan.position.set(-currentOffset, currentOffset * 0.5);
                     glyph.caRed.position.set(currentOffset, -currentOffset * 0.5);
@@ -564,7 +568,7 @@ export class SonnetPixiRuntime {
                     const envelope = ghostProgress <= 0.2
                         ? ghostProgress / 0.2
                         : Math.pow(1 - (ghostProgress - 0.2) / 0.8, 2);
-                    const spread = 1 - Math.pow(1 - ghostProgress, 3);
+                    const spread = (1 - Math.pow(1 - ghostProgress, 3)) * this.mod('ghostScale');
                     for (const ghost of glyph.ghosts) {
                         ghost.node.visible = ghostActive;
                         if (!ghostActive) continue;
@@ -678,20 +682,23 @@ export class SonnetPixiRuntime {
 
             const isFinalScene = index === this.options.program.paragraphs.length - 1;
             const lyricAlpha = isFinalScene && hasCredits ? creditsFrame.lyricAlpha : 1;
+            const transitionMotionScale = this.mod('transitionMotionScale');
+            const transitionBlurScale = this.mod('transitionBlurScale');
+            const transitionGlitchScale = this.mod('transitionGlitchScale');
             scene.container.alpha = transitionFrame.alpha * lyricAlpha;
             scene.container.pivot.set(width / 2, height / 2);
             scene.container.position.set(
-                width / 2 + transitionFrame.x * width,
-                height / 2 + transitionFrame.y * height,
+                width / 2 + transitionFrame.x * width * transitionMotionScale,
+                height / 2 + transitionFrame.y * height * transitionMotionScale,
             );
-            scene.container.scale.set(transitionFrame.scale);
-            scene.container.rotation = transitionFrame.rotation;
+            scene.container.scale.set(1 + (transitionFrame.scale - 1) * transitionMotionScale);
+            scene.container.rotation = transitionFrame.rotation * transitionMotionScale;
             if (scene.transitionBlurFilter) {
-                scene.transitionBlurFilter.strength = transitionFrame.blur;
+                scene.transitionBlurFilter.strength = transitionFrame.blur * transitionBlurScale;
                 scene.transitionBlurFilter.enabled = transitionFrame.blur > 0.01;
             }
             if (scene.transitionGlitchEffect) {
-                scene.transitionGlitchEffect.update(transitionFrame.glitch, transitionFrame.glitchSeed);
+                scene.transitionGlitchEffect.update(transitionFrame.glitch * transitionGlitchScale, transitionFrame.glitchSeed);
                 scene.transitionGlitchEffect.filter.enabled = transitionFrame.glitch > 0.01;
             }
 
@@ -715,6 +722,19 @@ export class SonnetPixiRuntime {
         this.renderFrame();
         if (this.destroyed) return;
         this.app.renderer.render(this.app.stage);
+    }
+
+    /** Reads a mod modulation key, falling back to 1 so the frame is unchanged when absent. */
+    private mod(key: string): number {
+        const value = this.options.modulation?.[key];
+        return typeof value === 'number' && Number.isFinite(value) ? value : 1;
+    }
+
+    /** Hot-swaps the modulation map every time a mod slider moves, without recreating the Pixi context. */
+    setModulation(modulation: Record<string, number>) {
+        if (this.destroyed) return;
+        this.options.modulation = modulation;
+        if (this.options.paused) this.renderOnce();
     }
 
     setPaused(paused: boolean) {

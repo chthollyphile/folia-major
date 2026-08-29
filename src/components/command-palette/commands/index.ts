@@ -5,6 +5,7 @@ import { playbackCommands } from './playbackCommands';
 import { settingsCommands } from './settingsCommands';
 import { navigationCommands } from './navigationCommands';
 import { panelCommands } from './panelCommands';
+import { modsCommands } from './modsCommands';
 import { visualizerCommands } from './visualizerCommands';
 
 // src/components/command-palette/commands/index.ts
@@ -47,6 +48,7 @@ export const ALL_COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = assertExecu
     ...settingsCommands,
     ...navigationCommands,
     ...panelCommands,
+    ...modsCommands,
     ...visualizerCommands,
 ])));
 

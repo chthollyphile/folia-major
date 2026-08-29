@@ -31,7 +31,6 @@ export const resolvePlayerEscapeAction = ({
 };
 
 type UsePlaybackInteractionBridgeParams = {
-    isDev: boolean;
     currentSong: SongResult | null;
     currentView: string;
     audioSrc: string | null;
@@ -44,6 +43,26 @@ type UsePlaybackInteractionBridgeParams = {
     duration: number;
     currentTime: MotionValue<number>;
     audioRef: React.RefObject<HTMLAudioElement | null>;
+    /**
+     * Whether an automix blend is sounding, which settles play-vs-pause on its own.
+     *
+     * `audioRef` is the ACTIVE deck, and mid-blend that is the track ARRIVING - silent for the whole
+     * lead while it loads, and `ended` on the outgoing deck by the tail end of the fade. Either way
+     * the element reads "not playing", so pressing pause was taken for "start it": the blend was
+     * dropped and the next song jumped straight in. There is no such thing as a paused blend to
+     * toggle out of - every pause path cancels one - so an audible blend can only mean pause.
+     */
+    isTransitionAudible?: () => boolean;
+    /**
+     * Takes a seek that lands during a blend, returning true when it did.
+     *
+     * Mid-blend `audioRef` is the incoming deck: writing to it moves a track the listener cannot
+     * hear yet, while the bar they are watching belongs to the outgoing one. The same port the
+     * progress bar and the remote use, so all three land on the same deck. Returns false outside a
+     * blend, and the ordinary write below runs - deliberately not the bar's whole seek, which
+     * resumes a paused deck; an arrow key on a paused track has always left it paused.
+     */
+    seekDuringTransition?: (time: number) => boolean;
     stageLyricsClockRef: React.MutableRefObject<{
         startTimeSec: number;
         endTimeSec: number;
@@ -51,6 +70,7 @@ type UsePlaybackInteractionBridgeParams = {
         startedAtMs: number | null;
     }>;
     setIsDevDebugOverlayVisible: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsMemoryMonitorVisible: React.Dispatch<React.SetStateAction<boolean>>;
     cyclePlayerChromeVisibilityMode: () => void;
     setIsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setReplayGainMode: React.Dispatch<React.SetStateAction<ReplayGainMode>>;
@@ -66,7 +86,6 @@ type UsePlaybackInteractionBridgeParams = {
 
 // Bridges playback-related keyboard and click interactions without leaving them inline in App.tsx.
 export function usePlaybackInteractionBridge({
-    isDev,
     currentSong,
     currentView,
     audioSrc,
@@ -79,8 +98,11 @@ export function usePlaybackInteractionBridge({
     duration,
     currentTime,
     audioRef,
+    isTransitionAudible,
+    seekDuringTransition,
     stageLyricsClockRef,
     setIsDevDebugOverlayVisible,
+    setIsMemoryMonitorVisible,
     cyclePlayerChromeVisibilityMode,
     setIsPanelOpen,
     setReplayGainMode,
@@ -133,6 +155,11 @@ export function usePlaybackInteractionBridge({
             return;
         }
 
+        if (isTransitionAudible?.()) {
+            pausePlayback();
+            return;
+        }
+
         if (audioRef.current) {
             if (!audioRef.current.paused && !audioRef.current.ended) {
                 pausePlayback();
@@ -140,7 +167,7 @@ export function usePlaybackInteractionBridge({
                 startPlaybackFromInteraction();
             }
         }
-    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, pausePlayback, playerState, startPlaybackFromInteraction, stageActiveEntryKind]);
+    }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, isTransitionAudible, pausePlayback, playerState, startPlaybackFromInteraction, stageActiveEntryKind]);
 
     const toggleLoop = useCallback((event?: React.MouseEvent) => {
         event?.stopPropagation();
@@ -191,9 +218,21 @@ export function usePlaybackInteractionBridge({
                 document.querySelector('[data-folia-keyboard-window="true"]')
             );
 
-            if (isDev && event.altKey && event.shiftKey && event.code === 'KeyD') {
+            // Not gated on dev: the packaged desktop build has no DevTools to fall back on - the
+            // window is frameless, so there is no menu to toggle them from and they only open
+            // automatically under ELECTRON_DEV. This chord is the only console it has.
+            if (event.altKey && event.shiftKey && event.code === 'KeyD') {
                 event.preventDefault();
                 setIsDevDebugOverlayVisible(prev => !prev);
+                return;
+            }
+
+            // Its own window rather than a tab of the one above: the two are read together - a heap
+            // that is flat while the working set climbs is the whole diagnosis - and a tab makes
+            // that comparison impossible.
+            if (event.altKey && event.shiftKey && event.code === 'KeyM') {
+                event.preventDefault();
+                setIsMemoryMonitorVisible(prev => !prev);
                 return;
             }
 
@@ -251,9 +290,13 @@ export function usePlaybackInteractionBridge({
                         const nextTime = Math.max(stageLyricsClockRef.current.startTimeSec, currentTime.get() - 5);
                         syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                         currentTime.set(nextTime);
-                    } else if (audioRef.current) {
-                        const nextTime = Math.max(0, audioRef.current.currentTime - 5);
-                        audioRef.current.currentTime = nextTime;
+                    } else {
+                        // Off the motion value, not the element: during a blend that value is driven
+                        // by the deck on screen, which is the track this key is meant to move.
+                        const nextTime = Math.max(0, currentTime.get() - 5);
+                        if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                            audioRef.current.currentTime = nextTime;
+                        }
                     }
                     break;
                 case 'ArrowRight':
@@ -282,9 +325,14 @@ export function usePlaybackInteractionBridge({
                         const nextTime = Math.min(duration, currentTime.get() + 5);
                         syncStageLyricsClock(nextTime, duration, playerState, stageLyricsClockRef.current.startTimeSec);
                         currentTime.set(nextTime);
-                    } else if (audioRef.current) {
-                        const nextTime = Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + 5);
-                        audioRef.current.currentTime = nextTime;
+                    } else {
+                        // `duration` rather than the element's own, for the same reason: mid-blend
+                        // the element holds the ARRIVING track's length, and clamping this track's
+                        // position against it lands past its end.
+                        const nextTime = Math.min(duration || 0, currentTime.get() + 5);
+                        if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                            audioRef.current.currentTime = nextTime;
+                        }
                     }
                     break;
                 case 'KeyH':
@@ -314,7 +362,6 @@ export function usePlaybackInteractionBridge({
         duration,
         handleNextTrack,
         handlePrevTrack,
-        isDev,
         isNowPlayingStageActive,
         isPanelOpen,
         navigateBackFromPlayer,
@@ -322,8 +369,10 @@ export function usePlaybackInteractionBridge({
         playerState,
         resumePlayback,
         setIsDevDebugOverlayVisible,
+        setIsMemoryMonitorVisible,
         setIsPanelOpen,
         cyclePlayerChromeVisibilityMode,
+        seekDuringTransition,
         stageActiveEntryKind,
         stageLyricsClockRef,
         syncStageLyricsClock,

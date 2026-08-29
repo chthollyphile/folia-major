@@ -1,0 +1,11 @@
+{
+  "id": "transparent-mov-export",
+  "name": "透明 MOV 歌词动画导出",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "author": "Folia Mod Samples",
+  "description": "将当前歌曲的歌词动画渲染为带透明背景（Alpha 通道）的 MOV 视频。",
+  "entry": "index.cjs",
+  "depends": [],
+  "permissions": ["render.export", "runtime.playback"]
+}

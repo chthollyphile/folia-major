@@ -253,6 +253,7 @@ vercel dev
 | visualizer 预览和设置面板 | `src/components/visualizer/VisPlayground.tsx`、`src/components/visualizer/VisPlaygroundSettingsPanel.tsx` |
 | visualizer 模式实现 | `src/components/visualizer/<mode>/*` |
 | 歌词解析和渲染提示 | `src/utils/lyrics/*` |
+| 智能过渡（混音过渡开关背后的全部实现） | `src/services/automix/*`，先读该目录的 `README.md` |
 | 本地音乐、Navidrome、网易云服务 | `src/services/*` |
 | 共享类型和默认 tuning | `src/types.ts` |
 

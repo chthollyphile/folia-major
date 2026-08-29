@@ -17,6 +17,7 @@ import {
     getDioramaTextPlacement,
     getFrame,
     resolveCameraDrift,
+    resolveHoldSettle,
     resolveReadHeadTruck,
     resolveShotOffset,
     smoothDamp,
@@ -239,9 +240,14 @@ const CameraRig: React.FC<CameraRigProps> = ({
         const U = frame.up;
         const F = frame.forward;
 
+        // A shot held far past its line resolves back to a clean frame on the lyric it is showing (see
+        // resolveHoldSettle): the excursion, the truck and the look offset all release together, so an
+        // instrumental gets one slow settling move instead of a frozen pose with the line off the edge.
+        const settle = line ? resolveHoldSettle(now - getLineRenderEndTime(line)) : 1;
+
         // Read-head = the line's ACTUAL text position (path anchor + placement offsets) + the lateral
         // truck that follows the sung word.
-        const truck = resolveReadHeadTruck(wordProgress, activeLineWidthRef.current, visibleHalf);
+        const truck = resolveReadHeadTruck(wordProgress, activeLineWidthRef.current, visibleHalf) * settle;
         const headR = placement.offsetR + truck;
         const headU = placement.offsetU;
         const baseX = frame.position.x + R.x * headR + U.x * headU;
@@ -258,7 +264,8 @@ const CameraRig: React.FC<CameraRigProps> = ({
             lift: DIORAMA_CAMERA_LIFT,
             seed: shotSeed,
             lineIndex: resolved?.localIndex ?? 0,
-            moveScale: motion.moveScale,
+            // moveScale IS the excursion away from the neutral trailing pose, so the settle rides it.
+            moveScale: motion.moveScale * settle,
         });
         const drift = resolveCameraDrift(now, shotSeed, motion.driftScale);
         const offRight = shot.right + drift.swayX;
@@ -332,9 +339,10 @@ const CameraRig: React.FC<CameraRigProps> = ({
         // Aim beside the read-head by the line's compositional look offset (rule-of-thirds framing: the
         // text sits off-centre, the formation fills the rest), SmoothDamped the same way so the look flows
         // with the camera. During a flight the aim also SWEEPS sideways (a graceful mid-flight reframe).
-        const lookX = baseX + R.x * placement.lookR + flight.perp.x * sweepMag;
-        const lookY = baseY + R.y * placement.lookR + flight.perp.y * sweepMag;
-        const lookZ = baseZ + R.z * placement.lookR + flight.perp.z * sweepMag;
+        const lookOff = placement.lookR * settle;
+        const lookX = baseX + R.x * lookOff + flight.perp.x * sweepMag;
+        const lookY = baseY + R.y * lookOff + flight.perp.y * sweepMag;
+        const lookZ = baseZ + R.z * lookOff + flight.perp.z * sweepMag;
         const lookGap = Math.hypot(lookX - lookRef.current.x, lookY - lookRef.current.y, lookZ - lookRef.current.z);
         if (!flying && lookGap > DIORAMA_SNAP_DISTANCE) {
             lookRef.current.set(lookX, lookY, lookZ);

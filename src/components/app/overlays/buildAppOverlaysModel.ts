@@ -3,6 +3,7 @@ import type { MotionValue } from 'framer-motion';
 import type FloatingPlayerControls from '../../FloatingPlayerControls';
 import type SearchWorkspace from '../search/SearchWorkspace';
 import type DevDebugOverlay from '../../DevDebugOverlay';
+import type MemoryMonitorWindow from '../../debug/MemoryMonitorWindow';
 import { PlayerState } from '../../../types';
 import type { SongResult, UnifiedSong, LyricData } from '../../../types';
 import { resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
@@ -13,10 +14,12 @@ import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 type SearchOverlayProps = React.ComponentProps<typeof SearchWorkspace>;
 type FloatingControlsProps = React.ComponentProps<typeof FloatingPlayerControls>;
 type DebugOverlayProps = React.ComponentProps<typeof DevDebugOverlay>;
+type MemoryMonitorProps = React.ComponentProps<typeof MemoryMonitorWindow>;
 
 export type AppOverlaysModel = {
     searchOverlay?: SearchOverlayProps | null;
     debugOverlay?: DebugOverlayProps | null;
+    memoryMonitor?: MemoryMonitorProps | null;
     floatingControls?: FloatingControlsProps | null;
 };
 
@@ -32,8 +35,11 @@ type BuildAppOverlaysModelParams = {
     handleSearchResultAddToQueue: (track: UnifiedSong) => void;
     handleSearchResultArtistOpen: SearchOverlayProps['onOpenArtist'];
     handleSearchResultAlbumOpen: SearchOverlayProps['onOpenAlbum'];
-    isDev: boolean;
     isDevDebugOverlayVisible: boolean;
+    setIsDevDebugOverlayVisible: (visible: boolean) => void;
+    isMemoryMonitorVisible: boolean;
+    setIsMemoryMonitorVisible: (visible: boolean) => void;
+    memoryMonitorShortcutLabel: string;
     devDebugSnapshot: any;
     currentTime: MotionValue<number>;
     lyricCurrentTime: MotionValue<number>;
@@ -80,8 +86,11 @@ export const buildAppOverlaysModel = ({
     handleSearchResultAddToQueue,
     handleSearchResultArtistOpen,
     handleSearchResultAlbumOpen,
-    isDev,
     isDevDebugOverlayVisible,
+    setIsDevDebugOverlayVisible,
+    isMemoryMonitorVisible,
+    setIsMemoryMonitorVisible,
+    memoryMonitorShortcutLabel,
     devDebugSnapshot,
     currentTime,
     lyricCurrentTime,
@@ -127,12 +136,27 @@ export const buildAppOverlaysModel = ({
             onOpenAlbum: handleSearchResultAlbumOpen,
         }
         : null,
-    debugOverlay: isDev && currentView === 'player' && isDevDebugOverlayVisible
+    // Not gated on the view, and that was a real hole: the app cold-starts on the home page,
+    // so after a restart the chord opened nothing until something had been played - which
+    // reads exactly like the switch in Settings having lost its setting. This overlay is the
+    // only console the packaged build has, and the pages it could not be opened from are the
+    // ones where a problem stops you ever reaching the player.
+    debugOverlay: isDevDebugOverlayVisible && devDebugSnapshot
         ? {
             snapshot: devDebugSnapshot,
             currentTime,
             lyricCurrentTime,
             isDaylight,
+            onClose: () => setIsDevDebugOverlayVisible(false),
+        }
+        : null,
+    // Independent of the log window on purpose: they answer different questions and are read side
+    // by side. Closing either one stops neither the console buffer nor the sampling behind it.
+    memoryMonitor: isMemoryMonitorVisible
+        ? {
+            isDaylight,
+            shortcutLabel: memoryMonitorShortcutLabel,
+            onClose: () => setIsMemoryMonitorVisible(false),
         }
         : null,
     floatingControls: currentSong

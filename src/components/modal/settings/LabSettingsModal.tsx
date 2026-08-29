@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronLeft, ChevronRight, ChevronsLeftRight, Cpu, GamepadDirectional, Mic, Monitor, Moon, PlayCircle, RotateCcw, Settings2 } from 'lucide-react';
+import { Boxes, Check, ChevronLeft, ChevronRight, ChevronsLeftRight, Cpu, GamepadDirectional, Mic, Monitor, Moon, PlayCircle, RotateCcw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme, VisualizerFrameRate } from '../../../types';
@@ -73,6 +73,8 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         onTogglePlayerPageNativeBlur,
         preventDisplaySleepDuringPlayback,
         onTogglePreventDisplaySleepDuringPlayback,
+        modSystemEnabled,
+        onToggleModSystem,
     } = useSettingsUiStore(useShallow(state => ({
         disableHomeDynamicBackground: state.disableHomeDynamicBackground,
         hidePlayerProgressBar: state.hidePlayerProgressBar,
@@ -102,6 +104,8 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
         onTogglePlayerPageNativeBlur: state.handleTogglePlayerPageNativeBlur,
         preventDisplaySleepDuringPlayback: state.preventDisplaySleepDuringPlayback,
         onTogglePreventDisplaySleepDuringPlayback: state.handleTogglePreventDisplaySleepDuringPlayback,
+        modSystemEnabled: state.modSystemEnabled,
+        onToggleModSystem: state.handleToggleModSystem,
     })));
     const borderColor = isDaylight ? 'border-zinc-300/70' : 'border-white/10';
     const overlayBackground = isDaylight ? 'rgba(0,0,0,0.32)' : 'rgba(0,0,0,0.5)';
@@ -386,6 +390,33 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                             </div>
                                         </div>
                                         {renderToggle(preventDisplaySleepDuringPlayback, () => onTogglePreventDisplaySleepDuringPlayback(!preventDisplaySleepDuringPlayback))}
+                                    </div>
+                                )}
+
+                                {isElectron && (
+                                    <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 ${settingsCardClass}`}>
+                                        <div className="space-y-1">
+                                            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                                <Boxes size={14} />
+                                                {t('options.enableModSystem')}
+                                                <span
+                                                    className={`px-1.5 py-0.5 rounded text-[10px] font-normal border ${
+                                                        isDaylight
+                                                            ? 'border-amber-500/30 bg-amber-500/10 text-amber-800'
+                                                            : 'border-amber-400/25 bg-amber-400/10 text-amber-200'
+                                                    }`}
+                                                >
+                                                    {t('mods.experimental')}
+                                                </span>
+                                            </div>
+                                            <div className="text-xs opacity-50 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.enableModSystemDesc')}
+                                            </div>
+                                            <div className="text-[11px] opacity-40 max-w-[360px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {t('options.enableModSystemDescSub')}
+                                            </div>
+                                        </div>
+                                        {renderToggle(modSystemEnabled, () => onToggleModSystem(!modSystemEnabled))}
                                     </div>
                                 )}
 
