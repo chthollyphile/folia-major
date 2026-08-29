@@ -160,7 +160,6 @@ export const TrackListItem = React.memo<{
     onAddToQueue?: () => void;
     isUnavailable?: boolean;
     isActive?: boolean;
-}>(({ track, index, style, onPlay, onAddToQueue, isUnavailable, isActive }) => {
     albumTrackLabel?: string | null;
 }>(({ track, index, style, onPlay, onAddToQueue, isUnavailable, isActive, albumTrackLabel }) => {
     const { t } = useTranslation();
