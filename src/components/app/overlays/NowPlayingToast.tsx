@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Music } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { Theme } from '../../../types';
+import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 歌词页左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
@@ -9,7 +11,16 @@ import { useTranslation } from 'react-i18next';
 // 显示模式：auto=显示 timeoutSec 秒后淡出（换歌重新计时），always=常驻，never=不渲染。
 // isNextUp=自动切歌预览（automix 混合或普通曲目结束倒计时）：强制显示下一首并挂
 // "接下来播放" 标签，切完后翻回 "正在播放"。
-// 和 automix 的全屏过渡动画互不相干，两者各自独立开关。
+// transitionBorder=automix 过渡动画和本卡片同时开着：屏幕正中那个全屏圆环让位，混音进度改画
+// 在卡片边框上（见 now-playing-toast/NowPlayingToastTransitionBorder.tsx）。混音期间卡片自己
+// 撑开不隐藏——描边挂在卡片里，卡片淡出了就没地方画了。
+
+// 着色器描边只有开了 transitionBorder 且真的在混音时才用到，懒加载让 @paper-design/shaders
+// 的 chunk 不进主包；混音开始前有几秒（arm 早于 fade）足够它加载完。
+const NowPlayingToastTransitionBorder = lazy(() => import('./now-playing-toast/NowPlayingToastTransitionBorder'));
+
+/** 卡片圆角，和下面的 rounded-2xl 对齐；描边要按它算圆角 */
+const CARD_RADIUS = 16;
 
 export type StageTrackPillMode = 'auto' | 'always' | 'never';
 
@@ -31,6 +42,14 @@ type NowPlayingToastProps = {
     nextUp?: NowPlayingToastSong | null;
     /** 预览态：下一首内容 + 接下来播放标签 + 挂起 auto 隐藏计时 */
     isNextUp?: boolean;
+    /** automix 混音进度画在卡片边框上（替代全屏过渡动画） */
+    transitionBorder?: boolean;
+    /** 描边取 accentColor，和全屏圆环同一个颜色 */
+    theme?: Theme;
+    /** 点卡片做什么；不给就还是个纯展示的卡片，不吃鼠标 */
+    onActivate?: () => void;
+    /** onActivate 的无障碍名字，说清楚点下去会发生什么 */
+    activateLabel?: string;
 };
 
 const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
@@ -41,6 +60,10 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     timeoutSec = 10,
     nextUp = null,
     isNextUp = false,
+    transitionBorder = false,
+    theme,
+    onActivate,
+    activateLabel,
 }) => {
     const { t } = useTranslation();
 
@@ -48,10 +71,16 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     const shown = isNextUp && nextUp ? nextUp : song;
     const label = isNextUp ? t('ui.stageTrackPillNext') : t('ui.stageTrackPillNow');
 
+    // 正在进行的混音。开关是在 cue 到达的那一刻从 settings store 里读的（见 hook 里的注释），
+    // 所以拿到非空 cue 就意味着「过渡动画开着 + 模式是 automix」，不用再问一遍 prop。
+    // 它同时参与下面的 holdOpen：混音期间卡片必须留在屏幕上，否则描边跟着卡片一起卸载，
+    // 而全屏圆环已经让位了。
+    const transitionCue = useTransitionBorderCue();
+
     // 可见性状态机：never 不渲染；always 常驻；auto 换歌重新计时。
     // isNextUp（预览下一首）挂起计时，翻回 false 后（即使 trackKey 没变）重新计时。
     const [visible, setVisible] = useState(mode !== 'never');
-    const holdOpen = mode === 'always' || isNextUp;
+    const holdOpen = mode === 'always' || isNextUp || transitionCue !== null;
     const hideDelayMs = Math.max(3, Math.min(60, Math.round(timeoutSec))) * 1000;
     useEffect(() => {
         if (mode === 'never') {
@@ -65,27 +94,82 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         return () => window.clearTimeout(timer);
     }, [mode, hideDelayMs, trackKey, holdOpen]);
 
+    // 描边要的是卡片的实际尺寸（内容撑出来的，没有固定宽高），所以量一下外层容器：
+    // 它是 fixed 且没给宽度，会收缩到卡片大小，而且不会随 trackKey 重挂。
+    // 描边本身是绝对定位、外扩一圈的兄弟节点，不参与这个尺寸。
+    // 提前量而不是等 cue 到：描边一到就要知道画布多大，等 ResizeObserver 回调会晚一帧。
+    const frameRef = useRef<HTMLDivElement | null>(null);
+    const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
+    useEffect(() => {
+        const frame = frameRef.current;
+        if (!transitionBorder || !frame || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(([entry]) => {
+            // contentRect 而不是 getBoundingClientRect：外层这一圈在做 x 位移动画，
+            // 后者会把 transform 算进去。
+            const { width, height } = entry.contentRect;
+            setCardSize(prev => (
+                Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5
+                    ? prev
+                    : { width, height }
+            ));
+        });
+        observer.observe(frame);
+        return () => observer.disconnect();
+    }, [transitionBorder, visible]);
+
     return (
         <AnimatePresence>
             {visible && (
                 <motion.div
+                    ref={frameRef}
                     initial={{ opacity: 0, x: -32 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -16 }}
                     transition={{ duration: 0.35, ease: 'easeOut' }}
                     className="pointer-events-none fixed bottom-6 left-6 z-40"
                 >
+                    {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
+                        描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。
+                        AnimatePresence 在这儿单独开一层，混音结束时描边自己淡出，不用等卡片；
+                        Suspense 套在外面而不是里面，否则 chunk 还没到时它会顶掉 AnimatePresence
+                        的直接子节点，退场就丢了。 */}
+                    <Suspense fallback={null}>
+                        <AnimatePresence>
+                            {transitionCue && cardSize.width > 0 && (
+                                <NowPlayingToastTransitionBorder
+                                    key="transition-border"
+                                    cue={transitionCue}
+                                    cardWidth={cardSize.width}
+                                    cardHeight={cardSize.height}
+                                    cardRadius={CARD_RADIUS}
+                                    isDaylight={isDaylight}
+                                    theme={theme}
+                                />
+                            )}
+                        </AnimatePresence>
+                    </Suspense>
                     {/* Toast 卡片（playing-toast 样式）。key=trackKey 在换歌时重放进场
                         动画：没有 AnimatePresence 的 keyed 元素卸载是即时的，旧内容不会
-                        残留，所以切到 next playing 时不会闪一下当前的歌。 */}
-                    <motion.div
+                        残留，所以切到 next playing 时不会闪一下当前的歌。
+
+                        给了 onActivate 就渲染成真的 button：键盘和焦点环白送，而且外层那层
+                        pointer-events-none 只在这一个元素上翻回来——描边和扫光都还是不吃鼠标的。 */}
+                    <motion.button
                         key={trackKey}
+                        data-toast-card=""
+                        type="button"
+                        onClick={onActivate}
+                        disabled={!onActivate}
+                        aria-label={onActivate ? activateLabel : undefined}
                         initial={{ opacity: 0, x: -24 }}
                         animate={{ opacity: 1, x: 0 }}
+                        whileTap={onActivate ? { scale: 0.97 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 backdrop-blur-xl shadow-lg transition-colors ${
+                        className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
-                        }`}
+                        } ${onActivate
+                            ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
+                            : ''}`}
                     >
                         {/* 顶部光线（进场的横向扫光） */}
                         <motion.span
@@ -125,7 +209,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                 {shown.artist || t('ui.unknownArtist')}
                             </div>
                         </div>
-                    </motion.div>
+                    </motion.button>
                 </motion.div>
             )}
         </AnimatePresence>

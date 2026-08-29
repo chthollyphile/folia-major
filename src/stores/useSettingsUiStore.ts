@@ -1571,6 +1571,7 @@ export type SettingsUiState = {
     stageTrackPillMode: StageTrackPillMode;
     /** auto 模式下的显示时长（秒），3-60 */
     stageTrackPillTimeoutSec: number;
+    stageTrackPillOnHome: boolean;
     homeLayoutStyle: 'carousel' | 'grid';
     grid3dCardStyle: 'image' | 'card';
     showHomeTabPlaylist: boolean;
@@ -1735,6 +1736,7 @@ export type SettingsUiState = {
     handleToggleLoopMode: () => void;
     handleSetStageTrackPillMode: (mode: StageTrackPillMode) => void;
     handleSetStageTrackPillTimeoutSec: (sec: number) => void;
+    handleToggleStageTrackPillOnHome: (enable: boolean) => void;
     handleSetHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     handleSetGrid3dCardStyle: (style: 'image' | 'card') => void;
     handleToggleHomeTabPlaylist: (show: boolean) => void;
@@ -1874,6 +1876,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     loopMode: readStoredLoopMode(),
     stageTrackPillMode: readStoredStageTrackPillMode(),
     stageTrackPillTimeoutSec: readStoredStageTrackPillTimeoutSec(),
+    stageTrackPillOnHome: getStoredBoolean('stage_track_pill_on_home', false),
     homeLayoutStyle: readStoredHomeLayoutStyle(),
     grid3dCardStyle: readStoredGrid3dCardStyle(),
     showHomeTabPlaylist: getStoredBoolean('show_home_tab_playlist', true),
@@ -3270,6 +3273,12 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
         }
         set({ stageTrackPillTimeoutSec: next });
     },
+    handleToggleStageTrackPillOnHome: (enable) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('stage_track_pill_on_home', String(enable));
+        }
+        set({ stageTrackPillOnHome: enable });
+    },
     handleSetHomeLayoutStyle: () => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('home_layout_style', 'grid');
@@ -3427,8 +3436,10 @@ export const selectSettingsUiSnapshot = (state: SettingsUiState) => ({
     loopMode: state.loopMode,
     stageTrackPillMode: state.stageTrackPillMode,
     stageTrackPillTimeoutSec: state.stageTrackPillTimeoutSec,
+    stageTrackPillOnHome: state.stageTrackPillOnHome,
     handleSetStageTrackPillMode: state.handleSetStageTrackPillMode,
     handleSetStageTrackPillTimeoutSec: state.handleSetStageTrackPillTimeoutSec,
+    handleToggleStageTrackPillOnHome: state.handleToggleStageTrackPillOnHome,
     handleToggleCoverColorBg: state.handleToggleCoverColorBg,
     handleToggleStaticMode: state.handleToggleStaticMode,
     handleToggleDisableHomeDynamicBackground: state.handleToggleDisableHomeDynamicBackground,

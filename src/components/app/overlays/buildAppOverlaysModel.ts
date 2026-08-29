@@ -84,6 +84,15 @@ type BuildAppOverlaysModelParams = {
     stageNextUp: { title: string; artist: string | null; coverUrl: string | null } | null;
     /** 预览态：接下来播放标签 + 挂起 auto 隐藏计时 */
     stageIsNextUp: boolean;
+    /** 当前页面 + 显示模式允许卡片在场（歌词页总是，首页看设置）；App 里算好的单一来源 */
+    stageTrackPillOnScreen: boolean;
+    /** 点卡片时展开右侧面板的歌曲卡片（切到 cover 页并打开） */
+    openSongCardPanel: () => void;
+    /** 卡片上的两种动作各自的无障碍名字 */
+    stageTrackPillOpenPlayerLabel: string;
+    stageTrackPillOpenSongCardLabel: string;
+    /** automix 的过渡动画开着（模式也是 automix）；卡片在场时它会让位给卡片边框上的进度描边 */
+    automixTransitionAnimation: boolean;
 };
 
 // Builds the full overlay model, including detail overlays and floating playback controls.
@@ -141,10 +150,16 @@ export const buildAppOverlaysModel = ({
     stageTrackPillTimeoutSec,
     stageNextUp,
     stageIsNextUp,
+    stageTrackPillOnScreen,
+    openSongCardPanel,
+    stageTrackPillOpenPlayerLabel,
+    stageTrackPillOpenSongCardLabel,
+    automixTransitionAnimation,
 }: BuildAppOverlaysModelParams): AppOverlaysModel => ({
-    // Gated on the mode as well as the view: "never" means the card never mounts, rather than
-    // mounting and rendering nothing.
-    nowPlayingToast: currentView === 'player' && currentSong && stageTrackPillMode !== 'never'
+    // Gated on stageTrackPillOnScreen (computed in App: display mode plus which page allows the
+    // card) rather than on the view directly, so the countdown that feeds the "up next" preview
+    // and the card that shows it can never disagree about where the card lives.
+    nowPlayingToast: stageTrackPillOnScreen && currentSong
         ? {
             song: {
                 title: currentSong.name || '',
@@ -157,6 +172,12 @@ export const buildAppOverlaysModel = ({
             timeoutSec: stageTrackPillTimeoutSec,
             nextUp: stageNextUp,
             isNextUp: stageIsNextUp,
+            transitionBorder: automixTransitionAnimation,
+            theme,
+            onActivate: currentView === 'home' ? navigateToPlayer : openSongCardPanel,
+            activateLabel: currentView === 'home'
+                ? stageTrackPillOpenPlayerLabel
+                : stageTrackPillOpenSongCardLabel,
         }
         : null,
     searchOverlay: currentView === 'home'

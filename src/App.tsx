@@ -425,6 +425,7 @@ export default function App() {
         loopMode,
         stageTrackPillMode,
         stageTrackPillTimeoutSec,
+        stageTrackPillOnHome,
         handleToggleCoverColorBg,
         handleToggleStaticMode,
         handleToggleDisableHomeDynamicBackground,
@@ -1591,6 +1592,28 @@ export default function App() {
     }, [displaySong?.id, lyricCurrentTime]);
 
     /**
+     * The now playing card is allowed on screen right now.
+     *
+     * One definition for two readers - the overlay model, which mounts the card, and the track-end
+     * countdown below, which is only worth running while something can show its result. The lyrics
+     * page always allows it; the home page is opt-in, and that opt-in is the whole rule: how the app
+     * arrived at the home page does not enter into it, so a cold start that lands there and a walk
+     * back from the lyrics page behave the same.
+     */
+    const stageTrackPillOnScreen = stageTrackPillMode !== 'never'
+        && (currentView === 'player' || (currentView === 'home' && stageTrackPillOnHome));
+
+    /**
+     * Open the right-hand panel on its song card - what clicking the now playing card does once you
+     * are already on the lyrics page. Same two calls the command palette's "Panel: cover" makes, so
+     * the card and the command land in the same place.
+     */
+    const openSongCardPanel = useCallback(() => {
+        setPanelTab('cover');
+        setIsPanelOpen(true);
+    }, []);
+
+    /**
      * The queue track a plain track-end would advance to, or null when nothing resolvable.
      * Mirrors handleNextTrack's index rules so the preview is always the track that will actually play.
      */
@@ -1622,8 +1645,7 @@ export default function App() {
     /** True while the card previews the next track (plain track-end countdown, not the blend). */
     const [countdownActive, setCountdownActive] = useState(false);
     useMotionValueEvent(currentTime, 'change', (time) => {
-        const shouldPreview = stageTrackPillMode !== 'never'
-            && currentView === 'player'
+        const shouldPreview = stageTrackPillOnScreen
             && nextUpTrack !== null
             && Number.isFinite(displayDuration)
             && displayDuration > 0
@@ -3404,6 +3426,11 @@ export default function App() {
         stageTrackPillTimeoutSec,
         stageNextUp,
         stageIsNextUp,
+        stageTrackPillOnScreen,
+        openSongCardPanel,
+        stageTrackPillOpenPlayerLabel: t('ui.stageTrackPillOpenPlayer'),
+        stageTrackPillOpenSongCardLabel: t('ui.stageTrackPillOpenSongCard'),
+        automixTransitionAnimation: transitionAnimation && transitionMode === 'automix',
     }), [
         activePlaybackContext,
         audioSrc,
@@ -3426,6 +3453,10 @@ export default function App() {
         stageTrackPillTimeoutSec,
         stageNextUp,
         stageIsNextUp,
+        stageTrackPillOnScreen,
+        openSongCardPanel,
+        transitionAnimation,
+        transitionMode,
         handleSearchResultAddToQueue,
         handleSearchResultAlbumOpen,
         handleSearchResultArtistOpen,
@@ -3973,8 +4004,13 @@ export default function App() {
             {/* Not in the overlays model: it takes no state from this file and no click from anyone.
                 Mounted only under the same condition it draws on, so the lazy animejs chunk loads only
                 when the animation is actually wanted; the fallback is empty because it draws nothing
-                until a cue arrives anyway. */}
-            {transitionAnimation && transitionMode === 'automix' && (
+                until a cue arrives anyway.
+
+                Stands down while the now playing card is on screen: there the blend is drawn on the
+                card's own border instead (NowPlayingToastTransitionBorder), and two pictures of the
+                same transition is one too many. The card's own flag is the condition, so this can
+                never disagree with what the card decided. */}
+            {transitionAnimation && transitionMode === 'automix' && !appOverlaysModel.nowPlayingToast?.transitionBorder && (
                 <Suspense fallback={null}>
                     <AutomixTransitionAnimation theme={theme} isDaylight={isDaylight} />
                 </Suspense>

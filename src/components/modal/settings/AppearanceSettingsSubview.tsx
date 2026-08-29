@@ -56,8 +56,10 @@ type AppearanceSettingsSubviewProps = {
     autoHidePlayerChrome: boolean;
     stageTrackPillMode: 'auto' | 'always' | 'never';
     stageTrackPillTimeoutSec: number;
+    stageTrackPillOnHome: boolean;
     onChangeStageTrackPillMode: (mode: 'auto' | 'always' | 'never') => void;
     onChangeStageTrackPillTimeoutSec: (sec: number) => void;
+    onToggleStageTrackPillOnHome: (enable: boolean) => void;
     utilityGhostButtonClass: string;
     grid3dCardStyle: 'image' | 'card';
     onChangeGrid3dCardStyle: (style: 'image' | 'card') => void;
@@ -101,6 +103,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     stageTrackPillTimeoutSec,
     onChangeStageTrackPillMode,
     onChangeStageTrackPillTimeoutSec,
+    stageTrackPillOnHome,
+    onToggleStageTrackPillOnHome,
     utilityGhostButtonClass,
     grid3dCardStyle,
     onChangeGrid3dCardStyle,
@@ -817,6 +821,27 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                                             {stageTrackPillTimeoutSec}s
                                         </span>
                                     </div>
+                                </div>
+                            )}
+                            {stageTrackPillMode !== 'never' && (
+                                <div className="flex items-center justify-between gap-4 pt-1">
+                                    <div className="space-y-0.5 min-w-0">
+                                        <div className="text-xs" style={{ color: 'var(--text-primary)' }}>
+                                            {t('options.stageTrackPillOnHome')}
+                                        </div>
+                                        <div className="text-xs opacity-50 max-w-[300px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {t('options.stageTrackPillOnHomeDesc')}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => onToggleStageTrackPillOnHome(!stageTrackPillOnHome)}
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!stageTrackPillOnHome ? toggleOffBackgroundClass : ''}`}
+                                        style={{ backgroundColor: stageTrackPillOnHome ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                        aria-pressed={stageTrackPillOnHome}
+                                        aria-label={t('options.stageTrackPillOnHome')}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${stageTrackPillOnHome ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
                                 </div>
                             )}
                         </div>
