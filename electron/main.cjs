@@ -3968,10 +3968,15 @@ function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
   // window must be gone before the replacement is built — otherwise the rebuilt main window
   // comes back as an ordinary window and the wallpaper disappears with the old one.
   if (isWallpaperWrapped()) {
-    previousWindow.destroy();
-    const createdWindow = createWindow();
-    focusMainWindow();
-    return createdWindow;
+    isSwappingMainWindow = true;
+    try {
+      previousWindow.destroy();
+      const createdWindow = createWindow();
+      focusMainWindow();
+      return createdWindow;
+    } finally {
+      isSwappingMainWindow = false;
+    }
   }
 
   const nextWindow = createWindow({ showImmediately: false });
@@ -4176,7 +4181,12 @@ app.whenReady().then(async () => {
 // window being destroyed externally (see the Windows wallpaper branch below).
 let isAppQuitting = false;
 
+let isSwappingMainWindow = false;
+
 app.on('window-all-closed', () => {
+  if (isSwappingMainWindow) {
+    return;
+  }
   clearPendingWindowPlaybackHandoffRequests();
   // Windows wallpaper mode: the main window is a child of a WorkerW, so an explorer restart
   // destroys it together with the desktop hierarchy. Quitting here would turn a recoverable
