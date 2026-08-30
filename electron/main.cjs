@@ -684,9 +684,7 @@ const obsBrowserSourceClients = new Set();
 let remoteControlAlwaysOnTop = false;
 let remoteControlSkipTaskbarEnabled = false;
 let mainWindowAlwaysOnTop = false;
-// Click-through follows wallpaper mode on Wayland only; X11 wallpaper mode must keep it off (see
-// isX11WallpaperMode).
-let mainWindowClickThroughEnabled = isWallpaperModeEnabled() && Boolean(process.env.WAYLAND_DISPLAY);
+let mainWindowClickThroughEnabled = false;
 let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
@@ -4026,9 +4024,6 @@ app.whenReady().then(async () => {
   }
   if (startupResult === 'spawned') {
     return;
-  }
-  if (startupResult === 'fallback') {
-    mainWindowClickThroughEnabled = false;
   }
 
   if (process.platform === 'win32') {
