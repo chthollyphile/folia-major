@@ -24,6 +24,7 @@ import {
     type TemperaSceneView,
     type TemperaShotView,
 } from './temperaSceneBuilder';
+import { loadPixi } from '../loadPixi';
 import { setTemperaTransitionBlur } from './temperaSceneFilters';
 import { resolveTemperaPalette } from './temperaPalette';
 import {
@@ -211,7 +212,7 @@ export class TemperaPixiRuntime {
     ) { }
 
     static async create(options: TemperaRuntimeOptions) {
-        const pixi = await import('pixi.js');
+        const pixi = await loadPixi();
         const app = new pixi.Application();
         const width = Math.max(options.host.clientWidth, 320);
         const height = Math.max(options.host.clientHeight, 240);

@@ -35,6 +35,7 @@ import {
     hasSonnetCreditsMetadata,
     resolveSonnetCreditsFrame,
 } from './sonnetCredits';
+import { loadPixi } from '../loadPixi';
 import { sonnetDebugState } from './sonnetDebug';
 import { resolveSonnetSegmentCameraFocus } from './sonnetCameraTracking';
 
@@ -140,7 +141,7 @@ export class SonnetPixiRuntime {
     ) { }
 
     static async create(options: SonnetRuntimeOptions) {
-        const pixi = await import('pixi.js');
+        const pixi = await loadPixi();
         const app = new pixi.Application();
         const width = Math.max(options.host.clientWidth, 320);
         const height = Math.max(options.host.clientHeight, 240);
