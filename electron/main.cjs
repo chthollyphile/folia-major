@@ -151,6 +151,12 @@ function isWallpaperModeEnabled() {
   return wallpaperWatchdogModule.isWallpaperModeEnabled(store);
 }
 
+// Wallpaper mode ships only where the window can be sunk into a desktop layer
+// (X11/Wayland/Windows); macOS has no implementation, so tray/settings surfaces gate on this.
+function isWallpaperModeSupportedPlatform() {
+  return process.platform === 'linux' || process.platform === 'win32';
+}
+
 // X11 wallpaper mode: the main window is a _NET_WM_WINDOW_TYPE_DESKTOP window. It shares the
 // desktop layer with the KDE desktop window, and because desktop windows are rendered unredirected
 // there is no composited backdrop behind them. Click-through is therefore unavailable there: it
@@ -560,6 +566,7 @@ const mainLocale = {
     trayOpenRemote: '打开 遥控窗口',
     trayToggleClickThrough: '切换点击穿透',
     trayOverlayPreset: '锁定 + 透明 + 置顶',
+    trayToggleWallpaperMode: '切换壁纸模式',
     trayResetWindow: '重置窗口',
     trayHideTaskbar: '隐藏任务栏图标',
     trayQuit: '退出',
@@ -573,6 +580,7 @@ const mainLocale = {
     trayOpenRemote: 'Open Remote Window',
     trayToggleClickThrough: 'Toggle Click-Through',
     trayOverlayPreset: 'Locked + Transparent + On Top',
+    trayToggleWallpaperMode: 'Toggle Wallpaper Mode',
     trayResetWindow: 'Reset Window',
     trayHideTaskbar: 'Hide Taskbar Icon',
     trayQuit: 'Quit',
@@ -586,6 +594,7 @@ const mainLocale = {
     trayOpenRemote: 'Buka Jendela Remote',
     trayToggleClickThrough: 'Alihkan Click-Through',
     trayOverlayPreset: 'Terkunci + Transparan + Di Atas',
+    trayToggleWallpaperMode: 'Alihkan Mode Wallpaper',
     trayResetWindow: 'Atur Ulang Jendela',
     trayHideTaskbar: 'Sembunyikan Ikon Taskbar',
     trayQuit: 'Keluar',
@@ -1401,6 +1410,17 @@ function refreshTrayMenu() {
       enabled: Boolean(mainWindow && !mainWindow.isDestroyed()),
       click: () => {
         void setMainWindowOverlayPreset(!isMainWindowOverlayPresetActive());
+      },
+    }] : []),
+    ...(isWallpaperModeSupportedPlatform() ? [{
+      label: locale.trayToggleWallpaperMode,
+      type: 'checkbox',
+      checked: isWallpaperModeEnabled(),
+      click: () => {
+        const nextEnabled = !isWallpaperModeEnabled();
+        store.set(WALLPAPER_MODE_SETTING_KEY, nextEnabled);
+        refreshTrayMenu();
+        scheduleWallpaperModeRelaunch(nextEnabled);
       },
     }] : []),
     {
