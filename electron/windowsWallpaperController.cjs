@@ -312,6 +312,9 @@ function createWindowsWallpaperController(options = {}) {
       logWarn(`[WallpaperWin] helper stderr: ${chunk.toString().trim()}`);
     });
     child.on('error', (err) => {
+      if (helperProcess !== child) {
+        return;
+      }
       logError('[WallpaperWin] helper spawn failed', err);
       helperProcess = null;
       attaching = false;

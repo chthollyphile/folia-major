@@ -258,13 +258,14 @@ function isWindowsWallpaperTransparentSupported() {
 // attach reports a different architecture than the window was built for, bring them back in
 // sync with one rebuild.
 function reconcileWindowsWallpaperWindowTransparency() {
-  if (process.platform !== 'win32' || !isWindowsWallpaperMode() || !isTransparentPlayerBackgroundEnabled()) {
+  if (process.platform !== 'win32' || !isWindowsWallpaperMode() || !mainWindow || mainWindow.isDestroyed()) {
     return;
   }
-  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.__wallpaperWindowTransparent !== true) {
+  const desiredTransparent = isTransparentPlayerBackgroundEnabled() && isWindowsWallpaperTransparentSupported();
+  if (mainWindow.__wallpaperWindowTransparent === desiredTransparent) {
     return;
   }
-  recreateMainWindowWithTransparencyMode(true, null);
+  recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
 }
 
 // The helper ships as resources/folia-wallpaper-helper.exe (built by

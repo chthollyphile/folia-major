@@ -154,6 +154,7 @@ unsafe fn attach_resident(hwnd: isize, forward_mouse: bool, zguard: bool) {
                 }
             }
         }
+        post_detach_to_message_thread();
     });
 
     message_window::run_message_loop();
