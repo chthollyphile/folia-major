@@ -91,19 +91,6 @@ export interface TransitionPlan {
     /** How the length was chosen. Surfaced in the console, not cosmetic. */
     reason: string;
     /**
-     * Automix was asked for this one and had nothing to measure, so a crossfade answered instead.
-     *
-     * Absent on every plan either planner writes on purpose - a crossfade the listener chose has
-     * not fallen back to anything, and neither has a measured `plainBlend`. Only `planForMode`
-     * sets it, at the one branch where the mode selected and the strategy that ran disagree.
-     *
-     * Optional because it is the exception, and because everything downstream that does not care
-     * should carry on not caring. What does care is anything claiming to the listener that automix
-     * is at work: on a track dropped in by hand there has been no time to analyse anything, and a
-     * transition that says otherwise is the setting lying about what it just did.
-     */
-    fellBack?: true;
-    /**
      * Performance mode's build strength, 0.25 to 1, or null/absent when the mode is off.
      *
      * Strength ONLY - the layout needs the drum swap, which is planned against real audio inside

@@ -68,7 +68,7 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
 
     // cue 到达时开关是从 store 里读的，所以这个探针要把两个设置真的拨上去，不能只给 prop。
     React.useEffect(() => {
-        useSettingsUiStore.setState({ transitionAnimation: transitionBorder, transitionMode: 'automix' });
+        useSettingsUiStore.setState({ transitionAnimationCard: transitionBorder, transitionMode: 'automix' });
     }, [transitionBorder]);
 
     const buttonClass = 'rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10';
@@ -93,9 +93,9 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
                         // 一字不差地照抄设置页那个开关：先关掉，再在同一个处理函数里拨上去并立刻
                         // 广播预览。React 要等这次事件结束才提交，所以只有「无条件订阅 + cue 到达
                         // 时读 store」才收得到这一条。
-                        useSettingsUiStore.setState({ transitionAnimation: false });
+                        useSettingsUiStore.setState({ transitionAnimationCard: false });
                         setTransitionBorder(true);
-                        useSettingsUiStore.setState({ transitionAnimation: true, transitionMode: 'automix' });
+                        useSettingsUiStore.setState({ transitionAnimationCard: true, transitionMode: 'automix' });
                         announceTransition(PREVIEW_CUE);
                     }}
                 >
@@ -162,7 +162,6 @@ const NowPlayingToastTransitionBorderProbe: React.FC = () => {
                 timeoutSec={3}
                 nextUp={{ title: next.title, artist: next.artist, coverUrl: next.coverUrl }}
                 isNextUp={isNextUp}
-                transitionBorder={transitionBorder}
                 theme={{ accentColor: accent } as never}
                 onActivate={() => setActivations(count => count + 1)}
                 activateLabel="展开歌曲卡片"

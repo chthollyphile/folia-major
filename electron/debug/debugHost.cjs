@@ -26,9 +26,12 @@ const DEFAULTS = {
     // before it was reproduced; that trade is not worth making on behalf of users who will never look.)
     runtimeLogEnabled: false,
     runtimeLogMode: 'append',
-    // Off by default: this one costs a timer, a metrics call across every process, and a file that
-    // grows all session. It is switched on to answer a question, not left running.
+    // Off by default: this one costs a timer and a metrics call across every process. It is
+    // switched on to answer a question, not left running.
     memoryMonitorEnabled: false,
+    // Writing the curve down is its own switch, the way the runtime log's is. Sampling is what the
+    // live window reads; a file that grows all session is a separate cost, opted into separately.
+    memoryLogEnabled: false,
     memoryLogMode: 'overwrite',
     memoryIntervalMs: 2000,
 };
@@ -37,6 +40,7 @@ const STORE_KEYS = {
     runtimeLogEnabled: 'debug_runtime_log_enabled',
     runtimeLogMode: 'debug_runtime_log_mode',
     memoryMonitorEnabled: 'debug_memory_monitor_enabled',
+    memoryLogEnabled: 'debug_memory_log_enabled',
     memoryLogMode: 'debug_memory_log_mode',
     memoryIntervalMs: 'debug_memory_interval_ms',
 };
@@ -71,6 +75,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
             runtimeLogEnabled: store.get(STORE_KEYS.runtimeLogEnabled),
             runtimeLogMode: store.get(STORE_KEYS.runtimeLogMode),
             memoryMonitorEnabled: store.get(STORE_KEYS.memoryMonitorEnabled),
+            memoryLogEnabled: store.get(STORE_KEYS.memoryLogEnabled),
             memoryLogMode: store.get(STORE_KEYS.memoryLogMode),
             memoryIntervalMs: store.get(STORE_KEYS.memoryIntervalMs),
         };
@@ -78,6 +83,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
             runtimeLogEnabled: typeof stored.runtimeLogEnabled === 'boolean' ? stored.runtimeLogEnabled : DEFAULTS.runtimeLogEnabled,
             runtimeLogMode: MODES.includes(stored.runtimeLogMode) ? stored.runtimeLogMode : DEFAULTS.runtimeLogMode,
             memoryMonitorEnabled: stored.memoryMonitorEnabled === true,
+            memoryLogEnabled: stored.memoryLogEnabled === true,
             memoryLogMode: MODES.includes(stored.memoryLogMode) ? stored.memoryLogMode : DEFAULTS.memoryLogMode,
             memoryIntervalMs: clampInterval(stored.memoryIntervalMs),
         };
@@ -187,10 +193,14 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
         // Reset with the run, not with the app: peak / floor / mean answer for the session being
         // recorded, and carrying a figure across a switch-off makes the first sample after it lie.
         monitor.reset();
-        try {
-            memoryWriter = createDebugLogWriter({ root, folder: 'memory', extension: '.jsonl', mode: state.memoryLogMode });
-        } catch {
-            memoryWriter = null;
+        // Only when asked to. Samples reach the live window either way - they are pushed to the
+        // renderer below - so a run with no file still answers the question the window is open for.
+        if (state.memoryLogEnabled) {
+            try {
+                memoryWriter = createDebugLogWriter({ root, folder: 'memory', extension: '.jsonl', mode: state.memoryLogMode });
+            } catch {
+                memoryWriter = null;
+            }
         }
         memoryTimer = setInterval(takeSample, state.memoryIntervalMs);
         if (memoryTimer.unref) memoryTimer.unref();
@@ -204,6 +214,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
         if (typeof patch.runtimeLogEnabled === 'boolean') next.runtimeLogEnabled = patch.runtimeLogEnabled;
         if (MODES.includes(patch.runtimeLogMode)) next.runtimeLogMode = patch.runtimeLogMode;
         if (typeof patch.memoryMonitorEnabled === 'boolean') next.memoryMonitorEnabled = patch.memoryMonitorEnabled;
+        if (typeof patch.memoryLogEnabled === 'boolean') next.memoryLogEnabled = patch.memoryLogEnabled;
         if (MODES.includes(patch.memoryLogMode)) next.memoryLogMode = patch.memoryLogMode;
         if (patch.memoryIntervalMs !== undefined) next.memoryIntervalMs = clampInterval(patch.memoryIntervalMs);
 
@@ -212,6 +223,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
         // next launch and read, today, as having done nothing.
         const runtimeChanged = next.runtimeLogEnabled !== state.runtimeLogEnabled || next.runtimeLogMode !== state.runtimeLogMode;
         const memoryChanged = next.memoryMonitorEnabled !== state.memoryMonitorEnabled
+            || next.memoryLogEnabled !== state.memoryLogEnabled
             || next.memoryLogMode !== state.memoryLogMode
             || next.memoryIntervalMs !== state.memoryIntervalMs;
 
@@ -280,7 +292,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
 
     openRuntime();
     startMemory();
-    writeRuntime(Date.now(), 'info', 'Debug', `runtime log ${state.runtimeLogEnabled ? state.runtimeLogMode : 'off'}, memory monitor ${state.memoryMonitorEnabled ? `${state.memoryIntervalMs}ms ${state.memoryLogMode}` : 'off'}, root ${root}`);
+    writeRuntime(Date.now(), 'info', 'Debug', `runtime log ${state.runtimeLogEnabled ? state.runtimeLogMode : 'off'}, memory monitor ${state.memoryMonitorEnabled ? `${state.memoryIntervalMs}ms ${state.memoryLogEnabled ? state.memoryLogMode : 'no file'}` : 'off'}, root ${root}`);
 
     return host;
 };

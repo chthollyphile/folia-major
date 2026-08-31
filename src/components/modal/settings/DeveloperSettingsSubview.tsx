@@ -24,9 +24,14 @@ import ConsoleLogPanel from '../../shared/ConsoleLogPanel';
 // ELECTRON_DEV and the window is frameless, so there is no menu to reach them from. The two
 // shortcuts are printed here for the same reason - a chord nobody wrote down is a chord nobody has.
 //
-// Two recordings, two files, two switches, and they are kept apart deliberately: runtime lines and
-// a memory curve are read to answer different questions, and at one sample every couple of seconds
-// the curve would bury the lines in a file they shared.
+// Two recordings, two files, and two switches each, kept apart deliberately. Runtime lines and a
+// memory curve are read to answer different questions, and at one sample every couple of seconds the
+// curve would bury the lines in a file they shared.
+//
+// Within a card the two switches answer different questions as well. The top one is whether anything
+// is kept at all, and it is what the window's shortcut opens against - off means the chord opens
+// nothing, because a window with nothing behind it is worse than no window. The one on the file row
+// is only whether what is kept is also written to disk.
 
 type DeveloperSettingsSubviewProps = {
     isDaylight: boolean;
@@ -232,12 +237,20 @@ const DeveloperSettingsSubview: React.FC<DeveloperSettingsSubviewProps> = ({
                     onOpen={() => void openDebugLogsFolder('memory')}
                     isDaylight={isDaylight}
                 >
-                    <ModeChoice
-                        value={debug.memoryLogMode}
-                        onChange={mode => void setDebugModuleState({ memoryLogMode: mode })}
-                        isDaylight={isDaylight}
-                        disabled={!debug.available}
-                    />
+                    <div className="flex items-center gap-3">
+                        <ModeChoice
+                            value={debug.memoryLogMode}
+                            onChange={mode => void setDebugModuleState({ memoryLogMode: mode })}
+                            isDaylight={isDaylight}
+                            disabled={!debug.available || !debug.memoryLogEnabled}
+                        />
+                        <Switch
+                            isOn={debug.memoryLogEnabled}
+                            onToggle={() => void setDebugModuleState({ memoryLogEnabled: !debug.memoryLogEnabled })}
+                            theme={theme}
+                            toggleOffBackgroundClass={toggleOffBackgroundClass}
+                        />
+                    </div>
                 </FileRow>
 
                 <div className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${isDaylight ? 'border-black/10 bg-black/[0.03]' : 'border-white/10 bg-black/15'}`}>

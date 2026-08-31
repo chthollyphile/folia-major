@@ -96,8 +96,6 @@ type BuildAppOverlaysModelParams = {
     /** 卡片上的两种动作各自的无障碍名字 */
     stageTrackPillOpenPlayerLabel: string;
     stageTrackPillOpenSongCardLabel: string;
-    /** automix 的过渡动画开着（模式也是 automix）；卡片在场时它会让位给卡片边框上的进度描边 */
-    automixTransitionAnimation: boolean;
 };
 
 // Builds the full overlay model, including detail overlays and floating playback controls.
@@ -158,7 +156,6 @@ export const buildAppOverlaysModel = ({
     openSongCardPanel,
     stageTrackPillOpenPlayerLabel,
     stageTrackPillOpenSongCardLabel,
-    automixTransitionAnimation,
 }: BuildAppOverlaysModelParams): AppOverlaysModel => ({
     // Gated on stageTrackPillOnScreen (computed in App: display mode plus which page allows the
     // card) rather than on the view directly, so the countdown that feeds the "up next" preview
@@ -176,7 +173,6 @@ export const buildAppOverlaysModel = ({
             timeoutSec: stageTrackPillTimeoutSec,
             nextUp: stageNextUp,
             isNextUp: stageIsNextUp,
-            transitionBorder: automixTransitionAnimation,
             theme,
             onActivate: currentView === 'home' ? navigateToPlayer : openSongCardPanel,
             activateLabel: currentView === 'home'

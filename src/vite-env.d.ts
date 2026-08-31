@@ -589,6 +589,7 @@ declare global {
     runtimeLogEnabled: boolean;
     runtimeLogMode: 'append' | 'overwrite';
     memoryMonitorEnabled: boolean;
+    memoryLogEnabled: boolean;
     memoryLogMode: 'append' | 'overwrite';
     memoryIntervalMs: number;
     logsRoot: string;
@@ -648,7 +649,7 @@ declare global {
       ) => () => void;
       /** Developer debug module. Absent in the browser build, where every caller no-ops. */
       debugGetState?: () => Promise<DebugModuleState>;
-      debugSetState?: (patch: Partial<Pick<DebugModuleState, 'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => Promise<DebugModuleState>;
+      debugSetState?: (patch: Partial<Pick<DebugModuleState, 'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => Promise<DebugModuleState>;
       debugOpenLogs?: (which?: 'runtime' | 'memory') => Promise<boolean>;
       debugWriteRuntimeLines?: (lines: Array<{ at: number; level: string; tag: string | null; text: string }>) => void;
       /** What this process can say about itself that the metrics table cannot see from outside. */

@@ -8,17 +8,17 @@ import {
 } from '../../services/debug/memorySamples';
 import {
     getDebugModuleSnapshot,
-    setDebugModuleState,
     subscribeToDebugModule,
 } from '../../services/debug/debugModule';
 
 // src/components/debug/MemoryMonitorWindow.tsx
 // The memory curve, live. Reads the store; owns no timer and no sampling of its own.
 //
-// The split matters: the main process decides how often to sample and writes every sample to disk,
-// and this window is one of possibly zero readers. Closing it stops nothing, and opening it shows
-// the history that accumulated while it was shut - which is the whole reason the recording is a
-// switch in Settings and the window is a shortcut.
+// The split matters: the main process decides how often to sample, and this window is one of
+// possibly zero readers. Closing it stops nothing, and opening it shows the history that
+// accumulated while it was shut - which is the whole reason the sampling is a switch in Settings and
+// the window is a shortcut. Whether those samples are also written to a file is a third thing, and
+// its own switch again.
 //
 // What the chart is FOR is judging a trend, so the series are the ones that separate the two kinds
 // of growth this app actually suffers: the JS heap climbing means leaked objects; a flat heap under
@@ -105,6 +105,12 @@ const MemoryMonitorWindow: React.FC<MemoryMonitorWindowProps> = ({ isDaylight, s
         return Math.max(peak * 1.08, 1);
     }, [history.points, shown]);
 
+    // The sampling switch in Settings > Developer governs this whole window, not just its numbers:
+    // off means the chord opens nothing, because there is no history to draw and never will be while
+    // it stays off. Same rule as the session log's switch over the Alt+Shift+D overlay. Placed after
+    // the hooks rather than at the top - the rule is unconditional hooks, not unconditional work.
+    if (!debug.memoryMonitorEnabled) return null;
+
     const latest = history.latest;
     const panelClass = isDaylight
         ? 'rounded-xl border border-black/10 bg-black/[0.04]'
@@ -121,21 +127,6 @@ const MemoryMonitorWindow: React.FC<MemoryMonitorWindowProps> = ({ isDaylight, s
             defaultOffset={{ x: -32, y: 56 }}
         >
             <div className="grid gap-3">
-                {!debug.memoryMonitorEnabled && (
-                    <div className={`${panelClass} px-3 py-2 text-[11px] leading-relaxed opacity-80`}>
-                        {t('options.memoryMonitorOffHint') || 'Recording is off, so nothing is being sampled or written.'}
-                        {debug.available && (
-                            <button
-                                type="button"
-                                onClick={() => void setDebugModuleState({ memoryMonitorEnabled: true })}
-                                className="ml-2 underline underline-offset-2 opacity-90 hover:opacity-100"
-                            >
-                                {t('options.memoryMonitorStart') || 'Start recording'}
-                            </button>
-                        )}
-                    </div>
-                )}
-
                 <section className={panelClass}>
                     <div className="grid grid-cols-4 gap-2 px-3 pt-3">
                         <Stat label={t('options.memoryCurrent') || 'Current'} value={latest ? `${latest.totalWorkingSetMB} MB` : '—'} />

@@ -10,7 +10,7 @@ import { AUTOMIX_MIN_OVERLAP_SEC, type TransitionTrack } from '@/services/automi
 import { DEFAULT_TRANSITION_SETTINGS } from '@/services/automix/transitionStrategy';
 import { type TrackProfile } from '@/services/automix/trackProfile';
 import { makeProfile } from './trackProfileFixture';
-import { subscribeToTransitionCue, type TransitionCue } from '@/services/automix/transitionCue';
+import { shouldDrawCue, subscribeToTransitionCue, type TransitionCue } from '@/services/automix/transitionCue';
 import {
     asElement,
     createFakeChain,
@@ -445,7 +445,10 @@ describe('automix session', () => {
 
         try {
             const harness = createHarness();
-            harness.arm();
+            // Measured on the incoming side, because the announcement is now gated on the STYLE
+            // having been chosen from something: a pair with only lyrics between them lands on
+            // `plainBlend`, which is the case the test below covers.
+            harness.arm({ to: withIntro() });
             harness.session.handleActiveDeckPlaying('local:next-song');
 
             // The five second overlap this harness is built around, on the audio clock. Not the
@@ -456,6 +459,9 @@ describe('automix session', () => {
             expect(cue.seconds).toBeCloseTo(5, 2);
             expect(cue.crossover).toBeGreaterThan(0);
             expect(cue.crossover).toBeLessThan(1);
+            // A measured style, so nothing marks it down: this is the one the ring is for.
+            expect(cue.plain).toBeUndefined();
+            expect(shouldDrawCue(cue, true, 'ring')).toBe(true);
 
             vi.advanceTimersByTime(5_200);
 
@@ -465,10 +471,10 @@ describe('automix session', () => {
         }
     });
 
-    // The case the announcement exists to refuse. Nothing is measured about a track dropped into
-    // the queue by hand, so automix hands the change to the crossfade planner - and a crossfade is
-    // not the thing the animation is drawing.
-    it('says nothing when automix had no evidence and a crossfade ran instead', () => {
+    // The mark the animations refuse on. Nothing is measured about a track dropped into the queue
+    // by hand, so automix hands the change to the crossfade planner - still a handover the remote
+    // window wants to align to, still not a mix for anything to draw.
+    it('marks the cue plain when automix had no evidence and a crossfade ran instead', () => {
         const announced: (TransitionCue | null)[] = [];
         const unsubscribe = subscribeToTransitionCue(cue => announced.push(cue));
 
@@ -480,10 +486,33 @@ describe('automix session', () => {
             });
             harness.session.handleActiveDeckPlaying('local:next-song');
 
-            // It still blends - the refusal is about what is drawn, not about what is heard.
+            // It still blends, and it still says so - the refusal is downstream, in what is drawn.
             expect(plan?.kind).toBe('fade');
-            expect(plan?.fellBack).toBe(true);
-            expect(announced.filter(cue => cue !== null)).toEqual([]);
+            expect(plan?.style).toBe('plainBlend');
+            expect(announced[0]?.plain).toBe(true);
+            expect(shouldDrawCue(announced[0]!, true, 'ring')).toBe(false);
+        } finally {
+            unsubscribe();
+        }
+    });
+
+    // The gap the old `fellBack` flag left. Lyrics count as evidence, so this pair never reaches the
+    // fallback branch - it runs the automix planner, which finds no profile on either side and lays
+    // out a plain fade anyway. An online track with the media cache off is exactly this, which made
+    // it the common case rather than the corner one.
+    it('marks the cue plain when lyrics were the only thing measured and a plain fade came out', () => {
+        const announced: (TransitionCue | null)[] = [];
+        const unsubscribe = subscribeToTransitionCue(cue => announced.push(cue));
+
+        try {
+            const harness = createHarness();
+            const plan = harness.arm();
+            harness.session.handleActiveDeckPlaying('local:next-song');
+
+            expect(plan?.kind).toBe('fade');
+            expect(plan?.style).toBe('plainBlend');
+            expect(announced[0]?.plain).toBe(true);
+            expect(shouldDrawCue(announced[0]!, true, 'ring')).toBe(false);
         } finally {
             unsubscribe();
         }

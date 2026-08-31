@@ -16,6 +16,7 @@ export interface DebugModuleSnapshot {
     runtimeLogEnabled: boolean;
     runtimeLogMode: DebugLogMode;
     memoryMonitorEnabled: boolean;
+    memoryLogEnabled: boolean;
     memoryLogMode: DebugLogMode;
     memoryIntervalMs: number;
     logsRoot: string | null;
@@ -28,6 +29,7 @@ const UNAVAILABLE: DebugModuleSnapshot = {
     runtimeLogEnabled: false,
     runtimeLogMode: 'append',
     memoryMonitorEnabled: false,
+    memoryLogEnabled: false,
     memoryLogMode: 'overwrite',
     memoryIntervalMs: 2000,
     logsRoot: null,
@@ -75,7 +77,7 @@ export const refreshDebugModule = async () => {
  * would show a filename nothing is writing to.
  */
 export const setDebugModuleState = async (patch: Partial<Pick<DebugModuleSnapshot,
-    'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => {
+    'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => {
     try {
         adopt(await bridge()?.debugSetState?.(patch));
     } catch {

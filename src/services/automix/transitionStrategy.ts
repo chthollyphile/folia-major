@@ -143,5 +143,5 @@ export const planForMode = (
     // Deliberately not phrased like `chooseTransitionStyle`'s own "nothing measured about either
     // track" fallback - that one is about picking a STYLE and reads identically in the log. These two
     // failures are different sizes and want telling apart at a glance.
-    return { ...plan, fellBack: true, reason: `automix has no evidence here, ${plan.reason} instead` };
+    return { ...plan, reason: `automix has no evidence here, ${plan.reason} instead` };
 };

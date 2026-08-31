@@ -58,6 +58,7 @@ const TRANSITION_MODE_KEY = 'folia_transition_mode';
 const CROSSFADE_MAX_SEC_KEY = 'folia_crossfade_max_sec';
 const TRANSITION_PERFORMANCE_KEY = 'folia_transition_performance';
 const TRANSITION_ANIMATION_KEY = 'folia_transition_animation';
+const TRANSITION_ANIMATION_CARD_KEY = 'folia_transition_animation_card';
 const LAST_SEEN_GUIDE_VERSION_STORAGE_KEY = 'folia_last_seen_guide_version';
 
 export type AudioQuality = AudioQualityPreference;
@@ -112,6 +113,32 @@ const setStoredBoolean = (key: string, value: boolean) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(key, String(value));
     }
+};
+
+/**
+ * The card border's switch, seeded once from the switch the two renderers used to share.
+ *
+ * Before the split, that switch on meant the card's border was what you actually saw on the lyrics
+ * page - the ring stood down wherever the card was up - so starting this one off would read as the
+ * update having taken something away.
+ *
+ * Written back rather than derived on every start, and that is the part worth keeping: the old key
+ * now belongs to the RING alone, so a listener who turns the ring on later would otherwise find the
+ * border had switched itself back on at the next launch. A migration has to happen once and then be
+ * over.
+ */
+const readTransitionAnimationCard = (): boolean => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    if (localStorage.getItem(TRANSITION_ANIMATION_CARD_KEY) !== null) {
+        return getStoredBoolean(TRANSITION_ANIMATION_CARD_KEY, false);
+    }
+
+    const inherited = getStoredBoolean(TRANSITION_ANIMATION_KEY, false);
+    setStoredBoolean(TRANSITION_ANIMATION_CARD_KEY, inherited);
+    return inherited;
 };
 
 /**
@@ -1517,8 +1544,20 @@ export type SettingsUiState = {
     crossfadeMaxSec: number;
     /** Let the mix be heard. Only reachable with automix on, and only where stems exist. */
     transitionPerformance: boolean;
-    /** Draw the mix while it runs. Automix only, and only for blends long enough to watch. */
+    /**
+     * Draw the mix as a ring in the middle of the screen. Automix only, and only for blends long
+     * enough to watch.
+     */
     transitionAnimation: boolean;
+    /**
+     * Draw the same mix on the now playing card's border, on the pages that card appears on.
+     *
+     * Its own switch rather than a placement rule under the one above, because the two are two
+     * pictures in two places and only the listener knows which they want where. They used to share
+     * a switch, with the ring standing down wherever the card was up - which meant turning the
+     * animation on and never seeing the ring again on the page most people watch.
+     */
+    transitionAnimationCard: boolean;
     backgroundOpacity: number;
     subtitleOverlayOpacity: number;
     subtitleOverlayBackground: boolean;
@@ -1673,6 +1712,7 @@ export type SettingsUiState = {
     handleSetCrossfadeMaxSec: (seconds: number) => void;
     handleToggleTransitionPerformance: (enable: boolean) => void;
     handleToggleTransitionAnimation: (enable: boolean) => void;
+    handleToggleTransitionAnimationCard: (enable: boolean) => void;
     handleSetBackgroundOpacity: (opacity: number) => void;
     handleSetSubtitleOverlayOpacity: (opacity: number) => void;
     handleToggleSubtitleOverlayBackground: (enabled: boolean) => void;
@@ -1836,6 +1876,7 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     // Off by default: it draws over whatever the listener is already looking at, which is a
     // choice to make rather than one to arrive at after an update.
     transitionAnimation: getStoredBoolean(TRANSITION_ANIMATION_KEY, false),
+    transitionAnimationCard: readTransitionAnimationCard(),
     backgroundOpacity: readStoredBackgroundOpacity(),
     subtitleOverlayOpacity: readStoredSubtitleOverlayOpacity(),
     subtitleOverlayBackground: getStoredBoolean(SUBTITLE_OVERLAY_BACKGROUND_STORAGE_KEY, true),
@@ -2342,6 +2383,10 @@ export const useSettingsUiStore = create<SettingsUiState>((set, get) => ({
     handleToggleTransitionAnimation: (enable) => {
         setStoredBoolean(TRANSITION_ANIMATION_KEY, enable);
         set({ transitionAnimation: enable });
+    },
+    handleToggleTransitionAnimationCard: (enable) => {
+        setStoredBoolean(TRANSITION_ANIMATION_CARD_KEY, enable);
+        set({ transitionAnimationCard: enable });
     },
     handleSetBackgroundOpacity: (opacity) => {
         if (typeof window !== 'undefined') {

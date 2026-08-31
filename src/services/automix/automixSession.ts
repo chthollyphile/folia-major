@@ -1134,23 +1134,30 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         // knows how long the blend will be or whether there will be one. By here both are settled, and the
         // numbers below are the ones actually scheduled.
         //
-        // Nothing is announced for a plan that fell back. A track dropped into the queue by hand arrives
-        // with nothing measured about it, automix hands that change to the crossfade planner, and what
-        // plays is a crossfade - so anything on screen claiming a mix is happening would describe a
-        // transition that is not the one being heard.
+        // Every scheduled handover is announced, with `plain` saying which kind it is. It used to be
+        // announced only when `plan.fellBack` was clear, which got both halves wrong: it withheld the
+        // cue from the remote window, which wants every handover including a crossfade so it can align
+        // its cover and title to the audio - and it let a mix be drawn over a plain fade, because
+        // `fellBack` marks only the branch where automix found NO evidence and lyrics alone count as
+        // evidence. A track with words and no analysis - an online song with the media cache off, which
+        // is the ordinary case rather than the corner one - kept the flag clear and laid out a plain
+        // fade anyway.
+        //
+        // `plainBlend` is that fact: both planners reach it by the same road, nothing measured about
+        // either end, and it is what the crossfade planner emits every time. Marking it here rather
+        // than deciding here, because the two audiences want opposite things - see `TransitionCue`.
         //
         // `hold` folded into the length rather than reported beside it: the two are one span from the
         // screen's side, so the crossover is re-expressed against that same span instead of leaving a
         // fraction that means something different from the number next to it. Divided by `applied` for the
         // same reason `wall` is - a bent outgoing track counts beats faster than its own tempo says, and a
         // pulse on the untouched period would drift across the window.
-        if (!plan.fellBack) {
-            announceTransition({
-                seconds: hold + wall,
-                crossover: hold + wall > 0 ? (hold + wall * shape.crossover) / (hold + wall) : 0,
-                periodSec: periodSec === null ? null : periodSec / applied,
-            });
-        }
+        announceTransition({
+            seconds: hold + wall,
+            crossover: hold + wall > 0 ? (hold + wall * shape.crossover) / (hold + wall) : 0,
+            periodSec: periodSec === null ? null : periodSec / applied,
+            ...(shape.style === 'plainBlend' ? { plain: true } as const : {}),
+        });
 
         if (stemmed) {
             cleanupTimer = setTimeout(

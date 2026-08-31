@@ -2,7 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { animate, createTimeline, svg, type JSAnimation, type Timeline } from 'animejs';
 import type { Theme } from '../../../types';
 import { useSettingsUiStore } from '../../../stores/useSettingsUiStore';
-import { subscribeToTransitionCue, type TransitionCue } from '../../../services/automix/transitionCue';
+import {
+    getActiveTransitionCue,
+    shouldDrawCue,
+    subscribeToTransitionCue,
+    type TransitionCue,
+} from '../../../services/automix/transitionCue';
 
 // src/components/app/overlays/AutomixTransitionAnimation.tsx
 // What a mix looks like while it is happening: one ring, shared by two tracks.
@@ -21,15 +26,6 @@ import { subscribeToTransitionCue, type TransitionCue } from '../../../services/
 const RING_PATH = 'M100 34A66 66 0 0 1 100 166A66 66 0 0 1 100 34';
 const RING_RADIUS = 66;
 
-/**
- * The shortest blend worth drawing.
- *
- * Below this the ring would spend most of its life entering and leaving, and the listener would get a
- * flash rather than a picture. Automix's short shapes - the beat cut, the splice - are all well under it,
- * which is the point: those are meant to pass unnoticed, and an animation is the opposite of unnoticed.
- */
-const MIN_DRAWN_SECONDS = 5;
-
 const ENTER_MS = 760;
 const EXIT_MS = 700;
 /** How long the fade takes when something ends the animation before its time. */
@@ -47,22 +43,37 @@ const NORMAL_END_SLACK_MS = 400;
 type AutomixTransitionAnimationProps = {
     theme?: Theme;
     isDaylight: boolean;
-    /**
-     * The now playing card is drawing this blend on its own border instead.
-     *
-     * Hidden rather than unmounted, and that is the whole point of the prop. A cue is announced, not
-     * stored for whoever turns up next, so a renderer that mounts mid-blend has nothing to draw for
-     * the rest of it. Both of these can appear and disappear mid-blend - navigating between home and
-     * the lyrics page moves the card, and so does its own setting - so this one stays mounted and
-     * subscribed the whole time the animation is switched on, and only stops being looked at. When
-     * the card goes away in the middle of a transition, this is already running at the right
-     * position and just becomes visible.
-     */
-    suppressed?: boolean;
 };
 
-const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({ theme, isDaylight, suppressed = false }) => {
-    const [cue, setCue] = useState<TransitionCue | null>(null);
+/** The blend being drawn, and how far into it this ring picked it up. */
+type DrawnRun = {
+    cue: TransitionCue;
+    /** Milliseconds already elapsed when drawing started. Zero for a blend caught at its start. */
+    startAtMs: number;
+};
+
+/**
+ * The blend already running that this ring should be drawing, if any.
+ *
+ * Asked at mount, and that is not an optimisation - it is the only way this component ever sees the
+ * preview its own switch plays. This file is mounted by that switch (see App.tsx), and the settings
+ * page flips the switch and announces the preview from two consecutive lines of one click handler.
+ * React commits nothing between them, and the lazy chunk has not even been fetched, so the
+ * announcement is guaranteed to arrive before there is anything here to hear it. What is running is
+ * recorded in the module, so arriving late costs nothing but the milliseconds already elapsed.
+ */
+const readRunningCue = (): DrawnRun | null => {
+    const running = getActiveTransitionCue();
+    if (!running) return null;
+    const settings = useSettingsUiStore.getState();
+    return shouldDrawCue(running.cue, settings.transitionAnimation && settings.transitionMode === 'automix', 'ring')
+        ? { cue: running.cue, startAtMs: running.elapsedMs }
+        : null;
+};
+
+const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({ theme, isDaylight }) => {
+    const [run, setRun] = useState<DrawnRun | null>(readRunningCue);
+    const cue = run?.cue ?? null;
 
     const rootRef = useRef<HTMLDivElement | null>(null);
     const bloomRef = useRef<HTMLDivElement | null>(null);
@@ -91,7 +102,7 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
         if (leavingRef.current) return;
         const root = rootRef.current;
         if (!root) {
-            setCue(null);
+            setRun(null);
             return;
         }
         leavingRef.current = true;
@@ -103,21 +114,21 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
         // delivering them - so a fade started now would sit part-finished until the window came back, and
         // the listener would return to a ring dissolving over a song that has been playing for ten minutes.
         if (document.hidden) {
-            setCue(null);
+            setRun(null);
             return;
         }
         dismissAnimationRef.current = animate(root, {
             opacity: 0,
             duration: DISMISS_MS,
             ease: 'outQuad',
-            onComplete: () => setCue(null),
+            onComplete: () => setRun(null),
         });
     }, []);
 
-    // Subscribed once, and the three rules are read at the moment a cue arrives rather than subscribed
-    // against. Both settings are read imperatively for the same reason: the settings page announces one
-    // cue as a preview the instant the switch goes on, and a subscription keyed on that switch would still
-    // be tearing down its old self when the preview was announced.
+    // Subscribed once. The settings are read at the moment a cue arrives rather than subscribed
+    // against, for the same reason the mount reads `readRunningCue`: the settings page announces its
+    // preview from the line after the one that flips the switch, and a subscription keyed on that
+    // switch would still be tearing down its old self when the preview went out.
     useEffect(() => subscribeToTransitionCue(next => {
         if (next === null) {
             // The blend is over. Whether that is this animation's own ending or something cutting
@@ -126,24 +137,28 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
             return;
         }
         const settings = useSettingsUiStore.getState();
-        if (!settings.transitionAnimation || settings.transitionMode !== 'automix') return;
-        if (!(next.seconds >= MIN_DRAWN_SECONDS)) return;
+        // Nothing is touched when the answer is no - not even a dismissal. The card's own settings
+        // preview comes down this same channel, and it is not this ring's business either to draw
+        // it or to cut short whatever this ring is already drawing.
+        if (!shouldDrawCue(next, settings.transitionAnimation && settings.transitionMode === 'automix', 'ring')) return;
         dismissAnimationRef.current?.cancel();
         dismissAnimationRef.current = null;
         leavingRef.current = false;
-        endsAtRef.current = performance.now() + next.seconds * 1000;
-        setCue(next);
+        setRun({ cue: next, startAtMs: 0 });
     }), [dismiss]);
+
+    // When this run is due to be over, on the clock the dismissal check above reads. Derived from
+    // the run rather than written beside each `setRun`, so the seeded one - which starts partway in
+    // and is nobody's callback - cannot be the one that gets forgotten.
+    useEffect(() => {
+        endsAtRef.current = run ? performance.now() + run.cue.seconds * 1000 - run.startAtMs : 0;
+    }, [run]);
 
     // Any key, any left click. Capture, because the point is to get out of the way of whatever the
     // listener is about to do - and something further down stopping the event does not make them
     // any less busy.
-    //
-    // Not while suppressed: nothing of this is on screen then, so a click was aimed at something
-    // else, and taking it as a dismissal would throw away the run that has to be ready in case the
-    // card leaves before the blend is over.
     useEffect(() => {
-        if (!cue || suppressed) return;
+        if (!cue) return;
         const onKey = () => dismiss();
         const onMouse = (event: MouseEvent) => {
             if (event.button === 0) dismiss();
@@ -154,21 +169,11 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
             window.removeEventListener('keydown', onKey, { capture: true });
             window.removeEventListener('mousedown', onMouse, { capture: true });
         };
-    }, [cue, suppressed, dismiss]);
-
-    // Hiding is written straight to the node rather than through the style prop, because the
-    // timeline owns this element's `opacity` and React re-applying a style object would fight it:
-    // reveal is meant to show a run already at the right position, not reset one to zero.
-    //
-    // visibility, not display or unmounting: the animation has to keep running while nobody is
-    // looking at it, so that the moment the card leaves mid-blend there is something to reveal.
-    useEffect(() => {
-        const root = rootRef.current;
-        if (root) root.style.visibility = suppressed ? 'hidden' : 'visible';
-    }, [suppressed, cue]);
+    }, [cue, dismiss]);
 
     useEffect(() => {
-        if (!cue) return;
+        if (!run) return;
+        const { cue, startAtMs } = run;
         const root = rootRef.current;
         const bloom = bloomRef.current;
         const pulse = pulseRef.current;
@@ -241,7 +246,15 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
                 ease: 'inOutQuad',
             }, total);
 
-        timeline.onComplete = () => setCue(null);
+        timeline.onComplete = () => setRun(null);
+
+        // Picked the blend up partway through, so wind the whole timeline to where it is. The ring
+        // IS the clock of this mix - starting a joined run from zero would put the seam where the
+        // audio is not, which is the one thing the three linear tracks above exist to prevent.
+        // Callbacks muted so winding past a marker cannot fire it. In the ordinary case - the
+        // preview its own switch plays - this is the few milliseconds the lazy chunk took, and the
+        // entrance below still runs in full.
+        if (startAtMs > 0) timeline.seek(startAtMs, true);
 
         // Free-running rather than on the timeline: this is a tempo, not a position in the blend,
         // and nothing here knows where the downbeats are. Kept small enough that being out of
@@ -261,7 +274,7 @@ const AutomixTransitionAnimation: React.FC<AutomixTransitionAnimationProps> = ({
             timelineRef.current = null;
             pulseAnimationRef.current = null;
         };
-    }, [cue]);
+    }, [run]);
 
     if (!cue) return null;
 
