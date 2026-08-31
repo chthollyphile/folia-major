@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -10,6 +10,7 @@ import path from 'path';
 
 const { createMemoryMonitor } = require('../../../electron/debug/memoryMonitor.cjs');
 const { createDebugLogWriter } = require('../../../electron/debug/debugLogWriter.cjs');
+const { migrateMemoryLogEnabled } = require('../../../electron/debug/debugHost.cjs');
 
 /** A metrics row shaped like Electron's, sizes in KB. */
 const metric = (pid: number, type: string, workingSetMB: number, peakMB = workingSetMB, privateMB: number | null = null) => ({
@@ -236,5 +237,37 @@ describe('the debug log writer', () => {
         expect(fs.existsSync(stale)).toBe(false);
         // Only files this writer's own naming produces are its business.
         expect(fs.existsSync(unrelated)).toBe(true);
+    });
+});
+
+describe('the split memory log switch', () => {
+    it('inherits an enabled old monitor once, preserving disk recording after an upgrade', () => {
+        const store = { set: vi.fn() };
+
+        expect(migrateMemoryLogEnabled(store, {
+            memoryMonitorEnabled: true,
+            memoryLogEnabled: undefined,
+        })).toBe(true);
+        expect(store.set).toHaveBeenCalledWith('debug_memory_log_enabled', true);
+    });
+
+    it('keeps an explicit file choice instead of re-inheriting the monitor switch', () => {
+        const store = { set: vi.fn() };
+
+        expect(migrateMemoryLogEnabled(store, {
+            memoryMonitorEnabled: true,
+            memoryLogEnabled: false,
+        })).toBe(false);
+        expect(store.set).not.toHaveBeenCalled();
+    });
+
+    it('keeps both switches off on a fresh install', () => {
+        const store = { set: vi.fn() };
+
+        expect(migrateMemoryLogEnabled(store, {
+            memoryMonitorEnabled: undefined,
+            memoryLogEnabled: undefined,
+        })).toBe(false);
+        expect(store.set).toHaveBeenCalledWith('debug_memory_log_enabled', false);
     });
 });

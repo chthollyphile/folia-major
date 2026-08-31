@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import DraggableDebugWindow from '../shared/DraggableDebugWindow';
 import {
@@ -104,6 +104,13 @@ const MemoryMonitorWindow: React.FC<MemoryMonitorWindowProps> = ({ isDaylight, s
         }
         return Math.max(peak * 1.08, 1);
     }, [history.points, shown]);
+
+    // The shortcut owns visibility outside this component. Clear that state when sampling is off;
+    // otherwise a keypress while this component returns null leaves an invisible "open" window
+    // that appears later when sampling is enabled, and the next keypress closes instead of opens it.
+    useEffect(() => {
+        if (!debug.memoryMonitorEnabled) onClose();
+    }, [debug.memoryMonitorEnabled, onClose]);
 
     // The sampling switch in Settings > Developer governs this whole window, not just its numbers:
     // off means the chord opens nothing, because there is no history to draw and never will be while

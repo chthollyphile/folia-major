@@ -107,3 +107,20 @@ test('描边正在画时拨圆环开关，描边不被打断', async ({ page }) 
     await page.waitForTimeout(2000);
     await expect(border(page)).toBeVisible();
 });
+
+// 忽略别人的演示不能压过自己的关闭状态：描边在画时拨开圆环，active 会暂时记成圆环演示；
+// 这时再关描边，旧实现会先走“圆环演示不关我的事”分支，把旧描边原样留到十秒结束。
+test('圆环演示期间关掉描边开关，描边仍然立刻停', async ({ page }) => {
+    await open(page);
+
+    await page.click('[data-probe-action="card-switch"]');
+    await expect(border(page)).toBeVisible({ timeout: 10_000 });
+
+    await page.click('[data-probe-action="ring-switch"]');
+    await expect(ring(page)).toBeVisible({ timeout: 10_000 });
+    await expect(border(page)).toBeVisible();
+
+    await page.click('[data-probe-action="card-switch"]');
+    await expect(page.locator('[data-probe-action="card-switch"]')).toHaveAttribute('data-probe-card', 'off');
+    await expect(border(page)).toHaveCount(0, { timeout: 3_000 });
+});

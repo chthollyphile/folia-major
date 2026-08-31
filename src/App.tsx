@@ -185,7 +185,6 @@ export default function App() {
     const crossfadeMaxSec = useSettingsUiStore(state => state.crossfadeMaxSec);
     const transitionPerformance = useSettingsUiStore(state => state.transitionPerformance);
     const transitionAnimation = useSettingsUiStore(state => state.transitionAnimation);
-    const transitionAnimationCard = useSettingsUiStore(state => state.transitionAnimationCard);
     const handleToggleAutomix = useSettingsUiStore(state => state.handleToggleAutomix);
     const handleSetTransitionMode = useSettingsUiStore(state => state.handleSetTransitionMode);
     const handleToggleTransitionPerformance = useSettingsUiStore(state => state.handleToggleTransitionPerformance);

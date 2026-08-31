@@ -27,11 +27,15 @@ const nextBorderCue = (
 ): TransitionBorderCue | null => {
     const running = getActiveTransitionCue();
 
+    // 关掉自己的开关永远优先。即使 active 此刻记的是圆环的演示，也不能为了“不打断别人的
+    // preview”而把已经关闭的描边继续留在屏幕上。
+    if (!switchedOn) return null;
+
     // 写着圆环名字的那条演示不关这里的事：不画它，也不能因为它把自己正在画的这次收掉。
     // 模块里只记得住最后广播的那一条，而两个开关是可能在十秒内先后拨上的。
     if (running?.cue.preview && running.cue.preview !== 'card') return prev;
 
-    if (!switchedOn || !running || !shouldDrawCue(running.cue, true, 'card')) return null;
+    if (!running || !shouldDrawCue(running.cue, true, 'card')) return null;
 
     // 同一次混音重算不改起点：startAtMs 只在接手的那一刻定一次，否则每同步一次描边就被拨回去一点。
     return prev && prev.cue === running.cue

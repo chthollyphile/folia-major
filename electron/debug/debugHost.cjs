@@ -50,6 +50,19 @@ const MODES = ['append', 'overwrite'];
 const clampInterval = (value) => Math.min(60_000, Math.max(1000, Math.round(Number(value) || DEFAULTS.memoryIntervalMs)));
 
 /**
+ * Seeds the new file switch from the old combined monitor switch exactly once.
+ *
+ * Before the split, enabling the monitor necessarily wrote every sample to disk. An explicit value
+ * for the new switch always wins; only an absent key means this install still needs migrating.
+ */
+const migrateMemoryLogEnabled = (store, stored) => {
+    if (typeof stored.memoryLogEnabled === 'boolean') return stored.memoryLogEnabled;
+    const inherited = stored.memoryMonitorEnabled === true;
+    store.set(STORE_KEYS.memoryLogEnabled, inherited);
+    return inherited;
+};
+
+/**
  * The live host, or null before startup / after quit.
  *
  * A module-level singleton on purpose: `runtimeLine` is called from subsystems that are constructed
@@ -83,7 +96,7 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
             runtimeLogEnabled: typeof stored.runtimeLogEnabled === 'boolean' ? stored.runtimeLogEnabled : DEFAULTS.runtimeLogEnabled,
             runtimeLogMode: MODES.includes(stored.runtimeLogMode) ? stored.runtimeLogMode : DEFAULTS.runtimeLogMode,
             memoryMonitorEnabled: stored.memoryMonitorEnabled === true,
-            memoryLogEnabled: stored.memoryLogEnabled === true,
+            memoryLogEnabled: migrateMemoryLogEnabled(store, stored),
             memoryLogMode: MODES.includes(stored.memoryLogMode) ? stored.memoryLogMode : DEFAULTS.memoryLogMode,
             memoryIntervalMs: clampInterval(stored.memoryIntervalMs),
         };
@@ -297,4 +310,4 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
     return host;
 };
 
-module.exports = { createDebugHost, runtimeLine, DEFAULTS };
+module.exports = { createDebugHost, runtimeLine, migrateMemoryLogEnabled, DEFAULTS };
