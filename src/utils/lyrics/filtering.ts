@@ -5,32 +5,42 @@ import type { LyricProcessingOptions } from './types';
 
 export const LYRIC_FILTER_REGEX_EXAMPLE = '^(?=.*[：:（）()])(?=.*(?:词|曲|制作|发行)).*$';
 
-const normalizeFilterPattern = (pattern?: string | null): string => pattern?.trim() || '';
+// 多行即多规则：按行拆开，每行一条独立正则，空行忽略。
+// 存储仍是单个字符串，因此旧的「整段一条正则」写法（无换行）行为完全不变。
+const splitFilterRules = (pattern?: string | null): string[] =>
+    (pattern ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
 
 export const getLyricFilterError = (pattern?: string | null): string | null => {
-    const normalized = normalizeFilterPattern(pattern);
-    if (!normalized) {
+    const rules = splitFilterRules(pattern);
+    if (rules.length === 0) {
         return null;
     }
 
-    try {
-        new RegExp(normalized);
-        return null;
-    } catch (error) {
-        return error instanceof Error ? error.message : 'Invalid regular expression';
+    for (const rule of rules) {
+        try {
+            new RegExp(rule);
+        } catch (error) {
+            return error instanceof Error ? error.message : 'Invalid regular expression';
+        }
     }
+
+    return null;
 };
 
-export const hasLyricFilterPattern = (pattern?: string | null): boolean => normalizeFilterPattern(pattern).length > 0;
+export const hasLyricFilterPattern = (pattern?: string | null): boolean => splitFilterRules(pattern).length > 0;
 
 export const compileLyricFilterPattern = (pattern?: string | null): RegExp | null => {
-    const normalized = normalizeFilterPattern(pattern);
-    if (!normalized) {
+    const rules = splitFilterRules(pattern);
+    if (rules.length === 0) {
         return null;
     }
 
+    // 每行一条独立规则，任一行命中即判定删除，故用「或」并接成单条正则。
     try {
-        return new RegExp(normalized);
+        return new RegExp(rules.join('|'));
     } catch {
         return null;
     }

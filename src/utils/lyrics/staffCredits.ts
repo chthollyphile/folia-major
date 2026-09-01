@@ -44,31 +44,37 @@ export const LYRIC_STAFF_PATTERN_EXAMPLE = '^(?:作词|作曲|编曲|制作人|�
 const builtInStaffRegex = new RegExp(BUILT_IN_STAFF_PATTERN, 'i');
 
 export const getLyricStaffPatternError = (pattern?: string | null): string | null => {
-    const normalized = pattern?.trim() || '';
-    if (!normalized) {
-        return null;
-    }
+    const rules = (pattern ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
 
-    try {
-        new RegExp(normalized, 'i');
-        return null;
-    } catch (error) {
-        return error instanceof Error ? error.message : 'Invalid regular expression';
-    }
-};
-
-// 空 pattern = 用内置词表；填了就整体替换内置规则（位置约束仍然生效）。
-export const createStaffCreditMatcher = (pattern?: string | null): ((line: Line) => boolean) => {
-    const normalized = pattern?.trim() || '';
-    let custom: RegExp | null = null;
-
-    if (normalized) {
+    for (const rule of rules) {
         try {
-            custom = new RegExp(normalized, 'i');
-        } catch {
-            custom = null;
+            new RegExp(rule, 'i');
+        } catch (error) {
+            return error instanceof Error ? error.message : 'Invalid regular expression';
         }
     }
+
+    return null;
+};
+
+// 空 pattern = 用内置词表；填了任意一行就整体替换内置规则（多行则每行一条、任一行命中即算署名，
+// 位置约束仍然生效）。
+export const createStaffCreditMatcher = (pattern?: string | null): ((line: Line) => boolean) => {
+    const rules = (pattern ?? '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((rule) => {
+            try {
+                return new RegExp(rule, 'i');
+            } catch {
+                return null;
+            }
+        })
+        .filter((regex): regex is RegExp => regex !== null);
 
     return (line: Line): boolean => {
         const text = line.fullText?.trim() || '';
@@ -76,8 +82,8 @@ export const createStaffCreditMatcher = (pattern?: string | null): ((line: Line)
             return false;
         }
 
-        if (custom) {
-            return custom.test(text);
+        if (rules.length > 0) {
+            return rules.some((regex) => regex.test(text));
         }
 
         return builtInStaffRegex.test(text) || STAFF_BY_PREFIX.test(text);

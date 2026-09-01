@@ -110,12 +110,13 @@ const LyricStaffSection: React.FC<LyricStaffSectionProps> = ({
                         {t('lyricStaff.customPattern')}
                     </div>
                     <div className={`mt-1 text-xs ${mutedText}`}>{t('lyricStaff.customPatternDesc')}</div>
-                    <input
-                        type="text"
+                    <textarea
                         value={pattern}
                         onChange={(event) => onPatternChange(event.target.value)}
                         placeholder={t('lyricStaff.customPatternPlaceholder')}
-                        className={`mt-3 w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors ${inputBg}`}
+                        rows={4}
+                        spellCheck={false}
+                        className={`mt-3 w-full resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition-colors ${inputBg}`}
                         style={{ color: 'var(--text-primary)' }}
                     />
                     <div className="mt-2 px-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
