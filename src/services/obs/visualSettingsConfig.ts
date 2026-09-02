@@ -1,13 +1,13 @@
-import { collectVisualizerTunings } from '../components/visualizer/tuningRegistry';
-import { readStoredThemeAutoGenerateEnabled, readStoredThemeAutoSwitchEnabled, readStoredThemeGenerationSource } from '../services/themePreferences';
-import type { CappellaAvatarImage, CappellaEmojiImage, CappellaTuning, MonetBackgroundImage, MonetBackgroundTuning, MonetPortraitImage, MonetTuning, NomandBackgroundTuning } from '../types';
-import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
-import { useVisualizerAssetStore } from '../stores/useVisualizerAssetStore';
-import { useTypographySettingsStore } from '../stores/useTypographySettingsStore';
-import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
-import { useStageSettingsStore } from '../stores/useStageSettingsStore';
+import { collectVisualizerTunings } from '../../components/visualizer/tuningRegistry';
+import { readStoredThemeAutoGenerateEnabled, readStoredThemeAutoSwitchEnabled, readStoredThemeGenerationSource } from '../themePreferences';
+import type { CappellaAvatarImage, CappellaEmojiImage, CappellaTuning, MonetBackgroundImage, MonetBackgroundTuning, MonetPortraitImage, MonetTuning, NomandBackgroundTuning } from '../../types';
+import { useVisualizerSettingsStore } from '../../stores/useVisualizerSettingsStore';
+import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
+import { useTypographySettingsStore } from '../../stores/useTypographySettingsStore';
+import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
+import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
 
-// src/utils/visualSettingsConfig.ts
+// src/services/obs/visualSettingsConfig.ts
 // Everything compressConfig serializes except the theme. Reads the live settings store, so both
 // the import/export "copy config" and the OBS URL builder stay in sync from a single field list.
 
@@ -98,8 +98,6 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
 // custom fallback family) rather than only a builtin sans/serif/mono style — used to warn on copy
 // that the font may be unavailable on the OBS machine (and that an uploaded font never transfers).
 export function hasCustomObsFont(): boolean {
-  const storeStageSettings = useStageSettingsStore.getState();
-  const storeThemeSettings = useThemeSettingsStore.getState();
   const storeTypographySettings = useTypographySettingsStore.getState();
   return Boolean(storeTypographySettings.lyricsCustomFont)
     || (storeTypographySettings.lyricsFontFallbackFamilies?.length ?? 0) > 0

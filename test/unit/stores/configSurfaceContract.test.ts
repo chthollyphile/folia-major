@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSyncedVisualSettings, readSyncableSettingsState } from '@/services/sync/settingsSnapshot';
-import { buildVisualSettingsConfig } from '@/utils/visualSettingsConfig';
+import { buildVisualSettingsConfig } from '@/services/obs/visualSettingsConfig';
 
 // test/unit/stores/configSurfaceContract.test.ts
 // Locks the two documents that carry a listener's settings off this machine.

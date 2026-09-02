@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { resolveWebObsTarget, selectWebObsSource } from '@/utils/webObsTarget';
+import { resolveWebObsTarget, selectWebObsSource } from '@/services/obs/webObsTarget';
 import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
 
 // test/unit/obs/webObsTarget.test.ts

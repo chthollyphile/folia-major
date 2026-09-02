@@ -18,9 +18,9 @@ vi.mock('@/services/themePreferences', () => ({
     })),
 }));
 vi.mock('@/services/themeCache', () => ({ getLastDualTheme: vi.fn() }));
-vi.mock('@/utils/visualSettingsConfig', () => ({ buildVisualSettingsConfig: () => ({ visualizerMode: 'monet' }) }));
+vi.mock('@/services/obs/visualSettingsConfig', () => ({ buildVisualSettingsConfig: () => ({ visualizerMode: 'monet' }) }));
 
-import { buildCurrentObsUrl } from '@/utils/currentObsUrl';
+import { buildCurrentObsUrl } from '@/services/obs/currentObsUrl';
 import { compressConfig, readSavedCustomTheme } from '@/utils/appearanceCodec';
 import { readStoredLastAppliedThemePointer } from '@/services/themePreferences';
 import { getLastDualTheme } from '@/services/themeCache';

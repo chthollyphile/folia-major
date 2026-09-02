@@ -1,8 +1,8 @@
-import type { CappellaAvatarImage, CappellaEmojiImage } from '../types';
-import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
-import { useVisualizerAssetStore } from '../stores/useVisualizerAssetStore';
+import type { CappellaAvatarImage, CappellaEmojiImage } from '../../types';
+import { useVisualizerSettingsStore } from '../../stores/useVisualizerSettingsStore';
+import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
 
-// src/utils/obsCustomCss.ts
+// src/services/obs/obsCustomCss.ts
 // Carries the uploaded OBS assets the cfg URL cannot (an IndexedDB blob has no shareable URL) through
 // the OBS Browser Source "Custom CSS" field instead: the producer downsamples each asset into a data
 // URL packed as a :root custom property, and the overlay reads it back with getComputedStyle. This

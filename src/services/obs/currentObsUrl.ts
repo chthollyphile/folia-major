@@ -1,15 +1,15 @@
-import type { DualTheme } from '../types';
-import { compressConfig, readSavedCustomTheme } from './appearanceCodec';
+import type { DualTheme } from '../../types';
+import { compressConfig, readSavedCustomTheme } from '../../utils/appearanceCodec';
 import { buildVisualSettingsConfig } from './visualSettingsConfig';
-import { buildObsSourceUrl } from './obsUrl';
-import { applyStoredAnimationIntensityToDualTheme, readStoredLastAppliedThemePointer } from '../services/themePreferences';
-import { getLastDualTheme } from '../services/themeCache';
-import { BASE_DUAL_THEME } from '../services/baseThemes';
-import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
-import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
-import { useStageSettingsStore } from '../stores/useStageSettingsStore';
+import { buildObsSourceUrl } from '../../utils/obsUrl';
+import { applyStoredAnimationIntensityToDualTheme, readStoredLastAppliedThemePointer } from '../themePreferences';
+import { getLastDualTheme } from '../themeCache';
+import { BASE_DUAL_THEME } from '../baseThemes';
+import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
+import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
+import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
 
-// src/utils/currentObsUrl.ts
+// src/services/obs/currentObsUrl.ts
 // Build the OBS static URL for a given web source from the current visual settings, producing the
 // same cfg as the import/export "copy config".
 

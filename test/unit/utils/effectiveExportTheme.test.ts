@@ -13,7 +13,7 @@ vi.mock('@/utils/appearanceCodec', () => ({
     compressConfig: vi.fn(() => 'folia-theme://x'),
 }));
 
-import { readEffectiveExportTheme } from '@/utils/currentObsUrl';
+import { readEffectiveExportTheme } from '@/services/obs/currentObsUrl';
 import { readStoredLastAppliedThemePointer } from '@/services/themePreferences';
 import { getLastDualTheme } from '@/services/themeCache';
 import { readSavedCustomTheme } from '@/utils/appearanceCodec';

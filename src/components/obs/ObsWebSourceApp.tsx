@@ -7,7 +7,7 @@ import type { VisualizerBackgroundConfig } from '../visualizer/backgrounds/defin
 import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
 import { buildBuiltinDualTheme } from '../../hooks/themeControllerState';
 import { extractColors } from '../../utils/colorExtractor';
-import { readObsCustomCssAssets, type ObsCustomCssAssets } from '../../utils/obsCustomCss';
+import { readObsCustomCssAssets, type ObsCustomCssAssets } from '../../services/obs/obsCustomCss';
 import type { WebLyricSource } from '../../types/webLyricSource';
 import type { ObsWebAppearance } from '../../utils/obsWebAppearance';
 import { useObsAiTheme } from '../../hooks/useObsAiTheme';

@@ -1,7 +1,7 @@
 import { syncNow } from '../../../services/sync/syncCoordinator';
 import { isSyncConfigured } from '../../../services/sync/syncConfig';
-import { buildObsCustomCss } from '../../../utils/obsCustomCss';
-import { hasUploadedObsAsset } from '../../../utils/visualSettingsConfig';
+import { buildObsCustomCss } from '../../../services/obs/obsCustomCss';
+import { hasUploadedObsAsset } from '../../../services/obs/visualSettingsConfig';
 import type { CommandPaletteCommand } from '../types';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand } from '../commandFactories';
 import { sleepTimerCommand } from './sleepTimerCommand';

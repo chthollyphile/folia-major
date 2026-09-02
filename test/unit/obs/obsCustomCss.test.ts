@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseObsCssDataUrl, parseObsCssImageList, readObsCustomCssAssets } from '@/utils/obsCustomCss';
+import { parseObsCssDataUrl, parseObsCssImageList, readObsCustomCssAssets } from '@/services/obs/obsCustomCss';
 
 // test/unit/obs/obsCustomCss.test.ts
 // Guards the consumer-side parsing of the OBS Custom CSS transport. Only a genuine data: URL should

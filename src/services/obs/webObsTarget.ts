@@ -1,6 +1,6 @@
-import { useStageSettingsStore } from '../stores/useStageSettingsStore';
+import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
 
-// src/utils/webObsTarget.ts
+// src/services/obs/webObsTarget.ts
 // Resolve which browser-direct OBS source the web stage selection targets, plus its connection
 // params, for the copy-OBS-URL buttons. Kept separate from currentObsUrl/obsUrl so appearance
 // components can import the selector without a cycle through the appearance codec.

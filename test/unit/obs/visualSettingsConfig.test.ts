@@ -11,7 +11,7 @@ vi.mock('@/services/themePreferences', () => ({
     readStoredThemeGenerationSource: vi.fn(),
 }));
 
-import { buildVisualSettingsConfig } from '@/utils/visualSettingsConfig';
+import { buildVisualSettingsConfig } from '@/services/obs/visualSettingsConfig';
 import { readStoredThemeAutoGenerateEnabled, readStoredThemeAutoSwitchEnabled, readStoredThemeGenerationSource } from '@/services/themePreferences';
 import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
 import { extractCfgFromInput } from '@/utils/obsUrl';

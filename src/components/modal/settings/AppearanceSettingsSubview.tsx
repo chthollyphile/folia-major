@@ -16,10 +16,10 @@ import { ACTIVATE_CUSTOM_THEME_KEY, buildImportPlan, THEME_DARK_KEY, THEME_LIGHT
 import { isFontFamilyAvailable } from '../../../utils/fontAvailability';
 import ImportConfirmDialog from './ImportConfirmDialog';
 import { extractCfgFromInput } from '../../../utils/obsUrl';
-import { buildCurrentObsUrl } from '../../../utils/currentObsUrl';
+import { buildCurrentObsUrl } from '../../../services/obs/currentObsUrl';
 import { ObsCopyUrlButton } from '../../shared/ObsCopyUrlButton';
-import { resolveWebObsTarget, selectWebObsSource } from '../../../utils/webObsTarget';
-import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../utils/visualSettingsConfig';
+import { resolveWebObsTarget, selectWebObsSource } from '../../../services/obs/webObsTarget';
+import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../services/themePreferences';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
