@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motionValue, type MotionValue } from 'framer-motion';
 import '@/index.css';
@@ -171,7 +171,7 @@ const ModExportPage: React.FC = () => {
             style={{ backgroundColor: containerBackground }}
         >
             {config ? (
-                entry.render(resolvedVisualizerProps)
+                <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
             ) : (
                 <div />
             )}

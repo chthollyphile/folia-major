@@ -1,7 +1,8 @@
 import React from 'react';
 import { defineVisualizer } from '../definition';
 import { CappellaSettingsPanel } from '../settingsPanels';
-import VisualizerCappella from './VisualizerCappella';
+
+const VisualizerCappella = React.lazy(() => import('./VisualizerCappella'));
 
 // src/components/visualizer/cappella/entry.tsx
 // Registers the Cappella chat visualizer mode.

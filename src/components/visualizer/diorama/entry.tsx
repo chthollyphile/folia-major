@@ -1,7 +1,8 @@
 import React from 'react';
 import { defineVisualizer } from '../definition';
 import { DioramaSettingsPanel } from '../settingsPanels';
-import VisualizerDiorama from './VisualizerDiorama';
+
+const VisualizerDiorama = React.lazy(() => import('./VisualizerDiorama'));
 
 // src/components/visualizer/diorama/entry.tsx
 // Registers Diorama: a procedural 3D lyric flythrough with lyric-synced cinematic camera work, plus

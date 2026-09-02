@@ -1,4 +1,5 @@
 import { type VisualizerMode } from '../../types';
+import { BUILTIN_VISUALIZER_MODES, DEFAULT_VISUALIZER_MODE, assertBuiltinModeList } from '../../types/visualizerModes';
 import {
     type VisualizerEntryModule,
     type VisualizerRegistryEntry,
@@ -44,7 +45,13 @@ const { entries: VISUALIZER_REGISTRY, byMode: VISUALIZER_REGISTRY_BY_MODE } =
 
 export { VISUALIZER_REGISTRY };
 
-export const DEFAULT_VISUALIZER_MODE: VisualizerMode = 'classic';
+// 只有走 glob 的这一侧知道目录里真正有什么，所以自检放在这里：清单漏了或多了一个模式，
+// 应用启动时就炸，而不是等到某个 store 悄悄把用户的模式重置成 classic。
+assertBuiltinModeList('VisualizerRegistry', VISUALIZER_REGISTRY.map(entry => entry.mode), BUILTIN_VISUALIZER_MODES);
+
+// 权威定义在 types/visualizerModes.ts —— 那里不含 UI，store 和 OBS 短码可以直接用。
+// 这里再导出一次，是为了不打断已经从 registry 取它的 16 个模块。
+export { DEFAULT_VISUALIZER_MODE };
 
 export const hasVisualizerMode = (mode: string | null | undefined): mode is VisualizerMode =>
     Boolean(mode && VISUALIZER_REGISTRY_BY_MODE[mode as VisualizerMode]);

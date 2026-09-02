@@ -24,7 +24,13 @@ const VisualizerRenderer: React.FC<VisualizerRendererProps> = ({ mode, ...props 
 
     return (
         <>
-            {getVisualizerRegistryEntry(mode).render(resolvedProps)}
+            {/*
+              * renderer 是按模式懒加载的（见 definition.ts 的 render 说明）。fallback 给 null 而不是
+              * 占位图：visualizer 是整块背景，任何占位物在切换模式时都会闪一下，留空反而看不出来。
+              */}
+            <React.Suspense fallback={null}>
+                {getVisualizerRegistryEntry(mode).render(resolvedProps)}
+            </React.Suspense>
             <VisualizerHarmonyOverlay
                 currentTime={resolvedProps.currentTime}
                 lines={resolvedProps.lines}

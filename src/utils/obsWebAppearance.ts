@@ -1,7 +1,9 @@
 import type { SubtitleContentMode, Theme, VisualizerMode } from '../types';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
-import { DEFAULT_VISUALIZER_MODE, hasVisualizerMode } from '../components/visualizer/registry';
+// OBS 覆盖层不加载 mods（initModVisualizers 需要 Electron 桥接，web 上是 no-op），
+// 所以短码里的模式只可能是内建的。
+import { DEFAULT_VISUALIZER_MODE, isBuiltinVisualizerMode } from '../types/visualizerModes';
 import { decompressConfig } from './appearanceCodec';
 import type { ObsAiConfig } from '../services/gemini';
 import { getWebAiProvider } from '../services/runtimeConfig';
@@ -112,9 +114,9 @@ export function buildObsAppearanceFromShortcode(
   }
 
   // Mode priority: explicit visualizer override > cfg's visualizerMode > default.
-  const mode: VisualizerMode = visualizerOverride && hasVisualizerMode(visualizerOverride)
+  const mode: VisualizerMode = visualizerOverride && isBuiltinVisualizerMode(visualizerOverride)
     ? visualizerOverride
-    : (decoded?.visualizerMode && hasVisualizerMode(decoded.visualizerMode) ? decoded.visualizerMode : DEFAULT_VISUALIZER_MODE);
+    : (decoded?.visualizerMode && isBuiltinVisualizerMode(decoded.visualizerMode) ? decoded.visualizerMode : DEFAULT_VISUALIZER_MODE);
 
   // The stated mode wins over the payload: the dynamic modes resolve a theme per song in the shell,
   // so a cfg theme (a hand-edited link, or one whose mode was switched in place) must not freeze

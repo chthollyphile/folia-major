@@ -1,6 +1,7 @@
 import React from 'react';
 import { defineVisualizer } from '../definition';
-import VisualizerStill from './VisualizerStill';
+
+const VisualizerStill = React.lazy(() => import('./VisualizerStill'));
 
 // src/components/visualizer/still/entry.tsx
 // Registers the static low-resource visualizer mode.

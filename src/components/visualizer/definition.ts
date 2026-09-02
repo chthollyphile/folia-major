@@ -170,6 +170,12 @@ export interface VisualizerRegistryEntry {
     previewSeed: string;
     previewStartOffset: number;
     tuningKind: VisualizerTuningKind;
+    /*
+     * 各模式的 entry.tsx 把真正的 renderer 包成 React.lazy —— registry 用 eager glob 发现
+     * entry，如果 entry 静态 import renderer，任何碰 visualizer 设置的模块都会连带拉进 13 个
+     * renderer（183 个模块，含 three.js，而 three 只有 diorama 用）。契约不变：这里仍然是
+     * props => ReactElement，lazy 组件照样满足。代价是调用方必须提供 Suspense 边界。
+     */
     render: (props: VisualizerSharedProps) => React.ReactElement;
     renderSettingsPanel?: (props: VisualizerSettingsPanelProps) => React.ReactNode;
     resetSettings?: (props: VisualizerSettingsResetProps) => void;

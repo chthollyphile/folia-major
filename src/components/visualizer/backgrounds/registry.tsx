@@ -1,4 +1,5 @@
 import type { VisualizerBackgroundMode } from '../../../types';
+import { BUILTIN_VISUALIZER_BACKGROUND_MODES, DEFAULT_VISUALIZER_BACKGROUND_MODE, assertBuiltinModeList } from '../../../types/visualizerModes';
 import type {
     VisualizerBackgroundEntryModule,
     VisualizerBackgroundRegistryEntry,
@@ -38,7 +39,13 @@ const {
 
 export { VISUALIZER_BACKGROUND_REGISTRY };
 
-export const DEFAULT_VISUALIZER_BACKGROUND_MODE: VisualizerBackgroundMode = 'latent';
+assertBuiltinModeList(
+    'VisualizerBackgroundRegistry',
+    VISUALIZER_BACKGROUND_REGISTRY.map(entry => entry.mode),
+    BUILTIN_VISUALIZER_BACKGROUND_MODES,
+);
+
+export { DEFAULT_VISUALIZER_BACKGROUND_MODE };
 
 export const hasVisualizerBackgroundMode = (mode: unknown): mode is VisualizerBackgroundMode => (
     typeof mode === 'string' && Boolean(VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[mode])
