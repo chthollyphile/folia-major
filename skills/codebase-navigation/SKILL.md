@@ -1,66 +1,97 @@
 ---
 name: codebase-navigation
-description: Use when the repository area is unfamiliar, the user describes a feature or UI term without a file path, or you need the fastest current code location for app composition, home/library surfaces, playback, online providers, lyrics, visualizers, settings, Stage, OBS, remote control, sync, API, or deployment work.
+description: Use when you need to locate code in this repository - unfamiliar areas, a feature described without a file path, or checking who uses something. Gives the three-layer order (generated code map, then rg, then the ts-code-map cli as fallback), says exactly when rg is not enough, and states the architectural boundaries that navigation must respect.
 ---
 
 # Codebase Navigation
 
-用这份地图先定位，再读取实现。不要因为 `src/App.tsx` 是总入口就先通读它，也不要把旧 README 中的路径当成事实；先看表中的入口文件，再沿 import/call chain 追一层。
+**先读 `docs/CODEMAP.md`，再用 rg，最后才用 cli。**
 
-## Fast lookup
+这份 skill 不维护路径表，`CODEMAP.md` 也不是人写的——它由 `npm run codemap` 从编译器和模块图
+生成，CI 会比对。仓库有 1300 个源文件、3800 条依赖，任何手写清单都覆盖不全且必然过期
+（这里曾同时存在 7 处死引用，visualizer 模式清单也少了两个）。
 
-| 需求 / 术语 | 第一入口 | 下一层 |
+## 三层，按成本从低到高
+
+**1. 结构性问题读 `docs/CODEMAP.md`。** 有哪些区域、入口在哪、哪些是枢纽模块、某个 registry
+当前有哪些成员、哪里违反分层边界。零成本，且保证不过期。
+
+**2. 符号级问题默认用 rg。** 快、灵活、能组合关键词，而且覆盖 `.md`/`.json`/CSS/shader 这些
+LSP 根本看不到的地方。绝大多数「这个东西在哪」用 rg 就够了。
+
+**3. rg 拿不准时才升级到 cli。** 它是后备，不是默认。
+
+```
+node dev/mcp/ts-code-map/cli.mjs <tool> '<JSON>'
+node dev/mcp/ts-code-map/cli.mjs list      # 全部工具和用法
+node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
+```
+
+## 什么时候该从 rg 升级到 cli
+
+| 情况 | 用 | 原因 |
 | --- | --- | --- |
-| 应用总装配、当前歌曲、主队列、播放协调 | `src/App.tsx` | `src/components/app/AppShell.tsx`、`components/app/{Home,PlayerPanel}.tsx`、`components/app/{overlays,dialogs}/*`、`hooks/usePlayback*.ts` |
-| 首页、网格、集合导航 | `src/components/app/Home.tsx` | `components/app/home/buildHomeModel.ts`、`GridViewOverlayHost.tsx`、`src/Grid3D.tsx`、`src/GridView.tsx`、`src/components/folia-grid/*` |
-| 首页 tab / 搜索词 / 搜索来源 / 集合栈 | `src/stores/useSearchNavigationStore.ts`、`src/stores/useCollectionNavigationStore.ts` | `src/hooks/useAppNavigation.ts`、`components/app/search/*`、`components/app/home/gridViewCollectionAdapters.ts` |
-| 本地库扫描、索引、播放 | `src/hooks/useLocalLibraryCatalog.ts` | `src/services/localLibraryCatalogService.ts`、`localLibraryCatalogInternals.ts`、`localMusicService.ts`、`src/utils/localLibraryIndex.ts` |
-| 本地库实体/文件夹匹配编辑 | `src/components/local-library-entity/entityEditorModel.ts` | `src/components/local-library-entity/*`、`src/services/localLibraryEntity*.ts` |
-| 在线搜索、歌词、音频、歌单、账户、provider 路由 | `src/services/onlineMusic/omni.ts` | `src/types/onlineMusic.ts`、`providerRegistry.ts`、`*Provider.ts`、`*Transport.ts`、`useOnlineProvider*` |
-| 播放源、队列、预取、恢复 | `src/hooks/usePlaybackQueueController.ts` / `usePlaybackTransportController.ts` | `src/services/playbackAdapters.ts`、`onlinePlayback.ts`、`prefetchService.ts`、`components/app/playback/*` |
-| 歌词解析、行/词时序、CJK / grapheme | `src/utils/lyrics/parserCore.ts` | `src/utils/lyrics/{renderHints,cjkSemanticLayout,graphemeTiming}.ts`、`src/workers/*` |
-| 可视化统一入口 | `src/components/visualizer/VisualizerRenderer.tsx` | `definition.ts`、`registry.tsx`、`tuningRegistry.ts`、`runtime.ts`、`VisualizerShell.tsx` |
-| 某个 visualizer 模式 | `src/components/visualizer/<mode>/entry.tsx` | 同目录 `Visualizer*.tsx`、`tuning.ts` / `*SettingsPanel.tsx`；模式清单见下文 |
-| 设置、视觉配置导入导出 | `src/components/modal/SettingsModal.tsx` | `src/components/modal/settings/*`、`src/stores/useSettingsUiStore.ts`、`AppearanceSettingsSubview.tsx` |
-| 命令面板、快捷动作 | `src/components/command-palette/commandRegistry.ts` | `types.ts`、`CommandPalette.tsx`、`src/i18n/locales/{en,zh-CN}.ts` |
-| Stage API / 外部播放器控制 | `src/hooks/useStagePlaybackController.ts` | `electron/stageApi.cjs`、`src/types/playerCap.ts`、`src/services/playerCapProvider.ts`、`src/utils/appStageHelpers.ts`、`src/utils/stageClientDemo.ts`、`src/utils/stagePlayerSnapshot.ts` |
-| OBS 浏览器源 / Now Playing / PlayerCap | `src/components/obs/*` | `src/hooks/useObsBrowserSourcePublisher.ts`、`usePlayerCapSource.ts`、`src/services/nowPlayingProvider.ts`、`src/types/obsBrowserSource.ts` |
-| Remote 控制、远程歌词、视频导出 | `src/components/remote/*` | `src/types/remoteControl.ts`、`src/hooks/useElectronVideoExportController.ts`、`src/services/electronVideoExport.ts` |
-| IndexedDB、主题/歌曲缓存 | `src/services/db.ts` / `appDatabase.ts` | `repositories/*`、`binaryAssetStore.ts`、`coverCache.ts`、`themeCache.ts` |
-| R2/同步客户端 | `src/services/sync/syncCoordinator.ts` | `syncClient.ts`、`syncRepository.ts`、`sync/settingsSnapshot.ts`、`themeSyncRegistry.ts` |
-| 服务端同步 API | `sync-server/src/app.ts` | `src/node.ts`、`src/cloudflare.ts`、`src/d1-emulator.ts`、`worker/index.ts` |
-| Vercel / 音乐 API bridge / Electron | `api/`、`api-ts/`、`electron/main.cjs` | `electron/{preload,stageApi,kugouApiBridge}.cjs`、`shared/*`、`deploy/docker/*` |
+| 同名符号太多，分不清哪个是定义 | `references` | rg 区分不了声明、引用、字符串和注释；cli 会列出候选声明让你用 `file`/`line` 限定 |
+| 要确认「所有用到的地方都改到了」 | `references` | rg 证明不了完备性；cli 给出语义引用 + 同名声明 + 仅文本命中三段，可信度分开标注 |
+| 这个引用是读还是写 | `references` | rg 分不出，cli 用 documentHighlight 判定 |
+| 谁调用了这个函数，往上追几层 | `callers` / `callees` | rg 做不到调用链 |
+| 改这里会波及多大范围 | `impact` | 需要模块依赖图 |
+| 想知道大文件里有什么，又不想读全文 | `file_outline` | 3080 行的文件输出 3.4KB，比读源码省 37 倍 |
+| 要签名、类型、JSDoc | `inspect_symbol` | rg 只能看到文本 |
 
-## Current mode and surface names
+反过来，**这些情况 rg 更好，不要绕道 cli**：
 
-Visualizer mode directories are `classic`, `cadenza`, `partita`, `fume`, `cappella`, `tilt`, `claddagh`, `monet`, `diorama`, `pendolo`, and `sonnet`. The registry discovers `*/entry.tsx`; do not add a mode by editing a hard-coded switch in `App.tsx`.
+- 已知确切的字面量、数字、字符串（`0.85`、某段报错文案）
+- 在 `.md`、`.json`、CSS、shader 字符串里找东西
+- 想看一个词的全部出现，包括注释和文档里的
+- 只是想确认某个文件里有没有某段代码
 
-Background entries are `common`, `latent`, `monet`, `nomand`, `sora`, and `url` under `src/components/visualizer/backgrounds/`.
+## 一个已知陷阱
 
-Home local/Navi surfaces are `src/components/app/home/LocalGrid3DView.tsx` and `NavidromeGrid3DView.tsx`. The old paths `src/components/LocalMusicView.tsx`, `src/components/local/LocalPlaylistView.tsx`, and `src/components/navidrome/*` are not current entry points.
-
-The app-level overlay/dialog/player boundaries are:
-
-- `AppOverlays` + `buildAppOverlaysModel`
-- `AppDialogs` + `buildAppDialogsModel` / `buildSettingsDialogModel`
-- `PlayerPanel` + `buildPlayerPanelModel`
-- `Home` + `buildHomeModel`
-
-## Search protocol
-
-1. Start with tracked paths: `git ls-files src sync-server electron api api-ts worker deploy`.
-2. Search exact symbols in the first-entry files: `rg -n "symbol|term" <small-file-set>`.
-3. Follow imports to one adjacent layer; prefer `build*.ts`, `create*.ts`, hooks, stores, services, and shared types over broad directory reads.
-4. Before editing a path found in a document, verify it exists with `git ls-files -- <path>`.
-5. For online-song work, read `skills/online-song-omni-routing/SKILL.md`; for spoken UI/state terms, read `skills/glossary-alignment/SKILL.md`.
+同一个概念常在多处各自声明（`lyricsFontScale` 在 store、OBS 配置类型、编解码、每个 visualizer
+模式里各有一份，共 27 个文件）。这种情况下 rg 的结果看着乱，而 `references` 的第一个结果也
+未必是你要的——它按分层角色猜（stores/types 优先于 components），只是启发式。**别拿第一个
+结果当唯一答案**，看它列出的候选声明。
 
 ## Boundaries
 
-- UI structure belongs in `components`; React lifecycle and effects in `hooks`; cross-component state in `stores`; IO/cache/provider work in `services`; pure transforms in `utils`; contracts in `types`.
-- Ordinary online-song callers use `src/services/onlineMusic/omni.ts`; provider adapters and transports are implementation boundaries.
-- Visualizers consume parsed `LyricData`/`Line`/`Word`; format parsing stays in `src/utils/lyrics` and workers.
-- `src/App.tsx` remains a legacy orchestration seam and is already large. New behavior should normally be assembled through adjacent `components/app/*`, hooks, stores, and services.
+定位到位置之后，改动要落在正确的层：
+
+- UI 结构在 `components`；React 生命周期和副作用在 `hooks`；跨组件状态在 `stores`；
+  IO/缓存/provider 在 `services`；纯变换在 `utils`；契约在 `types`。
+- `utils` 是叶子层，全仓都 import 它，所以它不能反过来读 store。需要读实时状态才能得出结果的
+  「收集器」属于 `services` —— OBS 导出的 `visualSettingsConfig` / `currentObsUrl` / `obsCustomCss` /
+  `webObsTarget` 因此在 `src/services/obs/`，而纯编解码的 `obsUrl` / `obsWebAppearance` / `appearanceCodec`
+  留在 `utils`。
+- 普通在线歌曲调用走 `omni`；provider adapter 和 transport 是实现边界，UI/hook/store 不应直连。
+  详见 `skills/online-song-omni-routing/SKILL.md`。
+- Visualizer 消费已解析的 `LyricData` / `Line` / `Word`；格式解析留在 `src/utils/lyrics` 和 workers 里。
+- Visualizer 模式由 registry 从各模式的 `entry.tsx` 自动发现，**不要在 `App.tsx` 里加 switch**。
+  背景同理，走 `backgrounds/` 下的 entry。
+- entry 里的 renderer 必须包成 `React.lazy`：registry 用 eager glob 发现 entry，静态 import
+  renderer 会让任何碰 visualizer 设置的模块连带拉进 13 个 renderer 和 three.js。
+- 只是校验「某字符串是不是合法模式」时用 `src/types/visualizerModes.ts` 的
+  `isBuiltinVisualizerMode` / `isBuiltinVisualizerBackgroundMode`，不要 import registry。
+  需要认 mod 投稿模式时才用 registry 的 `hasVisualizerMode`。模式清单由 registry 初始化时
+  断言，漂移会抛错。
+- `App.tsx` 是历史遗留的装配缝，已经很大。新行为应该组装进相邻的 `components/app/*`、
+  hooks、stores、services，而不是继续堆进去。参见 `skills/file-modularization/SKILL.md`。
+
+## 这些名字已经不是当前入口
+
+LSP 会老老实实找到死文件和历史命名，这几个需要人工标注：
+
+- `LocalMusicView`、`local/LocalPlaylistView`、`navidrome/*` —— 都已不存在。
+  本地库和 Navidrome 的首页面现在是 `LocalGrid3DView` 和 `NavidromeGrid3DView`。
+- `useSettingsUiStore` —— 已不存在，而且**不是简单改名**。设置弹窗的 UI 状态（当前 tab/子页）
+  在 `useSettingsModalStore`；具体设置值被拆到了各领域 store（`useAudioSettingsStore`、
+  `useLyricSettingsStore`、`useThemeSettingsStore`、`useTypographySettingsStore` 等）。
+  想找某个设置项时按领域找，不要指望有一个统一的设置 store。
+- `buildCommandPaletteContext` —— 现在是 `useCommandPaletteContext`（hook，不是 build 函数）。
+
+发现文档里还有别的死路径，直接改掉，不要绕过去。
 
 ## Validation
 
-For documentation-only changes, validate paths, symbols, package scripts, and config values with tracked-file searches. For code changes, load `testing-strategy` and run only the focused validation it selects.
+改代码前先读 `skills/testing-strategy/SKILL.md` 选最小验证方式。
+纯文档改动时，路径和符号用 `find_symbol` / `search` 核一遍即可。

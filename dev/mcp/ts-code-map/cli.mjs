@@ -37,22 +37,33 @@ function doctor() {
     };
 
     console.log('ts-code-map 环境检查\n');
-    probe('tsgo 二进制', () => resolveTsgoExe(root));
+    const tsgoOk = probe('tsgo 二进制', () => resolveTsgoExe(root));
     const gitOk = probe('git', () => execFileSync('git', ['--version'], { encoding: 'utf8', timeout: 5000 }).trim());
-    probe('ripgrep', () => execFileSync('rg', ['--version'], { encoding: 'utf8', timeout: 5000 }).split('\n')[0]);
+    const rgOk = probe('ripgrep', () => execFileSync('rg', ['--version'], { encoding: 'utf8', timeout: 5000 }).split('\n')[0]);
 
+    // 分开报总数和源文件数：代码地图只统计源文件，两个数字对不上会让人以为清单错了。
     const files = listFiles(root);
-    console.log(`  · 文件清单: ${files.length} 个（来源 ${lastListSource()}）`);
+    const sources = files.filter(file => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file)).length;
+    console.log(`  · 文件清单: ${files.length} 个（其中源文件 ${sources} 个，来源 ${lastListSource()}）`);
 
-    console.log('\n结论：');
-    console.log('  - tsgo 不可用 → 所有工具都用不了，先跑 npm install');
-    console.log(`  - git 不可用 → change_context 用不了；其余工具会自动退回文件系统扫描${gitOk ? '（当前不需要）' : '（当前正在退回）'}`);
-    console.log('  - rg 不可用 → search 的全文兜底会退回纯 JS 搜索，只是慢一些');
+    // 只报当前真实受影响的能力。原先这里无条件打印三条「不可用会怎样」，全绿时读起来像三条故障。
+    const problems = [];
+    if (!tsgoOk) problems.push('tsgo 找不到 → 所有工具都用不了。跑 npm install 重装 typescript。');
+    if (!gitOk) problems.push('git 不可用 → change_context 用不了；文件清单已退回文件系统扫描，可能混进构建产物。');
+    if (!rgOk) problems.push('rg 不可用 → search 的全文兜底改用纯 JS 搜索，只是慢一些，结果一致。');
+
+    if (problems.length === 0) {
+        console.log('\n环境正常，全部工具可用。');
+        return true;
+    }
+    console.log('\n需要处理：');
+    for (const problem of problems) console.log(`  - ${problem}`);
+    // 只有 tsgo 缺失是致命的，另外两个都有退路——退出码要能区分，便于脚本判断。
+    return tsgoOk;
 }
 
 if (toolName === 'doctor') {
-    doctor();
-    process.exit(0);
+    process.exit(doctor() ? 0 : 1);
 }
 
 let args = {};

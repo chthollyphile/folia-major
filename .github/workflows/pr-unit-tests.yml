@@ -37,6 +37,10 @@ jobs:
       - name: Run typecheck
         run: npm run typecheck
 
+      # 代码地图是生成的。这一步保证它跟代码同步——过期在结构上不可能发生。
+      - name: Check code map is up to date
+        run: npm run codemap:check
+
       - name: Run unit tests
         run: npm run test:unit
 

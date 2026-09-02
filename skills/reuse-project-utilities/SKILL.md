@@ -22,7 +22,7 @@ description: Use when implementing, refactoring, or reviewing code in this repos
 
 - 歌词解析、时序、render end：`src/utils/lyrics/*`
 - visualizer 运行时、背景、颜色：`src/components/visualizer/*`
-- 设置 UI、导入导出、命令面板：`src/components/modal/settings/*`、`src/stores/useSettingsUiStore.ts`、`src/components/command-palette/*`
+- 设置 UI、导入导出、命令面板：`src/components/modal/settings/*`、`src/stores/useSettingsModalStore.ts`（弹窗 UI 状态）、按领域拆分的 `src/stores/use*SettingsStore.ts`（设置值）、`src/components/command-palette/*`
 - 同步配置、主题同步和本地导出：`src/services/sync/*`、`src/components/modal/settings/StorageSettingsSection.tsx`
 - 字体栈和自定义字体：`src/utils/fontStacks.ts`、`src/services/customLyricsFont.ts`
 - 播放队列、播放适配：`src/services/playbackAdapters.ts`、`src/utils/appPlaybackHelpers.ts`
@@ -220,7 +220,7 @@ const { t } = useTranslation();
 
 - 视觉相关设置必须进入 `AppearanceSettingsSubview.tsx` 的导入导出链路。
 - 功能性设置或可执行动作必须注册到 `src/components/command-palette/commandRegistry.ts`。
-- 设置状态优先复用 `src/stores/useSettingsUiStore.ts`，不要在组件里另起一套 localStorage 读写。
+- 设置状态优先复用已有 store：弹窗 UI 状态在 `src/stores/useSettingsModalStore.ts`，设置值在对应领域的 `use*SettingsStore`（`useAudioSettingsStore`、`useLyricSettingsStore`、`useThemeSettingsStore`、`useTypographySettingsStore` 等）。不要在组件里另起一套 localStorage 读写。
 
 ### Long Lists
 

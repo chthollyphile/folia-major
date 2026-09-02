@@ -20,17 +20,22 @@ description: Use when adding, changing, refactoring, or reviewing user-facing se
 
 视觉相关设置（例如主题、字重 `fontWeight`、歌词动画、背景、透明度、字号、visualizer tuning）必须接入外观页的视觉配置导入导出：
 
-- 文件：`src/components/modal/settings/AppearanceSettingsSubview.tsx`
-- 导出入口：`buildCurrentConfig`
-- 短码压缩：`compressConfig`
-- 短码解压：`decompressConfig`
-- JSON 白名单：`validKeys`
-- 导入应用：`handleImportConfig`
+接入点分在两个文件，别只看其中一个：
+
+- UI 与装配：`src/components/modal/settings/AppearanceSettingsSubview.tsx`
+  - 导出入口：`buildCurrentConfig`
+  - 导入应用：`handleImportConfig`
+- 编解码实现：`src/utils/appearanceCodec.ts`
+  - 短码压缩：`compressConfig`
+  - 短码解压：`decompressConfig`
+  - JSON 白名单：`validKeys`（在 `decompressConfig` 内部）
+
+subview 只是调用方；新增字段要同时改这两处，光改 subview 不会进短码。
 
 新增 visualizer tuning（例如 `claddaghTuning`、`monetTuning`、`dioramaTuning`、`pendoloTuning`、`sonnetTuning` 等）或全局字重 `fontWeight` 时通常还要同步：
 
 - `src/types.ts`：新增 tuning / 设置类型和默认值
-- `src/stores/useSettingsUiStore.ts`：读取、持久化、setter、resetter、draft 逻辑；清空自定义字体栈时同步清空字重
+- 对应领域的 `src/stores/use*SettingsStore.ts`（visualizer tuning 在 `useVisualizerSettingsStore`，字重/字体在 `useTypographySettingsStore`）：读取、持久化、setter、resetter、draft 逻辑；清空自定义字体栈时同步清空字重
 - `src/utils/fontStacks.ts`：通过 `resolveThemeFontWeight(theme, modeFallback)` 在渲染与测量中统一解析
 - `src/components/visualizer/definition.ts`：把 tuning 或资源 props 加到共享契约
 - `src/components/visualizer/<mode>/entry.tsx`：通过 registry 挂载 renderer、设置面板和 reset
@@ -45,7 +50,7 @@ description: Use when adding, changing, refactoring, or reviewing user-facing se
 
 - 文件：按命令的 `group` 落到 `src/components/command-palette/commands/<group>Commands.ts`（`search` / `playback` / `settings` / `navigation` / `panel` / `visualizer`）。不要再往 `commandRegistry.ts` 里加命令，它只负责拼接和过滤。
 - 构造入口：一律经 `src/components/command-palette/commandFactories.ts` 的 `defineCommand`；「调一个 context 方法后返回 true」用 `createToggleCommand`，其余优先复用 `createSettingsCommand`、`createPanelCommand`、`createHomeTabCommand`、`createVisualizerCommand`。
-- 上下文：`CommandPaletteContext` 按 group 分成 `shared` / `search` / `playback` / `navigation` / `panel` / `settings` / `visualizer` 七个命名空间，命令归哪个 group 就先在同名命名空间里找依赖。需要新能力时同时改 `src/components/command-palette/types.ts` 和 `src/components/app/buildCommandPaletteContext.ts`。
+- 上下文：`CommandPaletteContext` 按 group 分成 `shared` / `search` / `playback` / `navigation` / `panel` / `settings` / `visualizer` 七个命名空间，命令归哪个 group 就先在同名命名空间里找依赖。需要新能力时同时改 `src/components/command-palette/types.ts` 和 `src/hooks/useCommandPaletteContext.ts`。
 - 平台可见性：只在部分平台可用的功能写 `platform: ['electron' | 'win' | 'mac' | 'linux' | 'web']`，不要在过滤函数里加 id 判断。状态可见性用 `isAvailable`，两者职责分开。
 - 面板内界面：需要在命令面板里直接出控件（滑块、图标网格等）时写 `surface`，组件用 `load: () => import(...)` 惰性加载，不要在 `CommandPalette.tsx` 里加 `activeCommand.id` 分支。参考 `surfaces/volumeSurface.ts` 与 `surfaces/pickerSurface.ts`。
 - 复杂语法：需要 `--flag` / `@facet:value` 时声明 `syntax`，解析复用 `src/components/command-palette/syntax/`，不要另写正则。
