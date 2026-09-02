@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION } from './helpers/appState';
+import { APP_VERSION } from '../helpers/appState';
 
 // test/ui/sonnetSettings.spec.ts
 // Verifies entering Sonnet from the real settings UI and the visibility tuning controls it exposes.

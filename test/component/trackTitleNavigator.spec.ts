@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { openProbe } from './helpers/probe';
+import type { Locator, Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
-// test/ui/trackTitleNavigator.spec.ts
+// test/component/trackTitleNavigator.spec.ts
 // 覆盖浮动播放条标题区的切歌箭头。这里的每一条都对应一个实际发生过、且只有在真实浏览器里
 // 才暴露的回归（层叠命中测试、StrictMode 下 effect 双调用、异步切歌期间的旧标题闪现），
 // 所以走 dev 组件探针而不是整应用，见 dev/probes/trackTitleNavigator.probe.tsx。
@@ -41,8 +41,8 @@ async function sampleTranslateX(page: Page, durationMs = 450): Promise<number[]>
     }, { selector: CURRENT_LAYER, duration: durationMs });
 }
 
-test.beforeEach(async ({ page }) => {
-    await openProbe(page, 'trackTitleNavigator');
+test.beforeEach(async ({ mount }) => {
+    await mount('trackTitleNavigator');
 });
 
 test('箭头可命中：文字层不得吞掉指针事件', async ({ page }) => {
@@ -144,13 +144,13 @@ test('切歌确认窗口：先亮新曲名，指针未动则窗口结束后恢�
         .toBeGreaterThan(0.3);
 });
 
-test('实验室开关开启时箭头常驻，不再依赖悬浮', async ({ page }) => {
-    // 这条 addInitScript 必须排在 openProbe 的之后：openProbe 会 localStorage.clear()
+test('实验室开关开启时箭头常驻，不再依赖悬浮', async ({ mount, page }) => {
+    // 这条 addInitScript 必须排在 fixtures 那条种子脚本之后：种子会 localStorage.clear()。
+    // 重挂用 mount() 而不是 page.reload()：gallery 的 URL 不带 ?probe=，reload 之后回到的是索引页。
     await page.addInitScript(() => {
         localStorage.setItem('always_show_track_switch_buttons', 'true');
     });
-    await page.reload();
-    await page.waitForSelector('[data-probe-id="trackTitleNavigator"]');
+    await mount('trackTitleNavigator');
 
     // 悬浮播放按钮把胶囊展开，但指针始终不进标题区：
     // 常驻模式下箭头不能再靠 group-hover/title 才浮出

@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../../helpers/appState';
 
 // test/ui/helpers/appFixtures.ts
 // The mocked Netease / Navidrome / local-library world the UI specs boot the app into.

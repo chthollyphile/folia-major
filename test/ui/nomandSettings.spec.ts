@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION } from './helpers/appState';
+import { APP_VERSION } from '../helpers/appState';
 
 // test/ui/nomandSettings.spec.ts
 // Verifies Nomand swaps its effect-specific tuning controls while keeping the shared settings shell.

@@ -27,6 +27,7 @@
     "test:unit": "vitest run -c vitest.config.ts",
     "test:unit:watch": "vitest -c vitest.config.ts",
     "test:ui": "playwright test",
+    "test:component": "playwright test --project=components",
     "test:ui:update": "playwright test --update-snapshots",
     "test:render": "playwright test -c playwright.probe.config.ts",
     "benchmark:lyrics": "npx tsx test/manual/lyrics_benchmark.ts",

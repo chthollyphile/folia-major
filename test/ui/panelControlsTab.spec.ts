@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './helpers/appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../helpers/appState';
 
 // test/ui/panelControlsTab.spec.ts
 // 覆盖播放面板控制页的模式取景器：箭头步进、完整列表入口，以及步进经过商籁时不再被拦截。

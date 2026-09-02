@@ -61,13 +61,18 @@ description: Use when the task involves choosing how to validate a change in thi
 
 有些问题只在真实浏览器里暴露，单测和整应用 UI 测试都盖不住：层叠与命中测试、
 Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 props 到达前的中间态。
-这类情况用 dev 组件探针，不要为此启动整个应用流程。
+这类情况写 Playwright component test，不要为此启动整个应用流程。
 
-- 页面：`dev-probe.html`，用 `?probe=<id>` 选择挂载哪个组件
-- 命令：`npm run dev:probe`
-- 探针实现：`dev/probes/*.probe.tsx`，默认导出 `ProbeDefinition` 即自动注册
-- 写用例：`test/ui/helpers/probe.ts` 的 `openProbe(page, id)`，参考
-  `test/ui/trackTitleNavigator.spec.ts`
+用的是 `@playwright/test` 内置的 `mount` fixture（1.62 起随包提供，不需要装
+`@playwright/experimental-ct-react`）。`dev-probe.html` 同时是它要求的 gallery 页。
+
+- 用例：`test/component/*.spec.ts`，从 `./fixtures` 取 `test` / `expect`
+- 挂载：`const component = await mount('<探针 id>')`，返回的是 `#root` 的 Locator，
+  查询尽量从它出发。参考 `test/component/trackTitleNavigator.spec.ts`
+- 命令：`npm run test:component`
+- 探针实现：`dev/probes/*.probe.tsx`，默认导出 `ProbeDefinition` 即自动注册；
+  探针 id 直接就是 story id
+- 人工调试：`npm run dev:probe`，`?probe=<id>` 挂单个组件，不带参数是索引页
 
 探针页刻意开启 `React.StrictMode`，并使用真实 vite + 真实 Tailwind 产物；
 它不加载首页数据、弹窗和背景 shader，所以比整应用测试快且稳定。
@@ -75,6 +80,17 @@ Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 
 
 新增探针时，探针内要复刻真实环境里的异步时序（例如切歌 props 晚几帧到达），
 否则中间态 bug 复现不出来。
+
+两条会绊人的：
+
+- **`mount(id, props)` 的 props 要跨页面边界序列化。** `motionValue(42)`、React 组件、
+  回调函数都过不去。复杂场景继续把 props 写死在探针里（现在全部如此），props 通道只用于
+  标量参数的多场景复用。组件需要回调时，让探针自己持有状态、把结果记进一个隐藏表单，
+  用例断言那个值。
+- **改 localStorage 必须走 `page.addInitScript` 且排在 `fixtures` 的种子脚本之后。**
+  `src/stores/*` 在模块 import 时就读 localStorage，挂载完再写已经晚了；种子脚本会先
+  `localStorage.clear()`。同理，`page.reload()` 不会重新挂载 story（gallery URL 不带
+  `?probe=`），要重挂就再 `mount()` 一次。
 
 ### 4. Electron / 打包 / release 流程
 
@@ -121,7 +137,8 @@ Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 
 ## Repository-Specific Commands
 
 - `npm run test:unit`
-- `npm run test:ui`
+- `npm run test:ui`（e2e + components 两个 project）
+- `npm run test:component`
 - `npm run test:ui:update`
 - `npm run dev:probe`
 

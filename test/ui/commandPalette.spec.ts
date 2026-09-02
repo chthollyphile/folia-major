@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './helpers/appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../helpers/appState';
 
 // test/ui/commandPalette.spec.ts
 // 覆盖命令面板的三类入口：默认匹配列表、surface 接管（音量 / 队列 / 模式选择器），

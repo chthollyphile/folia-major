@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// test/ui/helpers/appState.ts
+// test/helpers/appState.ts
 
 /**
  * 与 vite.config.ts 注入的 __APP_VERSION__ 同源。
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  * 相关用例会以「locator 超时」或「截图大面积不一致」的形式失败，且看不出和版本号有关。
  */
 export const APP_VERSION: string = JSON.parse(
-    readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8'),
+    readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
 ).version as string;
 
 /** 对应 src/stores/useSettingsModalStore.ts 的 LAST_SEEN_GUIDE_VERSION_STORAGE_KEY */

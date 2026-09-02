@@ -14,7 +14,6 @@ const chromiumCandidates = [
 const chromiumExecutablePath = chromiumCandidates.find(candidate => existsSync(candidate));
 
 export default defineConfig({
-  testDir: './test/ui',
   fullyParallel: false,
   reporter: 'line',
   timeout: 90_000,
@@ -27,6 +26,11 @@ export default defineConfig({
       maxDiffPixels: 600,
     },
   },
+  // 与 Playwright 的默认模板只差一处：去掉 {-projectName}。拆 project 之前基线就叫
+  // `local-library-linux.png`，跟着改名等于把三张基线作废，而它们和 project 划分毫无关系。
+  // {snapshotDir} 缺省等于 project 的 testDir；{testFileDir} 是从 testDir 到测试文件的目录段，
+  // 平铺时为空——所以它不能单独当前缀用。
+  snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-snapshotSuffix}{ext}',
   use: {
     baseURL: 'http://127.0.0.1:4173',
     viewport: {
@@ -42,6 +46,27 @@ export default defineConfig({
       ],
     },
   },
+  projects: [
+    {
+      name: 'e2e',
+      testDir: './test/ui',
+    },
+    {
+      // 组件测试走 @playwright/test 内置的 mount fixture。它会导航到 baseURL，所以 baseURL
+      // 必须是 gallery 页本身，而不是应用根。
+      name: 'components',
+      testDir: './test/component',
+      use: {
+        baseURL: 'http://127.0.0.1:4173/dev-probe.html',
+        // 应用在 dev 下也注册 service worker（vite.config.ts 的 VitePWA devOptions.enabled）。
+        // 不拦住它，缓存响应会盖掉 page.route() 的桩。
+        serviceWorkers: 'block',
+      },
+    },
+  ],
+  // 刻意不开 reuseContext（Playwright 的 component testing skill 推荐开）。这批用例的逐条隔离
+  // 靠的是每次导航时 addInitScript 里的 localStorage.clear()：共享 context 会让 init script
+  // 累积、localStorage 跨用例串。8 个 spec 省下的那点时间不值这个风险。
   webServer: {
     command: 'cross-env VITE_NETEASE_API_BASE=http://127.0.0.1:4173/__mock_netease__ npm run dev -- --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',

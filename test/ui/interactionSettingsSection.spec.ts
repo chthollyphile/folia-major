@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './helpers/appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../helpers/appState';
 
 // test/ui/interactionSettingsSection.spec.ts
 // 确认这一分区在侧栏里、在「控制」这一组下、点得进去，三项设置都真的渲染出来，

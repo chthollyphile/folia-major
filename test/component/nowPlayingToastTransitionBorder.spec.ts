@@ -1,14 +1,12 @@
-import { test, expect } from '@playwright/test';
-// test/ui/nowPlayingToastTransitionBorder.spec.ts
+import { expect, test } from './fixtures';
+// test/component/nowPlayingToastTransitionBorder.spec.ts
 
 // 探针页跑一次混音，确认卡片边框上的发光描边真的挂起来了、尺寸是绕着卡片算的。
 // 断言停在「画布存在且尺寸对得上」这一层：像素基线要 WebGL 逐帧稳定，而这个着色器本来
 // 就是随时间走的，钉基线只会得到一个每次都在抖的测试。
 
-const PROBE_URL = '/dev-probe.html?probe=nowPlayingToastTransitionBorder';
-
-test('混音进度描边挂在卡片周围', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('混音进度描边挂在卡片周围', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const cue = page.locator('[data-probe-action="cue"]');
     await expect(cue).toBeVisible();
 
@@ -43,8 +41,8 @@ test('混音进度描边挂在卡片周围', async ({ page }) => {
 
 // 设置页那个开关在同一个 click 处理函数里把设置拨上去、下一行就广播预览 cue，而 React 要等
 // 事件结束才提交。订阅或者开关判断只要挂在 prop 上，这条预览就永远收不到——这个用例钉的就是它。
-test('设置页开关的预览 cue 收得到', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('设置页开关的预览 cue 收得到', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const preview = page.locator('[data-probe-action="settings-preview"]');
     await expect(preview).toBeVisible();
     await expect(page.locator('canvas')).toHaveCount(0);
@@ -55,8 +53,8 @@ test('设置页开关的预览 cue 收得到', async ({ page }) => {
 
 // 卡片外面那层是 pointer-events-none（描边和扫光都不该吃鼠标），只有卡片本身把它翻回来。
 // 这个用例钉的就是那一层翻转：鼠标点、键盘回车都要到得了。
-test('卡片本身可点，外面那层不吃鼠标', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('卡片本身可点，外面那层不吃鼠标', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const card = page.locator('[data-toast-card]');
     await expect(card).toBeVisible();
     await expect(page.locator('[data-probe-activations="0"]')).toBeAttached();
@@ -79,26 +77,28 @@ test.describe('切歌交接', () => {
         if (card) card.dataset.probeStamp = 'kept';
     });
 
-    test('预告那首落地时不重挂，只换标签', async ({ page }) => {
-        await page.goto(PROBE_URL);
+    test('预告那首落地时不重挂，只换标签', async ({ mount, page }) => {
+        await mount('nowPlayingToastTransitionBorder');
         const card = page.locator('[data-toast-card]');
         await expect(card).toBeVisible();
         await stamp(page);
 
-        // 正在播放 → 预告下一首 → 那首真的播起来，全程同一个 DOM 节点
+        // 正在播放 → 预告下一首 → 那首真的播起来，全程同一个 DOM 节点。
+        // 文案取英文：components project 的 fixtures 把 i18nextLng 钉成 en，这条用例以前没有
+        // 种子、读的是浏览器默认语言，钉住之后才是确定的。
         await page.locator('[data-probe-action="next-up"]').click();
-        await expect(card).toContainText('接下来播放');
+        await expect(card).toContainText('Next playing');
         expect(await card.getAttribute('data-probe-stamp')).toBe('kept');
 
         await page.locator('[data-probe-action="handover"]').click();
-        await expect(card).toContainText('正在播放');
+        await expect(card).toContainText('Now playing');
         expect(await card.getAttribute('data-probe-stamp')).toBe('kept');
     });
 
     // 标签是 mode="wait" 换掉的，中途那一行是空的。不占住高度的话歌名会往上跳一下再落回来,
     // 本来是为了不硬切,结果换来一次抖动。
-    test('换标签的中途歌名不上下跳', async ({ page }) => {
-        await page.goto(PROBE_URL);
+    test('换标签的中途歌名不上下跳', async ({ mount, page }) => {
+        await mount('nowPlayingToastTransitionBorder');
         const title = page.locator('[data-toast-card] .truncate').first();
         await page.locator('[data-probe-action="next-up"]').click();
         await page.waitForTimeout(700);
@@ -112,8 +112,8 @@ test.describe('切歌交接', () => {
     });
 
     // 换歌也不重挂：短的正在播放跳到长的下一首，看到的应该是卡片自己变长，而不是滑出再滑入。
-    test('换歌是宽度补间，不是滑出再滑入', async ({ page }) => {
-        await page.goto(PROBE_URL);
+    test('换歌是宽度补间，不是滑出再滑入', async ({ mount, page }) => {
+        await mount('nowPlayingToastTransitionBorder');
         const card = page.locator('[data-toast-card]');
         await expect(card).toBeVisible();
 
@@ -137,8 +137,8 @@ test.describe('切歌交接', () => {
     });
 });
 
-test('短标题也不会把卡片缩到 240px 以下', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('短标题也不会把卡片缩到 240px 以下', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const card = page.locator('[data-toast-card]');
     await expect(card).toBeVisible();
 
@@ -153,8 +153,8 @@ test('短标题也不会把卡片缩到 240px 以下', async ({ page }) => {
 });
 
 // 描边自己就沿着上边缘画，两条亮线隔着几个像素并排，读起来是好几层边框套在一起。
-test('混音期间收掉顶部的扫光条', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('混音期间收掉顶部的扫光条', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const sheen = page.locator('[data-toast-sheen]');
     await expect(sheen).toBeAttached();
     await page.waitForTimeout(700);
@@ -169,8 +169,8 @@ test('混音期间收掉顶部的扫光条', async ({ page }) => {
 // 封面 URL 非空但加载不出来（探针里的 track-b 指向一个失效 blob，形状和媒体缓存 revoke 掉的
 // object URL 一样）。修之前「没有封面才画占位图标」那条判断只看 URL 空不空，所以这种情况留下
 // 的是一个纯灰方块——background-image 失败是没有声音的。
-test('封面加载失败时退回占位图标', async ({ page }) => {
-    await page.goto(PROBE_URL);
+test('封面加载失败时退回占位图标', async ({ mount, page }) => {
+    await mount('nowPlayingToastTransitionBorder');
     const cover = page.locator('[data-toast-cover]');
 
     // 第一首有一张真的（data: URI）封面

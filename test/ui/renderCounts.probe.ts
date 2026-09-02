@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './helpers/appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../helpers/appState';
 
 // test/ui/renderCounts.probe.ts
 // Locks in which subtrees a given interaction is allowed to re-render, using the probe in

@@ -3,7 +3,7 @@ import {
     DIORAMA_PARTICLE_DENSITY_MAX,
     DIORAMA_PARTICLE_DENSITY_MIN,
 } from '../../src/types';
-import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from './helpers/appState';
+import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY } from '../helpers/appState';
 
 // test/ui/dioramaSettings.spec.ts
 // Verifies Diorama's point-cloud controls - including the mutually-exclusive clouds/corridor mode

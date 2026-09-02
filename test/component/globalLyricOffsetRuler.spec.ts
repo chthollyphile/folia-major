@@ -1,7 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
-import { openProbe } from './helpers/probe';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
-// test/ui/globalLyricOffsetRuler.spec.ts
+// test/component/globalLyricOffsetRuler.spec.ts
 // 全局时间偏移的刻度尺：中线固定、刻度带跟手。这些都是只有真实浏览器才成立的性质
 // （pointer capture 拖动、mask 之后中线仍要可见、刻度带的 transform 不能吃掉命中区），
 // 所以走 dev 组件探针，见 dev/probes/globalLyricOffsetRuler.probe.tsx。
@@ -23,8 +23,8 @@ async function dragBy(page: Page, dx: number): Promise<void> {
     await page.mouse.up();
 }
 
-test.beforeEach(async ({ page }) => {
-    await openProbe(page, 'globalLyricOffsetRuler');
+test.beforeEach(async ({ mount }) => {
+    await mount('globalLyricOffsetRuler');
 });
 
 test('刻度带跟手：向右拖动让更小的值落到中线上', async ({ page }) => {
