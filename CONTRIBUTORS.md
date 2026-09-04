@@ -79,6 +79,9 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/POPK406"><img src="https://avatars.githubusercontent.com/u/134522269?v=4?s=100" width="100px;" alt="POPK3"/><br /><sub><b>POPK3</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=POPK406" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/gebilaowang66662"><img src="https://avatars.githubusercontent.com/u/57247496?v=4?s=100" width="100px;" alt="gebilaowang66662"/><br /><sub><b>gebilaowang66662</b></sub></a><br /><a href="#ideas-gebilaowang66662" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Erik-T3"><img src="https://avatars.githubusercontent.com/u/42774210?v=4?s=100" width="100px;" alt="Erik"/><br /><sub><b>Erik</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=Erik-T3" title="Code">💻</a></td>
+    </tr>
   </tbody>
 </table>
 
