@@ -13,16 +13,17 @@ import {
 } from '../stores/useCollectionNavigationStore';
 import type { GridViewCollectionDescriptor } from '../components/app/home/gridViewCollectionAdapters';
 import { useAppViewStore } from '../stores/useAppViewStore';
+import type { AppView } from '../stores/useAppViewStore';
 
 // src/hooks/useAppNavigation.ts
 
-type ViewState = 'home' | 'player';
+type ViewState = AppView;
 
 type LocalMusicNavigationState = {
     activeRow: 0 | 1 | 2 | 3;
     selectedGroup: LocalLibraryGroup | null;
     detailStack: LocalLibraryGroup[];
-    detailOriginView: ViewState | null;
+    detailOriginView: 'home' | 'player' | null;
     focusedFolderIndex: number;
     focusedAlbumIndex: number;
     focusedArtistIndex: number;
@@ -229,6 +230,24 @@ export function useAppNavigation() {
         });
     }, [pushNavigationState]);
 
+    const navigateToLattice = useCallback(() => {
+        if (useAppViewStore.getState().view === 'lattice') return;
+        useSearchNavigationStore.getState().hideSearchOverlay();
+        pushNavigationState({
+            view: 'lattice',
+            hash: '#lattice',
+        });
+    }, [pushNavigationState]);
+
+    const navigateBackFromLattice = useCallback(() => {
+        const state = window.history.state as NavigationHistoryState | null;
+        if (state?.view === 'lattice' && getAppHistoryIndex(state) > 0) {
+            window.history.back();
+            return;
+        }
+        navigateToHome();
+    }, [navigateToHome]);
+
     const navigateDirectHome = useCallback((options?: { clearContext?: boolean; }) => {
         const clearContext = options?.clearContext ?? true;
         if (clearContext) {
@@ -345,6 +364,8 @@ export function useAppNavigation() {
         setLocalMusicState,
         navigateToPlayer,
         navigateToHome,
+        navigateToLattice,
+        navigateBackFromLattice,
         navigateBackFromPlayer,
         navigateDirectHome,
         navigateToSearch,

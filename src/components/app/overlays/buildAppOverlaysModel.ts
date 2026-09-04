@@ -237,7 +237,7 @@ export const buildAppOverlaysModel = ({
             onClose: () => setIsMemoryMonitorVisible(false),
         }
         : null,
-    floatingControls: currentSong
+    floatingControls: currentSong && currentView !== 'lattice'
         ? {
             currentSong,
             playerState,

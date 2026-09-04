@@ -55,6 +55,7 @@ export interface HomeSurfaceProps {
     onOpenStagePlayer?: () => void;
     theme: Theme;
     onOpenSettings?: (initialTab?: 'help' | 'options') => void;
+    onOpenLattice?: () => void;
     navidromeEnabled?: boolean;
     onPlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[]) => void;

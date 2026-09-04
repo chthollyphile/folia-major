@@ -11,6 +11,7 @@ interface ProgressBarProps {
     secondaryColor?: string;
     trackColor?: string;
     disabled?: boolean;
+    edgeStyle?: 'rounded' | 'square';
 }
 
 
@@ -31,6 +32,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     secondaryColor = 'rgba(255,255,255,0.5)',
     trackColor = 'rgba(255,255,255,0.1)',
     disabled = false,
+    edgeStyle = 'rounded',
 }) => {
     const progressRef = useRef<HTMLDivElement>(null);
     const timeRef = useRef<HTMLSpanElement>(null);
@@ -56,7 +58,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         if (progressRef.current && duration > 0) {
             const progress = Math.min(1, clampedValue / duration);
             const hiddenPercent = ((1 - progress) * 100).toFixed(4);
-            progressRef.current.style.clipPath = `inset(0 ${hiddenPercent}% 0 0 round 999px)`;
+            progressRef.current.style.clipPath = edgeStyle === 'square'
+                ? `inset(0 ${hiddenPercent}% 0 0)`
+                : `inset(0 ${hiddenPercent}% 0 0 round 999px)`;
         }
 
         if (timeRef.current && (force || lastDisplayedSecondRef.current !== displayedSecond)) {
@@ -68,7 +72,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             inputRef.current.value = clampedValue.toString();
             lastInputSecondRef.current = displayedSecond;
         }
-    }, [duration]);
+    }, [duration, edgeStyle]);
 
     useLayoutEffect(() => {
         updateUI(currentTime.get(), true);
@@ -125,14 +129,16 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                 00:00
             </span>
 
-            <div className={`relative h-1.5 flex-1 rounded-sm md:rounded-full flex items-center group ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} style={{ backgroundColor: trackColor }}>
+            <div className={`relative h-1.5 flex-1 flex items-center group ${edgeStyle === 'rounded' ? 'rounded-sm md:rounded-full' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} style={{ backgroundColor: trackColor }}>
                 <div
                     ref={progressRef}
-                    className="absolute top-0 left-0 h-full rounded-sm md:rounded-full pointer-events-none"
+                    className={`absolute top-0 left-0 h-full pointer-events-none ${edgeStyle === 'rounded' ? 'rounded-sm md:rounded-full' : ''}`}
                     style={{
                         width: '100%',
                         backgroundColor: primaryColor,
-                        clipPath: 'inset(0 100% 0 0 round 999px)',
+                        clipPath: edgeStyle === 'square'
+                            ? 'inset(0 100% 0 0)'
+                            : 'inset(0 100% 0 0 round 999px)',
                         willChange: 'clip-path',
                     }}
                 />

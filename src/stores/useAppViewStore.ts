@@ -13,7 +13,7 @@ import type { PanelTab } from '../components/UnifiedPanel';
 // carry refs, and nothing outside that hook should be able to move the view without going through
 // them. This store is the readable truth about where the app is, not a second way to navigate.
 
-export type AppView = 'home' | 'player';
+export type AppView = 'home' | 'player' | 'lattice';
 
 /**
  * A surface that reads typed characters as filter input — today the three home grids. It hands the

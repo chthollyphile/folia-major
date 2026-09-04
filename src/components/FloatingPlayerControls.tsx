@@ -55,7 +55,7 @@ interface FloatingPlayerControlsProps {
     lyricCurrentTime?: MotionValue<number>;
     duration: number;
     loopMode: 'off' | 'all' | 'one';
-    currentView: 'home' | 'player';
+    currentView: 'home' | 'player' | 'lattice';
     audioSrc: string | null;
     canTogglePlay?: boolean;
     lyrics: LyricData | null;

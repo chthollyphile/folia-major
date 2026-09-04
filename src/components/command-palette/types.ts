@@ -164,6 +164,7 @@ export type CommandPalettePlaybackContext = {
 export type CommandPaletteNavigationContext = {
     navigateToHome: () => void;
     navigateToPlayer: () => void;
+    navigateToLattice: () => void;
     setHomeViewTab: (tab: HomeViewTab) => void;
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;

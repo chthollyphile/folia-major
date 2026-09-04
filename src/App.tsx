@@ -19,6 +19,7 @@ import AutomixModelReminder from './components/modal/AutomixModelReminder';
 // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
 // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
 const AutomixTransitionAnimation = lazy(() => import('./components/app/overlays/AutomixTransitionAnimation'));
+const Lattice = lazy(() => import('./components/app/lattice/Lattice'));
 import { UserGuideModal } from './components/modal/UserGuideModal';
 import { USER_GUIDE_AUTO_OPEN_VERSION } from './components/modal/userGuideContent';
 import { useAppDialogsModel } from './components/app/dialogs/useAppDialogsModel';
@@ -649,6 +650,8 @@ export default function App() {
         setLocalMusicState,
         navigateToPlayer,
         navigateToHome,
+        navigateToLattice,
+        navigateBackFromLattice,
         navigateBackFromPlayer,
         navigateDirectHome,
         navigateToSearch,
@@ -1035,6 +1038,7 @@ export default function App() {
         clearQueue,
     } = usePlaybackQueueController({
         isNowPlayingStageActive,
+        shouldNavigateToPlayerOnTrackChange: currentView !== 'lattice',
         localSongs,
         localLibraryCatalog,
         userId: user?.id,
@@ -1726,6 +1730,7 @@ export default function App() {
 
         navigateToHome,
         navigateToPlayer,
+        navigateToLattice,
         toggleBrowserFullscreen,
         toggleRemoteControlWindow,
         toggleMainWindowAlwaysOnTop,
@@ -2078,6 +2083,7 @@ export default function App() {
         onlineProviderPlatform,
         playSong,
         navigateToPlayer,
+        navigateToLattice,
         refreshOnlineProviderPlaylists: refreshActiveProviderPlaylists,
         user,
         playlists,
@@ -2580,6 +2586,29 @@ export default function App() {
                     ) : null}
                 </motion.div>
             </div>
+
+            {currentView === 'lattice' && (
+                <div className="absolute inset-0 z-10 pointer-events-auto">
+                    <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
+                        <Lattice
+                            currentSong={displaySong}
+                            playerState={displayPlayerState}
+                            currentTime={currentTime}
+                            playbackDuration={displayDuration}
+                            canTogglePlayback={canToggleCurrentPlayback}
+                            queue={playQueue}
+                            isDaylight={isDaylight}
+                            onBack={navigateBackFromLattice}
+                            onOpenPlayer={navigateToPlayer}
+                            onPlaySong={(song, queue) => {
+                                void playSong(song, queue, false, { shouldNavigateToPlayer: false });
+                            }}
+                            onTogglePlayback={togglePlay}
+                            onSeek={seekMainAudio}
+                        />
+                    </Suspense>
+                </div>
+            )}
 
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
             <div

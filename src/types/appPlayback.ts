@@ -71,7 +71,7 @@ export type NowPlayingClockState = {
 };
 
 export type WindowPlaybackHandoffUiState = {
-    currentView: 'home' | 'player';
+    currentView: 'home' | 'player' | 'lattice';
     playerChromeHidden: boolean;
     mainWindowBorderVisible: boolean;
     transparentModeEnabled: boolean;

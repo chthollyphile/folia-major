@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Settings } from 'lucide-react';
+import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import type { LocalLibraryCatalogSnapshot } from '../hooks/useLocalLibraryCatalog';
@@ -92,6 +92,7 @@ interface Grid3DProps {
     onSearchCommitted: (query: string, sourceTab: any, replace?: boolean) => void;
     theme: Theme;
     onOpenSettings?: (initialTab?: 'help' | 'options') => void;
+    onOpenLattice?: () => void;
     navidromeEnabled?: boolean;
     onPlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[]) => void;
@@ -126,6 +127,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         onSearchCommitted,
         theme,
         onOpenSettings,
+        onOpenLattice,
         navidromeEnabled = false,
         onOpenGridView,
         onStatusMessage,
@@ -664,6 +666,14 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
                             Folia
                         </h1>
+                        <button
+                            onClick={onOpenLattice}
+                            className="relative flex items-center p-2 rounded-full hover:bg-white/10 transition-all ml-2 opacity-50 hover:opacity-100"
+                            title={t('home.lattice')}
+                            aria-label={t('home.lattice')}
+                        >
+                            <PanelsTopLeft size={20} style={{ color: 'var(--text-primary)' }} />
+                        </button>
                         <button
                             onClick={() => onOpenSettings?.('help')}
                             className={`relative flex items-center gap-1.5 p-2 rounded-full hover:bg-white/10 transition-all ml-4 ${showUpdateIndicator

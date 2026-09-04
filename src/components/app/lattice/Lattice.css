@@ -1,0 +1,347 @@
+/* Scoped poster-wall styling; nothing here leaks into the existing Grid surfaces. */
+
+.lattice-root {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    color: #f7f4ee;
+    background:
+        radial-gradient(circle at 14% 12%, rgba(253, 92, 71, 0.16), transparent 29%),
+        radial-gradient(circle at 86% 82%, rgba(106, 72, 255, 0.2), transparent 32%),
+        #070707;
+    isolation: isolate;
+}
+
+.lattice-root * {
+    border-radius: 0 !important;
+}
+
+.lattice-root::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.13;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+    mix-blend-mode: soft-light;
+}
+
+.lattice-field {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+}
+
+.lattice-field:active { cursor: grabbing; }
+
+.lattice-world {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.lattice-poster {
+    position: absolute;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    color: white;
+    text-align: left;
+    background-color: #242424;
+    background-position: center;
+    background-size: cover;
+    box-shadow: none;
+    cursor: pointer;
+    contain: layout paint;
+}
+
+.lattice-poster:hover {
+    z-index: 3;
+    filter: saturate(1.08) brightness(1.05);
+}
+
+/* Keyboard focus. The ring is drawn with box-shadow rather than outline so it follows the
+   poster's rounded corners, and the native outline is dropped only once ours is showing. */
+.lattice-poster.is-focused,
+.lattice-poster:focus-visible {
+    z-index: 4;
+    outline: none;
+    box-shadow:
+        0 0 0 2px rgb(0 0 0 / 55%),
+        0 0 0 5px var(--text-primary, #fff),
+        0 12px 32px rgb(0 0 0 / 45%);
+}
+
+.lattice-poster.is-focused::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 60%);
+}
+
+.lattice-root.is-daylight .lattice-poster.is-focused,
+.lattice-root.is-daylight .lattice-poster:focus-visible {
+    box-shadow:
+        0 0 0 2px rgb(255 255 255 / 70%),
+        0 0 0 5px var(--text-primary, #111),
+        0 12px 32px rgb(0 0 0 / 25%);
+}
+
+.lattice-field:focus,
+.lattice-field:focus-visible {
+    outline: none;
+}
+
+.lattice-poster-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 34%, rgba(0, 0, 0, 0.24) 56%, rgba(0, 0, 0, 0.92) 100%);
+}
+
+.lattice-poster.is-expanded {
+    box-shadow: 0 42px 110px rgba(0, 0, 0, 0.74);
+}
+
+.lattice-poster.is-expanded .lattice-poster-shade {
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 52%, rgba(0, 0, 0, 0.08));
+}
+
+.lattice-poster.is-expanded .lattice-poster-copy {
+    right: 32px;
+    bottom: 104px;
+    left: 32px;
+}
+
+.lattice-poster.is-expanded .lattice-poster-copy strong {
+    max-width: 76%;
+    font-size: clamp(48px, 6vw, 82px);
+    line-height: 0.88;
+}
+
+.lattice-poster.is-expanded .lattice-poster-copy small {
+    margin-top: 7px;
+    font-size: 17px;
+}
+
+.lattice-poster-controls {
+    position: absolute;
+    right: 24px;
+    bottom: 25px;
+    left: 32px;
+    z-index: 2;
+}
+
+.lattice-chrome {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(18px);
+}
+
+.lattice-transport-button {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    place-items: center;
+    border: 0;
+    color: var(--bg-color);
+    background: var(--text-primary);
+}
+
+.lattice-transport-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.lattice-transport-button svg { width: 20px; }
+
+.lattice-progress {
+    min-width: 180px;
+    flex: 1 1 360px;
+}
+
+.lattice-poster-close {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #fff;
+    background: rgba(0, 0, 0, 0.42);
+}
+
+.lattice-poster-close svg { width: 17px; }
+
+.lattice-poster-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    padding: 5px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(10px);
+}
+
+.lattice-poster-copy {
+    position: absolute;
+    right: 17px;
+    bottom: 17px;
+    left: 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.lattice-poster-copy strong {
+    overflow: hidden;
+    font-size: clamp(22px, 2vw, 36px);
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    text-wrap: balance;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.lattice-poster-copy small {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 650;
+    opacity: 0.78;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lattice-header {
+    position: absolute;
+    top: 25px;
+    right: 28px;
+    left: 28px;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    pointer-events: none;
+}
+
+.lattice-back,
+.lattice-source {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(11, 11, 11, 0.54);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
+}
+
+.lattice-back {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    color: inherit;
+    pointer-events: auto;
+}
+
+.lattice-back svg { width: 19px; }
+
+.lattice-brand {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+    filter: drop-shadow(0 2px 12px #000);
+}
+
+.lattice-brand strong { font-size: 14px; letter-spacing: 0.17em; }
+.lattice-brand span { margin-top: 7px; font-size: 9px; font-weight: 750; letter-spacing: 0.18em; opacity: 0.58; }
+
+.lattice-source {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 2px 8px;
+    align-items: center;
+    min-width: 154px;
+    padding: 10px 14px;
+}
+
+.lattice-source svg { grid-row: 1 / span 2; width: 15px; color: #a6ff78; }
+.lattice-source svg.is-loading { animation: lattice-pulse 0.9s ease-in-out infinite alternate; }
+.lattice-source span { font-size: 12px; font-weight: 750; }
+.lattice-source small { font-size: 9px; letter-spacing: 0.12em; opacity: 0.52; }
+
+.lattice-hint {
+    position: absolute;
+    right: 30px;
+    bottom: 30px;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 3px 10px;
+    align-items: center;
+    transition: opacity 240ms ease, transform 240ms ease;
+    pointer-events: none;
+    text-shadow: 0 2px 8px #000;
+}
+
+.lattice-hint.is-hidden { opacity: 0; transform: translateY(8px); }
+.lattice-hint span { grid-row: 1 / span 2; width: 22px; height: 22px; border: 1px solid currentColor; opacity: 0.68; }
+.lattice-hint strong { font-size: 10px; letter-spacing: 0.16em; }
+.lattice-hint small { font-size: 8px; letter-spacing: 0.08em; opacity: 0.55; }
+
+.lattice-secondary-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 18px;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.1em;
+}
+
+.lattice-secondary-action { border: 1px solid rgba(255, 255, 255, 0.32); color: #fff; background: rgba(0, 0, 0, 0.3); }
+
+.lattice-empty {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 9px;
+    pointer-events: none;
+}
+
+.lattice-empty strong { font-size: 17px; letter-spacing: 0.16em; }
+.lattice-empty span { font-size: 12px; opacity: 0.5; }
+
+@keyframes lattice-pulse { to { opacity: 0.25; transform: scale(0.84); } }
+
+@media (max-width: 640px) {
+    .lattice-header { top: 16px; right: 16px; left: 16px; }
+    .lattice-brand span { display: none; }
+    .lattice-source { min-width: 0; }
+    .lattice-source small { display: none; }
+    .lattice-poster.is-expanded .lattice-poster-copy strong { font-size: 44px; }
+    .lattice-secondary-action { display: none; }
+    .lattice-progress { min-width: 120px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lattice-source svg.is-loading { animation: none; }
+}

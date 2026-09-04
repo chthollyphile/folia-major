@@ -30,6 +30,7 @@ const createBaseParams = () => {
     return {
         playSong: vi.fn(),
         navigateToPlayer: vi.fn(),
+        navigateToLattice: vi.fn(),
         refreshOnlineProviderPlaylists: vi.fn().mockResolvedValue(undefined),
         user: null,
         playlists: [],

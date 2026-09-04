@@ -7,6 +7,7 @@ import { createToggleCommand, createHomeTabCommand } from '../commandFactories';
 export const navigationCommands: CommandPaletteCommand[] = [
     createToggleCommand('navigate-home', 'navigation', 'Go home', 'Return to home view', ['home', '首页', '主页'], context => context.navigation.navigateToHome()),
     createToggleCommand('navigate-player', 'navigation', 'Go player', 'Return to player view', ['player', '播放页', '播放器'], context => context.navigation.navigateToPlayer()),
+    createToggleCommand('navigate-lattice', 'navigation', 'Open song wall', 'Show the play queue as a poster wall', ['lattice', 'song wall', 'poster wall', '歌曲墙', '海报墙'], context => context.navigation.navigateToLattice()),
     {
         id: 'browser-fullscreen',
         group: 'navigation',

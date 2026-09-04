@@ -60,8 +60,9 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             runAutoMatchBestLyric: vi.fn(async () => true),
         },
         navigation: {
-            navigateToHome: vi.fn(),
-            navigateToPlayer: vi.fn(),
+        navigateToHome: vi.fn(),
+        navigateToPlayer: vi.fn(),
+        navigateToLattice: vi.fn(),
             setHomeViewTab: vi.fn(),
             toggleBrowserFullscreen: vi.fn(async () => true),
             toggleRemoteControlWindow: vi.fn(async () => true),
