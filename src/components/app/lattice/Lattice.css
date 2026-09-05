@@ -6,6 +6,7 @@
     --lattice-poster-background: color-mix(in srgb, var(--bg-color, #070707) 88%, var(--lattice-poster-ink));
     --lattice-expanded-shadow: rgb(0 0 0 / 74%);
     --lattice-chrome-shadow: rgb(0 0 0 / 55%);
+    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 45%);
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -27,6 +28,7 @@
     --lattice-poster-background: color-mix(in srgb, var(--bg-color, #fafaf9) 94%, var(--lattice-poster-ink));
     --lattice-expanded-shadow: rgb(0 0 0 / 25%);
     --lattice-chrome-shadow: rgb(255 255 255 / 55%);
+    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 25%);
 }
 
 .lattice-root * {
@@ -92,7 +94,8 @@
     background-position: center;
     background-size: cover;
     box-shadow:
-        0 0 0 2px transparent,
+        0 0 0 1px transparent,
+        0 0 0 4px transparent,
         0 0 0 5px transparent,
         var(--lattice-poster-elevation, 0 12px 32px transparent);
     filter: saturate(1) brightness(1);
@@ -101,14 +104,23 @@
     contain: layout paint;
 }
 
-/* An overlay border stays visible above artwork without changing layout or the focus ring. */
+/* An overlay border stays visible above artwork without changing layout or the focus ring. The
+   card clips its own children, so this mark has to be built inward: the accent stroke, a shade
+   hairline behind it so the accent still reads over a bright sleeve, and a soft inward glow that
+   makes the card look lit rather than stickered. The third slot is a placeholder that keeps this
+   list the same length as the focused one below, so the two interpolate. */
 .lattice-poster.is-current::before {
     content: '';
     position: absolute;
     inset: 0;
     z-index: 4;
-    border: 3px solid var(--text-accent, var(--text-primary, #fff));
+    border: 2px solid var(--text-accent, var(--text-primary, #fff));
+    box-shadow:
+        inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 52%),
+        inset 0 0 0 3px transparent,
+        inset 0 0 15px -7px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 46%, transparent);
     pointer-events: none;
+    transition: box-shadow 300ms ease;
 }
 
 .lattice-poster:hover {
@@ -117,15 +129,38 @@
 }
 
 /* Keyboard focus. The ring is drawn with box-shadow rather than outline so it follows the
-   poster's rounded corners, and the native outline is dropped only once ours is showing. */
+   poster's rounded corners, and the native outline is dropped only once ours is showing.
+   This rule carries the lift only; the ring is split out below, because the playing card already
+   owns a stroke and a second one in another colour on top of it reads as two stacked borders. */
 .lattice-poster.is-focused,
 .lattice-poster:focus-visible {
     z-index: 4;
     outline: none;
     box-shadow:
-        0 0 0 2px rgb(0 0 0 / 55%),
-        0 0 0 5px var(--text-primary, #fff),
-        var(--lattice-poster-elevation, 0 12px 32px rgb(0 0 0 / 45%));
+        0 0 0 1px transparent,
+        0 0 0 4px transparent,
+        0 0 0 5px transparent,
+        var(--lattice-poster-elevation, var(--lattice-focus-lift));
+}
+
+/* Cards with no mark of their own get one: a hairline, the ring, then a second hairline, so the
+   ring stays crisp against both the artwork inside it and the wall outside. */
+.lattice-poster.is-focused:not(.is-current),
+.lattice-poster:focus-visible:not(.is-current) {
+    box-shadow:
+        0 0 0 1px rgb(0 0 0 / 62%),
+        0 0 0 4px var(--text-primary, #fff),
+        0 0 0 5px rgb(0 0 0 / 38%),
+        var(--lattice-poster-elevation, var(--lattice-focus-lift));
+}
+
+/* Focusing the playing card deepens its own accent instead of ringing it in white. */
+.lattice-poster.is-current.is-focused::before,
+.lattice-poster.is-current:focus-visible::before {
+    box-shadow:
+        inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 62%),
+        inset 0 0 0 3px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 38%, transparent),
+        inset 0 0 26px -6px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 62%, transparent);
 }
 
 .lattice-poster::after {
@@ -140,12 +175,13 @@
 
 .lattice-poster.is-focused::after { opacity: 1; }
 
-.lattice-root.is-daylight .lattice-poster.is-focused,
-.lattice-root.is-daylight .lattice-poster:focus-visible {
+.lattice-root.is-daylight .lattice-poster.is-focused:not(.is-current),
+.lattice-root.is-daylight .lattice-poster:focus-visible:not(.is-current) {
     box-shadow:
-        0 0 0 2px rgb(255 255 255 / 70%),
-        0 0 0 5px var(--text-primary, #111),
-        var(--lattice-poster-elevation, 0 12px 32px rgb(0 0 0 / 25%));
+        0 0 0 1px rgb(255 255 255 / 78%),
+        0 0 0 4px var(--text-primary, #111),
+        0 0 0 5px rgb(255 255 255 / 45%),
+        var(--lattice-poster-elevation, var(--lattice-focus-lift));
 }
 
 .lattice-field:focus,
