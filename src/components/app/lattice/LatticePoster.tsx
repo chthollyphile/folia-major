@@ -41,6 +41,17 @@ type LatticePosterProps = {
 // How far above its slot a landing tile starts, in world units.
 const ENTRANCE_LIFT = 90;
 
+// Lift for the card under the pointer or the wall's keyboard cursor. It scales the whole article,
+// which is why it has to run through Framer Motion - Framer owns the inline transform, so CSS
+// cannot add to it. Zooming only the artwork inside a fixed frame was tried and abandoned: the wall
+// carries a fractional scale, so a card's box sits on fractional device pixels, and a composited
+// child snaps to them independently of the card itself. That left a 1px seam of unmasked artwork
+// along the card outline on roughly half the frames of every hover. Measured across inset, clip-path
+// and opacity-crossfade variants, all of which showed it. Scaling the whole card has no such second
+// snapping unit and measured clean, so do NOT reintroduce `will-change` here as an optimization:
+// promoting the card is what would give it a layer to misalign against.
+const POP_SCALE = 1.03;
+
 // `tile` and `rect` are rebuilt by the wall's own memos whenever the queue, the selection or the
 // camera moves, so comparing them by identity would re-render every poster for values that did not
 // change. Every other prop is a scalar, a ref, a MotionValue or a permanently-identified callback.
@@ -90,6 +101,8 @@ function LatticePoster({
     countRender('LatticePoster');
     const { t } = useTranslation();
     const chrome = useLatticeChromeDisclosure(expanded);
+    // The open card is already the foreground and carries the lyric canvas, so it never pops.
+    const popped = !expanded && (chrome.hovered || isFocused);
     const isCurrent = tile.section === 'now';
     // The lyric scene is a Pixi renderer whose layout is rebuilt from the card's box, so mounting it
     // mid-expansion would rasterize every line once per animation frame. It waits for the spring.
@@ -138,7 +151,7 @@ function LatticePoster({
                     // revealed by a pan or a queue change never pop in fully drawn.
                     ? { ...rect, opacity: 0, scale: 0.94 }
                     : { ...rect, y: rect.y - ENTRANCE_LIFT, opacity: 0, scale: 0.88 }}
-            animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height, opacity: 1, scale: 1 }}
+            animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height, opacity: 1, scale: popped ? POP_SCALE : 1 }}
             transition={reducedMotion
                 ? { duration: 0 }
                 : landing === null

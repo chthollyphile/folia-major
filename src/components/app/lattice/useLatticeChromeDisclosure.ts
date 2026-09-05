@@ -23,6 +23,9 @@ export function useLatticeChromeDisclosure(expanded: boolean) {
 
     return {
         articleRef,
+        // Pointer hover is tracked here already, so the poster's own lift reads it rather than
+        // running a second gesture; touch pointers are filtered out below, as they must be.
+        hovered,
         revealed: expanded && (hovered || touchOpen || keyboardFocus),
         toggleTouch: () => { if (pointerTypeRef.current === 'touch') setTouchOpen(value => !value); },
         toggleKeyboard: () => setTouchOpen(value => !value),
