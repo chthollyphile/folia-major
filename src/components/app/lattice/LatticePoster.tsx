@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { memo } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject } from 'react';
@@ -11,6 +11,7 @@ import LatticePlaybackControls from './LatticePlaybackControls';
 import { countRender } from '../../../dev/renderCount';
 
 // Renders one poster and its expanded Player Chrome controls.
+const LatticeLyrics = lazy(() => import('./lyrics/LatticeLyrics'));
 
 type LatticePosterProps = {
     instanceId: string;
@@ -154,14 +155,17 @@ function LatticePoster({
         >
             <span className="lattice-poster-shade" />
             <span className={`lattice-poster-badge ${tile.section === 'now' ? 'is-current' : ''}`}>
-                {tile.section === 'now'
-                    ? t('home.latticeBadgeNow')
-                    : String(tile.queueIndex + 1).padStart(2, '0')}
+                {tile.section === 'now' && <>{t('home.latticeBadgeNow')} · </>}
+                {String(tile.queueIndex + 1).padStart(2, '0')}
             </span>
-            <span className="lattice-poster-copy">
+            {expanded && tile.section === 'now' ? (
+                <Suspense fallback={<span className="lattice-poster-copy"><strong>{tile.title}</strong><small>{tile.artist}</small></span>}>
+                    <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />
+                </Suspense>
+            ) : <span className="lattice-poster-copy">
                 <strong>{tile.title}</strong>
                 <small>{tile.artist}</small>
-            </span>
+            </span>}
             {expanded && (
                 <button type="button" className="lattice-poster-close" onClick={onClose}
                     aria-label={t('home.latticeClose')} title={t('home.latticeClose')}>

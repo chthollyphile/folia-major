@@ -8,7 +8,7 @@
     padding: 0;
     border: 0;
     background: none;
-    filter: drop-shadow(0 1px 3px rgb(0 0 0 / 55%));
+    filter: drop-shadow(0 1px 3px var(--lattice-chrome-shadow));
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -25,7 +25,7 @@
     padding: 0;
     border: 0;
     color: inherit;
-    background: color-mix(in srgb, var(--bg-color, #111) 18%, transparent);
+    background: rgb(var(--lattice-shade-rgb) / 66%);
     backdrop-filter: blur(16px);
     cursor: pointer;
     opacity: 0.65;

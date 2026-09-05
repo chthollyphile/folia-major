@@ -1,6 +1,11 @@
 /* Scoped poster-wall styling; nothing here leaks into the existing Grid surfaces. */
 
 .lattice-root {
+    --lattice-poster-ink: var(--text-primary, #f7f4ee);
+    --lattice-shade-rgb: 0 0 0;
+    --lattice-poster-background: color-mix(in srgb, var(--bg-color, #070707) 88%, var(--lattice-poster-ink));
+    --lattice-expanded-shadow: rgb(0 0 0 / 74%);
+    --lattice-chrome-shadow: rgb(0 0 0 / 55%);
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -14,6 +19,14 @@
         radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary, #6a48ff) 20%, transparent), transparent 32%),
         var(--bg-color, #070707);
     isolation: isolate;
+}
+
+.lattice-root.is-daylight {
+    --lattice-poster-ink: var(--text-primary, #1c1917);
+    --lattice-shade-rgb: 255 255 255;
+    --lattice-poster-background: color-mix(in srgb, var(--bg-color, #fafaf9) 94%, var(--lattice-poster-ink));
+    --lattice-expanded-shadow: rgb(0 0 0 / 25%);
+    --lattice-chrome-shadow: rgb(255 255 255 / 55%);
 }
 
 .lattice-root * {
@@ -73,12 +86,17 @@
     overflow: hidden;
     padding: 0;
     border: 0;
-    color: white;
+    color: var(--lattice-poster-ink);
     text-align: left;
-    background-color: #242424;
+    background-color: var(--lattice-poster-background);
     background-position: center;
     background-size: cover;
-    box-shadow: none;
+    box-shadow:
+        0 0 0 2px transparent,
+        0 0 0 5px transparent,
+        var(--lattice-poster-elevation, 0 12px 32px transparent);
+    filter: saturate(1) brightness(1);
+    transition: box-shadow 600ms ease, filter 600ms ease;
     cursor: pointer;
     contain: layout paint;
 }
@@ -107,23 +125,27 @@
     box-shadow:
         0 0 0 2px rgb(0 0 0 / 55%),
         0 0 0 5px var(--text-primary, #fff),
-        0 12px 32px rgb(0 0 0 / 45%);
+        var(--lattice-poster-elevation, 0 12px 32px rgb(0 0 0 / 45%));
 }
 
-.lattice-poster.is-focused::after {
+.lattice-poster::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     background: linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 60%);
+    opacity: 0;
+    transition: opacity 200ms ease;
 }
+
+.lattice-poster.is-focused::after { opacity: 1; }
 
 .lattice-root.is-daylight .lattice-poster.is-focused,
 .lattice-root.is-daylight .lattice-poster:focus-visible {
     box-shadow:
         0 0 0 2px rgb(255 255 255 / 70%),
         0 0 0 5px var(--text-primary, #111),
-        0 12px 32px rgb(0 0 0 / 25%);
+        var(--lattice-poster-elevation, 0 12px 32px rgb(0 0 0 / 25%));
 }
 
 .lattice-field:focus,
@@ -134,18 +156,18 @@
 .lattice-poster-shade {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 34%, rgba(0, 0, 0, 0.24) 56%, rgba(0, 0, 0, 0.92) 100%);
+    background: linear-gradient(180deg, rgb(var(--lattice-shade-rgb) / 5%) 34%, rgb(var(--lattice-shade-rgb) / 24%) 56%, rgb(var(--lattice-shade-rgb) / 92%) 100%);
 }
 
 .lattice-poster.is-expanded {
-    box-shadow: 0 42px 110px rgba(0, 0, 0, 0.74);
+    --lattice-poster-elevation: 0 42px 110px var(--lattice-expanded-shadow);
 }
 
 .lattice-poster.is-expanded .lattice-poster-shade {
     /* The bottom band is what keeps the background-less playback chrome readable. */
     background:
-        linear-gradient(0deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.62) 14%, rgba(0, 0, 0, 0.26) 30%, rgba(0, 0, 0, 0) 46%),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 52%, rgba(0, 0, 0, 0.08));
+        linear-gradient(0deg, rgb(var(--lattice-shade-rgb) / 86%) 0%, rgb(var(--lattice-shade-rgb) / 62%) 14%, rgb(var(--lattice-shade-rgb) / 26%) 30%, rgb(var(--lattice-shade-rgb) / 0%) 46%),
+        linear-gradient(90deg, rgb(var(--lattice-shade-rgb) / 88%), rgb(var(--lattice-shade-rgb) / 50%) 52%, rgb(var(--lattice-shade-rgb) / 8%));
 }
 
 .lattice-poster.is-expanded .lattice-poster-copy {
@@ -178,12 +200,12 @@
     top: 14px;
     left: 14px;
     padding: 5px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.42);
+    border: 1px solid color-mix(in srgb, currentColor 42%, transparent);
     font-size: 11px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.12em;
-    background: rgba(0, 0, 0, 0.42);
+    background: rgb(var(--lattice-shade-rgb) / 42%);
     backdrop-filter: blur(10px);
 }
 
@@ -191,7 +213,7 @@
 .lattice-poster-badge.is-current {
     border-color: var(--text-accent, var(--text-primary, #fff));
     color: var(--text-accent, var(--text-primary, #fff));
-    background: rgba(0, 0, 0, 0.66);
+    background: rgb(var(--lattice-shade-rgb) / 66%);
 }
 
 .lattice-poster-copy {
@@ -281,6 +303,11 @@
 
 .lattice-empty strong { font-size: 17px; letter-spacing: 0.16em; }
 .lattice-empty span { font-size: 12px; opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+    .lattice-poster,
+    .lattice-poster::after { transition: none; }
+}
 
 @media (max-width: 640px) {
     .lattice-back { top: 14px; left: 16px; }

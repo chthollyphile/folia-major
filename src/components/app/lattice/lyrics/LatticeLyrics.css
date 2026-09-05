@@ -1,0 +1,30 @@
+/* src/components/app/lattice/lyrics/LatticeLyrics.css */
+.lattice-lyrics {
+    position: absolute;
+    inset: 128px 24px 110px;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+}
+.lattice-lyrics.is-ready { opacity: 1; }
+.lattice-lyrics-canvas { position: absolute; inset: 0; overflow: hidden; }
+.lattice-lyrics-canvas canvas { display: block; width: 100%; height: 100%; }
+.lattice-root .lattice-poster.is-expanded .lattice-lyric-metadata {
+    top: 74px;
+    bottom: auto;
+    right: 100px;
+}
+.lattice-root .lattice-poster.is-expanded .lattice-lyric-metadata strong {
+    max-width: 100%;
+    font-size: 22px;
+    line-height: 1.2;
+    -webkit-line-clamp: 1;
+}
+.lattice-root .lattice-poster.is-expanded .lattice-lyric-metadata small {
+    font-size: 13px;
+    margin-top: 2px;
+}
+@media (max-width: 640px) {
+    .lattice-lyrics { top: 160px; bottom: 164px; }
+    .lattice-root .lattice-poster.is-expanded .lattice-lyric-metadata { top: 112px; right: 32px; }
+}

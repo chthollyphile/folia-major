@@ -3,6 +3,7 @@ import { useMotionValue } from 'framer-motion';
 import Lattice from '../../src/components/app/lattice/Lattice';
 import { PlayerState, type SongResult } from '../../src/types';
 import type { ProbeDefinition } from './definition';
+import { DEFAULT_THEME } from '../../src/services/baseThemes';
 
 // dev/probes/lattice.probe.tsx
 // Real wall and playback controls with local, deterministic queue data.
@@ -28,6 +29,7 @@ function LatticeProbe() {
                 shuffleQueue: () => setSongs(value => [...value].reverse()), toggleSongLike: () => {}, isSongLiked: false, isFmMode: false },
             invokeCommandById: setCommand, canInvokeCommandById: () => true,
         }} queue={songs} currentSong={currentSong} playerState={PlayerState.PLAYING}
+            lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled
             currentTime={time} playbackDuration={180} canTogglePlayback isDaylight={false}
             onBack={() => {}} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />

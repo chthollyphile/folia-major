@@ -11,12 +11,17 @@ import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { countRender } from '../../../dev/renderCount';
 import './Lattice.css';
+import LatticeLyricsProvider from './lyrics/LatticeLyricsProvider';
+import type { LatticeLyricSource } from './lyrics/types';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 
 // Queue display layer; it renders the play queue and never mutates it.
 
 type LatticeProps = {
     controls: LatticePlaybackActions;
     lyrics: LyricData | null;
+    lyricSource: LatticeLyricSource;
+    lyricKeywordColoringEnabled: boolean;
     currentSong: SongResult | null;
     playerState: PlayerState;
     currentTime: MotionValue<number>;
@@ -34,6 +39,8 @@ type LatticeProps = {
 export default function Lattice({
     controls,
     lyrics,
+    lyricSource,
+    lyricKeywordColoringEnabled,
     currentSong,
     playerState,
     currentTime,
@@ -63,6 +70,8 @@ export default function Lattice({
     return (
         <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
             currentTime={currentTime} duration={playbackDuration} onSeek={onSeek} isDaylight={isDaylight}>
+        <LatticeLyricsProvider source={lyricSource} songKey={currentSong ? getPlaybackSongKey(currentSong) : ''}
+            keywordColoringEnabled={lyricKeywordColoringEnabled}>
         <section className={`lattice-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''}`} aria-label={t('home.latticeLabel')}>
             <PosterWall
                 tiles={tiles}
@@ -88,6 +97,7 @@ export default function Lattice({
                 </div>
             )}
         </section>
+        </LatticeLyricsProvider>
         </LatticePlaybackProvider>
     );
 }

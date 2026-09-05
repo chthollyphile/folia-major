@@ -6,6 +6,7 @@ import type { GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { useFontsEpoch } from '../../../hooks/useFontsEpoch';
 import { colorWithAlpha, mixColors } from '../colorMix';
+import { resolveMonetFillWidth, resolveMonetGlow, MONET_SCROLL_SPRING, MONET_SCALE_SPRING } from './monetLyricMotion';
 import {
     buildWordColorRangesFromMatchers,
     prepareWordColorMatchers,
@@ -89,8 +90,6 @@ const MONET_INACTIVE_GAP_PX = 14;
 const MONET_RAIL_MIN_ROWS = 7;
 const MONET_ACTIVE_GAP_RATIO = 0.49;
 const MONET_INACTIVE_GAP_RATIO = 0.38;
-const MONET_GLOW_RISE_DURATION_SCALE = 1.18;
-const MONET_GLOW_PASS_TAIL_SECONDS = 1.05;
 const MONET_SCROLL_IDLE_RESET_MS = 1800;
 const MONET_SCROLL_STEP_PX = 72;
 const MONET_TOUCH_STEP_PX = 52;
@@ -99,8 +98,8 @@ const MONET_SCROLL_AFTER = 4;
 const MONET_LAYOUT_CACHE_LIMIT = 240;
 const MONET_RAIL_SCROLL_EVENT_OPTIONS: AddEventListenerOptions = { passive: false };
 const MONET_SCROLL_TRANSITION = {
-    y: { type: 'spring', stiffness: 142, damping: 28, mass: 0.82 },
-    scale: { type: 'spring', stiffness: 150, damping: 30, mass: 0.78 },
+    y: { type: 'spring', ...MONET_SCROLL_SPRING },
+    scale: { type: 'spring', ...MONET_SCALE_SPRING },
     opacity: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
     filter: { duration: 0.32, ease: [0.32, 0.72, 0, 1] },
 } as const;
@@ -554,45 +553,9 @@ const MonetWordSweep: React.FC<{
             return (latest - startTime) / Math.max(0.001, endTime - startTime);
         });
 
-        const fillWidth = useTransform(currentTime, latest => {
-            const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] ?? 0;
-            if (!isLineActive || latest <= startTime) return 0;
-            if (latest >= endTime) return fullWidth;
-
-            const timingCount = Math.min(graphemeTimings.length, graphemeOffsets.length - 1);
-            if (timingCount > 0) {
-                for (let index = 0; index < timingCount; index += 1) {
-                    const timing = graphemeTimings[index];
-                    const timingStart = Math.max(startTime, timing.startTime);
-                    const timingEnd = Math.max(timingStart, timing.endTime);
-                    const startWidth = graphemeOffsets[index] ?? 0;
-                    const endWidth = graphemeOffsets[index + 1] ?? startWidth;
-
-                    if (latest < timingStart) {
-                        return startWidth;
-                    }
-
-                    if (latest <= timingEnd) {
-                        const duration = Math.max(0.001, timingEnd - timingStart);
-                        const progress = (latest - timingStart) / duration;
-                        return startWidth + (endWidth - startWidth) * progress;
-                    }
-                }
-
-                return graphemeOffsets[timingCount] ?? fullWidth;
-            }
-
-            const progress = (latest - startTime) / Math.max(0.001, endTime - startTime);
-            if (progress <= 0) return 0;
-            if (progress >= 1) return fullWidth;
-            const graphemeCount = graphemeOffsets.length - 1;
-            const floatIndex = progress * graphemeCount;
-            const wholeIndex = Math.floor(floatIndex);
-            const fractional = floatIndex - wholeIndex;
-            const startWidth = graphemeOffsets[Math.min(wholeIndex, graphemeOffsets.length - 1)] ?? 0;
-            const endWidth = graphemeOffsets[Math.min(wholeIndex + 1, graphemeOffsets.length - 1)] ?? startWidth;
-            return startWidth + (endWidth - startWidth) * fractional;
-        });
+        const fillWidth = useTransform(currentTime, latest => (
+            isLineActive ? resolveMonetFillWidth(latest, startTime, endTime, graphemeOffsets, graphemeTimings) : 0
+        ));
 
         const maskImage = useTransform(fillWidth, latest => {
             const edgeSoftness = resolveMonetSweepEdgeSoftness(fontPx);
@@ -616,22 +579,7 @@ const MonetWordSweep: React.FC<{
         const glowShadow = useTransform(currentTime, latest => {
             if (!canRenderGlow || latest <= startTime) return 'none';
 
-            const wordDuration = Math.max(0.001, endTime - startTime);
-            const glowRiseDuration = wordDuration * MONET_GLOW_RISE_DURATION_SCALE;
-            const glowPeakTime = startTime + glowRiseDuration;
-            const glowTailEndTime = Math.max(lineRenderEndTime, endTime + MONET_GLOW_PASS_TAIL_SECONDS);
-            let intensity: number;
-            if (latest <= glowPeakTime) {
-                const progress = Math.min(1, Math.max(0, (latest - startTime) / glowRiseDuration));
-                // 使用 Smoothstep (ease-in-out) 曲线，让发光开始和到达峰值时都平滑过渡
-                intensity = progress * progress * (3 - 2 * progress);
-            } else {
-                const decayDuration = Math.max(0.18, glowTailEndTime - glowPeakTime);
-                const decayProgress = Math.min(1, Math.max(0, (latest - glowPeakTime) / decayDuration));
-                const remaining = 1 - decayProgress;
-                // 使用 Smoothstep (ease-in-out)，让衰退初期缓慢（有“驻留”感），然后再平滑消失
-                intensity = remaining * remaining * (3 - 2 * remaining);
-            }
+            const intensity = resolveMonetGlow(latest, startTime, endTime, lineRenderEndTime);
 
             if (intensity <= 0) return 'none';
 
