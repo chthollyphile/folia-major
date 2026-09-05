@@ -1,12 +1,14 @@
 import { useMemo } from 'react';
-import { ArrowLeft, ListMusic } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState, type SongResult, type LyricData } from '../../../types';
 import LatticePlaybackProvider, { type LatticePlaybackActions } from './LatticePlaybackProvider';
 import PosterWall from './PosterWall';
-import LatticePanel from './LatticePanel';
-import { buildLatticeTiles } from './latticeModel';
+import LatticeFocusButton from './LatticeFocusButton';
+import { buildLatticeTiles, type LatticeTile } from './latticeModel';
+import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
+import { countRender } from '../../../dev/renderCount';
 import './Lattice.css';
 
 // Queue display layer; it renders the play queue and never mutates it.
@@ -44,8 +46,17 @@ export default function Lattice({
     onTogglePlayback,
     onSeek,
 }: LatticeProps) {
+    countRender('Lattice');
     const { t } = useTranslation();
     const tiles = useMemo(() => buildLatticeTiles({ queue, currentSong }), [currentSong, queue]);
+    // App rebuilds these on every render of its own, and the wall hands them to every poster on
+    // screen. Given a permanent identity here they stop being a reason for those posters to render.
+    const wall = useStableCallbacks({
+        onPlay: (tile: LatticeTile) => onPlaySong(tile.song, queue),
+        onTogglePlayback,
+        onSeek,
+        onOpenPlayer,
+    });
 
     return (
         <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
@@ -58,12 +69,12 @@ export default function Lattice({
                 currentTime={currentTime}
                 playbackDuration={playbackDuration}
                 canTogglePlayback={canTogglePlayback}
-                onPlay={tile => onPlaySong(tile.song, queue)}
-                onTogglePlayback={onTogglePlayback}
-                onSeek={onSeek}
-                onOpenPlayer={onOpenPlayer}
+                onPlay={wall.onPlay}
+                onTogglePlayback={wall.onTogglePlayback}
+                onSeek={wall.onSeek}
+                onOpenPlayer={wall.onOpenPlayer}
             />
-            <LatticePanel />
+            <LatticeFocusButton />
             <header className="lattice-header">
                 <button type="button" className="lattice-back" onClick={onBack} aria-label={t('home.latticeBack')}>
                     <ArrowLeft />
@@ -71,11 +82,6 @@ export default function Lattice({
                 <div className="lattice-brand">
                     <strong>FOLIA / WALL</strong>
                     <span>{t('home.latticeSubtitle')}</span>
-                </div>
-                <div className="lattice-source">
-                    <ListMusic />
-                    <span>{t('home.latticeQueueLabel')}</span>
-                    <small>{t('home.latticePosterCount', { count: tiles.length.toString().padStart(2, '0') })}</small>
                 </div>
             </header>
             {tiles.length === 0 && (

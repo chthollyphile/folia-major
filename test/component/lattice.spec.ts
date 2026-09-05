@@ -247,26 +247,17 @@ test('playback follow uses the expanded card position after reflow', async ({ mo
     await expectExpandedCentered(wall);
 });
 
-test('wall panel focuses the current song and Escape only dismisses the panel', async ({ mount, page }) => {
+test('the wall focus button jumps straight to the current song', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
     await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 600, deltaY: 400 });
-    const toggle = wall.getByRole('button', { name: 'Wall controls', exact: true });
-    await toggle.click();
-    await expect(wall.getByRole('dialog', { name: 'Wall controls' })).toBeVisible();
-    await wall.screenshot({ path: 'test-results/lattice-panel.png' });
-    await page.keyboard.press('Escape');
-    await expect(wall.getByRole('dialog')).toHaveCount(0);
-    await expect(toggle).toBeFocused();
-    await expect(wall.locator('.is-expanded')).toHaveCount(1);
-    await toggle.click();
-    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
+    const focusButton = wall.getByRole('button', { name: 'Focus current song', exact: true });
+    await wall.screenshot({ path: 'test-results/lattice-focus-button.png' });
+    await focusButton.click();
     await expectExpandedCentered(wall);
-    await expect(wall.getByRole('dialog')).toHaveCount(0);
     await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
     await wall.getByRole('button', { name: 'Clear queue', exact: true }).click();
-    await toggle.click();
-    await expect(wall.getByRole('button', { name: 'Focus current song', exact: true })).toBeDisabled();
+    await expect(focusButton).toBeDisabled();
 });
 
 test('chrome has three quiet controls at rest and reveals details on hover without moving seek targets', async ({ mount, page }) => {
@@ -332,7 +323,6 @@ test('the player shortcut remains reachable on a narrow touch screen', async ({ 
     await page.setViewportSize({ width: 390, height: 844 });
     const wall = await mount('lattice');
     await settle(page);
-    await wall.getByRole('button', { name: 'Wall controls', exact: true }).click();
     await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
     await expectExpandedCentered(wall);
     await expect(wall.locator('.lattice-secondary-action')).toBeVisible();

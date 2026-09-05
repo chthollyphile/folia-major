@@ -1,0 +1,27 @@
+/* Scoped, quiet wall action above the wall's interactive surface. */
+.lattice-tools {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    z-index: 30;
+    color: var(--text-primary, #f7f4ee);
+}
+.lattice-focus-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    border: 0;
+    color: inherit;
+    background: color-mix(in srgb, var(--bg-color, #111) 78%, transparent);
+    backdrop-filter: blur(20px);
+    opacity: 0.7;
+    cursor: pointer;
+    transition: opacity 160ms ease;
+}
+.lattice-focus-toggle:hover, .lattice-focus-toggle:focus-visible { opacity: 1; }
+.lattice-focus-toggle:disabled { opacity: 0.35; cursor: default; }
+.lattice-focus-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 640px) { .lattice-tools { right: 16px; bottom: 16px; } }

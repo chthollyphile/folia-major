@@ -161,9 +161,17 @@
     border: 1px solid rgba(255, 255, 255, 0.42);
     font-size: 11px;
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
     letter-spacing: 0.12em;
     background: rgba(0, 0, 0, 0.42);
     backdrop-filter: blur(10px);
+}
+
+/* The playing poster already wears the accent border; its badge matches it. */
+.lattice-poster-badge.is-current {
+    border-color: var(--text-accent, var(--text-primary, #fff));
+    color: var(--text-accent, var(--text-primary, #fff));
+    background: rgba(0, 0, 0, 0.66);
 }
 
 .lattice-poster-copy {
@@ -203,18 +211,10 @@
     left: 28px;
     z-index: 5;
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr;
     align-items: center;
     gap: 14px;
     pointer-events: none;
-}
-
-.lattice-back,
-.lattice-source {
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(11, 11, 11, 0.54);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(18px);
 }
 
 .lattice-back {
@@ -222,7 +222,11 @@
     width: 46px;
     height: 46px;
     place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.16);
     color: inherit;
+    background: rgba(11, 11, 11, 0.54);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
     pointer-events: auto;
 }
 
@@ -237,20 +241,6 @@
 
 .lattice-brand strong { font-size: 14px; letter-spacing: 0.17em; }
 .lattice-brand span { margin-top: 7px; font-size: 9px; font-weight: 750; letter-spacing: 0.18em; opacity: 0.58; }
-
-.lattice-source {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: 2px 8px;
-    align-items: center;
-    min-width: 154px;
-    padding: 10px 14px;
-}
-
-.lattice-source svg { grid-row: 1 / span 2; width: 15px; color: #a6ff78; }
-.lattice-source svg.is-loading { animation: lattice-pulse 0.9s ease-in-out infinite alternate; }
-.lattice-source span { font-size: 12px; font-weight: 750; }
-.lattice-source small { font-size: 9px; letter-spacing: 0.12em; opacity: 0.52; }
 
 .lattice-hint {
     position: absolute;
@@ -285,16 +275,8 @@
 .lattice-empty strong { font-size: 17px; letter-spacing: 0.16em; }
 .lattice-empty span { font-size: 12px; opacity: 0.5; }
 
-@keyframes lattice-pulse { to { opacity: 0.25; transform: scale(0.84); } }
-
 @media (max-width: 640px) {
     .lattice-header { top: 16px; right: 16px; left: 16px; }
     .lattice-brand span { display: none; }
-    .lattice-source { min-width: 0; }
-    .lattice-source small { display: none; }
     .lattice-poster.is-expanded .lattice-poster-copy strong { font-size: 44px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .lattice-source svg.is-loading { animation: none; }
 }

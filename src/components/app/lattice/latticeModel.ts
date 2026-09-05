@@ -8,6 +8,8 @@ export type LatticeSection = 'played' | 'now' | 'upcoming';
 
 export type LatticeTile = {
     id: string;
+    /** Zero-based position in the play queue; the poster badge shows it as a 1-based number. */
+    queueIndex: number;
     song: SongResult;
     title: string;
     artist: string;
@@ -35,6 +37,7 @@ export const buildLatticeTiles = ({
 
         return {
             id: getPlaybackSongKey(song),
+            queueIndex: index,
             song,
             title: song.name,
             artist: getSongArtistLabel(song) || song.album?.name || 'Unknown artist',

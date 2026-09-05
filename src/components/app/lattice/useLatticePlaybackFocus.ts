@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
 import { useLatticeControlsStore } from '../../../stores/useLatticeControlsStore';
 import type { SongResult } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
@@ -38,7 +39,10 @@ export const useLatticePlaybackFocus = ({
     const lastFocusedSongKeyRef = useRef<string | null>(null);
 
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-    const focusCurrentSong = useCallback((options?: { instant?: boolean }) => {
+    // Permanent identity, dispatching to this render's closure. The wall publishes this action to
+    // a store the palette subscribes to, so re-creating it on every queue or camera change would
+    // write to that store — and re-render App, and with it the whole wall — for nothing.
+    const { focusCurrentSong } = useStableCallbacks({ focusCurrentSong: (options?: { instant?: boolean }) => {
         if (!currentSongKey) return;
         const queueIndex = tiles.findIndex(tile => tile.id === currentSongKey);
         if (queueIndex < 0) return;
@@ -58,7 +62,7 @@ export const useLatticePlaybackFocus = ({
         setActivePoster({ instance, tile });
         const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, metrics).get(instance.instanceId);
         if (expandedRect) panTo(expandedRect, options?.instant);
-    }, [currentSongKey, geometry, getViewportCenter, metrics, panTo, setActivePoster, setFocused, setShowHint, tiles]);
+    } });
 
     useEffect(() => {
         if (!currentSongKey) {

@@ -201,3 +201,64 @@ test('a day/night switch reaches every surface', async ({ page }) => {
         expect(counts[name] ?? 0, `${name} did not see the theme change`).toBeGreaterThan(0);
     }
 });
+
+// Opens the wall on a seeded queue. The wall is the widest subtree in the app after the grid — one
+// poster component per visible slot, ~50 of them — and unlike the grid it is mounted while playback
+// is changing, which is when App renders most.
+const openWall = async (page: import('@playwright/test').Page) => {
+    await page.addInitScript(([version, guideKey]) => {
+        localStorage.clear();
+        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('static_mode', 'true');
+        localStorage.setItem(guideKey, version);
+    }, [APP_VERSION, GUIDE_VERSION_STORAGE_KEY]);
+    await page.route('**/__mock_netease__/**', route => (
+        route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    ));
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(async () => {
+        const playbackPath = '/src/stores/usePlaybackStore.ts';
+        const viewsPath = '/src/stores/useAppViewStore.ts';
+        const playback = await import(playbackPath);
+        const views = await import(viewsPath);
+        const queue = Array.from({ length: 40 }, (_, index) => ({
+            id: String(index), name: `Song ${index}`, artists: [{ id: 1, name: 'Artist' }],
+            album: { id: 1, name: 'Album' }, durationMs: 180_000,
+            sourceRef: { kind: 'online', providerId: 'netease', mediaId: String(index) },
+        }));
+        playback.usePlaybackStore.setState({ playQueue: queue, currentSong: queue[0] });
+        views.useAppViewStore.setState({ view: 'lattice' });
+    });
+    // Long enough for the opening tile-landing wave and the entry pan to finish.
+    await page.waitForTimeout(2500);
+};
+
+test('a song change does not re-render every poster on the wall', async ({ page }) => {
+    await openWall(page);
+    const posters = await page.locator('.lattice-poster').count();
+    expect(posters, 'the wall did not open on the seeded queue').toBeGreaterThan(20);
+
+    await waitForQuiet(page);
+    await arm(page);
+    await page.evaluate(async () => {
+        const playbackPath = '/src/stores/usePlaybackStore.ts';
+        const playback = await import(playbackPath);
+        const state = playback.usePlaybackStore.getState();
+        state.setCurrentSong(state.playQueue[1]);
+    });
+    await page.waitForTimeout(1200);
+    const counts = await collect(page);
+    show(`wall: 1x song change (${posters} posters on screen)`, counts);
+
+    // What this budget is really guarding: a song change writes to stores App subscribes to, and
+    // every one of those App renders reaches the wall through props App rebuilds each time. Before
+    // the poster memo and the stable handler chain below it, this measured 725 — roughly one full
+    // pass over every poster per App render, on the same frames the app is decoding the new track.
+    // Two passes' worth is what the change itself costs: the section badges move, the expanded
+    // block reflows, and the pan reveals new slots.
+    expect(counts.LatticePoster ?? 0, 'the wall re-rendered every poster several times over')
+        .toBeLessThan(posters * 3);
+    expect(counts.App ?? 0, 'App re-rendered more than the song change itself explains')
+        .toBeLessThan(5);
+});

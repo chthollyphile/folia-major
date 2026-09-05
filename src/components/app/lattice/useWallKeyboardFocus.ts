@@ -67,11 +67,16 @@ export const useWallKeyboardFocus = ({
     const pendingFocusRef = useRef(false);
     const focusWithinRef = useRef(false);
     const previousTilesRef = useRef(tiles);
+    // Read through a ref: a queue edit must not give this a new identity. It is the root of the
+    // per-poster handler chain, and 50+ memoised posters all re-render when that identity moves.
+    const tilesRef = useRef(tiles);
+    tilesRef.current = tiles;
     const adoptFocus = useCallback((instance: QueueInstance | null) => {
         focusedRef.current = instance;
-        setSelection(current => current?.instance === instance ? current
-            : instance && tiles[instance.queueIndex] ? { instance, tile: tiles[instance.queueIndex] } : null);
-    }, [setSelection, tiles]);
+        const current = tilesRef.current;
+        setSelection(selected => selected?.instance === instance ? selected
+            : instance && current[instance.queueIndex] ? { instance, tile: current[instance.queueIndex] } : null);
+    }, [setSelection]);
     const setFocused = useCallback((instance: QueueInstance | null) => {
         pendingFocusRef.current = Boolean(instance);
         adoptFocus(instance);

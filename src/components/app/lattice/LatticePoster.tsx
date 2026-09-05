@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { memo } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject } from 'react';
@@ -7,6 +8,7 @@ import type { ReflowTile } from './layout';
 import type { LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
+import { countRender } from '../../../dev/renderCount';
 
 // Renders one poster and its expanded Player Chrome controls.
 
@@ -25,7 +27,7 @@ type LatticePosterProps = {
     currentTime: MotionValue<number>;
     playbackDuration: number;
     canTogglePlayback: boolean;
-    onExpand: () => void;
+    onExpand: (instanceId: string) => void;
     onPlay: (tile: LatticeTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
@@ -36,12 +38,32 @@ type LatticePosterProps = {
 // How far above its slot a landing tile starts, in world units.
 const ENTRANCE_LIFT = 90;
 
+// `tile` and `rect` are rebuilt by the wall's own memos whenever the queue, the selection or the
+// camera moves, so comparing them by identity would re-render every poster for values that did not
+// change. Every other prop is a scalar, a ref, a MotionValue or a permanently-identified callback.
+const sameRect = (a: LatticePosterProps['rect'], b: LatticePosterProps['rect']) => (
+    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+);
+
+const sameTile = (a: LatticeTile, b: LatticeTile) => (
+    a.id === b.id && a.queueIndex === b.queueIndex && a.section === b.section
+    && a.title === b.title && a.artist === b.artist && a.coverUrl === b.coverUrl && a.song === b.song
+);
+
+const arePosterPropsEqual = (previous: LatticePosterProps, next: LatticePosterProps) => {
+    for (const key of Object.keys(next) as (keyof LatticePosterProps)[]) {
+        if (key === 'tile' || key === 'rect') continue;
+        if (!Object.is(previous[key], next[key])) return false;
+    }
+    return sameTile(previous.tile, next.tile) && sameRect(previous.rect, next.rect);
+};
+
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
     return `linear-gradient(145deg, hsl(${hue} 68% 58%), hsl(${(hue + 52) % 360} 62% 18%))`;
 };
 
-export default function LatticePoster({
+function LatticePoster({
     instanceId,
     isFocused,
     tile,
@@ -62,6 +84,7 @@ export default function LatticePoster({
     onOpenPlayer,
     onClose,
 }: LatticePosterProps) {
+    countRender('LatticePoster');
     const { t } = useTranslation();
     const chrome = useLatticeChromeDisclosure(expanded);
     // Frozen at mount: the wave's own delay must not follow later camera moves.
@@ -74,7 +97,7 @@ export default function LatticePoster({
             didDragRef.current = false;
             return;
         }
-        if (!expanded) onExpand();
+        if (!expanded) onExpand(instanceId);
         else chrome.toggleTouch();
     };
 
@@ -82,7 +105,7 @@ export default function LatticePoster({
         if (event.target !== event.currentTarget) return;
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            if (!expanded) onExpand();
+            if (!expanded) onExpand(instanceId);
             else chrome.toggleKeyboard();
         }
     };
@@ -98,14 +121,22 @@ export default function LatticePoster({
             key={instanceId}
             className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''} ${tile.section === 'now' ? 'is-current' : ''}`}
             data-instance-id={instanceId}
-            initial={landing === null
+            initial={reducedMotion
                 ? false
-                : { ...rect, y: rect.y - ENTRANCE_LIFT, opacity: 0, scale: 0.88 }}
+                : landing === null
+                    // Outside the opening wave a poster still fades up in place, so posters
+                    // revealed by a pan or a queue change never pop in fully drawn.
+                    ? { ...rect, opacity: 0, scale: 0.94 }
+                    : { ...rect, y: rect.y - ENTRANCE_LIFT, opacity: 0, scale: 0.88 }}
             animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height, opacity: 1, scale: 1 }}
             transition={reducedMotion
                 ? { duration: 0 }
                 : landing === null
-                    ? { type: 'spring', stiffness: 300, damping: 34 }
+                    ? {
+                        type: 'spring', stiffness: 300, damping: 34,
+                        opacity: { duration: 0.26, ease: 'easeOut' },
+                        scale: { duration: 0.3, ease: 'easeOut' },
+                    }
                     : {
                         type: 'spring', stiffness: 360, damping: 24, delay: landing,
                         opacity: { duration: 0.24, delay: landing },
@@ -122,7 +153,11 @@ export default function LatticePoster({
             aria-label={`${tile.title} · ${tile.artist}`}
         >
             <span className="lattice-poster-shade" />
-            <span className="lattice-poster-badge">{t(`home.latticeBadge.${tile.section}`)}</span>
+            <span className={`lattice-poster-badge ${tile.section === 'now' ? 'is-current' : ''}`}>
+                {tile.section === 'now'
+                    ? t('home.latticeBadgeNow')
+                    : String(tile.queueIndex + 1).padStart(2, '0')}
+            </span>
             <span className="lattice-poster-copy">
                 <strong>{tile.title}</strong>
                 <small>{tile.artist}</small>
@@ -158,3 +193,5 @@ export default function LatticePoster({
         </motion.article>
     );
 }
+
+export default memo(LatticePoster, arePosterPropsEqual);

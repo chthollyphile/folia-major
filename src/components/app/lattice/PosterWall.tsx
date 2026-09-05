@@ -15,6 +15,7 @@ import { useWallKeyboardFocus } from './useWallKeyboardFocus';
 import { useWallPointerPan } from './useWallPointerPan';
 import type { LatticeTile } from './latticeModel';
 import LatticePoster from './LatticePoster';
+import { countRender } from '../../../dev/renderCount';
 import {
     useLatticePlaybackFocus,
 } from './useLatticePlaybackFocus';
@@ -68,6 +69,7 @@ export default function PosterWall({
     onSeek,
     onOpenPlayer,
 }: PosterWallProps) {
+    countRender('PosterWall');
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
     const worldRef = useRef<HTMLDivElement>(null);
@@ -212,6 +214,25 @@ export default function PosterWall({
         worldRef,
     });
 
+    // Permanent identities for the two handlers every poster receives. An arrow per poster is
+    // re-created on each wall render, which alone would defeat LatticePoster's memo and put all
+    // 50+ poster bodies back on the critical path of every unrelated App re-render.
+    const latestWall = useRef({ geometry, instances, tiles });
+    latestWall.current = { geometry, instances, tiles };
+    const expandPoster = useCallback((instanceId: string) => {
+        const { geometry: currentGeometry, instances: currentInstances, tiles: currentTiles } = latestWall.current;
+        const instance = currentInstances.find(item => item.instanceId === instanceId);
+        const tile = instance ? currentTiles[instance.queueIndex] : undefined;
+        if (!instance || !tile) return;
+        setShowHint(false);
+        setFocused(instance);
+        setActivePoster({ instance, tile });
+        // Expansion reflows both the position and size of the selected slot.
+        const expandedRect = layoutExpandedBlock(currentGeometry, currentTiles.length, instance, METRICS).get(instanceId);
+        if (expandedRect) panTo(expandedRect);
+    }, [panTo, setActivePoster, setFocused]);
+    const collapsePoster = useCallback(() => setActivePoster(null), [setActivePoster]);
+
     useLatticePlaybackFocus({
         currentSong,
         ready: measured,
@@ -264,19 +285,12 @@ export default function PosterWall({
                             currentTime={currentTime}
                             playbackDuration={playbackDuration}
                             canTogglePlayback={canTogglePlayback}
-                            onExpand={() => {
-                                setShowHint(false);
-                                setFocused(instance);
-                                setActivePoster({ instance, tile });
-                                // Expansion reflows both the position and size of the selected slot.
-                                const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, METRICS).get(instance.instanceId);
-                                if (expandedRect) panTo(expandedRect);
-                            }}
+                            onExpand={expandPoster}
                             onPlay={onPlay}
                             onTogglePlayback={onTogglePlayback}
                             onSeek={onSeek}
                             onOpenPlayer={onOpenPlayer}
-                            onClose={() => setActivePoster(null)}
+                            onClose={collapsePoster}
                         />
                     );
                 })}
