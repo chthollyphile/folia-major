@@ -6,7 +6,10 @@ import {
     getLatticeGeometry,
     layoutExpandedBlock,
     layoutLattice,
+    overlaps,
+    toBounds,
     type Bounds,
+    type ReflowTile,
     type WallMetrics,
 } from './layout';
 import { useWallCameraPan, type LatticeCamera } from './useWallCameraPan';
@@ -19,6 +22,8 @@ import { countRender } from '../../../dev/renderCount';
 import {
     useLatticePlaybackFocus,
 } from './useLatticePlaybackFocus';
+import { setLatticeCurrentSongPosterVisible } from '../../../stores/useLatticeControlsStore';
+import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 
 // Draggable poster field: one greedily packed block template repeats over the queue.
 
@@ -76,6 +81,11 @@ export default function PosterWall({
     const cameraRef = useRef<LatticeCamera>({ x: 34, y: 80, scale: 0.76 });
     const viewportRef = useRef({ width: 1280, height: 720 });
     const frameRef = useRef<number | null>(null);
+    const trackedCurrentPosterRef = useRef<{
+        enabled: boolean;
+        rect: Omit<ReflowTile, 'instanceId'> | null;
+    }>({ enabled: false, rect: null });
+    const currentPosterVisibleRef = useRef(true);
     const [bounds, setBounds] = useState<Bounds>(() => getWorldBounds(cameraRef.current, viewportRef.current));
     const [showHint, setShowHint] = useState(true);
     // Nothing is drawn until the field reports its size: the seeded camera and the default
@@ -87,17 +97,28 @@ export default function PosterWall({
     const geometry = useMemo(() => getLatticeGeometry(tiles.length, METRICS), [tiles.length]);
     const [activePoster, setActivePoster] = useLatticePosterSelection(tiles, geometry, METRICS);
 
+    const publishCurrentPosterVisibility = useCallback((camera: LatticeCamera) => {
+        const tracked = trackedCurrentPosterRef.current;
+        const visible = !tracked.enabled || Boolean(
+            tracked.rect && overlaps(toBounds(tracked.rect), getWorldBounds(camera, viewportRef.current)),
+        );
+        if (currentPosterVisibleRef.current === visible) return;
+        currentPosterVisibleRef.current = visible;
+        setLatticeCurrentSongPosterVisible(visible);
+    }, []);
+
     const applyCamera = useCallback((next: LatticeCamera, updateBounds = false) => {
         cameraRef.current = next;
         if (worldRef.current) {
             worldRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${next.scale})`;
         }
+        publishCurrentPosterVisibility(next);
         if (!updateBounds || frameRef.current !== null) return;
         frameRef.current = requestAnimationFrame(() => {
             setBounds(getWorldBounds(cameraRef.current, viewportRef.current));
             frameRef.current = null;
         });
-    }, []);
+    }, [publishCurrentPosterVisibility]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -198,6 +219,21 @@ export default function PosterWall({
             ? layoutExpandedBlock(geometry, tiles.length, activePoster.instance, METRICS)
             : new Map<string, { x: number; y: number; width: number; height: number }>()
     ), [activePoster, geometry, tiles.length]);
+
+    useEffect(() => {
+        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        const isTracking = measured && Boolean(currentSongKey);
+        const rect = activePoster && activePoster.tile.id === currentSongKey
+            ? layout.get(activePoster.instance.instanceId) ?? activePoster.instance
+            : null;
+        trackedCurrentPosterRef.current = { enabled: isTracking, rect };
+        publishCurrentPosterVisibility(cameraRef.current);
+    }, [activePoster, currentSong, layout, measured, publishCurrentPosterVisibility]);
+
+    useEffect(() => () => {
+        currentPosterVisibleRef.current = true;
+        setLatticeCurrentSongPosterVisible(true);
+    }, []);
 
     const { focused, setFocused, handleKeyDown, handleFocusCapture, handleBlurCapture } = useWallKeyboardFocus({
         activePoster,

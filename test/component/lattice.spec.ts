@@ -260,6 +260,19 @@ test('the wall focus button jumps straight to the current song', async ({ mount,
     await expect(focusButton).toBeDisabled();
 });
 
+test('publishes when the current playing card leaves and re-enters the viewport', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'true');
+    await expect(wall.locator('.z-60')).toHaveCount(0);
+    await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 1200, deltaY: 900 });
+    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'false');
+    await expect(wall.locator('.z-60')).toBeVisible();
+    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
+    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'true');
+    await expect(wall.locator('.z-60')).toHaveCount(0);
+});
+
 test('chrome has three quiet controls at rest and reveals details on hover without moving seek targets', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);

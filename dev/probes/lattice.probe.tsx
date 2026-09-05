@@ -4,6 +4,8 @@ import Lattice from '../../src/components/app/lattice/Lattice';
 import { PlayerState, type SongResult } from '../../src/types';
 import type { ProbeDefinition } from './definition';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
+import { useLatticeControlsStore } from '../../src/stores/useLatticeControlsStore';
+import AppOverlays from '../../src/components/app/overlays/AppOverlays';
 
 // dev/probes/lattice.probe.tsx
 // Real wall and playback controls with local, deterministic queue data.
@@ -21,7 +23,9 @@ function LatticeProbe() {
     const [command, setCommand] = useState('');
     const [toggles, setToggles] = useState(0);
     const [seek, setSeek] = useState(42);
-    return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-seek={seek}>
+    const isCurrentSongPosterVisible = useLatticeControlsStore(state => state.isCurrentSongPosterVisible);
+    return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-seek={seek}
+        data-current-song-poster-visible={isCurrentSongPosterVisible}>
         <Lattice lyrics={null} controls={{ loopMode,
             playback: { prev: () => setCurrentSong(queue[Math.max(0, queue.indexOf(currentSong!) - 1)]),
                 next: () => setCurrentSong(queue[(queue.indexOf(currentSong!) + 1) % queue.length]),
@@ -33,6 +37,32 @@ function LatticeProbe() {
             currentTime={time} playbackDuration={180} canTogglePlayback isDaylight={false}
             onBack={() => {}} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />
+        <AppOverlays model={{
+            floatingControls: currentSong ? {
+                currentSong,
+                playerState: PlayerState.PLAYING,
+                currentTime: time,
+                duration: 180,
+                loopMode,
+                currentView: 'lattice',
+                audioSrc: 'probe://audio',
+                canTogglePlay: true,
+                lyrics: null,
+                onSeek: setSeek,
+                onTogglePlay: () => setToggles(value => value + 1),
+                onToggleLoop: () => setLoopMode(value => value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'),
+                onNavigateToPlayer: () => {},
+                isDaylight: false,
+                slotPrimary: 'loop',
+                slotSecondary: 'lyrics-timeline',
+                slotContext: {
+                    onShuffle: () => {}, canShuffle: true,
+                    onLike: () => {}, isLiked: false, likeDisabled: false,
+                    invokeCommandById: setCommand, canInvokeCommandById: () => true,
+                },
+                onCommitBottomBarOffset: () => {},
+            } : null,
+        }} />
         <div style={{ position: 'fixed', right: 0, top: 0, zIndex: 100 }}>
             <button onClick={() => setSongs(value => [...value].reverse())}>Reverse queue</button>
             <button onClick={() => setSongs(value => value.filter(song => song.id !== '3'))}>Remove poster 3</button>
