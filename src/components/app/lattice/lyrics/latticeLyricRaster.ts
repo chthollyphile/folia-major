@@ -2,15 +2,31 @@ import type { Texture } from 'pixi.js';
 import type { MeasureText } from './latticeLyricLayout';
 
 // src/components/app/lattice/lyrics/latticeLyricRaster.ts
+// Typography probing walks 40 font sizes and token wrapping measures every grapheme prefix, so one
+// layout asks for the same (text, font) pair many times over. Bounded, and dropped on a font epoch.
+const MEASURE_CACHE_LIMIT = 4096;
+
 /** One measurement context per runtime; textures are owned by visible pieces and released with them. */
 export function createLatticeRaster(pixi: typeof import('pixi.js')) {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Lattice text rasterization is unavailable');
+    // Keyed font first so no separator has to be reserved out of the measured text.
+    const measurements = new Map<string, Map<string, { width: number; height: number }>>();
+    let measured = 0;
+    const clearMeasureCache = () => { measurements.clear(); measured = 0; };
     const measure: MeasureText = (text, font) => {
+        let byText = measurements.get(font);
+        const cached = byText?.get(text);
+        if (cached) return cached;
         context.font = font;
         const metrics = context.measureText(text);
-        return { width: metrics.width, height: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent };
+        const size = { width: metrics.width, height: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent };
+        if (measured >= MEASURE_CACHE_LIMIT) { clearMeasureCache(); byText = undefined; }
+        if (!byText) { byText = new Map(); measurements.set(font, byText); }
+        byText.set(text, size);
+        measured++;
+        return size;
     };
     const rasterize = (text: string, font: string, fontPx: number): { texture: Texture; width: number; height: number; pad: number } => {
         context.font = font;
@@ -27,6 +43,6 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         paint.fillText(text, pad, pad + ascent);
         return { texture: new pixi.Texture({ source: new pixi.CanvasSource({ resource: surface, resolution: 2 }) }), width, height, pad };
     };
-    return { measure, rasterize };
+    return { measure, rasterize, clearMeasureCache };
 }
 export type LatticeRaster = ReturnType<typeof createLatticeRaster>;

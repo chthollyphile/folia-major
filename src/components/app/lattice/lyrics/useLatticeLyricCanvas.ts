@@ -5,6 +5,9 @@ import type { LatticeLyricInput, LatticeLyricRuntime } from './types';
 import { resolveThemeFontStack, resolveThemeTranslationFontStack, resolveThemeFontWeight } from '../../../../utils/fontStacks';
 
 // src/components/app/lattice/lyrics/useLatticeLyricCanvas.ts
+// How long the content box must hold still before the renderer is rebuilt at the new size.
+const RESIZE_SETTLE_MS = 120;
+
 /** Observes the local content box (not transformed screen bounds) and owns all external subscriptions. */
 export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>, input: LatticeLyricInput | null) {
     const runtimeRef = useRef<LatticeLyricRuntime | null>(null);
@@ -19,6 +22,7 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
         setReady(false);
         if (!host || !initial || !enabled) return;
         let active = true, intersecting = false, width = host.clientWidth, height = host.clientHeight;
+        let pendingResize: ReturnType<typeof setTimeout> | null = null;
         const visible = () => intersecting && !document.hidden;
         const onVisibility = () => runtimeRef.current?.setVisible(visible());
         const onFailure = (error: unknown) => {
@@ -33,11 +37,19 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
             runtime.setVisible(visible()); runtime.resize(width, height);
             setReady(true);
         }, onFailure);
+        // A runtime resize reallocates the renderer, re-measures the typography and re-rasterizes
+        // every line. Expansion springs the card's width and height, so this box changes on every
+        // frame of it; applying each one would rebuild the whole scene 60 times a second. CSS keeps
+        // the canvas stretched at its old resolution until the box holds still.
         const resize = new ResizeObserver(entries => {
             const box = entries[0]?.contentRect;
             if (!box || (box.width === width && box.height === height)) return;
             width = box.width; height = box.height;
-            runtimeRef.current?.resize(width, height);
+            if (pendingResize !== null) clearTimeout(pendingResize);
+            pendingResize = setTimeout(() => {
+                pendingResize = null;
+                runtimeRef.current?.resize(width, height);
+            }, RESIZE_SETTLE_MS);
         });
         resize.observe(host);
         const intersection = new IntersectionObserver(entries => {
@@ -49,6 +61,7 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
         host.addEventListener('webglcontextlost', onContextLost, true);
         return () => {
             active = false; resize.disconnect(); intersection.disconnect();
+            if (pendingResize !== null) clearTimeout(pendingResize);
             document.removeEventListener('visibilitychange', onVisibility);
             host.removeEventListener('webglcontextlost', onContextLost, true);
             session.destroy(); runtimeRef.current = null;

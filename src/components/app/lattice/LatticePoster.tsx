@@ -2,12 +2,14 @@ import { X } from 'lucide-react';
 import { lazy, memo, Suspense } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject } from 'react';
+import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from 'react';
 import { PlayerState, type SongResult } from '../../../types';
 import type { ReflowTile } from './layout';
 import type { LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
+import { useLatticeExpansionSettled } from './useLatticeExpansionSettled';
+import { prewarmLatticeLyrics } from './lyrics/prewarmLatticeLyrics';
 import { countRender } from '../../../dev/renderCount';
 
 // Renders one poster and its expanded Player Chrome controls.
@@ -88,6 +90,13 @@ function LatticePoster({
     countRender('LatticePoster');
     const { t } = useTranslation();
     const chrome = useLatticeChromeDisclosure(expanded);
+    const isCurrent = tile.section === 'now';
+    // The lyric scene is a Pixi renderer whose layout is rebuilt from the card's box, so mounting it
+    // mid-expansion would rasterize every line once per animation frame. It waits for the spring.
+    const [expansionSettled, onExpansionComplete] = useLatticeExpansionSettled(expanded, Boolean(reducedMotion));
+    // Hover and press are the last moments before the open: warming here keeps the lyric chunk,
+    // the Pixi module and the first shader compile off the click path.
+    const warmLyrics = () => { if (isCurrent) prewarmLatticeLyrics(); };
     // Frozen at mount: the wave's own delay must not follow later camera moves.
     const landingDelay = useRef(entranceDelay).current;
     const landing = entranceDelay === null ? null : landingDelay;
@@ -114,13 +123,13 @@ function LatticePoster({
     return (
         <motion.article
             ref={chrome.articleRef}
-            onPointerEnter={chrome.onPointerEnter}
+            onPointerEnter={(event: PointerEvent<HTMLElement>) => { warmLyrics(); chrome.onPointerEnter(event); }}
             onPointerLeave={chrome.onPointerLeave}
-            onPointerDownCapture={chrome.onPointerDownCapture}
+            onPointerDownCapture={(event: PointerEvent<HTMLElement>) => { warmLyrics(); chrome.onPointerDownCapture(event); }}
             onFocusCapture={chrome.onFocusCapture}
             onBlurCapture={chrome.onBlurCapture}
             key={instanceId}
-            className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''} ${tile.section === 'now' ? 'is-current' : ''}`}
+            className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''} ${isCurrent ? 'is-current' : ''}`}
             data-instance-id={instanceId}
             initial={reducedMotion
                 ? false
@@ -146,6 +155,7 @@ function LatticePoster({
                 backgroundImage: tile.coverUrl ? `url("${tile.coverUrl}")` : fallbackBackground(tile.id),
                 zIndex: expanded ? 20 : undefined,
             }}
+            onAnimationComplete={onExpansionComplete}
             onClick={handleClick}
             onKeyDown={handleKeyDown}
             role={expanded ? 'group' : 'button'}
@@ -154,11 +164,11 @@ function LatticePoster({
             aria-label={`${tile.title} · ${tile.artist}`}
         >
             <span className="lattice-poster-shade" />
-            <span className={`lattice-poster-badge ${tile.section === 'now' ? 'is-current' : ''}`}>
-                {tile.section === 'now' && <>{t('home.latticeBadgeNow')} · </>}
+            <span className={`lattice-poster-badge ${isCurrent ? 'is-current' : ''}`}>
+                {isCurrent && <>{t('home.latticeBadgeNow')} · </>}
                 {String(tile.queueIndex + 1).padStart(2, '0')}
             </span>
-            {expanded && tile.section === 'now' ? (
+            {expanded && expansionSettled && isCurrent ? (
                 <Suspense fallback={<span className="lattice-poster-copy"><strong>{tile.title}</strong><small>{tile.artist}</small></span>}>
                     <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />
                 </Suspense>

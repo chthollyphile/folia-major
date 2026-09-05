@@ -130,7 +130,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
                 || next.keywordColoringEnabled !== input.keywordColoringEnabled || next.showSubtitleTranslation !== input.showSubtitleTranslation
                 || next.hideTranslationSubtitle !== input.hideTranslationSubtitle || next.subtitleContentMode !== input.subtitleContentMode;
             if (next.currentTime !== input.currentTime) { unsubscribe(); unsubscribe = next.currentTime.on('change', loop.wake); }
-            if (next.fontsEpoch !== input.fontsEpoch) clearMonetMeasurementCaches();
+            if (next.fontsEpoch !== input.fontsEpoch) { clearMonetMeasurementCaches(); raster.clearMeasureCache(); }
             input = next;
             if (rebuild) { clear(); timeline = createLatticeTimeline(input.lines); typography = resolveLatticeTypography(input, width, height, raster.measure); }
             loop.wake();

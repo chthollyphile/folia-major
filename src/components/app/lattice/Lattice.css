@@ -161,6 +161,9 @@
 
 .lattice-poster.is-expanded {
     --lattice-poster-elevation: 0 42px 110px var(--lattice-expanded-shadow);
+    /* The identity filter on the base rule still buys a full filter pass every frame, and the Pixi
+       lyric canvas inside this card would have to be re-composited through it. */
+    filter: none;
 }
 
 .lattice-poster.is-expanded .lattice-poster-shade {
