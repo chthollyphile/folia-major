@@ -9,6 +9,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
         id: 'lattice-focus-current', group: 'navigation', scope: 'lattice',
         title: 'Focus current song', description: 'Center the playing song on the wall',
         keywords: ['recenter', 'now playing', '聚焦当前歌曲', '回到当前歌曲'],
+        executeShortcut: 'c',
         isAvailable: context => !context || context.navigation.canFocusLatticeCurrentSong,
         execute: (_input, context) => context.navigation.focusLatticeCurrentSong(),
     }),
@@ -17,7 +18,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
     createToggleCommand('navigate-lattice', 'navigation', 'Open song wall', 'Show the play queue as a poster wall', ['lattice', 'song wall', 'poster wall', '歌曲墙', '海报墙'], context => context.navigation.navigateToLattice(),
         // Already on the wall it is a no-op, and the wall renders the same control slots as the
         // main bar — a slot bound to it would otherwise sit there offering to go nowhere.
-        { isAvailable: context => !context || context.scope.view !== 'lattice' }),
+        { isAvailable: context => !context || context.scope.view !== 'lattice', executeShortcut: 'w' }),
     {
         id: 'browser-fullscreen',
         group: 'navigation',

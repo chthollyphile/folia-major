@@ -131,6 +131,10 @@ function LatticePoster({
         if (event.target !== event.currentTarget) return;
         if (event.key === 'Enter') {
             event.preventDefault();
+            if (!expanded) {
+                onExpand(instanceId);
+                return;
+            }
             if (isCurrent) onTogglePlayback();
             else onPlay(tile);
             return;

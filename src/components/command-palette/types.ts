@@ -59,7 +59,8 @@ export type CommandPaletteCommand = {
      *  unclaimed: the listener's own shortcut lives on Alt, and checks itself against these. */
     openHotkey?: { key: string; ctrl?: boolean; alt?: boolean };
     /** Vim-style key sequence that runs this command from execute mode. Omit for anything
-     *  dangerous, irreversible, or needing confirmation. Must stay prefix-free registry-wide. */
+     *  dangerous, irreversible, or needing confirmation. Commands available together must stay
+     *  prefix-free; mutually exclusive surface scopes may reuse a key. */
     executeShortcut?: string;
     /** Panel body this command renders instead of the default match list. */
     surface?: CommandPaletteSurface;

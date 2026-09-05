@@ -163,7 +163,7 @@ test('Escape returns only after card focus has been cleared', async ({ mount, pa
     await expect(state).toHaveAttribute('data-backs', '1');
 });
 
-test('Enter plays a focused card and toggles the current song', async ({ mount, page }) => {
+test('Enter expands first, then plays the focused card or toggles the current song', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
     const state = wall.locator('[data-toggles]');
@@ -177,6 +177,10 @@ test('Enter plays a focused card and toggles the current song', async ({ mount, 
     await other.press('Enter');
     await expect(state).toHaveAttribute('data-toggles', '1');
     await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 3 · Artist');
+    await expect(wall.locator('.lattice-poster.is-current').first()).toHaveAttribute('aria-label', 'Poster 0 · Artist');
+    await other.press('Enter');
+    await expect(state).toHaveAttribute('data-toggles', '1');
+    await expect(wall.locator('.lattice-poster.is-current').first()).toHaveAttribute('aria-label', 'Poster 3 · Artist');
 });
 
 test('queue edits preserve the expanded song and clearing does not resurrect the selection', async ({ mount, page }) => {

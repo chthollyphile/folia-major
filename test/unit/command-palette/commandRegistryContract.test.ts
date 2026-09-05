@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { COMMAND_PALETTE_COMMANDS, getAvailableCommandPaletteCommands, getCommandPaletteMatches } from '../../../src/components/command-palette/commandRegistry';
 import { getCommandPrimaryTerm } from '../../../src/components/command-palette/search/commandSearchIndex';
 import { PINYIN_BY_PHRASE } from 'virtual:folia-command-pinyin';
+import { assertExecuteShortcutsArePrefixFree } from '../../../src/components/command-palette/executeShortcuts';
 import en from '../../../src/i18n/locales/en';
 import zhCN from '../../../src/i18n/locales/zh-CN';
 import id from '../../../src/i18n/locales/in';
@@ -50,14 +51,8 @@ describe('command palette registry contract', () => {
         expect(missing).toEqual([]);
     });
 
-    it('keeps execute shortcuts unique and prefix-free', () => {
-        const shortcuts = COMMAND_PALETTE_COMMANDS
-            .map(command => command.executeShortcut)
-            .filter((shortcut): shortcut is string => Boolean(shortcut));
-
-        expect(new Set(shortcuts).size).toBe(shortcuts.length);
-        expect(shortcuts.filter(shortcut => shortcuts.some(other => other !== shortcut && other.startsWith(shortcut))))
-            .toEqual([]);
+    it('keeps coexisting execute shortcuts unique and prefix-free', () => {
+        expect(() => assertExecuteShortcutsArePrefixFree(COMMAND_PALETTE_COMMANDS)).not.toThrow();
     });
 
     it('withholds execute shortcuts from irreversible commands', () => {

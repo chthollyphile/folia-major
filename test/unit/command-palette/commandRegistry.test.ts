@@ -3,6 +3,7 @@ import { PlayerState, type SongResult } from '../../../src/types';
 import { COMMAND_PALETTE_COMMANDS, getAvailableCommandPaletteCommands, getCommandPaletteMatches, getQueueSongMatches } from '../../../src/components/command-palette/commandRegistry';
 import { sleepTimerSurface } from '../../../src/components/command-palette/surfaces/sleepTimerSurface';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
+import { buildExecuteShortcutIndex, resolveExecuteShortcut } from '../../../src/components/command-palette/executeShortcuts';
 
 type CommandPaletteContextOverrides = {
     [Namespace in keyof CommandPaletteContext]?: Partial<CommandPaletteContext[Namespace]>;
@@ -1010,6 +1011,17 @@ describe('lattice focus command', () => {
         const context = createContext({ scope: { view, filter: null } });
         const ids = getAvailableCommandPaletteCommands(context).map(command => command.id);
         expect(ids.includes('lattice-focus-current')).toBe(view === 'lattice');
+    });
+    it('uses c in execute mode only on lattice', () => {
+        const resolveInView = (view: 'player' | 'lattice') => resolveExecuteShortcut(
+            buildExecuteShortcutIndex(getAvailableCommandPaletteCommands(createContext({ scope: { view, filter: null } }))),
+            'c',
+        );
+        const playerResolution = resolveInView('player');
+        const latticeResolution = resolveInView('lattice');
+
+        expect(playerResolution.status === 'exact' && playerResolution.command.id).toBe('panel-cover');
+        expect(latticeResolution.status === 'exact' && latticeResolution.command.id).toBe('lattice-focus-current');
     });
     it('uses the registered wall action and is unavailable without a current queue song', async () => {
         const focusLatticeCurrentSong = vi.fn(() => true);

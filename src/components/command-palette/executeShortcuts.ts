@@ -1,8 +1,8 @@
 import type { CommandPaletteCommand } from './types';
 
 // src/components/command-palette/executeShortcuts.ts
-// Resolution for execute mode's vim-style keys. Shortcuts must be prefix-free so "typed enough
-// to be unambiguous" is decidable without a disambiguation timer.
+// Resolution for execute mode's vim-style keys. Shortcuts available in the same surface must be
+// prefix-free so "typed enough to be unambiguous" is decidable without a disambiguation timer.
 
 export type ExecuteShortcutIndex = Map<string, CommandPaletteCommand>;
 
@@ -13,37 +13,39 @@ export type ExecuteShortcutResolution =
 
 export const normalizeExecuteShortcut = (value: string) => value.trim().toLowerCase();
 
-/**
- * Validates the whole registry, not just the currently available commands: a key must mean the
- * same thing on every platform, or muscle memory becomes environment-dependent.
- */
+// These scopes cannot exist in the same view, so their commands may intentionally share a key.
+const scopesAreDisjoint = (first: CommandPaletteCommand, second: CommandPaletteCommand) => (
+    (first.scope === 'lattice' && second.scope === 'player-surface')
+    || (first.scope === 'player-surface' && second.scope === 'lattice')
+);
+
+/** Validates every pair that can be offered together in one execute-mode surface. */
 export const assertExecuteShortcutsArePrefixFree = (commands: CommandPaletteCommand[]) => {
-    const owners = new Map<string, string>();
-
-    commands.forEach(command => {
-        if (!command.executeShortcut) {
-            return;
-        }
-
+    const claims = commands.flatMap(command => {
+        if (!command.executeShortcut) return [];
         const shortcut = normalizeExecuteShortcut(command.executeShortcut);
         if (!shortcut) {
             throw new Error(`[CommandPalette] Command "${command.id}" declares an empty executeShortcut`);
         }
-
-        const existing = owners.get(shortcut);
-        if (existing) {
-            throw new Error(`[CommandPalette] Commands "${existing}" and "${command.id}" both use execute shortcut "${shortcut}"`);
-        }
-        owners.set(shortcut, command.id);
+        return [{ command, shortcut }];
     });
 
-    owners.forEach((ownerId, shortcut) => {
-        owners.forEach((otherId, other) => {
-            if (other !== shortcut && other.startsWith(shortcut)) {
-                throw new Error(`[CommandPalette] Execute shortcut "${shortcut}" (${ownerId}) is a prefix of "${other}" (${otherId})`);
+    for (let firstIndex = 0; firstIndex < claims.length; firstIndex += 1) {
+        for (let secondIndex = firstIndex + 1; secondIndex < claims.length; secondIndex += 1) {
+            const first = claims[firstIndex];
+            const second = claims[secondIndex];
+            if (scopesAreDisjoint(first.command, second.command)) continue;
+            if (first.shortcut === second.shortcut) {
+                throw new Error(`[CommandPalette] Commands "${first.command.id}" and "${second.command.id}" both use execute shortcut "${first.shortcut}"`);
             }
-        });
-    });
+            if (second.shortcut.startsWith(first.shortcut)) {
+                throw new Error(`[CommandPalette] Execute shortcut "${first.shortcut}" (${first.command.id}) is a prefix of "${second.shortcut}" (${second.command.id})`);
+            }
+            if (first.shortcut.startsWith(second.shortcut)) {
+                throw new Error(`[CommandPalette] Execute shortcut "${second.shortcut}" (${second.command.id}) is a prefix of "${first.shortcut}" (${first.command.id})`);
+            }
+        }
+    }
 
     return commands;
 };

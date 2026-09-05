@@ -19,10 +19,30 @@ const command = (id: string, executeShortcut?: string): CommandPaletteCommand =>
     execute: () => true,
 });
 
+const scopedCommand = (
+    id: string,
+    executeShortcut: string,
+    scope: CommandPaletteCommand['scope'],
+): CommandPaletteCommand => ({ ...command(id, executeShortcut), scope });
+
 describe('execute shortcuts', () => {
     it('rejects duplicate shortcuts', () => {
         expect(() => assertExecuteShortcutsArePrefixFree([command('a', 'n'), command('b', 'n')]))
             .toThrow(/both use execute shortcut "n"/);
+    });
+
+    it('allows a shortcut to be reused across mutually exclusive player and lattice scopes', () => {
+        expect(() => assertExecuteShortcutsArePrefixFree([
+            scopedCommand('cover', 'c', 'player-surface'),
+            scopedCommand('focus-current', 'c', 'lattice'),
+        ])).not.toThrow();
+    });
+
+    it('still rejects duplicate shortcuts within one scope', () => {
+        expect(() => assertExecuteShortcutsArePrefixFree([
+            scopedCommand('first', 'c', 'lattice'),
+            scopedCommand('second', 'c', 'lattice'),
+        ])).toThrow(/both use execute shortcut "c"/);
     });
 
     it('rejects a shortcut that is a prefix of another', () => {
