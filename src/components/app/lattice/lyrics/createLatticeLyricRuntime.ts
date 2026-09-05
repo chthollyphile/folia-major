@@ -17,6 +17,11 @@ interface Track { view: LatticeLineView; y: number; vy: number; scale: number; v
 const ease = cubicBezier(0.32, 0.72, 0, 1);
 let initialization: Promise<unknown> = Promise.resolve();
 
+// Passing boolean `true` makes Pixi release module-global pools shared with the Player renderer.
+const destroyApplication = (app: import('pixi.js').Application) => {
+    app.destroy({ removeView: true }, { children: true });
+};
+
 /** Serializes creation so a canceled async mount cannot temporarily allocate a second WebGL context. */
 export function createLatticeLyricRuntime(host: HTMLElement, initial: LatticeLyricInput,
     signal: AbortSignal, onError: (error: unknown) => void): Promise<LatticeLyricRuntime | null> {
@@ -33,13 +38,13 @@ async function initialize(host: HTMLElement, initial: LatticeLyricInput, signal:
     try { await app.init({ preference: 'webgl', backgroundAlpha: 0, antialias: true,
         width: 1, height: 1, resolution: 2, autoDensity: true, autoStart: false, sharedTicker: false }); }
     catch (error) {
-        if (app.renderer) app.destroy(true, { children: true });
+        if (app.renderer) destroyApplication(app);
         else { app.ticker?.destroy(); app.stage.destroy({ children: true }); }
         throw error;
     }
-    if (signal.aborted) { app.destroy(true, { children: true }); return null; }
+    if (signal.aborted) { destroyApplication(app); return null; }
     try { return attachRuntime(pixi, app, host, initial, onError); }
-    catch (error) { app.destroy(true, { children: true }); throw error; }
+    catch (error) { destroyApplication(app); throw error; }
 }
 
 /** Attaches a successfully initialized renderer; failures above this boundary release the WebGL context. */
@@ -146,7 +151,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
         setVisible(visible) { loop.setVisible(visible); },
         destroy() {
             if (destroyed) return;
-            destroyed = true; unsubscribe(); loop.destroy(); clear(); edge.filter.destroy(); app.destroy(true, { children: true });
+            destroyed = true; unsubscribe(); loop.destroy(); clear(); edge.filter.destroy(); destroyApplication(app);
         },
     };
     return runtime;
