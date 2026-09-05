@@ -22,6 +22,8 @@ type LatticePosterProps = {
     rect: Omit<ReflowTile, 'instanceId'>;
     /** Seconds this poster waits before dropping into its slot, or null outside the opening wave. */
     entranceDelay: number | null;
+    /** Reverse-wave delay used when the complete wall leaves the viewport. */
+    exitDelay: number;
     expanded: boolean;
     reducedMotion: boolean | null;
     didDragRef: MutableRefObject<boolean>;
@@ -83,6 +85,7 @@ function LatticePoster({
     tile,
     rect,
     entranceDelay,
+    exitDelay,
     expanded,
     reducedMotion,
     didDragRef,
@@ -126,7 +129,13 @@ function LatticePoster({
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (isCurrent) onTogglePlayback();
+            else onPlay(tile);
+            return;
+        }
+        if (event.key === ' ') {
             event.preventDefault();
             if (!expanded) onExpand(instanceId);
             else chrome.toggleKeyboard();
@@ -152,6 +161,14 @@ function LatticePoster({
                     ? { ...rect, opacity: 0, scale: 0.94 }
                     : { ...rect, y: rect.y - ENTRANCE_LIFT, opacity: 0, scale: 0.88 }}
             animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height, opacity: 1, scale: popped ? POP_SCALE : 1 }}
+            exit={reducedMotion
+                ? { opacity: 0, transition: { duration: 0 } }
+                : {
+                    y: rect.y - ENTRANCE_LIFT,
+                    opacity: 0,
+                    scale: 0.88,
+                    transition: { duration: 0.28, delay: exitDelay, ease: [0.4, 0, 1, 1] },
+                }}
             transition={reducedMotion
                 ? { duration: 0 }
                 : landing === null

@@ -84,6 +84,7 @@ export default function Lattice({
                 onTogglePlayback={wall.onTogglePlayback}
                 onSeek={wall.onSeek}
                 onOpenPlayer={wall.onOpenPlayer}
+                onBack={onBack}
             />
             <LatticeFocusButton isDaylight={isDaylight} />
             <button type="button" className="lattice-back" onClick={onBack}

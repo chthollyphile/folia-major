@@ -20,7 +20,7 @@ import { useLatticePosterSelection } from './useLatticePosterSelection';
 import type { LatticeTile } from './latticeModel';
 import type { ActiveLatticePoster } from './useLatticePlaybackFocus';
 
-// Keyboard layer for the wall: Escape collapses the open poster, arrows walk the focus.
+// Keyboard layer for the wall: Escape clears card focus before leaving, while arrows walk the wall.
 
 const ARROW_DIRECTIONS: Record<string, WallDirection> = {
     ArrowUp: 'up',
@@ -42,6 +42,7 @@ type WallKeyboardFocusOptions = {
     setShowHint: Dispatch<SetStateAction<boolean>>;
     tiles: LatticeTile[];
     worldRef: RefObject<HTMLDivElement | null>;
+    onBack: () => void;
 };
 
 export const useWallKeyboardFocus = ({
@@ -57,6 +58,7 @@ export const useWallKeyboardFocus = ({
     setShowHint,
     tiles,
     worldRef,
+    onBack,
 }: WallKeyboardFocusOptions) => {
     const [selection, setSelection] = useLatticePosterSelection(tiles, geometry, metrics);
     const focused = selection?.instance ?? null;
@@ -114,12 +116,15 @@ export const useWallKeyboardFocus = ({
         if (event.altKey || event.ctrlKey || event.metaKey) return;
 
         if (event.key === 'Escape') {
-            // Let it bubble when nothing is open, so the view keeps whatever Escape means outside.
-            if (!activePoster) return;
             event.preventDefault();
             event.stopPropagation();
-            setFocused(activePoster.instance);
-            setActivePoster(null);
+            if (activePoster || focusedRef.current) {
+                setActivePoster(null);
+                setFocused(null);
+                containerRef.current?.focus({ preventScroll: true });
+            } else {
+                onBack();
+            }
             return;
         }
 
@@ -130,7 +135,7 @@ export const useWallKeyboardFocus = ({
         event.preventDefault();
         event.stopPropagation();
         moveFocus(direction);
-    }, [activePoster, moveFocus, setActivePoster, setFocused]);
+    }, [activePoster, containerRef, moveFocus, onBack, setActivePoster, setFocused]);
 
     // Mirrors the focused index onto the DOM so the native ring, Enter/Space and screen readers
     // follow it. Depends on `instances` because culling may not have rendered the target yet.

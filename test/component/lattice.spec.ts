@@ -151,6 +151,34 @@ test('Tab adopts the actual poster for arrow navigation without stealing nested 
     await expect(button).toBeFocused();
 });
 
+test('Escape returns only after card focus has been cleared', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const state = wall.locator('[data-backs]');
+    await wall.locator('.lattice-field').press('Escape');
+    await expect(wall.locator('.lattice-poster.is-expanded')).toHaveCount(0);
+    await expect(wall.locator('.lattice-poster.is-focused')).toHaveCount(0);
+    await expect(state).toHaveAttribute('data-backs', '0');
+    await wall.locator('.lattice-field').press('Escape');
+    await expect(state).toHaveAttribute('data-backs', '1');
+});
+
+test('Enter plays a focused card and toggles the current song', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const state = wall.locator('[data-toggles]');
+    const current = wall.locator('.lattice-poster.is-current').first();
+    await current.focus();
+    await current.press('Enter');
+    await expect(state).toHaveAttribute('data-toggles', '1');
+
+    const other = wall.locator('.lattice-poster[aria-label="Poster 3 · Artist"]').first();
+    await other.focus();
+    await other.press('Enter');
+    await expect(state).toHaveAttribute('data-toggles', '1');
+    await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 3 · Artist');
+});
+
 test('queue edits preserve the expanded song and clearing does not resurrect the selection', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
@@ -205,18 +233,16 @@ test('the wall opens centred on the playing song, whatever the viewport measures
     await expectExpandedCentered(wall);
 });
 
-for (const key of ['Enter', ' ']) {
-    test(`focused poster stays centered after expanding with ${key === ' ' ? 'Space' : key}`, async ({ mount, page }) => {
-        const wall = await mount('lattice');
-        await settle(page);
-        await wall.locator('.lattice-field').press('Escape');
-        await page.keyboard.press('ArrowRight');
-        await expect(wall.locator('.lattice-poster.is-focused')).toBeFocused();
-        await settle(page);
-        await page.keyboard.press(key);
-        await expectExpandedCentered(wall);
-    });
-}
+test('focused poster stays centered after expanding with Space', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    await wall.locator('.lattice-field').press('Escape');
+    await page.keyboard.press('ArrowRight');
+    await expect(wall.locator('.lattice-poster.is-focused')).toBeFocused();
+    await settle(page);
+    await page.keyboard.press(' ');
+    await expectExpandedCentered(wall);
+});
 
 test('mouse expansion centers the reflowed card and remains interruptible by trackpad input', async ({ mount, page }) => {
     const wall = await mount('lattice');
@@ -247,29 +273,34 @@ test('playback follow uses the expanded card position after reflow', async ({ mo
     await expectExpandedCentered(wall);
 });
 
-test('the wall focus button jumps straight to the current song', async ({ mount, page }) => {
+test('the wall tool panel focuses the current song', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
     await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 600, deltaY: 400 });
-    const focusButton = wall.getByRole('button', { name: 'Focus current song', exact: true });
+    const toolsButton = wall.getByRole('button', { name: 'Lattice tools', exact: true });
+    const focusButton = wall.getByRole('menuitem', { name: 'Focus current song', exact: true });
+    await toolsButton.click();
     await wall.screenshot({ path: 'test-results/lattice-focus-button.png' });
     await focusButton.click();
     await expectExpandedCentered(wall);
     await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
     await wall.getByRole('button', { name: 'Clear queue', exact: true }).click();
+    await toolsButton.click();
     await expect(focusButton).toBeDisabled();
 });
 
 test('publishes when the current playing card leaves and re-enters the viewport', async ({ mount, page }) => {
     const wall = await mount('lattice');
+    const visibility = wall.locator('[data-current-song-poster-visible]');
     await settle(page);
-    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'true');
+    await expect(visibility).toHaveAttribute('data-current-song-poster-visible', 'true');
     await expect(wall.locator('.z-60')).toHaveCount(0);
     await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 1200, deltaY: 900 });
-    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'false');
+    await expect(visibility).toHaveAttribute('data-current-song-poster-visible', 'false');
     await expect(wall.locator('.z-60')).toBeVisible();
-    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
-    await expect(wall).toHaveAttribute('data-current-song-poster-visible', 'true');
+    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
+    await wall.getByRole('menuitem', { name: 'Focus current song', exact: true }).click();
+    await expect(visibility).toHaveAttribute('data-current-song-poster-visible', 'true');
     await expect(wall.locator('.z-60')).toHaveCount(0);
 });
 
@@ -336,7 +367,8 @@ test('the player shortcut remains reachable on a narrow touch screen', async ({ 
     await page.setViewportSize({ width: 390, height: 844 });
     const wall = await mount('lattice');
     await settle(page);
-    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
+    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
+    await wall.getByRole('menuitem', { name: 'Focus current song', exact: true }).click();
     await expectExpandedCentered(wall);
     await expect(wall.locator('.lattice-secondary-action')).toBeVisible();
     const shortcutBox = (await wall.locator('.lattice-secondary-action').boundingBox())!;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { motion, useMotionValueEvent } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
@@ -660,6 +660,12 @@ export default function App() {
         pushCollection,
         backCollection,
     } = useAppNavigation();
+    const reduceLatticeMotion = useReducedMotion();
+    const [hasLatticeExited, setHasLatticeExited] = useState(currentView !== 'lattice');
+
+    useEffect(() => {
+        if (currentView === 'lattice') setHasLatticeExited(false);
+    }, [currentView]);
 
     usePlayerBottomBarOffset(playerBottomBarOffset);
     usePlayerBottomBarPositioningEntry(navigateToPlayer);
@@ -2588,34 +2594,45 @@ export default function App() {
                 </motion.div>
             </div>
 
-            {currentView === 'lattice' && (
-                <div className="absolute inset-0 z-10 pointer-events-auto">
-                    <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
-                        <Lattice
-                            controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
-                                invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
-                                isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
-                            lyrics={commandPaletteContext.shared.lyrics}
-                            lyricSource={visualizerRendererModel}
-                            lyricKeywordColoringEnabled={visualizerRendererModel.visualizerTunings.monet.keywordColoringEnabled}
-                            currentSong={displaySong}
-                            playerState={displayPlayerState}
-                            currentTime={currentTime}
-                            playbackDuration={displayDuration}
-                            canTogglePlayback={canToggleCurrentPlayback}
-                            queue={playQueue}
-                            isDaylight={isDaylight}
-                            onBack={navigateBackFromLattice}
-                            onOpenPlayer={navigateToPlayer}
-                            onPlaySong={(song, queue) => {
-                                void playSong(song, queue, false, { shouldNavigateToPlayer: false });
-                            }}
-                            onTogglePlayback={togglePlay}
-                            onSeek={seekMainAudio}
-                        />
-                    </Suspense>
-                </div>
-            )}
+            <AnimatePresence
+                initial={false}
+                onExitComplete={() => setHasLatticeExited(useAppViewStore.getState().view !== 'lattice')}
+            >
+                {currentView === 'lattice' && (
+                    <motion.div
+                        key="lattice"
+                        className="absolute inset-0 z-10 pointer-events-auto"
+                        initial={false}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: reduceLatticeMotion ? 0 : 0.62, ease: 'easeIn' }}
+                    >
+                        <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
+                            <Lattice
+                                controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
+                                    invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
+                                    isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
+                                lyrics={commandPaletteContext.shared.lyrics}
+                                lyricSource={visualizerRendererModel}
+                                lyricKeywordColoringEnabled={visualizerRendererModel.visualizerTunings.monet.keywordColoringEnabled}
+                                currentSong={displaySong}
+                                playerState={displayPlayerState}
+                                currentTime={currentTime}
+                                playbackDuration={displayDuration}
+                                canTogglePlayback={canToggleCurrentPlayback}
+                                queue={playQueue}
+                                isDaylight={isDaylight}
+                                onBack={navigateBackFromLattice}
+                                onOpenPlayer={navigateToPlayer}
+                                onPlaySong={(song, queue) => {
+                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
+                                }}
+                                onTogglePlayback={togglePlay}
+                                onSeek={seekMainAudio}
+                            />
+                        </Suspense>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
             <div
@@ -2623,7 +2640,7 @@ export default function App() {
                 onClick={handleContainerClick}
             >
                 <PlayerBottomBarLayoutContext.Provider value={currentView === 'player'}>
-                    {currentView !== 'lattice' && <VisualizerRenderer {...visualizerRendererModel} />}
+                    {currentView !== 'lattice' && hasLatticeExited && <VisualizerRenderer {...visualizerRendererModel} />}
                 </PlayerBottomBarLayoutContext.Provider>
             </div>
 

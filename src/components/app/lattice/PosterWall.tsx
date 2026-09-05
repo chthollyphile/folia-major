@@ -38,6 +38,7 @@ type PosterWallProps = {
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
+    onBack: () => void;
 };
 
 
@@ -73,6 +74,7 @@ export default function PosterWall({
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
+    onBack,
 }: PosterWallProps) {
     countRender('PosterWall');
     const { t } = useTranslation();
@@ -180,6 +182,15 @@ export default function PosterWall({
         return Math.min(ENTRANCE_MAX_DELAY, (steps / (CELL_SIZE + GAP)) * ENTRANCE_STAGGER);
     }, [bounds.left, bounds.top, entranceDone, reducedMotion]);
 
+    // The entry wave reaches the top-left first; leaving reverses that order while cards retrace
+    // their upward flight, so the wall empties back toward the corner it entered from.
+    const getExitDelay = useCallback((rect: { x: number; y: number }) => {
+        if (reducedMotion) return 0;
+        const steps = Math.max(0, rect.x - bounds.left) + Math.max(0, rect.y - bounds.top);
+        const entranceDelay = Math.min(ENTRANCE_MAX_DELAY, (steps / (CELL_SIZE + GAP)) * ENTRANCE_STAGGER);
+        return ENTRANCE_MAX_DELAY - entranceDelay;
+    }, [bounds.left, bounds.top, reducedMotion]);
+
     const instances = useMemo(() => {
         if (!measured) return [];
         const visible = layoutLattice(geometry, tiles.length, bounds, OVERSCAN, METRICS);
@@ -248,6 +259,7 @@ export default function PosterWall({
         setShowHint,
         tiles,
         worldRef,
+        onBack,
     });
 
     // Permanent identities for the two handlers every poster receives. An arrow per poster is
@@ -313,6 +325,7 @@ export default function PosterWall({
                             tile={tile}
                             rect={rect}
                             entranceDelay={getEntranceDelay(rect)}
+                            exitDelay={getExitDelay(rect)}
                             expanded={expanded}
                             reducedMotion={reducedMotion}
                             didDragRef={didDragRef}

@@ -22,9 +22,10 @@ function LatticeProbe() {
     const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('all');
     const [command, setCommand] = useState('');
     const [toggles, setToggles] = useState(0);
+    const [backs, setBacks] = useState(0);
     const [seek, setSeek] = useState(42);
     const isCurrentSongPosterVisible = useLatticeControlsStore(state => state.isCurrentSongPosterVisible);
-    return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-seek={seek}
+    return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-backs={backs} data-seek={seek}
         data-current-song-poster-visible={isCurrentSongPosterVisible}>
         <Lattice lyrics={null} controls={{ loopMode,
             playback: { prev: () => setCurrentSong(queue[Math.max(0, queue.indexOf(currentSong!) - 1)]),
@@ -35,7 +36,7 @@ function LatticeProbe() {
         }} queue={songs} currentSong={currentSong} playerState={PlayerState.PLAYING}
             lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled
             currentTime={time} playbackDuration={180} canTogglePlayback isDaylight={false}
-            onBack={() => {}} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
+            onBack={() => setBacks(value => value + 1)} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />
         <AppOverlays model={{
             floatingControls: currentSong ? {
