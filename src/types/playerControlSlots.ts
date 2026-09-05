@@ -13,6 +13,7 @@ export type PlayerControlSlotActionId =
     | 'lyrics-timeline'
     | 'volume'
     | 'queue'
+    | 'song-wall'
     | 'sleep-timer';
 
 export const PLAYER_CONTROL_SLOT_ACTION_IDS: readonly PlayerControlSlotActionId[] = [
@@ -24,6 +25,7 @@ export const PLAYER_CONTROL_SLOT_ACTION_IDS: readonly PlayerControlSlotActionId[
     'lyrics-timeline',
     'volume',
     'queue',
+    'song-wall',
     'sleep-timer',
 ];
 

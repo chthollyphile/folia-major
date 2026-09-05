@@ -667,14 +667,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             Folia
                         </h1>
                         <button
-                            onClick={onOpenLattice}
-                            className="relative flex items-center p-2 rounded-full hover:bg-white/10 transition-all ml-2 opacity-50 hover:opacity-100"
-                            title={t('home.lattice')}
-                            aria-label={t('home.lattice')}
-                        >
-                            <PanelsTopLeft size={20} style={{ color: 'var(--text-primary)' }} />
-                        </button>
-                        <button
                             onClick={() => onOpenSettings?.('help')}
                             className={`relative flex items-center gap-1.5 p-2 rounded-full hover:bg-white/10 transition-all ml-4 ${showUpdateIndicator
                                     ? 'opacity-90 hover:opacity-100'
@@ -802,6 +794,27 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
                                     >
                                         <span className="relative z-10">{t('home.stage')}</span>
+                                    </button>
+                                )}
+                                {/* 播放队列的海报视图和 Stage 一样属于「去哪儿」，所以它在这一排，
+                                    而不是标题旁的工具图标。没有在播歌曲时队列也是空的，直接不出现。
+                                    平时只占一个图标的宽度，指针悬停或键盘聚焦时才展开文字——这一排
+                                    已经有五个内容 tab，多一个常驻文字就把胶囊撑得太长。点击始终直达。 */}
+                                {onOpenLattice && currentTrack && (
+                                    <button
+                                        onClick={onOpenLattice}
+                                        data-testid="home-lattice-pill"
+                                        title={t('home.lattice')}
+                                        aria-label={t('home.lattice')}
+                                        className={`group relative inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
+                                    >
+                                        <PanelsTopLeft size={14} className="relative z-10 shrink-0" />
+                                        <span
+                                            aria-hidden="true"
+                                            className="relative z-10 max-w-0 overflow-hidden opacity-0 transition-all duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-28 group-hover:opacity-100 group-focus-visible:ml-1.5 group-focus-visible:max-w-28 group-focus-visible:opacity-100"
+                                        >
+                                            {t('home.latticeLabel')}
+                                        </span>
                                     </button>
                                 )}
                             </div>

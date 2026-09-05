@@ -1,4 +1,4 @@
-import { ChartBar, Heart, ListMusic, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
+import { ChartBar, Heart, ListMusic, PanelsTopLeft, Repeat, Repeat1, RepeatOff, Shuffle, SkipBack, SkipForward, Timer, Volume2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlayerControlSlotActionId } from '../../types/playerControlSlots';
 
@@ -61,6 +61,7 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
     { id: 'lyrics-timeline', icon: ChartBar, labelKey: 'options.playerControlSlotAction_lyricsTimeline' },
     { id: 'volume', icon: Volume2, labelKey: 'options.playerControlSlotAction_volume' },
     { id: 'queue', icon: ListMusic, labelKey: 'options.playerControlSlotAction_queue' },
+    { id: 'song-wall', icon: PanelsTopLeft, labelKey: 'options.playerControlSlotAction_songWall' },
     { id: 'sleep-timer', icon: Timer, labelKey: 'options.playerControlSlotAction_sleepTimer' },
 ];
 
@@ -142,6 +143,17 @@ export const resolvePlayerControlSlot = (
                 disabled: !context.canInvokeCommandById('queue'),
                 onActivate: () => context.invokeCommandById('queue'),
                 labelKey: 'options.playerControlSlotAction_queue',
+            };
+        case 'song-wall':
+            return {
+                icon: PanelsTopLeft,
+                filled: false,
+                active: false,
+                // The command hides itself on the wall, so the slot greys out there instead of
+                // offering a trip to the surface the user is already looking at.
+                disabled: !context.canInvokeCommandById('navigate-lattice'),
+                onActivate: () => context.invokeCommandById('navigate-lattice'),
+                labelKey: 'options.playerControlSlotAction_songWall',
             };
         case 'sleep-timer':
             return {

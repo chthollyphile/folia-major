@@ -2132,6 +2132,7 @@ export default function App() {
 
     const playerPanelModel = usePlayerPanelModel({
         navigateToHome,
+        navigateToLattice,
         handleDirectHomeFromPanel,
         currentSong: playerDisplayCurrentSong,
         handleAlbumSelect: handlePlayerPanelAlbumSelect,

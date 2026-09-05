@@ -53,6 +53,7 @@ type PlayerPanelAmbient = {
 // What only the caller can supply: controller callbacks and values App.tsx computes.
 export type PlayerPanelDeps = {
     navigateToHome: UnifiedPanelProps['playback']['onNavigateHome'];
+    navigateToLattice: UnifiedPanelProps['queue']['onOpenLattice'];
     handleDirectHomeFromPanel: UnifiedPanelProps['playback']['onNavigateHomeDirect'];
     currentSong: UnifiedPanelProps['playback']['currentSong'];
     handleAlbumSelect: UnifiedPanelProps['playback']['onAlbumSelect'];
@@ -114,6 +115,7 @@ export const buildPlayerPanelModel = ({
     isPanelOpen,
     panelTab,
     navigateToHome,
+    navigateToLattice,
     handleDirectHomeFromPanel,
     coverUrl,
     currentSong,
@@ -270,6 +272,7 @@ export const buildPlayerPanelModel = ({
             onRemoveSong: removeQueueSong,
             onMoveSongToEnd: moveQueueSongToEnd,
             onMoveSongToNext: moveQueueSongToNext,
+            onOpenLattice: navigateToLattice,
         },
         library: {
             onSaveCurrentQueueAsPlaylist: saveCurrentQueueAsLocalPlaylist,

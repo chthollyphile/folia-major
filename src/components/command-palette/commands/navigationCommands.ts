@@ -14,7 +14,10 @@ export const navigationCommands: CommandPaletteCommand[] = [
     }),
     createToggleCommand('navigate-home', 'navigation', 'Go home', 'Return to home view', ['home', '首页', '主页'], context => context.navigation.navigateToHome()),
     createToggleCommand('navigate-player', 'navigation', 'Go player', 'Return to player view', ['player', '播放页', '播放器'], context => context.navigation.navigateToPlayer()),
-    createToggleCommand('navigate-lattice', 'navigation', 'Open song wall', 'Show the play queue as a poster wall', ['lattice', 'song wall', 'poster wall', '歌曲墙', '海报墙'], context => context.navigation.navigateToLattice()),
+    createToggleCommand('navigate-lattice', 'navigation', 'Open song wall', 'Show the play queue as a poster wall', ['lattice', 'song wall', 'poster wall', '歌曲墙', '海报墙'], context => context.navigation.navigateToLattice(),
+        // Already on the wall it is a no-op, and the wall renders the same control slots as the
+        // main bar — a slot bound to it would otherwise sit there offering to go nowhere.
+        { isAvailable: context => !context || context.scope.view !== 'lattice' }),
     {
         id: 'browser-fullscreen',
         group: 'navigation',

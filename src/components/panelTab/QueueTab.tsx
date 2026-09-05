@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { ListEnd, ListPlus, Shuffle, Trash2 } from 'lucide-react';
+import { ListEnd, ListPlus, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
@@ -22,6 +22,8 @@ interface QueueTabProps {
     onMoveSongToEnd: (index: number) => void;
     onMoveSongToNext: (index: number) => void;
     canSaveLocalPlaylist?: boolean;
+    /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
+    onOpenLattice?: () => void;
     onSaveCurrentQueueAsPlaylist?: (name: string) => Promise<void>;
     isDaylight?: boolean;
 }
@@ -124,6 +126,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onMoveSongToEnd,
     onMoveSongToNext,
     canSaveLocalPlaylist = false,
+    onOpenLattice,
     onSaveCurrentQueueAsPlaylist,
     isDaylight = false,
 }) => {
@@ -235,6 +238,16 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         {t('queue.title')} ({playQueue.length})
                     </span>
                     <div className="flex items-center gap-1">
+                        {onOpenLattice && (
+                            <button
+                                onClick={onOpenLattice}
+                                className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
+                                title={t('home.lattice')}
+                                aria-label={t('home.lattice')}
+                            >
+                                <PanelsTopLeft size={14} />
+                            </button>
+                        )}
                         {canSaveLocalPlaylist && (
                             <button
                                 onClick={handleSavePlaylist}
