@@ -8,6 +8,7 @@ import PosterWall from './PosterWall';
 import LatticeFocusButton from './LatticeFocusButton';
 import { buildLatticeTiles, type LatticeTile } from './latticeModel';
 import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
+import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { countRender } from '../../../dev/renderCount';
 import './Lattice.css';
 
@@ -48,6 +49,7 @@ export default function Lattice({
 }: LatticeProps) {
     countRender('Lattice');
     const { t } = useTranslation();
+    const vignette = useLatticeSettingsStore(state => state.latticeVignette);
     const tiles = useMemo(() => buildLatticeTiles({ queue, currentSong }), [currentSong, queue]);
     // App rebuilds these on every render of its own, and the wall hands them to every poster on
     // screen. Given a permanent identity here they stop being a reason for those posters to render.
@@ -61,7 +63,7 @@ export default function Lattice({
     return (
         <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
             currentTime={currentTime} duration={playbackDuration} onSeek={onSeek} isDaylight={isDaylight}>
-        <section className={`lattice-root ${isDaylight ? 'is-daylight' : ''}`} aria-label={t('home.latticeLabel')}>
+        <section className={`lattice-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''}`} aria-label={t('home.latticeLabel')}>
             <PosterWall
                 tiles={tiles}
                 currentSong={currentSong}

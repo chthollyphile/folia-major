@@ -15,6 +15,7 @@ exports[`config surface contract > keeps every field of the exportable visual co
   "harmonySubtitleBackground",
   "hidePlayerTranslationSubtitle",
   "latentBackgroundTuning",
+  "latticeVignette",
   "lyricsCustomFontFamily",
   "lyricsFontFallbackFamilies",
   "lyricsFontScale",

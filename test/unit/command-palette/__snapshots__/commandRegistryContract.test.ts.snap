@@ -77,6 +77,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-toggle-transparent",
   "settings-toggle-daylight",
   "settings-toggle-player-back-button",
+  "settings-toggle-lattice-vignette",
   "settings-toggle-track-switch-buttons",
   "settings-toggle-main-window-titlebar",
   "settings-toggle-auto-play-on-launch",

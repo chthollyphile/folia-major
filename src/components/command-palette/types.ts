@@ -193,6 +193,7 @@ export type CommandPaletteSettingsContext = {
     startPlayerBottomBarPositioning: () => void;
     canStartPlayerBottomBarPositioning: boolean;
     toggleAlwaysShowPlayerBackButton: () => void;
+    toggleLatticeVignette: () => void;
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     /** Lab switch: whether the restored session starts playing by itself on launch. */

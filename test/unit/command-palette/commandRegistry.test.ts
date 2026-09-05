@@ -92,6 +92,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             startPlayerBottomBarPositioning: vi.fn(),
             canStartPlayerBottomBarPositioning: true,
             toggleAlwaysShowPlayerBackButton: vi.fn(),
+            toggleLatticeVignette: vi.fn(),
             toggleAlwaysShowTrackSwitchButtons: vi.fn(),
             toggleAutoPlayOnLaunch: vi.fn(),
             toggleAlwaysShowMainWindowTitlebar: vi.fn(),

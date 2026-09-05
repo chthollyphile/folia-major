@@ -42,6 +42,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "home_layout_style",
   "last_home_view_tab",
   "latent_background_tuning",
+  "lattice_vignette",
   "local_lyrics_priority",
   "local_replaygain_mode",
   "lyrics_custom_font",

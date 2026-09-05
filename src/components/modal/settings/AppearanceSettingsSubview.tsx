@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, Download, Copy, Check, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Download, Copy, Check, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -20,6 +20,8 @@ import { buildCurrentObsUrl } from '../../../services/obs/currentObsUrl';
 import { ObsCopyUrlButton } from '../../shared/ObsCopyUrlButton';
 import { resolveWebObsTarget, selectWebObsSource } from '../../../services/obs/webObsTarget';
 import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
+import LatticeSettingsSection from './LatticeSettingsSection';
+import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../services/themePreferences';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
@@ -558,6 +560,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             if (has('stageTrackPillTimeoutSec') && Number.isFinite(Number(config.stageTrackPillTimeoutSec))) {
                 onChangeStageTrackPillTimeoutSec(Number(config.stageTrackPillTimeoutSec));
             }
+            if (has('latticeVignette')) {
+                useLatticeSettingsStore.getState().handleToggleLatticeVignette(Boolean(config.latticeVignette));
+            }
             if (has('stageTrackPillOnHome')) {
                 onToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
             }
@@ -912,7 +917,17 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 </div>
             </SettingsAnchor>
 
-            {/* Section 4: Configurations Import/Export (New feature) */}
+            {/* Section 4: Queue collage */}
+            <SettingsAnchor anchorId="latticeSettings" label={t('options.latticeSettings')}>
+                <SettingsSectionHeading icon={PanelsTopLeft} label={t('options.latticeSettings')} />
+                <LatticeSettingsSection
+                    settingsCardClass={settingsCardClass}
+                    toggleOffBackgroundClass={toggleOffBackgroundClass}
+                    theme={theme}
+                />
+            </SettingsAnchor>
+
+            {/* Section 5: Configurations Import/Export (New feature) */}
             <SettingsAnchor anchorId="importExportTitle" label={t('options.importExportTitle')}>
                 <SettingsSectionHeading icon={Settings2} label={t('options.importExportTitle')} />
                 <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>

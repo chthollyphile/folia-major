@@ -29,6 +29,18 @@
     mix-blend-mode: soft-light;
 }
 
+/* Edge falloff over the posters. Sits under the header, the hint and the panel button (z-index 4
+   and 5) so chrome never dims, and stays deliberately shallow: the wall is a browsing surface, and
+   a heavy vignette would fight the artwork it is there to show. */
+.lattice-root.has-vignette::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 78%, rgba(0, 0, 0, 0.52) 100%);
+}
+
 .lattice-field {
     position: absolute;
     inset: 0;

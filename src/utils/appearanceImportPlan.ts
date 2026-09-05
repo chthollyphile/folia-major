@@ -17,9 +17,9 @@ import type { UrlBackgroundItem } from '../types';
 // auto-switch value can also flip "prefer custom theme" — a setting that is not in the config at
 // all and would otherwise change with no warning.
 
-export type ImportGroup = 'theme' | 'visualizer' | 'fonts' | 'background' | 'songTheme' | 'trackCard';
+export type ImportGroup = 'theme' | 'visualizer' | 'fonts' | 'background' | 'songTheme' | 'trackCard' | 'lattice';
 
-export const IMPORT_GROUPS: ImportGroup[] = ['theme', 'visualizer', 'fonts', 'background', 'songTheme', 'trackCard'];
+export const IMPORT_GROUPS: ImportGroup[] = ['theme', 'visualizer', 'fonts', 'background', 'songTheme', 'trackCard', 'lattice'];
 
 export interface ImportChange {
     group: ImportGroup;
@@ -131,6 +131,8 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     stageTrackPillMode: 'trackCard',
     stageTrackPillTimeoutSec: 'trackCard',
     stageTrackPillOnHome: 'trackCard',
+
+    latticeVignette: 'lattice',
 };
 
 // Fields the import applies only when the incoming value is truthy, so an incoming null means "the
