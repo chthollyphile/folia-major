@@ -6,7 +6,6 @@ import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
 import { useTypographySettingsStore } from '../../stores/useTypographySettingsStore';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
-import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 
 // src/services/obs/visualSettingsConfig.ts
 // Everything compressConfig serializes except the theme. Reads the live settings store, so both
@@ -92,7 +91,6 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     stageTrackPillMode: storeStageSettings.stageTrackPillMode,
     stageTrackPillTimeoutSec: storeStageSettings.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: storeStageSettings.stageTrackPillOnHome,
-    latticeVignette: useLatticeSettingsStore.getState().latticeVignette,
   };
 }
 

@@ -31,7 +31,6 @@ const GROUP_LABEL_KEYS: Record<ImportGroup, string> = {
     background: 'options.importGroupBackground',
     songTheme: 'options.importGroupSongTheme',
     trackCard: 'options.importGroupTrackCard',
-    lattice: 'options.importGroupLattice',
 };
 
 const DERIVED_LABEL_KEYS: Record<string, string> = {
@@ -87,7 +86,6 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     stageTrackPillMode: 'options.stageTrackPill',
     stageTrackPillTimeoutSec: 'options.stageTrackPillTimeout',
     stageTrackPillOnHome: 'options.stageTrackPillOnHome',
-    latticeVignette: 'options.latticeVignette',
 };
 
 // The per-renderer tunings borrow the renderer's own display name instead of inventing one.

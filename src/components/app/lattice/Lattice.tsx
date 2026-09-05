@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState, type SongResult, type LyricData } from '../../../types';
@@ -76,16 +76,11 @@ export default function Lattice({
                 onSeek={wall.onSeek}
                 onOpenPlayer={wall.onOpenPlayer}
             />
-            <LatticeFocusButton />
-            <header className="lattice-header">
-                <button type="button" className="lattice-back" onClick={onBack} aria-label={t('home.latticeBack')}>
-                    <ArrowLeft />
-                </button>
-                <div className="lattice-brand">
-                    <strong>FOLIA / WALL</strong>
-                    <span>{t('home.latticeSubtitle')}</span>
-                </div>
-            </header>
+            <LatticeFocusButton isDaylight={isDaylight} />
+            <button type="button" className="lattice-back" onClick={onBack}
+                aria-label={t('home.latticeBack')} title={t('home.latticeBack')}>
+                <ChevronLeft size={20} />
+            </button>
             {tiles.length === 0 && (
                 <div className="lattice-empty">
                     <strong>{t('home.latticeEmptyTitle')}</strong>

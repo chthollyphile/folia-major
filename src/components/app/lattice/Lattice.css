@@ -6,11 +6,13 @@
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
-    color: #f7f4ee;
+    color: var(--text-primary, #f7f4ee);
+    /* The two glows are the theme's own accent and secondary, so the wall reads as part of the app
+       rather than a surface with its own palette. --bg-color already follows the daylight switch. */
     background:
-        radial-gradient(circle at 14% 12%, rgba(253, 92, 71, 0.16), transparent 29%),
-        radial-gradient(circle at 86% 82%, rgba(106, 72, 255, 0.2), transparent 32%),
-        #070707;
+        radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--text-accent, #fd5c47) 16%, transparent), transparent 29%),
+        radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary, #6a48ff) 20%, transparent), transparent 32%),
+        var(--bg-color, #070707);
     isolation: isolate;
 }
 
@@ -29,6 +31,8 @@
     mix-blend-mode: soft-light;
 }
 
+.lattice-root.is-daylight::after { opacity: 0.07; }
+
 /* Edge falloff over the posters. Sits under the header, the hint and the panel button (z-index 4
    and 5) so chrome never dims, and stays deliberately shallow: the wall is a browsing surface, and
    a heavy vignette would fight the artwork it is there to show. */
@@ -39,6 +43,10 @@
     z-index: 3;
     pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 78%, rgba(0, 0, 0, 0.52) 100%);
+}
+
+.lattice-root.is-daylight.has-vignette::before {
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 78%, rgba(0, 0, 0, 0.16) 100%);
 }
 
 .lattice-field {
@@ -216,43 +224,30 @@
     white-space: nowrap;
 }
 
-.lattice-header {
+/* Same shape and weight as the grid and player back buttons, and the one place the wall's
+   square-everything rule is deliberately overridden. */
+.lattice-back {
     position: absolute;
-    top: 25px;
-    right: 28px;
-    left: 28px;
+    top: 20px;
+    left: 24px;
     z-index: 5;
     display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 14px;
-    pointer-events: none;
-}
-
-.lattice-back {
-    display: grid;
-    width: 46px;
-    height: 46px;
+    width: 40px;
+    height: 40px;
     place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: none;
+    border-radius: 999px !important;
     color: inherit;
-    background: rgba(11, 11, 11, 0.54);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(18px);
+    background: rgb(255 255 255 / 8%);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
+    backdrop-filter: blur(8px);
+    transition: transform 200ms ease, background-color 200ms ease;
     pointer-events: auto;
 }
 
-.lattice-back svg { width: 19px; }
-
-.lattice-brand {
-    display: flex;
-    flex-direction: column;
-    line-height: 1;
-    filter: drop-shadow(0 2px 12px #000);
-}
-
-.lattice-brand strong { font-size: 14px; letter-spacing: 0.17em; }
-.lattice-brand span { margin-top: 7px; font-size: 9px; font-weight: 750; letter-spacing: 0.18em; opacity: 0.58; }
+.lattice-root.is-daylight .lattice-back { background: rgb(0 0 0 / 5%); }
+.lattice-back:hover { transform: scale(1.05); }
+.lattice-back:active { transform: scale(0.95); }
 
 .lattice-hint {
     position: absolute;
@@ -265,7 +260,7 @@
     align-items: center;
     transition: opacity 240ms ease, transform 240ms ease;
     pointer-events: none;
-    text-shadow: 0 2px 8px #000;
+    text-shadow: 0 2px 8px color-mix(in srgb, var(--bg-color, #000) 70%, transparent);
 }
 
 .lattice-hint.is-hidden { opacity: 0; transform: translateY(8px); }
@@ -288,7 +283,6 @@
 .lattice-empty span { font-size: 12px; opacity: 0.5; }
 
 @media (max-width: 640px) {
-    .lattice-header { top: 16px; right: 16px; left: 16px; }
-    .lattice-brand span { display: none; }
+    .lattice-back { top: 14px; left: 16px; }
     .lattice-poster.is-expanded .lattice-poster-copy strong { font-size: 44px; }
 }

@@ -21,7 +21,6 @@ import { ObsCopyUrlButton } from '../../shared/ObsCopyUrlButton';
 import { resolveWebObsTarget, selectWebObsSource } from '../../../services/obs/webObsTarget';
 import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import LatticeSettingsSection from './LatticeSettingsSection';
-import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../services/themePreferences';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
@@ -559,9 +558,6 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('stageTrackPillTimeoutSec') && Number.isFinite(Number(config.stageTrackPillTimeoutSec))) {
                 onChangeStageTrackPillTimeoutSec(Number(config.stageTrackPillTimeoutSec));
-            }
-            if (has('latticeVignette')) {
-                useLatticeSettingsStore.getState().handleToggleLatticeVignette(Boolean(config.latticeVignette));
             }
             if (has('stageTrackPillOnHome')) {
                 onToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
