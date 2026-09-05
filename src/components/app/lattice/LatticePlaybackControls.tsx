@@ -1,10 +1,12 @@
 import { motionValue, type MotionValue } from 'framer-motion';
-import { ArrowUpRight, Pause, Play, X } from 'lucide-react';
+import { ArrowUpRight, Pause, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ProgressBar from '../../ProgressBar';
 import { PlayerState, type SongResult } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import type { LatticeTile } from './latticeModel';
+import LatticeChromeTime from './LatticeChromeTime';
+import LatticeExtraControls from './LatticeExtraControls';
 import './LatticeChrome.css';
 
 // Adapts the shared Player Chrome transport and progress bar to one expanded wall tile.
@@ -21,7 +23,6 @@ type LatticePlaybackControlsProps = {
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
-    onClose: () => void;
 };
 
 const idleTime = motionValue(0);
@@ -39,7 +40,6 @@ export default function LatticePlaybackControls({
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
-    onClose,
 }: LatticePlaybackControlsProps) {
     const { t } = useTranslation();
     const isCurrentSong = Boolean(
@@ -53,24 +53,25 @@ export default function LatticePlaybackControls({
 
     return (
         <div className={`lattice-chrome ${revealed ? 'is-revealed' : ''}`} role="group" aria-label={t('home.latticePlaybackControls')}>
-            <div className="lattice-chrome-details" inert={!revealed} aria-hidden={!revealed}>
-                <div className="lattice-chrome-heading">
-                    <div><strong>{tile.title}</strong><span>{tile.artist}</span></div>
-                    <button type="button" className="lattice-poster-close" onClick={onClose} aria-label={t('home.latticeClose')} title={t('home.latticeClose')}>
-                        <X size={16} />
-                    </button>
-                </div>
-            </div>
             <div className="lattice-chrome-transport">
-            <button
-                type="button"
-                className="lattice-transport-button"
-                onClick={() => canControlCurrent ? onTogglePlayback() : onPlay(tile)}
-                aria-label={isPlaying ? t('player.pause') : t('player.play')}
-                title={isPlaying ? t('player.pause') : t('player.play')}
-            >
-                {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
-            </button>
+                <button
+                    type="button"
+                    className="lattice-transport-button"
+                    onClick={() => canControlCurrent ? onTogglePlayback() : onPlay(tile)}
+                    aria-label={isPlaying ? t('player.pause') : t('player.play')}
+                    title={isPlaying ? t('player.pause') : t('player.play')}
+                >
+                    {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+                </button>
+                <div className="lattice-chrome-details" inert={!revealed} aria-hidden={!revealed}>
+                    <LatticeExtraControls disabled={!canControlCurrent} />
+                </div>
+                <LatticeChromeTime currentTime={canControlCurrent ? currentTime : idleTime} duration={duration} />
+                <button type="button" className="lattice-secondary-action" onClick={onOpenPlayer}
+                    aria-label={t('home.latticeOpenPlayer')} title={t('home.latticeOpenPlayer')}>
+                    <ArrowUpRight size={20} />
+                </button>
+            </div>
             <div className="lattice-progress">
                 <ProgressBar
                     currentTime={canControlCurrent ? currentTime : idleTime}
@@ -82,11 +83,6 @@ export default function LatticePlaybackControls({
                     disabled={!canControlCurrent}
                     edgeStyle="square"
                 />
-            </div>
-            <button type="button" className="lattice-secondary-action" onClick={onOpenPlayer}
-                aria-label={t('home.latticeOpenPlayer')} title={t('home.latticeOpenPlayer')}>
-                <ArrowUpRight size={20} />
-            </button>
             </div>
         </div>
     );

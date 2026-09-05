@@ -1,57 +1,83 @@
 /* Minimal playback overlay: the same seek input stays mounted in both disclosure states. */
+/* No card of its own — the controls sit straight on the poster and rely on its bottom shade for contrast. */
 .lattice-chrome {
-    --lattice-chrome-ink: var(--text-primary, #fff);
-    color: var(--lattice-chrome-ink);
-    width: 100%;
-    padding: 12px 16px;
-    background: color-mix(in srgb, var(--bg-color, #111) 64%, transparent);
+    --lattice-chrome-ink: currentColor;
+    color: inherit;
+    width: min(100%, 480px);
+    margin-inline: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    filter: drop-shadow(0 1px 3px rgb(0 0 0 / 55%));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.lattice-poster-close {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: color-mix(in srgb, var(--bg-color, #111) 18%, transparent);
     backdrop-filter: blur(16px);
-    transition: background 200ms ease;
+    cursor: pointer;
+    opacity: 0.65;
 }
-.lattice-chrome.is-revealed {
-    background: color-mix(in srgb, var(--bg-color, #111) 88%, transparent);
-}
+.lattice-root .lattice-poster-close { border-radius: 50% !important; }
+.lattice-poster-close:hover, .lattice-poster-close:focus-visible { opacity: 1; }
+.lattice-poster-close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* The extra slots sit inline after play and wipe open sideways, so no row is added or removed. */
 .lattice-chrome-details {
     display: grid;
-    grid-template-rows: 0fr;
+    grid-template-columns: 0fr;
     opacity: 0;
-    transition: grid-template-rows 200ms ease, opacity 160ms ease;
+    transition: grid-template-columns 180ms ease, opacity 150ms ease;
 }
-.lattice-chrome.is-revealed .lattice-chrome-details { grid-template-rows: 1fr; opacity: 1; }
-.lattice-chrome-heading { min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.lattice-chrome-heading > div { min-width: 0; display: grid; gap: 3px; }
-.lattice-chrome-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 500; }
-.lattice-chrome-heading span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; opacity: 0.5; }
-.lattice-chrome-transport { display: flex; align-items: center; gap: 14px; min-height: 44px; }
-.lattice-chrome button { display: grid; place-items: center; border: 0; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
-.lattice-transport-button, .lattice-secondary-action { width: 44px; height: 44px; }
-.lattice-transport-button svg { width: 18px; height: 18px; }
-.lattice-secondary-action { opacity: 0.6; }
-.lattice-chrome.is-revealed .lattice-transport-button { background: var(--lattice-chrome-ink); color: var(--bg-color, #111); }
-.lattice-poster-close { width: 36px; height: 40px; opacity: 0.5; }
-.lattice-chrome button:hover { opacity: 1; }
-.lattice-chrome button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-.lattice-progress { min-width: 0; flex: 1; }
-.lattice-progress > div { gap: 10px; }
-.lattice-progress > div > span { width: 42px; font-size: 14px; opacity: 0; overflow: hidden; transition: opacity 180ms ease; }
-.lattice-chrome.is-revealed .lattice-progress > div { gap: 10px; }
-.lattice-chrome.is-revealed .lattice-progress > div > span { width: 42px; opacity: 0.55; }
-.lattice-progress > div > div { height: 2px; transition: height 180ms ease; }
-.lattice-chrome.is-revealed .lattice-progress > div > div { height: 4px; }
+.lattice-chrome.is-revealed .lattice-chrome-details { grid-template-columns: 1fr; opacity: 1; }
+.lattice-chrome-actions { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 8px; }
+/* Sits above the seek input, whose tall hit area overhangs the row above it. */
+.lattice-chrome-transport { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.lattice-chrome-time { margin-left: auto; padding-left: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 180ms ease; }
+.lattice-chrome.is-revealed .lattice-chrome-time { opacity: 0.6; }
+.lattice-chrome button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
+.lattice-root .lattice-chrome button { border-radius: 12px !important; }
+.lattice-chrome button svg { width: 20px; height: 20px; }
+.lattice-secondary-action, .lattice-chrome-actions button { opacity: 0.65; }
+/* The rounded frame is a hover affordance only; at rest the row stays free of strokes. */
+.lattice-chrome button:hover { border-color: color-mix(in srgb, currentColor 26%, transparent); }
+.lattice-chrome button:hover, .lattice-chrome button.is-active { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
+.lattice-chrome button:disabled { opacity: 0.25; cursor: default; border-color: transparent; background: transparent; }
+.lattice-chrome button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+/* The readouts live in the transport row, so the bar spans the chrome width, minus the padding
+   that centres the arrow glyph inside its 44px button - that glyph is what the bar ends against. */
+.lattice-progress { min-width: 0; margin-right: 12px; }
+.lattice-progress > div > span { display: none; }
+.lattice-progress > div > div { height: 2px; }
 /* Keep the thin progress line's hit target usable with both fingers and a mouse. */
 .lattice-progress input[type=range] { top: 50%; height: 36px; transform: translateY(-50%); }
 @media (prefers-reduced-motion: reduce) {
-    .lattice-chrome, .lattice-chrome-details, .lattice-progress > div > span, .lattice-progress > div > div { transition: none; }
+    .lattice-chrome-details, .lattice-chrome-time { transition: none; }
 }
 @media (max-width: 640px) {
     /* Compensate for the wall's mobile camera scale so touch targets stay finger-sized. */
-    .lattice-chrome { padding: 10px 12px; }
+    .lattice-chrome { width: min(100%, 640px); padding: 0; gap: 16px; }
+    .lattice-root .lattice-chrome button { border-radius: 20px !important; }
+    .lattice-progress { margin-right: 28px; }
     .lattice-chrome button { width: 86px; height: 86px; }
+    .lattice-poster-close { top: 24px; right: 32px; width: 86px; height: 86px; }
+    .lattice-poster-close svg { width: 30px; height: 30px; }
     .lattice-chrome button svg { width: 30px; height: 30px; }
-    .lattice-chrome-transport { min-height: 86px; gap: 8px; }
+    .lattice-chrome-actions { gap: 4px; }
+    .lattice-chrome-transport { min-height: 86px; gap: 4px; }
     .lattice-progress input[type=range] { height: 86px; }
-    .lattice-chrome .lattice-progress > div > span { width: 56px; font-size: 20px; }
-    .lattice-chrome-heading strong { font-size: 23px; }
-    .lattice-chrome-heading span { font-size: 18px; }
-    .lattice-root .lattice-poster.is-expanded .lattice-poster-copy { bottom: 230px; }
+    .lattice-chrome-time { font-size: 20px; }
+    .lattice-root .lattice-poster.is-expanded .lattice-poster-copy { bottom: 220px; }
 }

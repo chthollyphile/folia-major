@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { KeyboardEvent, MouseEvent, MutableRefObject } from 'react';
@@ -86,7 +87,7 @@ export default function LatticePoster({
             onFocusCapture={chrome.onFocusCapture}
             onBlurCapture={chrome.onBlurCapture}
             key={instanceId}
-            className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''}`}
+            className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''} ${tile.section === 'now' ? 'is-current' : ''}`}
             data-instance-id={instanceId}
             initial={false}
             animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height }}
@@ -109,6 +110,12 @@ export default function LatticePoster({
                 <small>{tile.artist}</small>
             </span>
             {expanded && (
+                <button type="button" className="lattice-poster-close" onClick={onClose}
+                    aria-label={t('home.latticeClose')} title={t('home.latticeClose')}>
+                    <X size={18} />
+                </button>
+            )}
+            {expanded && (
                 <motion.div
                     className="lattice-poster-controls"
                     initial={{ opacity: 0, y: 12 }}
@@ -127,7 +134,6 @@ export default function LatticePoster({
                         onTogglePlayback={onTogglePlayback}
                         onSeek={onSeek}
                         onOpenPlayer={onOpenPlayer}
-                        onClose={onClose}
                     />
                 </motion.div>
             )}

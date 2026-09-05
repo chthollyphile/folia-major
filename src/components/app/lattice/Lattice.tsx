@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { ArrowLeft, ListMusic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MotionValue } from 'framer-motion';
-import { PlayerState, type SongResult } from '../../../types';
+import { PlayerState, type SongResult, type LyricData } from '../../../types';
+import LatticePlaybackProvider, { type LatticePlaybackActions } from './LatticePlaybackProvider';
 import PosterWall from './PosterWall';
 import LatticePanel from './LatticePanel';
 import { buildLatticeTiles } from './latticeModel';
@@ -11,6 +12,8 @@ import './Lattice.css';
 // Queue display layer; it renders the play queue and never mutates it.
 
 type LatticeProps = {
+    controls: LatticePlaybackActions;
+    lyrics: LyricData | null;
     currentSong: SongResult | null;
     playerState: PlayerState;
     currentTime: MotionValue<number>;
@@ -26,6 +29,8 @@ type LatticeProps = {
 };
 
 export default function Lattice({
+    controls,
+    lyrics,
     currentSong,
     playerState,
     currentTime,
@@ -43,6 +48,8 @@ export default function Lattice({
     const tiles = useMemo(() => buildLatticeTiles({ queue, currentSong }), [currentSong, queue]);
 
     return (
+        <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
+            currentTime={currentTime} duration={playbackDuration} onSeek={onSeek} isDaylight={isDaylight}>
         <section className={`lattice-root ${isDaylight ? 'is-daylight' : ''}`} aria-label={t('home.latticeLabel')}>
             <PosterWall
                 tiles={tiles}
@@ -78,5 +85,6 @@ export default function Lattice({
                 </div>
             )}
         </section>
+        </LatticePlaybackProvider>
     );
 }

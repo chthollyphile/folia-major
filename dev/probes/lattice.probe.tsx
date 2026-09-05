@@ -16,10 +16,18 @@ function LatticeProbe() {
     const time = useMotionValue(42);
     const [songs, setSongs] = useState(queue);
     const [currentSong, setCurrentSong] = useState<SongResult | null>(queue[0]);
+    const [loopMode, setLoopMode] = useState<'off' | 'all' | 'one'>('all');
+    const [command, setCommand] = useState('');
     const [toggles, setToggles] = useState(0);
     const [seek, setSeek] = useState(42);
-    return <div style={{ height: '100vh' }} data-toggles={toggles} data-seek={seek}>
-        <Lattice queue={songs} currentSong={currentSong} playerState={PlayerState.PLAYING}
+    return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-seek={seek}>
+        <Lattice lyrics={null} controls={{ loopMode,
+            playback: { prev: () => setCurrentSong(queue[Math.max(0, queue.indexOf(currentSong!) - 1)]),
+                next: () => setCurrentSong(queue[(queue.indexOf(currentSong!) + 1) % queue.length]),
+                toggleLoop: () => setLoopMode(value => value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'),
+                shuffleQueue: () => setSongs(value => [...value].reverse()), toggleSongLike: () => {}, isSongLiked: false, isFmMode: false },
+            invokeCommandById: setCommand, canInvokeCommandById: () => true,
+        }} queue={songs} currentSong={currentSong} playerState={PlayerState.PLAYING}
             currentTime={time} playbackDuration={180} canTogglePlayback isDaylight={false}
             onBack={() => {}} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />

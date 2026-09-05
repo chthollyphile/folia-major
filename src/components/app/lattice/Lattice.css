@@ -63,6 +63,16 @@
     contain: layout paint;
 }
 
+/* An overlay border stays visible above artwork without changing layout or the focus ring. */
+.lattice-poster.is-current::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    border: 3px solid var(--text-accent, var(--text-primary, #fff));
+    pointer-events: none;
+}
+
 .lattice-poster:hover {
     z-index: 3;
     filter: saturate(1.08) brightness(1.05);
@@ -112,7 +122,10 @@
 }
 
 .lattice-poster.is-expanded .lattice-poster-shade {
-    background: linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 52%, rgba(0, 0, 0, 0.08));
+    /* The bottom band is what keeps the background-less playback chrome readable. */
+    background:
+        linear-gradient(0deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.62) 14%, rgba(0, 0, 0, 0.26) 30%, rgba(0, 0, 0, 0) 46%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 52%, rgba(0, 0, 0, 0.08));
 }
 
 .lattice-poster.is-expanded .lattice-poster-copy {
@@ -135,7 +148,7 @@
 .lattice-poster-controls {
     position: absolute;
     right: 24px;
-    bottom: 25px;
+    bottom: 28px;
     left: 32px;
     z-index: 2;
 }

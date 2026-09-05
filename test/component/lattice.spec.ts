@@ -273,15 +273,32 @@ test('chrome has three quiet controls at rest and reveals details on hover witho
     await wall.screenshot({ path: 'test-results/lattice-chrome-rest.png' });
     await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
     await expect(chrome).toHaveClass(/is-revealed/);
-    await expect(chrome.getByRole('button')).toHaveCount(3);
+    await expect(chrome.getByRole('button')).toHaveCount(6);
+    expect(await chrome.locator('.lattice-chrome-actions button').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action'))))
+        .toEqual(['prev', 'loop', 'lyrics-timeline', 'next']);
+    await expect(chrome.locator('[data-action=prev]')).toBeVisible();
+    await expect(chrome.locator('[data-action=next]')).toBeVisible();
+    await expect(chrome.locator('[data-action=loop]')).toBeVisible();
+    await expect(chrome.locator('strong')).toHaveCount(0);
     await page.waitForTimeout(250);
     const after = (await input.boundingBox())!;
     expect(after.x).toBeCloseTo(before.x, 0);
     expect(after.y).toBeCloseTo(before.y, 0);
     expect(after.width).toBeCloseTo(before.width, 0);
+    const chromeBox = (await chrome.boundingBox())!;
+    const copyBox = (await wall.locator('.is-expanded .lattice-poster-copy').boundingBox())!;
+    expect(chromeBox.x).toBeCloseTo(copyBox.x, 0);
+    const posterBox = (await wall.locator('.is-expanded').boundingBox())!;
+    const close = wall.locator('.lattice-poster-close');
+    const closeBox = (await close.boundingBox())!;
+    expect(closeBox.x).toBeGreaterThan(posterBox.x + posterBox.width * 0.8);
+    expect(closeBox.y).toBeLessThan(posterBox.y + posterBox.height * 0.15);
+    await expect(chrome.locator('.lattice-poster-close')).toHaveCount(0);
     await wall.screenshot({ path: 'test-results/lattice-chrome-revealed.png' });
     await page.mouse.move(0, 0);
     await expect(chrome).not.toHaveClass(/is-revealed/);
+    await close.click();
+    await expect(wall.locator('.is-expanded')).toHaveCount(0);
 });
 
 test('touch taps reveal and dismiss chrome, while a touch drag leaves it collapsed', async ({ mount, page }) => {
@@ -314,4 +331,39 @@ test('the player shortcut remains reachable on a narrow touch screen', async ({ 
     expect(shortcutBox.width).toBeGreaterThanOrEqual(44);
     expect(shortcutBox.height).toBeGreaterThanOrEqual(44);
     await wall.screenshot({ path: 'test-results/lattice-chrome-mobile.png' });
+});
+
+test('expanded chrome operates next, previous and all three loop modes', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const chrome = wall.locator('.lattice-chrome');
+    await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
+    await chrome.getByRole('button', { name: 'Next track', exact: true }).click();
+    await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 1 · Artist');
+    await expectExpandedCentered(wall);
+    await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
+    await chrome.getByRole('button', { name: 'Previous track', exact: true }).click();
+    await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
+    await expectExpandedCentered(wall);
+    for (const mode of ['one', 'off', 'all']) {
+        await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
+        await chrome.getByRole('button', { name: 'Loop mode', exact: true }).click();
+        await expect(wall.locator('[data-loop]')).toHaveAttribute('data-loop', mode);
+        await expect(chrome.locator('[data-action=loop]')).toHaveAttribute('aria-pressed', String(mode !== 'off'));
+    }
+});
+
+test('expanded chrome uses the configured main-bar slot to open volume', async ({ mount, page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('player_control_slot_primary', 'prev');
+        localStorage.setItem('player_control_slot_secondary', 'volume');
+    });
+    const wall = await mount('lattice');
+    await settle(page);
+    await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
+    expect(await wall.locator('.lattice-chrome-actions button').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action'))))
+        .toEqual(['prev', 'prev', 'volume', 'next']);
+    await wall.locator('.lattice-chrome [data-action=volume]').click();
+    await expect(wall.locator('[data-command]')).toHaveAttribute('data-command', 'playback-volume');
+    await expect(wall.locator('.lattice-chrome [data-action=lyrics-timeline]')).toHaveCount(0);
 });

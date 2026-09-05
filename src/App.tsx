@@ -2591,6 +2591,10 @@ export default function App() {
                 <div className="absolute inset-0 z-10 pointer-events-auto">
                     <Suspense fallback={<div className="absolute inset-0 bg-[#070707]" />}>
                         <Lattice
+                            controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
+                                invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
+                                isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
+                            lyrics={commandPaletteContext.shared.lyrics}
                             currentSong={displaySong}
                             playerState={displayPlayerState}
                             currentTime={currentTime}
