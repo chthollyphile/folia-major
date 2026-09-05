@@ -1,19 +1,88 @@
-/* Only placement. The control itself is SlideActionButton, styled like the grids' action button. */
 .lattice-tools {
     position: absolute;
     right: 24px;
     bottom: 24px;
     z-index: 30;
-    display: flex;
-    justify-content: flex-end;
-    width: 80px;
     color: var(--text-primary, #f7f4ee);
 }
 
-/* The wall squares every corner inside it; its two round chrome buttons are the exception. */
-.lattice-tools button,
-.lattice-tools .rounded-full {
-    border-radius: 999px !important;
+.lattice-tools-panel {
+    position: absolute;
+    right: 0;
+    bottom: 64px;
+    display: flex;
+    width: min(320px, calc(100vw - 48px));
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 24px;
+    background: rgb(0 0 0 / 40%);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
+    backdrop-filter: blur(24px);
 }
 
-@media (max-width: 640px) { .lattice-tools { right: 16px; bottom: 16px; } }
+.lattice-tools.is-daylight .lattice-tools-panel {
+    border-color: rgb(0 0 0 / 7%);
+    background: rgb(255 255 255 / 62%);
+    box-shadow: 0 24px 64px rgb(42 35 27 / 18%);
+}
+
+.lattice-tools-action {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 160ms ease, opacity 160ms ease;
+}
+
+.lattice-tools-action:hover,
+.lattice-tools-action:focus-visible {
+    background: rgb(255 255 255 / 10%);
+}
+
+.lattice-tools.is-daylight .lattice-tools-action:hover,
+.lattice-tools.is-daylight .lattice-tools-action:focus-visible {
+    background: rgb(0 0 0 / 7%);
+}
+
+.lattice-tools-action:focus-visible,
+.lattice-tools button:focus-visible {
+    outline: 2px solid var(--text-accent, currentColor);
+    outline-offset: 2px;
+}
+
+.lattice-tools-action:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.lattice-tools-action:disabled:hover { background: transparent; }
+.lattice-tools-action svg { width: 19px; height: 19px; flex: 0 0 auto; }
+
+.lattice-tools-action kbd {
+    margin-left: auto;
+    padding: 2px 7px;
+    border: 1px solid currentColor;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.42;
+}
+
+@media (max-width: 640px) {
+    .lattice-tools { right: 16px; bottom: 16px; }
+    .lattice-tools-panel { width: min(320px, calc(100vw - 32px)); }
+}

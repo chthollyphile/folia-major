@@ -813,6 +813,8 @@ export default {
     "latticeBack": "Kembali",
     "latticePlay": "PUTAR",
     "latticeFocusCurrent": "Fokus lagu saat ini",
+    "latticeTools": "Alat Lattice",
+    "latticeOpenQueueCommand": "Buka perintah antrean",
     "latticePlaybackControls": "Kontrol pemutaran",
     "latticeOpenPlayer": "BUKA PEMUTAR",
     "latticeClose": "Tutup poster",

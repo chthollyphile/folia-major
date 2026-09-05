@@ -31,7 +31,8 @@
     --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 25%);
 }
 
-.lattice-root * {
+/* Poster content stays square, while independent utility surfaces keep their own component shape. */
+.lattice-root *:not(.lattice-tools *) {
     border-radius: 0 !important;
 }
 

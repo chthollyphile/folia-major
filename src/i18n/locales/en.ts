@@ -816,6 +816,8 @@ export default {
     "latticeBack": "Back",
     "latticePlay": "PLAY",
     "latticeFocusCurrent": "Focus current song",
+    "latticeTools": "Lattice tools",
+    "latticeOpenQueueCommand": "Open queue command",
     "latticePlaybackControls": "Playback controls",
     "latticeOpenPlayer": "OPEN PLAYER",
     "latticeClose": "Close poster",

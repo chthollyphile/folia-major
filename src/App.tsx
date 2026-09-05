@@ -2623,7 +2623,7 @@ export default function App() {
                 onClick={handleContainerClick}
             >
                 <PlayerBottomBarLayoutContext.Provider value={currentView === 'player'}>
-                    <VisualizerRenderer {...visualizerRendererModel} />
+                    {currentView !== 'lattice' && <VisualizerRenderer {...visualizerRendererModel} />}
                 </PlayerBottomBarLayoutContext.Provider>
             </div>
 

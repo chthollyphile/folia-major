@@ -815,6 +815,8 @@ export default {
     "latticeBack": "返回",
     "latticePlay": "播放",
     "latticeFocusCurrent": "聚焦当前歌曲",
+    "latticeTools": "Lattice 工具",
+    "latticeOpenQueueCommand": "打开队列命令",
     "latticePlaybackControls": "播放控制",
     "latticeOpenPlayer": "打开播放器",
     "latticeClose": "收起海报",
