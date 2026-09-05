@@ -117,7 +117,7 @@
 
 .lattice-poster.is-expanded .lattice-poster-copy {
     right: 32px;
-    bottom: 104px;
+    bottom: 152px;
     left: 32px;
 }
 
@@ -139,53 +139,6 @@
     left: 32px;
     z-index: 2;
 }
-
-.lattice-chrome {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: 12px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(0, 0, 0, 0.52);
-    backdrop-filter: blur(18px);
-}
-
-.lattice-transport-button {
-    display: grid;
-    width: 48px;
-    height: 48px;
-    flex: 0 0 48px;
-    place-items: center;
-    border: 0;
-    color: var(--bg-color);
-    background: var(--text-primary);
-}
-
-.lattice-transport-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.lattice-transport-button svg { width: 20px; }
-
-.lattice-progress {
-    min-width: 180px;
-    flex: 1 1 360px;
-}
-
-.lattice-poster-close {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    color: #fff;
-    background: rgba(0, 0, 0, 0.42);
-}
-
-.lattice-poster-close svg { width: 17px; }
 
 .lattice-poster-badge {
     position: absolute;
@@ -288,7 +241,7 @@
 
 .lattice-hint {
     position: absolute;
-    right: 30px;
+    right: 86px;
     bottom: 30px;
     z-index: 4;
     display: grid;
@@ -304,19 +257,6 @@
 .lattice-hint span { grid-row: 1 / span 2; width: 22px; height: 22px; border: 1px solid currentColor; opacity: 0.68; }
 .lattice-hint strong { font-size: 10px; letter-spacing: 0.16em; }
 .lattice-hint small { font-size: 8px; letter-spacing: 0.08em; opacity: 0.55; }
-
-.lattice-secondary-action {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 0 18px;
-    font-size: 11px;
-    font-weight: 850;
-    letter-spacing: 0.1em;
-}
-
-.lattice-secondary-action { border: 1px solid rgba(255, 255, 255, 0.32); color: #fff; background: rgba(0, 0, 0, 0.3); }
 
 .lattice-empty {
     position: absolute;
@@ -340,8 +280,6 @@
     .lattice-source { min-width: 0; }
     .lattice-source small { display: none; }
     .lattice-poster.is-expanded .lattice-poster-copy strong { font-size: 44px; }
-    .lattice-secondary-action { display: none; }
-    .lattice-progress { min-width: 120px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

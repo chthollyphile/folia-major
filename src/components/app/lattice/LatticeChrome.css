@@ -1,0 +1,57 @@
+/* Minimal playback overlay: the same seek input stays mounted in both disclosure states. */
+.lattice-chrome {
+    --lattice-chrome-ink: var(--text-primary, #fff);
+    color: var(--lattice-chrome-ink);
+    width: 100%;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--bg-color, #111) 64%, transparent);
+    backdrop-filter: blur(16px);
+    transition: background 200ms ease;
+}
+.lattice-chrome.is-revealed {
+    background: color-mix(in srgb, var(--bg-color, #111) 88%, transparent);
+}
+.lattice-chrome-details {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 200ms ease, opacity 160ms ease;
+}
+.lattice-chrome.is-revealed .lattice-chrome-details { grid-template-rows: 1fr; opacity: 1; }
+.lattice-chrome-heading { min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.lattice-chrome-heading > div { min-width: 0; display: grid; gap: 3px; }
+.lattice-chrome-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 500; }
+.lattice-chrome-heading span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; opacity: 0.5; }
+.lattice-chrome-transport { display: flex; align-items: center; gap: 14px; min-height: 44px; }
+.lattice-chrome button { display: grid; place-items: center; border: 0; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
+.lattice-transport-button, .lattice-secondary-action { width: 44px; height: 44px; }
+.lattice-transport-button svg { width: 18px; height: 18px; }
+.lattice-secondary-action { opacity: 0.6; }
+.lattice-chrome.is-revealed .lattice-transport-button { background: var(--lattice-chrome-ink); color: var(--bg-color, #111); }
+.lattice-poster-close { width: 36px; height: 40px; opacity: 0.5; }
+.lattice-chrome button:hover { opacity: 1; }
+.lattice-chrome button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.lattice-progress { min-width: 0; flex: 1; }
+.lattice-progress > div { gap: 10px; }
+.lattice-progress > div > span { width: 42px; font-size: 14px; opacity: 0; overflow: hidden; transition: opacity 180ms ease; }
+.lattice-chrome.is-revealed .lattice-progress > div { gap: 10px; }
+.lattice-chrome.is-revealed .lattice-progress > div > span { width: 42px; opacity: 0.55; }
+.lattice-progress > div > div { height: 2px; transition: height 180ms ease; }
+.lattice-chrome.is-revealed .lattice-progress > div > div { height: 4px; }
+/* Keep the thin progress line's hit target usable with both fingers and a mouse. */
+.lattice-progress input[type=range] { top: 50%; height: 36px; transform: translateY(-50%); }
+@media (prefers-reduced-motion: reduce) {
+    .lattice-chrome, .lattice-chrome-details, .lattice-progress > div > span, .lattice-progress > div > div { transition: none; }
+}
+@media (max-width: 640px) {
+    /* Compensate for the wall's mobile camera scale so touch targets stay finger-sized. */
+    .lattice-chrome { padding: 10px 12px; }
+    .lattice-chrome button { width: 86px; height: 86px; }
+    .lattice-chrome button svg { width: 30px; height: 30px; }
+    .lattice-chrome-transport { min-height: 86px; gap: 8px; }
+    .lattice-progress input[type=range] { height: 86px; }
+    .lattice-chrome .lattice-progress > div > span { width: 56px; font-size: 20px; }
+    .lattice-chrome-heading strong { font-size: 23px; }
+    .lattice-chrome-heading span { font-size: 18px; }
+    .lattice-root .lattice-poster.is-expanded .lattice-poster-copy { bottom: 230px; }
+}

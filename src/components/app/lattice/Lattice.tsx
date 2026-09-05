@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState, type SongResult } from '../../../types';
 import PosterWall from './PosterWall';
+import LatticePanel from './LatticePanel';
 import { buildLatticeTiles } from './latticeModel';
 import './Lattice.css';
 
@@ -55,6 +56,7 @@ export default function Lattice({
                 onSeek={onSeek}
                 onOpenPlayer={onOpenPlayer}
             />
+            <LatticePanel />
             <header className="lattice-header">
                 <button type="button" className="lattice-back" onClick={onBack} aria-label={t('home.latticeBack')}>
                     <ArrowLeft />

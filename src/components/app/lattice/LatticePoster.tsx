@@ -4,6 +4,7 @@ import type { KeyboardEvent, MouseEvent, MutableRefObject } from 'react';
 import { PlayerState, type SongResult } from '../../../types';
 import type { ReflowTile } from './layout';
 import type { LatticeTile } from './latticeModel';
+import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
 
 // Renders one poster and its expanded Player Chrome controls.
@@ -55,25 +56,35 @@ export default function LatticePoster({
     onClose,
 }: LatticePosterProps) {
     const { t } = useTranslation();
+    const chrome = useLatticeChromeDisclosure(expanded);
 
     const handleClick = (event: MouseEvent<HTMLElement>) => {
-        if (event.target instanceof HTMLElement && event.target.closest('button')) return;
+        if (event.target instanceof Element && event.target.closest('button, input')) return;
         if (didDragRef.current) {
             didDragRef.current = false;
             return;
         }
         if (!expanded) onExpand();
+        else chrome.toggleTouch();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-        if ((event.key === 'Enter' || event.key === ' ') && !expanded) {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            onExpand();
+            if (!expanded) onExpand();
+            else chrome.toggleKeyboard();
         }
     };
 
     return (
         <motion.article
+            ref={chrome.articleRef}
+            onPointerEnter={chrome.onPointerEnter}
+            onPointerLeave={chrome.onPointerLeave}
+            onPointerDownCapture={chrome.onPointerDownCapture}
+            onFocusCapture={chrome.onFocusCapture}
+            onBlurCapture={chrome.onBlurCapture}
             key={instanceId}
             className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''}`}
             data-instance-id={instanceId}
@@ -105,6 +116,7 @@ export default function LatticePoster({
                     transition={{ delay: reducedMotion ? 0 : 0.14, duration: reducedMotion ? 0 : 0.24 }}
                 >
                     <LatticePlaybackControls
+                        revealed={chrome.revealed}
                         tile={tile}
                         currentSong={currentSong}
                         playerState={playerState}

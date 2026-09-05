@@ -1,14 +1,16 @@
 import { motionValue, type MotionValue } from 'framer-motion';
-import { Pause, Play, X } from 'lucide-react';
+import { ArrowUpRight, Pause, Play, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ProgressBar from '../../ProgressBar';
 import { PlayerState, type SongResult } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import type { LatticeTile } from './latticeModel';
+import './LatticeChrome.css';
 
 // Adapts the shared Player Chrome transport and progress bar to one expanded wall tile.
 
 type LatticePlaybackControlsProps = {
+    revealed: boolean;
     tile: LatticeTile;
     currentSong: SongResult | null;
     playerState: PlayerState;
@@ -26,6 +28,7 @@ const idleTime = motionValue(0);
 const ignoreSeek = () => { };
 
 export default function LatticePlaybackControls({
+    revealed,
     tile,
     currentSong,
     playerState,
@@ -49,12 +52,22 @@ export default function LatticePlaybackControls({
         : Math.max(0, tile.song.durationMs / 1000);
 
     return (
-        <div className="lattice-chrome">
+        <div className={`lattice-chrome ${revealed ? 'is-revealed' : ''}`} role="group" aria-label={t('home.latticePlaybackControls')}>
+            <div className="lattice-chrome-details" inert={!revealed} aria-hidden={!revealed}>
+                <div className="lattice-chrome-heading">
+                    <div><strong>{tile.title}</strong><span>{tile.artist}</span></div>
+                    <button type="button" className="lattice-poster-close" onClick={onClose} aria-label={t('home.latticeClose')} title={t('home.latticeClose')}>
+                        <X size={16} />
+                    </button>
+                </div>
+            </div>
+            <div className="lattice-chrome-transport">
             <button
                 type="button"
                 className="lattice-transport-button"
                 onClick={() => canControlCurrent ? onTogglePlayback() : onPlay(tile)}
                 aria-label={isPlaying ? t('player.pause') : t('player.play')}
+                title={isPlaying ? t('player.pause') : t('player.play')}
             >
                 {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
             </button>
@@ -63,19 +76,18 @@ export default function LatticePlaybackControls({
                     currentTime={canControlCurrent ? currentTime : idleTime}
                     duration={duration}
                     onSeek={canControlCurrent ? onSeek : ignoreSeek}
-                    primaryColor="var(--text-primary)"
-                    secondaryColor="var(--text-secondary)"
-                    trackColor="color-mix(in srgb, var(--text-primary) 20%, transparent)"
+                    primaryColor="var(--lattice-chrome-ink)"
+                    secondaryColor="var(--lattice-chrome-ink)"
+                    trackColor="color-mix(in srgb, var(--lattice-chrome-ink) 20%, transparent)"
                     disabled={!canControlCurrent}
                     edgeStyle="square"
                 />
             </div>
-            <button type="button" className="lattice-secondary-action" onClick={onOpenPlayer}>
-                {t('home.latticeOpenPlayer')}
+            <button type="button" className="lattice-secondary-action" onClick={onOpenPlayer}
+                aria-label={t('home.latticeOpenPlayer')} title={t('home.latticeOpenPlayer')}>
+                <ArrowUpRight size={20} />
             </button>
-            <button type="button" className="lattice-poster-close" onClick={onClose} aria-label={t('home.latticeClose')}>
-                <X />
-            </button>
+            </div>
         </div>
     );
 }

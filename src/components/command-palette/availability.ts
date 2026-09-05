@@ -71,6 +71,7 @@ export const matchesCommandScope = (scope: CommandScope | undefined, context?: C
         return true;
     }
 
+    if (scope === 'lattice') return context.scope.view === 'lattice';
     return scope === 'player-surface'
         ? context.scope.view === 'player'
         : context.scope.filter !== null;

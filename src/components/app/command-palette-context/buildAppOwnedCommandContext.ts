@@ -1,3 +1,7 @@
+import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
+import type { SongResult } from '../../../types';
+import { useAppViewStore } from '../../../stores/useAppViewStore';
+import { focusLatticeCurrentSong, useLatticeControlsStore } from '../../../stores/useLatticeControlsStore';
 import type { CommandPaletteContext } from '../../command-palette/types';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
@@ -20,12 +24,14 @@ export type SharedCommandContextDeps = Pick<
 
 export type PlaybackCommandContextDeps = Pick<
     CommandPaletteContext['playback'],
-    | 'previewVolume' | 'togglePlay' | 'toggleLoop' | 'next' | 'prev' | 'queue' | 'playSong'
+    | 'previewVolume' | 'togglePlay' | 'toggleLoop' | 'next' | 'prev' | 'queue'
     | 'shuffleQueue' | 'clearQueue' | 'applyQueueBatchOperation' | 'removeQueueSong'
     | 'moveQueueSongToNext' | 'moveQueueSongToEnd' | 'setReplayGainMode' | 'isFmMode'
     | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'runAutoMatchBestLyric'
     | 'toggleSongLike' | 'isSongLiked'
->;
+> & {
+    playSong: (song: SongResult, queue?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void | Promise<void>;
+};
 
 export type NavigationCommandContextDeps = Pick<
     CommandPaletteContext['navigation'],
@@ -51,6 +57,10 @@ export const buildPlaybackCommandContext = (
     const audio = useAudioSettingsStore.getState();
     return {
         ...deps,
+        // Queue selection follows the surface that owns playback at execution time.
+        playSong: (song, queue) => deps.playSong(song, queue, false, {
+            shouldNavigateToPlayer: useAppViewStore.getState().view !== 'lattice',
+        }),
         volume: audio.volume,
         isMuted: audio.isMuted,
         setVolume: audio.handleSetVolume,
@@ -67,6 +77,8 @@ export const buildNavigationCommandContext = (
     deps: NavigationCommandContextDeps,
 ): CommandPaletteContext['navigation'] => ({
     ...deps,
+    focusLatticeCurrentSong,
+    canFocusLatticeCurrentSong: Boolean(useLatticeControlsStore.getState().focusCurrentSong),
     isWallpaperMode: useDesktopSettingsStore.getState().wallpaperMode,
 });
 

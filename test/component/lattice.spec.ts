@@ -237,3 +237,81 @@ test('playback follow uses the expanded card position after reflow', async ({ mo
     await settle(page);
     await expectExpandedCentered(wall);
 });
+
+test('wall panel focuses the current song and Escape only dismisses the panel', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 600, deltaY: 400 });
+    const toggle = wall.getByRole('button', { name: 'Wall controls', exact: true });
+    await toggle.click();
+    await expect(wall.getByRole('dialog', { name: 'Wall controls' })).toBeVisible();
+    await wall.screenshot({ path: 'test-results/lattice-panel.png' });
+    await page.keyboard.press('Escape');
+    await expect(wall.getByRole('dialog')).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+    await expect(wall.locator('.is-expanded')).toHaveCount(1);
+    await toggle.click();
+    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
+    await expectExpandedCentered(wall);
+    await expect(wall.getByRole('dialog')).toHaveCount(0);
+    await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
+    await wall.getByRole('button', { name: 'Clear queue', exact: true }).click();
+    await toggle.click();
+    await expect(wall.getByRole('button', { name: 'Focus current song', exact: true })).toBeDisabled();
+});
+
+test('chrome has three quiet controls at rest and reveals details on hover without moving seek targets', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    await page.mouse.move(0, 0);
+    const chrome = wall.locator('.lattice-chrome');
+    await expect(chrome).not.toHaveClass(/is-revealed/);
+    await expect(chrome.getByRole('button')).toHaveCount(2);
+    await expect(chrome.getByRole('slider')).toHaveCount(1);
+    const input = chrome.getByRole('slider');
+    const before = (await input.boundingBox())!;
+    await wall.screenshot({ path: 'test-results/lattice-chrome-rest.png' });
+    await wall.locator('.is-expanded').hover({ position: { x: 100, y: 80 } });
+    await expect(chrome).toHaveClass(/is-revealed/);
+    await expect(chrome.getByRole('button')).toHaveCount(3);
+    await page.waitForTimeout(250);
+    const after = (await input.boundingBox())!;
+    expect(after.x).toBeCloseTo(before.x, 0);
+    expect(after.y).toBeCloseTo(before.y, 0);
+    expect(after.width).toBeCloseTo(before.width, 0);
+    await wall.screenshot({ path: 'test-results/lattice-chrome-revealed.png' });
+    await page.mouse.move(0, 0);
+    await expect(chrome).not.toHaveClass(/is-revealed/);
+});
+
+test('touch taps reveal and dismiss chrome, while a touch drag leaves it collapsed', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const session = await page.context().newCDPSession(page);
+    const box = (await wall.locator('.is-expanded').boundingBox())!;
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 3, id: 0 };
+    for (const revealed of [true, false]) {
+        await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+        await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await expect(wall.locator('.lattice-chrome')).toHaveClass(revealed ? /is-revealed/ : /^lattice-chrome\s*$/);
+    }
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...point, x: point.x + 80 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(wall.locator('.lattice-chrome')).not.toHaveClass(/is-revealed/);
+    await session.detach();
+});
+
+test('the player shortcut remains reachable on a narrow touch screen', async ({ mount, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const wall = await mount('lattice');
+    await settle(page);
+    await wall.getByRole('button', { name: 'Wall controls', exact: true }).click();
+    await wall.getByRole('button', { name: 'Focus current song', exact: true }).click();
+    await expectExpandedCentered(wall);
+    await expect(wall.locator('.lattice-secondary-action')).toBeVisible();
+    const shortcutBox = (await wall.locator('.lattice-secondary-action').boundingBox())!;
+    expect(shortcutBox.width).toBeGreaterThanOrEqual(44);
+    expect(shortcutBox.height).toBeGreaterThanOrEqual(44);
+    await wall.screenshot({ path: 'test-results/lattice-chrome-mobile.png' });
+});

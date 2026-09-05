@@ -63,6 +63,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
         navigateToHome: vi.fn(),
         navigateToPlayer: vi.fn(),
         navigateToLattice: vi.fn(),
+            focusLatticeCurrentSong: vi.fn(() => true),
+            canFocusLatticeCurrentSong: true,
             setHomeViewTab: vi.fn(),
             toggleBrowserFullscreen: vi.fn(async () => true),
             toggleRemoteControlWindow: vi.fn(async () => true),
@@ -998,5 +1000,24 @@ describe('play and pause commands', () => {
     it('starts paused playback and leaves Pause alone', () => {
         expect(execute('playback-play', PlayerState.PAUSED)).toHaveBeenCalled();
         expect(execute('playback-pause', PlayerState.PAUSED)).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('lattice focus command', () => {
+    it.each(['home', 'player', 'lattice'] as const)('gates focus to lattice from %s', view => {
+        const context = createContext({ scope: { view, filter: null } });
+        const ids = getAvailableCommandPaletteCommands(context).map(command => command.id);
+        expect(ids.includes('lattice-focus-current')).toBe(view === 'lattice');
+    });
+    it('uses the registered wall action and is unavailable without a current queue song', async () => {
+        const focusLatticeCurrentSong = vi.fn(() => true);
+        const context = createContext({ scope: { view: 'lattice', filter: null }, navigation: { focusLatticeCurrentSong } });
+        const command = getAvailableCommandPaletteCommands(context).find(command => command.id === 'lattice-focus-current')!;
+        expect(await command.execute('', context)).toBe(true);
+        expect(focusLatticeCurrentSong).toHaveBeenCalledOnce();
+        expect(getAvailableCommandPaletteCommands(createContext({
+            scope: { view: 'lattice', filter: null }, navigation: { canFocusLatticeCurrentSong: false },
+        })).some(command => command.id === 'lattice-focus-current')).toBe(false);
     });
 });

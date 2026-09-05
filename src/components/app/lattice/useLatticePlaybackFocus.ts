@@ -1,4 +1,5 @@
-import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useLatticeControlsStore } from '../../../stores/useLatticeControlsStore';
 import type { SongResult } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { layoutExpandedBlock, locateNearestInstance, type LatticeGeometry, type QueueInstance, type WallMetrics } from './layout';
@@ -34,12 +35,8 @@ export const useLatticePlaybackFocus = ({
     const lastFocusedSongKeyRef = useRef<string | null>(null);
 
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-    useEffect(() => {
-        if (!currentSongKey) {
-            lastFocusedSongKeyRef.current = null;
-            return;
-        }
-        if (lastFocusedSongKeyRef.current === currentSongKey) return;
+    const focusCurrentSong = useCallback(() => {
+        if (!currentSongKey) return;
         const queueIndex = tiles.findIndex(tile => tile.id === currentSongKey);
         if (queueIndex < 0) return;
         // The song is drawn in every cell; jump to whichever copy is closest to what is on screen.
@@ -53,11 +50,24 @@ export const useLatticePlaybackFocus = ({
         if (!instance) return;
 
         const tile = tiles[queueIndex];
-        lastFocusedSongKeyRef.current = currentSongKey;
         setShowHint(false);
         setFocused(instance);
         setActivePoster({ instance, tile });
         const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, metrics).get(instance.instanceId);
         if (expandedRect) panTo(expandedRect);
     }, [currentSongKey, geometry, getViewportCenter, metrics, panTo, setActivePoster, setFocused, setShowHint, tiles]);
+
+    useEffect(() => {
+        if (!currentSongKey) {
+            lastFocusedSongKeyRef.current = null;
+            return;
+        }
+        if (lastFocusedSongKeyRef.current === currentSongKey || !tiles.some(tile => tile.id === currentSongKey)) return;
+        lastFocusedSongKeyRef.current = currentSongKey;
+        focusCurrentSong();
+    }, [currentSongKey, focusCurrentSong, tiles]);
+
+    const canFocus = Boolean(currentSongKey && tiles.some(tile => tile.id === currentSongKey));
+    useEffect(() => useLatticeControlsStore.getState().registerFocus(canFocus ? focusCurrentSong : null), [canFocus, focusCurrentSong]);
+
 };

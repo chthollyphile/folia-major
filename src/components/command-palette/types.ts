@@ -32,7 +32,7 @@ export type CommandPaletteGroup = 'search' | 'settings' | 'navigation' | 'panel'
  * only offer a global shortcut a command that works from anywhere, and anything else that asks
  * "would this be reachable if I were somewhere else".
  */
-export type CommandScope = 'player-surface' | 'filtering-surface';
+export type CommandScope = 'player-surface' | 'filtering-surface' | 'lattice';
 
 export type CommandPaletteSearchSource = SearchSource;
 
@@ -165,6 +165,8 @@ export type CommandPaletteNavigationContext = {
     navigateToHome: () => void;
     navigateToPlayer: () => void;
     navigateToLattice: () => void;
+    focusLatticeCurrentSong: () => boolean;
+    canFocusLatticeCurrentSong: boolean;
     setHomeViewTab: (tab: HomeViewTab) => void;
     toggleBrowserFullscreen: () => Promise<boolean>;
     toggleRemoteControlWindow: () => Promise<boolean>;

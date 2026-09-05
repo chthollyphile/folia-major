@@ -1,0 +1,44 @@
+/* Scoped, quiet utility panel above the wall's interactive surface. */
+.lattice-tools {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    z-index: 30;
+    color: var(--text-primary, #f7f4ee);
+}
+.lattice-panel-toggle,
+.lattice-panel button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+}
+.lattice-panel-toggle {
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    background: color-mix(in srgb, var(--bg-color, #111) 78%, transparent);
+    backdrop-filter: blur(20px);
+    opacity: 0.7;
+    transition: opacity 160ms ease;
+}
+.lattice-panel-toggle:hover, .lattice-panel-toggle:focus-visible { opacity: 1; }
+.lattice-panel {
+    width: min(280px, calc(100vw - 48px));
+    margin-bottom: 12px;
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--text-primary, #fff) 12%, transparent);
+    background: color-mix(in srgb, var(--bg-color, #111) 92%, transparent);
+    backdrop-filter: blur(24px);
+    box-shadow: 0 12px 36px rgb(0 0 0 / 16%);
+}
+.lattice-panel header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; font-size: 12px; }
+.lattice-panel header button { width: 32px; height: 32px; background: transparent; opacity: 0.6; }
+.lattice-panel .lattice-focus-action { width: 100%; justify-content: flex-start; gap: 12px; padding: 14px 10px; font-size: 13px; background: transparent; }
+.lattice-panel button:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+.lattice-panel button:disabled { opacity: 0.35; cursor: default; }
+.lattice-panel-space { min-height: 52px; }
+.lattice-panel button:focus-visible, .lattice-panel-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 640px) { .lattice-tools { right: 16px; bottom: 16px; } }
