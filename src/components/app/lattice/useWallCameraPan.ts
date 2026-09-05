@@ -31,6 +31,11 @@ export const useWallCameraPan = ({
 }: WallCameraPanOptions) => {
     const animationRef = useRef<{ stop: () => void } | null>(null);
 
+    const stopPan = useCallback(() => {
+        animationRef.current?.stop();
+        animationRef.current = null;
+    }, []);
+
     const panTo = useCallback((rect: WallRect) => {
         animationRef.current?.stop();
         const from = cameraRef.current;
@@ -63,5 +68,5 @@ export const useWallCameraPan = ({
 
     useEffect(() => () => animationRef.current?.stop(), []);
 
-    return panTo;
+    return { panTo, stopPan, animationRef };
 };

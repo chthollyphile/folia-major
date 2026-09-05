@@ -10,13 +10,13 @@ import {
     type WallMetrics,
 } from './layout';
 import { useWallCameraPan, type LatticeCamera } from './useWallCameraPan';
+import { useLatticePosterSelection } from './useLatticePosterSelection';
 import { useWallKeyboardFocus } from './useWallKeyboardFocus';
 import { useWallPointerPan } from './useWallPointerPan';
 import type { LatticeTile } from './latticeModel';
 import LatticePoster from './LatticePoster';
 import {
     useLatticePlaybackFocus,
-    type ActiveLatticePoster,
 } from './useLatticePlaybackFocus';
 
 // Draggable poster field: one greedily packed block template repeats over the queue.
@@ -71,11 +71,11 @@ export default function PosterWall({
     const viewportRef = useRef({ width: 1280, height: 720 });
     const frameRef = useRef<number | null>(null);
     const [bounds, setBounds] = useState<Bounds>(() => getWorldBounds(cameraRef.current, viewportRef.current));
-    const [activePoster, setActivePoster] = useState<ActiveLatticePoster | null>(null);
     const [showHint, setShowHint] = useState(true);
     const reducedMotion = useReducedMotion();
 
     const geometry = useMemo(() => getLatticeGeometry(tiles.length, METRICS), [tiles.length]);
+    const [activePoster, setActivePoster] = useLatticePosterSelection(tiles, geometry, METRICS);
 
     const applyCamera = useCallback((next: LatticeCamera, updateBounds = false) => {
         cameraRef.current = next;
@@ -100,6 +100,7 @@ export default function PosterWall({
         return () => {
             observer.disconnect();
             if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+            frameRef.current = null;
         };
     }, [applyCamera]);
 
@@ -127,7 +128,7 @@ export default function PosterWall({
         });
     }, []);
 
-    const panTo = useWallCameraPan({ cameraRef, viewportRef, reducedMotion, applyCamera, reserveBounds });
+    const { panTo, stopPan, animationRef } = useWallCameraPan({ cameraRef, viewportRef, reducedMotion, applyCamera, reserveBounds });
 
     const instances = useMemo(() => {
         const visible = layoutLattice(geometry, tiles.length, bounds, OVERSCAN, METRICS);
@@ -147,8 +148,13 @@ export default function PosterWall({
         };
     }, []);
 
-    const { didDragRef, onPointerDown, onPointerMove, onPointerUp, onWheel } = useWallPointerPan({
+    const { didDragRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture } = useWallPointerPan({
         applyCamera,
+        animationRef,
+        stopPan,
+        containerRef,
+        reducedMotion,
+        overscan: OVERSCAN,
         bounds,
         cameraRef,
         getWorldBounds,
@@ -163,7 +169,7 @@ export default function PosterWall({
             : new Map<string, { x: number; y: number; width: number; height: number }>()
     ), [activePoster, geometry, tiles.length]);
 
-    const { focused, setFocused, handleKeyDown } = useWallKeyboardFocus({
+    const { focused, setFocused, handleKeyDown, handleFocusCapture, handleBlurCapture } = useWallKeyboardFocus({
         activePoster,
         containerRef,
         geometry,
@@ -174,7 +180,7 @@ export default function PosterWall({
         rendered: layout,
         setActivePoster,
         setShowHint,
-        totalEntries: tiles.length,
+        tiles,
         worldRef,
     });
 
@@ -195,11 +201,17 @@ export default function PosterWall({
             className="lattice-field"
             tabIndex={-1}
             onKeyDown={handleKeyDown}
+            onFocusCapture={handleFocusCapture}
+            onBlurCapture={handleBlurCapture}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
+            onPointerCancel={onPointerCancel}
+            onLostPointerCapture={event => {
+                // Touch transfers implicit capture from the poster to the field when dragging.
+                if (event.target === event.currentTarget) onPointerCancel(event);
+            }}
+            onClickCapture={onClickCapture}
         >
             <div ref={worldRef} className="lattice-world">
                 {instances.map(instance => {
@@ -226,6 +238,9 @@ export default function PosterWall({
                                 setShowHint(false);
                                 setFocused(instance);
                                 setActivePoster({ instance, tile });
+                                // Expansion reflows both the position and size of the selected slot.
+                                const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, METRICS).get(instance.instanceId);
+                                if (expandedRect) panTo(expandedRect);
                             }}
                             onPlay={onPlay}
                             onTogglePlayback={onTogglePlayback}

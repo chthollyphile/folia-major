@@ -1,8 +1,7 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { SongResult } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
-import { EXPANSION_SPAN } from './blockTemplates';
-import { locateNearestInstance, type LatticeGeometry, type QueueInstance, type WallMetrics } from './layout';
+import { layoutExpandedBlock, locateNearestInstance, type LatticeGeometry, type QueueInstance, type WallMetrics } from './layout';
 import type { LatticeTile } from './latticeModel';
 
 // Follows discrete song changes; per-frame camera movement stays inside useWallCameraPan.
@@ -58,11 +57,7 @@ export const useLatticePlaybackFocus = ({
         setShowHint(false);
         setFocused(instance);
         setActivePoster({ instance, tile });
-        panTo({
-            x: instance.x,
-            y: instance.y,
-            width: EXPANSION_SPAN.cols * (metrics.cellSize + metrics.gap) - metrics.gap,
-            height: EXPANSION_SPAN.rows * (metrics.cellSize + metrics.gap) - metrics.gap,
-        });
+        const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, metrics).get(instance.instanceId);
+        if (expandedRect) panTo(expandedRect);
     }, [currentSongKey, geometry, getViewportCenter, metrics, panTo, setActivePoster, setFocused, setShowHint, tiles]);
 };

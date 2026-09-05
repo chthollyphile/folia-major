@@ -32,9 +32,11 @@
 .lattice-field {
     position: absolute;
     inset: 0;
-    overflow: hidden;
+    /* Camera transforms own the viewport; native focus scrolling must not add an offset. */
+    overflow: clip;
     cursor: grab;
     touch-action: none;
+    overscroll-behavior: none;
 }
 
 .lattice-field:active { cursor: grabbing; }

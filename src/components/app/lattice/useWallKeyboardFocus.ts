@@ -4,9 +4,9 @@ import {
     useCallback,
     useEffect,
     useRef,
-    useState,
     type Dispatch,
     type KeyboardEvent,
+    type FocusEvent,
     type RefObject,
     type SetStateAction,
 } from 'react';
@@ -16,6 +16,8 @@ import {
     findNearestInstance,
     type WallDirection,
 } from './wallNavigation';
+import { useLatticePosterSelection } from './useLatticePosterSelection';
+import type { LatticeTile } from './latticeModel';
 import type { ActiveLatticePoster } from './useLatticePlaybackFocus';
 
 // Keyboard layer for the wall: Escape collapses the open poster, arrows walk the focus.
@@ -38,7 +40,7 @@ type WallKeyboardFocusOptions = {
     panTo: (rect: { x: number; y: number; width: number; height: number }) => void;
     setActivePoster: Dispatch<SetStateAction<ActiveLatticePoster | null>>;
     setShowHint: Dispatch<SetStateAction<boolean>>;
-    totalEntries: number;
+    tiles: LatticeTile[];
     worldRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -53,16 +55,39 @@ export const useWallKeyboardFocus = ({
     rendered,
     setActivePoster,
     setShowHint,
-    totalEntries,
+    tiles,
     worldRef,
 }: WallKeyboardFocusOptions) => {
-    const [focused, setFocusedState] = useState<QueueInstance | null>(null);
+    const [selection, setSelection] = useLatticePosterSelection(tiles, geometry, metrics);
+    const focused = selection?.instance ?? null;
     // Held arrow keys fire faster than React re-renders, so the next step is computed from a ref;
     // reading state here would recompute the same hop from a value one render behind.
-    const focusedRef = useRef<QueueInstance | null>(null);
-    const setFocused = useCallback((instance: QueueInstance | null) => {
+    const focusedRef = useRef<QueueInstance | null>(focused);
+    focusedRef.current = focused;
+    const pendingFocusRef = useRef(false);
+    const focusWithinRef = useRef(false);
+    const previousTilesRef = useRef(tiles);
+    const adoptFocus = useCallback((instance: QueueInstance | null) => {
         focusedRef.current = instance;
-        setFocusedState(instance);
+        setSelection(current => current?.instance === instance ? current
+            : instance && tiles[instance.queueIndex] ? { instance, tile: tiles[instance.queueIndex] } : null);
+    }, [setSelection, tiles]);
+    const setFocused = useCallback((instance: QueueInstance | null) => {
+        pendingFocusRef.current = Boolean(instance);
+        adoptFocus(instance);
+    }, [adoptFocus]);
+
+    const handleFocusCapture = useCallback((event: FocusEvent<HTMLDivElement>) => {
+        focusWithinRef.current = true;
+        const node = event.target.closest<HTMLElement>('[data-instance-id]');
+        const instance = instances.find(item => item.instanceId === node?.dataset.instanceId);
+        if (!instance) return;
+        pendingFocusRef.current = false;
+        adoptFocus(instance);
+    }, [adoptFocus, instances]);
+
+    const handleBlurCapture = useCallback((event: FocusEvent<HTMLDivElement>) => {
+        focusWithinRef.current = event.currentTarget.contains(event.relatedTarget);
     }, []);
 
     const moveFocus = useCallback((direction: WallDirection) => {
@@ -71,14 +96,14 @@ export const useWallKeyboardFocus = ({
         if (!seed) return;
         // The first arrow press only adopts what is already on screen; later ones travel.
         const next = current
-            ? findAdjacentInstance(seed, direction, geometry, totalEntries, metrics, rendered)
+            ? findAdjacentInstance(seed, direction, geometry, tiles.length, metrics, rendered)
             : seed;
         if (!next) return;
 
         setShowHint(false);
         setFocused(next);
         panTo(rendered.get(next.instanceId) ?? next);
-    }, [geometry, getViewportCenter, instances, metrics, panTo, rendered, setFocused, setShowHint, totalEntries]);
+    }, [geometry, getViewportCenter, instances, metrics, panTo, rendered, setFocused, setShowHint, tiles.length]);
 
     const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -93,6 +118,8 @@ export const useWallKeyboardFocus = ({
             return;
         }
 
+        // Nested playback controls own their arrows (especially the native range input).
+        if (event.target instanceof Element && event.target.closest('.lattice-poster-controls')) return;
         const direction = ARROW_DIRECTIONS[event.key];
         if (!direction) return;
         event.preventDefault();
@@ -103,17 +130,21 @@ export const useWallKeyboardFocus = ({
     // Mirrors the focused index onto the DOM so the native ring, Enter/Space and screen readers
     // follow it. Depends on `instances` because culling may not have rendered the target yet.
     useEffect(() => {
-        if (!focused) return;
+        const queueChanged = previousTilesRef.current !== tiles;
+        previousTilesRef.current = tiles;
+        if (!focused || !(pendingFocusRef.current || (queueChanged && focusWithinRef.current))) return;
         const node = worldRef.current?.querySelector<HTMLElement>(
             `[data-instance-id="${focused.instanceId}"]`,
         );
-        if (node && document.activeElement !== node) node.focus({ preventScroll: true });
-    }, [focused, instances, worldRef]);
+        if (!node) return;
+        pendingFocusRef.current = false;
+        if (!node.contains(document.activeElement)) node.focus({ preventScroll: true });
+    }, [focused, instances, tiles, worldRef]);
 
     // The field itself has to hold focus, or arrow keys never reach this handler.
     useEffect(() => {
         containerRef.current?.focus({ preventScroll: true });
     }, [containerRef]);
 
-    return { focused, setFocused, handleKeyDown };
+    return { focused, setFocused, handleKeyDown, handleFocusCapture, handleBlurCapture };
 };
