@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import type { KeyboardEvent, MouseEvent, MutableRefObject } from 'react';
+import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject } from 'react';
 import { PlayerState, type SongResult } from '../../../types';
 import type { ReflowTile } from './layout';
 import type { LatticeTile } from './latticeModel';
@@ -15,6 +15,8 @@ type LatticePosterProps = {
     isFocused: boolean;
     tile: LatticeTile;
     rect: Omit<ReflowTile, 'instanceId'>;
+    /** Seconds this poster waits before dropping into its slot, or null outside the opening wave. */
+    entranceDelay: number | null;
     expanded: boolean;
     reducedMotion: boolean | null;
     didDragRef: MutableRefObject<boolean>;
@@ -31,6 +33,9 @@ type LatticePosterProps = {
     onClose: () => void;
 };
 
+// How far above its slot a landing tile starts, in world units.
+const ENTRANCE_LIFT = 90;
+
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
     return `linear-gradient(145deg, hsl(${hue} 68% 58%), hsl(${(hue + 52) % 360} 62% 18%))`;
@@ -41,6 +46,7 @@ export default function LatticePoster({
     isFocused,
     tile,
     rect,
+    entranceDelay,
     expanded,
     reducedMotion,
     didDragRef,
@@ -58,6 +64,9 @@ export default function LatticePoster({
 }: LatticePosterProps) {
     const { t } = useTranslation();
     const chrome = useLatticeChromeDisclosure(expanded);
+    // Frozen at mount: the wave's own delay must not follow later camera moves.
+    const landingDelay = useRef(entranceDelay).current;
+    const landing = entranceDelay === null ? null : landingDelay;
 
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         if (event.target instanceof Element && event.target.closest('button, input')) return;
@@ -89,9 +98,18 @@ export default function LatticePoster({
             key={instanceId}
             className={`lattice-poster ${expanded ? 'is-expanded' : ''} ${isFocused ? 'is-focused' : ''} ${tile.section === 'now' ? 'is-current' : ''}`}
             data-instance-id={instanceId}
-            initial={false}
-            animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height }}
-            transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 300, damping: 34 }}
+            initial={landing === null
+                ? false
+                : { ...rect, y: rect.y - ENTRANCE_LIFT, opacity: 0, scale: 0.88 }}
+            animate={{ x: rect.x, y: rect.y, width: rect.width, height: rect.height, opacity: 1, scale: 1 }}
+            transition={reducedMotion
+                ? { duration: 0 }
+                : landing === null
+                    ? { type: 'spring', stiffness: 300, damping: 34 }
+                    : {
+                        type: 'spring', stiffness: 360, damping: 24, delay: landing,
+                        opacity: { duration: 0.24, delay: landing },
+                    }}
             style={{
                 backgroundImage: tile.coverUrl ? `url("${tile.coverUrl}")` : fallbackBackground(tile.id),
                 zIndex: expanded ? 20 : undefined,

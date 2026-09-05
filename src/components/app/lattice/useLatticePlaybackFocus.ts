@@ -11,6 +11,8 @@ export type ActiveLatticePoster = { instance: QueueInstance; tile: LatticeTile }
 
 type PlaybackFocusOptions = {
     currentSong: SongResult | null;
+    /** Held false until the wall has measured itself; centring needs the real viewport. */
+    ready: boolean;
     tiles: LatticeTile[];
     geometry: LatticeGeometry;
     metrics: WallMetrics;
@@ -18,11 +20,12 @@ type PlaybackFocusOptions = {
     setActivePoster: Dispatch<SetStateAction<ActiveLatticePoster | null>>;
     setShowHint: Dispatch<SetStateAction<boolean>>;
     setFocused: (instance: QueueInstance | null) => void;
-    panTo: (rect: { x: number; y: number; width: number; height: number }) => void;
+    panTo: (rect: { x: number; y: number; width: number; height: number }, instant?: boolean) => void;
 };
 
 export const useLatticePlaybackFocus = ({
     currentSong,
+    ready,
     tiles,
     geometry,
     metrics,
@@ -35,7 +38,7 @@ export const useLatticePlaybackFocus = ({
     const lastFocusedSongKeyRef = useRef<string | null>(null);
 
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-    const focusCurrentSong = useCallback(() => {
+    const focusCurrentSong = useCallback((options?: { instant?: boolean }) => {
         if (!currentSongKey) return;
         const queueIndex = tiles.findIndex(tile => tile.id === currentSongKey);
         if (queueIndex < 0) return;
@@ -54,7 +57,7 @@ export const useLatticePlaybackFocus = ({
         setFocused(instance);
         setActivePoster({ instance, tile });
         const expandedRect = layoutExpandedBlock(geometry, tiles.length, instance, metrics).get(instance.instanceId);
-        if (expandedRect) panTo(expandedRect);
+        if (expandedRect) panTo(expandedRect, options?.instant);
     }, [currentSongKey, geometry, getViewportCenter, metrics, panTo, setActivePoster, setFocused, setShowHint, tiles]);
 
     useEffect(() => {
@@ -62,10 +65,12 @@ export const useLatticePlaybackFocus = ({
             lastFocusedSongKeyRef.current = null;
             return;
         }
-        if (lastFocusedSongKeyRef.current === currentSongKey || !tiles.some(tile => tile.id === currentSongKey)) return;
+        if (!ready || lastFocusedSongKeyRef.current === currentSongKey || !tiles.some(tile => tile.id === currentSongKey)) return;
+        // The wall opens already centred on what is playing; later song changes fly there.
+        const isEntry = lastFocusedSongKeyRef.current === null;
         lastFocusedSongKeyRef.current = currentSongKey;
-        focusCurrentSong();
-    }, [currentSongKey, focusCurrentSong, tiles]);
+        focusCurrentSong({ instant: isEntry });
+    }, [currentSongKey, focusCurrentSong, ready, tiles]);
 
     const canFocus = Boolean(currentSongKey && tiles.some(tile => tile.id === currentSongKey));
     useEffect(() => useLatticeControlsStore.getState().registerFocus(canFocus ? focusCurrentSong : null), [canFocus, focusCurrentSong]);

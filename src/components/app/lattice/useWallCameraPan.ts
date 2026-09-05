@@ -36,7 +36,9 @@ export const useWallCameraPan = ({
         animationRef.current = null;
     }, []);
 
-    const panTo = useCallback((rect: WallRect) => {
+    // `instant` skips the flight: entering the wall centres on the playing song before the first
+    // paint, where a 0.4s pan from the default camera would only look like a stray drift.
+    const panTo = useCallback((rect: WallRect, instant = false) => {
         animationRef.current?.stop();
         const from = cameraRef.current;
         const viewport = viewportRef.current;
@@ -46,7 +48,7 @@ export const useWallCameraPan = ({
             scale: from.scale,
         };
         reserveBounds(target);
-        if (reducedMotion) {
+        if (reducedMotion || instant) {
             animationRef.current = null;
             applyCamera(target, true);
             return;

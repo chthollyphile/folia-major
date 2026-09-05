@@ -40,6 +40,10 @@ const GAP = 8;
 const OVERSCAN = 500;
 // How much of the flight path may stay rendered while the camera travels, in viewports.
 const MAX_RESERVED_VIEWPORTS = 3;
+// Metro tile landing: the wave starts at the top-left of the viewport and runs down the diagonal.
+const ENTRANCE_STAGGER = 0.03;
+const ENTRANCE_MAX_DELAY = 0.34;
+const ENTRANCE_WINDOW = 1100;
 const METRICS: WallMetrics = { cellSize: CELL_SIZE, gap: GAP };
 
 
@@ -72,6 +76,10 @@ export default function PosterWall({
     const frameRef = useRef<number | null>(null);
     const [bounds, setBounds] = useState<Bounds>(() => getWorldBounds(cameraRef.current, viewportRef.current));
     const [showHint, setShowHint] = useState(true);
+    // Nothing is drawn until the field reports its size: the seeded camera and the default
+    // viewport would otherwise place the entering wave, and the playing song, off centre.
+    const [measured, setMeasured] = useState(false);
+    const [entranceDone, setEntranceDone] = useState(false);
     const reducedMotion = useReducedMotion();
 
     const geometry = useMemo(() => getLatticeGeometry(tiles.length, METRICS), [tiles.length]);
@@ -95,6 +103,7 @@ export default function PosterWall({
         const observer = new ResizeObserver(([entry]) => {
             viewportRef.current = { width: entry.contentRect.width, height: entry.contentRect.height };
             applyCamera({ ...cameraRef.current, scale: getScale(entry.contentRect.width) }, true);
+            setMeasured(true);
         });
         observer.observe(container);
         return () => {
@@ -130,13 +139,32 @@ export default function PosterWall({
 
     const { panTo, stopPan, animationRef } = useWallCameraPan({ cameraRef, viewportRef, reducedMotion, applyCamera, reserveBounds });
 
+    useEffect(() => {
+        if (!measured || entranceDone) return;
+        if (reducedMotion) {
+            setEntranceDone(true);
+            return;
+        }
+        const timer = setTimeout(() => setEntranceDone(true), ENTRANCE_WINDOW);
+        return () => clearTimeout(timer);
+    }, [entranceDone, measured, reducedMotion]);
+
+    // Posters landing in the opening wave are held back by their distance from that corner; once
+    // the wave is over every poster mounts in place, so panning never replays it.
+    const getEntranceDelay = useCallback((rect: { x: number; y: number }) => {
+        if (entranceDone || reducedMotion) return null;
+        const steps = Math.max(0, rect.x - bounds.left) + Math.max(0, rect.y - bounds.top);
+        return Math.min(ENTRANCE_MAX_DELAY, (steps / (CELL_SIZE + GAP)) * ENTRANCE_STAGGER);
+    }, [bounds.left, bounds.top, entranceDone, reducedMotion]);
+
     const instances = useMemo(() => {
+        if (!measured) return [];
         const visible = layoutLattice(geometry, tiles.length, bounds, OVERSCAN, METRICS);
         if (!activePoster || visible.some(instance => instance.instanceId === activePoster.instance.instanceId)) {
             return visible;
         }
         return [...visible, activePoster.instance];
-    }, [activePoster, bounds, geometry, tiles.length]);
+    }, [activePoster, bounds, geometry, measured, tiles.length]);
 
     // World point the viewport is centred on; both the keyboard seed and playback follow need it.
     const getViewportCenter = useCallback(() => {
@@ -186,6 +214,7 @@ export default function PosterWall({
 
     useLatticePlaybackFocus({
         currentSong,
+        ready: measured,
         tiles,
         geometry,
         metrics: METRICS,
@@ -226,6 +255,7 @@ export default function PosterWall({
                             isFocused={focused?.instanceId === instance.instanceId}
                             tile={tile}
                             rect={rect}
+                            entranceDelay={getEntranceDelay(rect)}
                             expanded={expanded}
                             reducedMotion={reducedMotion}
                             didDragRef={didDragRef}

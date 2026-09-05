@@ -4,7 +4,8 @@ import { expect, test } from './fixtures';
 // test/component/lattice.spec.ts
 // Browser regressions for wall gestures and nested native playback controls.
 const cameraX = (wall: Locator) => wall.locator('.lattice-world').evaluate(node => new DOMMatrix(getComputedStyle(node).transform).m41);
-const settle = (page: Page) => page.waitForTimeout(650);
+// Past the end of the opening tile-landing wave, so no test measures a moving wall.
+const settle = (page: Page) => page.waitForTimeout(1200);
 
 async function dragCover(page: Page, wall: Locator) {
     const cover = wall.locator('.lattice-poster.is-expanded');
@@ -195,6 +196,14 @@ async function expectExpandedCentered(wall: Locator) {
         );
     }).toBeLessThan(2);
 }
+
+test('the wall opens centred on the playing song, whatever the viewport measures', async ({ mount, page }) => {
+    await page.setViewportSize({ width: 1024, height: 700 });
+    const wall = await mount('lattice');
+    await settle(page);
+    await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
+    await expectExpandedCentered(wall);
+});
 
 for (const key of ['Enter', ' ']) {
     test(`focused poster stays centered after expanding with ${key === ' ' ? 'Space' : key}`, async ({ mount, page }) => {
