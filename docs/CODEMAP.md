@@ -9,13 +9,13 @@
 
 | 区域 | 文件数 |
 | --- | --- |
-| components | 565 |
-| test/dev | 414 |
+| components | 567 |
+| test/dev | 423 |
 | services | 121 |
 | utils | 121 |
 | hooks | 65 |
 | backend/electron | 62 |
-| stores | 33 |
+| stores | 34 |
 | 其他 | 20 |
 | types | 15 |
 | src (其他) | 13 |
@@ -28,7 +28,7 @@
 
 | 被依赖数 | 模块 |
 | --- | --- |
-| 525 | `src/types.ts` |
+| 526 | `src/types.ts` |
 | 68 | `src/utils/appPlaybackGuards.ts` |
 | 61 | `src/types/onlineMusic.ts` |
 | 58 | `src/components/command-palette/types.ts` |
@@ -49,7 +49,7 @@
 这些地方用 `import.meta.glob` 自动发现成员，**清单随目录变化，不要手写**。
 以下是当前的完整展开：
 
-### `dev/probes/registry.ts` (19)
+### `dev/probes/registry.ts` (20)
 
 - `dev/probes/audioEffectGrid.probe.tsx`
 - `dev/probes/automixModelReminder.probe.tsx`
@@ -58,6 +58,7 @@
 - `dev/probes/fmTab.probe.tsx`
 - `dev/probes/globalLyricOffsetRuler.probe.tsx`
 - `dev/probes/gridPanelToggle.probe.tsx`
+- `dev/probes/homeGridMapButton.probe.tsx`
 - `dev/probes/lattice.probe.tsx`
 - `dev/probes/lyricFilterModal.probe.tsx`
 - `dev/probes/lyricSegmentationSurface.probe.tsx`
