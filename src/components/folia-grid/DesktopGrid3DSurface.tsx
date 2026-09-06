@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Map as MapIcon } from 'lucide-react';
 import GridMap from '../GridMap';
@@ -7,6 +7,8 @@ import { Grid3DSlider, Grid3DSliderItem } from './Grid3DSlider';
 import { ChevronDown } from 'lucide-react';
 import type { GridMapBatchConfig } from './gridMapBatch';
 import { isHideableGridItem } from './gridItemVisibility';
+import { useLiquidGlassFilter } from '../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../../stores/useLiquidGlassTuningStore';
 
 // src/components/folia-grid/DesktopGrid3DSurface.tsx
 // Shared desktop home surface that keeps Grid3D slider and GridMap controls visually consistent.
@@ -83,6 +85,21 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     const [tabsExpanded, setTabsExpanded] = useState(false);
     const [hiddenPlaylistsByScope, setHiddenPlaylistsByScope] = useState(readHiddenGridPlaylists);
 
+    // 液态玻璃：顶部「全部」按钮（打开 GridMap 2D 视图）。底色走预设表 tint，
+    // 迁移自旧 inline 底色（dark 25,25,25/0.7、light 白 /0.7），backdrop-blur class
+    // 保留作总开关关闭或不支持时的回退。按钮随 isLoading 条件渲染，
+    // 用 enabled 控制不在场时摘掉 RO。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const mapButtonTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('homeGridMapButton', isDaylight));
+    const mapButtonRef = useRef<HTMLButtonElement>(null);
+    const { defs: mapButtonGlassDefs, backdropFilter: mapButtonGlassBackdropFilter } = useLiquidGlassFilter(mapButtonRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('homeGridMapButton', liquidGlassTuning.dispersion),
+        enabled: !isLoading,
+    });
+
     const activeTab = tabs.find(tab => tab.active) || tabs[0];
     const hiddenPlaylistIds = useMemo(
         () => new Set(hiddenPlaylistsByScope[playlistVisibilityScope] || []),
@@ -134,13 +151,17 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
         <div className="w-full h-full min-h-0 flex flex-col justify-center relative">
             {!isLoading && (
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+                    {mapButtonGlassDefs}
                     <motion.button
+                        ref={mapButtonRef}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setShowGridMap(true)}
-                        className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-semibold shadow-lg backdrop-blur-md transition-all border border-white/10"
+                        className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-semibold shadow-lg backdrop-blur-md transition-all border"
                         style={{
-                            backgroundColor: isDaylight ? 'rgba(255,255,255,0.7)' : 'rgba(25,25,25,0.7)',
+                            backdropFilter: mapButtonGlassBackdropFilter ?? undefined,
+                            ...mapButtonTintStyle,
+                            borderColor: isDaylight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)',
                             color: 'var(--text-primary)',
                         }}
                     >

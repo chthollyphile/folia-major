@@ -18,6 +18,8 @@ import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSourceRef, getPlaybackSongSource, hasMixedPlaybackSources } from '../utils/appPlaybackGuards';
 import { resolveLikeAvailability } from '../utils/playerLikeAvailability';
 import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
+import { useLiquidGlassFilter } from './shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../stores/useLiquidGlassTuningStore';
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { openAddToPlaylist, useAddToPlaylistStore } from '../stores/useAddToPlaylistStore';
 import { usePlayerPanelTabShortcut } from '../hooks/usePlayerPanelTabShortcut';
@@ -134,6 +136,61 @@ type UnifiedPanelProps = {
     queue: UnifiedPanelQueueProps;
     library: UnifiedPanelLibraryProps;
     account: UnifiedPanelAccountProps;
+};
+
+// 封面上的浮动操作按钮（设置/播放页透明/返回首页/加入歌单）。玻璃滤镜逐钮挂载；
+// 按钮只随面板一起挂载，无需单独的 enabled 控制。底色走预设表 tint：白字压在封面
+// 上需要深底保证可读，所以刻意恒取暗色侧（darkTint × panelCoverButton 倍率），
+// 不随主题翻成白霜；hover 加深按旧 hover:bg-black/40 换算成 ×1.6 倍率。
+// 面板本身是 backdrop root，按钮玻璃采样到的是面板内部画在按钮下方的封面图，
+// 折射源成立。显隐淡入淡出必须挂在按钮自身（coverActionRevealClass），不能挂回
+// wrapper——opacity<1 的祖先会形成 backdrop root 致盲玻璃，过渡结束玻璃才跳回。
+const CoverActionButton: React.FC<{
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+    title: string;
+    ariaLabel?: string;
+    ariaPressed?: boolean;
+    disabled?: boolean;
+    className: string;
+    /** 激活态白底变体（播放页透明开启时）不吃 inline tint，底色与 hover 反馈都留给 class */
+    suppressTint?: boolean;
+    children: React.ReactNode;
+}> = ({ onClick, title, ariaLabel, ariaPressed, disabled, suppressTint, className, children }) => {
+    const buttonRef = React.useRef<HTMLButtonElement>(null);
+    const [isHovered, setIsHovered] = React.useState(false);
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(buttonRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        // 小尺寸按钮不做表面级色散禁用，直接跟随全局
+        dispersion: liquidGlassTuning.dispersion,
+    });
+    const tintStyle = suppressTint ? null : buildGlassTintStyle(
+        liquidGlassTuning,
+        false,
+        resolveLiquidGlassTintMultiplier('panelCoverButton', false, isHovered ? 1.6 : 1),
+    );
+    return (
+        <>
+            {glassFilterDefs}
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={onClick}
+                disabled={disabled}
+                aria-pressed={ariaPressed}
+                aria-label={ariaLabel}
+                title={title}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                style={{ backdropFilter: glassBackdropFilter ?? undefined, ...tintStyle }}
+                className={className}
+            >
+                {children}
+            </button>
+        </>
+    );
 };
 
 const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
@@ -293,7 +350,43 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const toggleButtonRef = React.useRef<HTMLButtonElement | null>(null);
     const trackEndIconRef = React.useRef<HTMLDivElement | null>(null);
     const trackFillRef = React.useRef<HTMLDivElement | null>(null);
-    const glassBg = isDaylight ? 'bg-white/60' : 'bg-black/40';
+    // 液态玻璃：与播放页胶囊/时间线共享实验室调参；面板条件挂载，用 glassActive 控制 RO 时机。
+    // glassActive 滞后挂载条件一个退场动画：enabled 立刻翻 false 会让表面在退场前半段
+    // 突变成普通毛玻璃（rim/折射瞬间消失），保持到 onExitComplete 再卸。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const [panelGlassActive, setPanelGlassActive] = React.useState(isOpen);
+    React.useEffect(() => {
+        if (isOpen) setPanelGlassActive(true);
+    }, [isOpen]);
+    const glassBgStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('cornerPanel', isDaylight));
+    // 开合按钮也迁移到 tint：底色倍率查预设表（复现旧 black/40、white/70 的观感）。
+    // 拖拽反馈会命令式写 backgroundColor，复位时恢复这个 tint 值而不是清空。
+    const toggleTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('panelToggleButton', isDaylight));
+    const panelSurfaceRef = React.useRef<HTMLDivElement>(null);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(panelSurfaceRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('cornerPanel', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: 24,
+        enabled: panelGlassActive,
+    });
+    // 右下角开合按钮的挂载条件（与底部 AnimatePresence 一致）。
+    const showToggleChrome = !hideToggleButton && (!isOpen || showOpenPanelCloseButton) && !isCommandPaletteOpen;
+    const [toggleGlassActive, setToggleGlassActive] = React.useState(showToggleChrome);
+    React.useEffect(() => {
+        if (showToggleChrome) setToggleGlassActive(true);
+    }, [showToggleChrome]);
+    // 右下角开合按钮也吃玻璃：底色走预设表 tint（拖拽反馈复位时恢复同值）；
+    // 面板打开的 X 退出态同样走 tint（osu! 拖拽手势只在关闭态存在，无反馈冲突）。
+    const { defs: toggleGlassDefs, backdropFilter: toggleGlassBackdropFilter } = useLiquidGlassFilter(toggleButtonRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('panelToggleButton', liquidGlassTuning.dispersion),
+        enabled: toggleGlassActive,
+    });
     const placeholderBg = isDaylight ? 'bg-stone-200' : 'bg-zinc-900';
     const activeTabBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const tabSwitcherBg = isDaylight ? 'bg-black/5' : 'bg-white/5';
@@ -353,7 +446,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             button.style.color = '#ffffff';
             button.style.boxShadow = `0 0 16px ${theme.accentColor}66, 0 18px 42px rgba(0, 0, 0, ${0.24 + progress * 0.16})`;
         } else {
-            button.style.backgroundColor = '';
+            // 松手/未触发时恢复 tint 底色（inline），不能清空——清空后 React 不会重写 inline 样式
+            button.style.backgroundColor = toggleTintStyle.backgroundColor;
             button.style.color = '';
             button.style.boxShadow = `0 18px 42px rgba(0, 0, 0, ${0.24 + progress * 0.16})`;
         }
@@ -426,7 +520,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             button.style.transform = '';
             button.style.filter = '';
             button.style.boxShadow = '';
-            button.style.backgroundColor = '';
+            button.style.backgroundColor = toggleTintStyle.backgroundColor;
             button.style.color = '';
             const icon = button.querySelector('svg');
             if (icon) {
@@ -456,7 +550,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         button.style.transform = '';
         button.style.filter = '';
         button.style.boxShadow = '';
-        button.style.backgroundColor = '';
+        button.style.backgroundColor = toggleTintStyle.backgroundColor;
         button.style.color = '';
 
         const icon = button.querySelector('svg');
@@ -600,22 +694,40 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         return () => document.removeEventListener('pointerdown', handlePointerDown);
     }, [isCoverActionsVisible, supportsHover]);
 
+    // 显隐的 opacity 必须落在按钮自身：opacity<1 的祖先会形成 backdrop root，
+    // 淡入期间按钮玻璃采样不到下方封面图，过渡结束才跳回来（玻璃与动画不连贯的根源）。
+    // 位移 slide 留在 wrapper——transform 不形成 backdrop root，采样全程有效。
+    // 注意这条链上不能出现 important 版 opacity 或 disabled:opacity-40 之类的
+    // 高优先级 opacity：它们会压过 group-hover:opacity-100，hover 再也唤不出按钮。
+    // 「加入歌单」禁用态的变灰因此用 text-white/40 而不是 opacity。
+    const coverActionRevealClass = supportsHover
+        ? 'opacity-0 group-hover:opacity-100 duration-200'
+        : `duration-200 ${isCoverActionsVisible ? 'opacity-100' : 'opacity-0'}`;
+
     return (
         <motion.div
             style={{ bottom: bottomBarBottomPx }}
             className="absolute right-0 z-[60] flex flex-col items-end gap-4 pointer-events-none"
             onClick={(e) => e.stopPropagation()}
         >
+            {glassFilterDefs}
+            {toggleGlassDefs}
             <div className="pr-4 md:pr-8">
-                <AnimatePresence>
+                <AnimatePresence onExitComplete={() => setPanelGlassActive(false)}>
                     {isOpen && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9, originY: 1, originX: 1 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             data-testid="unified-panel-surface"
-                            className={`pointer-events-auto w-80 ${glassBg} backdrop-blur-3xl rounded-3xl shadow-2xl flex flex-col mb-16 md:mb-2 overflow-y-auto hide-scrollbar`}
-                            style={{ color: theme.primaryColor, maxHeight: panelMaxHeight }}
+                            ref={panelSurfaceRef}
+                            style={{
+                                color: theme.primaryColor,
+                                maxHeight: panelMaxHeight,
+                                backdropFilter: glassBackdropFilter ?? undefined,
+                                ...glassBgStyle,
+                            }}
+                            className={`pointer-events-auto w-80 backdrop-blur-3xl rounded-3xl shadow-2xl flex flex-col mb-16 md:mb-2 overflow-y-auto hide-scrollbar`}
                         >
                             <div className="p-5 flex flex-col">
                                 {/* Top: Cover Art */}
@@ -645,79 +757,76 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 
                                     {/* 左上角：打开设置 */}
                                     {onOpenSettings && (
-                                        <div className={`absolute left-3 top-3 transition-all duration-200 ${
+                                        <div className={`absolute left-3 top-3 transition-transform duration-200 ${
                                             supportsHover
-                                                ? 'pointer-events-none group-hover:pointer-events-auto opacity-0 group-hover:opacity-100 -translate-x-3 -translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
-                                                : `${isCoverActionsVisible ? 'pointer-events-auto opacity-100 translate-x-0 translate-y-0' : 'pointer-events-none opacity-0 -translate-x-3 -translate-y-3'}`
+                                                ? 'pointer-events-none group-hover:pointer-events-auto -translate-x-3 -translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                                : `${isCoverActionsVisible ? 'pointer-events-auto translate-x-0 translate-y-0' : 'pointer-events-none -translate-x-3 -translate-y-3'}`
                                         }`}>
-                                            <button
-                                                type="button"
+                                            <CoverActionButton
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     handleOpenSettings();
                                                 }}
-                                                className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
                                                 title={t('ui.options')}
+                                                className={`w-11 h-11 rounded-full border border-white/15 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:text-white ${coverActionRevealClass}`}
                                             >
                                                 <Settings size={18} />
-                                            </button>
+                                            </CoverActionButton>
                                         </div>
                                     )}
 
                                     {/* 右上角：播放页透明。不算高频，所以只占封面的空位，不占面板结构 */}
-                                    <div className={`absolute right-3 top-3 transition-all duration-200 ${
+                                    <div className={`absolute right-3 top-3 transition-transform duration-200 ${
                                         supportsHover
-                                            ? 'pointer-events-none group-hover:pointer-events-auto opacity-0 group-hover:opacity-100 translate-x-3 -translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
-                                            : `${isCoverActionsVisible ? 'pointer-events-auto opacity-100 translate-x-0 translate-y-0' : 'pointer-events-none opacity-0 translate-x-3 -translate-y-3'}`
+                                            ? 'pointer-events-none group-hover:pointer-events-auto translate-x-3 -translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                            : `${isCoverActionsVisible ? 'pointer-events-auto translate-x-0 translate-y-0' : 'pointer-events-none translate-x-3 -translate-y-3'}`
                                     }`}>
-                                        <button
-                                            type="button"
+                                        <CoverActionButton
                                             onClick={(event) => {
                                                 event.stopPropagation();
                                                 onToggleTransparentPlayerBackground(!transparentPlayerBackground);
                                             }}
-                                            className={`w-11 h-11 rounded-full border backdrop-blur-md flex items-center justify-center transition-all ${
+                                            title={t('options.transparentPlayerBackground')}
+                                            ariaLabel={t('options.transparentPlayerBackground')}
+                                            ariaPressed={transparentPlayerBackground}
+                                            suppressTint={transparentPlayerBackground}
+                                            className={`w-11 h-11 rounded-full border backdrop-blur-md flex items-center justify-center transition-all ${coverActionRevealClass} ${
                                                 transparentPlayerBackground
                                                     ? 'border-white/30 bg-white/85 text-zinc-900 hover:bg-white'
-                                                    : 'border-white/15 bg-black/25 text-white/90 hover:bg-black/40 hover:text-white'
+                                                    : 'border-white/15 text-white/90 hover:text-white'
                                             }`}
-                                            title={t('options.transparentPlayerBackground')}
-                                            aria-label={t('options.transparentPlayerBackground')}
-                                            aria-pressed={transparentPlayerBackground}
                                         >
                                             <MirrorRectangular size={18} />
-                                        </button>
+                                        </CoverActionButton>
                                     </div>
 
-                                    <div className={`absolute left-3 bottom-3 transition-all duration-200 ${
+                                    <div className={`absolute left-3 bottom-3 transition-transform duration-200 ${
                                         supportsHover
-                                            ? 'pointer-events-none group-hover:pointer-events-auto opacity-0 group-hover:opacity-100 -translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
-                                            : `${isCoverActionsVisible ? 'pointer-events-auto opacity-100 translate-x-0 translate-y-0' : 'pointer-events-none opacity-0 -translate-x-3 translate-y-3'}`
+                                            ? 'pointer-events-none group-hover:pointer-events-auto -translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                            : `${isCoverActionsVisible ? 'pointer-events-auto translate-x-0 translate-y-0' : 'pointer-events-none -translate-x-3 translate-y-3'}`
                                     }`}>
-                                        <button
-                                            type="button"
+                                        <CoverActionButton
                                             onClick={(event) => {
                                                 event.stopPropagation();
                                                 handleNavigateHome();
                                             }}
-                                            className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white"
                                             title={t('ui.backToHome')}
+                                            className={`w-11 h-11 rounded-full border border-white/15 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:text-white ${coverActionRevealClass}`}
                                         >
                                             <HomeIcon size={18} />
-                                        </button>
+                                        </CoverActionButton>
                                     </div>
 
                                     {showAddToPlaylistAction && (
                                         <div
                                             title={addToPlaylistDisabledReason || t('localMusic.addToPlaylist')}
-                                            className={`absolute right-3 bottom-3 transition-all duration-200 ${
+                                            className={`absolute right-3 bottom-3 transition-transform duration-200 ${
                                             supportsHover
-                                                ? 'pointer-events-none group-hover:pointer-events-auto opacity-0 group-hover:opacity-100 translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
-                                                : `${isCoverActionsVisible ? 'pointer-events-auto opacity-100 translate-x-0 translate-y-0' : 'pointer-events-none opacity-0 translate-x-3 translate-y-3'}`
+                                                ? 'pointer-events-none group-hover:pointer-events-auto translate-x-3 translate-y-3 group-hover:translate-x-0 group-hover:translate-y-0'
+                                                : `${isCoverActionsVisible ? 'pointer-events-auto translate-x-0 translate-y-0' : 'pointer-events-none translate-x-3 translate-y-3'}`
                                         }`}
                                         >
-                                            <button
-                                                type="button"
+                                            <CoverActionButton
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     if (!canAddCurrentSongToPlaylist) return;
@@ -725,12 +834,12 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                                     openAddToPlaylist();
                                                 }}
                                                 disabled={!canAddCurrentSongToPlaylist}
-                                                className="w-11 h-11 rounded-full border border-white/15 bg-black/25 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:bg-black/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-black/25"
                                                 title={addToPlaylistDisabledReason || t('localMusic.addToPlaylist')}
-                                                aria-label={addToPlaylistDisabledReason || t('localMusic.addToPlaylist')}
+                                                ariaLabel={addToPlaylistDisabledReason || t('localMusic.addToPlaylist')}
+                                                className={`w-11 h-11 rounded-full border border-white/15 text-white/90 backdrop-blur-md flex items-center justify-center transition-all hover:text-white disabled:cursor-not-allowed disabled:text-white/40 ${coverActionRevealClass}`}
                                             >
                                                 <Star size={18} />
-                                            </button>
+                                            </CoverActionButton>
                                         </div>
                                     )}
                                 </div>
@@ -935,14 +1044,16 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
             </div>
 
             {/* Toggle Button */}
-            <AnimatePresence>
-                {!hideToggleButton && (!isOpen || showOpenPanelCloseButton) && !isCommandPaletteOpen && (
+            <AnimatePresence onExitComplete={() => setToggleGlassActive(false)}>
+                {showToggleChrome && (
+                    // 退场动画只留 transform：opacity<1 的祖先会形成 backdrop root，
+                    // 退场期间按钮玻璃采样不到身后的内容。淡入淡出在按钮自身上。
                     <motion.div
-                        initial={{ opacity: 0, x: 20, y: 12, scale: 0.92 }}
-                        animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                        initial={{ x: 20, y: 12, scale: 0.92 }}
+                        animate={{ x: 0, y: 0, scale: 1 }}
                         exit={isCommandPaletteOpen
-                            ? { opacity: 0, x: 0, y: 0, scale: 1 }
-                            : { opacity: 0, x: 20, y: 12, scale: 0.92 }
+                            ? { x: 0, y: 0, scale: 1 }
+                            : { x: 20, y: 12, scale: 0.92 }
                         }
                         transition={{ duration: 0.24, ease: 'easeOut' }}
                         data-testid="panel-toggle"
@@ -1009,20 +1120,31 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                 />
                             </div>
 
-                            <button
+                            {/* 淡入淡出挂在按钮自身（玻璃元素）：祖先 opacity<1 会致盲玻璃。
+                                framer 接管 opacity 后不能用 transition-all（CSS 过渡会拖拽
+                                framer 逐帧写入的 opacity），颜色过渡单独保留。 */}
+                            <motion.button
                                 ref={toggleButtonRef}
                                 type="button"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.24, ease: 'easeOut' }}
                                 onPointerDown={handleToggleButtonPointerDown}
                                 onPointerMove={handleToggleButtonPointerMove}
                                 onPointerUp={clearToggleButtonGesture}
                                 onPointerCancel={clearToggleButtonGesture}
                                 onClick={handleToggleButtonClick}
-                                style={{ touchAction: canSlideOpenCommandPalette ? 'none' : undefined }}
-                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
-                                    border-none absolute right-0 top-0 z-10 ${isOpen ? 'bg-white text-black' : (isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white')}`}
+                                style={{
+                                    touchAction: canSlideOpenCommandPalette ? 'none' : undefined,
+                                    backdropFilter: toggleGlassBackdropFilter ?? undefined,
+                                    ...toggleTintStyle,
+                                }}
+                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300 shadow-lg backdrop-blur-md transform
+                                    border-none absolute right-0 top-0 z-10 ${isDaylight ? 'text-zinc-900' : 'text-white'}`}
                             >
                                 {isOpen ? <X size={20} /> : <Settings2 size={20} />}
-                            </button>
+                            </motion.button>
                         </div>
                     </motion.div>
                 )}

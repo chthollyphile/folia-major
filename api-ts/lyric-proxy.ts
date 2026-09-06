@@ -74,9 +74,10 @@ export default async function handler(req: any, res: any) {
 
     // Filter headers to forward
     const headers: Record<string, string> = {};
-    for (const key of Object.keys(req.headers)) {
+    const requestHeaders = req.headers as Record<string, string>;
+    for (const key of Object.keys(requestHeaders)) {
       if (!IGNORED_FORWARD_HEADERS.includes(key.toLowerCase())) {
-        headers[key] = req.headers[key] as string;
+        headers[key] = requestHeaders[key];
       }
     }
 

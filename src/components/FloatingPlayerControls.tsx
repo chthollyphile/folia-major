@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Play, Pause } from 'lucide-react';
 import { MotionValue } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 import { PlayerState, LyricData, Theme } from '../types';
@@ -9,6 +8,9 @@ import LyricsTimelineModal from './modal/LyricsTimelineModal';
 import TrackTitleNavigator from './floating-player/TrackTitleNavigator';
 import PlayerControlSlotButton from './floating-player/PlayerControlSlotButton';
 import PlayerBottomBarPositioner from './floating-player/PlayerBottomBarPositioner';
+import PlayerPlayPauseButton from './floating-player/PlayerPlayPauseButton';
+import { useLiquidGlassFilter } from './shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../stores/useLiquidGlassTuningStore';
 import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
 import { playerBottomBarLiveOffset } from '../stores/motionSignals';
 import { usePlayerBottomBarLayoutStore } from '../stores/usePlayerBottomBarLayoutStore';
@@ -115,11 +117,9 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
 }) => {
     const { t } = useTranslation();
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
-    const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
-    const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'bg-black/20 border border-white/5 hover:bg-black/30';
+    const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'border border-white/5';
+    const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'border border-white/5';
     const trackColor = isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';
-    // Button bg logic
-    const buttonBg = isDaylight ? { backgroundColor: primaryColor, color: 'var(--bg-color)' } : { backgroundColor: primaryColor, color: 'var(--bg-color)' }; // Keep primary for play button, looks good
 
     // Other buttons hover
     const iconBtnExpandedClass = isDaylight ? 'hover:bg-black/5' : 'bg-white/20'; // Wait, loop button has logic
@@ -129,6 +129,18 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     const [isTimelineOpen, setIsTimelineOpen] = useState(false);
     const expandTimeoutRef = useRef<number | null>(null);
     const collapseTimeoutRef = useRef<number | null>(null);
+
+    // 液态玻璃（CSS SVG 位移滤镜）：折射胶囊身后真实的播放页内容。
+    // Chromium 才支持 backdrop-filter 的 url() 形式，不支持时 backdropFilter 为 null，
+    // 胶囊回退到原 backdrop-blur-xl 类。参数由实验室调参 store 驱动。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const pillRef = useRef<HTMLDivElement>(null);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(pillRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('playerPill', liquidGlassTuning.dispersion),
+    });
 
     const bottomBarBottomPx = usePlayerBottomBarBottomPx();
     const isPositioning = usePlayerBottomBarLayoutStore(state => state.isPositioning);
@@ -145,6 +157,16 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     const canAutoExpand = canTogglePlay && duration > 0;
     // 定位模式强制展开：用户要看到的是最终形态的胶囊，而不是一条细进度条。
     const showExpanded = isPositioning || isHovered || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
+
+    // 玻璃底色统一由实验室参数驱动（亮/暗两套 alpha）；表面倍率查预设表，
+    // 收起态约 2/3、悬停态略升（沿用原比例）在预设之上再乘。
+    const tintMultiplier = resolveLiquidGlassTintMultiplier(
+        'playerPill',
+        isDaylight,
+        showExpanded ? 1 : (isHovered ? (isDaylight ? 5 / 6 : 4 / 3) : 2 / 3),
+    );
+    const glassBgStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, tintMultiplier);
+    const glassSurfaceClass = `border ${isDaylight ? 'border-white/20' : 'border-white/5'} ${showExpanded ? 'shadow-xl' : 'shadow-lg'}`;
 
     // 上限依赖视口高度，窗口变矮时要跟着收，否则虚线框会画到屏幕外。
     useEffect(() => {
@@ -315,6 +337,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
 
     return (
         <>
+            {glassFilterDefs}
             {/*
                 定位层和动画层必须分开。这一层用 Tailwind 的 `-translate-x-1/2` 做水平居中，
                 而下面那层的 animate 会写 y/scale —— framer-motion 生成的 transform 会整个
@@ -352,6 +375,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 >
                     <motion.div
                         layout
+                        ref={pillRef}
                         transition={{ layout: CONTROL_LAYOUT_SPRING }}
                         onClick={handleClick}
                         // 用原生 pointer 事件而不是 framer-motion 的 drag：位移已经由 playerBottomBarLiveOffset
@@ -361,10 +385,14 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         onPointerMove={handlePositionDragMove}
                         onPointerUp={handlePositionDragEnd}
                         onPointerCancel={handlePositionDragEnd}
-                        style={{ touchAction: isPositioning ? 'none' : undefined }}
+                        style={{
+                            touchAction: isPositioning ? 'none' : undefined,
+                            backdropFilter: glassBackdropFilter ?? undefined,
+                            ...glassBgStyle,
+                        }}
                         className={`backdrop-blur-xl shadow-2xl overflow-hidden rounded-full relative transition-colors duration-300
                             ${isPositioning ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
-                            ${showExpanded ? `p-3 ${glassBgExpanded} w-full` : `px-4 py-2 ${glassBgCollapsed} w-[80%] md:w-[60%]`}`}
+                            ${showExpanded ? `p-3 ${glassSurfaceClass} w-full` : `px-4 py-2 ${glassSurfaceClass} w-[80%] md:w-[60%]`}`}
                     >
                         <motion.div
                             layout
@@ -516,21 +544,14 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
             </div>
 
             {/* Row 3: Loop Button, Play Button, Lyrics Button */}
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onTogglePlay();
-                }}
-                disabled={!canTogglePlay || controlsDisabled}
-                className={`col-start-2 row-start-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-none bg-(--text-primary) text-black shadow-lg transition-transform sm:col-start-1 sm:row-start-1 sm:row-span-2 ${controlsDisabled ? 'cursor-not-allowed opacity-45' : 'hover:scale-105'}`}
-                style={{ backgroundColor: primaryColor, color: 'var(--bg-color)' }}
-            >
-                {playerState === PlayerState.PLAYING ? (
-                    <Pause size={20} fill="currentColor" />
-                ) : (
-                    <Play size={20} fill="currentColor" className="ml-1" />
-                )}
-            </button>
+            <PlayerPlayPauseButton
+                playerState={playerState}
+                canTogglePlay={canTogglePlay}
+                controlsDisabled={controlsDisabled}
+                isDaylight={!!isDaylight}
+                className="col-start-2 row-start-2 sm:col-start-1 sm:row-start-1 sm:row-span-2"
+                onTogglePlay={onTogglePlay}
+            />
 
             {/* 两个可自定义槽位。默认仍是循环模式 + 歌词时间轴，和改动前一致。 */}
             <div className="contents sm:col-start-3 sm:row-start-1 sm:row-span-2 sm:flex sm:items-center sm:gap-1">

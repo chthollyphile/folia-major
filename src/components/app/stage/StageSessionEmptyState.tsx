@@ -9,6 +9,7 @@ import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 // src/components/app/stage/StageSessionEmptyState.tsx
 // What the player page shows when it is following an external stage that has nothing playing yet.
 // Renders nothing at all outside that state, so App.tsx mounts it unconditionally.
+// 空状态卡片不接入液态玻璃（按需求移除），保持普通毛玻璃 + class 底色。
 
 type StageSessionEmptyStateProps = {
     stageSource?: StageSource | null;
@@ -58,7 +59,9 @@ const StageSessionEmptyState: React.FC<StageSessionEmptyStateProps> = ({
 
     return (
         <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center px-6">
-            <div className={`max-w-lg rounded-3xl border px-6 py-5 text-center backdrop-blur-md ${isDaylight ? 'border-black/10 bg-white/50 text-zinc-800' : 'border-white/10 bg-black/30 text-white'}`}>
+            <div
+                className={`max-w-lg rounded-3xl border px-6 py-5 text-center backdrop-blur-md ${isDaylight ? 'border-black/10 bg-white/50 text-zinc-800' : 'border-white/10 bg-black/30 text-white'}`}
+            >
                 <div className="text-xs uppercase tracking-[0.22em] opacity-50">
                     {(stageSource && SOURCE_LABELS[stageSource]) ?? 'Stage · Stage API'}
                 </div>

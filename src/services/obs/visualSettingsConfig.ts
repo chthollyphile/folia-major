@@ -6,6 +6,7 @@ import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
 import { useTypographySettingsStore } from '../../stores/useTypographySettingsStore';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
+import { useLiquidGlassTuningStore } from '../../stores/useLiquidGlassTuningStore';
 
 // src/services/obs/visualSettingsConfig.ts
 // Everything compressConfig serializes except the theme. Reads the live settings store, so both
@@ -91,6 +92,9 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     stageTrackPillMode: storeStageSettings.stageTrackPillMode,
     stageTrackPillTimeoutSec: storeStageSettings.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: storeStageSettings.stageTrackPillOnHome,
+    // Player chrome like the card above: the liquid glass of the bottom-bar pill, the lyrics
+    // timeline popover and the corner panel is part of the look a config code restores.
+    liquidGlassTuning: useLiquidGlassTuningStore.getState().liquidGlassTuning,
   };
 }
 

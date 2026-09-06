@@ -7,6 +7,7 @@ import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../../utils/playerBottomBarLay
 // src/components/floating-player/PlayerBottomBarPositioner.tsx
 // 定位模式的取景框：标出底部基线能移动到哪里，并提供复位 / 确认 / 取消。
 // 只负责画面，偏移量本身由 motionSignals 的共享 MotionValue 持有。
+// 定位 chip 不接入液态玻璃（按需求移除），保持普通毛玻璃 + class 底色。
 
 interface PlayerBottomBarPositionerProps {
     /** 当前允许的最大偏移量（px），由视口高度算出。 */
@@ -28,8 +29,8 @@ const PlayerBottomBarPositioner: React.FC<PlayerBottomBarPositionerProps> = ({
 }) => {
     const { t } = useTranslation();
     const chipClass = isDaylight
-        ? 'bg-white/80 border-black/10 text-black'
-        : 'bg-black/60 border-white/15 text-white';
+        ? 'border-black/10 bg-white/80 text-black'
+        : 'border-white/15 bg-black/60 text-white';
 
     return (
         <>
@@ -58,7 +59,9 @@ const PlayerBottomBarPositioner: React.FC<PlayerBottomBarPositionerProps> = ({
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className="pointer-events-auto fixed left-1/2 top-8 z-[70] -translate-x-1/2"
             >
-                <div className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm shadow-xl backdrop-blur-xl ${chipClass}`}>
+                <div
+                    className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm shadow-xl backdrop-blur-xl ${chipClass}`}
+                >
                     <span className="select-none">{t('options.playerBottomBarPositioningHint')}</span>
                     <span className="h-4 w-px opacity-20" style={{ backgroundColor: 'currentColor' }} />
                     <button

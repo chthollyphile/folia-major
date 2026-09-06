@@ -49,6 +49,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "lattice_poster_tint_intensity",
   "lattice_poster_tint_use_custom_color",
   "lattice_vignette",
+  "liquid_glass_tuning",
   "local_lyrics_priority",
   "local_replaygain_mode",
   "lyrics_custom_font",

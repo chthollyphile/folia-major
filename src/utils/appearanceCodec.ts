@@ -510,6 +510,8 @@ export const compressConfig = (config: any): string => {
     if (config.stageTrackPillMode !== undefined) minified.stp = config.stageTrackPillMode;
     if (config.stageTrackPillTimeoutSec !== undefined) minified.stpt = config.stageTrackPillTimeoutSec;
     if (config.stageTrackPillOnHome !== undefined) minified.stph = config.stageTrackPillOnHome;
+    // Flat numbers plus one boolean switch, so it rides as-is rather than getting its own compressor.
+    if (config.liquidGlassTuning) minified.lgt = config.liquidGlassTuning;
 
     const jsonStr = JSON.stringify(minified);
     const bytes = new TextEncoder().encode(jsonStr);
@@ -570,7 +572,8 @@ export const decompressConfig = (str: string): any => {
         // the long-name branch, where none of them is a valid key.
         || parsed.stp !== undefined
         || parsed.stpt !== undefined
-        || parsed.stph !== undefined;
+        || parsed.stph !== undefined
+        || parsed.lgt !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -632,6 +635,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.stp !== undefined) decompressed.stageTrackPillMode = parsed.stp;
         if (parsed.stpt !== undefined) decompressed.stageTrackPillTimeoutSec = parsed.stpt;
         if (parsed.stph !== undefined) decompressed.stageTrackPillOnHome = parsed.stph;
+        if (parsed.lgt) decompressed.liquidGlassTuning = parsed.lgt;
 
         return decompressed;
     } else {
@@ -650,6 +654,7 @@ export const decompressConfig = (str: string): any => {
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
             'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome',
+            'liquidGlassTuning',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);
         if (!hasValidKey) {

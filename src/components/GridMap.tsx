@@ -20,6 +20,8 @@ import { formatGridMapFolderTitle } from '../utils/gridMapFolderPath';
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { isHideableGridItem } from './folia-grid/gridItemVisibility';
 import { useSidePanelBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
+import { useLiquidGlassFilter } from './shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../stores/useLiquidGlassTuningStore';
 
 // src/components/GridMap.tsx
 // Hexagonal honeycomb layout showing all collections (playlists, albums, radios).
@@ -817,6 +819,24 @@ export const GridMap: React.FC<GridMapProps> = ({
         showSidePanel,
     ]);
 
+    // 液态玻璃：顶部标题框。底色走预设表 tint（旧 color-mix(var(--bg-color) 20%)
+    // 反推倍率）。blur 恒为 0 且不保留 backdrop-blur 回退 class（用户要求此表面
+    // 不带磨砂，纯折射 + rim + tint；标题框底下是根容器 95% 不透明的深底，
+    // 磨砂只会糊成一团、折射本就无可弯内容）。根容器的磨砂已挪成兄弟背景层
+    // （见上方注释），标题框到 document 的链路上没有 backdrop root。
+    // 标题框常驻挂载，无需 enabled 控制。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const gridMapTitleTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('gridMapTitle', isDaylight));
+    const gridMapTitleRef = useRef<HTMLButtonElement>(null);
+    const { defs: gridMapTitleGlassDefs, backdropFilter: gridMapTitleGlassBackdropFilter } = useLiquidGlassFilter(gridMapTitleRef, {
+        blur: 0,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('gridMapTitle', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: 16,
+    });
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -826,9 +846,12 @@ export const GridMap: React.FC<GridMapProps> = ({
             style={{
                 backgroundColor: isDaylight ? 'rgba(250, 249, 246, 0.95)' : 'rgba(9, 9, 11, 0.95)',
                 color: 'var(--text-primary)',
-                backdropFilter: 'blur(24px)'
             }}
         >
+            {/* 背景模糊层。不能把 backdrop-blur 挂在根容器自身：祖先 backdrop-filter 形成
+                backdrop root，容器内嵌套玻璃（顶部标题框）在 Chromium 下采样为空、完全不可见。
+                挪成兄弟层后，它的输出画在内容下方，仍是玻璃的采样源。 */}
+            <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ backdropFilter: 'blur(24px)' }} />
             {/* Top Floating Glass Header */}
             <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-5 z-[70] bg-gradient-to-b from-black/10 to-transparent">
                 <button
@@ -844,6 +867,7 @@ export const GridMap: React.FC<GridMapProps> = ({
 
                 <button
                     type="button"
+                    ref={gridMapTitleRef}
                     disabled={!hasCutInPanel}
                     onClick={() => {
                         if (showCutInPanel) {
@@ -853,12 +877,14 @@ export const GridMap: React.FC<GridMapProps> = ({
                             setShowCutInPanel(true);
                         }
                     }}
-                    className="group/grid-title text-center flex flex-col items-center select-none pointer-events-auto cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl backdrop-blur-md disabled:cursor-default disabled:hover:scale-100"
+                    className="group/grid-title text-center flex flex-col items-center select-none pointer-events-auto cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl disabled:cursor-default disabled:hover:scale-100"
                     style={{
-                        backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
+                        backdropFilter: gridMapTitleGlassBackdropFilter ?? undefined,
+                        ...gridMapTitleTintStyle,
                         color: 'var(--text-primary)',
                     }}
                 >
+                    {gridMapTitleGlassDefs}
                     <h2 className="flex items-center justify-center gap-1.5 text-lg font-bold tracking-tight">
                         {title}
                         {hasCutInPanel && <GridPanelToggleIndicator isOpen={showCutInPanel} />}

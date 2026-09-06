@@ -46,6 +46,8 @@ import {
 import { canResolveSongCatalogRef } from '../services/onlineMusic/catalogRefs';
 import type { MediaId, ProviderCollection } from '../types/onlineMusic';
 import { useSidePanelBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
+import { useLiquidGlassFilter } from './shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../stores/useLiquidGlassTuningStore';
 
 export interface GridViewSourceActions {
     local?: {
@@ -2089,6 +2091,23 @@ export const GridView: React.FC<GridViewProps> = ({
     const albumPublishedAt = infoCollection?.publishedAt;
     const albumPublisher = infoCollection?.publisher;
 
+    // 液态玻璃：顶部标题框。底色走预设表 tint（旧 color-mix(var(--bg-color) 20%)
+    // 反推倍率），与 GridMap 标题框同款偏好：blur 恒 0、不保留 backdrop-blur
+    // 回退 class（底下是根容器不透明纯色底，磨砂只会糊成一团）。根容器无
+    // backdrop-filter，标题框到 document 的链路上没有 backdrop root。
+    // 标题框常驻挂载，无需 enabled 控制。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const gridViewTitleTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('gridViewTitle', isDaylight));
+    const gridViewTitleRef = useRef<HTMLDivElement>(null);
+    const { defs: gridViewTitleGlassDefs, backdropFilter: gridViewTitleGlassBackdropFilter } = useLiquidGlassFilter(gridViewTitleRef, {
+        blur: 0,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('gridViewTitle', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: 16,
+    });
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -2150,16 +2169,19 @@ export const GridView: React.FC<GridViewProps> = ({
 
             {/* Center Clickable Area */}
             <div
+                ref={gridViewTitleRef}
                 onClick={() => {
                     if (!hasCutInPanel) return;
                     setShowCutInPanel(!showCutInPanel);
                 }}
-                className={`group/grid-title absolute left-1/2 top-5 -translate-x-1/2 z-[70] text-center flex flex-col items-center select-none transition-all px-5 py-2 rounded-2xl backdrop-blur-md ${hasCutInPanel ? 'cursor-pointer hover:scale-[1.01] active:scale-98' : ''}`}
+                className={`group/grid-title absolute left-1/2 top-5 -translate-x-1/2 z-[70] text-center flex flex-col items-center select-none transition-all px-5 py-2 rounded-2xl ${hasCutInPanel ? 'cursor-pointer hover:scale-[1.01] active:scale-98' : ''}`}
                 style={{
-                    backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
+                    backdropFilter: gridViewTitleGlassBackdropFilter ?? undefined,
+                    ...gridViewTitleTintStyle,
                     color: 'var(--text-primary)',
                 }}
             >
+                {gridViewTitleGlassDefs}
                 <h2 className="text-lg font-bold tracking-tight flex items-center gap-1.5 justify-center">
                     {infoCollection?.name || collection?.name || title}
                     {hasCutInPanel && <GridPanelToggleIndicator isOpen={showCutInPanel} />}

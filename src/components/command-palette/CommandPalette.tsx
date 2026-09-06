@@ -16,6 +16,8 @@ import PinnedCommandRow from './PinnedCommandRow';
 import CommandPaletteAllCommandsList from './CommandPaletteAllCommandsList';
 import { setIsCommandFilterOpen } from '../../stores/useAppViewStore';
 import { gridSearchPanelMotion } from '../shared/gridSearchPanelMotion';
+import { useLiquidGlassFilter } from '../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../../stores/useLiquidGlassTuningStore';
 
 // src/components/command-palette/CommandPalette.tsx
 // Full-screen command input overlay with autocomplete and keyboard execution.
@@ -207,7 +209,37 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         (command: CommandPaletteCommand) => getCommandPrimaryTerm(availableCommands, command, i18n.language)
     ), [availableCommands, i18n.language]);
 
-    const panelBg = isDaylight ? 'bg-white/70 text-zinc-950' : 'bg-zinc-950/70 text-white';
+    const panelText = isDaylight ? 'text-zinc-950' : 'text-white';
+    // 遮罩压暗色（rgba 三元组 + alpha 拆开供 framer 动画 backgroundColor 用）
+    const paletteDimRgb = isDaylight ? '250,250,249' : '0,0,0';
+    const paletteDimAlpha = isDaylight ? 0.46 : 0.48;
+    // 液态玻璃：主面板折射身后的应用内容。遮罩层的 backdrop-blur-md 必须保持移除——
+    // 祖先上的 backdrop-filter 会形成 backdrop root，面板玻璃就只能采样到遮罩自己的
+    // 纯色底，折射不可见。面板底色换成调参 tint，压暗由遮罩的 rgba 承担。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const glassTint = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('commandPalette', isDaylight));
+    const panelRef = React.useRef<HTMLDivElement>(null);
+    // glassActive 滞后 isOpen 一个退场动画：enabled 立刻翻 false 会让面板在退场前半段
+    // 突变成普通毛玻璃（rim/折射瞬间消失），保持到 onExitComplete 再卸。
+    // filterAnchor 走 portal 分支（网格搜索框），主面板此时不在 DOM 里——该分支是
+    // 即时卸载（无退场动画），趁势翻 false，回到主面板时 RO 才会重新挂到新元素上。
+    const [paletteGlassActive, setPaletteGlassActive] = React.useState(isOpen);
+    React.useEffect(() => {
+        if (isOpen && !filterAnchor) {
+            setPaletteGlassActive(true);
+        } else if (filterAnchor) {
+            setPaletteGlassActive(false);
+        }
+    }, [isOpen, filterAnchor]);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(panelRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('commandPalette', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: 24,
+        enabled: paletteGlassActive,
+    });
     const itemActiveBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const itemIdleBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
 
@@ -377,23 +409,27 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
 
     return (
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={() => setPaletteGlassActive(false)}>
             {isOpen && (
                 <motion.div
                     data-folia-keyboard-window="true"
-                    className="fixed inset-0 z-[150] flex items-start justify-center px-4 pt-[18vh] backdrop-blur-md"
-                    style={{ backgroundColor: isDaylight ? 'rgba(250,250,249,0.46)' : 'rgba(0,0,0,0.48)' }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[150] flex items-start justify-center px-4 pt-[18vh]"
+                    // 压暗用 backgroundColor 动画而不是 opacity：opacity<1 的祖先会形成
+                    // backdrop root，进退场期间面板玻璃采样不到遮罩下的应用内容。
+                    initial={{ backgroundColor: `rgba(${paletteDimRgb}, 0)` }}
+                    animate={{ backgroundColor: `rgba(${paletteDimRgb}, ${paletteDimAlpha})` }}
+                    exit={{ backgroundColor: `rgba(${paletteDimRgb}, 0)` }}
                     transition={{ duration: 0.16 }}
                     onMouseDown={onClose}
                 >
                     <motion.div
                         className="w-full max-w-2xl"
-                        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                        // 位移/缩放留在 wrapper，opacity 下放到面板自身（玻璃元素）：
+                        // opacity<1 的祖先会形成 backdrop root，进退场期间面板玻璃
+                        // 采样不到遮罩下的应用内容、动画结束才跳回真实折射。
+                        initial={{ y: 18, scale: 0.98 }}
+                        animate={{ y: 0, scale: 1 }}
+                        exit={{ y: 18, scale: 0.98 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
                         onAnimationComplete={() => {
                             // iOS Safari blocks overflow scrolling in sibling containers
@@ -405,12 +441,20 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
                     >
-                        <div
-                            className={`overflow-hidden rounded-3xl border shadow-2xl ${panelBg}`}
+                        {glassFilterDefs}
+                        <motion.div
+                            ref={panelRef}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.18, ease: 'easeOut' }}
+                            className={`overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-xl ${panelText}`}
                             data-testid="command-palette-panel"
                             style={{
                                 borderColor: isDaylight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)',
                                 color: 'var(--text-primary)',
+                                backdropFilter: glassBackdropFilter ?? undefined,
+                                ...glassTint,
                             }}
                         >
                         <div className="flex items-center gap-3 border-b px-4 py-3" style={{ borderColor: isDaylight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.10)' }}>
@@ -573,7 +617,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 })
                             )}
                         </div>
-                        </div>
+                        </motion.div>
                         <PinnedCommandRow
                             commands={pinnedCommands}
                             isDaylight={isDaylight}

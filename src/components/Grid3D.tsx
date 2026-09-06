@@ -33,6 +33,8 @@ import wechatIcon from '../assets/providers/wechat.svg';
 import { useHomeLayoutSettingsStore } from '../stores/useHomeLayoutSettingsStore';
 import { useNeteaseApiStatusStore } from '../stores/useNeteaseApiStatusStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
+import { useLiquidGlassFilter } from './shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../stores/useLiquidGlassTuningStore';
 import { countRender } from '../dev/renderCount';
 
 // src/components/Grid3D.tsx
@@ -638,9 +640,21 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     const isSearchingActive = isSearching;
 
+    // 液态玻璃：首页顶部搜索框接入统一滤镜链。底色走预设表 tint（旧 class 底色
+    // dark 白霜/5、light 黑霜/5 换到玻璃家族约定极性），backdrop-blur class 保留作
+    // 总开关关闭或不支持 url() backdrop-filter 时的回退。搜索框常驻挂载，无需 enabled 控制。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const searchTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('homeSearchInput', isDaylight));
+    const searchFormRef = useRef<HTMLFormElement>(null);
+    const { defs: searchGlassDefs, backdropFilter: searchGlassBackdropFilter } = useLiquidGlassFilter(searchFormRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('homeSearchInput', liquidGlassTuning.dispersion),
+    });
+
     // Background style mappings
     const mainBg = isDaylight ? 'bg-white/40' : 'bg-black/20';
-    const inputBg = isDaylight ? 'bg-black/5 focus:bg-black/10' : 'bg-white/5 focus:bg-white/10';
     const navPillBg = isDaylight ? 'bg-black/5' : 'bg-white/10';
     const navPillInactiveText = isDaylight ? 'text-black/60 hover:text-black' : 'text-white/60 hover:text-white';
     const activeTabBg = isDaylight ? 'text-black font-bold' : 'text-black';
@@ -656,7 +670,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     };
 
     return (
-        <div ref={gridRootRef} className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto backdrop-blur-sm ${bottomPadding}`}>
+        <div ref={gridRootRef} className={`relative w-full h-full flex flex-col font-sans overflow-hidden ${mainBg} pointer-events-auto ${bottomPadding}`}>
+            {/* 背景模糊层。不能把 backdrop-blur 挂在容器自身：祖先的 backdrop-filter 会形成
+                backdrop root，容器内所有液态玻璃表面（嵌套 backdrop-filter）在 Chromium 下
+                采样为空、效果失效——右下角的平台切换/返回播放器胶囊也渲染在这棵子树里。
+                挪成兄弟层后，它的输出画在内容下方，仍是玻璃的采样源。 */}
+            <div aria-hidden className="absolute inset-0 pointer-events-none backdrop-blur-sm" />
 
             {/* Main Header Container (Fades out when sliding/interacting) */}
             <div className="transition-opacity duration-300 ease-in-out z-20 opacity-100 select-none">
@@ -823,7 +842,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
                     {/* Right Search Bar */}
                     <div className="flex justify-end order-2 md:order-none">
-                        <form onSubmit={handleSearch} className="relative w-full md:w-56 transition-all focus-within:md:w-72">
+                        <form
+                            ref={searchFormRef}
+                            onSubmit={handleSearch}
+                            style={{ backdropFilter: searchGlassBackdropFilter ?? undefined, ...searchTintStyle }}
+                            className="relative w-full md:w-56 transition-all focus-within:md:w-72 rounded-full backdrop-blur-md"
+                        >
+                            {searchGlassDefs}
                             {isSearchingActive ? (
                                 <Loader2 className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40 -mt-2" />
                             ) : (
@@ -837,7 +862,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 placeholder={homeViewTab === 'local' ? t('home.searchLocal') : homeViewTab === 'navidrome' ? t('home.searchNavidrome') : t('home.searchDatabase')}
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className={`w-full ${inputBg} border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-white/20 transition-all placeholder:text-current placeholder:opacity-40 select-text`}
+                                className={`w-full bg-transparent border rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none transition-all placeholder:text-current placeholder:opacity-40 select-text ${isDaylight ? 'border-black/10 focus:border-black/25' : 'border-white/10 focus:border-white/25'}`}
                                 style={{ color: 'var(--text-primary)' }}
                             />
                         </form>

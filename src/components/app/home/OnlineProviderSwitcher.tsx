@@ -8,6 +8,8 @@ import {
     PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
     resolvePlayerBottomComponentBottomPx,
 } from '../../../utils/playerBottomBarLayout';
+import { useLiquidGlassFilter } from '../../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, useLiquidGlassTuningStore } from '../../../stores/useLiquidGlassTuningStore';
 
 // src/components/app/home/OnlineProviderSwitcher.tsx
 
@@ -130,6 +132,21 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
         };
     }, [open]);
 
+    // 液态玻璃：胶囊（平台切换 + 返回播放器）浮在 visualizer 上。底色走预设表 tint，
+    // 内部按钮的 hover:bg-* 是子元素、不受胶囊 inline 底色影响。玻璃开在胶囊上而非
+    // 内层按钮：按钮坐在胶囊的实底里，单独给按钮加玻璃采样到的只有胶囊底色，没有意义。
+    // hook 必须在下面的提前 return 之前调用，用 enabled 控制胶囊不在场时摘掉 RO。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const pillTintStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('homePlayerEntryPill', isDaylight));
+    const pillRef = useRef<HTMLDivElement>(null);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(pillRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: liquidGlassTuning.dispersion,
+        enabled: Boolean(activeProvider),
+    });
+
     if (!activeProvider) return null;
 
     return (
@@ -138,7 +155,12 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
             data-testid="online-provider-switcher"
             className="pointer-events-auto absolute bottom-4 right-4 z-[100] md:bottom-6 md:right-6"
         >
-            <div className={`flex items-center rounded-full p-0.5 shadow-lg md:p-1.5 ${surfaceClass}`}>
+            {glassFilterDefs}
+            <div
+                ref={pillRef}
+                style={{ backdropFilter: glassBackdropFilter ?? undefined, ...pillTintStyle }}
+                className={`flex items-center rounded-full p-0.5 shadow-lg backdrop-blur-xl md:p-1.5 ${isDaylight ? 'text-zinc-900' : 'text-white'}`}
+            >
                 <button
                     type="button"
                     onClick={() => setOpen(value => !value)}

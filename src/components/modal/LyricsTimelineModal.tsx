@@ -3,6 +3,8 @@ import { motion, AnimatePresence, MotionValue, useMotionValueEvent } from 'frame
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LyricData, Theme } from '../../types';
+import { useLiquidGlassFilter } from '../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../../stores/useLiquidGlassTuningStore';
 
 interface LyricsTimelineModalProps {
     isOpen: boolean;
@@ -35,8 +37,27 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
 }) => {
     const { t } = useTranslation();
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
-    const glassBg = isDaylight ? 'bg-white/70' : 'bg-black/40';
     const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
+
+    // 液态玻璃：与播放页胶囊共享实验室调参；面板是条件挂载，用 glassActive 控制 RO 时机。
+    // glassActive 滞后 isOpen 一个退场动画：enabled 立刻翻 false 会让面板在退场前半段
+    // 突变成普通毛玻璃（rim/折射瞬间消失），保持到 onExitComplete 再卸。
+    const [glassActive, setGlassActive] = useState(isOpen);
+    useEffect(() => {
+        if (isOpen) setGlassActive(true);
+    }, [isOpen]);
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const glassBgStyle = buildGlassTintStyle(liquidGlassTuning, isDaylight, resolveLiquidGlassTintMultiplier('lyricsTimeline', isDaylight));
+    const panelRef = useRef<HTMLDivElement>(null);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(panelRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('lyricsTimeline', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: 16,
+        enabled: glassActive,
+    });
 
     // Timeline Item Styles
     const itemBg = isDaylight ? 'bg-white/60' : 'bg-black/60';
@@ -191,21 +212,24 @@ const LyricsTimelineModal: React.FC<LyricsTimelineModalProps> = ({
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={() => setGlassActive(false)}>
             {isOpen && (
                 <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    // 遮罩层没有自己的底色，淡入淡出全部交给面板自身的 opacity 动画：
+                    // opacity<1 的祖先会形成 backdrop root，退场期间面板玻璃只能采样到
+                    // 遮罩层内部内容，动画结束才跳回真实折射。
                     data-folia-keyboard-window="true"
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md"
+                    className="fixed inset-0 z-[100] flex items-center justify-center"
                     onClick={onClose}
                 >
+                    {glassFilterDefs}
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.9, opacity: 0 }}
-                        className={`w-[90vw] max-w-4xl h-[80vh] ${glassBg} border ${borderColor} rounded-2xl p-8 relative flex flex-col`}
+                        ref={panelRef}
+                        style={{ backdropFilter: glassBackdropFilter ?? undefined, ...glassBgStyle }}
+                        className={`w-[90vw] max-w-4xl h-[80vh] border ${borderColor} rounded-2xl p-8 relative flex flex-col backdrop-blur-2xl`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}

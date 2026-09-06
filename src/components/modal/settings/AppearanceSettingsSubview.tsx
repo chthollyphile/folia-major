@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Download, Copy, Check, ChevronRight, AlertTriangle, Music2 } from 'lucide-react';
+import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Download, Copy, Check, ChevronDown, ChevronRight, AlertTriangle, Music2, Droplets, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -32,6 +32,16 @@ import { useTypographySettingsStore } from '../../../stores/useTypographySetting
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
+import {
+    LIQUID_GLASS_BLUR_RANGE,
+    LIQUID_GLASS_DISPERSION_STRENGTH_RANGE,
+    LIQUID_GLASS_TINT_RANGE,
+    LIQUID_GLASS_REFRACTION_RANGE,
+    LIQUID_GLASS_RIM_RANGE,
+    LIQUID_GLASS_SATURATION_RANGE,
+    useLiquidGlassTuningStore,
+} from '../../../stores/useLiquidGlassTuningStore';
+import { supportsSvgBackdropFilter } from '../../shared/LiquidGlassFilter';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
@@ -248,6 +258,22 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetUrlBackgroundSelectedId: state.handleSetUrlBackgroundSelectedId,
     })));
 
+    const storeLiquidGlass = useLiquidGlassTuningStore(useShallow(state => ({
+        liquidGlassTuning: state.liquidGlassTuning,
+        handleSetLiquidGlassTuning: state.handleSetLiquidGlassTuning,
+        handleResetLiquidGlassTuning: state.handleResetLiquidGlassTuning,
+    })));
+    // 液态玻璃依赖 backdrop-filter 引用 SVG 滤镜，仅 Chromium 系支持。不支持的浏览器
+    // 玻璃本就不生效（表面回退毛玻璃类），选项卡隐藏，总开关也落盘为关。
+    const liquidGlassSupported = React.useMemo(supportsSvgBackdropFilter, []);
+    React.useEffect(() => {
+        if (!liquidGlassSupported && storeLiquidGlass.liquidGlassTuning.enabled) {
+            storeLiquidGlass.handleSetLiquidGlassTuning({ enabled: false });
+        }
+    }, [liquidGlassSupported, storeLiquidGlass]);
+    // 液态玻璃高级选项折叠态：折射/饱和度/高光/色散收进折叠区，模糊与底色留在外面
+    const [liquidGlassAdvancedOpen, setLiquidGlassAdvancedOpen] = useState(false);
+
     const getAccentOptionStyle = (selected: boolean) => (
         selected
             ? {
@@ -262,6 +288,34 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     );
     const lyricsStyleBorderStart = theme?.accentColor || accentOutlineColor;
     const lyricsStyleBorderEnd = theme?.secondaryColor || theme?.primaryColor || accentOutlineColor;
+    // Liquid glass tuning slider row: writes the store live, every glass surface follows instantly.
+    const renderLiquidGlassSlider = (
+        label: string,
+        value: number,
+        range: { min: number; max: number; step: number },
+        apply: (next: number) => void,
+        format: (v: number) => string,
+    ) => (
+        <div className="space-y-2" data-glass-tuning-slider={label}>
+            <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                <span>{label}</span>
+                <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                    {format(value)}
+                </span>
+            </div>
+            <input
+                type="range"
+                min={range.min}
+                max={range.max}
+                step={range.step}
+                value={value}
+                onChange={(event) => apply(Number(event.target.value))}
+                className="w-full accent-current"
+                style={{ color: isDaylight ? '#27272a' : '#ffffff' }}
+                aria-label={label}
+            />
+        </div>
+    );
 
     const buildCurrentConfig = () => {
         let exportTheme: DualTheme | null = null;
@@ -564,6 +618,12 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 onToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
             }
 
+            // Liquid glass tuning. The setter merges a patch and clamps every number, so a config
+            // from an older or newer shape cannot poison the store with out-of-range values.
+            if (has('liquidGlassTuning') && config.liquidGlassTuning) {
+                storeLiquidGlass.handleSetLiquidGlassTuning(config.liquidGlassTuning);
+            }
+
             setStatusMessage({ type: 'success', text: t('options.importSuccess') });
             setImportText('');
             setPendingImport(null);
@@ -832,6 +892,144 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                     onToggleShowOnHome={onToggleStageTrackPillOnHome}
                 />
             </SettingsAnchor>
+
+            {/* Liquid glass tuning：仅支持 url() backdrop-filter 的浏览器（Chromium 系）显示 */}
+            {liquidGlassSupported && (
+                <SettingsAnchor anchorId="liquidGlass" label={t('options.liquidGlassTuning')}>
+                    <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`} data-glass-tuning-card>
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                    <Droplets size={14} />
+                                    {t('options.liquidGlassTuning')}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={storeLiquidGlass.handleResetLiquidGlassTuning}
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${utilityGhostButtonClass}`}
+                                style={{ color: 'var(--text-primary)' }}
+                            >
+                                <RotateCcw size={12} />
+                                {t('options.liquidGlassTuningReset')}
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="text-xs min-w-0" style={{ color: 'var(--text-primary)' }}>
+                                {t('options.liquidGlassEnabled')}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => storeLiquidGlass.handleSetLiquidGlassTuning({ enabled: !storeLiquidGlass.liquidGlassTuning.enabled })}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!storeLiquidGlass.liquidGlassTuning.enabled ? toggleOffBackgroundClass : ''}`}
+                                style={{ backgroundColor: storeLiquidGlass.liquidGlassTuning.enabled ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                aria-pressed={storeLiquidGlass.liquidGlassTuning.enabled}
+                                aria-label={t('options.liquidGlassEnabled')}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${storeLiquidGlass.liquidGlassTuning.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                        <div className={storeLiquidGlass.liquidGlassTuning.enabled ? '' : 'opacity-50 pointer-events-none'}>
+                        {isDaylight ? renderLiquidGlassSlider(
+                            t('options.liquidGlassTint'),
+                            storeLiquidGlass.liquidGlassTuning.lightTint,
+                            LIQUID_GLASS_TINT_RANGE,
+                            next => storeLiquidGlass.handleSetLiquidGlassTuning({ lightTint: next }),
+                            v => v.toFixed(2),
+                        ) : renderLiquidGlassSlider(
+                            t('options.liquidGlassTint'),
+                            storeLiquidGlass.liquidGlassTuning.darkTint,
+                            LIQUID_GLASS_TINT_RANGE,
+                            next => storeLiquidGlass.handleSetLiquidGlassTuning({ darkTint: next }),
+                            v => v.toFixed(2),
+                        )}
+                        {renderLiquidGlassSlider(
+                            t('options.liquidGlassBlur'),
+                            storeLiquidGlass.liquidGlassTuning.blur,
+                            LIQUID_GLASS_BLUR_RANGE,
+                            next => storeLiquidGlass.handleSetLiquidGlassTuning({ blur: next }),
+                            v => `${v}px`,
+                        )}
+                        {/* 高级选项折叠区：低频调参收起，避免卡片过长；折叠样式沿用 TransitionSettingsSection */}
+                        <div
+                            className="rounded-lg border"
+                            style={{
+                                borderColor: isDaylight ? 'rgba(24, 24, 27, 0.12)' : 'rgba(255, 255, 255, 0.1)',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setLiquidGlassAdvancedOpen(open => !open)}
+                                aria-expanded={liquidGlassAdvancedOpen}
+                                className="flex w-full items-center justify-between gap-4 px-3 py-3 text-left"
+                            >
+                                <div className="text-xs min-w-0" style={{ color: 'var(--text-primary)' }}>
+                                    {t('options.liquidGlassAdvanced')}
+                                </div>
+                                <ChevronDown
+                                    size={14}
+                                    className={`shrink-0 transition-transform ${liquidGlassAdvancedOpen ? 'rotate-180' : ''}`}
+                                    style={{ color: 'var(--text-secondary)' }}
+                                />
+                            </button>
+                            {liquidGlassAdvancedOpen && (
+                                <div
+                                    className="space-y-4 border-t px-3 py-3"
+                                    style={{ borderColor: isDaylight ? 'rgba(24, 24, 27, 0.12)' : 'rgba(255, 255, 255, 0.1)' }}
+                                >
+                                    {renderLiquidGlassSlider(
+                                        t('options.liquidGlassRefraction'),
+                                        storeLiquidGlass.liquidGlassTuning.edgeDisplacement,
+                                        LIQUID_GLASS_REFRACTION_RANGE,
+                                        next => storeLiquidGlass.handleSetLiquidGlassTuning({ edgeDisplacement: next }),
+                                        v => `${Math.round(v)}`,
+                                    )}
+                                    {renderLiquidGlassSlider(
+                                        t('options.liquidGlassSaturation'),
+                                        storeLiquidGlass.liquidGlassTuning.saturation,
+                                        LIQUID_GLASS_SATURATION_RANGE,
+                                        next => storeLiquidGlass.handleSetLiquidGlassTuning({ saturation: next }),
+                                        v => v.toFixed(2),
+                                    )}
+                                    {renderLiquidGlassSlider(
+                                        t('options.liquidGlassRim'),
+                                        storeLiquidGlass.liquidGlassTuning.rimIntensity,
+                                        LIQUID_GLASS_RIM_RANGE,
+                                        next => storeLiquidGlass.handleSetLiquidGlassTuning({ rimIntensity: next }),
+                                        v => v.toFixed(2),
+                                    )}
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="text-xs min-w-0" style={{ color: 'var(--text-primary)' }}>
+                                            {t('options.liquidGlassDispersion')}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => storeLiquidGlass.handleSetLiquidGlassTuning({ dispersion: !storeLiquidGlass.liquidGlassTuning.dispersion })}
+                                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!storeLiquidGlass.liquidGlassTuning.dispersion ? toggleOffBackgroundClass : ''}`}
+                                            style={{ backgroundColor: storeLiquidGlass.liquidGlassTuning.dispersion ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                                            aria-pressed={storeLiquidGlass.liquidGlassTuning.dispersion}
+                                            aria-label={t('options.liquidGlassDispersion')}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${storeLiquidGlass.liquidGlassTuning.dispersion ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        </button>
+                                    </div>
+                                    <div className="text-[11px] leading-relaxed opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                        {t('options.liquidGlassDispersionDesc')}
+                                    </div>
+                                    {storeLiquidGlass.liquidGlassTuning.dispersion && renderLiquidGlassSlider(
+                                        t('options.liquidGlassDispersionStrength'),
+                                        storeLiquidGlass.liquidGlassTuning.dispersionStrength,
+                                        LIQUID_GLASS_DISPERSION_STRENGTH_RANGE,
+                                        next => storeLiquidGlass.handleSetLiquidGlassTuning({ dispersionStrength: next }),
+                                        v => v.toFixed(2),
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        </div>
+                    </div>
+                </SettingsAnchor>
+            )}
 
             {/* Section 4: Grid card style */}
             <SettingsAnchor anchorId="grid3dCardStyle" label={t('options.grid3dCardStyle')}>

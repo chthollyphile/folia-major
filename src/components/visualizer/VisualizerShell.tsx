@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { AudioBands, Theme } from '../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../utils/fontStacks';
+import { useLiquidGlassFilter } from '../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../../stores/useLiquidGlassTuningStore';
 import { type VisualizerSharedProps } from './definition';
 import VisualizerBackgroundRenderer from './backgrounds/VisualizerBackgroundRenderer';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
@@ -69,6 +71,17 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const resolvedPaused = sharedProps?.paused ?? false;
     const resolvedOnBack = sharedProps?.onBack;
     const resolvedIsPanelOpen = sharedProps?.isPanelOpen ?? false;
+    // 液态玻璃：返回按钮与播放页胶囊/面板共享实验室调参（位移 → blur → 饱和度）
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const backButtonRef = useRef<HTMLButtonElement>(null);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(backButtonRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('playerBackButton', liquidGlassTuning.dispersion),
+        enabled: Boolean(resolvedOnBack),
+    });
+    const backButtonTintStyle = buildGlassTintStyle(liquidGlassTuning, resolvedIsDaylight, resolveLiquidGlassTintMultiplier('playerBackButton', resolvedIsDaylight));
     const onPlayerPanelGuideHotspotChange = sharedProps?.onPlayerPanelGuideHotspotChange;
     const isBackButtonVisible = sharedProps?.alwaysShowBackButton || showBackButton;
 
@@ -156,25 +169,39 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
             }}
         >
             {resolvedOnBack && (
-                <motion.button
-                    type="button"
-                    aria-label={t('ui.backToHome')}
-                    initial={false}
-                    animate={{
-                        opacity: isBackButtonVisible ? 1 : 0,
-                        scale: isBackButtonVisible ? 1 : 0.92,
-                        x: isBackButtonVisible ? 0 : -6,
-                    }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        resolvedOnBack();
-                    }}
-                    className="absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
-                    style={{ pointerEvents: isBackButtonVisible ? 'auto' : 'none' }}
-                >
-                    <ChevronLeft size={20} />
-                </motion.button>
+                <>
+                    {glassFilterDefs}
+                    <motion.button
+                        type="button"
+                        aria-label={t('ui.backToHome')}
+                        initial={false}
+                        animate={{
+                            opacity: isBackButtonVisible ? 1 : 0,
+                            scale: isBackButtonVisible ? 1 : 0.92,
+                            x: isBackButtonVisible ? 0 : -6,
+                        }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            resolvedOnBack();
+                        }}
+                        ref={backButtonRef}
+                        // 底色走调参 store 的 tint（inline style 常驻，连同不支持滤镜的回退态）；
+                        // inline 背景色会盖掉 hover:bg-*，悬停反馈改为图标颜色加深。
+                        style={{
+                            pointerEvents: isBackButtonVisible ? 'auto' : 'none',
+                            backdropFilter: glassBackdropFilter ?? undefined,
+                            ...backButtonTintStyle,
+                        }}
+                        className={`absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md pointer-events-auto ${
+                            resolvedIsDaylight
+                                ? 'text-black/70 hover:text-black'
+                                : 'text-white/60 hover:text-white'
+                        }`}
+                    >
+                        <ChevronLeft size={20} />
+                    </motion.button>
+                </>
             )}
 
             {renderBackground && (

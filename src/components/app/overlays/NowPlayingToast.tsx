@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
+import { useLiquidGlassFilter } from '../../shared/LiquidGlassFilter';
+import { buildGlassTintStyle, resolveLiquidGlassTintMultiplier, resolveSurfaceDispersion, useLiquidGlassTuningStore } from '../../../stores/useLiquidGlassTuningStore';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
@@ -108,6 +110,32 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     // 回调会晚一帧。挂个条件上去就等于把「卡片描边」那个开关又读了第二遍，而它已经有一个读的
     // 地方了（useTransitionBorderCue）——同一个开关两个读点、两个时机，正是这块出过的那个 bug。
     const frameRef = useRef<HTMLDivElement | null>(null);
+    // 液态玻璃：卡片折射身后真实的播放页内容，与其它玻璃表面共享实验室调参。
+    // 底色走预设表 tint（复现旧 black/35、white/35 的观感）；悬停反馈从 hover:bg-* 迁移为
+    // 状态倍率加深（×1.57 ≈ 旧 black|white/55），inline 底色会盖掉 hover:bg-* 类。
+    const liquidGlassTuning = useLiquidGlassTuningStore(state => state.liquidGlassTuning);
+    const [isToastHovered, setIsToastHovered] = useState(false);
+    const toastTintStyle = buildGlassTintStyle(
+        liquidGlassTuning,
+        isDaylight,
+        resolveLiquidGlassTintMultiplier('nowPlayingToast', isDaylight, isToastHovered && onActivate ? 1.57 : 1),
+    );
+    const toastCardRef = useRef<HTMLButtonElement>(null);
+    // glassActive 滞后 visible 一个退场动画：enabled 立刻翻 false 会让卡片在退场前半段
+    // 突变成普通毛玻璃（rim/折射瞬间消失），保持到 onExitComplete 再卸。
+    const [glassActive, setGlassActive] = useState(visible);
+    useEffect(() => {
+        if (visible) setGlassActive(true);
+    }, [visible]);
+    const { defs: glassFilterDefs, backdropFilter: glassBackdropFilter } = useLiquidGlassFilter(toastCardRef, {
+        blur: liquidGlassTuning.blur,
+        saturation: liquidGlassTuning.saturation,
+        edgeDisplacement: liquidGlassTuning.edgeDisplacement,
+        dispersion: resolveSurfaceDispersion('nowPlayingToast', liquidGlassTuning.dispersion),
+        shape: 'rounded',
+        cornerRadius: CARD_RADIUS,
+        enabled: glassActive,
+    });
     const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
     useEffect(() => {
         const frame = frameRef.current;
@@ -127,19 +155,23 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     }, [visible]);
 
     return (
-        <AnimatePresence>
+        <AnimatePresence onExitComplete={() => setGlassActive(false)}>
             {visible && (
                 <motion.div
                     ref={frameRef}
-                    initial={{ opacity: 0, x: -32 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
+                    initial={{ x: -32 }}
+                    animate={{ x: 0 }}
+                    exit={{ x: -16 }}
                     transition={{ duration: 0.35, ease: 'easeOut' }}
+                    // 位移留在 frame，淡入淡出全部下放到卡片/描边自身：opacity<1 的祖先
+                    // 会形成 backdrop root，进退场期间卡片玻璃采样不到身后内容、动画结束
+                    // 才跳回真实折射。描边有自己的 initial/exit opacity，不受影响。
                     // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
                     // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
                     style={{ bottom: bottomBarBottomPx }}
                     className="pointer-events-none fixed left-6 z-40"
                 >
+                    {glassFilterDefs}
                     {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
                         描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。
                         AnimatePresence 在这儿单独开一层，混音结束时描边自己淡出，不用等卡片；
@@ -181,13 +213,16 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         aria-label={onActivate ? activateLabel : undefined}
                         initial={{ opacity: 0, x: -24 }}
                         animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0 }}
                         whileTap={onActivate ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
+                        ref={toastCardRef}
+                        onMouseEnter={() => setIsToastHovered(true)}
+                        onMouseLeave={() => setIsToastHovered(false)}
+                        style={{ backdropFilter: glassBackdropFilter ?? undefined, ...toastTintStyle }}
                         className={`relative flex min-w-[240px] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
-                            isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
-                        } ${onActivate
-                            ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
-                            : ''}`}
+                            isDaylight ? 'border-black/10 text-zinc-900' : 'border-white/10 text-white'
+                        } ${onActivate ? 'pointer-events-auto cursor-pointer' : ''}`}
                     >
                         {/* 顶部光线（进场的横向扫光）。混音期间收掉：描边现在正压在卡片边框上，
                             再叠一条亮线就是同一条边上两层东西，读起来是好几层边框套在一起。 */}

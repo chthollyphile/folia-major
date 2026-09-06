@@ -103,7 +103,7 @@ export const collectTemperaArchiveEntries = (
     files: Unzipped,
     manifest: unknown[],
 ): TemperaArchiveImageEntry[] => {
-    const paths = Object.keys(files);
+    const paths: string[] = Object.keys(files);
     const entries: TemperaArchiveImageEntry[] = [];
     manifest.forEach(rawImage => {
         const image = normalizePlacement(rawImage);
