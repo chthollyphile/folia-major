@@ -164,7 +164,13 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": [
+        "en_US",
+        "zh_CN",
+        "id"
+      ],
+      "include": "build/installer.nsh"
     },
     "linux": {
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",
