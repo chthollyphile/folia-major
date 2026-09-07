@@ -61,6 +61,9 @@ models/
 build/windowtolayer
 build/windowtolayer-COPYING
 build/ffmpeg/
+# Dev-only drop-in slot read by resolveFfmpeg before the packaged runtime; same binary as
+# build/ffmpeg/<os>-<arch>, staged here so `npm run dev:electron` uses it instead of system PATH.
+ffmpeg-8.1.2/
 .windowtolayer-src/
 # Local reference clone of upstream main used for pollution review; never ship.
 original/
