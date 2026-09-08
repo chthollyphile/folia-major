@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { DualTheme, SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme } from '../../services/themeSanitizer';
+import { BASE_DUAL_THEME } from '../../services/baseThemes';
 import { extractColors } from '../../utils/colorExtractor';
 import { THEME_GENERATION_PROMPT_PREFIX, buildThemeSourcePrompt, parseAiThemeJsonInput } from '../../utils/aiThemePrompts';
 import { useThemeQuickEditorStore, type ThemeQuickEditorKind } from '../../stores/useThemeQuickEditorStore';
@@ -227,6 +228,30 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
     };
 
     const handleReset = () => {
+        if (throttleTimeoutRef.current) {
+            clearTimeout(throttleTimeoutRef.current);
+            throttleTimeoutRef.current = null;
+        }
+        if (kind === 'custom') {
+            setDraftTheme(previous => ({
+                ...previous,
+                light: {
+                    ...previous.light,
+                    backgroundColor: BASE_DUAL_THEME.light.backgroundColor,
+                    primaryColor: BASE_DUAL_THEME.light.primaryColor,
+                    accentColor: BASE_DUAL_THEME.light.accentColor,
+                    secondaryColor: BASE_DUAL_THEME.light.secondaryColor,
+                },
+                dark: {
+                    ...previous.dark,
+                    backgroundColor: BASE_DUAL_THEME.dark.backgroundColor,
+                    primaryColor: BASE_DUAL_THEME.dark.primaryColor,
+                    accentColor: BASE_DUAL_THEME.dark.accentColor,
+                    secondaryColor: BASE_DUAL_THEME.dark.secondaryColor,
+                },
+            }));
+            return;
+        }
         setDraftTheme(normalizedInitialTheme);
         setThemeNames({
             light: normalizedInitialTheme.light.name || '',

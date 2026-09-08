@@ -21,6 +21,7 @@ type UseThemeParkDraftOptions = {
     bgMode: ThemeMode;
     seedTheme: DualTheme;
     isDaylight: boolean;
+    defaultCustomTheme?: DualTheme;
 };
 
 const resolveInitialTarget = (
@@ -39,6 +40,7 @@ export const useThemeParkDraft = ({
     bgMode,
     seedTheme,
     isDaylight,
+    defaultCustomTheme,
 }: UseThemeParkDraftOptions) => {
     const [target, setTarget] = useState<ThemeEditTarget>(() => resolveInitialTarget(bgMode, aiTheme, customTheme));
     const hasChosenTargetRef = useRef(false);
@@ -148,8 +150,22 @@ export const useThemeParkDraft = ({
 
     const reset = useCallback(() => {
         flushPendingColor();
+        if (target === 'custom' && defaultCustomTheme) {
+            const patchColors = (source: Theme) => ({
+                backgroundColor: source.backgroundColor,
+                primaryColor: source.primaryColor,
+                accentColor: source.accentColor,
+                secondaryColor: source.secondaryColor,
+            });
+            applyDraft(target, previous => ({
+                ...previous,
+                light: { ...previous.light, ...patchColors(defaultCustomTheme.light) },
+                dark: { ...previous.dark, ...patchColors(defaultCustomTheme.dark) },
+            }));
+            return;
+        }
         applyDraft(target, () => baseTheme);
-    }, [applyDraft, baseTheme, flushPendingColor, target]);
+    }, [applyDraft, baseTheme, defaultCustomTheme, flushPendingColor, target]);
 
     // Flushes any in-flight picker value, then hands back a sanitized theme fit to save or copy.
     const buildFinalTheme = useCallback(() => {

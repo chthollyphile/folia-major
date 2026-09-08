@@ -14,6 +14,7 @@ import {
 } from '../../types';
 import { getVisualizerModeLabel } from '../visualizer/registry';
 import { normalizeThemeHexColor } from '../../services/themeSanitizer';
+import { BASE_DUAL_THEME } from '../../services/baseThemes';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { extractColors } from '../../utils/colorExtractor';
 import { buildRecommendedColors } from '../../utils/themeEditorPalette';
@@ -130,7 +131,14 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         replaceDraft,
         reset,
         buildFinalTheme,
-    } = useThemeParkDraft({ aiTheme, customTheme, bgMode, seedTheme: initialTheme, isDaylight });
+    } = useThemeParkDraft({
+        aiTheme,
+        customTheme,
+        bgMode,
+        seedTheme: initialTheme,
+        isDaylight,
+        defaultCustomTheme: BASE_DUAL_THEME,
+    });
 
     const { currentTime, audioPower, audioBands, currentLineIndex } = useThemeParkPreviewClock(visualizerMode, isPaused);
 
