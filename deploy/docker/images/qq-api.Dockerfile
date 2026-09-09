@@ -1,16 +1,20 @@
 FROM node:24-alpine
 
 WORKDIR /app
-ENV NODE_ENV=production
 ENV PORT=3000
 ENV QQ_AUTH_STATE_PATH=/app/.auth-state/qq-device.json
 
 # 后端由 npm 包提供，第三方 MIT 全文随包安装在
 # node_modules/@yakult-green-tea/qq-music-api/LICENSE，不必再单独复制一份。
 COPY deploy/docker/qq-api/package.json deploy/docker/qq-api/package-lock.json ./
-RUN npm ci --omit=dev
+COPY patches ./patches
+# 临时应用 QQ CDN 补丁；上游发布修复版本后与 patches 目录一起删除。
+RUN npm ci --ignore-scripts \
+    && npx patch-package --patch-dir ./patches \
+    && npm prune --omit=dev
 RUN mkdir -p /app/.auth-state && chown node:node /app/.auth-state
 
+ENV NODE_ENV=production
 USER node
 EXPOSE 3000
 

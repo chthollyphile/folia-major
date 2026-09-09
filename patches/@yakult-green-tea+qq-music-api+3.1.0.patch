@@ -1,0 +1,471 @@
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/qrLogin.js b/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/qrLogin.js
+index a1c1c9c..96cc9d3 100644
+--- a/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/qrLogin.js
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/qrLogin.js
+@@ -2,6 +2,7 @@ import { AuthCredentialRejectedError } from '../../util/authError.js';
+ import { logger } from '../../util/logger.js';
+ import { buildAndroidComm, buildQimeiRequest, credentialMusicId, isAndroidDevice, QIMEI_URL, randomDigits, } from './androidDevice.js';
+ import { createDeviceContextStore, createMemoryDeviceContextRepository, } from './deviceContextStore.js';
++import { createStreamUrlProbe, StreamCdnSelector } from './streamCdnSelector.js';
+ import { dictionaryOf, identifierOf, isAbortError, isDictionary, numberOf, parseDictionary, stringOf, } from './values.js';
+ import { createWechatQr, eventForWechatStatus, fetchWechatQrImage, MAX_CONSECUTIVE_POLL_ERRORS, pollWechatQr, WECHAT_APP_ID, WECHAT_DEFAULT_POLL_BUDGET_MS, WECHAT_LOGIN_TYPE, WechatQrError, } from './wechatLogin.js';
+ // The QIMEI bootstrap request construction and the synthetic device material now live in
+@@ -379,10 +380,21 @@ export class QqProtocolError extends Error {
+ /**
+  * `music.vkey.GetVkey/UrlGetVkey` answers with `midurlinfo` but an empty `sip`, unlike the legacy
+  * web `CgiGetVkey`. Without a fallback the play URL degrades into a bare filename, which the
+- * browser then resolves against its own origin. Measured 2026-08-06 against a real vkey: only
+- * `dl.stream` serves it (HTTP 206 `audio/mpeg`); `isure.stream` and `ws.stream` answer 403.
++ * browser then resolves against its own origin. The stream fallback remains the last resort after
++ * probing the known responsive route first, then asking QQ's CDN dispatcher for alternatives.
+  */
+ const DEFAULT_STREAM_DOMAIN = 'http://dl.stream.qqmusic.qq.com/';
++const PREFERRED_STREAM_DOMAIN = 'http://sjy6.stream.qqmusic.qq.com/';
++const PREFERRED_STREAM_HOST = new URL(PREFERRED_STREAM_DOMAIN).hostname;
++const DEFAULT_CDN_REFRESH_MS = 30 * 60 * 1_000;
++const isPreferredStreamDomain = (value) => {
++    try {
++        return new URL(value).hostname.toLowerCase() === PREFERRED_STREAM_HOST;
++    }
++    catch {
++        return false;
++    }
++};
+ const MUSIC_FILE_TYPES = {
+     m4a: { prefix: 'C400', extension: '.m4a' },
+     128: { prefix: 'M500', extension: '.mp3' },
+@@ -390,7 +402,7 @@ const MUSIC_FILE_TYPES = {
+     ape: { prefix: 'A000', extension: '.ape' },
+     flac: { prefix: 'F000', extension: '.flac' },
+ };
+-const getAuthenticatedPlayUrls = async (http, auth, songmid, quality = 128, mediaId) => {
++const getAuthenticatedPlayUrls = async (http, auth, streamCdnSelector, songmid, quality = 128, mediaId) => {
+     const songmidList = songmid
+         .split(',')
+         .map((value) => value.trim())
+@@ -413,7 +425,42 @@ const getAuthenticatedPlayUrls = async (http, auth, songmid, quality = 128, medi
+         ctx: 0,
+     }, auth.credential);
+     const sip = Array.isArray(data.sip) ? data.sip.map(stringOf).filter(Boolean) : [];
+-    const domain = sip.find((value) => !value.startsWith('http://ws')) ?? sip[0] ?? DEFAULT_STREAM_DOMAIN;
++    let domain = sip.find((value) => !value.startsWith('http://ws')) ?? sip[0];
++    if (!domain) {
++        const firstPurl = (Array.isArray(data.midurlinfo) ? data.midurlinfo : [])
++            .map(dictionaryOf)
++            .map((item) => stringOf(item.purl))
++            .find(Boolean);
++        if (firstPurl) {
++            try {
++                // sjy6 is the responsive compatible route observed across authenticated playback. Trying
++                // it first keeps the common Serverless path to one Range request instead of dispatch + N.
++                domain =
++                    (await streamCdnSelector.select([PREFERRED_STREAM_DOMAIN], firstPurl)) ?? undefined;
++                if (!domain) {
++                    const dispatch = await callMusicu(http, auth.device, 'get-cdn-dispatch', 'music.audioCdnDispatch.cdnDispatch', 'GetCdnDispatch', {
++                        guid,
++                        uid: '0',
++                        use_new_domain: 1,
++                        use_ipv6: 1,
++                    }, auth.credential);
++                    const dispatchSip = Array.isArray(dispatch.sip)
++                        ? dispatch.sip.map(stringOf).filter(Boolean)
++                        : [];
++                    const alternativeSip = dispatchSip.filter((value) => !isPreferredStreamDomain(value));
++                    const refreshMs = (numberOf(dispatch.refreshTime) ?? DEFAULT_CDN_REFRESH_MS / 1_000) * 1_000;
++                    domain =
++                        (await streamCdnSelector.select([...alternativeSip, DEFAULT_STREAM_DOMAIN], firstPurl, refreshMs)) ?? undefined;
++                }
++            }
++            catch (error) {
++                logger.warn('qq-auth.cdn-selection-failed', {
++                    error: error instanceof Error ? error.message : String(error),
++                });
++            }
++        }
++    }
++    domain ??= DEFAULT_STREAM_DOMAIN;
+     const playUrl = {};
+     const entries = Array.isArray(data.midurlinfo) ? data.midurlinfo : [];
+     for (const entry of entries) {
+@@ -1305,6 +1352,7 @@ const upstreamCodeOf = (error) => {
+ };
+ class QrLoginServiceImpl {
+     http;
++    streamCdnSelector;
+     createSessionHttp;
+     now;
+     random;
+@@ -1320,6 +1368,7 @@ class QrLoginServiceImpl {
+     nextQrAllowedAt = 0;
+     constructor(dependencies) {
+         this.http = dependencies.http ?? unavailableHttpClient();
++        this.streamCdnSelector = new StreamCdnSelector(dependencies.streamUrlProbe ?? createStreamUrlProbe(this.http), dependencies.now ?? Date.now);
+         this.createSessionHttp = dependencies.createSessionHttp ?? unavailableHttpClient;
+         this.now = dependencies.now ?? Date.now;
+         this.random = dependencies.randomBytes ?? randomBytesNeutral;
+@@ -1737,7 +1786,7 @@ class QrLoginServiceImpl {
+     async getMusicPlay(token, songmid, quality, mediaId) {
+         const auth = await this.authFor(token);
+         return auth
+-            ? withCredentialRejectionMapped(() => getAuthenticatedPlayUrls(this.http, auth, songmid, quality, mediaId))
++            ? withCredentialRejectionMapped(() => getAuthenticatedPlayUrls(this.http, auth, this.streamCdnSelector, songmid, quality, mediaId))
+             : null;
+     }
+     /**
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/streamCdnSelector.js b/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/streamCdnSelector.js
+new file mode 100644
+index 0000000..68a9d92
+--- /dev/null
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist-esm/src/services/auth/streamCdnSelector.js
+@@ -0,0 +1,92 @@
++// Selects a stream base from QQ's dispatch response without exposing signed song URLs in logs.
++const PROBE_BYTES = 256 * 1024;
++const PROBE_TIMEOUT_MS = 5_000;
++const DEFAULT_CACHE_MS = 30 * 60 * 1_000;
++const MIN_CACHE_MS = 60 * 1_000;
++const MAX_CACHE_MS = 24 * 60 * 60 * 1_000;
++const byteLengthOf = (value) => {
++    if (value instanceof ArrayBuffer)
++        return value.byteLength;
++    if (ArrayBuffer.isView(value))
++        return value.byteLength;
++    return 0;
++};
++export const createStreamUrlProbe = (http) => async (url) => {
++    const startedAt = Date.now();
++    try {
++        const response = await http.request({
++            url,
++            method: 'GET',
++            headers: {
++                Accept: '*/*',
++                'Accept-Encoding': 'identity',
++                Range: `bytes=0-${PROBE_BYTES - 1}`,
++            },
++            responseType: 'arraybuffer',
++            maxContentLength: PROBE_BYTES,
++            signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
++        });
++        if (response.status !== 206)
++            return null;
++        const bytes = byteLengthOf(response.data);
++        return bytes > 0 ? { bytes, elapsedMs: Math.max(1, Date.now() - startedAt) } : null;
++    }
++    catch {
++        return null;
++    }
++};
++const normalizeBase = (value) => {
++    try {
++        const url = new URL(value);
++        if (url.protocol !== 'http:' && url.protocol !== 'https:')
++            return null;
++        const host = url.hostname.toLowerCase();
++        if (!host.endsWith('.qqmusic.qq.com') && !host.endsWith('.tc.qq.com'))
++            return null;
++        url.pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
++        url.search = '';
++        url.hash = '';
++        return url.toString();
++    }
++    catch {
++        return null;
++    }
++};
++export class StreamCdnSelector {
++    probe;
++    now;
++    cached = null;
++    selecting = null;
++    constructor(probe, now = Date.now) {
++        this.probe = probe;
++        this.now = now;
++    }
++    async select(candidates, purl, refreshAfterMs = DEFAULT_CACHE_MS) {
++        const bases = [...new Set(candidates.map(normalizeBase).filter((value) => value !== null))];
++        if (bases.length === 0 || !purl)
++            return null;
++        if (this.cached && this.cached.expiresAt > this.now() && bases.includes(this.cached.base))
++            return this.cached.base;
++        if (this.selecting)
++            return this.selecting;
++        this.selecting = this.measure(bases, purl, refreshAfterMs).finally(() => {
++            this.selecting = null;
++        });
++        return this.selecting;
++    }
++    // Measures candidates concurrently so a throttled fallback cannot serially delay playback.
++    async measure(bases, purl, refreshAfterMs) {
++        const results = await Promise.all(bases.map(async (base) => ({
++            base,
++            result: await this.probe(new URL(purl, base).toString()),
++        })));
++        const fastest = results
++            .filter((entry) => entry.result !== null)
++            .sort((left, right) => right.result.bytes / right.result.elapsedMs - left.result.bytes / left.result.elapsedMs)[0];
++        if (!fastest)
++            return null;
++        const cacheMs = Math.min(MAX_CACHE_MS, Math.max(MIN_CACHE_MS, refreshAfterMs));
++        this.cached = { base: fastest.base, expiresAt: this.now() + cacheMs };
++        return fastest.base;
++    }
++}
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.d.ts b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.d.ts
+index ca17aee..789cf7d 100644
+--- a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.d.ts
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.d.ts
+@@ -1,6 +1,7 @@
+ import { type AndroidDevice } from './androidDevice';
+ import { type DeviceContextRepository } from './deviceContextStore';
+ import type { AuthHttpClient } from './httpClient';
++import { type StreamUrlProbe } from './streamCdnSelector';
+ import { type Dictionary } from './values';
+ export { buildAndroidComm, buildQimeiRequest } from './androidDevice';
+ /**
+@@ -152,6 +153,7 @@ export interface SessionResolver {
+ }
+ interface QrLoginDependencies {
+     http?: AuthHttpClient;
++    streamUrlProbe?: StreamUrlProbe;
+     /** Builds the per-QR-session client used by the web login channels. */
+     createSessionHttp?: () => AuthHttpClient;
+     deviceRepository?: DeviceContextRepository;
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.js b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.js
+index e7d0aed..02d2ce2 100644
+--- a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.js
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/qrLogin.js
+@@ -5,6 +5,7 @@ const authError_1 = require("../../util/authError");
+ const logger_1 = require("../../util/logger");
+ const androidDevice_1 = require("./androidDevice");
+ const deviceContextStore_1 = require("./deviceContextStore");
++const streamCdnSelector_1 = require("./streamCdnSelector");
+ const values_1 = require("./values");
+ const wechatLogin_1 = require("./wechatLogin");
+ // The QIMEI bootstrap request construction and the synthetic device material now live in
+@@ -394,10 +395,21 @@ exports.QqProtocolError = QqProtocolError;
+ /**
+  * `music.vkey.GetVkey/UrlGetVkey` answers with `midurlinfo` but an empty `sip`, unlike the legacy
+  * web `CgiGetVkey`. Without a fallback the play URL degrades into a bare filename, which the
+- * browser then resolves against its own origin. Measured 2026-08-06 against a real vkey: only
+- * `dl.stream` serves it (HTTP 206 `audio/mpeg`); `isure.stream` and `ws.stream` answer 403.
++ * browser then resolves against its own origin. The stream fallback remains the last resort after
++ * probing the known responsive route first, then asking QQ's CDN dispatcher for alternatives.
+  */
+ const DEFAULT_STREAM_DOMAIN = 'http://dl.stream.qqmusic.qq.com/';
++const PREFERRED_STREAM_DOMAIN = 'http://sjy6.stream.qqmusic.qq.com/';
++const PREFERRED_STREAM_HOST = new URL(PREFERRED_STREAM_DOMAIN).hostname;
++const DEFAULT_CDN_REFRESH_MS = 30 * 60 * 1_000;
++const isPreferredStreamDomain = (value) => {
++    try {
++        return new URL(value).hostname.toLowerCase() === PREFERRED_STREAM_HOST;
++    }
++    catch {
++        return false;
++    }
++};
+ const MUSIC_FILE_TYPES = {
+     m4a: { prefix: 'C400', extension: '.m4a' },
+     128: { prefix: 'M500', extension: '.mp3' },
+@@ -405,7 +417,7 @@ const MUSIC_FILE_TYPES = {
+     ape: { prefix: 'A000', extension: '.ape' },
+     flac: { prefix: 'F000', extension: '.flac' },
+ };
+-const getAuthenticatedPlayUrls = async (http, auth, songmid, quality = 128, mediaId) => {
++const getAuthenticatedPlayUrls = async (http, auth, streamCdnSelector, songmid, quality = 128, mediaId) => {
+     const songmidList = songmid
+         .split(',')
+         .map((value) => value.trim())
+@@ -428,7 +440,42 @@ const getAuthenticatedPlayUrls = async (http, auth, songmid, quality = 128, medi
+         ctx: 0,
+     }, auth.credential);
+     const sip = Array.isArray(data.sip) ? data.sip.map(values_1.stringOf).filter(Boolean) : [];
+-    const domain = sip.find((value) => !value.startsWith('http://ws')) ?? sip[0] ?? DEFAULT_STREAM_DOMAIN;
++    let domain = sip.find((value) => !value.startsWith('http://ws')) ?? sip[0];
++    if (!domain) {
++        const firstPurl = (Array.isArray(data.midurlinfo) ? data.midurlinfo : [])
++            .map(values_1.dictionaryOf)
++            .map((item) => (0, values_1.stringOf)(item.purl))
++            .find(Boolean);
++        if (firstPurl) {
++            try {
++                // sjy6 is the responsive compatible route observed across authenticated playback. Trying
++                // it first keeps the common Serverless path to one Range request instead of dispatch + N.
++                domain =
++                    (await streamCdnSelector.select([PREFERRED_STREAM_DOMAIN], firstPurl)) ?? undefined;
++                if (!domain) {
++                    const dispatch = await callMusicu(http, auth.device, 'get-cdn-dispatch', 'music.audioCdnDispatch.cdnDispatch', 'GetCdnDispatch', {
++                        guid,
++                        uid: '0',
++                        use_new_domain: 1,
++                        use_ipv6: 1,
++                    }, auth.credential);
++                    const dispatchSip = Array.isArray(dispatch.sip)
++                        ? dispatch.sip.map(values_1.stringOf).filter(Boolean)
++                        : [];
++                    const alternativeSip = dispatchSip.filter((value) => !isPreferredStreamDomain(value));
++                    const refreshMs = ((0, values_1.numberOf)(dispatch.refreshTime) ?? DEFAULT_CDN_REFRESH_MS / 1_000) * 1_000;
++                    domain =
++                        (await streamCdnSelector.select([...alternativeSip, DEFAULT_STREAM_DOMAIN], firstPurl, refreshMs)) ?? undefined;
++                }
++            }
++            catch (error) {
++                logger_1.logger.warn('qq-auth.cdn-selection-failed', {
++                    error: error instanceof Error ? error.message : String(error),
++                });
++            }
++        }
++    }
++    domain ??= DEFAULT_STREAM_DOMAIN;
+     const playUrl = {};
+     const entries = Array.isArray(data.midurlinfo) ? data.midurlinfo : [];
+     for (const entry of entries) {
+@@ -1324,6 +1371,7 @@ const upstreamCodeOf = (error) => {
+ };
+ class QrLoginServiceImpl {
+     http;
++    streamCdnSelector;
+     createSessionHttp;
+     now;
+     random;
+@@ -1339,6 +1387,7 @@ class QrLoginServiceImpl {
+     nextQrAllowedAt = 0;
+     constructor(dependencies) {
+         this.http = dependencies.http ?? unavailableHttpClient();
++        this.streamCdnSelector = new streamCdnSelector_1.StreamCdnSelector(dependencies.streamUrlProbe ?? (0, streamCdnSelector_1.createStreamUrlProbe)(this.http), dependencies.now ?? Date.now);
+         this.createSessionHttp = dependencies.createSessionHttp ?? unavailableHttpClient;
+         this.now = dependencies.now ?? Date.now;
+         this.random = dependencies.randomBytes ?? randomBytesNeutral;
+@@ -1756,7 +1805,7 @@ class QrLoginServiceImpl {
+     async getMusicPlay(token, songmid, quality, mediaId) {
+         const auth = await this.authFor(token);
+         return auth
+-            ? withCredentialRejectionMapped(() => getAuthenticatedPlayUrls(this.http, auth, songmid, quality, mediaId))
++            ? withCredentialRejectionMapped(() => getAuthenticatedPlayUrls(this.http, auth, this.streamCdnSelector, songmid, quality, mediaId))
+             : null;
+     }
+     /**
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.d.ts b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.d.ts
+new file mode 100644
+index 0000000..8de0c4d
+--- /dev/null
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.d.ts
+@@ -0,0 +1,16 @@
++import type { AuthHttpClient } from './httpClient';
++export interface StreamProbeResult {
++    bytes: number;
++    elapsedMs: number;
++}
++export type StreamUrlProbe = (url: string) => Promise<StreamProbeResult | null>;
++export declare const createStreamUrlProbe: (http: AuthHttpClient) => StreamUrlProbe;
++export declare class StreamCdnSelector {
++    private readonly probe;
++    private readonly now;
++    private cached;
++    private selecting;
++    constructor(probe: StreamUrlProbe, now?: () => number);
++    select(candidates: string[], purl: string, refreshAfterMs?: number): Promise<string | null>;
++    private measure;
++}
+diff --git a/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.js b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.js
+new file mode 100644
+index 0000000..bfc1b3c
+--- /dev/null
++++ b/node_modules/@yakult-green-tea/qq-music-api/dist/src/services/auth/streamCdnSelector.js
+@@ -0,0 +1,97 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.StreamCdnSelector = exports.createStreamUrlProbe = void 0;
++// Selects a stream base from QQ's dispatch response without exposing signed song URLs in logs.
++const PROBE_BYTES = 256 * 1024;
++const PROBE_TIMEOUT_MS = 5_000;
++const DEFAULT_CACHE_MS = 30 * 60 * 1_000;
++const MIN_CACHE_MS = 60 * 1_000;
++const MAX_CACHE_MS = 24 * 60 * 60 * 1_000;
++const byteLengthOf = (value) => {
++    if (value instanceof ArrayBuffer)
++        return value.byteLength;
++    if (ArrayBuffer.isView(value))
++        return value.byteLength;
++    return 0;
++};
++const createStreamUrlProbe = (http) => async (url) => {
++    const startedAt = Date.now();
++    try {
++        const response = await http.request({
++            url,
++            method: 'GET',
++            headers: {
++                Accept: '*/*',
++                'Accept-Encoding': 'identity',
++                Range: `bytes=0-${PROBE_BYTES - 1}`,
++            },
++            responseType: 'arraybuffer',
++            maxContentLength: PROBE_BYTES,
++            signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
++        });
++        if (response.status !== 206)
++            return null;
++        const bytes = byteLengthOf(response.data);
++        return bytes > 0 ? { bytes, elapsedMs: Math.max(1, Date.now() - startedAt) } : null;
++    }
++    catch {
++        return null;
++    }
++};
++exports.createStreamUrlProbe = createStreamUrlProbe;
++const normalizeBase = (value) => {
++    try {
++        const url = new URL(value);
++        if (url.protocol !== 'http:' && url.protocol !== 'https:')
++            return null;
++        const host = url.hostname.toLowerCase();
++        if (!host.endsWith('.qqmusic.qq.com') && !host.endsWith('.tc.qq.com'))
++            return null;
++        url.pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
++        url.search = '';
++        url.hash = '';
++        return url.toString();
++    }
++    catch {
++        return null;
++    }
++};
++class StreamCdnSelector {
++    probe;
++    now;
++    cached = null;
++    selecting = null;
++    constructor(probe, now = Date.now) {
++        this.probe = probe;
++        this.now = now;
++    }
++    async select(candidates, purl, refreshAfterMs = DEFAULT_CACHE_MS) {
++        const bases = [...new Set(candidates.map(normalizeBase).filter((value) => value !== null))];
++        if (bases.length === 0 || !purl)
++            return null;
++        if (this.cached && this.cached.expiresAt > this.now() && bases.includes(this.cached.base))
++            return this.cached.base;
++        if (this.selecting)
++            return this.selecting;
++        this.selecting = this.measure(bases, purl, refreshAfterMs).finally(() => {
++            this.selecting = null;
++        });
++        return this.selecting;
++    }
++    // Measures candidates concurrently so a throttled fallback cannot serially delay playback.
++    async measure(bases, purl, refreshAfterMs) {
++        const results = await Promise.all(bases.map(async (base) => ({
++            base,
++            result: await this.probe(new URL(purl, base).toString()),
++        })));
++        const fastest = results
++            .filter((entry) => entry.result !== null)
++            .sort((left, right) => right.result.bytes / right.result.elapsedMs - left.result.bytes / left.result.elapsedMs)[0];
++        if (!fastest)
++            return null;
++        const cacheMs = Math.min(MAX_CACHE_MS, Math.max(MIN_CACHE_MS, refreshAfterMs));
++        this.cached = { base: fastest.base, expiresAt: this.now() + cacheMs };
++        return fastest.base;
++    }
++}
++exports.StreamCdnSelector = StreamCdnSelector;
