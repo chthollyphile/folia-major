@@ -83,6 +83,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Erik-T3"><img src="https://avatars.githubusercontent.com/u/42774210?v=4?s=100" width="100px;" alt="Erik"/><br /><sub><b>Erik</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=Erik-T3" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/AoRitian"><img src="https://avatars.githubusercontent.com/u/192447556?v=4?s=100" width="100px;" alt="AoRitian"/><br /><sub><b>AoRitian</b></sub></a><br /><a href="#ideas-AoRitian" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Jacob7179"><img src="https://avatars.githubusercontent.com/u/70430960?v=4?s=100" width="100px;" alt="Jacob"/><br /><sub><b>Jacob</b></sub></a><br /><a href="#ideas-Jacob7179" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/laaaj6"><img src="https://avatars.githubusercontent.com/u/140301786?v=4?s=100" width="100px;" alt="你们柑噶真的是..."/><br /><sub><b>你们柑噶真的是...</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Alaaaj6" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>
