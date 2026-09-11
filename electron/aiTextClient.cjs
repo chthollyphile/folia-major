@@ -108,10 +108,6 @@ function detectOpenAICompatibleProvider(apiUrl, model) {
     // Fall through to generic provider handling.
   }
 
-  if (/^(gpt|o[1-9]|o[1-9]-|chatgpt-)/.test(normalizedModel)) {
-    return 'openai';
-  }
-
   return 'generic';
 }
 
@@ -241,6 +237,41 @@ function extractResponseContentText(message) {
   return null;
 }
 
+/** Parses a JSON object even when an OpenAI-compatible endpoint wraps it in a fence or prose. */
+function parseAiJsonObject(input, requiredKeys = []) {
+  const text = typeof input === 'string' ? input.trim() : '';
+
+  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < text.length; index += 1) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') inString = true;
+      else if (char === '{') depth += 1;
+      else if (char === '}' && --depth === 0) {
+        try {
+          const parsed = JSON.parse(text.slice(start, index + 1));
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            && requiredKeys.every((key) => Object.hasOwn(parsed, key))) return parsed;
+        } catch {
+          break;
+        }
+      }
+    }
+  }
+
+  const requirement = requiredKeys.length ? ` with required keys: ${requiredKeys.join(', ')}` : '';
+  throw new Error(`AI response did not contain a valid JSON object${requirement}`);
+}
+
 /**
  * Chat-completions body for any OpenAI-compatible endpoint. `schema` and `schemaName` are only
  * used on providers that support structured outputs; everywhere else they are ignored and the
@@ -355,7 +386,17 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
     const described = Object.keys(params).length ? Object.keys(params).join('+') : 'plain';
     console.log(`[ai] POST ${apiUrl} model=${model} provider=${provider} reasoning=${described}`);
     const startedAt = Date.now();
-    const result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
+    let result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
+
+    const shouldRetryWithoutJsonMode = provider === 'generic' && body.response_format
+      && ((result.ok && !result.content && !exhaustedByReasoning(result.choice, result.usage))
+        || (!result.ok && result.status === 429 && /concurrency limit exceeded/i.test(result.errorText)));
+    if (shouldRetryWithoutJsonMode) {
+      console.log('[ai] generic JSON mode failed, retrying once without response_format');
+      const fallbackBody = { ...body };
+      delete fallbackBody.response_format;
+      result = await sendOpenAICompatible({ apiUrl, apiKey, body: fallbackBody, customFetch, timeoutMs });
+    }
 
     if (!result.ok) {
       // A rejected parameter is information, not a failure: this endpoint does not speak that
@@ -478,6 +519,7 @@ module.exports = {
   extractResponseContentText,
   formatOpenAICompatibleError,
   normalizeOpenAIChatCompletionsUrl,
+  parseAiJsonObject,
   providerSupportsStructuredOutputs,
   resolveOpenAICompatibleModel,
   resolveOpenAICompatibleTemperature,

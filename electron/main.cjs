@@ -37,13 +37,7 @@ const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
-  buildOpenAICompatibleRequestBody,
-  detectOpenAICompatibleProvider,
-  extractResponseContentText,
-  formatOpenAICompatibleError,
-  normalizeOpenAIChatCompletionsUrl,
-  resolveOpenAICompatibleModel,
-  resolveOpenAICompatibleTemperature,
+  parseAiJsonObject,
   runAiJsonCompletion,
 } = require('./aiTextClient.cjs');
 const {
@@ -3601,6 +3595,7 @@ async function generateGeminiTheme({ apiKey, systemPrompt, sourcePrompt, customF
 }
 
 const THEME_JSON_SCHEMA_NAME = 'dual_theme';
+const THEME_MAX_OUTPUT_TOKENS = 4096;
 const THEME_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -6600,40 +6595,19 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
     let dualTheme = null;
 
     if (provider === 'openai') {
-      const apiKey = store.get('OPENAI_API_KEY');
-      const apiUrl = normalizeOpenAIChatCompletionsUrl(store.get('OPENAI_API_URL'));
-      const model = resolveOpenAICompatibleModel(apiUrl, store.get('OPENAI_API_MODEL'));
-      const temperature = resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE'));
-      const openAICompatibleProvider = detectOpenAICompatibleProvider(apiUrl, model);
       const systemPrompt = buildThemeSystemPrompt(true);
       const sourcePrompt = buildThemeSourcePrompt(snippet, isPureMusic, songTitle);
-
-      if (!apiKey) {
-        throw new Error("OPENAI_API_KEY is not configured in settings");
-      }
-
-      const response = await customFetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(buildOpenAICompatibleRequestBody(model, openAICompatibleProvider, systemPrompt, sourcePrompt, temperature, THEME_JSON_SCHEMA, THEME_JSON_SCHEMA_NAME)),
+      const content = await runAiJsonCompletion({
+        store,
+        systemPrompt,
+        sourcePrompt,
+        schema: THEME_JSON_SCHEMA,
+        schemaName: THEME_JSON_SCHEMA_NAME,
+        customFetch,
+        maxTokens: THEME_MAX_OUTPUT_TOKENS,
+        disableReasoning: true,
       });
-
-      if (!response.ok) {
-        throw new Error(await formatOpenAICompatibleError(response));
-      }
-
-      const data = await response.json();
-      const content = extractResponseContentText(data.choices[0]?.message);
-      if (!content) throw new Error("Failed to generate theme JSON");
-
-      let jsonStr = content.trim();
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```(json)?\n/, '').replace(/\n```$/, '');
-      }
-      dualTheme = sanitizeGeneratedDualTheme(JSON.parse(jsonStr));
+      dualTheme = sanitizeGeneratedDualTheme(parseAiJsonObject(content, ['light', 'dark']));
 
       dualTheme.light.provider = 'OpenAI Compatible (Local)';
       dualTheme.dark.provider = 'OpenAI Compatible (Local)';

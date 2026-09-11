@@ -164,3 +164,59 @@ describe('request body', () => {
         expect(body.messages).toHaveLength(2);
     });
 });
+
+describe('OpenAI-compatible provider detection', () => {
+    it('treats GPT models on custom domains as generic', () => {
+        expect(client.detectOpenAICompatibleProvider('http://poc.megalinkware.com:21041/v1', 'gpt-5.6-luna'))
+            .toBe('generic');
+    });
+
+    it('treats api.openai.com and its subdomains as OpenAI', () => {
+        expect(client.detectOpenAICompatibleProvider('https://api.openai.com/v1', 'custom-model')).toBe('openai');
+        expect(client.detectOpenAICompatibleProvider('https://edge.api.openai.com/v1', 'custom-model')).toBe('openai');
+    });
+});
+
+describe('AI JSON response parsing', () => {
+    it.each([
+        ['pure JSON', '{"ok":true}'],
+        ['fenced JSON', '```json\n{"ok":true}\n```'],
+        ['prose-wrapped JSON', 'Here is the result:\n{"ok":true}\nDone.'],
+    ])('parses %s', (_label, input) => {
+        expect(client.parseAiJsonObject(input)).toEqual({ ok: true });
+    });
+
+    it('fails clearly when no valid JSON object exists', () => {
+        expect(() => client.parseAiJsonObject('No JSON was returned.'))
+            .toThrow('AI response did not contain a valid JSON object');
+    });
+
+    it('does not accept a syntactically valid object missing required fields', () => {
+        expect(() => client.parseAiJsonObject('{"ok":true}', ['light', 'dark']))
+            .toThrow('required keys: light, dark');
+    });
+});
+
+describe('generic JSON mode compatibility', () => {
+    it('retries once without response_format when JSON mode returns empty content', async () => {
+        const { attempts, fetchImpl } = makeFetch((_body, attempt) => (
+            attempt === 0 ? answered('') : answered('{"ok":true}')
+        ));
+
+        await expect(run(fetchImpl, 'http://generic-empty.test/v1')).resolves.toBe('{"ok":true}');
+        expect(attempts).toHaveLength(2);
+        expect(attempts[0].body.response_format).toEqual({ type: 'json_object' });
+        expect(attempts[1].body.response_format).toBeUndefined();
+    });
+
+    it('retries once without response_format for the gateway concurrency error', async () => {
+        const { attempts, fetchImpl } = makeFetch((_body, attempt) => attempt === 0 ? ({
+            status: 429,
+            payload: { error: { message: 'Concurrency limit exceeded for user, please retry later' } },
+        }) : answered('{"ok":true}'));
+
+        await expect(run(fetchImpl, 'http://generic-429.test/v1')).resolves.toBe('{"ok":true}');
+        expect(attempts).toHaveLength(2);
+        expect(attempts[1].body.response_format).toBeUndefined();
+    });
+});

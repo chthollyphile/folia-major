@@ -8,6 +8,7 @@ const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const THEME_JSON_SCHEMA_NAME = 'dual_theme';
+const THEME_MAX_OUTPUT_TOKENS = 4096;
 const THEME_JSON_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -135,9 +136,6 @@ const detectOpenAICompatibleProvider = (apiUrl, model) => {
     catch {
         // Fall through to generic provider handling.
     }
-    if (/^(gpt|o[1-9]|o[1-9]-|chatgpt-)/.test(normalizedModel)) {
-        return 'openai';
-    }
     return 'generic';
 };
 const providerSupportsStructuredOutputs = (provider) => provider === 'openai';
@@ -243,6 +241,7 @@ const buildOpenAICompatibleRequestBody = (model, provider, systemPrompt, sourceP
             model,
             messages,
             temperature,
+            max_tokens: THEME_MAX_OUTPUT_TOKENS,
             response_format: {
                 type: 'json_schema',
                 json_schema: {
@@ -257,6 +256,7 @@ const buildOpenAICompatibleRequestBody = (model, provider, systemPrompt, sourceP
         model,
         messages,
         temperature,
+        max_tokens: THEME_MAX_OUTPUT_TOKENS,
         response_format: { type: 'json_object' }
     };
 };
@@ -279,6 +279,44 @@ const extractResponseContentText = (message) => {
         return text || null;
     }
     return null;
+};
+const parseAiJsonObject = (input, requiredKeys = []) => {
+    const text = input.trim();
+    for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let index = start; index < text.length; index += 1) {
+            const char = text[index];
+            if (inString) {
+                if (escaped)
+                    escaped = false;
+                else if (char === '\\')
+                    escaped = true;
+                else if (char === '"')
+                    inString = false;
+                continue;
+            }
+            if (char === '"')
+                inString = true;
+            else if (char === '{')
+                depth += 1;
+            else if (char === '}' && --depth === 0) {
+                try {
+                    const parsed = JSON.parse(text.slice(start, index + 1));
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                        && requiredKeys.every((key) => Object.hasOwn(parsed, key))) {
+                        return parsed;
+                    }
+                }
+                catch {
+                    break;
+                }
+            }
+        }
+    }
+    const requirement = requiredKeys.length ? ` with required keys: ${requiredKeys.join(', ')}` : '';
+    throw new Error(`AI response did not contain a valid JSON object${requirement}`);
 };
 export default async function handler(req) {
     if (req.method !== 'POST') {
@@ -332,19 +370,12 @@ export default async function handler(req) {
         if (!content) {
             throw new Error("Failed to generate theme JSON");
         }
-        // Attempt to parse JSON
         let dualTheme;
-        let jsonStr = content.trim();
-        // Remove markdown code blocks if present
-        if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.replace(/^```(json)?\n/, '').replace(/\n```$/, '');
-        }
         try {
-            dualTheme = sanitizeDualTheme(JSON.parse(jsonStr));
+            dualTheme = sanitizeDualTheme(parseAiJsonObject(content, ['light', 'dark']));
         }
         catch (e) {
-            console.error("Failed to parse JSON from AI response:", jsonStr);
-            throw new Error("Invalid JSON response from AI");
+            throw new Error(`Invalid JSON response from AI: ${e instanceof Error ? e.message : String(e)}`);
         }
         // Force fixed properties for both themes
         dualTheme.light.fontStyle = 'sans';
