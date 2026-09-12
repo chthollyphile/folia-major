@@ -75,6 +75,7 @@ import { useElectronVideoExportController } from './hooks/useElectronVideoExport
 import { useElectronWindowPlaybackHandoff } from './hooks/useElectronWindowPlaybackHandoff';
 import { useMediaSessionBridge } from './hooks/useMediaSessionBridge';
 import { usePlayerChromeAutoHide } from './hooks/usePlayerChromeAutoHide';
+import { useCursorAutoHide } from './hooks/useCursorAutoHide';
 import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
 import { useTranscodeFallback } from './hooks/useTranscodeFallback';
 import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
@@ -125,6 +126,8 @@ import { selectSleepTimerSnapshot, useSleepTimerStore } from './stores/useSleepT
 import { selectStageSettingsSnapshot, useStageSettingsStore } from './stores/useStageSettingsStore';
 import { selectAudioSettingsSnapshot, useAudioSettingsStore } from './stores/useAudioSettingsStore';
 import { useSettingsModalStore } from './stores/useSettingsModalStore';
+import { useAddToPlaylistStore } from './stores/useAddToPlaylistStore';
+import { useThemeQuickEditorStore } from './stores/useThemeQuickEditorStore';
 import { audioBands, audioPower, bass, currentTime, lowMid, lyricCurrentTime, mid, spectrum, treble, vocal } from './stores/motionSignals';
 import { useAppChromeStore } from './stores/useAppChromeStore';
 import { useAppViewStore } from './stores/useAppViewStore';
@@ -250,12 +253,16 @@ export default function App() {
         lastSeenGuideVersion,
         setLastSeenGuideVersion,
         setIsUserGuideModalOpen,
+        isUserGuideModalOpen,
     } = useSettingsModalStore(useShallow(state => ({
         settingsModalState: state.settingsModalState,
         lastSeenGuideVersion: state.lastSeenGuideVersion,
         setLastSeenGuideVersion: state.setLastSeenGuideVersion,
         setIsUserGuideModalOpen: state.setIsUserGuideModalOpen,
+        isUserGuideModalOpen: state.isUserGuideModalOpen,
     })));
+    const isAddToPlaylistOpen = useAddToPlaylistStore(state => state.isOpen);
+    const isThemeQuickEditorOpen = useThemeQuickEditorStore(state => state.isOpen);
     const automixEnabled = useAutomixSettingsStore(state => state.automixEnabled);
     const transitionMode = useAutomixSettingsStore(state => state.transitionMode);
     const crossfadeMaxSec = useAutomixSettingsStore(state => state.crossfadeMaxSec);
@@ -1818,6 +1825,23 @@ export default function App() {
             || Boolean(pendingUnavailableReplacement),
         context: commandPaletteContext,
     });
+    // 播放页指针自动隐藏：仅在播放视图、没有覆盖层（设置弹窗/命令面板/歌词匹配/用户指引/
+    // 加入歌单/主题快速编辑）打开、且用户没有把控件设成「始终显示」时启用。
+    // 点击穿透模式下直接隐藏，不监听鼠标。
+    const cursorHidden = useCursorAutoHide(
+        isPlayerView
+            && playerChromeVisibilityMode !== 'always-visible'
+            && !isSettingsModalOpen
+            && !commandPalette.isOpen
+            && !showLyricMatchModal
+            && !showNaviLyricMatchModal
+            && !showOnlineLyricMatchModal
+            && !pendingUnavailableReplacement
+            && !isUserGuideModalOpen
+            && !isAddToPlaylistOpen
+            && !isThemeQuickEditorOpen,
+        { suppressPointerReveal: isMainWindowClickThroughEnabled },
+    );
     // The FM tab reuses the palette's picker instead of carrying its own copy of the mode list.
     // Read through a ref rather than depended on: openCommandById tracks the palette's isExecuting
     // flag, so depending on it would rebuild the player panel model on unrelated renders. The
@@ -2607,6 +2631,7 @@ export default function App() {
             isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}
             showMainWindowClickThroughToggle={isMainWindowClickThroughEnabled ? isClickThroughToggleHotspotActive : isTitlebarRevealed}
             isDaylight={isDaylight}
+            cursorHidden={cursorHidden}
             onToggleMainWindowClickThrough={() => {
                 const nextEnabled = !isMainWindowClickThroughEnabled;
                 if (!nextEnabled) {
