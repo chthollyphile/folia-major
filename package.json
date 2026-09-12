@@ -1,6 +1,7 @@
 {
   "name": "folia-major",
   "productName": "Folia",
+  "desktopName": "folia-major.desktop",
   "description": "Lyrics Reimagine",
   "author": {
     "name": "chthollyphile",
@@ -187,7 +188,8 @@
       },
       "icon": "build/icon.png",
       "category": "AudioVideo",
-      "executableName": "folia-major"
+      "executableName": "folia-major",
+      "syncDesktopName": true
     }
   },
   "dependencies": {

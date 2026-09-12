@@ -6,4 +6,4 @@ Icon=__ICON_PATH__
 Terminal=false
 Type=Application
 Categories=AudioVideo;Player;
-StartupWMClass=Folia
+StartupWMClass=folia-major

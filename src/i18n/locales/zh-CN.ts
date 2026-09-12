@@ -2370,6 +2370,8 @@ export default {
   "player": {
     "unknownArtist": "未知歌手",
     "unknownAlbum": "未知专辑",
+    "like": "收藏",
+    "unlike": "取消收藏",
   },
   "localMusic": {
     "foldersAndPlaylists": "文件夹",

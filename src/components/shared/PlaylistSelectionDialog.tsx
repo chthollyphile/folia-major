@@ -50,20 +50,21 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
             title={title}
             description={description}
             maxWidthClass="max-w-lg"
+            headerActions={onCreate ? (
+                <button
+                    type="button"
+                    onClick={onCreate}
+                    disabled={submittingId !== null}
+                    title={createLabel || t('localMusic.createPlaylist')}
+                    aria-label={createLabel || t('localMusic.createPlaylist')}
+                    className={`mr-4 inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${panelClass}`}
+                >
+                    <Plus size={16} />
+                </button>
+            ) : undefined}
         >
             {playlists.length > 0 ? (
                 <div className="space-y-3">
-                    {onCreate && (
-                        <button
-                            type="button"
-                            onClick={onCreate}
-                            disabled={submittingId !== null}
-                            className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed px-5 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${panelClass}`}
-                        >
-                            <Plus size={16} />
-                            {createLabel || t('localMusic.saveQueueAsPlaylist') || 'Create Playlist'}
-                        </button>
-                    )}
                     <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                     {playlists.map((playlist) => (
                         <button
@@ -94,17 +95,6 @@ const PlaylistSelectionDialog: React.FC<PlaylistSelectionDialogProps> = ({
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {onCreate && (
-                        <button
-                            type="button"
-                            onClick={onCreate}
-                            disabled={submittingId !== null}
-                            className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed px-5 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${panelClass}`}
-                        >
-                            <Plus size={16} />
-                            {createLabel || t('localMusic.saveQueueAsPlaylist') || 'Create Playlist'}
-                        </button>
-                    )}
                     <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm opacity-50">
                         {t('localMusic.noPlaylistsFound') || 'No playlists yet'}
                     </div>

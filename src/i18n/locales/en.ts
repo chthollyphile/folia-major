@@ -2371,6 +2371,8 @@ export default {
   "player": {
     "unknownArtist": "Unknown Artist",
     "unknownAlbum": "Unknown Album",
+    "like": "Like",
+    "unlike": "Unlike",
   },
   "localMusic": {
     "foldersAndPlaylists": "Folders & Playlists",

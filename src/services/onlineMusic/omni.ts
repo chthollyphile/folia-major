@@ -295,6 +295,13 @@ export const omni = {
             && Boolean(provider?.mutations?.updatePlaylistTracks);
     },
 
+    canCreatePlaylist(song: SongResult): boolean {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return false;
+        const provider = getOnlineMusicProvider(source.providerId);
+        return providerSupports(provider, 'mutations') && Boolean(provider?.mutations?.createPlaylist);
+    },
+
     canLikeSong(song: SongResult): boolean {
         const source = getPlaybackSourceRef(song);
         if (source.kind !== 'online') return false;
@@ -540,6 +547,26 @@ export const omni = {
         } catch (error) {
             console.warn('[Omni] Failed to refresh provider playlists after mutation', {
                 providerId: playlist.providerId,
+                name: error instanceof Error ? error.name : 'Error',
+            });
+        }
+    },
+
+    async createPlaylist(song: SongResult, name: string): Promise<void> {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') {
+            throw new OnlineProviderError('unsupported', 'Only online songs can create online playlists');
+        }
+        const provider = getOnlineMusicProvider(source.providerId);
+        if (!this.canCreatePlaylist(song) || !provider?.mutations?.createPlaylist) {
+            return unsupported(source.providerId, 'playlist-creation');
+        }
+        await provider.mutations.createPlaylist(name);
+        try {
+            await this.refreshProviderPlaylists(source.providerId);
+        } catch (error) {
+            console.warn('[Omni] Failed to refresh provider playlists after playlist creation', {
+                providerId: source.providerId,
                 name: error instanceof Error ? error.name : 'Error',
             });
         }

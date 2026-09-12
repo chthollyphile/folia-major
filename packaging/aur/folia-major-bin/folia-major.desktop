@@ -6,4 +6,4 @@ Icon=folia-major
 Terminal=false
 Type=Application
 Categories=AudioVideo;Player;
-StartupWMClass=Folia
+StartupWMClass=folia-major

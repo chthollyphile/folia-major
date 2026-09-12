@@ -2304,7 +2304,9 @@ export default {
   },
   "player": {
     "unknownArtist": "Artis Tidak Dikenal",
-    "unknownAlbum": "Album Tidak Dikenal"
+    "unknownAlbum": "Album Tidak Dikenal",
+    "like": "Suka",
+    "unlike": "Tidak Suka"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folder & Playlist",

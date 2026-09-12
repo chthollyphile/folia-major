@@ -803,12 +803,18 @@ const getKugouPlaylistFallbackCover = async (rawPlaylist: any): Promise<string |
         .find((cover): cover is string => Boolean(cover));
 };
 
+const getKugouTrackHash = (track: MediaId | SongResult): string => {
+    if (typeof track !== 'object') return String(track).toUpperCase();
+    const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
+    return String(sourceData?.hash || track.kgHash || track.id).toUpperCase();
+};
+
 const getKugouTrackAddData = (track: MediaId | SongResult): string => {
     if (typeof track !== 'object') return `|${String(track).toUpperCase()}|0|0`;
     const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
     return [
         track.name,
-        String(sourceData?.hash || track.kgHash || track.id).toUpperCase(),
+        getKugouTrackHash(track),
         String(sourceData?.albumId || track.album?.id || 0),
         String(sourceData?.mixSongId || 0),
     ].join('|');
@@ -818,6 +824,27 @@ const getKugouTrackFileId = (track: MediaId | SongResult): string => {
     if (typeof track !== 'object') return String(track);
     const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
     return String(sourceData?.fileId || track.id);
+};
+
+const KUGOU_LIKED_TRACK_MAX_PAGES = 50;
+
+// KuGou's playlist entry `fileid` is local to one playlist, unlike the global audio hash. The
+// liked-song mutations must therefore look up the row id inside the liked playlist itself.
+const getKugouPlaylistTrackSongs = async (globalCollectionId: string): Promise<UnifiedSong[]> => {
+    const songs: UnifiedSong[] = [];
+    for (let page = 1; page <= KUGOU_LIKED_TRACK_MAX_PAGES; page += 1) {
+        const response = await requestKugou('playlist_track_all', {
+            id: globalCollectionId,
+            page,
+            pagesize: KUGOU_MAX_PAGE_SIZE,
+        });
+        const rawItems = listOf(response);
+        songs.push(...rawItems.map(normalizeKugouSong));
+        const total = Number(dataOf(response)?.count ?? dataOf(response)?.total ?? Number.NaN);
+        if (rawItems.length < KUGOU_MAX_PAGE_SIZE) break;
+        if (Number.isFinite(total) && songs.length >= total) break;
+    }
+    return songs;
 };
 
 const kugouHistoryNameByDate = new Map<string, string>();
@@ -1122,15 +1149,8 @@ export const kugouProvider: OnlineMusicProvider = {
             const playlist = await getKugouLikedPlaylist(userId);
             const globalCollectionId = valueOf(playlist, 'global_collection_id', 'globalCollectionId');
             if (!globalCollectionId) return [];
-            const response = await requestKugou('playlist_track_all', {
-                id: String(globalCollectionId),
-                page: 1,
-                pagesize: KUGOU_MAX_PAGE_SIZE,
-            });
-            return listOf(response)
-                .map(normalizeKugouSong)
-                .map(song => song.id)
-                .filter(Boolean);
+            const songs = await getKugouPlaylistTrackSongs(String(globalCollectionId));
+            return songs.map(song => song.id).filter(Boolean);
         },
     },
     catalog: {
@@ -1142,7 +1162,8 @@ export const kugouProvider: OnlineMusicProvider = {
 
             const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
             const response = await requestKugou('playlist_track_all', { id: String(id), pagesize: requestLimit, page: Math.floor(offset / requestLimit) + 1 });
-            return pageOf(listOf(response).map(normalizeKugouSong), response, requestLimit, offset);
+            const songs = listOf(response).map(normalizeKugouSong);
+            return pageOf(songs, response, requestLimit, offset);
         },
         async getCloudTracks(limit, offset) {
             const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
@@ -1316,6 +1337,20 @@ export const kugouProvider: OnlineMusicProvider = {
     },
     mutations: {
         canAddToPlaylist: canAddToKugouPlaylist,
+        async createPlaylist(name) {
+            const userId = getKugouUserId();
+            const trimmedName = name.trim();
+            if (!userId || !trimmedName) return;
+            // type 0 = create a new playlist (type 1 would collect an existing playlist).
+            await requestKugou('playlist_add', {
+                name: trimmedName,
+                type: 0,
+                source: 1,
+                list_create_userid: userId,
+                list_create_listid: '0',
+                is_pri: 0,
+            });
+        },
         async likeSong(song, liked) {
             const userId = getKugouUserId();
             if (!userId) return;
@@ -1329,9 +1364,26 @@ export const kugouProvider: OnlineMusicProvider = {
                 });
                 return;
             }
+
+            // The song's providerData.fileId belongs to the playlist it was played from. Looking it
+            // up in the liked playlist by hash is required; sending another playlist's row id deletes
+            // whichever liked song happens to share that id.
+            const globalCollectionId = valueOf(playlist, 'global_collection_id', 'globalCollectionId');
+            if (!globalCollectionId) return;
+            const targetHash = getKugouTrackHash(song);
+            const likedTracks = await getKugouPlaylistTrackSongs(String(globalCollectionId));
+            const likedTrack = likedTracks.find(track => getKugouTrackHash(track) === targetHash);
+            const likedFileId = likedTrack?.sourceRef?.kind === 'online'
+                ? likedTrack.sourceRef.providerData?.fileId
+                : undefined;
+            if (likedFileId === undefined || likedFileId === null || String(likedFileId) === '') {
+                console.warn('[KuGouProvider] unlike:file-id-not-found', { hash: targetHash });
+                return;
+            }
+
             await requestKugou('playlist_tracks_del', {
                 listid: String(listId),
-                fileids: getKugouTrackFileId(song),
+                fileids: String(likedFileId),
             });
         },
         async updatePlaylistTracks(operation, playlist, tracks) {

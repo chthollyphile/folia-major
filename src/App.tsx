@@ -947,6 +947,7 @@ export default function App() {
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
         addCurrentSongToOnlinePlaylist,
+        createCurrentOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         loadCurrentSongLyricPreview,
@@ -2743,6 +2744,7 @@ export default function App() {
                 onAddCurrentSongToLocalPlaylist={addCurrentSongToLocalPlaylist}
                 onCreateCurrentLocalPlaylist={createCurrentLocalPlaylist}
                 onAddCurrentSongToOnlinePlaylist={addCurrentSongToOnlinePlaylist}
+                onCreateCurrentOnlinePlaylist={createCurrentOnlinePlaylist}
                 onAddCurrentSongToNavidromePlaylist={addCurrentSongToNavidromePlaylist}
                 onCreateCurrentNavidromePlaylist={createCurrentNavidromePlaylist}
             />

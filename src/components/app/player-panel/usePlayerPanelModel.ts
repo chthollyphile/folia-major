@@ -9,6 +9,7 @@ import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
+import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { selectDisplayCoverUrl, selectDisplayLyrics, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import type { LocalSong, SongResult } from '../../../types';
 import type { LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
@@ -74,9 +75,19 @@ export const usePlayerPanelModel = ({
     const displayCoverUrl = usePlaybackStore(selectDisplayCoverUrl);
     const displayLyrics = usePlaybackStore(selectDisplayLyrics);
 
+    // `omni.isSongLiked` reads the provider account store, but this memo only re-runs when its
+    // dependencies change. Subscribe to the playing provider's liked set so a successful
+    // favorite/unfavorite immediately recomputes the heart icon for every online provider.
+    const currentSongProviderId = currentSong?.sourceRef?.kind === 'online'
+        ? currentSong.sourceRef.providerId
+        : undefined;
+    const providerLikedSongIds = useOnlineProviderAccountStore(state => (
+        currentSongProviderId ? state.accounts[currentSongProviderId]?.likedSongIds : undefined
+    ));
+
     const isLiked = useMemo(
         () => resolveSongLiked(currentSong, { isLocalSongLiked, starredNavidromeSongIds, likedSongIds }),
-        [currentSong, isLocalSongLiked, likedSongIds, starredNavidromeSongIds],
+        [currentSong, isLocalSongLiked, likedSongIds, starredNavidromeSongIds, providerLikedSongIds],
     );
 
     const collectionEntries = useMemo(() => createPlayerPanelCollectionEntries({

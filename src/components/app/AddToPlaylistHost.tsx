@@ -27,6 +27,7 @@ type AddToPlaylistHostProps = {
     onAddCurrentSongToLocalPlaylist: (playlistId: string) => Promise<void>;
     onCreateCurrentLocalPlaylist: (name: string) => Promise<void>;
     onAddCurrentSongToOnlinePlaylist: (playlist: ProviderCollection) => Promise<void>;
+    onCreateCurrentOnlinePlaylist: (name: string) => Promise<void>;
     onAddCurrentSongToNavidromePlaylist: (playlistId: string) => Promise<void>;
     onCreateCurrentNavidromePlaylist: (name: string) => Promise<void>;
 };
@@ -40,6 +41,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     onAddCurrentSongToLocalPlaylist,
     onCreateCurrentLocalPlaylist,
     onAddCurrentSongToOnlinePlaylist,
+    onCreateCurrentOnlinePlaylist,
     onAddCurrentSongToNavidromePlaylist,
     onCreateCurrentNavidromePlaylist,
 }) => {
@@ -114,9 +116,11 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     }, [isLocal, isOnline, isNavidrome, localPlaylists, navidromePlaylists, onlinePlaylists, t]);
 
     const isApplicable = Boolean(currentSong && !isStage && (isLocal || isOnline || isNavidrome));
-    // Local and Navidrome can make a playlist on the spot, so having none is not a refusal there.
+    const canCreateOnline = Boolean(isOnline && currentSong && omni.canCreatePlaylist(currentSong));
+    // Local, Navidrome and capable online providers can create a playlist on the spot, so having
+    // none is not a refusal there.
     const canAdd = (isLocal)
-        || (isOnline && canAddOnlineSong && onlinePlaylists.length > 0)
+        || (isOnline && canAddOnlineSong && (onlinePlaylists.length > 0 || canCreateOnline))
         || (isNavidrome);
     const disabledReason = isOnline && !canAddOnlineSong
         ? t('status.providerPlaylistMutationUnavailable', { provider: onlineProviderLabel })
@@ -163,8 +167,9 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                         await refreshNavidromePlaylists();
                     }
                 }}
-                onCreate={(isLocal || isNavidrome) ? () => {
-                    close();
+                onCreate={(isLocal || isNavidrome || canCreateOnline) ? () => {
+                    // Keep the selection dialog mounted behind the name prompt so the refreshed
+                    // playlist list is immediately selectable after creation.
                     setIsCreateOpen(true);
                 } : undefined}
                 createLabel={t(isNavidrome ? 'navidrome.createPlaylist' : 'localMusic.createPlaylist')}
@@ -181,6 +186,11 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                 onConfirm={async (name) => {
                     if (isLocal) {
                         await onCreateCurrentLocalPlaylist(name);
+                        return;
+                    }
+
+                    if (isOnline) {
+                        await onCreateCurrentOnlinePlaylist(name);
                         return;
                     }
 
