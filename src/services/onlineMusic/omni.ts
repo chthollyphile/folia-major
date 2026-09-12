@@ -251,6 +251,7 @@ export const omni = {
                 user: account.user!,
                 collections,
                 likedSongIds: account.likedSongIds || [],
+                likedSongFileIds: account.likedSongFileIds || {},
             });
             useOnlineProviderAccountStore.getState().updateAccount(providerId, {
                 collections,
@@ -345,6 +346,12 @@ export const omni = {
 
     async getProviderLikedSongIds(providerId: OmniProviderId, userId: MediaId): Promise<MediaId[]> {
         return requireOnlineMusicProvider(providerId).library?.getLikedSongIds?.(userId) ?? [];
+    },
+
+    async getProviderLikedSongs(providerId: OmniProviderId, userId: MediaId): Promise<UnifiedSong[]> {
+        const library = requireOnlineMusicProvider(providerId).library;
+        if (library?.getLikedSongs) return library.getLikedSongs(userId);
+        return [];
     },
 
     async getCloudCollection(user?: OmniUser): Promise<OmniCollection | null> {
@@ -548,7 +555,35 @@ export const omni = {
     async likeSong(song: SongResult, liked: boolean): Promise<void> {
         const provider = providerForSong(song);
         if (!this.canLikeSong(song) || !provider.mutations?.likeSong) return unsupported(provider.id, 'likes');
-        return provider.mutations.likeSong(song, liked);
+
+        const source = getPlaybackSourceRef(song);
+        const songKey = source.kind === 'online' ? String(source.mediaId) : null;
+        const account = source.kind === 'online'
+            ? useOnlineProviderAccountStore.getState().accounts[source.providerId]
+            : undefined;
+        const cachedFileId = songKey ? account?.likedSongFileIds?.[songKey] : undefined;
+
+        try {
+            if (cachedFileId === undefined) {
+                await provider.mutations.likeSong(song, liked);
+            } else {
+                await provider.mutations.likeSong(song, liked, { likedFileId: cachedFileId });
+            }
+        } finally {
+            // A successful add gives the provider no new fileId, a successful delete invalidates the
+            // old one, and a failed mutation must not keep trusting it either. Drop the row so the
+            // next unlike re-resolves from a fresh playlist read.
+            if (songKey && source.kind === 'online') {
+                const latestAccount = useOnlineProviderAccountStore.getState().accounts[source.providerId];
+                if (latestAccount?.likedSongFileIds && latestAccount.likedSongFileIds[songKey] !== undefined) {
+                    const nextFileIds = { ...latestAccount.likedSongFileIds };
+                    delete nextFileIds[songKey];
+                    useOnlineProviderAccountStore.getState().updateAccount(source.providerId, {
+                        likedSongFileIds: nextFileIds,
+                    });
+                }
+            }
+        }
     },
 
     async dislikeSong(song: SongResult): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }> {

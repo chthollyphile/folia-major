@@ -13,6 +13,8 @@ export type ProviderAccountSnapshot = {
     user: ProviderUser;
     collections: ProviderCollection[];
     likedSongIds: MediaId[];
+    /** Optional per-provider cache of playlist-local row ids, keyed by the global song hash/id. */
+    likedSongFileIds?: Record<string, MediaId>;
 };
 
 export const getProviderAccountSnapshotCacheKey = (providerId: OnlineProviderId): string => (
@@ -25,6 +27,12 @@ export const loadProviderAccountSnapshot = async (
     const cached = await getFromCache<ProviderAccountSnapshot>(getProviderAccountSnapshotCacheKey(providerId));
     if (!cached || cached.version !== SNAPSHOT_VERSION || !cached.user) return null;
     if (!Array.isArray(cached.collections) || !Array.isArray(cached.likedSongIds)) return null;
+    if (
+        cached.likedSongFileIds !== undefined
+        && (typeof cached.likedSongFileIds !== 'object' || cached.likedSongFileIds === null || Array.isArray(cached.likedSongFileIds))
+    ) {
+        return null;
+    }
     return cached;
 };
 
