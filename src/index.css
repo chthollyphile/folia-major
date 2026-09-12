@@ -24,6 +24,11 @@ body {
   overflow: hidden;
 }
 
+html.cursor-auto-hidden,
+html.cursor-auto-hidden * {
+  cursor: none !important;
+}
+
 :root {
   --scrollbar-track: #18181b;
   --scrollbar-thumb: #3f3f46;
