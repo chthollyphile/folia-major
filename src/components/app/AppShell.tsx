@@ -19,6 +19,7 @@ type AppShellProps = {
     showMainWindowClickThroughToggle: boolean;
     onToggleMainWindowClickThrough: () => void;
     isDaylight: boolean;
+    cursorHidden: boolean;
     audioElement: React.ReactNode;
     children: React.ReactNode;
 };
@@ -36,6 +37,7 @@ const AppShell: React.FC<AppShellProps> = ({
     showMainWindowClickThroughToggle,
     onToggleMainWindowClickThrough,
     isDaylight,
+    cursorHidden,
     audioElement,
     children,
 }) => {
@@ -87,7 +89,7 @@ const AppShell: React.FC<AppShellProps> = ({
 
     return (
         <div
-            className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
+            className={`fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500${cursorHidden ? ' cursor-auto-hidden' : ''}`}
             style={{
                 ...appStyle,
                 borderRadius: shouldApplyWindowRadius ? '18px' : undefined,

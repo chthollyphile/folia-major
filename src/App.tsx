@@ -677,7 +677,6 @@ export default function App() {
         pushCollection,
         backCollection,
     } = useAppNavigation();
-    useCursorAutoHide(currentView === 'player');
     const reduceLatticeMotion = useReducedMotionFor('lattice');
     const [hasLatticeExited, setHasLatticeExited] = useState(currentView !== 'lattice');
 
@@ -1820,6 +1819,19 @@ export default function App() {
             || Boolean(pendingUnavailableReplacement),
         context: commandPaletteContext,
     });
+    // 播放页指针自动隐藏：仅在播放视图、没有覆盖层（设置弹窗/命令面板/歌词匹配）打开、
+    // 且用户没有把控件设成「始终显示」时启用。点击穿透模式下直接隐藏，不监听鼠标。
+    const cursorHidden = useCursorAutoHide(
+        isPlayerView
+            && playerChromeVisibilityMode !== 'always-visible'
+            && !isSettingsModalOpen
+            && !commandPalette.isOpen
+            && !showLyricMatchModal
+            && !showNaviLyricMatchModal
+            && !showOnlineLyricMatchModal
+            && !pendingUnavailableReplacement,
+        { suppressPointerReveal: isMainWindowClickThroughEnabled },
+    );
     // The FM tab reuses the palette's picker instead of carrying its own copy of the mode list.
     // Read through a ref rather than depended on: openCommandById tracks the palette's isExecuting
     // flag, so depending on it would rebuild the player panel model on unrelated renders. The
@@ -2609,6 +2621,7 @@ export default function App() {
             isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}
             showMainWindowClickThroughToggle={isMainWindowClickThroughEnabled ? isClickThroughToggleHotspotActive : isTitlebarRevealed}
             isDaylight={isDaylight}
+            cursorHidden={cursorHidden}
             onToggleMainWindowClickThrough={() => {
                 const nextEnabled = !isMainWindowClickThroughEnabled;
                 if (!nextEnabled) {
