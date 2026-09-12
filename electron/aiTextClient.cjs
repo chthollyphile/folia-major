@@ -1,7 +1,5 @@
 "use strict";
 
-const { REASONING_SUPPRESSION_ATTEMPTS } = require('../shared/lyricSegmentationPrompt.cjs');
-
 // electron/aiTextClient.cjs
 // Provider-agnostic "send a system + user prompt, get JSON back" client for the main process.
 //
@@ -91,10 +89,6 @@ function resolveOpenAICompatibleModel(apiUrl, configuredModel) {
 }
 
 function detectOpenAICompatibleProvider(apiUrl, model) {
-  const normalizedModel = model.trim().toLowerCase();
-  if (normalizedModel.startsWith('deepseek-')) {
-    return 'deepseek';
-  }
 
   try {
     const hostname = new URL(apiUrl).hostname.toLowerCase();
@@ -114,34 +108,6 @@ function detectOpenAICompatibleProvider(apiUrl, model) {
 function providerSupportsStructuredOutputs(provider) {
   return provider === 'openai';
 }
-
-/**
- * Remembers which rung of REASONING_SUPPRESSION_ATTEMPTS worked for an endpoint+model, so the
- * probing is paid once per process rather than on every batch. Keyed by both because one base URL
- * can serve models with completely different capabilities.
- */
-const reasoningAttemptCache = new Map();
-
-/** True when a 400 is the server rejecting the parameter we just added, not a real failure. */
-const rejectsParameters = (errorText, params) => {
-  const message = String(errorText).toLowerCase();
-  return Object.keys(params).some(key => message.includes(key.toLowerCase()));
-};
-
-/**
- * True when the model answered nothing because reasoning consumed the whole budget. This is the
- * failure that looks like success: HTTP 200, tokens billed, `content` empty.
- */
-const exhaustedByReasoning = (choice, usage) => {
-  const reasoningTokens = usage
-    && usage.completion_tokens_details
-    && usage.completion_tokens_details.reasoning_tokens;
-  const hasReasoning = Boolean(
-    reasoningTokens || (choice && choice.message && choice.message.reasoning_content),
-  );
-  return hasReasoning && choice && choice.finish_reason === 'length';
-};
-
 
 function resolveOpenAICompatibleTemperature(value) {
   const temperature = typeof value === 'number' ? value : Number.parseFloat(String(value ?? '').trim());
@@ -203,7 +169,7 @@ function describeEmptyCompletion(choice, usage, model) {
     return `Model "${model}" used its entire output budget on reasoning`
       + `${reasoningTokens ? ` (${reasoningTokens} reasoning tokens)` : ''} and returned no answer.`
       + ' This is a reasoning model doing a mechanical task. Point the app at a non-reasoning model,'
-      + ' or raise the token limit if the provider ignores reasoning_effort.';
+      + ' or configure a compatible bounded output budget.';
   }
   if (finishReason === 'length') {
     return `Model "${model}" hit the output token limit before finishing its answer.`;
@@ -240,13 +206,16 @@ function extractResponseContentText(message) {
 /** Parses a JSON object even when an OpenAI-compatible endpoint wraps it in a fence or prose. */
 function parseAiJsonObject(input, requiredKeys = []) {
   const text = typeof input === 'string' ? input.trim() : '';
+  // ponytail: bounded candidate scan; use a streaming parser if larger responses are needed.
+  // Bound malformed-input scanning; normal theme objects fit comfortably within this limit.
+  let candidates = 0;
 
-  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+  for (let start = text.indexOf('{'); start !== -1 && candidates++ < 64; start = text.indexOf('{', start + 1)) {
     let depth = 0;
     let inString = false;
     let escaped = false;
 
-    for (let index = start; index < text.length; index += 1) {
+    for (let index = start; index < Math.min(text.length, start + 131072); index += 1) {
       const char = text[index];
       if (inString) {
         if (escaped) escaped = false;
@@ -269,6 +238,7 @@ function parseAiJsonObject(input, requiredKeys = []) {
   }
 
   const requirement = requiredKeys.length ? ` with required keys: ${requiredKeys.join(', ')}` : '';
+  console.error('[ai] invalid JSON response:', JSON.stringify({ length: text.length, preview: text.slice(0, 512).replace(/sk-[a-zA-Z0-9_-]+|Bearer\s+[^\s"']+/g, '[redacted]') }));
   throw new Error(`AI response did not contain a valid JSON object${requirement}`);
 }
 
@@ -288,7 +258,7 @@ function buildOpenAICompatibleRequestBody(model, provider, systemPrompt, sourceP
   // unbounded body read, which presents as a request that never finishes. A caller that knows how
   // big its answer should be passes a ceiling; truncation then fails as a JSON parse error with
   // the raw response logged, which is diagnosable, unlike a hang.
-  const limit = maxTokens ? { max_tokens: maxTokens } : {};
+  const limit = maxTokens ? { [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: maxTokens } : {};
   const reasoning = extraParams || {};
 
   if (schema && schemaName && providerSupportsStructuredOutputs(provider)) {
@@ -315,11 +285,12 @@ function buildOpenAICompatibleRequestBody(model, provider, systemPrompt, sourceP
   };
 }
 
-/** One request. Returns the outcome instead of throwing, so the ladder above can decide. */
+/** One request. Returns the outcome instead of throwing, with the shared capability policy. */
 async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs }) {
   let response;
   try {
-    response = await customFetch(apiUrl, {
+    const { fetchOpenAICompatible } = await import('../shared/openAICompatibility.mjs');
+    response = await fetchOpenAICompatible(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -327,7 +298,7 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
       },
       body: JSON.stringify(body),
       signal: timeoutSignal(timeoutMs),
-    });
+    }, detectOpenAICompatibleProvider(apiUrl, body.model), customFetch);
   } catch (error) {
     throw describeFetchFailure(error, timeoutMs, `Request to ${apiUrl}`);
   }
@@ -347,16 +318,8 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
   return { ok: true, choice, usage: data.usage, content: extractResponseContentText(choice && choice.message) };
 }
 
-/**
- * Raw JSON text from an OpenAI-compatible endpoint, using the user's configured connection.
- *
- * When `disableReasoning` is set this walks REASONING_SUPPRESSION_ATTEMPTS rather than assuming
- * anything about the provider, advancing on the two failures that mean "that rung does not apply
- * here": the server rejecting the parameter, and the model answering nothing because reasoning ate
- * the budget. Any other error is real and is reported immediately, so a bad key or a wrong model
- * name still fails on the first request instead of being retried three times.
- */
-async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens, disableReasoning }) {
+/** One bounded completion, with only explicit HTTP capability fallbacks. */
+async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens }) {
   const apiKey = store.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured in settings');
@@ -367,67 +330,15 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
   const temperature = resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE'));
   const provider = detectOpenAICompatibleProvider(apiUrl, model);
 
-  const attempts = disableReasoning ? REASONING_SUPPRESSION_ATTEMPTS : [{ params: {} }];
-  const cacheKey = `${apiUrl}|${model}`;
-  const learned = disableReasoning ? reasoningAttemptCache.get(cacheKey) : 0;
-  const firstIndex = typeof learned === 'number' ? learned : 0;
-
-  let lastEmpty = null;
-  for (let index = firstIndex; index < attempts.length; index += 1) {
-    const { params } = attempts[index];
-    const isLastAttempt = index === attempts.length - 1;
-    // The final rung is for models whose reasoning cannot be turned off, so it needs room for the
-    // reasoning AND the answer; the earlier rungs expect no reasoning at all.
-    const budget = isLastAttempt && disableReasoning && maxTokens ? maxTokens * 4 : maxTokens;
-    const body = buildOpenAICompatibleRequestBody(
-      model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName, budget, params,
-    );
-
-    const described = Object.keys(params).length ? Object.keys(params).join('+') : 'plain';
-    console.log(`[ai] POST ${apiUrl} model=${model} provider=${provider} reasoning=${described}`);
-    const startedAt = Date.now();
-    let result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
-
-    const shouldRetryWithoutJsonMode = provider === 'generic' && body.response_format
-      && ((result.ok && !result.content && !exhaustedByReasoning(result.choice, result.usage))
-        || (!result.ok && result.status === 429 && /concurrency limit exceeded/i.test(result.errorText)));
-    if (shouldRetryWithoutJsonMode) {
-      console.log('[ai] generic JSON mode failed, retrying once without response_format');
-      const fallbackBody = { ...body };
-      delete fallbackBody.response_format;
-      result = await sendOpenAICompatible({ apiUrl, apiKey, body: fallbackBody, customFetch, timeoutMs });
-    }
-
-    if (!result.ok) {
-      // A rejected parameter is information, not a failure: this endpoint does not speak that
-      // dialect, so move down the ladder. Everything else is the user's problem to see.
-      if (!isLastAttempt && (result.status === 400 || result.status === 422) && rejectsParameters(result.errorText, params)) {
-        console.log(`[ai] ${described} rejected by the endpoint, trying the next option`);
-        continue;
-      }
-      throw new Error(result.errorText);
-    }
-
-    console.log(`[ai] ${apiUrl} answered in ${Date.now() - startedAt}ms`);
-
-    if (result.content) {
-      reasoningAttemptCache.set(cacheKey, index);
-      return result.content;
-    }
-
-    lastEmpty = result;
-    if (!isLastAttempt && exhaustedByReasoning(result.choice, result.usage)) {
-      console.log(`[ai] ${described} did not stop the model reasoning, trying the next option`);
-      continue;
-    }
-    break;
-  }
-
-  throw new Error(describeEmptyCompletion(
-    lastEmpty && lastEmpty.choice,
-    lastEmpty && lastEmpty.usage,
-    model,
-  ));
+  const body = buildOpenAICompatibleRequestBody(
+    model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName, maxTokens,
+  );
+  const startedAt = Date.now();
+  const result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
+  console.info(`[ai] ${provider} completion in ${Date.now() - startedAt}ms (ok=${result.ok})`);
+  if (!result.ok) throw new Error(result.errorText);
+  if (result.content) return result.content;
+  throw new Error(describeEmptyCompletion(result.choice, result.usage, model));
 }
 
 /**
@@ -499,11 +410,11 @@ async function runGeminiCompletion({ store, systemPrompt, sourcePrompt, response
  * Runs one prompt through whichever provider the user configured and returns the raw JSON text.
  * Parsing is left to the caller so each feature can validate against its own contract.
  */
-async function runAiJsonCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, geminiResponseSchema, geminiGenerationConfig, customFetch, timeoutMs, maxTokens, disableReasoning }) {
+async function runAiJsonCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, geminiResponseSchema, geminiGenerationConfig, customFetch, timeoutMs, maxTokens }) {
   const provider = store.get('AI_PROVIDER') || 'gemini';
 
   return provider === 'openai'
-    ? runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs, maxTokens, disableReasoning })
+    ? runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs, maxTokens })
     : runGeminiCompletion({ store, systemPrompt, sourcePrompt, responseSchema: geminiResponseSchema, generationConfig: geminiGenerationConfig, customFetch, timeoutMs, maxTokens });
 }
 

@@ -1,3 +1,4 @@
+import { fetchOpenAICompatible } from '../shared/openAICompatibility.mjs';
 import { sanitizeDualTheme } from '../shared/themeSanitizer.mjs';
 
 type WorkerEnv = {
@@ -134,10 +135,6 @@ const resolveOpenAICompatibleModel = (apiUrl: string, configuredModel?: string) 
 };
 
 const detectOpenAICompatibleProvider = (apiUrl: string, model: string): OpenAICompatibleProvider => {
-    const normalizedModel = model.trim().toLowerCase();
-    if (normalizedModel.startsWith('deepseek-')) {
-        return 'deepseek';
-    }
 
     try {
         const hostname = new URL(apiUrl).hostname.toLowerCase();
@@ -275,7 +272,7 @@ const buildOpenAICompatibleRequestBody = (
             model,
             messages,
             temperature,
-            max_tokens: THEME_MAX_OUTPUT_TOKENS,
+            max_completion_tokens: THEME_MAX_OUTPUT_TOKENS,
             response_format: {
                 type: 'json_schema',
                 json_schema: {
@@ -291,7 +288,7 @@ const buildOpenAICompatibleRequestBody = (
         model,
         messages,
         temperature,
-        max_tokens: THEME_MAX_OUTPUT_TOKENS,
+        max_tokens: 8192,
         response_format: { type: 'json_object' }
     };
 };
@@ -323,11 +320,13 @@ const extractResponseContentText = (message: { content?: unknown; refusal?: unkn
 
 const parseAiJsonObject = (input: string, requiredKeys: string[] = []): Record<string, unknown> => {
     const text = input.trim();
-    for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    // Bound malformed-input scanning; normal theme objects fit comfortably within this limit.
+    let candidates = 0;
+    for (let start = text.indexOf('{'); start !== -1 && candidates++ < 64; start = text.indexOf('{', start + 1)) {
         let depth = 0;
         let inString = false;
         let escaped = false;
-        for (let index = start; index < text.length; index += 1) {
+        for (let index = start; index < Math.min(text.length, start + 131072); index += 1) {
             const char = text[index];
             if (inString) {
                 if (escaped) escaped = false;
@@ -351,6 +350,7 @@ const parseAiJsonObject = (input: string, requiredKeys: string[] = []): Record<s
         }
     }
     const requirement = requiredKeys.length ? ` with required keys: ${requiredKeys.join(', ')}` : '';
+    console.error('[ai] invalid JSON response:', JSON.stringify({ length: text.length, preview: text.slice(0, 512).replace(/sk-[a-zA-Z0-9_-]+|Bearer\s+[^\s"']+/g, '[redacted]') }));
     throw new Error(`AI response did not contain a valid JSON object${requirement}`);
 };
 
@@ -389,14 +389,15 @@ export async function handleGenerateOpenAITheme(request: Request, env: WorkerEnv
         const systemPrompt = buildThemeSystemPrompt(true);
         const sourcePrompt = buildThemeSourcePrompt(snippet, isPureMusic, songTitle);
 
-        const response = await fetch(apiUrl, {
+        const response = await fetchOpenAICompatible(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify(buildOpenAICompatibleRequestBody(model, provider, systemPrompt, sourcePrompt, temperature)),
-        });
+            signal: AbortSignal.timeout(120_000),
+        }, provider);
 
         if (!response.ok) {
             const errorMessage = await formatOpenAICompatibleError(response);

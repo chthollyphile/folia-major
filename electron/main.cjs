@@ -37,6 +37,8 @@ const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
+  detectOpenAICompatibleProvider,
+  normalizeOpenAIChatCompletionsUrl,
   parseAiJsonObject,
   runAiJsonCompletion,
 } = require('./aiTextClient.cjs');
@@ -6604,8 +6606,7 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
         schema: THEME_JSON_SCHEMA,
         schemaName: THEME_JSON_SCHEMA_NAME,
         customFetch,
-        maxTokens: THEME_MAX_OUTPUT_TOKENS,
-        disableReasoning: true,
+        maxTokens: detectOpenAICompatibleProvider(normalizeOpenAIChatCompletionsUrl(store.get('OPENAI_API_URL')), '') === 'openai' ? THEME_MAX_OUTPUT_TOKENS : 8192,
       });
       dualTheme = sanitizeGeneratedDualTheme(parseAiJsonObject(content, ['light', 'dark']));
 
@@ -6670,10 +6671,6 @@ ipcMain.handle('segment-lyrics', async (event, lines) => {
       geminiGenerationConfig: SEGMENTATION_GEMINI_GENERATION_CONFIG,
       customFetch,
       maxTokens: SEGMENTATION_MAX_OUTPUT_TOKENS,
-      // Splitting text at word boundaries has nothing to reason about, and a reasoning model left
-      // to its own devices spends the whole budget thinking and returns nothing. Same reason the
-      // Gemini config sets thinkingBudget to 0.
-      disableReasoning: true,
     });
 
     const { boundaries, rejections } = parseSegmentationResponse(rawResponse, sourceLines);
