@@ -98,10 +98,22 @@ export const useKugouLibrary = () => {
 
         const collections: ProviderCollection[] = [];
         let likedSongIds: MediaId[] = [];
+        let likedSongFileIds: Record<string, MediaId> = {};
         try {
             if (omni.getProviderCapabilities('kugou').likes) {
                 try {
-                    likedSongIds = await omni.getProviderLikedSongIds('kugou', user.id);
+                    const likedSongs = await omni.getProviderLikedSongs('kugou', user.id);
+                    likedSongIds = likedSongs.map(song => song.id).filter(Boolean);
+                    likedSongFileIds = {};
+                    for (const song of likedSongs) {
+                        const sourceData = song.sourceRef?.kind === 'online'
+                            ? song.sourceRef.providerData
+                            : undefined;
+                        const fileId = sourceData?.fileId;
+                        if (typeof fileId === 'string' || typeof fileId === 'number') {
+                            likedSongFileIds[String(song.id)] = fileId;
+                        }
+                    }
                 } catch (error) {
                     console.warn('[KugouLibrary] liked-songs:error', {
                         name: error instanceof Error ? error.name : 'Error',
@@ -130,12 +142,18 @@ export const useKugouLibrary = () => {
                     coverUrl: user.avatarUrl,
                 });
             }
-            const snapshot = await saveProviderAccountSnapshot('kugou', { user, collections, likedSongIds });
+            const snapshot = await saveProviderAccountSnapshot('kugou', {
+                user,
+                collections,
+                likedSongIds,
+                likedSongFileIds,
+            });
             updateAccount('kugou', {
                 status: 'authenticated',
                 user,
                 collections,
                 likedSongIds,
+                likedSongFileIds,
                 error: undefined,
                 hydration: 'ready',
                 freshness: 'fresh',
@@ -144,6 +162,7 @@ export const useKugouLibrary = () => {
             console.info('[KugouLibrary] refresh:complete', {
                 collectionCount: collections.length,
                 likedSongCount: likedSongIds.length,
+                likedSongFileIdCount: Object.keys(likedSongFileIds).length,
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : 'kugou_library_failed';
@@ -182,6 +201,7 @@ export const useKugouLibrary = () => {
                         user,
                         collections,
                         likedSongIds: snapshot.likedSongIds,
+                        likedSongFileIds: snapshot.likedSongFileIds || {},
                         hydration: 'ready',
                         freshness: 'stale',
                         lastUpdatedAt: snapshot.savedAt,

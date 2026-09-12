@@ -8,6 +8,8 @@ export interface OnlineProviderAccountState {
     user: ProviderUser | null;
     collections: ProviderCollection[];
     likedSongIds: MediaId[];
+    /** Playlist-local row ids keyed by the global song hash/id; only providers that need them fill this. */
+    likedSongFileIds: Record<string, MediaId>;
     error?: string;
     hydration: 'loading' | 'ready';
     freshness: 'stale' | 'refreshing' | 'fresh' | 'error';
@@ -34,6 +36,7 @@ const emptyAccount = (): OnlineProviderAccountState => ({
     user: null,
     collections: [],
     likedSongIds: [],
+    likedSongFileIds: {},
     hydration: 'loading',
     freshness: 'stale',
 });

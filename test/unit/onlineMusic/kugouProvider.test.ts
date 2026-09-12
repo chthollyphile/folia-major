@@ -1159,7 +1159,11 @@ describe('kugouProvider', () => {
         });
     });
 
-    it('uses the liked playlist mutation endpoints for online song favorites', async () => {
+    it('reads every liked playlist page instead of only the first 100 songs', async () => {
+        const firstPageSongs = Array.from({ length: 100 }, (_, index) => ({
+            hash: `paged-${index}`,
+            name: `Song ${index}`,
+        }));
         requestMock
             .mockResolvedValueOnce({
                 data: {
@@ -1168,7 +1172,65 @@ describe('kugouProvider', () => {
                         source: 1,
                         listid: 2,
                         name: '我喜欢',
-                        global_collection_id: 'collection_3_user_2_0',
+                        global_collection_id: 'collection_3_liked_test_paged',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: { count: 101, songs: firstPageSongs },
+            })
+            .mockResolvedValueOnce({
+                data: { count: 101, songs: [{ hash: 'paged-last', name: 'Last Song' }] },
+            });
+
+        const ids = await kugouProvider.library?.getLikedSongIds?.('user');
+
+        expect(ids).toHaveLength(101);
+        expect(ids?.at(-1)).toBe('PAGED-LAST');
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_track_all', {
+            id: 'collection_3_liked_test_paged', page: 1, pagesize: 100,
+        });
+        expect(requestMock).toHaveBeenNthCalledWith(3, 'playlist_track_all', {
+            id: 'collection_3_liked_test_paged', page: 2, pagesize: 100,
+        });
+    });
+
+    it('returns liked songs with their playlist-local file id', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{
+                        type: 0,
+                        source: 1,
+                        listid: 2,
+                        name: '我喜欢',
+                        global_collection_id: 'collection_3_liked_test_songs',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: { count: 1, songs: [{ hash: 'abc123', name: 'Song 1', fileid: 987 }] },
+            });
+
+        const songs = await kugouProvider.library?.getLikedSongs?.('user');
+
+        expect(songs).toHaveLength(1);
+        expect(songs?.[0]?.id).toBe('ABC123');
+        expect(songs?.[0]?.sourceRef?.kind === 'online'
+            ? songs?.[0]?.sourceRef.providerData?.fileId
+            : undefined).toBe(987);
+    });
+
+    it('adds liked songs through the liked playlist mutation endpoint', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{
+                        type: 0,
+                        source: 1,
+                        listid: 2,
+                        name: '我喜欢',
+                        global_collection_id: 'collection_3_liked_test_add',
                     }],
                 },
             })
@@ -1186,8 +1248,9 @@ describe('kugouProvider', () => {
             listid: '2',
             data: 'Song 1|ABC123|12|34',
         });
+    });
 
-        requestMock.mockReset();
+    it('unlikes with the file id from the liked playlist instead of the current playlist', async () => {
         requestMock
             .mockResolvedValueOnce({
                 data: {
@@ -1196,15 +1259,130 @@ describe('kugouProvider', () => {
                         source: 1,
                         listid: 2,
                         name: '我喜欢',
-                        global_collection_id: 'collection_3_user_2_0',
+                        global_collection_id: 'collection_3_liked_test_remove',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    count: 1,
+                    songs: [{
+                        hash: 'abc123',
+                        name: 'Song 1',
+                        fileid: 987,
                     }],
                 },
             })
             .mockResolvedValueOnce({});
+
+        const song = normalizeKugouSong({
+            hash: 'abc123',
+            name: 'Song 1',
+            album_id: 12,
+            mixsongid: 34,
+            fileid: 102,
+        });
         await kugouProvider.mutations?.likeSong?.(song, false);
 
+        expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_track_all', {
+            id: 'collection_3_liked_test_remove', page: 1, pagesize: 100,
+        });
+        expect(requestMock).toHaveBeenNthCalledWith(3, 'playlist_tracks_del', {
+            listid: '2', fileids: '987',
+        });
+    });
+
+    it('uses the cached liked file id without scanning the whole liked playlist', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{
+                        type: 0,
+                        source: 1,
+                        listid: 2,
+                        name: '我喜欢',
+                        global_collection_id: 'collection_3_liked_test_cached',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({});
+
+        const song = normalizeKugouSong({
+            hash: 'abc123',
+            name: 'Song 1',
+            album_id: 12,
+            mixsongid: 34,
+        });
+        await kugouProvider.mutations?.likeSong?.(song, false, { likedFileId: 987 });
+
+        expect(requestMock).toHaveBeenCalledTimes(2);
+        expect(requestMock).toHaveBeenNthCalledWith(1, 'user_playlist', {
+            userid: 'web-session-user', page: 1, pagesize: 100,
+        });
         expect(requestMock).toHaveBeenNthCalledWith(2, 'playlist_tracks_del', {
-            listid: '2', fileids: 'ABC123',
+            listid: '2', fileids: '987',
+        });
+        expect(requestMock).not.toHaveBeenCalledWith('playlist_track_all', expect.anything());
+    });
+
+    it('rejects unlike when the liked playlist scan does not contain the song', async () => {
+        requestMock
+            .mockResolvedValueOnce({
+                data: {
+                    info: [{
+                        type: 0,
+                        source: 1,
+                        listid: 2,
+                        name: '我喜欢',
+                        global_collection_id: 'collection_3_liked_test_missing',
+                    }],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    count: 1,
+                    songs: [{
+                        hash: 'different-hash',
+                        name: 'Other Song',
+                        fileid: 42,
+                    }],
+                },
+            });
+
+        const song = normalizeKugouSong({
+            hash: 'abc123',
+            name: 'Song 1',
+            album_id: 12,
+            mixsongid: 34,
+        });
+
+        await expect(kugouProvider.mutations?.likeSong?.(song, false)).rejects.toMatchObject({
+            code: 'unavailable',
+        });
+        expect(requestMock).not.toHaveBeenCalledWith('playlist_tracks_del', expect.anything());
+    });
+
+    it('rejects unlike when the liked playlist has no global collection id', async () => {
+        requestMock.mockResolvedValueOnce({
+            data: {
+                info: [{
+                    type: 0,
+                    source: 1,
+                    listid: 2,
+                    name: '我喜欢',
+                }],
+            },
+        });
+
+        const song = normalizeKugouSong({
+            hash: 'abc123',
+            name: 'Song 1',
+            album_id: 12,
+            mixsongid: 34,
+        });
+
+        await expect(kugouProvider.mutations?.likeSong?.(song, false)).rejects.toMatchObject({
+            code: 'invalid-response',
         });
     });
 

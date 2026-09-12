@@ -1,15 +1,16 @@
 import type { SongResult, UnifiedSong } from '../../types';
-import type {
-    AudioQualityPreference,
-    ChorusRange,
-    JsonValue,
-    MediaId,
-    OnlineMusicProvider,
-    ProviderCatalogRef,
-    ProviderCollection,
-    ProviderHistoryEntry,
-    ProviderPage,
-    ProviderUser,
+import {
+    OnlineProviderError,
+    type AudioQualityPreference,
+    type ChorusRange,
+    type JsonValue,
+    type MediaId,
+    type OnlineMusicProvider,
+    type ProviderCatalogRef,
+    type ProviderCollection,
+    type ProviderHistoryEntry,
+    type ProviderPage,
+    type ProviderUser,
 } from '../../types/onlineMusic';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
 import { parseLyricsByFormat } from '../../utils/lyrics/parserCore';
@@ -781,10 +782,22 @@ const isKugouLikedPlaylist = (raw: any): boolean => {
     return name === '我喜欢' || name === '我喜欢的音乐' || valueOf(raw, 'listid', 'list_id') === 2;
 };
 
+const kugouLikedPlaylistRefCache = new Map<string, { listId: MediaId; globalCollectionId?: MediaId }>();
+
 // Finds KuGou's built-in "我喜欢" playlist, which is the provider's song-like collection.
 const getKugouLikedPlaylist = async (userId: MediaId): Promise<any | null> => {
     const items = await getKugouUserPlaylistItems(userId);
     return items.find(isKugouLikedPlaylist) ?? null;
+};
+
+const getKugouLikedPlaylistTracks = async (userId: MediaId): Promise<UnifiedSong[]> => {
+    const playlist = await getKugouLikedPlaylist(userId);
+    const listId = valueOf(playlist, 'listid', 'list_id');
+    if (listId === undefined || listId === null) return [];
+    const globalCollectionId = valueOf(playlist, 'global_collection_id', 'globalCollectionId');
+    kugouLikedPlaylistRefCache.set(String(userId), { listId, globalCollectionId });
+    if (!globalCollectionId) return [];
+    return getKugouPlaylistTrackSongs(String(globalCollectionId));
 };
 
 // Uses the newest song's observed cover when KuGou leaves a user playlist cover empty.
@@ -803,12 +816,18 @@ const getKugouPlaylistFallbackCover = async (rawPlaylist: any): Promise<string |
         .find((cover): cover is string => Boolean(cover));
 };
 
+const getKugouTrackHash = (track: MediaId | SongResult): string => {
+    if (typeof track !== 'object') return String(track).toUpperCase();
+    const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
+    return String(sourceData?.hash || track.kgHash || track.id).toUpperCase();
+};
+
 const getKugouTrackAddData = (track: MediaId | SongResult): string => {
     if (typeof track !== 'object') return `|${String(track).toUpperCase()}|0|0`;
     const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
     return [
         track.name,
-        String(sourceData?.hash || track.kgHash || track.id).toUpperCase(),
+        getKugouTrackHash(track),
         String(sourceData?.albumId || track.album?.id || 0),
         String(sourceData?.mixSongId || 0),
     ].join('|');
@@ -818,6 +837,47 @@ const getKugouTrackFileId = (track: MediaId | SongResult): string => {
     if (typeof track !== 'object') return String(track);
     const sourceData = track.sourceRef?.kind === 'online' ? track.sourceRef.providerData : undefined;
     return String(sourceData?.fileId || track.id);
+};
+
+const KUGOU_LIKED_TRACK_MAX_PAGES = 50;
+const KUGOU_LIKED_TRACK_CACHE_TTL_MS = 10_000;
+const kugouLikedTrackCache = new Map<string, { fetchedAt: number; songs: UnifiedSong[] }>();
+
+// KuGou's playlist entry `fileid` is local to one playlist, unlike the global audio hash. The
+// liked-song mutations must therefore look up the row id inside the liked playlist itself.
+const getKugouPlaylistTrackSongs = async (
+    globalCollectionId: string,
+    options: { forceRefresh?: boolean } = {},
+): Promise<UnifiedSong[]> => {
+    const cached = kugouLikedTrackCache.get(globalCollectionId);
+    if (!options.forceRefresh && cached && Date.now() - cached.fetchedAt < KUGOU_LIKED_TRACK_CACHE_TTL_MS) {
+        return cached.songs;
+    }
+
+    const songs: UnifiedSong[] = [];
+    for (let page = 1; page <= KUGOU_LIKED_TRACK_MAX_PAGES; page += 1) {
+        const response = await requestKugou('playlist_track_all', {
+            id: globalCollectionId,
+            page,
+            pagesize: KUGOU_MAX_PAGE_SIZE,
+        });
+        const rawItems = listOf(response);
+        songs.push(...rawItems.map(normalizeKugouSong));
+        const total = Number(dataOf(response)?.count ?? dataOf(response)?.total ?? Number.NaN);
+        if (rawItems.length < KUGOU_MAX_PAGE_SIZE) break;
+        if (Number.isFinite(total) && songs.length >= total) break;
+    }
+    kugouLikedTrackCache.set(globalCollectionId, { fetchedAt: Date.now(), songs });
+    return songs;
+};
+
+const removeKugouPlaylistTrackCacheEntry = (globalCollectionId: string, hash: string): void => {
+    const cached = kugouLikedTrackCache.get(globalCollectionId);
+    if (!cached) return;
+    kugouLikedTrackCache.set(globalCollectionId, {
+        fetchedAt: Date.now(),
+        songs: cached.songs.filter(song => getKugouTrackHash(song) !== hash),
+    });
 };
 
 const kugouHistoryNameByDate = new Map<string, string>();
@@ -1119,18 +1179,11 @@ export const kugouProvider: OnlineMusicProvider = {
             return pageOfWithRawItemCount(items, response, requestLimit, offset, rawItems.length);
         },
         async getLikedSongIds(userId) {
-            const playlist = await getKugouLikedPlaylist(userId);
-            const globalCollectionId = valueOf(playlist, 'global_collection_id', 'globalCollectionId');
-            if (!globalCollectionId) return [];
-            const response = await requestKugou('playlist_track_all', {
-                id: String(globalCollectionId),
-                page: 1,
-                pagesize: KUGOU_MAX_PAGE_SIZE,
-            });
-            return listOf(response)
-                .map(normalizeKugouSong)
-                .map(song => song.id)
-                .filter(Boolean);
+            const songs = await getKugouLikedPlaylistTracks(userId);
+            return songs.map(song => song.id).filter(Boolean);
+        },
+        async getLikedSongs(userId) {
+            return getKugouLikedPlaylistTracks(userId);
         },
     },
     catalog: {
@@ -1316,23 +1369,71 @@ export const kugouProvider: OnlineMusicProvider = {
     },
     mutations: {
         canAddToPlaylist: canAddToKugouPlaylist,
-        async likeSong(song, liked) {
+        async likeSong(song, liked, context) {
             const userId = getKugouUserId();
             if (!userId) return;
-            const playlist = await getKugouLikedPlaylist(userId);
-            const listId = valueOf(playlist, 'listid', 'list_id');
-            if (listId === undefined || listId === null) return;
+            const userIdKey = String(userId);
+            let likedPlaylistRef = kugouLikedPlaylistRefCache.get(userIdKey);
+            if (!likedPlaylistRef) {
+                const playlist = await getKugouLikedPlaylist(userId);
+                const listId = valueOf(playlist, 'listid', 'list_id');
+                if (listId === undefined || listId === null) return;
+                likedPlaylistRef = {
+                    listId,
+                    globalCollectionId: valueOf(playlist, 'global_collection_id', 'globalCollectionId'),
+                };
+            }
+            const { listId, globalCollectionId } = likedPlaylistRef;
             if (liked) {
                 await requestKugou('playlist_tracks_add', {
                     listid: String(listId),
                     data: getKugouTrackAddData(song),
                 });
+                if (globalCollectionId) kugouLikedTrackCache.delete(String(globalCollectionId));
                 return;
             }
+
+            const targetHash = getKugouTrackHash(song);
+            const cachedLikedFileId = context?.likedFileId;
+            if (cachedLikedFileId !== undefined && String(cachedLikedFileId) !== '') {
+                await requestKugou('playlist_tracks_del', {
+                    listid: String(listId),
+                    fileids: String(cachedLikedFileId),
+                });
+                if (globalCollectionId) removeKugouPlaylistTrackCacheEntry(String(globalCollectionId), targetHash);
+                return;
+            }
+
+            if (!globalCollectionId) {
+                throw new OnlineProviderError(
+                    'invalid-response',
+                    'KuGou liked playlist is missing global_collection_id',
+                    'kugou',
+                );
+            }
+
+            // The song's providerData.fileId belongs to the playlist it was played from. Looking it
+            // up in the liked playlist by hash is required; sending another playlist's row id deletes
+            // whichever liked song happens to share that id.
+            const likedCollectionId = String(globalCollectionId);
+            const likedTracks = await getKugouPlaylistTrackSongs(likedCollectionId);
+            const likedTrack = likedTracks.find(track => getKugouTrackHash(track) === targetHash);
+            const likedFileId = likedTrack?.sourceRef?.kind === 'online'
+                ? likedTrack.sourceRef.providerData?.fileId
+                : undefined;
+            if (likedFileId === undefined || likedFileId === null || String(likedFileId) === '') {
+                throw new OnlineProviderError(
+                    'unavailable',
+                    `KuGou liked playlist does not contain hash ${targetHash}`,
+                    'kugou',
+                );
+            }
+
             await requestKugou('playlist_tracks_del', {
                 listid: String(listId),
-                fileids: getKugouTrackFileId(song),
+                fileids: String(likedFileId),
             });
+            removeKugouPlaylistTrackCacheEntry(likedCollectionId, targetHash);
         },
         async updatePlaylistTracks(operation, playlist, tracks) {
             const collection = typeof playlist === 'object' ? playlist : null;
