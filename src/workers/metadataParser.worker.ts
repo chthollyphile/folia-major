@@ -28,6 +28,7 @@ interface EmbeddedMetadataResult {
     album?: string;
     trackNumber?: number;
     discNumber?: number;
+    isrc?: string;
     cover?: Blob;
     coverAssetId?: string;
     bitrate?: number;
@@ -237,6 +238,7 @@ async function extractEmbeddedMetadata(file: File, includeCover = false): Promis
         artists: parsed.common.artists,
         album: parsed.common.album,
         trackNumber: parsed.common.track.no ?? undefined,
+        isrc: parsed.common.isrc?.[0],
         discNumber: parsed.common.disk.no ?? undefined,
         cover,
         coverAssetId,

@@ -17,6 +17,12 @@ describe('buildImportedMetadataSnapshot', () => {
     expect(metadata.artistNames).toEqual(['伊藤彩沙', '生田輝']);
   });
 
+  it('keeps a well-formed embedded ISRC and drops malformed ones', () => {
+    expect(buildImportedMetadataSnapshot({ fileName: 'a.mp3', embeddedIsrc: ' us-um7-17-03861 ' }).isrc).toBe('USUM71703861');
+    expect(buildImportedMetadataSnapshot({ fileName: 'a.mp3', embeddedIsrc: 'not an isrc' })).not.toHaveProperty('isrc');
+    expect(buildImportedMetadataSnapshot({ fileName: 'a.mp3' })).not.toHaveProperty('isrc');
+  });
+
   it('falls back to the singular artist field when no artist array is available', () => {
     const metadata = buildImportedMetadataSnapshot({
       fileName: 'duet.mp3',

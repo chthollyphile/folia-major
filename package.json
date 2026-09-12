@@ -188,7 +188,8 @@
       "icon": "build/icon.png",
       "category": "AudioVideo",
       "executableName": "folia-major"
-    }
+    },
+    "electronDist": "node_modules/electron/dist"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
@@ -233,7 +234,7 @@
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "dexie": "^4.4.4",
-    "electron": "^43.3.0",
+    "electron": "github:castlabs/electron-releases#v43.5.0+wvcus",
     "electron-builder": "^26.15.3",
     "fake-indexeddb": "^6.2.5",
     "framer-motion": "^13.0.0",

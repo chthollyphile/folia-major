@@ -847,6 +847,7 @@ async function buildImportedSong(
         embeddedArtists: embeddedMetadata.artists,
         fallbackArtist: metadata.artist,
         embeddedAlbum: embeddedMetadata.album,
+        embeddedIsrc: embeddedMetadata.isrc,
     });
     const titleOrigin = existingSong?.titleOrigin || 'import';
     const localSong: LocalSong = {
@@ -949,6 +950,7 @@ async function hydrateSongMetadata(song: LocalSong): Promise<LocalSong> {
             embeddedArtists: embeddedMetadata.artists,
             fallbackArtist: filenameMetadata.artist,
             embeddedAlbum: embeddedMetadata.album,
+            embeddedIsrc: embeddedMetadata.isrc,
         });
         if (song.titleOrigin === 'import') song.title = song.importedMetadata.title;
         song.trackNumber = embeddedMetadata.trackNumber;

@@ -4,10 +4,17 @@ import { PlayerState } from '../types';
 import type { SongResult } from '../types';
 import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl } from '../services/onlineMusic/songMetadata';
 import {
+    createMediaSessionPositionState,
     getSupportedMediaSessionArtworkUrl,
     isMediaSessionSourceReady,
     publishMediaSessionTrack,
 } from '../utils/mediaSessionSync';
+import {
+    getRemotePlaybackDuration,
+    getRemotePlaybackTime,
+    ownsRemotePlayback,
+    subscribeRemotePlaybackClock,
+} from '../services/remotePlayback';
 
 // Bridges Folia playback state to the browser Media Session API.
 type UseMediaSessionBridgeOptions = {
@@ -124,12 +131,36 @@ export const useMediaSessionBridge = ({
         // The displayed track's own deck, so the position published below belongs to the title
         // published beside it. Falls back to the active deck whenever no blend is holding a picture.
         const audio = getDisplayAudioElement?.() ?? audioRef.current;
+        const sourceArtworkUrl = cachedCoverUrl || getSongCoverUrl(currentSong) || '';
+        const track = {
+            title: currentSong.name,
+            artist: getSongArtistLabel(currentSong) || unknownArtistLabel,
+            album: getSongAlbumLabel(currentSong),
+        };
         if (!audio || !audioSrc) {
-            return;
+            // Remote (DRM) playback never loads a local element; publish off the polled remote clock
+            // instead, or the system panel and MPRIS would stay empty for the whole track.
+            if (!ownsRemotePlayback(currentSong)) return;
+            const clock = { get currentTime() { return getRemotePlaybackTime(); }, get duration() { return getRemotePlaybackDuration(); }, playbackRate: 1 };
+            const artworkUrl = getSupportedMediaSessionArtworkUrl(sourceArtworkUrl, document.baseURI);
+            let published = false;
+            const publishRemote = () => {
+                try {
+                    if (!published) {
+                        published = publishMediaSessionTrack(navigator.mediaSession, clock, { ...track, artworkUrl });
+                        return;
+                    }
+                    const positionState = createMediaSessionPositionState(clock);
+                    if (positionState) navigator.mediaSession.setPositionState(positionState);
+                } catch (e) {
+                    console.warn('[MediaSession] Failed to update remote metadata', e);
+                }
+            };
+            publishRemote();
+            return subscribeRemotePlaybackClock(publishRemote);
         }
 
         let disposed = false;
-        const sourceArtworkUrl = cachedCoverUrl || getSongCoverUrl(currentSong) || '';
         let artworkUrl = getSupportedMediaSessionArtworkUrl(sourceArtworkUrl, document.baseURI);
         let disposableArtworkUrl: string | null = null;
         const publish = () => {
@@ -138,12 +169,7 @@ export const useMediaSessionBridge = ({
             }
 
             try {
-                publishMediaSessionTrack(navigator.mediaSession, audio, {
-                    title: currentSong.name,
-                    artist: getSongArtistLabel(currentSong) || unknownArtistLabel,
-                    album: getSongAlbumLabel(currentSong),
-                    artworkUrl,
-                });
+                publishMediaSessionTrack(navigator.mediaSession, audio, { ...track, artworkUrl });
             } catch (e) {
                 console.warn('[MediaSession] Failed to update metadata', e);
             }

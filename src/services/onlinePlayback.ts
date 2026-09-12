@@ -5,6 +5,7 @@ import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
+import { mergeLyricTranslation } from '../utils/lyrics/mergeLyricTranslation';
 import { createSafeObjectUrl } from '../utils/blobGuards';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { omni } from './onlineMusic/omni';
@@ -201,17 +202,23 @@ export async function loadOnlineSongLyrics(
                     : undefined
             });
             const ownProviderId = song.sourceRef?.kind === 'online' ? song.sourceRef.providerId : null;
-            if (bestMatch && 'lyrics' in bestMatch && bestMatch.source !== ownProviderId) {
+            // Apple's syllable-timed lines have no translation and no rival in the match pool; a
+            // match elsewhere only donates its translations instead of replacing them.
+            const keepsOwnLines = ownProviderId === 'applemusic' && Boolean(parsedLyrics?.isWordByWord);
+            const overrideLyrics = bestMatch && 'lyrics' in bestMatch && bestMatch.source !== ownProviderId
+                ? (keepsOwnLines && parsedLyrics ? mergeLyricTranslation(parsedLyrics, bestMatch.lyrics) : bestMatch.lyrics)
+                : null;
+            if (bestMatch && 'lyrics' in bestMatch && overrideLyrics) {
                 const overrideState: OnlineLyricsState = {
                     lyricsSource: 'online',
                     matchedSongId: bestMatch.id,
                     hasOnlineOverride: true,
-                    onlineOverrideLyrics: bestMatch.lyrics,
+                    onlineOverrideLyrics: overrideLyrics,
                     matchedLyricsSource: bestMatch.source,
                     matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                 };
                 await saveOnlineLyricsState(song, overrideState);
-                resolvedLyrics = bestMatch.lyrics;
+                resolvedLyrics = overrideLyrics;
                 finalState = overrideState;
                 onStateChange?.(overrideState);
             } else if (bestMatch?.isPureMusic) {

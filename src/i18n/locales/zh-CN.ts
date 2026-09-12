@@ -1,6 +1,31 @@
 
 
 export default {
+  "appleMusic": {
+    "librarySongs": "资料库歌曲",
+    "desktopRequired": "Apple Music 独立播放需要包含 Widevine 的 Folia 桌面端。",
+    "connect": "连接 / 刷新",
+    "connected": "已连接 Apple Music。",
+    "connectionError": "Apple Music 连接失败，请检查网络、开发者令牌和登录状态。",
+    "playbackError": "Apple Music 播放失败，请检查登录、订阅及播放器状态。",
+    "signIn": "登录 Apple Music",
+    "errors": {
+        "developer-token-rejected": "Apple 拒绝了此 Folia 版本的应用凭证，请联系维护者处理，无需重复登录。",
+        "authorization-failed": "Apple 登录未能完成对 Folia 的授权，请重试。",
+        "authorization-incomplete": "Apple 尚未确认授权完成，请重新登录。",
+        "token-service-unavailable": "Apple Music 登录服务暂时不可用，请稍后重试。",
+        "developer-token-required": "此 Folia 版本尚未配置 Apple Music，请联系维护者。",
+        "developer-token-invalid": "Apple Music 服务配置无效，请联系 Folia 维护者。",
+        "developer-token-expired": "Folia 的 Apple Music 服务配置已过期，请更新 Folia 或稍后重试。",
+        "widevine-unavailable": "当前 Folia 运行时没有 Widevine，请使用支持 Apple Music 的桌面版本。",
+        "login-cancelled": "已取消登录。",
+        "login-timeout": "登录等待超时，请重新连接。",
+        "player-port-unavailable": "Apple Music 播放器端口被占用，请关闭另一个 Folia 实例。",
+        "musickit-load-failed": "MusicKit 加载失败，请检查网络后重试。",
+        "auth-required": "请先登录 Apple Music。",
+        "subscription-required": "完整播放需要有效的 Apple Music 订阅。"
+    }
+},
   "notifications": {
     "coverColorAdded": "添加封面色彩",
     "coverColorDefault": "使用默认色彩",
@@ -910,7 +935,7 @@ export default {
     "switchOnlineProvider": "切换在线音乐平台",
     "confirmOnlineProviderSwitch": "切换到 {{provider}}？当前在线播放与队列将被清空。",
     "onlineProvider": "在线音乐平台",
-    "providerNotLoggedIn": "未登录·点击扫码",
+    "providerNotLoggedIn": "未登录·点击登录",
     "providerNotConfigured": "Web 端未配置 API",
     "loadingQr": "加载二维码...",
     "scanQr": "请扫描二维码",

@@ -1,3 +1,7 @@
+import { useAppleMusicLibrary } from './hooks/useAppleMusicLibrary';
+import { useRemotePlayback } from './hooks/useRemotePlayback';
+import { resolveAutoAdvanceSong } from './utils/playbackNeighbors';
+import { commandRemotePlayback, isRemotePlaybackActive } from './services/remotePlayback';
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -739,16 +743,19 @@ export default function App() {
         refresh: refreshQqLibrary,
         logout: logoutQqLibrary,
     } = useQqLibrary();
+    const { refresh: refreshAppleMusic, logout: logoutAppleMusic } = useAppleMusicLibrary();
     const onlineProviderRefreshers = useMemo(() => ({
+        applemusic: refreshAppleMusic,
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
         qq: refreshQqLibrary,
-    }), [refreshKugouLibrary, refreshQqLibrary, refreshUserData]);
+    }), [refreshKugouLibrary, refreshQqLibrary, refreshUserData, refreshAppleMusic]);
     const onlineProviderLogouts = useMemo(() => ({
+        applemusic: logoutAppleMusic,
         netease: handleLogout,
         kugou: logoutKugouLibrary,
         qq: logoutQqLibrary,
-    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary]);
+    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary, logoutAppleMusic]);
 
     const prepareOnlineProviderSwitch = useCallback((_currentProviderId: OnlineProviderId, nextProviderId: OnlineProviderId): Promise<boolean> => {
         return new Promise<boolean>((resolve) => {
@@ -1160,7 +1167,7 @@ export default function App() {
         currentSongKeyRef: currentSongRef,
         coverUrl,
         loopMode: effectiveLoopMode,
-        isEnabled: automixEnabled && !isNowPlayingStageActive,
+        isEnabled: automixEnabled && !isNowPlayingStageActive && !omni.usesRemotePlayback(currentSong),
         transition: transitionSettings,
         onAdvanceTrack: () => {
             // Same advance the end of a track would trigger, only early enough for the outgoing
@@ -1403,6 +1410,12 @@ export default function App() {
     // song's own metadata inside `cacheSongAssetsFor` rather than from the now-arriving track's view.
     cachePlayedOutRef.current = (song, src) => { void cacheSongAssetsFor(song, src); };
 
+    useRemotePlayback(() => {
+        if (effectiveLoopMode === 'one' && currentSong) {
+            void playSong(currentSong, playQueue, isFmMode, { shouldNavigateToPlayer: false });
+        } else void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+    }, () => resolveAutoAdvanceSong({ playQueue, currentSong, loopMode: effectiveLoopMode, isFmMode }));
+
     /**
      * The two controls that mean something different while a blend is in flight, held as refs.
      *
@@ -1414,7 +1427,13 @@ export default function App() {
     const seekDuringTransitionRef = useRef<(time: number) => boolean>(() => false);
     const pauseDuringTransitionRef = useRef<() => boolean>(() => false);
     /** Shared by every entry point that can seek while a blend is in flight. */
-    const seekDuringTransition = useCallback((time: number) => seekDuringTransitionRef.current(time), []);
+    const seekDuringTransition = useCallback((time: number) => {
+        if (isRemotePlaybackActive()) {
+            void commandRemotePlayback('seek', time).catch(() => {});
+            return true;
+        }
+        return seekDuringTransitionRef.current(time);
+    }, []);
     const handlePauseDuringTransition = useCallback(() => pauseDuringTransitionRef.current(), []);
 
     const { resumePlayback, pausePlayback } = usePlaybackTransportController({
@@ -1636,6 +1655,7 @@ export default function App() {
         shouldHidePlayerRightPanelButton,
         canToggleCurrentPlayback,
     } = useMemo(() => buildPlayerViewFlags({
+        hasRemotePlayback: omni.usesRemotePlayback(currentSong),
         currentView,
         disableHomeDynamicBackground,
         hidePlayerProgressBar,
@@ -1647,6 +1667,7 @@ export default function App() {
         audioSrc,
         duration,
     }), [
+        currentSong,
         activePlaybackContext,
         audioSrc,
         currentView,
@@ -2034,6 +2055,10 @@ export default function App() {
         return true;
     };
     const seekMainAudio = useCallback((time: number) => {
+        if (isRemotePlaybackActive()) {
+            void commandRemotePlayback('seek', time).catch(() => setStatusMsg({ type: 'error', text: t('appleMusic.playbackError') }));
+            return;
+        }
         if (seekDuringTransitionRef.current(time)) {
             return;
         }
@@ -2384,6 +2409,7 @@ export default function App() {
                 }
             }}
             onPlay={(e) => {
+                if (isRemotePlaybackActive()) return;
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
                 // The same split onTimeUpdate, onSeeked and onLoadedMetadata all make, and the two
@@ -2393,6 +2419,7 @@ export default function App() {
                 setPlayerState(PlayerState.PLAYING);
             }}
             onPlaying={(e) => {
+                if (isRemotePlaybackActive()) return;
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
                 if (!isShowingTail) currentTime.set(e.currentTarget.currentTime);
@@ -2405,6 +2432,7 @@ export default function App() {
                 automix.handleActiveDeckPlaying();
             }}
             onPause={(e) => {
+                if (isRemotePlaybackActive()) return;
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 // A deck whose source failed fires `pause` immediately AFTER `error` - Chromium
                 // clears the play state as part of failing the load - and that is not the listener
@@ -2420,6 +2448,7 @@ export default function App() {
                 }
             }}
             onTimeUpdate={(e) => {
+                if (isRemotePlaybackActive()) return;
                 const audioElement = e.currentTarget;
                 const isActive = automix.isActiveDeck(audioElement);
                 // The clock and the transport are driven by different decks during a transition.
@@ -2445,6 +2474,7 @@ export default function App() {
                 automix.checkTransitionPoint(audioElement.currentTime);
             }}
             onSeeked={(e) => {
+                if (isRemotePlaybackActive()) return;
                 // Same split as onTimeUpdate: whichever deck the bar is showing is the one a seek
                 // on it has to be reflected from.
                 const isActive = automix.isActiveDeck(e.currentTarget);
@@ -2477,6 +2507,7 @@ export default function App() {
             //     }
             // }}
             onEnded={(e) => {
+                if (isRemotePlaybackActive()) return;
                 // A track finishing in the background has already handed the queue over.
                 if (!automix.isActiveDeck(e.currentTarget)) {
                     automix.handleTailEnded();
@@ -2495,6 +2526,7 @@ export default function App() {
                 }
             }}
             onLoadedMetadata={(e) => {
+                if (isRemotePlaybackActive()) return;
                 const audioElement = e.currentTarget;
                 if (!automix.isActiveDeck(audioElement)) return;
                 setDuration(audioElement.duration);
@@ -2519,6 +2551,7 @@ export default function App() {
                 currentTime.set(0); // Ensure currentTime is reset when new audio loads
             }}
             onError={(e) => {
+                if (isRemotePlaybackActive()) return;
                 const audioElement = e.currentTarget;
                 const isActiveDeck = automix.isActiveDeck(audioElement);
                 const reportedDuration = Number.isFinite(audioElement.duration) && audioElement.duration > 0

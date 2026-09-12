@@ -1,3 +1,4 @@
+import { isRemotePlaybackActive, getRemotePlaybackTime } from '../services/remotePlayback';
 import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -130,7 +131,17 @@ export function usePlaybackVisualizerBridge({
             audioBands.spectrum?.set(new Uint8Array(0));
         }
 
-        if (isActuallyPlaying && audioElement) {
+        if (isRemotePlaybackActive()) {
+            const time = getRemotePlaybackTime();
+            currentTime.set(time);
+            const effectiveLyricTime = time - lyricTimelineOffsetMs / 1000;
+            lyricCurrentTime.set(effectiveLyricTime);
+            const index = lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1;
+            if (index !== currentLineIndexRef.current) {
+                currentLineIndexRef.current = index;
+                setCurrentLineIndex(index);
+            }
+        } else if (isActuallyPlaying && audioElement) {
             const time = audioElement.currentTime;
             currentTime.set(time);
 

@@ -185,6 +185,7 @@ const transcodeService = createTranscodeService({
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
+const appleMusicHost = require('./appleMusic/host.cjs').createAppleMusicHost({ getParentWindow: () => mainWindow });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 
 // --- Desktop wallpaper mode (Wayland layer-shell via windowtolayer / X11 desktop window) ---
@@ -1945,8 +1946,9 @@ function readStoredBoolean(settingKey, fallback = false) {
 }
 
 function getPublicSettings() {
+  const { appleMusic: _appleMusicPrivateSettings, ...publicStore } = store.store;
   return {
-    ...store.store,
+    ...publicStore,
     [MINIMIZE_TO_TRAY_SETTING_KEY]: readStoredBoolean(MINIMIZE_TO_TRAY_SETTING_KEY, false),
     [HIDE_TASKBAR_ICON_SETTING_KEY]: readStoredBoolean(HIDE_TASKBAR_ICON_SETTING_KEY, false),
     [REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY, true),
@@ -6199,6 +6201,14 @@ ipcMain.handle('obs-browser-source-publish-audio', (event, audio) => {
   return true;
 });
 
+// Only a public capability flag is exposed during preload, never application credentials.
+ipcMain.on('apple-music-availability', (event) => {
+  event.returnValue = appleMusicHost.isAvailable();
+});
+ipcMain.handle('apple-music-request', (event, action, input) => {
+  if (!isTrustedMainWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) throw new Error('Untrusted Apple Music request');
+  return appleMusicHost.request(action, input);
+});
 ipcMain.handle('lyric-api-get-status', (event) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to read Lyrics API status.');

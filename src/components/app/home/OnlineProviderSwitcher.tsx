@@ -213,7 +213,7 @@ const OnlineProviderSwitcher: React.FC<OnlineProviderSwitcherProps> = ({
                                         disabled={!configured}
                                         onClick={() => {
                                             onSelect(provider);
-                                            if (provider.status === 'authenticated') setOpen(false);
+                                            setOpen(false);
                                         }}
                                         className="flex min-w-0 flex-1 items-center gap-3 text-left"
                                     >

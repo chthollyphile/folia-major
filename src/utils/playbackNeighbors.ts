@@ -99,3 +99,21 @@ export const resolvePlaybackNeighbors = ({
                 : blockedNeighbor(),
     };
 };
+
+// 与 handleNextTrack 同一套下标规则，但只回答「播完自动续到哪首」：单曲循环回自己，
+// FM 停在最后一首要现拉曲目、队列尽头不循环时都回 null，让调用方把接续交回 Folia。
+export const resolveAutoAdvanceSong = ({
+    playQueue,
+    currentSong,
+    loopMode,
+    isFmMode,
+}: Pick<ResolvePlaybackNeighborsParams, 'playQueue' | 'currentSong' | 'loopMode' | 'isFmMode'>): SongResult | null => {
+    if (!currentSong || playQueue.length === 0) return null;
+    if (loopMode === 'one') return currentSong;
+    const currentKey = getPlaybackSongKey(currentSong);
+    const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentKey);
+    if (isFmMode && currentIndex >= playQueue.length - 1) return null;
+    if (currentIndex >= 0 && currentIndex < playQueue.length - 1) return playQueue[currentIndex + 1];
+    if (currentIndex < 0) return playQueue[0];
+    return loopMode === 'all' ? playQueue[0] : null;
+};

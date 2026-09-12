@@ -1,7 +1,9 @@
 import type { LocalSong, LyricProviderSource, SongResult } from '../types';
 import type { LocalSongMetadataSource } from '../types/localLibrary';
 import { getOnlineMusicProvider } from './onlineMusic/providerRegistry';
+import { omni } from './onlineMusic/omni';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
+import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { searchQQLyrics } from '../utils/lyrics/providers/qqLyricProvider';
 import { calculateMatchScoreDetails } from '../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../utils/lyrics/searchQuery';
@@ -9,7 +11,6 @@ import {
     getMatchResultAlbumId,
     getMatchResultAlbumName,
     getMatchResultArtistEntities,
-    getMatchResultCoverUrl,
 } from '../utils/lyrics/matchResult';
 
 // src/services/onlineMetadataSearchService.ts
@@ -74,7 +75,7 @@ export const normalizeOnlineMetadataCandidate = (
         title: result.name || '',
         artists: getMatchResultArtistEntities(result),
         album: albumName ? { id: albumId, name: albumName } : undefined,
-        coverUrl: getMatchResultCoverUrl(result, source) || undefined,
+        coverUrl: getProviderSongMetadata(result, source).coverUrl?.replace('http:', 'https:') || undefined,
         durationMs: getProviderSongMetadata(result, source).durationMs,
         score: details.score,
         titleMatched: details.titleMatched,
@@ -135,7 +136,7 @@ export async function searchOnlineMetadata(
     if (!safeQuery) return [];
     throwIfAborted(options.signal);
     const limit = options.limit ?? 10;
-    const results = source === 'netease' || source === 'kugou'
+    const results = source === 'netease' || source === 'kugou' || source === 'applemusic'
         ? ((await waitForProvider(
             getOnlineMusicProvider(source)?.search?.searchSongs(safeQuery, limit, 0)
                 || Promise.resolve({ items: [], hasMore: false, nextOffset: 0 }),
@@ -149,6 +150,29 @@ export async function searchOnlineMetadata(
         .slice(0, limit);
 }
 
+// An embedded ISRC identifies the recording exactly, so a signed-in Apple Music account answers
+// before any title search; a duration mismatch still rejects it because tags can be wrong.
+async function findIsrcMetadataCandidate(
+    song: LocalSong,
+    target: OnlineMetadataSearchTarget,
+    signal?: AbortSignal,
+): Promise<OnlineMetadataCandidate | null> {
+    const isrc = song.importedMetadata.isrc;
+    if (!isrc || !omni.canSearchProviderSongsByIsrc('applemusic')) return null;
+    if (useOnlineProviderAccountStore.getState().accounts.applemusic?.status !== 'authenticated') return null;
+    try {
+        const results = await waitForProvider(omni.searchProviderSongsByIsrc('applemusic', isrc), signal);
+        const candidate = results
+            .map(result => normalizeOnlineMetadataCandidate('applemusic', result, target))
+            .sort((left, right) => right.score - left.score)[0];
+        return candidate && candidate.durationMatched !== false ? candidate : null;
+    } catch (error) {
+        if ((error as Error).name === 'AbortError') throw error;
+        console.warn('[LocalMusic] Apple Music ISRC lookup failed, falling back to title search:', error);
+        return null;
+    }
+}
+
 // Preserves the established NetEase-to-QQ fallback and appends KuGou as the final provider-backed source.
 export async function findAutomaticOnlineMetadataCandidate(
     song: LocalSong,
@@ -156,6 +180,8 @@ export async function findAutomaticOnlineMetadataCandidate(
 ): Promise<OnlineMetadataCandidate | null> {
     const target = buildLocalSongMetadataSearchTarget(song);
     const query = buildLocalSongMetadataSearchQuery(song);
+    const isrcCandidate = await findIsrcMetadataCandidate(song, target, signal);
+    if (isrcCandidate) return isrcCandidate;
     let neteaseCandidates: OnlineMetadataCandidate[] = [];
     try {
         neteaseCandidates = await searchOnlineMetadata('netease', query, target, { limit: 10, signal });

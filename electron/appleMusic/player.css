@@ -1,0 +1,8 @@
+/* electron/appleMusic/player.css */
+:root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #161719; color: #eee; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+main { padding: 40px; max-width: 480px; }
+h1 { font-size: 25px; }
+p { line-height: 1.6; opacity: .8; }
+button { background: #c73855; border: 0; border-radius: 12px; padding: 14px 20px; color: white; font: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: wait; }

@@ -1,3 +1,4 @@
+import type { RemotePlaybackCommand, RemotePlaybackStartOptions } from '../../types/remotePlayback';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
@@ -73,6 +74,40 @@ const withActiveProvider = async <T>(run: (provider: OnlineMusicProvider) => Pro
 };
 
 export const omni = {
+    async configureProviderConnection(providerId: OmniProviderId): Promise<void> {
+        const provider = requireOnlineMusicProvider(providerId);
+        if (!provider.auth?.configureConnection) return unsupported(providerId, 'connection-configuration');
+        await provider.auth.configureConnection();
+    },
+    usesRemotePlayback(song: SongResult | null): boolean {
+        return Boolean(song && getOnlineMusicProviderForSong(song)?.playback?.remote);
+    },
+    async startRemotePlayback(song: SongResult, options: RemotePlaybackStartOptions = {}): Promise<void> {
+        const provider = providerForSong(song);
+        const backend = provider.playback?.remote;
+        if (!backend) return unsupported(provider.id, 'remote-playback');
+        const source = getPlaybackSourceRef(song);
+        await backend.start(source.mediaId, options);
+    },
+    // Only a song of the same provider can be lined up on that provider's backend.
+    async queueRemotePlaybackNext(song: SongResult, next: SongResult): Promise<void> {
+        const provider = providerForSong(song);
+        const backend = provider.playback?.remote;
+        if (!backend?.queueNext) return unsupported(provider.id, 'remote-queue');
+        const nextSource = getPlaybackSourceRef(next);
+        if (nextSource.kind !== 'online' || nextSource.providerId !== provider.id) return unsupported(provider.id, 'remote-queue');
+        await backend.queueNext(nextSource.mediaId);
+    },
+    async remotePlaybackCommand(song: SongResult, command: RemotePlaybackCommand, value?: number): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.playback?.remote) return unsupported(provider.id, 'remote-playback');
+        await provider.playback.remote.command(command, value);
+    },
+    async getRemotePlaybackSnapshot(song: SongResult) {
+        const provider = providerForSong(song);
+        if (!provider.playback?.remote) return unsupported(provider.id, 'remote-playback');
+        return provider.playback.remote.snapshot();
+    },
     invalidateActiveRequests(): void {
         activeRequestGeneration += 1;
     },
@@ -154,6 +189,17 @@ export const omni = {
             if (!providerSupports(provider, 'search') || !provider.search) return emptyPage(page.offset);
             return provider.search.searchSongs(query, page.limit, page.offset);
         });
+    },
+
+    canSearchProviderSongsByIsrc(providerId: OmniProviderId): boolean {
+        return Boolean(getOnlineMusicProvider(providerId)?.search?.searchSongsByIsrc);
+    },
+
+    // Exact ISRC lookup on one provider; used by local-library matching, which is explicitly cross-provider.
+    async searchProviderSongsByIsrc(providerId: OmniProviderId, isrc: string): Promise<UnifiedSong[]> {
+        const provider = requireOnlineMusicProvider(providerId);
+        if (!provider.search?.searchSongsByIsrc) return unsupported(providerId, 'isrc-search');
+        return provider.search.searchSongsByIsrc(isrc);
     },
 
     async searchProviderSongs(providerId: OmniProviderId, query: string, page: PageInput): Promise<OmniPage<UnifiedSong>> {

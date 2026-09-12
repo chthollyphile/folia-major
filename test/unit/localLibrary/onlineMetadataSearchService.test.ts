@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { neteaseApi } from '@/services/netease';
 import { searchQQLyrics } from '@/utils/lyrics/providers/qqLyricProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
@@ -6,6 +6,7 @@ import {
     findAutomaticOnlineMetadataCandidate,
     searchOnlineMetadata,
 } from '@/services/onlineMetadataSearchService';
+import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 
 // test/unit/localLibrary/onlineMetadataSearchService.test.ts
 // Verifies metadata-only provider selection and exact manual query forwarding.
@@ -28,6 +29,46 @@ const song = {
 
 describe('onlineMetadataSearchService', () => {
     beforeEach(() => vi.resetAllMocks());
+
+    describe('embedded ISRC on a signed-in Apple Music account', () => {
+        const appleSong = (durationInMillis: number) => ({ id: '42', type: 'songs', attributes: { name: 'Target Song', artistName: 'Target Artist', albumName: 'Target Album', durationInMillis, playParams: { id: '42' } } });
+        const music = vi.fn();
+        beforeEach(() => {
+            music.mockReset().mockImplementation(async (_action: string, input: { path: string }) => ({ ok: true, data:
+                input.path === '/v1/me/storefront' ? { data: [{ id: 'us' }] } : { data: [appleSong(music.mock.calls.length > 99 ? 0 : 200000)] } }));
+            vi.stubGlobal('window', { electron: { appleMusicRequest: music } });
+            vi.stubGlobal('localStorage', { getItem: () => null, setItem() {}, removeItem() {} });
+            useOnlineProviderAccountStore.getState().updateAccount('applemusic', { status: 'authenticated' });
+        });
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            useOnlineProviderAccountStore.getState().clearAccount('applemusic');
+        });
+        it('answers from the ISRC lookup before any title search', async () => {
+            const candidate = await findAutomaticOnlineMetadataCandidate({ ...song, importedMetadata: { ...song.importedMetadata, isrc: 'USUM71703861' } });
+            expect(candidate).toMatchObject({ source: 'applemusic', songId: '42', title: 'Target Song', durationMatched: true });
+            expect(music.mock.calls.map(call => call[1].path)).toContain('/v1/catalog/us/songs?filter[isrc]=USUM71703861');
+            expect(neteaseApi.cloudSearch).not.toHaveBeenCalled();
+        });
+        it('rejects an ISRC hit whose duration disagrees and falls back to title search', async () => {
+            music.mockImplementation(async (_action: string, input: { path: string }) => ({ ok: true, data:
+                input.path === '/v1/me/storefront' ? { data: [{ id: 'us' }] } : { data: [appleSong(90000)] } }));
+            vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [
+                { id: 1, name: 'Target Song', dt: 200000, ar: [{ id: 2, name: 'Target Artist' }], al: { id: 3, name: 'Target Album' } },
+            ] } });
+            const candidate = await findAutomaticOnlineMetadataCandidate({ ...song, importedMetadata: { ...song.importedMetadata, isrc: 'USUM71703861' } });
+            expect(candidate?.source).toBe('netease');
+        });
+        it('skips the lookup entirely when Apple Music is not signed in', async () => {
+            useOnlineProviderAccountStore.getState().clearAccount('applemusic');
+            vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [
+                { id: 1, name: 'Target Song', dt: 200000, ar: [{ id: 2, name: 'Target Artist' }], al: { id: 3, name: 'Target Album' } },
+            ] } });
+            const candidate = await findAutomaticOnlineMetadataCandidate({ ...song, importedMetadata: { ...song.importedMetadata, isrc: 'USUM71703861' } });
+            expect(candidate?.source).toBe('netease');
+            expect(music).not.toHaveBeenCalled();
+        });
+    });
 
     it('keeps a title-compatible NetEase candidate without querying QQ', async () => {
         vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({ result: { songs: [

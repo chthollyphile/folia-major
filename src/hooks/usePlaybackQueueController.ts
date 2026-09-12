@@ -1,3 +1,5 @@
+import { playRemoteSong } from '../components/app/playback/playRemoteSong';
+import { stopRemotePlayback, commandRemotePlayback, isRemotePlaybackActive } from '../services/remotePlayback';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -474,6 +476,27 @@ export function usePlaybackQueueController({
             }
         }
 
+        if (omni.usesRemotePlayback(song)) {
+            shouldAutoPlayRef.current = false;
+            currentSongRef.current = getPlaybackSongKey(song);
+            try {
+                const started = await playRemoteSong({ song, queue: newQueue, audio: audioRef.current,
+                    isCurrent: () => isLatestPlaybackRequest() && currentSongRef.current === getPlaybackSongKey(song),
+                    setLyrics, setLoading: setIsLyricsLoading });
+                if (started) {
+                    if (shouldNavigateToPlayer) navigateToPlaybackView();
+                    void persistLastPlaybackCache(song, newQueue);
+                    void restoreCachedThemeForSong(song);
+                    setStatusMsg(null);
+                }
+            } catch {
+                if (isLatestPlaybackRequest()) setStatusMsg({ type: 'error', text: t('appleMusic.playbackError') });
+            }
+            return;
+        }
+        await stopRemotePlayback().catch(() => {});
+        if (!isLatestPlaybackRequest()) return;
+
         if (isLocal) {
             const localData = localSongs.find(ls => ls.id === song.localRef.songId) ?? null;
 
@@ -827,6 +850,7 @@ export function usePlaybackQueueController({
         if (isNowPlayingStageActive) return;
 
         const stopAtQueueEnd = () => {
+            if (isRemotePlaybackActive()) void commandRemotePlayback('pause').catch(() => {});
             if (audioRef.current) {
                 audioRef.current.pause();
             }

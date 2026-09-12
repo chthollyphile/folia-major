@@ -5,6 +5,7 @@ export interface EmbeddedMetadataResult {
     album?: string;
     trackNumber?: number;
     discNumber?: number;
+    isrc?: string;
     cover?: Blob;
     coverAssetId?: string;
     bitrate?: number;

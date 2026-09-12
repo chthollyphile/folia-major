@@ -11,7 +11,7 @@ import { createLocalLibraryAssignment, resolveEntityNames } from './localLibrary
 type LegacyLocalSong = LocalSong & Record<string, unknown>;
 
 const isMetadataSource = (value: unknown): value is LocalSongMetadataSource => (
-  value === 'netease' || value === 'qq' || value === 'kugou'
+  value === 'netease' || value === 'qq' || value === 'kugou' || value === 'applemusic'
 );
 
 const readString = (value: unknown): string | undefined => (

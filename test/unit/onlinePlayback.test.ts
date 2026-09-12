@@ -185,6 +185,31 @@ describe('online QQ lyric candidate plumbing', () => {
         expect(saveLyricsStateMock).not.toHaveBeenCalled();
     });
 
+    it('keeps Apple syllable lyrics and only borrows translations from another provider', async () => {
+        const appleSong: SongResult = { ...song, id: '42', sourceRef: { kind: 'online', providerId: 'applemusic', mediaId: '42' } };
+        const appleLyrics = { lines: [{ startTime: 1, endTime: 2, fullText: 'hello', words: [] }, { startTime: 5, endTime: 6, fullText: 'world', words: [] }], isWordByWord: true };
+        lyricsMock.mockResolvedValue({ lyrics: appleLyrics, wordByWordText: '<tt/>', isPureMusic: false });
+        autoMatchMock.mockResolvedValue({
+            lyrics: { lines: [{ startTime: 1.2, endTime: 2, fullText: 'hola', words: [], translation: '你好' }], isWordByWord: true },
+            source: 'netease', id: 7, song: { ...song, id: 7 },
+        });
+        const onLyrics = vi.fn();
+        await loadOnlineSongLyrics(appleSong, null, null, { isCurrent: () => true, onLyrics, onDone: vi.fn() });
+        expect(autoMatchMock).toHaveBeenCalledWith('Song', '', 1000, expect.not.objectContaining({ providerCandidate: expect.anything() }));
+        const final = onLyrics.mock.calls.at(-1)?.[0];
+        expect(final.lines.map((line: { fullText: string; translation?: string }) => [line.fullText, line.translation])).toEqual([['hello', '你好'], ['world', undefined]]);
+        expect(saveLyricsStateMock).toHaveBeenCalledWith(appleSong, expect.objectContaining({ hasOnlineOverride: true, matchedLyricsSource: 'netease', onlineOverrideLyrics: final }));
+    });
+    it('leaves Apple lyrics alone when the other provider has no translations to give', async () => {
+        const appleSong: SongResult = { ...song, id: '42', sourceRef: { kind: 'online', providerId: 'applemusic', mediaId: '42' } };
+        const appleLyrics = { lines: [{ startTime: 1, endTime: 2, fullText: 'hello', words: [] }], isWordByWord: true };
+        lyricsMock.mockResolvedValue({ lyrics: appleLyrics, isPureMusic: false });
+        autoMatchMock.mockResolvedValue({ lyrics: { lines: [{ startTime: 1, endTime: 2, fullText: 'hola', words: [] }], isWordByWord: true }, source: 'qq', id: 7, song: { ...song, id: 7 } });
+        const onLyrics = vi.fn();
+        await loadOnlineSongLyrics(appleSong, null, null, { isCurrent: () => true, onLyrics, onDone: vi.fn() });
+        expect(onLyrics.mock.calls.at(-1)?.[0]).toBe(appleLyrics);
+        expect(saveLyricsStateMock).not.toHaveBeenCalled();
+    });
     it('reports done before the auto-match search finishes, so audio never waits on it', async () => {
         // onDone is what releases playback. Auto-match asks every provider for a BETTER lyric file
         // and takes seconds when it finds none - an instrumental interlude matches nothing

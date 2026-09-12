@@ -28,6 +28,7 @@ import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../stores/motionSignals';
+import { commandRemotePlayback, getRemotePlaybackTime, isRemotePlaybackActive, ownsRemotePlayback } from '../services/remotePlayback';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
@@ -230,7 +231,8 @@ export const useElectronPlaybackBridge = ({
         // position here would show the outgoing song's title against the incoming song's clock.
         const audioElement = getDisplayAudioElement?.() ?? audioRef.current;
         const isCurrentAudioSource = isAudioElementUsingCurrentSource();
-        const currentTimeSec = audioElement?.currentTime ?? currentTime.get();
+        // A remote (DRM) backend leaves the element empty; its polled clock is the position.
+        const currentTimeSec = ownsRemotePlayback(currentSong) ? getRemotePlaybackTime() : audioElement?.currentTime ?? currentTime.get();
         const stagePositionSec = resolveStagePlayerPositionSec({
             activePlaybackContext,
             isExternalPlaybackSourceActive: isNowPlayingStageActive,
@@ -619,7 +621,9 @@ export const useElectronPlaybackBridge = ({
                 const nextTime = Math.max(0, Math.min(command.time, upperBound));
                 // During a blend the visible track is the outgoing one; route through the same
                 // cancel-and-resume the window's bar uses instead of moving the hidden incoming deck.
-                if (onRemoteTransitionSeek?.(nextTime)) {
+                if (isRemotePlaybackActive()) {
+                    void commandRemotePlayback('seek', nextTime).catch(() => {});
+                } else if (onRemoteTransitionSeek?.(nextTime)) {
                     // Handled: the re-play seeks the deck itself once it reloads.
                 } else if (audioElement) {
                     audioElement.currentTime = nextTime;
@@ -691,7 +695,9 @@ export const useElectronPlaybackBridge = ({
                     // INCOMING deck, silent and holding a different track, so moving it moves
                     // nothing the listener can hear. The transition-aware path cancels the blend
                     // back onto the track on screen and seeks that instead.
-                    if (onRemoteTransitionSeek?.(nextTime)) {
+                    if (isRemotePlaybackActive()) {
+                        void commandRemotePlayback('seek', nextTime).catch(() => {});
+                    } else if (onRemoteTransitionSeek?.(nextTime)) {
                         // Handled: that path seeks the deck it kept.
                     } else if (audioRef.current) {
                         audioRef.current.currentTime = nextTime;

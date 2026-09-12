@@ -1,6 +1,31 @@
 
 
 export default {
+  "appleMusic": {
+    "librarySongs": "Library songs",
+    "desktopRequired": "Standalone Apple Music requires a Folia desktop build with Widevine.",
+    "connect": "Connect / refresh",
+    "connected": "Connected to Apple Music.",
+    "connectionError": "Apple Music connection failed. Check your network, developer token and sign-in.",
+    "playbackError": "Apple Music playback failed. Check your sign-in, subscription and player.",
+    "signIn": "Sign in to Apple Music",
+    "errors": {
+        "developer-token-rejected": "Apple rejected this Folia release’s application credentials. Please contact the maintainer; signing in again will not fix this.",
+        "authorization-failed": "Apple sign-in did not complete authorization for Folia. Please try again.",
+        "authorization-incomplete": "Apple has not confirmed authorization yet. Please try signing in again.",
+        "token-service-unavailable": "Apple Music sign-in is temporarily unavailable. Please try again later.",
+        "developer-token-required": "Apple Music is not configured in this Folia release. Please contact the maintainer.",
+        "developer-token-invalid": "Apple Music configuration is invalid. Please contact the Folia maintainer.",
+        "developer-token-expired": "Folia’s Apple Music configuration has expired. Please update Folia or try again later.",
+        "widevine-unavailable": "This runtime has no Widevine. Use a Folia desktop build with Apple Music support.",
+        "login-cancelled": "Sign-in cancelled.",
+        "login-timeout": "Sign-in timed out. Please reconnect.",
+        "player-port-unavailable": "The Apple Music player port is in use. Close the other Folia instance.",
+        "musickit-load-failed": "MusicKit could not load. Check your network and retry.",
+        "auth-required": "Please sign in to Apple Music.",
+        "subscription-required": "Full playback requires an active Apple Music subscription."
+    }
+},
   "notifications": {
     "coverColorAdded": "Cover color added",
     "coverColorDefault": "Using default color",
@@ -911,7 +936,7 @@ export default {
     "switchOnlineProvider": "Switch online music provider",
     "confirmOnlineProviderSwitch": "Switch to {{provider}}? Current online playback and queue will be cleared.",
     "onlineProvider": "Online music provider",
-    "providerNotLoggedIn": "Not signed in · click to scan",
+    "providerNotLoggedIn": "Not signed in · click to sign in",
     "providerNotConfigured": "API is not configured for Web",
     "loadingQr": "Loading QR...",
     "scanQr": "Please scan the QR code",
