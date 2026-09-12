@@ -25,6 +25,11 @@ describe('lyric segmentation prompt parity', () => {
         expect(cjs.buildSegmentationManualPrompt(LINES)).toBe(esm.buildSegmentationManualPrompt(LINES));
     });
 
+    it('shares the suppression ladder and token budget', () => {
+        expect(cjs.REASONING_SUPPRESSION_ATTEMPTS).toEqual(esm.REASONING_SUPPRESSION_ATTEMPTS);
+        expect(cjs.SEGMENTATION_MAX_OUTPUT_TOKENS).toBe(esm.SEGMENTATION_MAX_OUTPUT_TOKENS);
+    });
+
     it('shares one schema, name and delimiter', () => {
         expect(cjs.SEGMENTATION_JSON_SCHEMA).toEqual(esm.SEGMENTATION_JSON_SCHEMA);
         expect(cjs.SEGMENTATION_SCHEMA_NAME).toBe(esm.SEGMENTATION_SCHEMA_NAME);

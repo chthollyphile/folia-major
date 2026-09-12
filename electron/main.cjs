@@ -6671,6 +6671,8 @@ ipcMain.handle('segment-lyrics', async (event, lines) => {
       geminiGenerationConfig: SEGMENTATION_GEMINI_GENERATION_CONFIG,
       customFetch,
       maxTokens: SEGMENTATION_MAX_OUTPUT_TOKENS,
+      // Preserve the existing segmentation-only suppression ladder and final 4x budget.
+      disableReasoning: true,
     });
 
     const { boundaries, rejections } = parseSegmentationResponse(rawResponse, sourceLines);

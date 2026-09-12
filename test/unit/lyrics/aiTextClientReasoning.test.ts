@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
+import { REASONING_SUPPRESSION_ATTEMPTS } from '../../../shared/lyricSegmentationPrompt.mjs';
 
 // test/unit/lyrics/aiTextClientReasoning.test.ts
 // Reasoning models were the worst failure in this feature: on Gemini they turned a request into
@@ -53,21 +54,83 @@ const run = (fetchImpl: unknown, url = 'http://endpoint.test/v1') => client.runA
     sourcePrompt: 'src',
     customFetch: fetchImpl,
     maxTokens: 4096,
+    disableReasoning: true,
 });
 
-describe('reasoning capabilities', () => {
-    it('does not guess reasoning parameters on generic endpoints', async () => {
+describe('reasoning suppression ladder', () => {
+    it('tries to switch reasoning off before anything else', async () => {
         const { attempts, fetchImpl } = makeFetch(() => answered('{}'));
-        await run(fetchImpl);
+        await run(fetchImpl, 'http://a.test/v1');
+
+        expect(attempts).toHaveLength(1);
+        expect(attempts[0].body).toMatchObject(REASONING_SUPPRESSION_ATTEMPTS[0].params);
+    });
+
+    it('walks down when the endpoint rejects the parameter, and still succeeds', async () => {
+        const { attempts, fetchImpl } = makeFetch((body) => {
+            if (body.reasoning_effort !== undefined) return rejected('reasoning_effort');
+            if (body.chat_template_kwargs !== undefined) return rejected('chat_template_kwargs');
+            return answered('{"ok":1}');
+        });
+
+        await expect(run(fetchImpl, 'http://b.test/v1')).resolves.toBe('{"ok":1}');
+        expect(attempts).toHaveLength(REASONING_SUPPRESSION_ATTEMPTS.length);
+        expect(attempts[attempts.length - 1].body.reasoning_effort).toBeUndefined();
+    });
+
+    it('walks down when the parameter is accepted but the model reasons anyway', async () => {
+        const { attempts, fetchImpl } = makeFetch((body, attempt) => (
+            attempt < 2 ? reasonedItself_dry(Number(body.max_tokens)) : answered('{"ok":1}')
+        ));
+
+        await expect(run(fetchImpl, 'http://c.test/v1')).resolves.toBe('{"ok":1}');
+        expect(attempts).toHaveLength(3);
+    });
+
+    it('gives the last attempt room for reasoning and an answer', async () => {
+        const { attempts, fetchImpl } = makeFetch((body, attempt) => (
+            attempt < 2 ? reasonedItself_dry(Number(body.max_tokens)) : answered('{}')
+        ));
+        await run(fetchImpl, 'http://d.test/v1');
+
+        expect(attempts[0].body.max_tokens).toBe(4096);
+        expect(attempts[2].body.max_tokens).toBeGreaterThan(4096);
+    });
+
+    it('remembers what worked, so later calls do not re-probe', async () => {
+        const { attempts, fetchImpl } = makeFetch((body) => (
+            body.reasoning_effort !== undefined ? rejected('reasoning_effort') : answered('{}')
+        ));
+        const url = 'http://e.test/v1';
+
+        await run(fetchImpl, url);
+        const afterFirst = attempts.length;
+        expect(afterFirst).toBeGreaterThan(1);
+
+        await run(fetchImpl, url);
+        expect(attempts.length - afterFirst).toBe(1);
+    });
+
+    it('does not walk the ladder for a real error, which would triple the failure', async () => {
+        const { attempts, fetchImpl } = makeFetch(() => ({
+            status: 401,
+            payload: { error: { message: 'Incorrect API key provided' } },
+        }));
+
+        await expect(run(fetchImpl, 'http://f.test/v1')).rejects.toThrow('Incorrect API key');
+        expect(attempts).toHaveLength(1);
+    });
+
+    it('sends nothing extra when the caller has not asked to disable reasoning', async () => {
+        const { attempts, fetchImpl } = makeFetch(() => answered('{}'));
+        await client.runAiJsonCompletion({
+            store: { get: (k: string) => ({ AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: 'http://g.test/v1' }[k]) },
+            systemPrompt: 'sys', sourcePrompt: 'src', customFetch: fetchImpl, maxTokens: 4096,
+        });
+
         expect(attempts).toHaveLength(1);
         expect(attempts[0].body.reasoning_effort).toBeUndefined();
         expect(attempts[0].body.chat_template_kwargs).toBeUndefined();
-    });
-    it('uses the documented DeepSeek switch', async () => {
-        const { attempts, fetchImpl } = makeFetch(() => answered('{}'));
-        await run(fetchImpl, 'https://api.deepseek.com/v1');
-        expect(attempts).toHaveLength(1);
-        expect(attempts[0].body.thinking).toEqual({ type: 'disabled' });
     });
 });
 

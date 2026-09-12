@@ -1,4 +1,4 @@
-import { fetchOpenAICompatible } from './openAICompatibility.mjs';
+import { fetchOpenAICompatible, rejectsParameter } from './openAICompatibility.mjs';
 // shared/lyricSegmentationService.mjs
 // Server-side lyric word segmentation, shared by the Vercel edge handler and the Cloudflare
 // Worker. Those two runtimes differ only in where the environment comes from, so they are thin
@@ -9,6 +9,7 @@ import { fetchOpenAICompatible } from './openAICompatibility.mjs';
 // build there is no user-facing setting here: the web deployment owns the credentials.
 
 import {
+  REASONING_SUPPRESSION_ATTEMPTS,
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
   SEGMENTATION_JSON_SCHEMA,
   SEGMENTATION_MAX_OUTPUT_TOKENS,
@@ -140,6 +141,9 @@ const extractContentText = (message) => {
   return null;
 };
 
+/** Remembers the successful suppression rung per endpoint and model. */
+const reasoningAttemptCache = new Map();
+
 const exhaustedByReasoning = (choice, usage) => {
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
   const hasReasoning = Boolean(reasoningTokens || choice?.message?.reasoning_content);
@@ -190,7 +194,7 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
   return { ok: true, choice, usage: data.usage, content: extractContentText(choice && choice.message) };
 };
 
-/** One bounded completion with shared HTTP capability fallbacks. */
+/** Original segmentation suppression ladder, with HTTP capability fallbacks inside each rung. */
 const runOpenAICompatible = async (lines, env, fetchImpl) => {
   const apiUrl = normalizeOpenAIChatCompletionsUrl(env.OPENAI_API_URL);
   const model = resolveOpenAICompatibleModel(apiUrl, env.OPENAI_API_MODEL);
@@ -210,16 +214,48 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
     }
     : { type: 'json_object' };
 
-  const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
-    model,
-    messages,
-    temperature,
-    [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: SEGMENTATION_MAX_OUTPUT_TOKENS,
-    response_format: responseFormat,
-  }, fetchImpl);
-  if (!result.ok) throw new SegmentationRequestError(result.errorText, 502);
-  if (result.content) return result.content;
-  throw new SegmentationRequestError(describeEmpty(result.choice, result.usage, model), 502);
+  const cacheKey = `${apiUrl}|${model}`;
+  const learned = reasoningAttemptCache.get(cacheKey);
+  const firstIndex = typeof learned === 'number' ? learned : 0;
+
+  let lastEmpty = null;
+  for (let index = firstIndex; index < REASONING_SUPPRESSION_ATTEMPTS.length; index += 1) {
+    const { params } = REASONING_SUPPRESSION_ATTEMPTS[index];
+    const isLastAttempt = index === REASONING_SUPPRESSION_ATTEMPTS.length - 1;
+    const budget = isLastAttempt ? SEGMENTATION_MAX_OUTPUT_TOKENS * 4 : SEGMENTATION_MAX_OUTPUT_TOKENS;
+
+    const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
+      model,
+      messages,
+      temperature,
+      [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: budget,
+      ...params,
+      response_format: responseFormat,
+    }, fetchImpl);
+
+    if (!result.ok) {
+      if (!isLastAttempt && Object.keys(params).some(key => rejectsParameter(result.status, result.errorText, key))) {
+        continue;
+      }
+      throw new SegmentationRequestError(result.errorText, 502);
+    }
+
+    if (result.content) {
+      reasoningAttemptCache.set(cacheKey, index);
+      return result.content;
+    }
+
+    lastEmpty = result;
+    if (!isLastAttempt && exhaustedByReasoning(result.choice, result.usage)) {
+      continue;
+    }
+    break;
+  }
+
+  throw new SegmentationRequestError(
+    describeEmpty(lastEmpty?.choice, lastEmpty?.usage, model),
+    502,
+  );
 };
 
 const runGemini = async (lines, env, fetchImpl) => {

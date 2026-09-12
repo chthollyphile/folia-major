@@ -75,7 +75,7 @@ for (const [name, run] of Object.entries(routes)) describe(name, () => {
         expect(bodies[0].response_format.type).toBe('json_object');
         expect(bodies[0].max_tokens).toBe(8192);
         expect(bodies[0].thinking).toBeUndefined();
-        expect(bodies[0].reasoning_effort).toBeUndefined();
+        expect(bodies[0].reasoning_effort).toBe(name.includes('segmentation') ? 'none' : undefined);
     });
     it.each(['response_format not supported', "Unsupported parameter: response_format", 'unsupported json_schema'])('falls back for %s', async message => {
         const { env, bodies } = setup(undefined, undefined, (_, index) => index === 0 ? rejected(message) : undefined);
