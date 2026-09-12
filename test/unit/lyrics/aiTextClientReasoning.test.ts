@@ -6,11 +6,7 @@ import { REASONING_SUPPRESSION_ATTEMPTS } from '../../../shared/lyricSegmentatio
 // Reasoning models were the worst failure in this feature: on Gemini they turned a request into
 // 40s, and on DeepSeek they consumed the whole token budget and returned nothing at all after 52s.
 //
-// The user can point the app at any OpenAI-compatible URL with any model name, so there is no
-// provider list to key off. The client instead walks a ladder of ways to ask for no reasoning and
-// remembers what worked. These tests pin that walk, including the two conditions that advance it
-// and the one that must not.
-
+// Requests use endpoint capabilities; empty output and rate limits must not cause paid retries.
 const client = createRequire(import.meta.url)('../../../electron/aiTextClient.cjs');
 
 type Attempt = { body: Record<string, unknown> };
@@ -162,5 +158,63 @@ describe('request body', () => {
             response_format: { type: 'json_object' },
         });
         expect(body.messages).toHaveLength(2);
+    });
+});
+
+describe('OpenAI-compatible provider detection', () => {
+    it('treats GPT models on custom domains as generic', () => {
+        expect(client.detectOpenAICompatibleProvider('https://example.test/v1', 'gpt-5.6-luna'))
+            .toBe('generic');
+    });
+
+    it('treats api.openai.com and its subdomains as OpenAI', () => {
+        expect(client.detectOpenAICompatibleProvider('https://api.openai.com/v1', 'custom-model')).toBe('openai');
+        expect(client.detectOpenAICompatibleProvider('https://edge.api.openai.com/v1', 'custom-model')).toBe('openai');
+    });
+});
+
+describe('AI JSON response parsing', () => {
+    it.each([
+        ['pure JSON', '{"ok":true}'],
+        ['fenced JSON', '```json\n{"ok":true}\n```'],
+        ['prose-wrapped JSON', 'Here is the result:\n{"ok":true}\nDone.'],
+    ])('parses %s', (_label, input) => {
+        expect(client.parseAiJsonObject(input)).toEqual({ ok: true });
+    });
+
+    it('fails clearly when no valid JSON object exists', () => {
+        expect(() => client.parseAiJsonObject('No JSON was returned.'))
+            .toThrow('AI response did not contain a valid JSON object');
+    });
+
+    it('does not accept a syntactically valid object missing required fields', () => {
+        expect(() => client.parseAiJsonObject('{"ok":true}', ['light', 'dark']))
+            .toThrow('required keys: light, dark');
+    });
+});
+
+describe('generic JSON mode compatibility', () => {
+    it('does not classify empty success as a capability failure', async () => {
+        const { attempts, fetchImpl } = makeFetch(() => answered(''));
+        await expect(run(fetchImpl, 'https://empty.example.test/v1')).rejects.toThrow('empty response');
+        expect(attempts).toHaveLength(1);
+    });
+
+    it.each([429, 400])('does not retry concurrency errors (%s)', async (status) => {
+        const { attempts, fetchImpl } = makeFetch(() => ({ status,
+            payload: { error: { message: 'Concurrency limit exceeded for user' } },
+        }));
+        await expect(run(fetchImpl, 'https://concurrency.example.test/v1')).rejects.toThrow('Concurrency');
+        expect(attempts).toHaveLength(1);
+    });
+
+    it('retries explicit response_format rejection and remembers it', async () => {
+        const { attempts, fetchImpl } = makeFetch(body => body.response_format
+            ? rejected('response_format') : answered('{}'));
+        await run(fetchImpl, 'https://cache.example.test/v1');
+        await run(fetchImpl, 'https://cache.example.test/v1');
+        expect(attempts).toHaveLength(3);
+        expect(attempts[1].body.response_format).toBeUndefined();
+        expect(attempts[2].body.response_format).toBeUndefined();
     });
 });

@@ -1,3 +1,4 @@
+import { fetchOpenAICompatible, rejectsParameter } from './openAICompatibility.mjs';
 // shared/lyricSegmentationService.mjs
 // Server-side lyric word segmentation, shared by the Vercel edge handler and the Cloudflare
 // Worker. Those two runtimes differ only in where the environment comes from, so they are thin
@@ -89,10 +90,6 @@ const resolveOpenAICompatibleModel = (apiUrl, configuredModel) => {
 };
 
 const detectOpenAICompatibleProvider = (apiUrl, model) => {
-  const normalizedModel = model.trim().toLowerCase();
-  if (normalizedModel.startsWith('deepseek-')) {
-    return 'deepseek';
-  }
   try {
     const hostname = new URL(apiUrl).hostname.toLowerCase();
     if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) {
@@ -103,9 +100,6 @@ const detectOpenAICompatibleProvider = (apiUrl, model) => {
     }
   } catch {
     // Fall through to generic provider handling.
-  }
-  if (/^(gpt|o[1-9]|o[1-9]-|chatgpt-)/.test(normalizedModel)) {
-    return 'openai';
   }
   return 'generic';
 };
@@ -147,13 +141,8 @@ const extractContentText = (message) => {
   return null;
 };
 
-/** Remembers the working request shape per endpoint+model, so probing is paid once per instance. */
+/** Remembers the successful suppression rung per endpoint and model. */
 const reasoningAttemptCache = new Map();
-
-const rejectsParameters = (errorText, params) => {
-  const message = String(errorText).toLowerCase();
-  return Object.keys(params).some((key) => message.includes(key.toLowerCase()));
-};
 
 const exhaustedByReasoning = (choice, usage) => {
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
@@ -178,12 +167,12 @@ const describeEmpty = (choice, usage, model) => {
 const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
   let response;
   try {
-    response = await fetchImpl(apiUrl, {
+    response = await fetchOpenAICompatible(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(body),
       signal: timeoutSignal(DEFAULT_AI_TIMEOUT_MS),
-    });
+    }, detectOpenAICompatibleProvider(apiUrl, body.model), fetchImpl);
   } catch (error) {
     if (isAbort(error)) {
       throw new SegmentationRequestError(`Request to ${apiUrl} timed out`, 504);
@@ -205,11 +194,7 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
   return { ok: true, choice, usage: data.usage, content: extractContentText(choice && choice.message) };
 };
 
-/**
- * Walks REASONING_SUPPRESSION_ATTEMPTS instead of assuming what the deployment configured. The
- * base URL and model are env, so they can name anything; the working shape is discovered and then
- * cached. See the ladder's definition for the measurements behind it.
- */
+/** Original segmentation suppression ladder, with HTTP capability fallbacks inside each rung. */
 const runOpenAICompatible = async (lines, env, fetchImpl) => {
   const apiUrl = normalizeOpenAIChatCompletionsUrl(env.OPENAI_API_URL);
   const model = resolveOpenAICompatibleModel(apiUrl, env.OPENAI_API_MODEL);
@@ -243,13 +228,13 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
       model,
       messages,
       temperature,
-      max_tokens: budget,
+      [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: budget,
       ...params,
       response_format: responseFormat,
     }, fetchImpl);
 
     if (!result.ok) {
-      if (!isLastAttempt && (result.status === 400 || result.status === 422) && rejectsParameters(result.errorText, params)) {
+      if (!isLastAttempt && Object.keys(params).some(key => rejectsParameter(result.status, result.errorText, key))) {
         continue;
       }
       throw new SegmentationRequestError(result.errorText, 502);
