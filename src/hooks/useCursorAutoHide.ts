@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMediaQuery } from './useMediaQuery';
 
 // src/hooks/useCursorAutoHide.ts
 // 播放页鼠标指针自动隐藏：空闲一段时间后隐藏指针，移动/点击/滚轮/键盘操作立即唤回。
@@ -13,15 +14,10 @@ export function useCursorAutoHide(
     { delay = 1200, suppressPointerReveal = false }: UseCursorAutoHideOptions = {},
 ) {
     const [hidden, setHidden] = useState(false);
+    const hasFinePointer = useMediaQuery('(any-pointer: fine)');
 
     useEffect(() => {
-        if (!enabled) {
-            setHidden(false);
-            return;
-        }
-
-        // 触摸设备收不到 mousemove，指针隐藏会永久挂着，直接不启用。
-        if (!window.matchMedia('(pointer: fine)').matches) {
+        if (!enabled || !hasFinePointer) {
             setHidden(false);
             return;
         }
@@ -36,12 +32,17 @@ export function useCursorAutoHide(
         let timerId: number | undefined;
         let rafId: number | undefined;
         let isThrottled = false;
+        let pointerHeld = false;
 
         const reveal = () => setHidden(false);
-        const bump = () => {
+        const scheduleHide = () => {
             window.clearTimeout(timerId);
-            reveal();
+            if (pointerHeld) return;
             timerId = window.setTimeout(() => setHidden(true), delay);
+        };
+        const bump = () => {
+            reveal();
+            scheduleHide();
         };
         bump();
 
@@ -53,23 +54,34 @@ export function useCursorAutoHide(
                 isThrottled = false;
             });
         };
+        const handlePointerDown = () => {
+            pointerHeld = true;
+            window.clearTimeout(timerId);
+            reveal();
+        };
+        const handlePointerUp = () => {
+            pointerHeld = false;
+            bump();
+        };
 
         window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', bump);
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
         window.addEventListener('wheel', bump);
-        window.addEventListener('pointerup', bump);
         window.addEventListener('keydown', bump);
         return () => {
             window.clearTimeout(timerId);
             if (rafId !== undefined) cancelAnimationFrame(rafId);
             window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mousedown', bump);
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
             window.removeEventListener('wheel', bump);
-            window.removeEventListener('pointerup', bump);
             window.removeEventListener('keydown', bump);
             setHidden(false);
         };
-    }, [enabled, delay, suppressPointerReveal]);
+    }, [enabled, delay, suppressPointerReveal, hasFinePointer]);
 
     return hidden;
 }

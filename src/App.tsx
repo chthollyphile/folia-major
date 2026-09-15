@@ -1826,11 +1826,10 @@ export default function App() {
         context: commandPaletteContext,
     });
     // 播放页指针自动隐藏：仅在播放视图、没有覆盖层（设置弹窗/命令面板/歌词匹配/用户指引/
-    // 加入歌单/主题快速编辑）打开、且用户没有把控件设成「始终显示」时启用。
+    // 加入歌单/主题快速编辑）打开时启用。跟播放器控件是否常驻无关。
     // 点击穿透模式下直接隐藏，不监听鼠标。
     const cursorHidden = useCursorAutoHide(
         isPlayerView
-            && playerChromeVisibilityMode !== 'always-visible'
             && !isSettingsModalOpen
             && !commandPalette.isOpen
             && !showLyricMatchModal
