@@ -571,6 +571,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "shiluoluo16",
+      "name": "shiluoluo16",
+      "avatar_url": "https://avatars.githubusercontent.com/u/268385480?v=4",
+      "profile": "https://github.com/shiluoluo16",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
