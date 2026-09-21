@@ -88,6 +88,9 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/shiluoluo16"><img src="https://avatars.githubusercontent.com/u/268385480?v=4?s=100" width="100px;" alt="shiluoluo16"/><br /><sub><b>shiluoluo16</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Ashiluoluo16" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/JahsehXL"><img src="https://avatars.githubusercontent.com/u/173983124?v=4?s=100" width="100px;" alt="JahsehX"/><br /><sub><b>JahsehX</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=JahsehXL" title="Code">💻</a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/qingyueyin"><img src="https://avatars.githubusercontent.com/u/60309907?v=4?s=100" width="100px;" alt="轻月音"/><br /><sub><b>轻月音</b></sub></a><br /><a href="#ideas-qingyueyin" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
   </tbody>
 </table>
 
