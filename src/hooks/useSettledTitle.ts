@@ -26,6 +26,13 @@ export const TitleFitCacheContext = createContext<TitleFitCache>(sharedTitleFitC
 type Options = {
     /** Width the box is heading for, in layout pixels; null when it cannot be predicted. */
     measureWidth?: (node: HTMLElement) => number | null;
+    /**
+     * Replaces the computed-style read entirely. `epoch` changes whenever a loaded face or a
+     * settled resize could have moved the typography, so a caller may cache against it and hand
+     * back metrics without touching the DOM - which is what keeps a wall of posters mounting in one
+     * commit from forcing a style recalc per card.
+     */
+    readMetrics?: (node: HTMLElement, epoch: string) => TitleMetrics | null;
 };
 
 type Fit = {
@@ -49,7 +56,7 @@ type Fit = {
  * it just no longer has to be asked once per candidate.
  */
 export function useSettledTitle(text: string, expanded: boolean, options?: Options) {
-    const { measureWidth } = options ?? {};
+    const { measureWidth, readMetrics } = options ?? {};
     const fitter = useContext(TitleFitterContext);
     const cache = useContext(TitleFitCacheContext);
     const ref = useRef<HTMLElement>(null);
@@ -63,7 +70,9 @@ export function useSettledTitle(text: string, expanded: boolean, options?: Optio
     useLayoutEffect(() => {
         const node = ref.current;
         if (!node || !fitter) return;
-        const metrics = readTitleMetrics(node, measureWidth?.(node) ?? null);
+        const metrics = readMetrics
+            ? readMetrics(node, `${fontsEpoch}|${viewport.epoch}`)
+            : readTitleMetrics(node, measureWidth?.(node) ?? null);
         if (!metrics) {
             setFit(null);
             return;
@@ -79,7 +88,7 @@ export function useSettledTitle(text: string, expanded: boolean, options?: Optio
             predictable: titleFitIsPredictable(text, metrics),
             checked: cached !== undefined,
         });
-    }, [text, expanded, fitter, cache, measureWidth, fontsEpoch, viewport.epoch]);
+    }, [text, expanded, fitter, cache, measureWidth, readMetrics, fontsEpoch, viewport.epoch]);
 
     // One read back, against the settled rule that drops the CSS clamp: a prediction that came out
     // a line long would bleed through the padding, and one that came out short cut the title

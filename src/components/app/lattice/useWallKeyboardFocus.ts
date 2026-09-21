@@ -136,16 +136,34 @@ export const useWallKeyboardFocus = ({
 
     // Mirrors the focused index onto the DOM so the native ring, Enter/Space and screen readers
     // follow it. Depends on `instances` because culling may not have rendered the target yet.
+    //
+    // The focus call waits until after this frame has painted. A key repeat commits a dozen new
+    // posters, and `focus()` has to resolve style before it can tell whether its target is
+    // focusable, so calling it straight from the effect forced a style recalc of the whole wall on
+    // every repeat - measured at a fifth of a key's cost. After paint the browser has already done
+    // that pass, so the same call finds a clean tree. A frame callback runs before style; the
+    // timeout it schedules runs after, which is the earliest point that is known to be clean.
+    // The ring itself is a class from the same render, so nothing visible waits on this; a held
+    // key cancels each pending focus in favour of the next, and only the last poster takes it.
     useEffect(() => {
         const queueChanged = previousTilesRef.current !== tiles;
         previousTilesRef.current = tiles;
         if (!focused || !(pendingFocusRef.current || (queueChanged && focusWithinRef.current))) return;
-        const node = worldRef.current?.querySelector<HTMLElement>(
-            `[data-instance-id="${focused.instanceId}"]`,
-        );
-        if (!node) return;
-        pendingFocusRef.current = false;
-        if (!node.contains(document.activeElement)) node.focus({ preventScroll: true });
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const frame = requestAnimationFrame(() => {
+            timer = setTimeout(() => {
+                const node = worldRef.current?.querySelector<HTMLElement>(
+                    `[data-instance-id="${focused.instanceId}"]`,
+                );
+                if (!node) return;
+                pendingFocusRef.current = false;
+                if (!node.contains(document.activeElement)) node.focus({ preventScroll: true });
+            }, 0);
+        });
+        return () => {
+            cancelAnimationFrame(frame);
+            if (timer !== null) clearTimeout(timer);
+        };
     }, [focused, instances, tiles, worldRef]);
 
     // The field itself has to hold focus, or arrow keys never reach this handler.
