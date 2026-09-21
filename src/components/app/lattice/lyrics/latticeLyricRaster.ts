@@ -28,7 +28,8 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         measured++;
         return size;
     };
-    const rasterize = (text: string, font: string, fontPx: number): { texture: Texture; width: number; height: number; pad: number } => {
+    /** `resolution` is device pixels per CSS pixel of the surface; the texture reports CSS-pixel size. */
+    const rasterize = (text: string, font: string, fontPx: number, resolution: number): { texture: Texture; width: number; height: number; pad: number } => {
         context.font = font;
         const metrics = context.measureText(text);
         const pad = Math.ceil(Math.max(fontPx * 0.5, metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight - metrics.width, 2));
@@ -36,12 +37,12 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         const ascent = Math.max(fontPx, metrics.actualBoundingBoxAscent);
         const height = Math.ceil(ascent + Math.max(fontPx * 0.3, metrics.actualBoundingBoxDescent) + pad * 2);
         const surface = document.createElement('canvas');
-        surface.width = width * 2; surface.height = height * 2;
+        surface.width = Math.ceil(width * resolution); surface.height = Math.ceil(height * resolution);
         const paint = surface.getContext('2d');
         if (!paint) throw new Error('Lattice text texture is unavailable');
-        paint.scale(2, 2); paint.font = font; paint.fillStyle = '#ffffff';
+        paint.scale(resolution, resolution); paint.font = font; paint.fillStyle = '#ffffff';
         paint.fillText(text, pad, pad + ascent);
-        return { texture: new pixi.Texture({ source: new pixi.CanvasSource({ resource: surface, resolution: 2 }) }), width, height, pad };
+        return { texture: new pixi.Texture({ source: new pixi.CanvasSource({ resource: surface, resolution }) }), width, height, pad };
     };
     return { measure, rasterize, clearMeasureCache };
 }

@@ -1,4 +1,4 @@
-import type { Container, Sprite, Texture } from 'pixi.js';
+import type { Container, Mesh, MeshGeometry, Shader, Sprite, Texture } from 'pixi.js';
 import type { MonetVisibleLineEntry } from '../../../visualizer/monet/monetLyricsModel';
 import { resolveMonetSweepEdgeSoftness, resolveMonetSweepEnd } from '../../../visualizer/monet/monetLyricsModel';
 import { resolveMonetFillWidth, resolveMonetGlow, clampMonetProgress } from '../../../visualizer/monet/monetLyricMotion';
@@ -8,16 +8,16 @@ import { getLineRenderEndTime } from '../../../../utils/lyrics/renderHints';
 import type { LatticeLyricInput } from './types';
 import type { LatticeLineLayout, LatticeTypography, LyricPiece } from './latticeLyricLayout';
 import type { LatticeRaster } from './latticeLyricRaster';
-import { createLatticeSweepFilter, type LatticeSweep } from './latticeLyricFilters';
+import { createLatticeQuadGeometry, createLatticeSweepShader, type LatticeSweep } from './latticeLyricFilters';
 
 // src/components/app/lattice/lyrics/latticeLyricScene.ts
 type Pixi = typeof import('pixi.js');
-interface PieceView { sprite: Sprite; glow: Sprite[]; texture: Texture; sweep: LatticeSweep;
+interface PieceView { sprite: Mesh<MeshGeometry, Shader>; glow: Sprite[]; texture: Texture; sweep: LatticeSweep;
     pad: number; width: number; height: number; piece: LyricPiece; color: string; base: number[]; }
 
 /** Builds only the rows near the card viewport; a long lyric never allocates a song-sized texture. */
 export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent: Container,
-    entry: MonetVisibleLineEntry, layout: LatticeLineLayout, type: LatticeTypography, input: LatticeLyricInput) {
+    entry: MonetVisibleLineEntry, layout: LatticeLineLayout, type: LatticeTypography, input: LatticeLyricInput, resolution: number) {
     const container = new pixi.Container(); parent.addChild(container);
     const near = new pixi.Container(), far = new pixi.Container(), text = new pixi.Container();
     container.addChild(far, near, text);
@@ -27,20 +27,22 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
     near.filters = [glowFilters[0]]; far.filters = [glowFilters[1]];
     const blur = new pixi.BlurFilter({ strength: 0, quality: 2 }); container.filters = [blur];
     const pieces = new Map<number, PieceView>();
+    const quad = createLatticeQuadGeometry(pixi);
     const matchers = prepareWordColorMatchers(input.theme.wordColors, input.keywordColoringEnabled);
     const colors = resolveTokenColorMap(layout.pieces.map(p => p.token), buildWordColorRangesFromMatchers(entry.line.fullText, matchers));
     const accent = chorus ? mixColors(input.theme.primaryColor, input.theme.accentColor, 0.48) : colorWithAlpha(input.theme.primaryColor, 0.98);
     const destroyPiece = (view: PieceView) => {
-        view.sweep.filter.destroy(); view.sprite.destroy(); view.glow.forEach(sprite => sprite.destroy()); view.texture.destroy(true);
+        view.sprite.destroy(); view.sweep.shader.destroy(); view.glow.forEach(sprite => sprite.destroy()); view.texture.destroy(true);
     };
     const createPiece = (piece: LyricPiece): PieceView => {
         const px = piece.translation ? type.translationPx : type.fontPx;
-        const image = raster.rasterize(piece.text, piece.translation ? type.translationFont : type.font, px);
+        const image = raster.rasterize(piece.text, piece.translation ? type.translationFont : type.font, px, resolution);
         const color = piece.translation ? (input.subtitleTheme ?? input.theme).primaryColor : colors.get(piece.token.key) ?? accent;
         const base = new pixi.Color(input.theme.primaryColor).toArray();
-        const sweep = createLatticeSweepFilter(pixi, base, new pixi.Color(color).toArray());
+        const sweep = createLatticeSweepShader(pixi, base, new pixi.Color(color).toArray(), image.texture);
         sweep.uniforms.uGlyphRange = [(image.pad - piece.tokenOffset) / image.width, (piece.offsets.at(-1) ?? piece.width) / image.width];
-        const sprite = new pixi.Sprite(image.texture); sprite.filters = [sweep.filter];
+        const sprite = new pixi.Mesh({ geometry: quad, shader: sweep.shader, texture: image.texture });
+        sprite.scale.set(image.width, image.height);
         sprite.position.set(piece.x - image.pad, piece.y - image.pad); text.addChild(sprite);
         const glow = [near, far].map(layer => {
             const clone = new pixi.Sprite(image.texture); clone.position.copyFrom(sprite.position); layer.addChild(clone); return clone;
@@ -92,7 +94,7 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
         near.renderable = far.renderable = glowing;
     };
     return { container, blur, layout, entry, update,
-        destroy() { pieces.forEach(destroyPiece); pieces.clear(); blur.destroy(); glowFilters.forEach(f => f.destroy()); container.destroy({ children: true }); },
+        destroy() { pieces.forEach(destroyPiece); pieces.clear(); blur.destroy(); glowFilters.forEach(f => f.destroy()); container.destroy({ children: true }); quad.destroy(); },
     };
 }
 export type LatticeLineView = ReturnType<typeof createLatticeLineView>;

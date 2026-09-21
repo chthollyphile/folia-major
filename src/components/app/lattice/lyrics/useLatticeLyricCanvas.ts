@@ -3,6 +3,7 @@ import { createLatticeLyricRuntime } from './createLatticeLyricRuntime';
 import { startLatticeLyricSession } from './latticeLyricSession';
 import type { LatticeLyricInput, LatticeLyricRuntime } from './types';
 import { resolveThemeFontStack, resolveThemeTranslationFontStack, resolveThemeFontWeight } from '../../../../utils/fontStacks';
+import { useDevicePixelRatio } from '../../../../hooks/useMediaQuery';
 
 // src/components/app/lattice/lyrics/useLatticeLyricCanvas.ts
 // How long the content box must hold still before the renderer is rebuilt at the new size.
@@ -38,6 +39,11 @@ const takeParkedRuntime = (clock: object) => {
 export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>, input: LatticeLyricInput | null) {
     const runtimeRef = useRef<LatticeLyricRuntime | null>(null);
     const latest = useRef(input); latest.current = input;
+    const devicePixelRatio = useDevicePixelRatio();
+    const density = useRef(devicePixelRatio); density.current = devicePixelRatio;
+    // The host's last observed content box, kept outside the session effect so a density change
+    // can resize the live runtime without restarting the session.
+    const box = useRef({ width: 0, height: 0 });
     const [ready, setReady] = useState(false);
     const [failedKey, setFailedKey] = useState<string | null>(null);
     const songKey = input?.songKey;
@@ -47,7 +53,8 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
         const host = hostRef.current, initial = latest.current;
         setReady(false);
         if (!host || !initial || !enabled) return;
-        let active = true, intersecting = false, width = host.clientWidth, height = host.clientHeight;
+        let active = true, intersecting = false;
+        box.current = { width: host.clientWidth, height: host.clientHeight };
         let pendingResize: ReturnType<typeof setTimeout> | null = null;
         const visible = () => intersecting && !document.hidden;
         const onVisibility = () => runtimeRef.current?.setVisible(visible());
@@ -65,7 +72,7 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
             runtime.attach(host);
             runtime.setErrorHandler(onFailure);
             if (latest.current) runtime.update(latest.current);
-            runtime.setVisible(visible()); runtime.resize(width, height);
+            runtime.setVisible(visible()); runtime.resize(box.current.width, box.current.height, density.current);
             setReady(true);
         }, onFailure);
         // A runtime resize reallocates the renderer, re-measures the typography and re-rasterizes
@@ -73,13 +80,13 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
         // frame of it; applying each one would rebuild the whole scene 60 times a second. CSS keeps
         // the canvas stretched at its old resolution until the box holds still.
         const resize = new ResizeObserver(entries => {
-            const box = entries[0]?.contentRect;
-            if (!box || (box.width === width && box.height === height)) return;
-            width = box.width; height = box.height;
+            const rect = entries[0]?.contentRect;
+            if (!rect || (rect.width === box.current.width && rect.height === box.current.height)) return;
+            box.current = { width: rect.width, height: rect.height };
             if (pendingResize !== null) clearTimeout(pendingResize);
             pendingResize = setTimeout(() => {
                 pendingResize = null;
-                runtimeRef.current?.resize(width, height);
+                runtimeRef.current?.resize(box.current.width, box.current.height, density.current);
             }, RESIZE_SETTLE_MS);
         });
         resize.observe(host);
@@ -103,6 +110,8 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
     }, [hostRef, songKey, enabled]);
 
     useEffect(() => { if (input) runtimeRef.current?.update(input); }, [input]);
+    // Dragging the window onto a display of another density: same box, different pixel budget.
+    useEffect(() => { runtimeRef.current?.resize(box.current.width, box.current.height, devicePixelRatio); }, [devicePixelRatio]);
     useEffect(() => {
         if (!input || !document.fonts) return;
         const primary = `${resolveThemeFontWeight(input.theme, 600)} 36px ${resolveThemeFontStack(input.theme)}`;

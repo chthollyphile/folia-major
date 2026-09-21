@@ -17,7 +17,8 @@ export interface LatticeLyricRuntime {
     attach(host: HTMLElement): void;
     setErrorHandler(handler: (error: unknown) => void): void;
     update(input: LatticeLyricInput): void;
-    resize(width: number, height: number): void;
+    /** CSS-pixel box of the host and the screen density it is shown at; a change of either rebuilds the scene. */
+    resize(width: number, height: number, devicePixelRatio: number): void;
     setVisible(visible: boolean): void;
     destroy(): void;
 }
