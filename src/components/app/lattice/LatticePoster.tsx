@@ -236,7 +236,7 @@ function LatticePoster({
             </span>
             {expanded && expansionSettled && isCurrent ? (
                 <Suspense fallback={<span className="lattice-poster-copy"><LatticeTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
-                    <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />
+                    <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} pixelScale={pixelScale} />
                 </Suspense>
             ) : <span className="lattice-poster-copy">
                 {/* `rect` is the slot the card is heading for, in world units, so the title is fitted

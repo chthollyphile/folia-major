@@ -20,12 +20,19 @@ let initialization: Promise<unknown> = Promise.resolve();
 /**
  * Device pixels per CSS pixel the canvas, its filter passes and its glyph textures are rendered at.
  *
- * Tied to the screen rather than fixed at 2: every visible piece is a render-to-texture pass, so
- * on a 1x display a fixed 2 pushed four times the pixels the screen could show through each of
- * those passes per frame. Capped at 2 so a denser screen never costs more than before.
+ * Tied to what the card actually covers on screen rather than fixed at 2: every visible piece is a
+ * render-to-texture pass, so on a 1x display a fixed 2 pushed four times the pixels the screen
+ * could show through each of those passes per frame.
+ *
+ * The input is the card's pixel scale - the camera's scale times the display's density - not the
+ * density alone. The wall draws the world through a `scale(0.52..0.76)` transform, so a card whose
+ * layout box is 760 CSS px only ever reaches about 578 physical pixels; sizing the buffer from the
+ * layout box pushed roughly 1.7x the pixels the screen could resolve. Capped at 2 so a denser
+ * screen never costs more than before; the low guard only rejects a nonsensical scale, since the
+ * camera's own floor is 0.52.
  */
-export const latticeLyricResolution = (devicePixelRatio: number) =>
-    Math.min(2, Math.max(1, Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1));
+export const latticeLyricResolution = (pixelScale: number) =>
+    Math.min(2, Math.max(0.25, Number.isFinite(pixelScale) && pixelScale > 0 ? pixelScale : 1));
 
 // Passing boolean `true` makes Pixi release module-global pools shared with the Player renderer.
 const destroyApplication = (app: import('pixi.js').Application) => {
@@ -33,20 +40,21 @@ const destroyApplication = (app: import('pixi.js').Application) => {
 };
 
 /** Serializes creation so a canceled async mount cannot temporarily allocate a second WebGL context. */
-export function createLatticeLyricRuntime(host: HTMLElement, initial: LatticeLyricInput,
+export function createLatticeLyricRuntime(host: HTMLElement, initial: LatticeLyricInput, pixelScale: number,
     signal: AbortSignal, onError: (error: unknown) => void): Promise<LatticeLyricRuntime | null> {
-    const pending = initialization.then(() => initialize(host, initial, signal, onError));
+    const pending = initialization.then(() => initialize(host, initial, pixelScale, signal, onError));
     initialization = pending.catch(() => undefined);
     return pending;
 }
 
-async function initialize(host: HTMLElement, initial: LatticeLyricInput, signal: AbortSignal,
+async function initialize(host: HTMLElement, initial: LatticeLyricInput, pixelScale: number, signal: AbortSignal,
     onError: (error: unknown) => void): Promise<LatticeLyricRuntime | null> {
     const pixi = await loadPixi();
     if (signal.aborted) return null;
     const app = new pixi.Application();
+    // Seeded at the caller's scale so the first allocation is already the size the next resize wants.
     try { await app.init({ preference: 'webgl', backgroundAlpha: 0, antialias: true,
-        width: 1, height: 1, resolution: latticeLyricResolution(window.devicePixelRatio), autoDensity: true, autoStart: false, sharedTicker: false }); }
+        width: 1, height: 1, resolution: latticeLyricResolution(pixelScale), autoDensity: true, autoStart: false, sharedTicker: false }); }
     catch (error) {
         if (app.renderer) destroyApplication(app);
         else { app.ticker?.destroy(); app.stage.destroy({ children: true }); }
@@ -155,8 +163,8 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
             if (rebuild) { clear(); timeline = createLatticeTimeline(input.lines); typography = resolveLatticeTypography(input, width, height, raster.measure); }
             loop.wake();
         },
-        resize(w, h, devicePixelRatio) {
-            const nextResolution = latticeLyricResolution(devicePixelRatio);
+        resize(w, h, pixelScale) {
+            const nextResolution = latticeLyricResolution(pixelScale);
             if (destroyed || (w === width && h === height && nextResolution === resolution)) return;
             width = w; height = h; resolution = nextResolution;
             app.renderer.resize(Math.max(1, width), Math.max(1, height), resolution);

@@ -3,7 +3,6 @@ import { createLatticeLyricRuntime } from './createLatticeLyricRuntime';
 import { startLatticeLyricSession } from './latticeLyricSession';
 import type { LatticeLyricInput, LatticeLyricRuntime } from './types';
 import { resolveThemeFontStack, resolveThemeTranslationFontStack, resolveThemeFontWeight } from '../../../../utils/fontStacks';
-import { useDevicePixelRatio } from '../../../../hooks/useMediaQuery';
 
 // src/components/app/lattice/lyrics/useLatticeLyricCanvas.ts
 // How long the content box must hold still before the renderer is rebuilt at the new size.
@@ -35,12 +34,18 @@ const takeParkedRuntime = (clock: object) => {
     return parked.runtime;
 };
 
-/** Observes the local content box (not transformed screen bounds) and owns all external subscriptions. */
-export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>, input: LatticeLyricInput | null) {
+/**
+ * Observes the local content box (not transformed screen bounds) and owns all external subscriptions.
+ *
+ * `pixelScale` is the wall's world-to-device ratio - the camera's scale times the display density -
+ * and is what the buffer is sized from, because the content box this observes is in world units and
+ * the camera shrinks it on the way to the screen.
+ */
+export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
+    input: LatticeLyricInput | null, pixelScale: number) {
     const runtimeRef = useRef<LatticeLyricRuntime | null>(null);
     const latest = useRef(input); latest.current = input;
-    const devicePixelRatio = useDevicePixelRatio();
-    const density = useRef(devicePixelRatio); density.current = devicePixelRatio;
+    const density = useRef(pixelScale); density.current = pixelScale;
     // The host's last observed content box, kept outside the session effect so a density change
     // can resize the live runtime without restarting the session.
     const box = useRef({ width: 0, height: 0 });
@@ -66,7 +71,7 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
         };
         const session = startLatticeLyricSession(signal => {
             const parked = takeParkedRuntime(initial.currentTime);
-            return parked ?? createLatticeLyricRuntime(host, initial, signal, onFailure);
+            return parked ?? createLatticeLyricRuntime(host, initial, density.current, signal, onFailure);
         }, runtime => {
             runtimeRef.current = runtime;
             runtime.attach(host);
@@ -110,8 +115,11 @@ export function useLatticeLyricCanvas(hostRef: RefObject<HTMLDivElement | null>,
     }, [hostRef, songKey, enabled]);
 
     useEffect(() => { if (input) runtimeRef.current?.update(input); }, [input]);
-    // Dragging the window onto a display of another density: same box, different pixel budget.
-    useEffect(() => { runtimeRef.current?.resize(box.current.width, box.current.height, devicePixelRatio); }, [devicePixelRatio]);
+    // Dragging the window onto a display of another density, or the camera stepping to another
+    // scale at a width breakpoint: same box, different pixel budget. Neither reaches the
+    // ResizeObserver above - the camera is a transform on the world, so the content box this hook
+    // observes is unchanged in both cases - which is why the scale is a dependency of its own.
+    useEffect(() => { runtimeRef.current?.resize(box.current.width, box.current.height, pixelScale); }, [pixelScale]);
     useEffect(() => {
         if (!input || !document.fonts) return;
         const primary = `${resolveThemeFontWeight(input.theme, 600)} 36px ${resolveThemeFontStack(input.theme)}`;
