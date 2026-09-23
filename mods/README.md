@@ -36,6 +36,11 @@ Folia 模组（Mod）目录。桌面端启动时，加载器会扫描此目录�
 
 ## 目录结构
 
+扫描目录的顺序见 `electron/modSystem/modSystem.cjs` 的 `getModsDirectories`：开发版先扫仓库
+`mods/`，打包版先扫 `userData/mods`，再是 `resources/mods`；**同 id 只认先扫到的那一份**，
+后面目录里的同名模组会被静默跳过。所以「改了仓库里的文件却没生效」时，先确认 `userData/mods`
+下没有同 id 的旧副本——面板显示的版本号是唯一可靠的判据。
+
 ```
 mods/
   your-mod-id/            # 目录名任意，模组身份以 mod.json 的 id 为准
@@ -126,10 +131,21 @@ module.exports = function activate(api) {
 - `sample-aurora-visualizer`：虹光——当前句居中，逐字虹光扫过，纯 DOM 无依赖。
 - `sample-transparent-mov-export`：将当前歌曲的歌词动画按**当前动画模式与参数**原样渲染（仅去背景），导出带 Alpha 通道的透明视频。
 - `k3panel`：商籁（sonnet）深度精调面板，暴露相机/逐字运动/视差/转场等 11 个原版设置未提供的实时倍率参数。
+- `cinerama`：巨幕（Cinerama）——舞台大屏。参考商籁的确定性编排脚手架：为每句歌词随机抽取切分（`cineramaSplit`）、排版（`cineramaLayout`）、动画（`cineramaAnimation`）与视觉处理（`cineramaTreatment`：样式按概率权重抽一个 —— 大字报 / 小字报 / 斜切丝带，另有一条**叠加**轴跑马灯带）四条轴；设置面板也由模组自带，挂在歌词动画设置的模式选择器下面（宿主锚点见下）。详见 `cinerama/README.md`。
 
 ## 渲染端实时调制（modulate 参数）
 
 命令参数可声明 `modulate: { mode: 'sonnet' }`，使其成为**渲染端实时调制旋钮**：拖动滑块直接写入渲染进程的共享调制 store（`src/mods/visualizerModulation.ts`），动画下一帧即生效，不经 IPC、不重建渲染上下文。任何 visualizer 模式都可接入该通道（内置模式已接入：sonnet）。
+
+写入是通用的，`mode` 填哪个模式就写进哪个键。模组模式同样可以**读**这个通道：`mount` 的 props 带
+`getModulation()`，返回本模式当前的调制值（`src/mods/modVisualizers.tsx` 订阅后经 ref 暴露，稳定的
+getter，拖滑块不会重建贡献层）。**要每帧读，不要在 mount 时缓存结果**——缓存住的就永远是挂载那一刻的
+值。导出窗口没有命令面板，调制值恒为空对象，所以模组必须能在缺省下正常工作（各旋钮取恒等值）。
+面板滑块初值由命令的 `defaultValue` 给出，调制值不持久化，重启应用回到默认。
+
+模组想在自己的 UI 上读写这个通道时注意：宿主**没有**把 store 挂到全局，能拿到的是 props 上的
+`getModulation()`（只读本模式）。需要独立持久化的模组设置，自己写自己的 localStorage key 即可
+（例如 `cinerama/settingsPanel.mjs`）。
 
 ## 稳定性约束
 
@@ -139,6 +155,9 @@ module.exports = function activate(api) {
 - 取消/失败时清理 ffmpeg 进程、离屏窗口与半成品文件。
 
 ## 自定义歌词动画（visualizer 贡献）
+
+> 开发新特效前先读 `cinerama/mod-visualizer-effects-playbook.md`：需求要一次给全什么、结构怎么分层、
+> 交付前怎么自检、常见症状的根因表，都是从巨幕模组的开发过程里抽出来的经验。
 
 模组可向播放器贡献**新的全屏歌词动画模式**，与内置模式并排出现在动画选择器中，可用于播放、预览与透明视频导出。需要权限 `visualizer.register`。
 
@@ -153,13 +172,44 @@ manifest 声明：
 }
 ```
 
+### 模组模式的设置面板
+
+宿主**不提供**把模组 UI 塞进设置界面的接口：`renderSettingsPanel` 是内置模式在源码里注册的
+React 组件，模组拿不到。想要设置界面，有两条路：
+
+- **自带面板 + 宿主锚点**（`cinerama` 走这条）：宿主在歌词动画的模式选择器卡片里渲染
+  `<div data-mod-visualizer-settings-slot="<当前 mode id>">`，模组把自己的 DOM 面板插进去。
+  这是宿主对模组唯一承诺的 DOM 契约：属性值就是当前模式 id，所以模式判定不必猜文案。
+  锚点缺席（旧宿主）时模组应安全退化（面板不出现）；
+- **只用命令参数**（`commands` + `modulate`）：完全进宿主界面，但滑块只出现在模组面板里。
+
+`visualizers[].settings` 是声明式 schema（与命令参数同形，number / text / boolean / select，
+无 `run` / `modulate`）。宿主**会**照它渲染一组表单（`src/mods/ModVisualizerSettingsPanel.tsx`，
+在模式选择器卡片下面，和内置模式的设置卡片同一层），值存在 `modVisualizerSettings`，
+经 `props.getSettings()` 逐帧送进贡献层（同样要每帧读、不要在 mount 时缓存）。
+
+宿主侧的读取入口只有一个：**贡献层的 `props.getSettings()`**。
+`src/mods/modVisualizerSettings.ts` 里的 `useModVisualizerSettings`（React 钩子）是**给宿主界面用的**
+（`ModVisualizerSettingsPanel` 与 `modVisualizers.tsx` 消费它），模组拿不到这个 store ——
+模组要值就走 `props.getSettings()`，别去 import 它。同理 `ModParamFields` 的
+`formatModParamNumber` 是表单自己的数字格式化，不是模组侧的 API。
+
+所以两条路**只能选一条**：自带面板的模组不要声明 `settings`，否则界面上会出现两组同样的旋钮，
+而宿主那份写的是自带面板不读的 store——表现为「多出来那组拖了没反应」（`cinerama` 走自带面板，
+`mod.json` 里因此不声明 `settings`）。自带面板的值由模组自己持久化，并且要保证 `mount` 里
+每帧读得到，只写不读等于面板无效。
+
 `entry` 是**浏览器 ESM 模块**（经白名单协议 `folia-mod://` 由渲染端动态加载，仅在渲染进程执行，不在 Node 中运行），契约：
 
 ```js
 export default {
   mount(element, props) {
     // element: 宿主 div，自行构建 DOM
-    // props: { lines, currentLineIndex, currentTime(MotionValue), theme, songTitle, ... }
+    // props: { lines, currentLineIndex, currentTime(MotionValue), theme, songTitle,
+    //          transparentSurface?: boolean,               // 宿主给的是透明表面
+    //          background?: VisualizerBackgroundConfig,    // 「背景类型」配置，宿主已渲染
+    //          getModulation?(): Record<string, number>,
+    //          getSettings?(): Record<string, unknown>, ... }
     // 连续时间通过 props.currentTime.on('change', cb) 订阅，返回取消函数
     paint(props.currentTime.get());
     const off = props.currentTime.on('change', paint);
@@ -180,3 +230,27 @@ export default {
 - 单个贡献加载失败仅跳过自身，不影响内置模式与其他模组。
 
 样例：`sample-aurora-visualizer`（虹光——当前句居中，逐字虹光扫过，纯 DOM 无依赖）。
+
+### 宿主替模组模式渲染的两层
+
+模组模式套的是和内置模式**同一个外壳**（`VisualizerShell`），所以有两层由宿主渲染、纯 DOM 的贡献层拿不到：
+
+| 层 | 宿主实现 | 模组侧要做什么 |
+| --- | --- | --- |
+| 「背景类型」定义的背景 | `VisualizerBackgroundRenderer`，外壳缺省就挂（`renderBackground`） | 画满整屏且不透明的贡献层必须**自己让位**（配置见下），否则用户选的背景永远被盖住；巨幕就是这么做的（屏面填充让位，扫描线/暗角仍在） |
+| 底部字幕（翻译 / 下一句预览） | `VisualizerSubtitleOverlay`，字号缩放、透明度、底栏偏移、模糊、内容口径全走宿主的字幕设置 | 什么都不用做。底部自己有内容的贡献层要往上让——这一层盖在模组画面之上 |
+
+背景配置有**两个形态**，别混着用：
+
+| 形态 | 是什么 | 什么时候用 |
+| --- | --- | --- |
+| 快照 | `props.background`（整份配置）与 `props.transparentSurface`（= `background.transparent`） | 只在 `mount` 那一刻读；旧宿主只给这两个 |
+| 通道 | `props.getBackground()` / `props.getTheme()` | **每帧**读；mount 之后要跟随用户设置就只有这一条 |
+
+- `mount` **不会**因为用户改了背景/主题而重跑，所以「每帧读 `props.background`」是读不到新值的——
+  它始终是挂载那一刻那份快照。要跟随用户设置必须走 getter（巨幕用的就是这条，
+  见 `cinerama/visualizer.mjs` 的 `readBackground`：`getBackground()` 缺席时退回快照）。
+- **透明表面下没有可透出的背景**（背景渲染器直接返回 null），所以透明导出不会因为多垫这一层而丢掉
+  Alpha 通道。
+- 旧宿主不传 `background`（只有 `transparentSurface`），也不传 getter：按「宿主没有背景」处理，
+  贡献层维持自己画背板的行为。

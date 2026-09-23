@@ -23,6 +23,7 @@ import { colorWithAlpha } from './colorMix';
 import FontFallbackStackControl from './FontFallbackStackControl';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEntry } from './registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
+import ModVisualizerSettingsSlot from './ModVisualizerSettingsSlot';
 import { type PreviewPlaceholderId } from './PreviewPlaceholder';
 import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
 import {
@@ -685,6 +686,9 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 isDaylight={isDaylight}
                                 theme={theme}
                             />
+
+                            {/* 模组自带设置面板的挂载点，见 ModVisualizerSettingsSlot.tsx */}
+                            <ModVisualizerSettingsSlot mode={visualizerMode} />
                         </div>
 
                         {visualizerEntry.renderSettingsPanel?.({

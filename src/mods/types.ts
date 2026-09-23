@@ -63,6 +63,13 @@ export interface ModVisualizerContribution {
     url: string;
     label: ModLabelMap;
     order: number;
+    /**
+     * Declarative settings schema for the mode's panel in the lyrics-animation
+     * settings. Same shape as command params (minus run/modulate); values live
+     * in a renderer-side persisted store and reach the contribution through
+     * mount props (`getSettings`).
+     */
+    settings?: ModCommandParam[];
 }
 
 export interface ModRuntimeInfo {

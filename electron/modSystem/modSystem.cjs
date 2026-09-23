@@ -358,6 +358,7 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
                 url: visualizerUrl(entry, visualizer),
                 label: cloneJson(visualizer.label ?? {}),
                 order: visualizer.order,
+                settings: cloneJson(visualizer.settings ?? []),
             }))
             : [];
         return {
@@ -389,6 +390,7 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
             url: visualizerUrl(runtime, visualizer),
             label: cloneJson(visualizer.label ?? {}),
             order: visualizer.order,
+            settings: cloneJson(visualizer.settings ?? []),
             modName: runtime.manifest.name,
         })));
 

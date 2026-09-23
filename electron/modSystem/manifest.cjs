@@ -89,6 +89,15 @@ const satisfiesRange = (version, range) => {
  * { id, entry, label, order? }. The entry file is a browser ESM module loaded
  * by the renderer over the folia-mod:// protocol; it never runs in Node.
  */
+/*
+ * Optional per-visualizer settings schema: the same param shape as commands, and
+ * held to the same contract — the loader only checks that it is an array and
+ * passes the entries through. Field-level validation is the form's job (see
+ * src/mods/ModParamFields.tsx), exactly as it is for command params, so the two
+ * schema kinds cannot drift into different rules.
+ */
+const normalizeVisualizerSettings = (raw) => (Array.isArray(raw) ? raw : []);
+
 const normalizeVisualizerContribution = (raw, manifest, errors) => {
     if (raw === undefined) {
         return [];
@@ -127,7 +136,12 @@ const normalizeVisualizerContribution = (raw, manifest, errors) => {
             id,
             entry,
             label: item.label && typeof item.label === 'object' ? item.label : {},
-            order: Number.isFinite(Number(item.order)) ? Number(item.order) : 500,
+            /*
+             * 只认真正的数字：`Number(null) === Number('') === 0` 是有限值，
+             * 会让没写 order 的模组排到所有内置模式**前面**。
+             */
+            order: typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : 500,
+            settings: normalizeVisualizerSettings(item.settings),
         });
     });
     return visualizers;

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { ModCommandInfo, ModCommandParam, ModLabelMap } from './types';
 import { buildDefaultCommandParams, resolveModLabel, useModsStore } from './useModsStore';
 import { setVisualizerModulation, useModVisualizerModulationStore } from './visualizerModulation';
+import { ModParamFields, type ModParamFieldToken } from './ModParamFields';
 
 // src/mods/ModSurfaceRenderer.tsx
 // Declarative command surface for a mod. Numeric params render as native range
@@ -24,8 +25,21 @@ interface ModCommandCardProps {
 const resolveLabel = (label: ModLabelMap | undefined, language: string, fallback: string) =>
     resolveModLabel(label, language, fallback);
 
-// Range sliders span the full width; boolean switches stay compact half-width.
-const isFullRowParam = (param: ModCommandParam) => param.type !== 'boolean';
+/*
+ * The mod panel is dark chrome regardless of app theme, so its field token is
+ * hardcoded here rather than derived from `theme`.
+ */
+const MOD_PANEL_FIELD_TOKEN: ModParamFieldToken = {
+    label: 'text-[11px] opacity-60 truncate',
+    readonlyLabel: 'text-[10px] opacity-50',
+    input: 'w-full bg-black/25 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-white/30 disabled:opacity-50 min-w-0',
+    rangeClass: 'w-full h-1.5 appearance-none rounded-full bg-white/10 cursor-pointer disabled:opacity-40 min-w-0',
+    rangeStyle: { accentColor: 'var(--text-primary, #e8e8ec)' } as React.CSSProperties,
+    toggleOn: 'bg-white/20 text-white',
+    toggleOff: 'bg-black/20 text-white/50',
+    dotOn: 'bg-emerald-400',
+    dotOff: 'bg-white/20',
+};
 
 const ModCommandCard: React.FC<ModCommandCardProps> = ({ modId, command }) => {
     const { t, i18n } = useTranslation();
@@ -135,16 +149,13 @@ const ModCommandCard: React.FC<ModCommandCardProps> = ({ modId, command }) => {
 
             {(command.params ?? []).length > 0 ? (
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-                    {(command.params ?? []).map((param) => (
-                        <ModParamField
-                            key={param.key}
-                            param={param}
-                            value={values[param.key]}
-                            disabled={isRunning}
-                            fullRow={isFullRowParam(param)}
-                            onChange={(value) => updateParam(param, value)}
-                        />
-                    ))}
+                    <ModParamFields
+                        params={command.params ?? []}
+                        values={values}
+                        disabled={isRunning}
+                        token={MOD_PANEL_FIELD_TOKEN}
+                        onChange={updateParam}
+                    />
                 </div>
             ) : null}
 
@@ -194,96 +205,6 @@ const ModCommandCard: React.FC<ModCommandCardProps> = ({ modId, command }) => {
             ) : null}
         </motion.div>
     );
-};
-
-interface ModParamFieldProps {
-    param: ModCommandParam;
-    value: unknown;
-    disabled: boolean;
-    fullRow: boolean;
-    onChange: (value: unknown) => void;
-}
-
-const ModParamField: React.FC<ModParamFieldProps> = ({ param, value, disabled, fullRow, onChange }) => {
-    const { t, i18n } = useTranslation();
-    const label = resolveLabel(param.label, i18n.language, param.key);
-    const inputClass = 'w-full bg-black/25 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-white/30 disabled:opacity-50 min-w-0';
-
-    const numeric = typeof value === 'number' || param.type === 'number';
-    const numericValue = numeric && typeof value === 'number' ? value : Number(value ?? param.defaultValue ?? 0);
-
-    return (
-        <label className={`flex flex-col gap-1 min-w-0 ${fullRow ? 'col-span-2' : ''}`}>
-            {param.type === 'number' ? (
-                <div className="flex items-center justify-between gap-2 min-w-0">
-                    <span className="text-[11px] opacity-60 truncate" title={label}>{label}</span>
-                    <span className="text-[10px] tabular-nums opacity-50 shrink-0 min-w-[2.5rem] text-right">
-                        {Number.isFinite(numericValue) ? formatNum(numericValue) : '—'}
-                    </span>
-                </div>
-            ) : (
-                <span className="text-[11px] opacity-60 truncate" title={label}>{label}</span>
-            )}
-
-            {param.type === 'number' ? (
-                <input
-                    type="range"
-                    className="w-full h-1.5 appearance-none rounded-full bg-white/10 accent-emerald-300 cursor-pointer disabled:opacity-40 min-w-0"
-                    style={{ accentColor: 'var(--text-primary, #e8e8ec)' } as React.CSSProperties}
-                    value={numericValue}
-                    min={param.min ?? 0}
-                    max={param.max ?? 100}
-                    step={param.step ?? 1}
-                    disabled={disabled}
-                    onChange={(event) => onChange(event.target.valueAsNumber)}
-                />
-            ) : null}
-            {param.type === 'text' ? (
-                <input
-                    type="text"
-                    className={inputClass}
-                    value={typeof value === 'string' ? value : ''}
-                    placeholder={param.placeholder}
-                    disabled={disabled}
-                    onChange={(event) => onChange(event.target.value)}
-                />
-            ) : null}
-            {param.type === 'boolean' ? (
-                <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChange(!value)}
-                    className={`flex items-center gap-2 w-fit px-2.5 py-1 rounded-lg text-[11px] transition-colors ${
-                        value ? 'bg-white/20 text-white' : 'bg-black/20 text-white/50'
-                    } disabled:opacity-50`}
-                >
-                    <span className={`w-1.5 h-1.5 rounded-full ${value ? 'bg-emerald-400' : 'bg-white/20'}`} />
-                    {value ? t('mods.enabled') : t('mods.disabled')}
-                </button>
-            ) : null}
-            {param.type === 'select' ? (
-                <select
-                    className={inputClass}
-                    value={typeof value === 'string' ? value : ''}
-                    disabled={disabled}
-                    onChange={(event) => onChange(event.target.value)}
-                >
-                    {(param.options ?? []).map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {resolveLabel(option.label, i18n.language, option.value)}
-                        </option>
-                    ))}
-                </select>
-            ) : null}
-        </label>
-    );
-};
-
-const formatNum = (value: number) => {
-    const abs = Math.abs(value);
-    if (abs >= 100) return String(Math.round(value));
-    if (abs >= 10) return value.toFixed(1);
-    return value.toFixed(2);
 };
 
 export const ModSurfaceRenderer: React.FC<ModSurfaceRendererProps> = ({ modId }) => {
