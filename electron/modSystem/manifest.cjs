@@ -127,7 +127,11 @@ const normalizeVisualizerContribution = (raw, manifest, errors) => {
             id,
             entry,
             label: item.label && typeof item.label === 'object' ? item.label : {},
-            order: Number.isFinite(Number(item.order)) ? Number(item.order) : 500,
+            /*
+             * 只认真正的数字：`Number(null) === Number('') === 0` 是有限值，
+             * 会让没写 order 的模组排到所有内置模式**前面**。
+             */
+            order: typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : 500,
         });
     });
     return visualizers;

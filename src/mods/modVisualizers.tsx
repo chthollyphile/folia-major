@@ -92,10 +92,17 @@ const ModVisualizerHost: React.FC<{
 const buildRegistryEntry = (descriptor: ModVisualizerDescriptor, mount: ModVisualizerModule['default']['mount']): VisualizerRegistryEntry => ({
     mode: descriptor.mode as VisualizerRegistryEntry['mode'],
     order: descriptor.order,
-    // Intentionally-unmapped key: getVisualizerModeLabel falls back to
-    // labelFallback when the i18n dictionary has no entry, so mod labels work
-    // in every locale without touching the locale files.
-    labelKey: `ui.modVisualizer.${descriptor.mode}`,
+    /*
+     * Intentionally-unmapped key: getVisualizerModeLabel falls back to
+     * labelFallback when the i18n dictionary has no entry, so mod labels work
+     * in every locale without touching the locale files. The mode id must be
+     * dot-joined here: i18next's default nsSeparator is ':', and a key like
+     * `ui.modVisualizer.mod:<id>:<viz>` gets its namespace stripped before the
+     * lookup *and* before parseMissingKeyHandler sees it, so the mangled
+     * remainder ("<id>.<viz>") would come back as a "translation" and defeat
+     * the fallback. Dots keep the key intact end-to-end.
+     */
+    labelKey: `ui.modVisualizer.${descriptor.mode.split(':').join('.')}`,
     labelFallback: resolveModVisualizerLabel(descriptor.label, descriptor.modName),
     previewSeed: descriptor.mode,
     previewStartOffset: 0,

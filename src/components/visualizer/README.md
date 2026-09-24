@@ -16,6 +16,8 @@ App / ThemePark / VisPlayground / OBS source
 
 共享外壳在 `VisualizerShell.tsx`：透明容器、背景 renderer、字体栈/字重、返回按钮和 player-panel hotspot。底部/翻译字幕通常由 `VisualizerSubtitleOverlay.tsx` 或模式自身按既有契约处理。共享契约在 `definition.ts`，不要在模式组件里重新声明一套歌词 props。
 
+两组字幕字号（译文 / 下一句预览）只有一处来源：`subtitleFontSizes.ts` 的 `resolveSubtitleFontSizes(lyricsFontScale)`。模式间切换时它们不能跳字号，所以别在模式里再抄一份 clamp。
+
 运行时辅助在 `runtime.ts`：
 
 - `useVisualizerRuntime`
