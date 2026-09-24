@@ -1,7 +1,7 @@
 import type { ModRuntimeInfo } from '../types';
 import { isModsBridgeAvailable, listMods } from '../ipc';
 import type { FoliumClientModule, FoliumContextKind, FoliumDisposer } from './contract';
-import { createFoliumClientApi, listFoliumHostRegistries } from './api';
+import { addFoliumTeardownRegistries, createFoliumClientApi, listFoliumHostRegistries } from './api';
 import { clearFoliumIssues, reportFoliumIssue } from './status';
 import { removeFoliumEventHandlers } from './events';
 
@@ -23,10 +23,20 @@ interface ActiveClient {
 const activeClients = new Map<string, ActiveClient>();
 let queue: Promise<void> = Promise.resolve();
 let internalsPromise: Promise<Record<string, unknown>> | null = null;
+let experimentalPromise: Promise<typeof import('./experimental')> | null = null;
 
 const loadInternals = () => {
     internalsPromise ??= import('./internals').then((module) => module.createFoliumInternals());
     return internalsPromise;
+};
+
+// Experimental surfaces (Omni providers/hooks, Ponder targets): main window only, on first opt-in.
+const loadExperimental = () => {
+    experimentalPromise ??= import('./experimental').then((module) => {
+        addFoliumTeardownRegistries(module.EXPERIMENTAL_REGISTRIES);
+        return module;
+    });
+    return experimentalPromise;
 };
 
 const teardown = (modId: string) => {
@@ -50,7 +60,10 @@ const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContext
     activeClients.set(mod.id, record);
     try {
         const internals = context === 'main' && mod.folia ? await loadInternals() : null;
-        const api = createFoliumClientApi(mod, { context, internals });
+        const experimental = context === 'main' && (mod.experimental ?? []).length > 0
+            ? (await loadExperimental()).createFoliumExperimental(mod)
+            : undefined;
+        const api = createFoliumClientApi(mod, { context, internals, experimental });
         const module = await import(/* @vite-ignore */ url) as FoliumClientModule;
         if (typeof module?.default !== 'function') {
             throw new Error('client entry must `export default function activate(folium)`');

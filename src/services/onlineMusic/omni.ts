@@ -34,6 +34,7 @@ import {
     requireOnlineMusicProvider,
 } from './providerRegistry';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
+import { applyOmniAudioHook, applyOmniLyricsHook } from '../hostExtensionHooks';
 
 // src/services/onlineMusic/omni.ts
 // Online Music Network Interface (Omni) - a unified interface for interacting with multiple online music providers.
@@ -446,7 +447,8 @@ export const omni = {
         // may be the one that happens to see it. See getCachedSongReplayGain for what is lost
         // otherwise: the URL is never fetched again once the bytes are cached.
         if (source?.replayGain) void saveSongReplayGain(song, source.replayGain);
-        return source;
+        // Extension layers (Folium omni hooks) may swap the URL; the ReplayGain above stays the provider's.
+        return applyOmniAudioHook(song, source);
     },
 
     // Asked once per track, including for local and Navidrome songs, so an unsupported source is a
@@ -467,10 +469,12 @@ export const omni = {
         if (!provider.lyrics) return unsupported(provider.id, 'lyrics');
         const providerUserId = useOnlineProviderAccountStore.getState().accounts[provider.id]?.user?.id ?? context?.userId;
         const providerResult = await provider.lyrics.getLyrics(song, { ...context, userId: providerUserId });
-        return (await resolveProviderLyricsChorus(providerResult, {
+        const resolved = (await resolveProviderLyricsChorus(providerResult, {
             providerId: provider.id,
             songId: song.id,
         })).result;
+        // Extension layers (Folium omni hooks) may rewrite the lyrics after the provider answered.
+        return applyOmniLyricsHook(song, resolved);
     },
 
     async getChorusRanges(song: SongResult): Promise<OmniChorusRange[]> {

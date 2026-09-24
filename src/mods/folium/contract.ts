@@ -364,9 +364,27 @@ export interface FoliumBeforePlayEvent {
     replaceWith(song: FoliumSong): void;
 }
 
+/**
+ * EXPERIMENTAL (manifest `experimental: ["omni.hooks"]`): Omni answered with
+ * lyrics for an online song. Same line rules as `lyrics.transform`.
+ */
+export interface FoliumOmniLyricsEvent {
+    readonly song: FoliumSong;
+    lines: readonly FoliumLine[];
+    readonly isPureMusic: boolean;
+}
+
+/** EXPERIMENTAL (`omni.hooks`): Omni resolved an audio URL; assign `url` to use another one. */
+export interface FoliumOmniAudioEvent {
+    readonly song: FoliumSong;
+    url: string | null;
+}
+
 export interface FoliumHookEvents {
     'lyrics.transform': FoliumLyricsTransformEvent;
     'playback.beforePlay': FoliumBeforePlayEvent;
+    'omni.lyricsResolved': FoliumOmniLyricsEvent;
+    'omni.audioSourceResolved': FoliumOmniAudioEvent;
 }
 
 export type FoliumEventMap = FoliumNotificationEvents & FoliumHookEvents;
@@ -436,6 +454,36 @@ export interface FoliumFetchResponse {
 export interface FoliumNetService {
     /** Fetch through the host (no CORS limits); needs the `net.fetch` permission. */
     fetch(url: string, init?: FoliumFetchInit): Promise<FoliumFetchResponse>;
+}
+
+// ---------------------------------------------------------------- Experimental
+
+/** EXPERIMENTAL (`omni.providers`): a song as a mod provider describes it. */
+export interface FoliumProviderSong {
+    id: string;
+    title: string;
+    artists: string[];
+    album?: string;
+    coverUrl?: string;
+    durationMs?: number;
+}
+
+export type FoliumAudioQuality = 'standard' | 'high' | 'lossless' | 'hires';
+
+/**
+ * EXPERIMENTAL (`omni.providers`): an online music source. The host adapts it
+ * to its provider contract; songs from it play, queue and show lyrics like any
+ * online song. Use folium.net.fetch for network access.
+ */
+export interface FoliumOmniProviderDef {
+    id: string;
+    displayName: string;
+    shortName?: string;
+    search?(query: string, page: { limit: number; offset: number }): Promise<{ items: FoliumProviderSong[]; hasMore: boolean; total?: number }>;
+    getSong?(id: string): Promise<FoliumProviderSong | null>;
+    getAudioUrl?(song: FoliumProviderSong, quality: FoliumAudioQuality): Promise<{ url: string; expiresAt?: number } | null>;
+    /** LRC text (plus optional translation LRC); the host parses it. */
+    getLyrics?(song: FoliumProviderSong): Promise<{ lrc: string; translationLrc?: string } | null>;
 }
 
 // ---------------------------------------------------------------- Client API

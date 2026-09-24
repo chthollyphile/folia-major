@@ -1,4 +1,4 @@
-import type { Line, LyricData, SongResult } from '@/types';
+import type { LyricData, SongResult } from '@/types';
 import { PlayerState } from '@/types';
 import {
     usePlaybackStore,
@@ -9,8 +9,8 @@ import {
 import { useAppViewStore } from '@/stores/useAppViewStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import { installBeforePlayHook, installLyricsTransformHook } from '@/services/hostExtensionHooks';
-import type { FoliumBeforePlayEvent, FoliumLine, FoliumLyricsTransformEvent, FoliumPlaybackState, FoliumSong } from './contract';
-import { resolveFoliumSongRef, toFoliumLines, toFoliumSong } from './dto';
+import type { FoliumBeforePlayEvent, FoliumLyricsTransformEvent, FoliumPlaybackState, FoliumSong } from './contract';
+import { fromFoliumLines, resolveFoliumSongRef, toFoliumLines, toFoliumSong } from './dto';
 import { dispatchFoliumHookAsync, dispatchFoliumHookSync, emitFoliumEvent, hasFoliumEventHandlers } from './events';
 
 // src/mods/folium/hostEvents.ts
@@ -23,40 +23,6 @@ import { dispatchFoliumHookAsync, dispatchFoliumHookSync, emitFoliumEvent, hasFo
 //     bridge hook in App, which is where the theme lives.
 // Everything is a no-op until some mod listens.
 
-/*
- * Maps transformed DTO lines back to host lines. A line object the handler
- * left in place keeps its original host Line (with render hints, agents,
- * background vocals…); a new or edited one is rebuilt from its DTO fields.
- */
-const toHostLines = (original: readonly Line[], originalDtos: readonly FoliumLine[], next: readonly FoliumLine[]): Line[] => {
-    const indexByDto = new Map(originalDtos.map((dto, index) => [dto, index] as const));
-    const lines: Line[] = [];
-    next.forEach((dto) => {
-        const index = indexByDto.get(dto);
-        if (index !== undefined) {
-            lines.push(original[index]);
-            return;
-        }
-        if (!dto || typeof dto.text !== 'string' || !Number.isFinite(dto.startTime) || !Number.isFinite(dto.endTime)) {
-            return;
-        }
-        const words = Array.isArray(dto.words)
-            ? dto.words
-                .filter((word) => word && typeof word.text === 'string' && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
-                .map((word) => ({ text: word.text, startTime: word.startTime, endTime: word.endTime }))
-            : [];
-        lines.push({
-            words: words.length > 0 ? words : [{ text: dto.text, startTime: dto.startTime, endTime: dto.endTime }],
-            startTime: dto.startTime,
-            endTime: dto.endTime,
-            fullText: dto.text,
-            ...(typeof dto.translation === 'string' ? { translation: dto.translation } : {}),
-            ...(typeof dto.romanization === 'string' ? { romanization: dto.romanization } : {}),
-        });
-    });
-    return lines;
-};
-
 const transformLyrics = (lyrics: LyricData): LyricData => {
     if (!hasFoliumEventHandlers('lyrics.transform') || !Array.isArray(lyrics.lines)) return lyrics;
     const originalDtos = toFoliumLines(lyrics.lines);
@@ -66,7 +32,7 @@ const transformLyrics = (lyrics: LyricData): LyricData => {
     };
     dispatchFoliumHookSync('lyrics.transform', event);
     if (event.lines === originalDtos || !Array.isArray(event.lines)) return lyrics;
-    return { ...lyrics, lines: toHostLines(lyrics.lines, originalDtos, event.lines) };
+    return { ...lyrics, lines: fromFoliumLines(lyrics.lines, originalDtos, event.lines) };
 };
 
 /*

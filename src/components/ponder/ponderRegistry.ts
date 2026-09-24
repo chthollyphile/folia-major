@@ -31,6 +31,33 @@ export const PONDER_TARGETS = buildRegistry();
 export const PONDER_TARGET_LIST = Object.values(PONDER_TARGETS)
     .sort((a, b) => a.id.localeCompare(b.id));
 
+/*
+ * 模组（Folium 实验接口 ponder.targets）在运行时追加/撤下的目标。和内建目标一样进
+ * PONDER_TARGETS 与 PONDER_TARGET_LIST，所以导航页、悬停命中、命令面板的思索列表不用
+ * 各自再认一遍模组目标。id 由 Folium 加上 `<modid>:` 前缀，撞不到内建目标。
+ */
+export const registerPonderTarget = (definition: PonderTargetDefinition): boolean => {
+    if (PONDER_TARGETS[definition.id]) {
+        return false;
+    }
+    PONDER_TARGETS[definition.id] = definition;
+    PONDER_TARGET_LIST.push(definition);
+    PONDER_TARGET_LIST.sort((a, b) => a.id.localeCompare(b.id));
+    return true;
+};
+
+export const unregisterPonderTarget = (id: PonderTargetId): boolean => {
+    if (!PONDER_TARGETS[id]) {
+        return false;
+    }
+    delete PONDER_TARGETS[id];
+    const index = PONDER_TARGET_LIST.findIndex(target => target.id === id);
+    if (index >= 0) {
+        PONDER_TARGET_LIST.splice(index, 1);
+    }
+    return true;
+};
+
 export const findPonderTarget = (id: PonderTargetId): PonderTargetDefinition | null =>
     PONDER_TARGETS[id] ?? null;
 

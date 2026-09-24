@@ -113,3 +113,37 @@ export const toFoliumSongFromMeta = (
         ? { id: null, title: title ?? '', artist: artist ?? '', album: album ?? null, source: null, ref: null }
         : null
 );
+
+/*
+ * Maps transformed DTO lines back to host lines. A line object the handler
+ * left in place keeps its original host Line (with render hints, agents,
+ * background vocals…); a new or edited one is rebuilt from its DTO fields.
+ */
+export const fromFoliumLines = (original: readonly Line[], originalDtos: readonly FoliumLine[], next: readonly FoliumLine[]): Line[] => {
+    const indexByDto = new Map(originalDtos.map((dto, index) => [dto, index] as const));
+    const lines: Line[] = [];
+    next.forEach((dto) => {
+        const index = indexByDto.get(dto);
+        if (index !== undefined) {
+            lines.push(original[index]);
+            return;
+        }
+        if (!dto || typeof dto.text !== 'string' || !Number.isFinite(dto.startTime) || !Number.isFinite(dto.endTime)) {
+            return;
+        }
+        const words = Array.isArray(dto.words)
+            ? dto.words
+                .filter((word) => word && typeof word.text === 'string' && Number.isFinite(word.startTime) && Number.isFinite(word.endTime))
+                .map((word) => ({ text: word.text, startTime: word.startTime, endTime: word.endTime }))
+            : [];
+        lines.push({
+            words: words.length > 0 ? words : [{ text: dto.text, startTime: dto.startTime, endTime: dto.endTime }],
+            startTime: dto.startTime,
+            endTime: dto.endTime,
+            fullText: dto.text,
+            ...(typeof dto.translation === 'string' ? { translation: dto.translation } : {}),
+            ...(typeof dto.romanization === 'string' ? { romanization: dto.romanization } : {}),
+        });
+    });
+    return lines;
+};

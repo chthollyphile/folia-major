@@ -62,8 +62,17 @@ const HOST_REGISTRIES: Record<keyof FoliumRegistries, AnyHostRegistry> = {
     styles: stylesRegistry,
 };
 
+// Registries of lazily loaded surfaces (experimental.ts) join teardown once loaded.
+const extraRegistries: AnyHostRegistry[] = [];
+
+export const addFoliumTeardownRegistries = (registries: AnyHostRegistry[]) => {
+    registries.forEach((registry) => {
+        if (!extraRegistries.includes(registry)) extraRegistries.push(registry);
+    });
+};
+
 /** Every host registry, for teardown of a mod across all of them. */
-export const listFoliumHostRegistries = (): AnyHostRegistry[] => Object.values(HOST_REGISTRIES);
+export const listFoliumHostRegistries = (): AnyHostRegistry[] => [...Object.values(HOST_REGISTRIES), ...extraRegistries];
 
 const noopHandle = (modId: string, id: unknown) => Object.freeze({
     id: `${modId}:${String(id)}`,
@@ -208,7 +217,13 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         log,
         registries,
         events: Object.freeze<FoliumEvents>({
-            on: (type, handler, options) => addFoliumEventHandler(modId, type, handler, options?.priority),
+            on: (type, handler, options) => {
+                // Omni hooks are experimental: reachable only with the manifest opt-in.
+                if (String(type).startsWith('omni.') && !optedIn.has('omni.hooks')) {
+                    throw new Error('experimental-not-declared:omni.hooks (add it to "experimental" in mod.json)');
+                }
+                return addFoliumEventHandler(modId, type, handler, options?.priority);
+            },
         }),
         playback: createFoliumPlaybackService(mod, context),
         ui: createFoliumUiService(mod, context),
