@@ -21,7 +21,6 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `sample-transparent-mov-export` | client 注册命令，经 rpc 交给 main 调导出服务 |
 | `sample-progress-bar` | 改造进度条：按钮、样式、外部动态数据图层、设置分区、net.fetch、storage |
 | `sample-rickroll` | 在播放页嵌入外部网页（stageLayers + ui.embed + embedOrigins） |
-| `sample-video-layer` | 歌词后方视频层：ui.pickFile/restoreFile（重启后恢复所选文件）、storage、播放事件同步、设置分区、命令。应用已内置同样的功能（外观设置 → 视频层），本样例只作 API 演示 |
 
 ## 安全声明（重要）
 
@@ -328,7 +327,7 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | `embed(container, url, { title, allow })` | 在容器里建一个沙箱 iframe；origin 必须在 `embedOrigins` 里，需 `net.embed`。返回移除函数 |
 
 > 持久授权按模组 id 保存（每个模组最多 32 条，超出时丢弃最旧的），要跨重启使用就把 `grantId` 存进 `folium.storage`（需 `filesystem.data`）。
-> 1.0 宿主没有 `restoreFile`，用 `typeof folium.ui.restoreFile === 'function'` 或 `folium.host.folium.minor >= 1` 判断。示例见 `sample-video-layer`。
+> 1.0 宿主没有 `restoreFile`，用 `typeof folium.ui.restoreFile === 'function'` 或 `folium.host.folium.minor >= 1` 判断。
 
 > 打包版从 `file://` 加载页面，部分站点（例如 YouTube）会因为缺少 Referer 拒绝播放（YouTube 报错 153），
 > 页面本身能加载。补 Referer 是后续改进。
