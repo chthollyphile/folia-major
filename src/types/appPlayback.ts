@@ -17,6 +17,12 @@ export type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];
+    /**
+     * Set only by the automix blend's own advance. That play skips extension `beforePlay` hooks:
+     * the blend starts the arriving track on a fixed schedule, and its cancel paths assume the
+     * advance has already moved playback to that track.
+     */
+    isAutomixAdvance?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {

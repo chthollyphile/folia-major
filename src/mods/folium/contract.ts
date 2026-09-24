@@ -361,7 +361,12 @@ export interface FoliumLyricsTransformEvent {
     lines: readonly FoliumLine[];
 }
 
-/** Async hook: runs before any song starts. Handlers may cancel it or play another song instead. */
+/**
+ * Async hook: runs before a song starts. Handlers may cancel it or play
+ * another song instead. Not run for the track an automix blend advances to:
+ * the blend starts that track seconds early on a fixed schedule and cannot
+ * wait for handlers.
+ */
 export interface FoliumBeforePlayEvent {
     readonly song: FoliumSong;
     readonly cancelled: boolean;

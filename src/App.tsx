@@ -1160,6 +1160,7 @@ export default function App() {
                 allowStopOnMissing: true,
                 shouldNavigateToPlayer: false,
                 fromSong: currentSong ?? undefined,
+                isAutomixAdvance: true,
             });
         },
         onDeckPlayedOut: (song, src) => cachePlayedOutRef.current(song, src),

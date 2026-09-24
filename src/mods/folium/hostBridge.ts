@@ -8,6 +8,7 @@ import {
     selectDisplayLyrics,
     selectDisplayPlayerState,
     selectDisplaySong,
+    selectIsShowingTail,
 } from '@/stores/usePlaybackStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import { currentTime } from '@/stores/motionSignals';
@@ -68,15 +69,23 @@ export const useFoliumHostBridge = (theme: Theme, isDaylight: boolean) => {
     /*
      * Seek detection: a position change that does not match how far playback
      * should have moved. Time only advances while playing, and the baseline is
-     * re-taken whenever the transport state or the displayed song changes, so
-     * resuming after a pause is not a seek.
+     * re-taken whenever the transport state, the displayed song or the automix
+     * hold changes, so resuming after a pause is not a seek.
      *
      * A new track resets the position in the same tick it swaps the song (in
      * either order), so a jump is confirmed a microtask later against the song
      * that was displayed before the tick, compared by playback key. Only a net
      * change of track drops it: an automix blend cancelled by a seek flips the
      * displayed song away and back within the tick, and that seek must still
-     * be reported. This hook only observes; it never touches playback.
+     * be reported.
+     *
+     * While an automix blend holds the picture the clock is the outgoing deck's,
+     * and its only jumps are the host's own corrections at the edges of the hold
+     * (App.tsx re-reads the displayed deck there). A seek during a blend cancels
+     * it first, so ignoring the clock for the hold loses no seek. When the hold
+     * ends on the arriving track, its first position write is a resync too.
+     * Same rule the remote window and the media session follow: during a blend,
+     * trust the displayed deck. This hook only observes; it never touches playback.
      */
     useEffect(() => {
         const displaySongKey = () => {
@@ -85,32 +94,47 @@ export const useFoliumHostBridge = (theme: Theme, isDaylight: boolean) => {
         };
         let last = currentTime.get();
         let lastAt = performance.now();
-        // The displayed song as of the last settled tick; refreshed a microtask after it changes.
+        // The displayed song as of the last settled tick; refreshed a microtask after a change.
         let settledSongKey = displaySongKey();
         let settlePending = false;
+        let holdEndedThisTick = false;
+        let resyncPending = false;
         const rebase = () => {
             last = currentTime.get();
             lastAt = performance.now();
         };
+        const settle = () => {
+            settlePending = false;
+            const songKey = displaySongKey();
+            if (holdEndedThisTick && songKey !== settledSongKey) resyncPending = true;
+            holdEndedThisTick = false;
+            settledSongKey = songKey;
+        };
         const unsubscribeStore = usePlaybackStore.subscribe((state, previous) => {
             const songChanged = selectDisplaySong(state) !== selectDisplaySong(previous);
-            if (songChanged && !settlePending) {
+            const holdChanged = selectIsShowingTail(state) !== selectIsShowingTail(previous);
+            if (holdChanged && !selectIsShowingTail(state)) holdEndedThisTick = true;
+            if ((songChanged || holdChanged) && !settlePending) {
                 settlePending = true;
-                queueMicrotask(() => {
-                    settlePending = false;
-                    settledSongKey = displaySongKey();
-                });
+                queueMicrotask(settle);
             }
-            if (songChanged || selectDisplayPlayerState(state) !== selectDisplayPlayerState(previous)) {
+            if (songChanged || holdChanged || selectDisplayPlayerState(state) !== selectDisplayPlayerState(previous)) {
                 rebase();
             }
         });
         const unsubscribeTime = currentTime.on('change', (value) => {
             const now = performance.now();
-            const isPlaying = selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING;
-            const expected = isPlaying ? last + (now - lastAt) / 1000 : last;
+            const state = usePlaybackStore.getState();
+            const expected = selectDisplayPlayerState(state) === PlayerState.PLAYING
+                ? last + (now - lastAt) / 1000
+                : last;
             last = value;
             lastAt = now;
+            if (selectIsShowingTail(state)) return;
+            if (resyncPending) {
+                resyncPending = false;
+                return;
+            }
             if (Math.abs(value - expected) <= SEEK_JUMP_SEC) return;
             const songKeyBefore = settledSongKey;
             queueMicrotask(() => {

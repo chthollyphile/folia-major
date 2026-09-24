@@ -28,9 +28,9 @@ import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/
 
 // test/unit/mod-system/foliumSeekDetection.test.ts
 // playback.seeked is inferred from position jumps (useFoliumHostBridge). It
-// must stay quiet on resume-after-pause and on track changes, and still report
-// a seek that cancels an automix blend, where the displayed song flips away and
-// back inside the same tick.
+// must stay quiet on resume-after-pause, on track changes and at the edges of
+// an automix blend, and still report a seek that cancels a blend, where the
+// displayed song flips away and back inside the same tick.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -125,5 +125,40 @@ describe('playback.seeked detection', () => {
         });
         await flushMicrotasks();
         expect(seeked).toHaveBeenCalledWith({ position: 120 });
+    });
+
+    it('stays quiet at both edges of an automix blend', async () => {
+        now += 100;
+        currentTime.set(190);
+        await flushMicrotasks();
+        seeked.mockClear();
+        // Arm: hold the outgoing track (1), advance to the arriving one (2); playSong zeroes the
+        // clock, then App re-reads the outgoing deck.
+        now += 100;
+        act(() => {
+            usePlaybackStore.setState({ transitionDisplay: { song: song(1), lyrics: null, coverUrl: null, duration: 200 } });
+            usePlaybackStore.setState({ currentSong: song(2) });
+            currentTime.set(0);
+        });
+        await flushMicrotasks();
+        now += 50;
+        currentTime.set(190.2);
+        await flushMicrotasks();
+        // Blend completes: the hold ends on track 2 and the clock jumps to the arriving deck.
+        now += 8000;
+        act(() => usePlaybackStore.setState({ transitionDisplay: null }));
+        await flushMicrotasks();
+        now += 50;
+        currentTime.set(8.05);
+        await flushMicrotasks();
+        now += 250;
+        currentTime.set(8.3);
+        await flushMicrotasks();
+        expect(seeked).not.toHaveBeenCalled();
+        // The next real seek on the arriving track is reported again.
+        now += 250;
+        currentTime.set(100);
+        await flushMicrotasks();
+        expect(seeked).toHaveBeenCalledWith({ position: 100 });
     });
 });

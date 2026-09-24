@@ -448,8 +448,11 @@ export function usePlaybackQueueController({
         // Without an installed hook this is skipped entirely, so the common path stays synchronous.
         // The hook is async, so a later playSong may finish its hook first; this call then drops
         // out instead of replacing the song the user picked last.
+        // An automix advance skips the hook (see `isAutomixAdvance`).
         const playSongCallId = ++playSongCallIdRef.current;
-        const allowedSong = hasBeforePlayHook() ? await runBeforePlayHook(requestedSong) : requestedSong;
+        const allowedSong = !options.isAutomixAdvance && hasBeforePlayHook()
+            ? await runBeforePlayHook(requestedSong)
+            : requestedSong;
         if (!allowedSong || playSongCallIdRef.current !== playSongCallId) {
             return;
         }
@@ -480,9 +483,12 @@ export function usePlaybackQueueController({
         const newQueue = getPlayableOnlineQueue(queueContext);
         const skipCount = options.unavailableSkipCount ?? 0;
         playbackAutoSkipCountRef.current = skipCount;
+        // For the plays this one defers (the replacement dialog, the timed skip): they start after a
+        // prompt or a countdown, so they are not the blend's advance even when this call was.
+        const deferredPlayOptions: PlaybackNavigationOptions = { ...options, isAutomixAdvance: undefined };
 
         if (!isLocal && !isNavidrome && isSongUnavailable(song)) {
-            if (await handleMarkedUnavailableSong(song, queueContext, isFmCall, options)) {
+            if (await handleMarkedUnavailableSong(song, queueContext, isFmCall, deferredPlayOptions)) {
                 return;
             }
         }
@@ -561,7 +567,7 @@ export function usePlaybackQueueController({
                     showTimedSkipPrompt('status.songUnavailablePrompt', () => {
                         if (playbackRequestIdRef.current !== playbackRequestId) return;
                         void playSong(nextSong, newQueue, isFmCall, {
-                            ...options,
+                            ...deferredPlayOptions,
                             unavailableSkipCount: skipCount + 1,
                         });
                     });
@@ -879,6 +885,7 @@ export function usePlaybackQueueController({
                     void playSong(nextQueue[currentIndex + 1], nextQueue, true, {
                         shouldNavigateToPlayer,
                         unavailableSkipCount: options?.unavailableSkipCount,
+                        isAutomixAdvance: options?.isAutomixAdvance,
                     });
                     return;
                 }
@@ -901,6 +908,7 @@ export function usePlaybackQueueController({
             void playSong(playQueue[nextIndex], playQueue, isFmMode, {
                 shouldNavigateToPlayer,
                 unavailableSkipCount: options?.unavailableSkipCount,
+                isAutomixAdvance: options?.isAutomixAdvance,
             });
         } else if (options?.allowStopOnMissing) {
             stopAtQueueEnd();
