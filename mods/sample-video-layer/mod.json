@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-video-layer",
+  "name": "歌词后方视频层（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "在歌词后面铺一层静音视频（本地文件或 URL），跟随播放/暂停/跳转同步。演示 stageLayers(player.stage.back) + ui.pickFile + 播放事件 + 设置分区 + 命令。",
+  "client": "client.mjs",
+  "permissions": ["ui.stage"]
+}
