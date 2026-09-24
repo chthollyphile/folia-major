@@ -140,7 +140,7 @@ export default function activate(folium) {
 | `tunings` | 给声明了 Folium 可调键的内置模式调参 | 稳定 |
 | `backgrounds` | 背景类型（出现在背景选择器，预览与导出同样生效） | 稳定 |
 | `stageLayers` | 播放页图层（需 `ui.stage`） | 稳定 |
-| `settingsSections` | 设置页里的模组设置（实验室 → 模组系统下方） | 稳定 |
+| `settingsSections` | 模组自己的设置，显示在模组面板里该模组展开后的区域 | 稳定 |
 | `commands` | 命令：出现在模组面板与命令面板 | 稳定 |
 | `playerPanelTabs` | 播放器面板的标签页 | 稳定 |
 | `controlButtons` | 进度条左右的按钮（`progress.leading` / `progress.trailing`） | 稳定 |
@@ -243,7 +243,7 @@ section.params.get();            // 当前值（已合并默认值）
 section.params.subscribe(fn);    // 值变化时回调
 ```
 
-显示在「设置 → 实验室 → 模组系统」下方。导出窗口里同样可用（只读值）。
+显示在模组面板里：展开该模组即可看到，位于它的命令卡片上方。导出窗口里同样可用（只读值）。
 
 ### commands
 

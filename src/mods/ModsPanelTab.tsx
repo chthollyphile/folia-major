@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Boxes, ChevronDown, CircleOff, FolderOpen, Power, RefreshCw, TriangleAlert, CircleCheck, FileVideo2, CheckSquare, Square, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
+import { DEFAULT_THEME } from '@/services/baseThemes';
 import type { ModRuntimeInfo } from './types';
 import { ModSurfaceRenderer } from './ModSurfaceRenderer';
 import { useModsStore } from './useModsStore';
@@ -52,13 +53,14 @@ interface ModAccordionItemProps {
     selected: boolean;
     selectionMode: boolean;
     isDaylight: boolean;
+    theme: Theme;
     onToggleExpand: () => void;
     onToggleEnabled: () => void;
     onToggleSelected: () => void;
 }
 
 const ModAccordionItem: React.FC<ModAccordionItemProps> = ({
-    mod, expanded, selected, selectionMode, isDaylight, onToggleExpand, onToggleEnabled, onToggleSelected,
+    mod, expanded, selected, selectionMode, isDaylight, theme, onToggleExpand, onToggleEnabled, onToggleSelected,
 }) => {
     const { t } = useTranslation();
 
@@ -161,7 +163,7 @@ const ModAccordionItem: React.FC<ModAccordionItemProps> = ({
                             ) : null}
 
                             {mod.status === 'loaded' ? (
-                                <ModSurfaceRenderer modId={mod.id} />
+                                <ModSurfaceRenderer modId={mod.id} theme={theme} isDaylight={isDaylight} />
                             ) : mod.enabled ? (
                                 <div className="text-xs opacity-50">{t('mods.notLoaded')}</div>
                             ) : (
@@ -504,6 +506,7 @@ const ModsPanelTab: React.FC<{ theme: Theme | null }> = ({ theme }) => {
                                 selected={selectedIds.has(mod.id)}
                                 selectionMode={selectionMode}
                                 isDaylight={isDaylight}
+                                theme={theme ?? DEFAULT_THEME}
                                 onToggleExpand={() => selectMod(selectedModId === mod.id ? null : mod.id)}
                                 onToggleEnabled={() => { void handleToggleEnabled(mod.id, !mod.enabled); }}
                                 onToggleSelected={() => toggleSelected(mod.id)}

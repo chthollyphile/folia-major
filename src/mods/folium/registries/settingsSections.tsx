@@ -7,10 +7,11 @@ import { createFoliumRegistry, useFoliumRegistryEntries } from '../registry';
 import { FoliumSettingsCard } from '../FoliumSettingsCard';
 
 // src/mods/folium/registries/settingsSections.tsx
-// `folium.registries.settingsSections`: a mod's own settings, shown on the
-// settings page (Lab → mod system, where the mod switch lives). The schema is
-// the store: values persist under `settings:<id>`, ride along in visual config
-// import/export, and the mod reads them through the handle's `params`.
+// `folium.registries.settingsSections`: a mod's own settings, shown in the
+// mods panel when that mod's row is expanded (next to its commands). The
+// schema is the store: values persist under `settings:<id>`, ride along in
+// visual config import/export, and the mod reads them through the handle's
+// `params`.
 
 export interface StoredFoliumSettingsSection {
     def: FoliumSettingsSectionDef;
@@ -31,17 +32,20 @@ export const settingsSectionsRegistry = createFoliumRegistry<FoliumSettingsSecti
     },
 });
 
-/** Every mod settings section, in mod-id order, as themed cards. */
+/** The settings sections of one mod (or of all mods), in id order, as themed cards. */
 export const FoliumSettingsSections: React.FC<{
+    modId?: string;
     theme: Theme;
     isDaylight: boolean;
     language: string;
     controlCardBg?: string;
     rangeInputClass?: string;
-}> = ({ theme, isDaylight, language, controlCardBg, rangeInputClass }) => {
+}> = ({ modId, theme, isDaylight, language, controlCardBg, rangeInputClass }) => {
     const entries = useFoliumRegistryEntries(settingsSectionsRegistry);
-    if (entries.length === 0) return null;
-    const sorted = [...entries].sort((left, right) => left.id.localeCompare(right.id));
+    const sorted = entries
+        .filter((entry) => !modId || entry.modId === modId)
+        .sort((left, right) => left.id.localeCompare(right.id));
+    if (sorted.length === 0) return null;
     return (
         <>
             {sorted.map((entry) => (

@@ -9,15 +9,19 @@ import { mergeFoliumParamValues, resolveFoliumLabel } from './folium/params';
 import { useFoliumRegistryEntries, type FoliumRegistryEntry } from './folium/registry';
 import { commandsRegistry, runFoliumCommand, useFoliumCommandState, type StoredFoliumCommand } from './folium/registries/commands';
 import { useFoliumStatusStore } from './folium/status';
+import { FoliumSettingsSections, settingsSectionsRegistry } from './folium/registries/settingsSections';
+import type { Theme } from '@/types';
 
 // src/mods/ModSurfaceRenderer.tsx
-// A mod's surface inside the mods panel: the commands its client registered
-// (each a card built from its param schema) and the runtime problems its
-// client ran into. Everything here reads Folium registries; the loader state
-// only decides whether the mod is running at all.
+// A mod's surface inside the mods panel: the runtime problems its client ran
+// into, its settings sections, and the commands it registered (each a card
+// built from its param schema). Everything here reads Folium registries; the
+// loader state only decides whether the mod is running at all.
 
 interface ModSurfaceRendererProps {
     modId: string;
+    theme: Theme;
+    isDaylight: boolean;
 }
 
 /*
@@ -146,13 +150,15 @@ const ModCommandCard: React.FC<{ modId: string; entry: FoliumRegistryEntry<Store
 
 const EMPTY_ISSUES: never[] = [];
 
-export const ModSurfaceRenderer: React.FC<ModSurfaceRendererProps> = ({ modId }) => {
-    const { t } = useTranslation();
+export const ModSurfaceRenderer: React.FC<ModSurfaceRendererProps> = ({ modId, theme, isDaylight }) => {
+    const { t, i18n } = useTranslation();
     const mod = useModsStore((state) => state.mods.find((entry) => entry.id === modId));
     const commands = useFoliumRegistryEntries(commandsRegistry);
+    const sections = useFoliumRegistryEntries(settingsSectionsRegistry);
     const issues = useFoliumStatusStore((state) => state.issues[modId] ?? EMPTY_ISSUES);
     const own = commands.filter((entry) => entry.modId === modId);
-    if (!mod || mod.status !== 'loaded' || (own.length === 0 && issues.length === 0)) {
+    const hasSections = sections.some((entry) => entry.modId === modId);
+    if (!mod || mod.status !== 'loaded' || (own.length === 0 && issues.length === 0 && !hasSections)) {
         return null;
     }
     return (
@@ -167,6 +173,13 @@ export const ModSurfaceRenderer: React.FC<ModSurfaceRendererProps> = ({ modId })
                     ))}
                 </div>
             ) : null}
+            <FoliumSettingsSections
+                modId={modId}
+                theme={theme}
+                isDaylight={isDaylight}
+                language={i18n.language}
+                controlCardBg={isDaylight ? 'rgba(0,0,0,0.03)' : 'rgba(0,0,0,0.2)'}
+            />
             {own.map((entry) => (
                 <ModCommandCard key={entry.id} modId={modId} entry={entry} />
             ))}
