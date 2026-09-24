@@ -41,6 +41,8 @@ export interface ModRuntimeInfo {
     hasMain: boolean;
     /** folia-mod:// URL of the client entry, versioned by content digest; null unless loaded. */
     clientUrl: string | null;
+    /** Position in the main process's dependency-resolved load plan; null when not in the plan. */
+    loadOrder?: number | null;
 }
 
 /*

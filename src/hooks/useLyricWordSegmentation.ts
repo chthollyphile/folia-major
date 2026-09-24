@@ -4,6 +4,7 @@ import { clearLyricSegmentationRecord, setLyricSegmentationRecord } from '../sto
 import { loadSongSegmentation } from '../services/lyricSegmentation';
 import { applyLyricWordSegmentation } from '../utils/lyrics/lyricSegmentationRecord';
 import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
+import { applyLyricsTransform, untransformedLyrics } from '../services/hostExtensionHooks';
 
 // src/hooks/useLyricWordSegmentation.ts
 // Keeps the saved word segmentation for the playing song in the store the lyric setter reads.
@@ -43,7 +44,13 @@ export function useLyricWordSegmentation() {
             }
             // Returns the same object when no line matches, so lyrics that already carry the
             // record (or belong to another song) are left alone rather than needlessly replaced.
-            setLyricsState(previous => applyLyricWordSegmentation(previous, record));
+            // Segmentation goes onto the pre-transform lyrics and the extension transform is re-run
+            // from there, so a mod's `lyrics.transform` never applies on top of its own output.
+            setLyricsState(previous => {
+                const source = untransformedLyrics(previous);
+                const segmented = applyLyricWordSegmentation(source, record);
+                return segmented === source ? previous : applyLyricsTransform(segmented);
+            });
         });
 
         return () => {

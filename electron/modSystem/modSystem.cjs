@@ -21,7 +21,7 @@ const { dialog, ipcMain, protocol, shell } = require('electron');
 const Store = require('electron-store').default || require('electron-store');
 const { unzipSync } = require('fflate');
 
-const { FOLIUM_VERSION, validateManifest, resolveLoadPlan, satisfiesHostRange } = require('./manifest.cjs');
+const { FOLIUM_VERSION, validateManifest, resolveLoadPlan, satisfiesHostRange, parseDependency } = require('./manifest.cjs');
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { createModApi, createModDataStore, STORAGE_PERMISSION } = require('./modApi.cjs');
 const { resolveFfmpeg, MODS_RUNTIME_DIR } = require('./ffmpeg.cjs');
@@ -424,6 +424,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
             error: entry.error,
             enabled: entry.enabled,
             trustStale: Boolean(entry.trustStale),
+            // Position in the dependency-resolved load plan; clients activate in this order.
+            loadOrder: typeof entry.loadOrder === 'number' ? entry.loadOrder : null,
         };
     };
 
@@ -595,8 +597,24 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
 
         const nextMods = new Map();
         const hostVersion = typeof app.getVersion === 'function' ? app.getVersion() : null;
-        plan.order.forEach((modId) => {
+        plan.order.forEach((modId, loadOrder) => {
             const runtime = buildEntry(prepared.get(modId), 'disabled', null);
+            runtime.loadOrder = loadOrder;
+            // The plan is topological, so every dependency has already been
+            // tried. One that did not load (host-version mismatch, a throwing
+            // main) fails its dependents too instead of leaving them running
+            // against a dependency that never ran.
+            const failedDependencies = runtime.manifest.depends
+                .map((dependency) => parseDependency(dependency).id)
+                .filter((dependencyId) => nextMods.get(dependencyId)?.status !== 'loaded');
+            if (failedDependencies.length > 0) {
+                runtime.status = 'dependency-failed';
+                runtime.error = failedDependencies
+                    .map((dependencyId) => `dependency "${dependencyId}" required by "${modId}" failed to load`)
+                    .join('; ');
+                nextMods.set(modId, runtime);
+                return;
+            }
             // A mod pinned to host versions (it uses folium.internals) never runs
             // on a host outside that range: internals carry no compatibility promise.
             const range = runtime.manifest.folia;
@@ -798,10 +816,24 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
                 controller.abort();
                 return { ok: false, error: 'net-body-too-large' };
             }
-            const buffer = Buffer.from(await response.arrayBuffer());
-            if (buffer.byteLength > NET_FETCH_LIMITS.maxBodyBytes) {
-                return { ok: false, error: 'net-body-too-large' };
+            // Content-Length is optional (chunked, compressed), so the limit is
+            // enforced while reading: the body is never buffered past it.
+            const chunks = [];
+            let received = 0;
+            if (response.body) {
+                const reader = response.body.getReader();
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    received += value.byteLength;
+                    if (received > NET_FETCH_LIMITS.maxBodyBytes) {
+                        await reader.cancel().catch(() => {});
+                        return { ok: false, error: 'net-body-too-large' };
+                    }
+                    chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+                }
             }
+            const buffer = Buffer.concat(chunks, received);
             const responseHeaders = {};
             response.headers.forEach((value, key) => { responseHeaders[key] = value; });
             return {

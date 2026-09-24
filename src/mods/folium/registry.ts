@@ -91,13 +91,13 @@ export const createFoliumRegistry = <Def extends { id: string }, Stored = Def>(
             throw error;
         }
         notify();
-        let active = true;
         return Object.freeze({
             id,
+            // Removes this registration only: after a teardown the same id may
+            // belong to a newer registration (a re-enabled mod), which a stale
+            // handle must not take down.
             unregister: () => {
-                if (!active) return;
-                active = false;
-                remove(id);
+                if (entries.get(id) === entry) remove(id);
             },
         });
     };

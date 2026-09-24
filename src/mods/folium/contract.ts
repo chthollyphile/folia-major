@@ -267,6 +267,7 @@ export interface FoliumProgressContext {
     getDuration(): number;
     /** 0..1 position of a time on the track (0 when the duration is unknown). */
     timeToRatio(seconds: number): number;
+    /** Seeks the host player; ignored while the host bar is disabled. */
     seek(seconds: number): void;
     /** The host bar's colors, so mod UI can match it. */
     getColors(): { fill: string; track: string; text: string };
@@ -350,9 +351,10 @@ export interface FoliumNotificationEvents {
  * shown. Assign `lines` to rewrite them; lines left untouched (same object)
  * keep all their host-side data, new or changed ones are built from the DTO.
  *
- * Handlers must be idempotent: lyrics the host derives from already
- * transformed ones (e.g. after the user edits word segmentation) pass through
- * the hook again.
+ * Always runs on untransformed lyrics, never on its own output: when the host
+ * rebuilds lyrics already on screen (e.g. a word-segmentation update) it
+ * starts again from the untransformed version, so handlers need not be
+ * idempotent.
  */
 export interface FoliumLyricsTransformEvent {
     readonly song: FoliumSong | null;

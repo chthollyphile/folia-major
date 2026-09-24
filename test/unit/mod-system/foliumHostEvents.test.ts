@@ -19,14 +19,15 @@ vi.hoisted(() => {
 
 import type { Line, LyricData, SongResult } from '@/types';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
-import { runBeforePlayHook, hasBeforePlayHook } from '@/services/hostExtensionHooks';
+import { applyLyricsTransform, hasBeforePlayHook, runBeforePlayHook, untransformedLyrics } from '@/services/hostExtensionHooks';
 import { installFoliumHostEvents } from '@/mods/folium/hostEvents';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
 import { toFoliumSong } from '@/mods/folium/dto';
 
 // test/unit/mod-system/foliumHostEvents.test.ts
 // The two host hooks as wired by installFoliumHostEvents: lyrics.transform at
-// the store's lyrics setter (untouched lines keep their host data), and
+// the end of the lyrics pipeline (untouched lines keep their host data, the
+// transform never stacks on its own output), and
 // playback.beforePlay in front of playSong (cancel, replace, pass-through).
 
 installFoliumHostEvents();
@@ -47,8 +48,7 @@ const line = (text: string, start: number, extra: Partial<Line> = {}): Line => (
 describe('lyrics.transform hook', () => {
     it('passes lyrics through untouched when nobody listens', () => {
         const lyrics: LyricData = { lines: [line('a', 0)] };
-        usePlaybackStore.getState().setLyricsState(lyrics);
-        expect(usePlaybackStore.getState().lyrics).toBe(lyrics);
+        expect(applyLyricsTransform(lyrics)).toBe(lyrics);
     });
 
     it('keeps untouched host lines and rebuilds edited ones from the DTO', () => {
@@ -60,21 +60,30 @@ describe('lyrics.transform hook', () => {
             ];
         });
         const kept = line('keep', 0, { agentId: 'v1' });
-        usePlaybackStore.getState().setLyricsState({ lines: [kept, line('edit', 2)], isWordByWord: true });
-        const result = usePlaybackStore.getState().lyrics!;
+        const result = applyLyricsTransform({ lines: [kept, line('edit', 2)], isWordByWord: true })!;
         expect(result.isWordByWord).toBe(true);
         expect(result.lines[0]).toBe(kept);
         expect(result.lines[1]).toMatchObject({ fullText: 'EDITED', translation: '改' });
         expect(result.lines[2]).toMatchObject({ fullText: 'added', words: [{ text: 'added', startTime: 5, endTime: 6 }] });
     });
 
-    it('does not transform an already transformed object again', () => {
+    it('is not applied by the store setter, so functional updates never re-transform', () => {
         const handler = vi.fn((event: { lines: readonly unknown[] }) => { event.lines = [...event.lines] as never; });
         addFoliumEventHandler('mod-a', 'lyrics.transform', handler as never);
-        usePlaybackStore.getState().setLyricsState({ lines: [line('x', 0)] });
-        const once = usePlaybackStore.getState().lyrics;
-        usePlaybackStore.getState().setLyricsState(once);
+        usePlaybackStore.getState().setLyricsState(applyLyricsTransform({ lines: [line('x', 0)] }));
+        usePlaybackStore.getState().setLyricsState((previous) => (previous ? { ...previous } : previous));
         expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-transforms from the untransformed source instead of stacking on its own output', () => {
+        addFoliumEventHandler('mod-a', 'lyrics.transform', (event) => {
+            event.lines = [...event.lines, { text: 'tail', startTime: 9, endTime: 10, words: [] }];
+        });
+        const source: LyricData = { lines: [line('x', 0)] };
+        const once = applyLyricsTransform(source)!;
+        expect(once.lines).toHaveLength(2);
+        expect(untransformedLyrics(once)).toBe(source);
+        expect(applyLyricsTransform(once)!.lines).toHaveLength(2);
     });
 });
 

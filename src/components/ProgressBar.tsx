@@ -136,6 +136,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         currentTime,
         duration,
         onSeek,
+        disabled,
         colors: { fill: primaryColor, track: trackColor, text: secondaryColor },
     });
 

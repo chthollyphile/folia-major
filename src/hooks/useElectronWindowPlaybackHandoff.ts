@@ -21,9 +21,20 @@ import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../stores/motionSignals';
+import { untransformedLyrics } from '../services/hostExtensionHooks';
 
 // src/hooks/useElectronWindowPlaybackHandoff.ts
 // Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
+
+// Snapshots cross IPC, so transformed lyrics arrive as a new object the new window's pipeline
+// cannot recognise and would transform again. Hand off the pre-transform lyrics instead; the
+// restore goes through setLyrics, which applies the extension transform once. Without an
+// extension transform in play this returns the snapshot unchanged.
+const withUntransformedLyrics = <Snapshot extends PlaybackSnapshot | null>(snapshot: Snapshot): Snapshot => {
+    if (!snapshot) return snapshot;
+    const lyrics = untransformedLyrics(snapshot.lyrics);
+    return lyrics === snapshot.lyrics ? snapshot : { ...snapshot, lyrics };
+};
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 export type WindowPlaybackHandoffRestoreStatus = 'checking' | 'none' | 'restored';
@@ -146,7 +157,7 @@ export function useElectronWindowPlaybackHandoff({
     const restoreWindowPlaybackHandoffRef = useRef<((handoff: WindowPlaybackHandoff) => Promise<boolean>) | null>(null);
 
     const captureWindowPlaybackHandoff = useCallback((): WindowPlaybackHandoff => {
-        const activePlayback = buildPlaybackSnapshot({
+        const activePlayback = withUntransformedLyrics(buildPlaybackSnapshot({
             audioRef,
             audioSrc,
             cachedCoverUrl,
@@ -158,10 +169,10 @@ export function useElectronWindowPlaybackHandoff({
             lyrics,
             playQueue,
             playerState,
-        });
+        }));
         const mainPlayback = activePlaybackContext === 'main'
             ? activePlayback
-            : mainPlaybackSnapshotRef.current;
+            : withUntransformedLyrics(mainPlaybackSnapshotRef.current);
 
         return {
             version: 1,

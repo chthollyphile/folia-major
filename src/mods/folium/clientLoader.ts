@@ -107,9 +107,13 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
                 await teardown(modId);
             }
         }
+        // Dependencies first: the list arrives sorted by id, the load plan is topological.
         const pending = Array.from(desired.values())
             .filter((mod) => !activeClients.has(mod.id))
-            .sort((left, right) => left.id.localeCompare(right.id));
+            .sort((left, right) => (
+                (left.loadOrder ?? Number.MAX_SAFE_INTEGER) - (right.loadOrder ?? Number.MAX_SAFE_INTEGER)
+                || left.id.localeCompare(right.id)
+            ));
         for (const mod of pending) {
             await activate(mod, mod.clientUrl as string, context);
         }

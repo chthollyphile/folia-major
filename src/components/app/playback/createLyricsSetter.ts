@@ -9,6 +9,7 @@ import { getLyricSegmentationRecord } from '../../../stores/useLyricSegmentation
 import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from '../../../utils/lyrics/chorusEffects';
 import type { NeteaseChorusRange } from '../../../utils/lyrics/chorusEffects';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import { applyLyricsTransform, untransformedLyrics } from '../../../services/hostExtensionHooks';
 
 // src/components/app/playback/createLyricsSetter.ts
 
@@ -45,7 +46,10 @@ export const createLyricsSetter = (
     let lastSongId: number | string | null = null;
     let cachedNeteaseChorusRanges: NeteaseChorusRange[] | null = null;
 
-    return (nextLyrics: LyricData | null) => {
+    return (incomingLyrics: LyricData | null) => {
+        // Lyrics already on screen (e.g. re-applied after an automix cancel) re-enter from
+        // their pre-transform source, so the extension transform below never stacks.
+        const nextLyrics = untransformedLyrics(incomingLyrics);
         const currentSong = currentSongFullRef?.current ?? null;
         const currentSongId = currentSong ? getPlaybackSongKey(currentSong) : null;
 
@@ -92,7 +96,8 @@ export const createLyricsSetter = (
             // with no song identity and so cannot look up a per-song override themselves. Last in
             // the chain, so it sees the lines that actually survived filtering.
             processed = applyLyricWordSegmentation(processed, getLyricSegmentationRecord());
-            setLyricsState(ensureLyricDataRenderHints(processed));
+            // Extension layers (Folium `lyrics.transform`) see the finished lyrics once per load.
+            setLyricsState(applyLyricsTransform(ensureLyricDataRenderHints(processed)));
         } else {
             setLyricsState(null);
         }

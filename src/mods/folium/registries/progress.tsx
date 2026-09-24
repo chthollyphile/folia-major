@@ -48,6 +48,8 @@ export interface FoliumProgressInputs {
     currentTime: MotionValue<number>;
     duration: number;
     onSeek: (seconds: number) => void;
+    /** Mirrors ProgressBar's `disabled`: while set, seek() is a no-op like the range input. */
+    disabled?: boolean;
     colors: { fill: string; track: string; text: string };
 }
 
@@ -74,7 +76,8 @@ export const useFoliumProgressContext = (inputs: FoliumProgressInputs): FoliumPr
         },
         seek: (seconds: number) => {
             if (!Number.isFinite(seconds)) return;
-            const { duration, onSeek } = inputsRef.current;
+            const { duration, onSeek, disabled } = inputsRef.current;
+            if (disabled) return;
             onSeek(duration > 0 ? Math.min(duration, Math.max(0, seconds)) : Math.max(0, seconds));
         },
         getColors: () => inputsRef.current.colors,

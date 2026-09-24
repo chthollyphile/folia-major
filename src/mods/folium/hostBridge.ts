@@ -11,6 +11,7 @@ import {
 } from '@/stores/usePlaybackStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import { currentTime } from '@/stores/motionSignals';
+import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import type { VisualizerTuningBundle } from '@/components/visualizer/tuningRegistry';
 import { isModsBridgeAvailable, pushRuntimeSnapshot } from '../ipc';
 import type { FoliumPlaybackState } from './contract';
@@ -64,19 +65,64 @@ export const useFoliumHostBridge = (theme: Theme, isDaylight: boolean) => {
     // Bumped on seeks: position jumps are the one change no store dependency reflects.
     const [seekRevision, setSeekRevision] = useState(0);
 
+    /*
+     * Seek detection: a position change that does not match how far playback
+     * should have moved. Time only advances while playing, and the baseline is
+     * re-taken whenever the transport state or the displayed song changes, so
+     * resuming after a pause is not a seek.
+     *
+     * A new track resets the position in the same tick it swaps the song (in
+     * either order), so a jump is confirmed a microtask later against the song
+     * that was displayed before the tick, compared by playback key. Only a net
+     * change of track drops it: an automix blend cancelled by a seek flips the
+     * displayed song away and back within the tick, and that seek must still
+     * be reported. This hook only observes; it never touches playback.
+     */
     useEffect(() => {
+        const displaySongKey = () => {
+            const displayed = selectDisplaySong(usePlaybackStore.getState());
+            return displayed ? getPlaybackSongKey(displayed) : null;
+        };
         let last = currentTime.get();
         let lastAt = performance.now();
-        return currentTime.on('change', (value) => {
-            const now = performance.now();
-            const expected = last + (now - lastAt) / 1000;
-            last = value;
-            lastAt = now;
-            if (Math.abs(value - expected) > SEEK_JUMP_SEC) {
-                setSeekRevision((revision) => revision + 1);
-                emitFoliumEvent('playback.seeked', { position: value });
+        // The displayed song as of the last settled tick; refreshed a microtask after it changes.
+        let settledSongKey = displaySongKey();
+        let settlePending = false;
+        const rebase = () => {
+            last = currentTime.get();
+            lastAt = performance.now();
+        };
+        const unsubscribeStore = usePlaybackStore.subscribe((state, previous) => {
+            const songChanged = selectDisplaySong(state) !== selectDisplaySong(previous);
+            if (songChanged && !settlePending) {
+                settlePending = true;
+                queueMicrotask(() => {
+                    settlePending = false;
+                    settledSongKey = displaySongKey();
+                });
+            }
+            if (songChanged || selectDisplayPlayerState(state) !== selectDisplayPlayerState(previous)) {
+                rebase();
             }
         });
+        const unsubscribeTime = currentTime.on('change', (value) => {
+            const now = performance.now();
+            const isPlaying = selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING;
+            const expected = isPlaying ? last + (now - lastAt) / 1000 : last;
+            last = value;
+            lastAt = now;
+            if (Math.abs(value - expected) <= SEEK_JUMP_SEC) return;
+            const songKeyBefore = settledSongKey;
+            queueMicrotask(() => {
+                if (displaySongKey() !== songKeyBefore) return;
+                setSeekRevision((revision) => revision + 1);
+                emitFoliumEvent('playback.seeked', { position: value });
+            });
+        });
+        return () => {
+            unsubscribeStore();
+            unsubscribeTime();
+        };
     }, []);
 
     // theme.changed lives here because the theme is App state, not a store.

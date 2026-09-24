@@ -175,6 +175,8 @@ export function usePlaybackQueueController({
     // in App.tsx only because everything about playback used to be.
     /** Rising id that lets a newer load invalidate an in-flight older one. */
     const playbackRequestIdRef = useRef(0);
+    /** Rising id per playSong call: a newer call supersedes an older one still awaiting `beforePlay`. */
+    const playSongCallIdRef = useRef(0);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
 
@@ -444,8 +446,11 @@ export function usePlaybackQueueController({
     ) => {
         // Extension layers (Folium `playback.beforePlay`) may cancel or redirect this play.
         // Without an installed hook this is skipped entirely, so the common path stays synchronous.
+        // The hook is async, so a later playSong may finish its hook first; this call then drops
+        // out instead of replacing the song the user picked last.
+        const playSongCallId = ++playSongCallIdRef.current;
         const allowedSong = hasBeforePlayHook() ? await runBeforePlayHook(requestedSong) : requestedSong;
-        if (!allowedSong) {
+        if (!allowedSong || playSongCallIdRef.current !== playSongCallId) {
             return;
         }
         const song = allowedSong;

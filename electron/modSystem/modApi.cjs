@@ -26,6 +26,11 @@ const cloneJson = (value) => (value === undefined ? undefined : JSON.parse(JSON.
 
 const permissionDenied = (permission) => new Error(`permission-denied:${permission}`);
 
+// Write queues by data directory, shared by every store instance for that
+// directory. A reload builds new stores while an old instance may still have a
+// write in flight; a per-instance queue would let both write the same .tmp file.
+const queuesByDataDir = new Map();
+
 /*
  * Per-mod key/value store persisted as one JSON file under the mod data
  * directory. Shared by the Node API (`api.storage.data`) and the renderer
@@ -35,12 +40,17 @@ const permissionDenied = (permission) => new Error(`permission-denied:${permissi
  */
 const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
     const dataFilePath = () => path.join(dataDir, DATA_FILE_NAME);
-    let queue = Promise.resolve();
+    const queueKey = path.resolve(dataDir);
 
     const enqueue = (task) => {
+        const queue = queuesByDataDir.get(queueKey) ?? Promise.resolve();
         const run = queue.then(task, task);
         // Keep the chain alive after a failure; the caller still sees the rejection.
-        queue = run.catch(() => undefined);
+        const tail = run.catch(() => undefined);
+        queuesByDataDir.set(queueKey, tail);
+        void tail.then(() => {
+            if (queuesByDataDir.get(queueKey) === tail) queuesByDataDir.delete(queueKey);
+        });
         return run;
     };
 
@@ -48,9 +58,13 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
         try {
             const raw = await fs.promises.readFile(dataFilePath(), 'utf8');
             const parsed = JSON.parse(raw);
-            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            // Prototype-free, so keys like "constructor" or "__proto__" are plain data.
+            return Object.assign(
+                Object.create(null),
+                parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {},
+            );
         } catch {
-            return {};
+            return Object.create(null);
         }
     };
 
@@ -75,7 +89,7 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
         get: (key) => enqueue(async () => {
             requireKey(key);
             const data = await loadData();
-            return key in data ? cloneJson(data[key]) : undefined;
+            return Object.hasOwn(data, key) ? cloneJson(data[key]) : undefined;
         }),
         set: (key, value) => enqueue(async () => {
             requireKey(key);
@@ -88,12 +102,12 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
         }),
         has: (key) => enqueue(async () => {
             requireKey(key);
-            return key in (await loadData());
+            return Object.hasOwn(await loadData(), key);
         }),
         delete: (key) => enqueue(async () => {
             requireKey(key);
             const data = await loadData();
-            if (!(key in data)) return;
+            if (!Object.hasOwn(data, key)) return;
             delete data[key];
             await saveData(data);
         }),

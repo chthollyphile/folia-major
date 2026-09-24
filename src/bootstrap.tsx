@@ -39,6 +39,11 @@ const obsSource = searchParams.get('obsSource');
 // obsSource=now-playing / playercap: static OBS overlay that connects directly to NowPlaying / PlayerCap in the browser (no Electron SSE relay).
 const isNowPlayingObsSource = isObsBrowserSource && obsSource === 'now-playing';
 const isPlayerCapObsSource = isObsBrowserSource && obsSource === 'playercap';
+const isRemoteControl = !isObsBrowserSource && searchParams.get('remote') === '1';
+// Mod clients belong to the main app window only. The remote-control window
+// also has the Electron bridge, but mod state pushes only reach the main
+// window, so a client activated there would never be torn down.
+const isMainApp = !isObsBrowserSource && !isRemoteControl;
 const renderApp = () => root.render(
     <React.StrictMode>
       <AppSplashGate>
@@ -48,17 +53,22 @@ const renderApp = () => root.render(
             ? <ObsPlayerCapSourceApp />
             : isObsBrowserSource
               ? <ObsBrowserSourceApp />
-              : searchParams.get('remote') === '1'
+              : isRemoteControl
                 ? <RemoteControlApp />
                 : <App />}
       </AppSplashGate>
     </React.StrictMode>
   );
 
-installFoliumCommandPaletteSync();
-installFoliumHostEvents();
-void initFoliumClients()
-    .then(restoreSavedFoliumSelections)
+const bootFolium = async () => {
+    if (!isMainApp) return;
+    installFoliumCommandPaletteSync();
+    installFoliumHostEvents();
+    await initFoliumClients();
+    restoreSavedFoliumSelections();
+};
+
+void bootFolium()
     .finally(() => {
         void initializeLocalCoverRuntime().finally(renderApp);
     });

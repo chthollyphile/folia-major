@@ -65,4 +65,13 @@ describe('createFoliumRegistry', () => {
         handle.unregister();
         expect(listener).toHaveBeenCalledTimes(2);
     });
+
+    it('ignores a stale handle once the id belongs to a newer registration', () => {
+        const registry = createFoliumRegistry<Def>('things');
+        const stale = registry.register('mod-a', { id: 'x', value: 1 });
+        registry.unregisterAll('mod-a');
+        registry.register('mod-a', { id: 'x', value: 2 });
+        stale.unregister();
+        expect(registry.get('mod-a:x')?.def.value).toBe(2);
+    });
 });

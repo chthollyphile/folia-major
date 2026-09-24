@@ -100,6 +100,26 @@ describe('mod data store', () => {
         await expect(store.set('k', undefined)).rejects.toThrow('JSON-serializable');
         await expect(store.get('')).rejects.toThrow('non-empty');
     });
+
+    it('treats prototype names as ordinary keys', async () => {
+        const store = createModDataStore(tempDir());
+        expect(await store.has('constructor')).toBe(false);
+        expect(await store.get('toString')).toBeUndefined();
+        await store.set('__proto__', { a: 1 });
+        expect(await store.has('__proto__')).toBe(true);
+        expect(await store.get('__proto__')).toEqual({ a: 1 });
+        expect(await store.keys()).toEqual(['__proto__']);
+    });
+
+    it('serializes writes across store instances for the same directory', async () => {
+        const dataDir = tempDir();
+        const first = createModDataStore(dataDir);
+        const second = createModDataStore(dataDir);
+        await Promise.all(Array.from({ length: 20 }, (_, index) => (
+            (index % 2 ? first : second).set(`k${index}`, index)
+        )));
+        expect((await first.keys()).length).toBe(20);
+    });
 });
 
 describe('mod api rpc and host info', () => {

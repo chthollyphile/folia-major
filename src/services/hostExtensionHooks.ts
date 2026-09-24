@@ -3,8 +3,8 @@ import type { ProviderAudioSource, ProviderLyricsResult } from '../types/onlineM
 
 // src/services/hostExtensionHooks.ts
 // Interception points the host exposes to extension layers (Folium mods today).
-// Host code calls these at its own boundaries — the lyrics setter, the start of
-// playSong — without importing anything mod-specific; the extension layer
+// Host code calls these at its own boundaries — the incoming-lyrics pipeline,
+// the start of playSong — without importing anything mod-specific; the extension layer
 // installs the implementations. With nothing installed every call is a
 // synchronous pass-through, so the host behaves exactly as before.
 
@@ -23,8 +23,10 @@ let beforePlayHook: BeforePlayHook | null = null;
 // so playSong keeps its synchronous start for users without such mods.
 let beforePlayActive: () => boolean = () => true;
 
-// Outputs already transformed: a setter re-applying the current lyrics must not transform twice.
-const transformedOutputs = new WeakSet<LyricData>();
+// Transformed output → the lyrics it was made from. Lets the host re-run its
+// pipeline on lyrics already on screen (an automix cancel re-applies them)
+// from the untransformed source, so the transform never stacks.
+const transformSources = new WeakMap<LyricData, LyricData>();
 
 export const installLyricsTransformHook = (hook: LyricsTransformHook | null) => {
     lyricsTransformHook = hook;
@@ -35,19 +37,28 @@ export const installBeforePlayHook = (hook: BeforePlayHook | null, isActive: () 
     beforePlayActive = isActive;
 };
 
+/** The lyrics a transformed output was made from; anything else is returned as is. */
+export const untransformedLyrics = (lyrics: LyricData | null): LyricData | null => (
+    lyrics ? transformSources.get(lyrics) ?? lyrics : lyrics
+);
+
 /*
- * Runs the installed lyrics transform once per incoming lyrics object. A
- * throwing transform is contained here: lyrics must always reach the screen.
+ * Runs the installed lyrics transform. Called where the host produces lyrics
+ * (end of createLyricsSetter, the word-segmentation update), not in the store
+ * setter. A transformed input is transformed from its source instead, so the
+ * transform never stacks. A throwing transform is contained here: lyrics must
+ * always reach the screen.
  */
 export const applyLyricsTransform = (lyrics: LyricData | null): LyricData | null => {
-    if (!lyrics || !lyricsTransformHook || transformedOutputs.has(lyrics)) return lyrics;
+    const source = untransformedLyrics(lyrics);
+    if (!source || !lyricsTransformHook) return source;
     try {
-        const next = lyricsTransformHook(lyrics);
-        transformedOutputs.add(next);
+        const next = lyricsTransformHook(source);
+        if (next !== source) transformSources.set(next, source);
         return next;
     } catch (error) {
         console.warn('[HostHooks] lyrics transform failed; using the original lyrics', error);
-        return lyrics;
+        return source;
     }
 };
 
