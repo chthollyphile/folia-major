@@ -349,6 +349,10 @@ export interface FoliumNotificationEvents {
  * Synchronous hook: runs when new lyrics reach the player, before they are
  * shown. Assign `lines` to rewrite them; lines left untouched (same object)
  * keep all their host-side data, new or changed ones are built from the DTO.
+ *
+ * Handlers must be idempotent: lyrics the host derives from already
+ * transformed ones (e.g. after the user edits word segmentation) pass through
+ * the hook again.
  */
 export interface FoliumLyricsTransformEvent {
     readonly song: FoliumSong | null;
