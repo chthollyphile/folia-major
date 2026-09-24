@@ -64,3 +64,32 @@ export const getVisualizerBackgroundModeLabel = (
     const translated = t(entry.labelKey);
     return !translated || translated === entry.labelKey ? entry.labelFallback : translated;
 };
+
+/*
+ * Runtime contribution channel for mod background types
+ * (src/mods/folium/registries/backgrounds). Mode ids are prefixed
+ * (`mod:<modId>:<id>`) so a mod can never shadow a builtin mode; duplicates are
+ * rejected. The ordered list is kept sorted so pickers show mod types by order.
+ */
+export const appendVisualizerBackgroundEntry = (entry: VisualizerBackgroundRegistryEntry): boolean => {
+    if (VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[entry.mode]) {
+        return false;
+    }
+    VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[entry.mode] = entry;
+    VISUALIZER_BACKGROUND_REGISTRY.push(entry);
+    VISUALIZER_BACKGROUND_REGISTRY.sort((left, right) => left.order - right.order);
+    return true;
+};
+
+/** Removes a runtime-contributed background type; builtin types have no removal path. */
+export const removeVisualizerBackgroundEntry = (mode: VisualizerBackgroundMode): boolean => {
+    if (!VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[mode]) {
+        return false;
+    }
+    delete VISUALIZER_BACKGROUND_REGISTRY_BY_MODE[mode];
+    const index = VISUALIZER_BACKGROUND_REGISTRY.findIndex((entry) => entry.mode === mode);
+    if (index >= 0) {
+        VISUALIZER_BACKGROUND_REGISTRY.splice(index, 1);
+    }
+    return true;
+};

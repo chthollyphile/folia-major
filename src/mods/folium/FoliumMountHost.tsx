@@ -32,6 +32,12 @@ interface FoliumMountHostProps<Ctx> {
     shadow?: boolean;
     /** Container fills the host box (layers) instead of sizing to content (panels). */
     fill?: boolean;
+    /*
+     * 'none' makes the container click-through: pointer-events inherit, so mod
+     * content ignores the pointer unless an element sets `pointer-events: auto`.
+     * Needed inside a ShadowRoot too, where `all: initial` would reset it.
+     */
+    pointerEvents?: 'auto' | 'none';
     theme?: FoliumTheme | null;
     className?: string;
     style?: React.CSSProperties;
@@ -44,6 +50,7 @@ export function FoliumMountHost<Ctx>({
     ctx,
     shadow = false,
     fill = true,
+    pointerEvents = 'auto',
     theme,
     className,
     style,
@@ -59,11 +66,11 @@ export function FoliumMountHost<Ctx>({
             // attachShadow can only run once per element; reuse it across remounts.
             shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
             container = document.createElement('div');
-            container.style.cssText = `all: initial; display: block; width: 100%;${fill ? ' height: 100%;' : ''} font-family: var(--folium-font, inherit); color: var(--folium-primary, inherit);`;
+            container.style.cssText = `all: initial; display: block; width: 100%;${fill ? ' height: 100%;' : ''} pointer-events: ${pointerEvents}; font-family: var(--folium-font, inherit); color: var(--folium-primary, inherit);`;
             shadowRoot.replaceChildren(container);
         } else {
             container = document.createElement('div');
-            container.style.cssText = `position: relative; width: 100%;${fill ? ' height: 100%;' : ''}`;
+            container.style.cssText = `position: relative; width: 100%;${fill ? ' height: 100%;' : ''} pointer-events: ${pointerEvents};`;
             host.replaceChildren(container);
         }
 
@@ -84,13 +91,13 @@ export function FoliumMountHost<Ctx>({
             }
             container.remove();
         };
-    }, [modId, where, mount, ctx, shadow, fill]);
+    }, [modId, where, mount, ctx, shadow, fill, pointerEvents]);
 
     return (
         <div
             ref={hostRef}
             className={className}
-            style={{ ...foliumThemeVars(theme), ...style }}
+            style={{ ...foliumThemeVars(theme), pointerEvents, ...style }}
             data-folium-owner={modId}
         />
     );

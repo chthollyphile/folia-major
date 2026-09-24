@@ -16,6 +16,8 @@ import { useTypographySettingsStore } from '../../../stores/useTypographySetting
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
+import { DEFAULT_THEME } from '../../../services/baseThemes';
+import { FoliumSettingsSections } from '../../../mods/folium/registries/settingsSections';
 
 // src/components/modal/settings/LabSettingsModal.tsx
 // Experimental settings subview kept outside SettingsModal to avoid another giant inline panel.
@@ -48,7 +50,7 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
     voiceInputPause,
     embedded,
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isMouseDownOnOverlayRef = useRef(false);
     const [isNativeBlurNoticeOpen, setIsNativeBlurNoticeOpen] = useState(false);
     const {
@@ -471,6 +473,15 @@ const LabSettingsModal: React.FC<LabSettingsModalProps> = ({
                                         </div>
                                         {renderToggle(modSystemEnabled, () => onToggleModSystem(!modSystemEnabled))}
                                     </div>
+                                )}
+
+                                {/* Folium settings sections registered by enabled mods. */}
+                                {isElectron && modSystemEnabled && (
+                                    <FoliumSettingsSections
+                                        theme={theme ?? DEFAULT_THEME}
+                                        isDaylight={isDaylight}
+                                        language={i18n.language}
+                                    />
                                 )}
 
                                 {!isLinux && (

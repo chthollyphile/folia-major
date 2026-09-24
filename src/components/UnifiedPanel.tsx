@@ -1,7 +1,7 @@
 import React from 'react';
 import { PANEL_SLIDE_CLAMP_PX, PANEL_SLIDE_TRACK_BASE_PX, PANEL_SLIDE_TRACK_FULL_PX, PANEL_SLIDE_TRIGGER_PX } from '../utils/panelSlideGesture';
 import { motion, AnimatePresence, useTransform } from 'framer-motion';
-import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star, Command, ChevronLeft, MirrorRectangular } from 'lucide-react';
+import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star, Command, ChevronLeft, MirrorRectangular, Puzzle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Album, Artist, SongResult, Theme, PlayerState, ReplayGainMode, ThemeMode, VisualizerMode } from '../types';
 import type { ProviderUser } from '../types/onlineMusic';
@@ -22,11 +22,14 @@ import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx'
 import { getSizedCoverUrl } from '../utils/coverUrl';
 import { openAddToPlaylist, useAddToPlaylistStore } from '../stores/useAddToPlaylistStore';
 import { usePlayerPanelTabShortcut } from '../hooks/usePlayerPanelTabShortcut';
+import { FOLIUM_PANEL_TAB_PREFIX, FoliumPanelTabBody, useFoliumPanelTabs } from '../mods/folium/registries/playerPanelTabs';
 import { countRender } from '../dev/renderCount';
 
 const TOUCH_GUIDE_DISPLAY_MS = 1400;
 
-export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics';
+export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics'
+    // Tabs registered by Folium mods (registries.playerPanelTabs).
+    | `folium:${string}`;
 
 type UnifiedPanelPlaybackProps = {
     isOpen: boolean;
@@ -262,7 +265,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const addToPlaylistDisabledReason = addToPlaylist.disabledReason;
     const supportsHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-    const tabs = [
+    const foliumTabs = useFoliumPanelTabs();
+    const tabs: { id: PanelTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
         { id: 'cover' as PanelTab, label: t('panel.cover'), icon: Disc },
         { id: 'controls' as PanelTab, label: t('panel.controls'), icon: SlidersHorizontal },
         isFmMode 
@@ -278,6 +282,16 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     } else if (isOnline) {
         tabs.splice(1, 0, { id: 'onlineLyrics' as PanelTab, label: t('localMusic.lyrics'), icon: FileText });
     }
+
+    foliumTabs.forEach((tab) => tabs.push({ id: tab.id, label: tab.label, icon: Puzzle }));
+
+    // A mod tab can vanish while open (mod disabled or reloaded): fall back to the cover tab.
+    const currentTabExists = tabs.some((tab) => tab.id === currentTab);
+    React.useEffect(() => {
+        if (!currentTabExists && currentTab.startsWith(FOLIUM_PANEL_TAB_PREFIX)) {
+            onTabChange('cover');
+        }
+    }, [currentTabExists, currentTab, onTabChange]);
 
     usePlayerPanelTabShortcut({
         isOpen,
@@ -918,6 +932,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                             isDaylight={isDaylight}
                                         />
                                     )}
+                                    <FoliumPanelTabBody tab={currentTab} theme={theme} isDaylight={isDaylight} />
                                     {currentTab === 'onlineLyrics' && isOnline && currentSong && (
                                         <OnlineLyricsTab
                                             song={currentSong}

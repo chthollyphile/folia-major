@@ -14,6 +14,7 @@ import {
 } from './ipc';
 import type { ModExportProgress, ModFfmpegStatus, ModLogEntry, ModRuntimeInfo, ModSetEnabledResult } from './types';
 import { reconcileFoliumClients } from './folium/clientLoader';
+import { restoreSavedFoliumSelections } from './folium/missingEntries';
 
 // src/mods/useModsStore.ts
 // Renderer-side state for the mod system panel. All mutations flow through the
@@ -127,6 +128,6 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
  */
 useModsStore.subscribe((state, previous) => {
     if (state.mods !== previous.mods) {
-        void reconcileFoliumClients(state.mods, 'main');
+        void reconcileFoliumClients(state.mods, 'main').then(restoreSavedFoliumSelections);
     }
 });

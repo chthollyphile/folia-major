@@ -6,6 +6,8 @@ import {
     type FoliumContextKind,
     type FoliumRegistries,
     type FoliumRegistry,
+    type FoliumSettingsSectionDef,
+    type FoliumSettingsSectionHandle,
     type FoliumStorage,
 } from './contract';
 import type { FoliumHostRegistry } from './registry';
@@ -13,6 +15,12 @@ import { reportFoliumIssue } from './status';
 import { visualizersRegistry } from './registries/visualizers';
 import { tuningsRegistry } from './registries/tunings';
 import { commandsRegistry } from './registries/commands';
+import { backgroundsRegistry } from './registries/backgrounds';
+import { stageLayersRegistry } from './registries/stageLayers';
+import { settingsSectionsRegistry } from './registries/settingsSections';
+import { playerPanelTabsRegistry } from './registries/playerPanelTabs';
+import { controlButtonsRegistry, progressLayersRegistry } from './registries/progress';
+import { stylesRegistry } from './registries/styles';
 
 // src/mods/folium/api.ts
 // Builds the `folium` object one mod's client entry receives. Everything is
@@ -23,9 +31,18 @@ import { commandsRegistry } from './registries/commands';
 /*
  * Registries that only make sense where there is app UI. In the export window
  * they accept registrations and do nothing, so a mod registers the same way in
- * both contexts and its visualizer still renders there.
+ * both contexts and its visualizer still renders there. Settings sections stay
+ * live everywhere: they carry no UI of their own, and a visualizer rendering in
+ * the export window may read them.
  */
-const UI_ONLY_REGISTRIES = new Set<keyof FoliumRegistries>(['commands']);
+const UI_ONLY_REGISTRIES = new Set<keyof FoliumRegistries>([
+    'commands',
+    'stageLayers',
+    'playerPanelTabs',
+    'controlButtons',
+    'progressLayers',
+    'styles',
+]);
 
 type AnyHostRegistry = FoliumHostRegistry<any, any>;
 
@@ -33,6 +50,13 @@ const HOST_REGISTRIES: Record<keyof FoliumRegistries, AnyHostRegistry> = {
     visualizers: visualizersRegistry,
     tunings: tuningsRegistry,
     commands: commandsRegistry,
+    backgrounds: backgroundsRegistry,
+    stageLayers: stageLayersRegistry,
+    settingsSections: settingsSectionsRegistry,
+    playerPanelTabs: playerPanelTabsRegistry,
+    controlButtons: controlButtonsRegistry,
+    progressLayers: progressLayersRegistry,
+    styles: stylesRegistry,
 };
 
 /** Every host registry, for teardown of a mod across all of them. */
@@ -114,10 +138,25 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
     const modId = mod.id;
     const optedIn = new Set(mod.experimental ?? []);
 
+    const inert = (name: keyof FoliumRegistries) => context !== 'main' && UI_ONLY_REGISTRIES.has(name);
     const registries = Object.freeze({
-        visualizers: bindRegistry(visualizersRegistry, modId, false),
-        tunings: bindRegistry(tuningsRegistry, modId, false),
-        commands: bindRegistry(commandsRegistry, modId, context !== 'main' && UI_ONLY_REGISTRIES.has('commands')),
+        visualizers: bindRegistry(visualizersRegistry, modId, inert('visualizers')),
+        tunings: bindRegistry(tuningsRegistry, modId, inert('tunings')),
+        commands: bindRegistry(commandsRegistry, modId, inert('commands')),
+        backgrounds: bindRegistry(backgroundsRegistry, modId, inert('backgrounds')),
+        stageLayers: bindRegistry(stageLayersRegistry, modId, inert('stageLayers')),
+        // The handle carries the section's values so the mod can read what the user set.
+        settingsSections: Object.freeze({
+            register: (def: FoliumSettingsSectionDef): FoliumSettingsSectionHandle => {
+                const handle = settingsSectionsRegistry.register(modId, def);
+                const stored = settingsSectionsRegistry.get(handle.id);
+                return Object.freeze({ ...handle, params: stored!.def.access });
+            },
+        }),
+        playerPanelTabs: bindRegistry(playerPanelTabsRegistry, modId, inert('playerPanelTabs')),
+        controlButtons: bindRegistry(controlButtonsRegistry, modId, inert('controlButtons')),
+        progressLayers: bindRegistry(progressLayersRegistry, modId, inert('progressLayers')),
+        styles: bindRegistry(stylesRegistry, modId, inert('styles')),
     }) as FoliumRegistries;
 
     const log = Object.freeze({

@@ -140,7 +140,7 @@ export interface FoliumSurface {
 }
 
 /**
- * Context for lyric-synced content (visualizers, background types, stage layers).
+ * Context for lyric-synced content (visualizers, stage layers).
  * Snapshot fields are fixed for one mount; the host remounts only when the
  * lyric data, the song or `staticMode` changes (or the preview line in static
  * mode). Everything else is read through getters, and `subscribe` fires when
@@ -193,8 +193,107 @@ export interface FoliumCommandDef {
     id: string;
     label: FoliumLabel;
     description?: FoliumLabel;
+    /** Extra search terms for the command palette (label texts are always included). */
+    keywords?: string[];
+    /** Shown in the mods panel and the command palette; a palette entry with params opens a form. */
     params?: FoliumParam[];
     run(ctx: FoliumCommandContext): unknown | Promise<unknown>;
+}
+
+/** Lyric-free context for background types: they paint behind every mode, previews included. */
+export interface FoliumBackgroundContext {
+    readonly staticMode: boolean;
+    isPaused(): boolean;
+    getTheme(): FoliumTheme;
+    getSettings(): FoliumParamValues;
+    getCoverUrl(): string | null;
+    subscribe(listener: () => void): FoliumDisposer;
+}
+
+export interface FoliumBackgroundDef {
+    id: string;
+    label: FoliumLabel;
+    order?: number;
+    mount: FoliumMount<FoliumBackgroundContext>;
+    settings?: FoliumParam[];
+    settingsPanel?: FoliumMount<FoliumSettingsPanelContext>;
+}
+
+/**
+ * Where a stage layer sits on the player page:
+ *   - `player.stage.back`: above the background, under the lyrics;
+ *   - `player.stage.front`: above the lyrics, under the player chrome;
+ *   - `app.overlay`: above the whole app.
+ */
+export type FoliumStageSlot = 'player.stage.back' | 'player.stage.front' | 'app.overlay';
+
+export interface FoliumStageLayerDef {
+    id: string;
+    slot: FoliumStageSlot;
+    order?: number;
+    /**
+     * When false (default) the layer is click-through, so it cannot block the
+     * player; elements that should still take clicks set `pointer-events: auto`.
+     * When true the whole layer captures the pointer.
+     */
+    interactive?: boolean;
+    mount: FoliumMount<FoliumStageContext>;
+}
+
+export interface FoliumSettingsSectionDef {
+    id: string;
+    label: FoliumLabel;
+    description?: FoliumLabel;
+    settings: FoliumParam[];
+    settingsPanel?: FoliumMount<FoliumSettingsPanelContext>;
+}
+
+export interface FoliumPlayerPanelTabDef {
+    id: string;
+    label: FoliumLabel;
+    order?: number;
+    mount: FoliumMount<FoliumPanelContext>;
+}
+
+/** Progress-bar context shared by control buttons and progress layers. */
+export interface FoliumProgressContext {
+    readonly currentTime: FoliumClock;
+    getDuration(): number;
+    /** 0..1 position of a time on the track (0 when the duration is unknown). */
+    timeToRatio(seconds: number): number;
+    seek(seconds: number): void;
+    /** The host bar's colors, so mod UI can match it. */
+    getColors(): { fill: string; track: string; text: string };
+    subscribe(listener: () => void): FoliumDisposer;
+}
+
+export type FoliumControlSlot = 'progress.leading' | 'progress.trailing';
+
+export interface FoliumControlButtonDef {
+    id: string;
+    slot: FoliumControlSlot;
+    order?: number;
+    mount: FoliumMount<FoliumProgressContext>;
+}
+
+/**
+ * A layer over the progress track. Its container is click-through so seeking
+ * keeps working; elements that should take clicks set `pointer-events: auto`.
+ */
+export interface FoliumProgressLayerDef {
+    id: string;
+    order?: number;
+    mount: FoliumMount<FoliumProgressContext>;
+}
+
+/**
+ * Mod CSS, injected inside `@layer folium-mods` and removed with the mod. The
+ * stable targets are the host's public parts: `[data-folium-part="progress.track"]` etc.
+ * (see mods/README.md for the list). Anything else in the host DOM is not API.
+ */
+export interface FoliumStyleDef {
+    id: string;
+    css: string;
 }
 
 export interface FoliumRegistryHandle {
@@ -203,14 +302,26 @@ export interface FoliumRegistryHandle {
     unregister(): void;
 }
 
-export interface FoliumRegistry<Def> {
-    register(def: Def): FoliumRegistryHandle;
+export interface FoliumSettingsSectionHandle extends FoliumRegistryHandle {
+    /** The section's values (defaults merged) and write access. */
+    readonly params: FoliumParamAccess;
+}
+
+export interface FoliumRegistry<Def, Handle extends FoliumRegistryHandle = FoliumRegistryHandle> {
+    register(def: Def): Handle;
 }
 
 export interface FoliumRegistries {
     visualizers: FoliumRegistry<FoliumVisualizerDef>;
     tunings: FoliumRegistry<FoliumTuningDef>;
     commands: FoliumRegistry<FoliumCommandDef>;
+    backgrounds: FoliumRegistry<FoliumBackgroundDef>;
+    stageLayers: FoliumRegistry<FoliumStageLayerDef>;
+    settingsSections: FoliumRegistry<FoliumSettingsSectionDef, FoliumSettingsSectionHandle>;
+    playerPanelTabs: FoliumRegistry<FoliumPlayerPanelTabDef>;
+    controlButtons: FoliumRegistry<FoliumControlButtonDef>;
+    progressLayers: FoliumRegistry<FoliumProgressLayerDef>;
+    styles: FoliumRegistry<FoliumStyleDef>;
 }
 
 // ---------------------------------------------------------------- Client API

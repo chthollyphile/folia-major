@@ -5,6 +5,7 @@ import { filterFoliumParamPatch, mergeFoliumParamValues } from './params';
 // src/mods/folium/paramStore.ts
 // Persisted values for every schema-backed Folium surface, keyed by scope:
 //   `visualizer:<id>`  visualizer settings
+//   `background:<id>`  background type settings
 //   `tuning:<id>`      tunings of builtin modes
 //   `settings:<id>`    settings sections
 // Only raw user-set values are stored; defaults come from the schema at read

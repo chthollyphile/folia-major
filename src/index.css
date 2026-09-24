@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Folium mod stylesheets (registries.styles) live in this layer. Declaring it
+   after Tailwind's layers makes mod rules win over host utilities without
+   !important, independent of when a mod's <style> is injected. */
+@layer folium-mods;
+
 @font-face {
   font-family: 'Folia Noto Serif SC';
   font-style: normal;

@@ -49,8 +49,8 @@ const VISUALIZER_BACKGROUND_MODE_SET: ReadonlySet<string> = new Set(BUILTIN_VISU
 export const isBuiltinVisualizerMode = (mode: unknown): mode is VisualizerMode =>
     typeof mode === 'string' && VISUALIZER_MODE_SET.has(mode);
 
-// 背景模式没有 mod 投稿通道（registry 只给 visualizer 开了 appendVisualizerEntry），
-// 所以这个判定与活注册表在任何时刻都等价。
+// 背景模式的 mod 投稿（Folium registries.backgrounds）同样带 `mod:` 前缀，所以这个判定只认内建模式；
+// 需要认 mod 背景的地方用 background registry 的 hasVisualizerBackgroundMode，它查的是活注册表。
 export const isBuiltinVisualizerBackgroundMode = (mode: unknown): mode is VisualizerBackgroundMode =>
     typeof mode === 'string' && VISUALIZER_BACKGROUND_MODE_SET.has(mode);
 
