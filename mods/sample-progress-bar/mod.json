@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-progress-bar",
+  "name": "进度条增强（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "纯模组改造进度条：右侧加书签按钮、换进度条样式、在轨道上画出从外部 URL 定时拉取的标记（点击跳转）。演示 controlButtons / styles / progressLayers / settingsSections / net.fetch / storage。",
+  "client": "client.mjs",
+  "permissions": ["net.fetch", "filesystem.data"]
+}
