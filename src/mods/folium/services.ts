@@ -1,10 +1,11 @@
 import type { ModRuntimeInfo } from '../types';
-import { invokeModNetFetch, invokeModPickFile } from '../ipc';
+import { invokeModNetFetch, invokeModPickFile, invokeModReleaseFile, invokeModRestoreFile } from '../ipc';
 import type {
     FoliumContextKind,
     FoliumDisposer,
     FoliumFetchInit,
     FoliumFetchResponse,
+    FoliumFileHandle,
     FoliumNetService,
     FoliumPlaybackService,
     FoliumSong,
@@ -133,11 +134,24 @@ export const createFoliumUiService = (mod: ModRuntimeInfo, context: FoliumContex
         if (view !== 'home' && view !== 'player') throw new Error(`ui.navigate: unknown view "${String(view)}"`);
         requireActions('ui', context).navigate(view);
     },
-    pickFile: async (options: { accept?: 'video' | 'audio' | 'image' | 'any' } = {}) => {
+    pickFile: async (options: { accept?: 'video' | 'audio' | 'image' | 'any'; persist?: boolean } = {}) => {
         if (context !== 'main') throw new Error(`ui-unavailable-in-${context}-context`);
-        const response = await invokeModPickFile(mod.id, options.accept ?? 'any');
+        const response = await invokeModPickFile(mod.id, options.accept ?? 'any', options.persist === true);
         if (!response.ok) throw new Error(response.error ?? 'pick-file-failed');
-        return (response.result as { url: string; name: string; size: number } | null) ?? null;
+        return (response.result as FoliumFileHandle | null) ?? null;
+    },
+    restoreFile: async (grantId: string) => {
+        if (context !== 'main') throw new Error(`ui-unavailable-in-${context}-context`);
+        if (typeof grantId !== 'string' || !grantId) return null;
+        const response = await invokeModRestoreFile(mod.id, grantId);
+        if (!response.ok) throw new Error(response.error ?? 'restore-file-failed');
+        return (response.result as FoliumFileHandle | null) ?? null;
+    },
+    releaseFile: async (grantId: string) => {
+        if (context !== 'main') throw new Error(`ui-unavailable-in-${context}-context`);
+        if (typeof grantId !== 'string' || !grantId) return;
+        const response = await invokeModReleaseFile(mod.id, grantId);
+        if (!response.ok) throw new Error(response.error ?? 'release-file-failed');
     },
     embed: (container: HTMLElement, url: string, options?: { title?: string; allow?: string[] }) => {
         if (context !== 'main') throw new Error(`ui-unavailable-in-${context}-context`);

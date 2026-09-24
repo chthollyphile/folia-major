@@ -4,16 +4,47 @@
 //   - play / pause follow playback.stateChanged;
 //   - a seek in Folia (playback.seeked) seeks the video;
 //   - a new song restarts it; slow drift is corrected every couple of seconds.
-// The source is a local file picked through folium.ui.pickFile (valid for this
-// session) or the URL in the settings section. Opacity and fit are settings.
+// The source is a local file picked through folium.ui.pickFile or the URL in
+// the settings section. The pick is persisted (Folium 1.1): its grant id is
+// kept in folium.storage and restored on the next start. Opacity and fit are
+// settings.
 
 const DRIFT_CHECK_MS = 2000;
 const DRIFT_TOLERANCE_SEC = 0.35;
+const GRANT_KEY = 'videoGrant';
 
 export default function activate(folium) {
   let pickedUrl = null;
   const listeners = new Set();
   const notify = () => listeners.forEach((listener) => listener());
+  // Folium 1.0 hosts have no restoreFile: the pick then lasts for the session only.
+  const canPersist = typeof folium.ui.restoreFile === 'function';
+
+  const forgetPick = async () => {
+    const grantId = await folium.storage.get(GRANT_KEY);
+    if (grantId) await folium.ui.releaseFile(grantId);
+    await folium.storage.delete(GRANT_KEY);
+    pickedUrl = null;
+  };
+
+  // The file picked in an earlier session, if it is still there.
+  if (canPersist) {
+    void (async () => {
+      const grantId = await folium.storage.get(GRANT_KEY);
+      if (!grantId) return;
+      const file = await folium.ui.restoreFile(grantId);
+      if (!file) {
+        // The file is gone. Only clear the key if a newer pick has not replaced it meanwhile.
+        if ((await folium.storage.get(GRANT_KEY)) === grantId) await folium.storage.delete(GRANT_KEY);
+        return;
+      }
+      // A pick made while this was in flight wins.
+      if (pickedUrl === null) {
+        pickedUrl = file.url;
+        notify();
+      }
+    })().catch(() => {});
+  }
 
   const settings = folium.registries.settingsSections.register({
     id: 'video-layer',
@@ -46,12 +77,28 @@ export default function activate(folium) {
     label: { 'zh-CN': '视频层：选择本地视频', en: 'Video layer: pick a local video' },
     keywords: ['video', 'mv', '视频', '背景视频'],
     run: async () => {
-      const file = await folium.ui.pickFile({ accept: 'video' });
+      const file = await folium.ui.pickFile({ accept: 'video', persist: canPersist });
       if (!file) return 'cancelled';
+      if (canPersist) {
+        await forgetPick();
+        await folium.storage.set(GRANT_KEY, file.grantId);
+      }
       pickedUrl = file.url;
       settings.params.set({ enabled: true });
       notify();
       return file.name;
+    },
+  });
+
+  folium.registries.commands.register({
+    id: 'clear-video',
+    label: { 'zh-CN': '视频层：清除本地视频', en: 'Video layer: clear the local video' },
+    keywords: ['video', '视频', '清除'],
+    run: async () => {
+      if (canPersist) await forgetPick();
+      pickedUrl = null;
+      notify();
+      return 'cleared';
     },
   });
 

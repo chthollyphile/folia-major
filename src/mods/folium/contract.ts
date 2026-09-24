@@ -6,7 +6,7 @@
 // Stability rule (mods/README.md): inside folium 1.x this file only grows.
 // Removing a field or changing its meaning requires folium 2.
 
-export const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 0 });
+export const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 1 });
 
 /** `modid:name`, like a Forge ResourceLocation. The mod id part is added by the host. */
 export type FoliumId = string;
@@ -430,6 +430,11 @@ export interface FoliumFileHandle {
     url: string;
     name: string;
     size: number;
+    /**
+     * Folium 1.1: opaque id of a persisted grant (pickFile with `persist`, or
+     * restoreFile). Store it to get the file back after a restart.
+     */
+    grantId?: string;
 }
 
 export interface FoliumUiService {
@@ -437,8 +442,19 @@ export interface FoliumUiService {
     /** Opens the player panel, optionally on one of this mod's panel tabs (local id). */
     openPlayerPanel(tabId?: string): void;
     navigate(view: 'home' | 'player'): void;
-    /** Lets the user pick a local file; null when cancelled. */
-    pickFile(options?: { accept?: 'video' | 'audio' | 'image' | 'any' }): Promise<FoliumFileHandle | null>;
+    /**
+     * Lets the user pick a local file; null when cancelled. With `persist`
+     * (Folium 1.1) the pick is remembered for this mod and the handle carries
+     * a `grantId` for restoreFile.
+     */
+    pickFile(options?: { accept?: 'video' | 'audio' | 'image' | 'any'; persist?: boolean }): Promise<FoliumFileHandle | null>;
+    /**
+     * Folium 1.1: a file this mod picked with `persist`, as a fresh session
+     * handle. Null when the grant is unknown to this mod or the file is gone.
+     */
+    restoreFile(grantId: string): Promise<FoliumFileHandle | null>;
+    /** Folium 1.1: forgets a persisted grant. URLs already handed out keep working this session. */
+    releaseFile(grantId: string): Promise<void>;
     /**
      * Embeds an external page in `container` as a sandboxed iframe. The URL's
      * origin must be listed in the manifest `embedOrigins` (needs `net.embed`).

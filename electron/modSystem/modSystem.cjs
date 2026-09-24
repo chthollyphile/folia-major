@@ -24,6 +24,7 @@ const { unzipSync } = require('fflate');
 const { FOLIUM_VERSION, validateManifest, resolveLoadPlan, satisfiesHostRange, parseDependency } = require('./manifest.cjs');
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { createModApi, createModDataStore, STORAGE_PERMISSION } = require('./modApi.cjs');
+const { createFileGrantStore } = require('./fileGrants.cjs');
 const { resolveFfmpeg, MODS_RUNTIME_DIR } = require('./ffmpeg.cjs');
 const { createExportService } = require('./exportService.cjs');
 const { attachModProtocolHandler } = require('./modProtocol.cjs');
@@ -130,6 +131,8 @@ const IPC = {
     storage: 'folia-mods:storage',
     netFetch: 'folia-mods:net-fetch',
     pickFile: 'folia-mods:pick-file',
+    restoreFile: 'folia-mods:restore-file',
+    releaseFile: 'folia-mods:release-file',
     pushRuntimeSnapshot: 'folia-mods:push-runtime-snapshot',
     exportCancel: 'folia-mods:export-cancel',
     ffmpegStatus: 'folia-mods:ffmpeg-status',
@@ -183,6 +186,11 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
     }
 
     const enabledKey = (modId) => `${SETTINGS_NAMESPACE}.enabled.${modId}`;
+    const fileGrantsKey = (modId) => `${SETTINGS_NAMESPACE}.fileGrants.${modId}`;
+    const fileGrants = createFileGrantStore({
+        readGrants: (modId) => store.get(fileGrantsKey(modId)),
+        writeGrants: (modId, grants) => store.set(fileGrantsKey(modId), grants),
+    });
 
     const mods = new Map();       // modId -> runtime entry
     let runtimeSnapshot = null;   // last snapshot pushed by the renderer
@@ -856,9 +864,29 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
      * folium.ui.pickFile: the user chooses the file in a native dialog, so no
      * permission is involved; the mod only ever gets an unguessable
      * folia-mod://_files/<token>/<name> URL, valid until the app quits.
+     * With `persist` the pick is also recorded as a file grant (fileGrants.cjs)
+     * and the handle carries its opaque id for folium.ui.restoreFile.
      */
     const pickedFiles = new Map();
-    const invokeModPickFile = async (modId, accept) => {
+    // `${modId}:${grantId}` -> session token, so restoring a grant twice in one
+    // session yields the same URL (a media element does not reload for nothing).
+    const grantTokens = new Map();
+
+    const issueFileHandle = (filePath, token = crypto.randomBytes(18).toString('hex')) => {
+        const stat = fs.statSync(filePath);
+        pickedFiles.set(token, filePath);
+        const name = path.basename(filePath);
+        return {
+            token,
+            handle: {
+                url: `folia-mod://_files/${token}/${encodeURIComponent(name)}`,
+                name,
+                size: stat.size,
+            },
+        };
+    };
+
+    const invokeModPickFile = async (modId, accept, persist) => {
         requireLoadedMod(modId);
         const win = getMainWindowSafe();
         const options = {
@@ -872,18 +900,42 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         if (!filePath) {
             return { ok: true, result: null };
         }
-        const stat = fs.statSync(filePath);
-        const token = crypto.randomBytes(18).toString('hex');
-        pickedFiles.set(token, filePath);
-        const name = path.basename(filePath);
-        return {
-            ok: true,
-            result: {
-                url: `folia-mod://_files/${token}/${encodeURIComponent(name)}`,
-                name,
-                size: stat.size,
-            },
-        };
+        const { token, handle } = issueFileHandle(filePath);
+        if (persist !== true) {
+            return { ok: true, result: handle };
+        }
+        const grantId = fileGrants.add(modId, filePath);
+        grantTokens.set(`${modId}:${grantId}`, token);
+        return { ok: true, result: { ...handle, grantId } };
+    };
+
+    /*
+     * folium.ui.restoreFile: a grant this mod holds back as a session URL, or
+     * null when the grant is unknown, belongs to another mod, or its file is
+     * gone (such a grant is dropped).
+     */
+    const invokeModRestoreFile = (modId, grantId) => {
+        requireLoadedMod(modId);
+        const filePath = fileGrants.resolve(modId, grantId);
+        if (!filePath) {
+            grantTokens.delete(`${modId}:${grantId}`);
+            return { ok: true, result: null };
+        }
+        const cacheKey = `${modId}:${grantId}`;
+        const cachedToken = grantTokens.get(cacheKey);
+        const { token, handle } = issueFileHandle(
+            filePath,
+            cachedToken && pickedFiles.get(cachedToken) === filePath ? cachedToken : undefined,
+        );
+        grantTokens.set(cacheKey, token);
+        return { ok: true, result: { ...handle, grantId } };
+    };
+
+    // folium.ui.releaseFile: the grant is forgotten; URLs already handed out stay valid this session.
+    const invokeModReleaseFile = (modId, grantId) => {
+        requireLoadedMod(modId);
+        grantTokens.delete(`${modId}:${grantId}`);
+        return { ok: true, result: fileGrants.release(modId, grantId) };
     };
 
     const STORAGE_OPERATIONS = new Set(['get', 'set', 'has', 'delete', 'keys']);
@@ -1215,7 +1267,9 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         handle(IPC.rpc, (_event, modId, name, args) => invokeModRpc(modId, name, args));
         handle(IPC.storage, (_event, modId, operation, key, value) => invokeModStorage(modId, operation, key, value));
         handle(IPC.netFetch, (_event, modId, url, init) => invokeModNetFetch(modId, url, init));
-        handle(IPC.pickFile, (_event, modId, accept) => invokeModPickFile(modId, accept));
+        handle(IPC.pickFile, (_event, modId, accept, persist) => invokeModPickFile(modId, accept, persist));
+        handle(IPC.restoreFile, (_event, modId, grantId) => invokeModRestoreFile(modId, grantId));
+        handle(IPC.releaseFile, (_event, modId, grantId) => invokeModReleaseFile(modId, grantId));
         handle(IPC.pushRuntimeSnapshot, (_event, snapshot) => {
             if (snapshot && typeof snapshot === 'object') {
                 runtimeSnapshot = snapshot;

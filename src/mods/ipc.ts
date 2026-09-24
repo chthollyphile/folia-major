@@ -95,8 +95,23 @@ export const invokeModNetFetch = async (
 export const invokeModPickFile = async (
     modId: string,
     accept: string,
+    persist: boolean,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
-    bridge()?.invokeModPickFile(modId, accept) ?? { ok: false, error: 'no-electron-bridge' };
+    bridge()?.invokeModPickFile(modId, accept, persist) ?? { ok: false, error: 'no-electron-bridge' };
+
+/** folium.ui.restoreFile: a persisted file grant back as a session URL, or null. */
+export const invokeModRestoreFile = async (
+    modId: string,
+    grantId: string,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModRestoreFile(modId, grantId) ?? { ok: false, error: 'no-electron-bridge' };
+
+/** folium.ui.releaseFile: forgets a persisted file grant. */
+export const invokeModReleaseFile = async (
+    modId: string,
+    grantId: string,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModReleaseFile(modId, grantId) ?? { ok: false, error: 'no-electron-bridge' };
 
 export const pushRuntimeSnapshot = async (snapshot: ModRuntimeSnapshot): Promise<void> => {
     await bridge()?.pushRuntimeSnapshot(snapshot);

@@ -9,7 +9,7 @@
  * `minor` grows with every additive change inside 1.x and is exposed to mods at
  * runtime (`api.host.folium`, `folium.host.folium`) for feature detection.
  */
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 0 });
+const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 1 });
 
 // Folium 1 permission set. Anything else is rejected at validation time so a
 // mod can never claim a capability the loader does not implement (fail closed).
