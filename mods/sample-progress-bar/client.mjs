@@ -8,8 +8,8 @@
 //   - a layer over the track: markers fetched from an external URL every few
 //     seconds (folium.net.fetch), plus the bookmarks; clicking one seeks there.
 //
-// Settings (URL, refresh interval, style toggle) are a settings section on the
-// settings page (Lab → mod system). The marker feed is JSON:
+// Settings (URL, refresh interval, style toggle) are a settings section, shown
+// in the mods panel when this mod's row is expanded. The marker feed is JSON:
 //   [{ "time": 42.5, "label": "Chorus", "color": "#f59e0b" }, ...]
 // or { "markers": [...] }. `{songId}`, `{title}` and `{artist}` in the URL are
 // replaced with the current song, so one endpoint can serve per-song data.
