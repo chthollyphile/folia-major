@@ -66,12 +66,22 @@ export const cancelExport = async (): Promise<void> => {
     await bridge()?.cancelExport();
 };
 
-export const invokeModCommand = async (
+/** client → main call to a handler the mod registered with `api.rpc.handle`. */
+export const invokeModRpc = async (
     modId: string,
-    commandId: string,
-    params: Record<string, unknown>
+    name: string,
+    args: unknown[],
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
-    bridge()?.invokeModCommand(modId, commandId, params) ?? { ok: false, error: 'no-electron-bridge' };
+    bridge()?.invokeModRpc(modId, name, args) ?? { ok: false, error: 'no-electron-bridge' };
+
+/** folium.storage: the mod's data file in the main process (same one `api.storage.data` uses). */
+export const invokeModStorage = async (
+    modId: string,
+    operation: 'get' | 'set' | 'has' | 'delete' | 'keys',
+    key?: string,
+    value?: unknown,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModStorage(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
 
 export const pushRuntimeSnapshot = async (snapshot: ModRuntimeSnapshot): Promise<void> => {
     await bridge()?.pushRuntimeSnapshot(snapshot);

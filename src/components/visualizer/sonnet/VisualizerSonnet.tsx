@@ -9,7 +9,7 @@ import type { VisualizerSharedProps } from '../definition';
 import { useVisualizerPixiHost } from '../pixiRuntimeHost';
 import { useVisualizerRuntime } from '../runtime';
 import { useVisualizerSongCommit } from '../songHandover';
-import { useModVisualizerModulation } from '@/mods/visualizerModulation';
+import { useFoliumTunings } from '@/mods/folium/registries/tunings';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import type {
@@ -55,7 +55,8 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     const { t } = useTranslation();
     // Mod-driven per-frame multipliers (K3Panel etc.). Read once per render; the
     // runtime hot-swaps them via setModulation so the Pixi context is never rebuilt.
-    const modulation = useModVisualizerModulation('sonnet');
+    // Keys are the Folium tunables declared in ./entry.tsx.
+    const modulation = useFoliumTunings('sonnet');
     const hostRef = useRef<HTMLDivElement>(null);
     const pausedRef = useRef(paused);
     pausedRef.current = paused;

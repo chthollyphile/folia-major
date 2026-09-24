@@ -77,7 +77,7 @@ export const getVisualizerScopedSeed = (mode: VisualizerMode, scope: string) =>
     `${scope}-${getVisualizerRegistryEntry(mode).previewSeed}`;
 
 /*
- * Runtime contribution channel for mod visualizers (src/mods/modVisualizers).
+ * Runtime contribution channel for mod visualizers (src/mods/folium/registries/visualizers).
  * Appends entries to the live registry so every consumer that iterates
  * VISUALIZER_REGISTRY or queries by mode picks them up without a rebuild.
  * Mode ids are prefixed (`mod:<modId>:<id>`) by the loader so a mod can never

@@ -808,7 +808,8 @@ declare global {
         setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;
         reloadMods: () => Promise<{ mods: ModRuntimeInfo[] }>;
         cancelExport: () => Promise<{ ok: boolean }>;
-        invokeModCommand: (modId: string, commandId: string, params: Record<string, unknown>) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        invokeModRpc: (modId: string, name: string, args: unknown[]) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        invokeModStorage: (modId: string, operation: string, key?: string, value?: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         pushRuntimeSnapshot: (snapshot: ModRuntimeSnapshot) => Promise<{ ok: boolean }>;
         getFfmpegStatus: () => Promise<{ ffmpeg: ModFfmpegStatus }>;
         openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;

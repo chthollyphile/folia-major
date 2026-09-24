@@ -188,6 +188,20 @@ export interface VisualizerRegistryEntry {
      * Grapheme-level modes leave it unset — a word split would not affect them.
      */
     usesWordSegmentation?: boolean;
+    /*
+     * Folium tunables: the multiplier keys this mode reads through
+     * useFoliumTunings(mode), with the range a mod may set and the identity
+     * value (the unmodified look). Declaring a key makes its name public API —
+     * mods address it by name, so renaming it is a breaking Folium change.
+     * Modes without this field cannot be targeted by `registries.tunings`.
+     */
+    foliumTunables?: Readonly<Record<string, FoliumTunable>>;
+}
+
+export interface FoliumTunable {
+    min: number;
+    max: number;
+    identity: number;
 }
 
 export interface VisualizerEntryModule {

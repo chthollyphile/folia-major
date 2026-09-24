@@ -6,7 +6,9 @@ import './modExportPage.css';
 import { DEFAULT_THEME } from '@/services/baseThemes';
 import { getVisualizerRegistryEntry, hasVisualizerMode } from '@/components/visualizer/registry';
 import { applyVisualizerTuning, type VisualizerTuningBundle } from '@/components/visualizer/tuningRegistry';
-import { registerModVisualizers, type ModVisualizerDescriptor } from '../modVisualizers';
+import { reconcileFoliumClients } from '../folium/clientLoader';
+import { hydrateFoliumParamsForExport } from '../folium/paramStore';
+import type { ModRuntimeInfo } from '../types';
 import type { AudioBands, Line, Theme, VisualizerMode } from '@/types';
 
 // src/mods/export/modExportPage.tsx
@@ -25,12 +27,15 @@ interface ExportPageConfig {
     backgroundMode?: 'none' | 'theme';
     transparent?: boolean;
     /**
-     * Mod-contributed visualizer modes, injected by the export service. This
+     * Loaded mods with a client entry, injected by the export service. This
      * window runs without a preload, so there is no mod bridge to ask - the
-     * descriptors have to arrive with the config or a `mod:` visualizerMode
-     * would silently fall back to a builtin one.
+     * clients have to arrive with the config and activate here (in the
+     * 'export' context) or a mod visualizerMode would silently fall back to a
+     * builtin one.
      */
-    modVisualizers?: ModVisualizerDescriptor[];
+    modClients?: ModRuntimeInfo[];
+    /** Folium parameter values (settings, tunings) the user sees in the app. */
+    foliumParams?: Record<string, Record<string, unknown>>;
 }
 
 const STATIC_AUDIO_BANDS: AudioBands = {
@@ -97,12 +102,14 @@ const ModExportPage: React.FC = () => {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }, [applyLineIndex]);
 
-    // Async on purpose: the injected mod visualizer modules are imported here,
-    // and the export service awaits this call, so the mode requested by the
-    // snapshot is registered before the first frame is rendered.
+    // Async on purpose: the injected mod clients are imported and activated
+    // here, and the export service awaits this call, so the mode requested by
+    // the snapshot is registered before the first frame is rendered. Param
+    // values land first so the first frame already uses the user's settings.
     const configure = useCallback(async (nextConfig: ExportPageConfig) => {
-        if (nextConfig.modVisualizers?.length) {
-            await registerModVisualizers(nextConfig.modVisualizers);
+        hydrateFoliumParamsForExport(nextConfig.foliumParams ?? {});
+        if (nextConfig.modClients?.length) {
+            await reconcileFoliumClients(nextConfig.modClients, 'export');
         }
         linesRef.current = nextConfig.lyricData?.lines ?? [];
         setConfig(nextConfig);

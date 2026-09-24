@@ -1,22 +1,48 @@
 // electron/modSystem/manifest.cjs
-// Pure helpers for validating mod manifests and resolving the mod dependency graph.
+// Pure helpers for validating Folium manifests and resolving the mod dependency graph.
 // No side effects on import so the logic stays unit-testable from test/unit/mod-system/.
 
 'use strict';
 
-const API_VERSION = 1;
+/*
+ * Folium platform version. `major` is what a manifest declares (`"folium": 1`);
+ * `minor` grows with every additive change inside 1.x and is exposed to mods at
+ * runtime (`api.host.folium`, `folium.host.folium`) for feature detection.
+ */
+const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 0 });
 
-// v1 permission set. Anything else is rejected at validation time so a mod
-// can never claim a capability the loader does not implement (fail closed).
+// Folium 1 permission set. Anything else is rejected at validation time so a
+// mod can never claim a capability the loader does not implement (fail closed).
+// Permissions are a declaration shown in the trust dialog, not a sandbox.
 const KNOWN_PERMISSIONS = new Set([
     'filesystem.data',
     'render.export',
     'runtime.playback',
-    'visualizer.register',
+    'playback.control',
+    'net.fetch',
+    'net.embed',
+    'ui.stage',
 ]);
 
+// Unfrozen surfaces a mod must opt into explicitly; they may change in any minor.
+const KNOWN_EXPERIMENTAL = new Set([
+    'omni.providers',
+    'omni.hooks',
+    'ponder.targets',
+]);
+
+/*
+ * Manifest fields that belonged to the pre-Folium draft. They are rejected with
+ * a pointed message instead of being ignored, so an old mod fails loudly rather
+ * than loading half-configured.
+ */
+const REMOVED_FIELDS = {
+    apiVersion: 'apiVersion-replaced-by-folium: declare "folium": 1 instead of "apiVersion"',
+    entry: 'entry-replaced-by-main: the Node entry is now "main" (and the renderer entry "client")',
+    visualizers: 'visualizers-moved-to-client: register visualizers from the client entry (folium.registries.visualizers)',
+};
+
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const VISUALIZER_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 // Deterministic result envelope shared by all validators.
 const ok = (value) => ({ ok: true, value });
@@ -85,56 +111,72 @@ const satisfiesRange = (version, range) => {
 };
 
 /*
- * Optional `visualizers` contribution (apiVersion 1, additive): each entry is
- * { id, entry, label, order? }. The entry file is a browser ESM module loaded
- * by the renderer over the folia-mod:// protocol; it never runs in Node.
+ * Host version ranges (`"folia"`): space-separated comparators that must all
+ * hold, e.g. ">=0.7.0 <0.8.0". Supported operators: >=, >, <=, <, =, ^ and a
+ * bare version (exact). "*" matches everything. Anything else is invalid.
  */
-const normalizeVisualizerContribution = (raw, manifest, errors) => {
-    if (raw === undefined) {
+const HOST_COMPARATOR_PATTERN = /^(>=|>|<=|<|=|\^)?([0-9]+\.[0-9]+\.[0-9]+)$/;
+
+const parseHostRange = (range) => {
+    if (typeof range !== 'string' || range.trim().length === 0) {
+        return null;
+    }
+    const trimmed = range.trim();
+    if (trimmed === '*') {
         return [];
     }
-    if (!Array.isArray(raw)) {
-        errors.push('mod.visualizers must be an array');
-        return [];
+    const comparators = [];
+    for (const token of trimmed.split(/\s+/)) {
+        const match = HOST_COMPARATOR_PATTERN.exec(token);
+        if (!match) {
+            return null;
+        }
+        comparators.push({ operator: match[1] ?? '=', version: parseVersion(match[2]) });
     }
-    const visualizers = [];
-    const seenIds = new Set();
-    raw.forEach((item, index) => {
-        if (!item || typeof item !== 'object') {
-            errors.push(`mod.visualizers[${index}] must be an object`);
-            return;
+    return comparators;
+};
+
+const satisfiesHostRange = (version, range) => {
+    const comparators = parseHostRange(range);
+    const parsed = parseVersion(version);
+    if (!comparators || !parsed) {
+        return false;
+    }
+    return comparators.every(({ operator, version: bound }) => {
+        const order = compareVersions(parsed, bound);
+        switch (operator) {
+            case '>=': return order >= 0;
+            case '>': return order > 0;
+            case '<=': return order <= 0;
+            case '<': return order < 0;
+            case '^': return order >= 0 && parsed.major === bound.major;
+            default: return order === 0;
         }
-        const id = item.id;
-        const entry = item.entry;
-        if (typeof id !== 'string' || !VISUALIZER_ID_PATTERN.test(id)) {
-            errors.push(`mod.visualizers[${index}].id must match /^[a-z0-9][a-z0-9-]*$/`);
-            return;
-        }
-        if (seenIds.has(id)) {
-            errors.push(`duplicate visualizer id "${id}"`);
-            return;
-        }
-        seenIds.add(id);
-        if (typeof entry !== 'string' || !/\.(js|mjs)$/.test(entry) || entry.includes('..') || entry.includes('\\')) {
-            errors.push(`mod.visualizers "${id}".entry must be a relative .js/.mjs path inside the mod directory`);
-            return;
-        }
-        if (!manifest.permissions.includes('visualizer.register')) {
-            errors.push(`visualizer "${id}" requires the visualizer.register permission`);
-            return;
-        }
-        visualizers.push({
-            id,
-            entry,
-            label: item.label && typeof item.label === 'object' ? item.label : {},
-            /*
-             * 只认真正的数字：`Number(null) === Number('') === 0` 是有限值，
-             * 会让没写 order 的模组排到所有内置模式**前面**。
-             */
-            order: typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : 500,
-        });
     });
-    return visualizers;
+};
+
+// A relative path inside the mod directory: no traversal, no backslashes, no absolute paths.
+const isSafeRelativePath = (value) => (
+    isNonEmptyString(value)
+    && !value.includes('..')
+    && !value.includes('\\')
+    && !value.startsWith('/')
+    && !/^[a-zA-Z]:/.test(value)
+);
+
+/*
+ * `embedOrigins` entries must be bare https origins ("https://host[:port]"),
+ * exactly what `new URL(x).origin` returns, so the runtime check can compare
+ * strings instead of re-parsing patterns.
+ */
+const isHttpsOrigin = (value) => {
+    if (typeof value !== 'string') return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && url.origin === value;
+    } catch {
+        return false;
+    }
 };
 
 const validateManifest = (raw) => {
@@ -143,35 +185,51 @@ const validateManifest = (raw) => {
     }
 
     const errors = [];
+    Object.entries(REMOVED_FIELDS).forEach(([field, message]) => {
+        if (raw[field] !== undefined) {
+            errors.push(message);
+        }
+    });
+
     const manifest = {
+        folium: raw.folium,
         id: raw.id,
         name: raw.name,
         version: raw.version,
-        apiVersion: raw.apiVersion ?? API_VERSION,
         author: raw.author ?? null,
         description: raw.description ?? null,
-        entry: raw.entry ?? 'index.cjs',
+        main: raw.main ?? null,
+        client: raw.client ?? null,
         depends: Array.isArray(raw.depends) ? raw.depends : [],
         permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
+        experimental: Array.isArray(raw.experimental) ? raw.experimental : [],
+        embedOrigins: Array.isArray(raw.embedOrigins) ? raw.embedOrigins : [],
+        folia: raw.folia ?? null,
     };
 
+    if (manifest.folium !== FOLIUM_VERSION.major) {
+        errors.push(`unsupported folium version ${JSON.stringify(manifest.folium)}; this host implements folium ${FOLIUM_VERSION.major}`);
+    }
     if (!isNonEmptyString(manifest.id) || !MOD_ID_PATTERN.test(manifest.id)) {
         errors.push('mod.id is required and must match /^[a-z0-9][a-z0-9-]*$/');
     }
     if (!isNonEmptyString(manifest.name)) {
         errors.push('mod.name is required');
     }
+    if (typeof manifest.name === 'string' && manifest.name.length > 64) {
+        errors.push('mod.name is limited to 64 characters');
+    }
     if (!parseVersion(manifest.version)) {
         errors.push('mod.version must be a semantic version like 1.2.3');
     }
-    if (manifest.apiVersion !== API_VERSION) {
-        errors.push(`unsupported apiVersion ${String(manifest.apiVersion)}; this loader supports ${API_VERSION}`);
+    if (manifest.main === null && manifest.client === null) {
+        errors.push('a mod needs at least one entry: "main" (Node) or "client" (renderer)');
     }
-    if (!isNonEmptyString(manifest.entry) || manifest.entry.includes('/') || manifest.entry.includes('\\')) {
-        errors.push('mod.entry must be a single file name inside the mod directory');
+    if (manifest.main !== null && (!isNonEmptyString(manifest.main) || /[\\/]/.test(manifest.main) || !/\.c?js$/.test(manifest.main))) {
+        errors.push('mod.main must be a single .cjs/.js file name inside the mod directory');
     }
-    if (typeof manifest.name === 'string' && manifest.name.length > 64) {
-        errors.push('mod.name is limited to 64 characters');
+    if (manifest.client !== null && (!isSafeRelativePath(manifest.client) || !/\.m?js$/.test(manifest.client))) {
+        errors.push('mod.client must be a relative .mjs/.js path inside the mod directory');
     }
 
     const dependencyIds = new Set();
@@ -199,7 +257,24 @@ const validateManifest = (raw) => {
         permissionIds.add(permission);
     });
 
-    manifest.visualizers = normalizeVisualizerContribution(raw.visualizers, manifest, errors);
+    manifest.experimental.forEach((feature) => {
+        if (typeof feature !== 'string' || !KNOWN_EXPERIMENTAL.has(feature)) {
+            errors.push(`unknown experimental feature ${String(feature)}`);
+        }
+    });
+
+    manifest.embedOrigins.forEach((origin) => {
+        if (!isHttpsOrigin(origin)) {
+            errors.push(`embedOrigins entry ${JSON.stringify(origin)} must be a bare https origin like "https://example.com"`);
+        }
+    });
+    if (manifest.embedOrigins.length > 0 && !permissionIds.has('net.embed')) {
+        errors.push('embedOrigins requires the net.embed permission');
+    }
+
+    if (manifest.folia !== null && !parseHostRange(manifest.folia)) {
+        errors.push(`mod.folia ${JSON.stringify(manifest.folia)} is not a supported version range (e.g. ">=0.7.0 <0.8.0")`);
+    }
 
     return errors.length > 0 ? fail(errors) : ok(manifest);
 };
@@ -321,10 +396,13 @@ const resolveLoadOrder = (manifests, { source = 'unknown' } = {}) => {
 };
 
 module.exports = {
-    API_VERSION,
+    FOLIUM_VERSION,
     KNOWN_PERMISSIONS,
+    KNOWN_EXPERIMENTAL,
     parseDependency,
     satisfiesRange,
+    satisfiesHostRange,
+    parseHostRange,
     validateManifest,
     resolveLoadOrder,
     resolveLoadPlan,

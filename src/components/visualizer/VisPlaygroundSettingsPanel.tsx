@@ -23,6 +23,7 @@ import { colorWithAlpha } from './colorMix';
 import FontFallbackStackControl from './FontFallbackStackControl';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEntry } from './registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
+import { FoliumTuningCards } from '@/mods/folium/registries/tunings';
 import { type PreviewPlaceholderId } from './PreviewPlaceholder';
 import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
 import {
@@ -733,6 +734,16 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             onSliderPointerDown,
                             onSliderCommit,
                         })}
+
+                        {/* Folium tunings other mods registered for this mode (registries.tunings). */}
+                        <FoliumTuningCards
+                            mode={visualizerMode}
+                            theme={theme}
+                            isDaylight={isDaylight}
+                            controlCardBg={controlCardBg}
+                            rangeInputClass={rangeInputClass}
+                            description={t('options.foliumTuningDesc')}
+                        />
                     </>
                 )}
 

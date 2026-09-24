@@ -34,21 +34,28 @@ const isElectronDevRuntime = () => process.env.ELECTRON_DEV === 'true' || proces
  * createExportService({
  *   app, BrowserWindow,
  *   resolveFfmpeg()      -> cached resolver from ffmpeg.cjs,
- *   getModVisualizers()  -> mod visualizer descriptors for the export page,
+ *   getModClients()      -> client entry descriptors of loaded mods for the export page,
  * })
  */
-const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualizers }) => {
+const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients }) => {
     let activeSession = null;
 
     const getExportDirectory = () => path.join(app.getPath('videos'), 'Folia Exports');
 
     /*
-     * Validates and normalizes a render spec. All numbers get clamped to safe
-     * bounds before any process is spawned; invalid specs reject with a code
+     * Builds the render spec from two sources that never mix:
+     *   - `spec`: the mod's output choices, the frozen Folium surface
+     *     { codec, width, height, fps, startSec, endSec, background };
+     *   - `hostState`: what the host is showing right now (lyrics, mode,
+     *     tuning, theme, Folium parameter values), pushed by the renderer.
+     * Mods never hand host-internal structures back in. All numbers are
+     * clamped before any process is spawned; invalid specs reject with a code
      * the renderer can map to a localized message.
      */
-    const normalizeSpec = (spec) => {
+    const normalizeSpec = (rawSpec, hostState) => {
         const errors = [];
+        const spec = rawSpec && typeof rawSpec === 'object' ? rawSpec : {};
+        const state = hostState && typeof hostState === 'object' ? hostState : {};
         const clampNumber = (value, min, max, fallback) => {
             const num = Number(value);
             return Number.isFinite(num) ? Math.min(max, Math.max(min, num)) : fallback;
@@ -57,7 +64,7 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
         const height = Math.round(clampNumber(spec.height, EXPORT_LIMITS.minHeight, EXPORT_LIMITS.maxHeight, 1080));
         const fps = Math.round(clampNumber(spec.fps, EXPORT_LIMITS.minFps, EXPORT_LIMITS.maxFps, 30));
 
-        const lyricData = spec.lyricData && typeof spec.lyricData === 'object' ? spec.lyricData : null;
+        const lyricData = state.lyricData && typeof state.lyricData === 'object' ? state.lyricData : null;
         const lines = Array.isArray(lyricData && lyricData.lines) ? lyricData.lines.filter(
             (line) => line && Number.isFinite(line.startTime) && Number.isFinite(line.endTime) && line.endTime >= line.startTime
         ) : [];
@@ -86,12 +93,11 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
         // Only Windows preserves the alpha channel on capturePage. Other
         // platforms keep rendering but the alpha channel may come out black.
         const alphaGuaranteed = process.platform === 'win32';
-        // 'none' renders lyrics-only on a fully transparent window; 'theme'
-        // fills the render window with the song theme's background color.
-        const backgroundMode = spec.backgroundMode === 'theme' ? 'theme' : 'none';
-        // When disabled the window is opaque and the theme background applies
-        // regardless of platform, guaranteeing a usable non-alpha video.
-        const transparent = spec.transparent !== false;
+        // 'transparent' (default) renders lyrics-only on a fully transparent
+        // window; 'theme' renders an opaque window filled with the song theme's
+        // background color, which is usable on every platform.
+        const backgroundMode = spec.background === 'theme' ? 'theme' : 'none';
+        const transparent = backgroundMode === 'none';
 
         return {
             ok: errors.length === 0,
@@ -99,13 +105,11 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
             spec: {
                 width, height, fps, startSec, endSec,
                 lyricData,
-                visualizerMode: typeof spec.visualizerMode === 'string' ? spec.visualizerMode : 'classic',
-                visualizerTunings: spec.visualizerTunings && typeof spec.visualizerTunings === 'object' ? spec.visualizerTunings : null,
-                theme: spec.theme && typeof spec.theme === 'object' ? spec.theme : null,
-                songMeta: spec.songMeta && typeof spec.songMeta === 'object' ? spec.songMeta : {},
-                outputPath: typeof spec.outputPath === 'string' && spec.outputPath.length > 0
-                    ? spec.outputPath
-                    : null,
+                visualizerMode: typeof state.visualizerMode === 'string' ? state.visualizerMode : 'classic',
+                visualizerTunings: state.visualizerTunings && typeof state.visualizerTunings === 'object' ? state.visualizerTunings : null,
+                theme: state.theme && typeof state.theme === 'object' ? state.theme : null,
+                songMeta: state.songMeta && typeof state.songMeta === 'object' ? state.songMeta : {},
+                foliumParams: state.foliumParams && typeof state.foliumParams === 'object' ? state.foliumParams : {},
                 alphaGuaranteed,
                 backgroundMode,
                 transparent,
@@ -147,12 +151,12 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
     };
 
     /*
-     * Mod visualizer descriptors for the export page, never allowed to break an
-     * export: a failure here just means the page falls back to a builtin mode.
+     * Mod client descriptors for the export page, never allowed to break an
+     * export: a failure here just means a mod mode falls back to a builtin one.
      */
-    const safeModVisualizers = () => {
+    const safeModClients = () => {
         try {
-            const descriptors = typeof getModVisualizers === 'function' ? getModVisualizers() : [];
+            const descriptors = typeof getModClients === 'function' ? getModClients() : [];
             return Array.isArray(descriptors) ? descriptors : [];
         } catch {
             return [];
@@ -168,8 +172,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
      * Runs one export session to completion. Returns { ok, outputPath?, error?,
      * cancelled?, warnings }. `onProgress` receives throttled updates.
      */
-    const runExport = async ({ modId, spec, onProgress }) => {
-        const normalized = normalizeSpec(spec);
+    const runExport = async ({ modId, spec, hostState, onProgress }) => {
+        const normalized = normalizeSpec(spec, hostState);
         if (!normalized.ok) {
             return { ok: false, error: normalized.errors[0] ?? 'export-invalid-spec' };
         }
@@ -184,7 +188,7 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
             return { ok: false, error: 'export-ffmpeg-not-found' };
         }
 
-        const outputPath = renderSpec.outputPath ?? buildDefaultOutputPath(renderSpec.songMeta, renderSpec.codec);
+        const outputPath = buildDefaultOutputPath(renderSpec.songMeta, renderSpec.codec);
         fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
         const totalFrames = Math.max(1, Math.ceil((renderSpec.endSec - renderSpec.startSec) * renderSpec.fps));
@@ -289,10 +293,11 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
             }
 
             // The export window deliberately has no preload, so it cannot
-            // query the mod bridge for contributed visualizers. Their
-            // descriptors ride along in the render config instead, which is
-            // what makes a `mod:` visualizerMode resolve here at all; without
-            // them the page would silently fall back to a builtin mode.
+            // query the mod bridge. Client descriptors and Folium parameter
+            // values ride along in the render config instead: the page
+            // activates the clients in its 'export' context, which is what
+            // makes a mod visualizerMode resolve here at all, and renders
+            // with the same settings/tunings the user sees.
             const injected = JSON.stringify({
                 lyricData: renderSpec.lyricData,
                 visualizerMode: renderSpec.visualizerMode,
@@ -302,7 +307,8 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModVisualiz
                 startSec: renderSpec.startSec,
                 backgroundMode: renderSpec.backgroundMode,
                 transparent: renderSpec.transparent,
-                modVisualizers: safeModVisualizers(),
+                modClients: safeModClients(),
+                foliumParams: renderSpec.foliumParams,
             });
             // configure() returns a promise (it imports the mod visualizer
             // modules); executeJavaScript resolves it, so the first frame is

@@ -12,6 +12,7 @@ import { applyVisualizerTuningsToSettings } from '../../visualizer/tuningRegistr
 import { ObsCopyCssButton } from '../../shared/ObsCopyCssButton';
 import { mergeUrlBackgroundList } from '../../../utils/urlBackground';
 import { compressConfig, decompressConfig, readSavedCustomTheme } from '../../../utils/appearanceCodec';
+import { importFoliumParams, snapshotFoliumParams } from '../../../mods/folium/paramStore';
 import { ACTIVATE_CUSTOM_THEME_KEY, buildImportPlan, THEME_DARK_KEY, THEME_LIGHT_KEY, type ImportPlan } from '../../../utils/appearanceImportPlan';
 import { isFontFamilyAvailable } from '../../../utils/fontAvailability';
 import ImportConfirmDialog from './ImportConfirmDialog';
@@ -281,11 +282,14 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         } else if (exportThemeType === 'ai') {
             exportTheme = aiTheme || null;
         }
+        const foliumParams = snapshotFoliumParams();
         return {
             theme: exportTheme,
             ...buildVisualSettingsConfig(),
             songThemeAutoSwitchEnabled,
             songThemeAutoGenerateEnabled,
+            // Mod settings and tunings (Folium param store) are visual settings too.
+            ...(Object.keys(foliumParams).length > 0 ? { foliumParams } : {}),
         };
     };
 
@@ -524,6 +528,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('latentBackgroundTuning') && config.latentBackgroundTuning) {
                 storeVisualizer.handleSetLatentBackgroundTuning(config.latentBackgroundTuning);
+            }
+            if (has('foliumParams') && config.foliumParams) {
+                importFoliumParams(config.foliumParams);
             }
 
             let mergedUrlList: UrlBackgroundItem[] | undefined;

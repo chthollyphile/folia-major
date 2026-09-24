@@ -1,4 +1,5 @@
-import type { LyricData, SongResult, Theme, VisualizerMode } from '@/types';
+import type { LyricData, Theme, VisualizerMode } from '@/types';
+import type { FoliumPlaybackSnapshot } from './folium/contract';
 import type { VisualizerTuningBundle } from '@/components/visualizer/tuningRegistry';
 
 // src/mods/types.ts
@@ -13,56 +14,6 @@ export interface ModLabelMap {
     'zh-CN'?: string;
     'en'?: string;
     'in'?: string;
-}
-
-export interface ModCommandParamOption {
-    value: string;
-    label: ModLabelMap;
-}
-
-export interface ModCommandParam {
-    key: string;
-    label: ModLabelMap;
-    type: 'number' | 'text' | 'boolean' | 'select';
-    description?: ModLabelMap;
-    defaultValue?: string | number | boolean;
-    min?: number;
-    max?: number;
-    step?: number;
-    placeholder?: string;
-    options?: ModCommandParamOption[];
-    required?: boolean;
-    /** When true the numeric param renders as a live slider and re-submits the command (debounced) on every drag tick. */
-    live?: boolean;
-    /**
-     * When set, this numeric param modulates a builtin visualizer live in the
-     * renderer (no main-process round-trip): dragging writes straight into the
-     * shared modulation store via `setVisualizerModulation(mode, { [key]: value })`.
-     */
-    modulate?: {
-        /** Visualizer mode to modulate, e.g. "sonnet". */
-        mode: string;
-    };
-}
-
-export interface ModCommandInfo {
-    id: string;
-    label: ModLabelMap;
-    description: ModLabelMap;
-    params: ModCommandParam[];
-    permissions: string[];
-}
-
-export interface ModVisualizerContribution {
-    id: string;
-    /** Registry mode id, always prefixed `mod:<modId>:<id>` by the loader. */
-    mode: string;
-    /** Entry file path relative to the mod directory. */
-    entry: string;
-    /** Absolute folia-mod:// URL the renderer dynamically imports. */
-    url: string;
-    label: ModLabelMap;
-    order: number;
 }
 
 export interface ModRuntimeInfo {
@@ -81,8 +32,15 @@ export interface ModRuntimeInfo {
      * before it runs again.
      */
     trustStale: boolean;
-    commands: ModCommandInfo[];
-    visualizers: ModVisualizerContribution[];
+    /** Opted-in experimental surfaces (manifest `experimental`). */
+    experimental: string[];
+    /** Origins `folium.ui.embed` may load (manifest `embedOrigins`). */
+    embedOrigins: string[];
+    /** Host version range; present only on mods that use `folium.internals`. */
+    folia: string | null;
+    hasMain: boolean;
+    /** folia-mod:// URL of the client entry, versioned by content digest; null unless loaded. */
+    clientUrl: string | null;
 }
 
 /*
@@ -140,18 +98,24 @@ export interface ModsListPayload {
 }
 
 /*
- * Runtime snapshot pushed from the open panel so main-process mods can act on
- * the song the user is currently looking at. Only plain data crosses the IPC
- * boundary; visualizer and theme values are serialized as-is.
+ * What the renderer pushes to the main process whenever the playing song, its
+ * lyrics, the theme or the visualizer settings change. Two halves that never mix:
+ *   - `public`: the Folium DTO main-side mods read via runtime.getPlaybackSnapshot;
+ *   - `internal`: host-private render state the export service replays verbatim.
  */
-export interface ModRuntimeSnapshot {
-    song: Pick<SongResult, 'id' | 'name' | 'artists' | 'album'> | null;
-    songTitle?: string | null;
-    songArtist?: string | null;
+export interface ModExportHostState {
     lyricData: LyricData | null;
-    theme: Theme | null;
     visualizerMode: VisualizerMode | null;
-    /** Current visualizer tuning bundle lifted straight from the settings store, for faithful export. */
-    visualizerTunings?: VisualizerTuningBundle | null;
-    lyricTimelineOffsetMs?: number;
+    visualizerTunings: VisualizerTuningBundle | null;
+    theme: Theme | null;
+    songMeta: { title: string; artist: string };
+    /** Folium parameter values by scope, so exports render with the user's settings and tunings. */
+    foliumParams: Record<string, Record<string, unknown>>;
+}
+
+export interface ModRuntimeSnapshot {
+    /** Epoch ms of the push; main extrapolates `public.position` from it while playing. */
+    capturedAt: number;
+    public: FoliumPlaybackSnapshot;
+    internal: ModExportHostState;
 }

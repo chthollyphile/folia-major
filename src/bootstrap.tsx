@@ -9,7 +9,7 @@ import ObsBrowserSourceApp from './components/obs/ObsBrowserSourceApp';
 import ObsNowPlayingSourceApp from './components/obs/ObsNowPlayingSourceApp';
 import ObsPlayerCapSourceApp from './components/obs/ObsPlayerCapSourceApp';
 import { initializeLocalCoverRuntime } from './services/localCoverRuntime';
-import { initModVisualizers } from './mods/modVisualizers';
+import { initFoliumClients } from './mods/folium/clientLoader';
 import { hasVisualizerMode } from './components/visualizer/registry';
 import { useVisualizerSettingsStore } from './stores/useVisualizerSettingsStore';
 // 副作用 import：store 在模块加载时就把 `<html data-reduce-motion>` 写好并保持同步。放在 bootstrap
@@ -70,7 +70,7 @@ const renderApp = () => root.render(
     </React.StrictMode>
   );
 
-void initModVisualizers()
+void initFoliumClients()
     .then(restoreStoredModVisualizer)
     .finally(() => {
         void initializeLocalCoverRuntime().finally(renderApp);

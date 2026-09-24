@@ -504,6 +504,8 @@ export const compressConfig = (config: any): string => {
     if (config.pendoloTuning) minified.pdt = compressPendolo(config.pendoloTuning);
     if (config.sonnetTuning) minified.snt = compressSonnet(config.sonnetTuning);
     if (config.temperaTuning) minified.tmp = compressTempera(config.temperaTuning);
+    // Folium param values are already plain JSON keyed by scope; stored as-is.
+    if (config.foliumParams) minified.fp = config.foliumParams;
     if (config.urlBackgroundList) minified.ubl = config.urlBackgroundList;
     if (config.urlBackgroundSelectedId) minified.ubid = config.urlBackgroundSelectedId;
     if (config.songThemeAutoSwitchEnabled !== undefined) minified.stas = config.songThemeAutoSwitchEnabled;
@@ -627,6 +629,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.pdt) decompressed.pendoloTuning = decompressPendolo(parsed.pdt);
         if (parsed.snt) decompressed.sonnetTuning = decompressSonnet(parsed.snt);
         if (parsed.tmp) decompressed.temperaTuning = decompressTempera(parsed.tmp);
+        if (parsed.fp) decompressed.foliumParams = parsed.fp;
         if (parsed.ubl) decompressed.urlBackgroundList = parsed.ubl;
         if (parsed.ubid) decompressed.urlBackgroundSelectedId = parsed.ubid;
         if (parsed.stas !== undefined) decompressed.songThemeAutoSwitchEnabled = parsed.stas;
@@ -650,7 +653,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
             'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'monetTuning',
-            'pendoloTuning', 'sonnetTuning', 'temperaTuning',
+            'pendoloTuning', 'sonnetTuning', 'temperaTuning', 'foliumParams',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
             'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome',

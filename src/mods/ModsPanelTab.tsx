@@ -1,17 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Boxes, ChevronDown, CircleOff, FolderOpen, Power, RefreshCw, TriangleAlert, CircleCheck, FileVideo2, CheckSquare, Square, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useShallow } from 'zustand/react/shallow';
-import type { LyricData, SongResult, Theme, VisualizerMode } from '@/types';
-import { readLyricOffset } from '@/utils/lyrics/lyricOffsetMemory';
+import type { Theme } from '@/types';
 import type { ModRuntimeInfo } from './types';
-import { resolveOnlineLyrics } from '@/utils/onlineLyricsState';
 import { ModSurfaceRenderer } from './ModSurfaceRenderer';
-import { pushRuntimeSnapshot } from './ipc';
 import { useModsStore } from './useModsStore';
-import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
-import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 
 // src/mods/ModsPanelTab.tsx
@@ -20,20 +14,6 @@ import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 // panel never reserves a side column and params get the full panel width.
 // Mounted by the command palette's `mods` surface; the whole mod system stays
 // self-contained behind the store.
-
-interface ModsPanelTabProps {
-    currentSong: SongResult | null;
-    theme: Theme | null;
-    visualizerMode: VisualizerMode | null;
-    /**
-     * The lyrics the player is actually rendering right now. Rebuilding them
-     * from `currentSong.onlineLyricsState` alone is not equivalent: an ordinary
-     * online match lives in neither `importedLyrics` nor `onlineOverrideLyrics`,
-     * so a snapshot built that way is empty and export mods reject the song
-     * with export-no-lyrics even though lyrics are on screen.
-     */
-    lyricData: LyricData | null;
-}
 
 /*
  * Maps a loader error code onto its localized message. Codes that have no entry
@@ -48,6 +28,17 @@ const translateModError = (
     const code = error ?? fallbackCode;
     return t(`mods.errors.${code}`, { value: code, defaultValue: code });
 };
+
+/*
+ * Everything the trust dialog listed for this mod, as chips: permissions,
+ * experimental opt-ins, embeddable origins, and the internals pin.
+ */
+const describeModGrants = (mod: ModRuntimeInfo): string[] => [
+    ...mod.permissions,
+    ...(mod.experimental ?? []).map((feature) => `experimental:${feature}`),
+    ...(mod.embedOrigins ?? []).map((origin) => `embed:${origin}`),
+    ...(mod.folia ? [`internals:${mod.folia}`] : []),
+];
 
 const statusIcon = (status: string, isDaylight: boolean) => {
     if (status === 'loaded') return <CircleCheck size={13} className={`${isDaylight ? 'text-emerald-600' : 'text-emerald-300'} shrink-0`} />;
@@ -144,9 +135,9 @@ const ModAccordionItem: React.FC<ModAccordionItemProps> = ({
                             {mod.description ? (
                                 <div className="text-xs opacity-70 leading-relaxed">{mod.description}</div>
                             ) : null}
-                            {mod.permissions.length > 0 ? (
+                            {describeModGrants(mod).length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
-                                    {mod.permissions.map((permission) => (
+                                    {describeModGrants(mod).map((permission) => (
                                         <span
                                             key={permission}
                                             className={`px-1.5 py-0.5 rounded ${isDaylight ? 'bg-black/[0.05]' : 'bg-white/5'} text-[10px] opacity-50`}
@@ -184,12 +175,7 @@ const ModAccordionItem: React.FC<ModAccordionItemProps> = ({
     );
 };
 
-const ModsPanelTab: React.FC<ModsPanelTabProps> = ({
-    currentSong,
-    theme,
-    visualizerMode,
-    lyricData,
-}) => {
+const ModsPanelTab: React.FC<{ theme: Theme | null }> = ({ theme }) => {
     const { t } = useTranslation();
     const bridgeAvailable = useModsStore((state) => state.bridgeAvailable);
     const mods = useModsStore((state) => state.mods);
@@ -204,23 +190,6 @@ const ModsPanelTab: React.FC<ModsPanelTabProps> = ({
     const bindEvents = useModsStore((state) => state.bindEvents);
     const logs = useModsStore((state) => state.logs);
 
-    // Lift the current visualizer tunings from the settings store so exports can
-    // reproduce the song's animation verbatim (rather than the default settings).
-    const visualizerTunings = useVisualizerSettingsStore(useShallow((state) => ({
-        classic: state.classicTuning,
-        cadenza: state.cadenzaTuning,
-        partita: state.partitaTuning,
-        fume: state.fumeTuning,
-        claddagh: state.claddaghTuning,
-        cappella: state.cappellaTuning,
-        tilt: state.tiltTuning,
-        diorama: state.dioramaTuning,
-        monet: state.monetTuning,
-        pendolo: state.pendoloTuning,
-        sonnet: state.sonnetTuning,
-        tempera: state.temperaTuning,
-    })));
-    const globalLyricTimelineOffsetMs = useLyricSettingsStore((state) => state.globalLyricTimelineOffsetMs);
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
 
     const [selectionMode, setSelectionMode] = useState(false);
@@ -336,33 +305,6 @@ const ModsPanelTab: React.FC<ModsPanelTabProps> = ({
         bindEvents();
         void refresh();
     }, [bindEvents, refresh]);
-
-    // The listener's own imported/override choice still wins; what is on screen
-    // is the fallback, which is what an ordinary online match resolves to.
-    const activeLyrics = useMemo(
-        () => resolveOnlineLyrics(currentSong?.onlineLyricsState ?? null, lyricData ?? null),
-        [currentSong?.onlineLyricsState, lyricData],
-    );
-    const lyricTimelineOffsetMs = globalLyricTimelineOffsetMs + (currentSong ? readLyricOffset(currentSong.id) : 0);
-
-    // Publish the currently visible song/theme/lyrics so main-process mods can
-    // act on it. Lyrics objects are replaced by reference when they change, so
-    // this is a natural low-frequency dependency set.
-    useEffect(() => {
-        if (!bridgeAvailable) {
-            return;
-        }
-        void pushRuntimeSnapshot({
-            song: currentSong,
-            songTitle: currentSong?.name ?? null,
-            songArtist: currentSong?.artists?.[0]?.name ?? null,
-            lyricData: activeLyrics,
-            theme,
-            visualizerMode,
-            visualizerTunings,
-            lyricTimelineOffsetMs,
-        });
-    }, [bridgeAvailable, currentSong, activeLyrics, theme, visualizerMode, visualizerTunings, lyricTimelineOffsetMs]);
 
     return (
         <motion.div
