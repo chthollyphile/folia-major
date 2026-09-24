@@ -1,16 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { Suspense } from 'react';
 import type { Theme } from '@/types';
-import {
-    usePlaybackStore,
-    selectDisplayLyrics,
-    selectDisplaySong,
-} from '@/stores/usePlaybackStore';
-import { lyricCurrentTime } from '@/stores/motionSignals';
-import type { FoliumStageLayerDef, FoliumStageSlot, FoliumSurface } from '../contract';
-import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../registry';
-import { useFoliumStageContext } from '../stageContext';
-import { FoliumMountHost, foliumThemeVars } from '../FoliumMountHost';
-import { toFoliumTheme } from '../dto';
+import type { FoliumStageLayerDef, FoliumStageSlot } from '../contract';
+import { createFoliumRegistry, useFoliumRegistryEntries } from '../registry';
 
 // src/mods/folium/registries/stageLayers.tsx
 // `folium.registries.stageLayers`: mod layers on the player page. The host
@@ -19,6 +10,11 @@ import { toFoliumTheme } from '../dto';
 // page — never in previews, the OBS source or the export window — so their
 // context reads the live playback state directly: the displayed lyrics and
 // song, the lyric clock, and the current line.
+//
+// The part that reads those stores lives in ./stageLayerView and is loaded
+// lazily, only once some layer exists: VisualizerShell renders a slot in every
+// window (export page and OBS included), and a static import would drag the
+// playback store and its dependency graph into those bundles.
 
 const STAGE_SLOTS: readonly FoliumStageSlot[] = ['player.stage.back', 'player.stage.front', 'app.overlay'];
 
@@ -34,54 +30,12 @@ export const stageLayersRegistry = createFoliumRegistry<FoliumStageLayerDef>('st
     },
 });
 
-const byOrder = (left: FoliumRegistryEntry<FoliumStageLayerDef>, right: FoliumRegistryEntry<FoliumStageLayerDef>) => (
-    (left.def.order ?? 500) - (right.def.order ?? 500) || left.id.localeCompare(right.id)
-);
-
-const EMPTY_LINES: never[] = [];
-const STAGE_SURFACE: FoliumSurface = Object.freeze({ transparent: false, hostBackground: true });
-
-const FoliumStageLayer: React.FC<{
-    entry: FoliumRegistryEntry<FoliumStageLayerDef>;
-    theme: Theme;
-    isDaylight: boolean;
-    paused: boolean;
-}> = ({ entry, theme, isDaylight, paused }) => {
-    const lyrics = usePlaybackStore(selectDisplayLyrics);
-    const song = usePlaybackStore(selectDisplaySong);
-    const currentLineIndex = usePlaybackStore((state) => state.currentLineIndex);
-    const ctx = useFoliumStageContext({
-        lines: lyrics?.lines ?? EMPTY_LINES,
-        currentTime: lyricCurrentTime,
-        currentLineIndex,
-        paused,
-        theme,
-        isDaylight,
-        songTitle: song?.name ?? null,
-        songArtist: (song?.artists ?? []).map((artist) => artist?.name).filter(Boolean).join(' / ') || null,
-        songAlbum: song?.album?.name ?? null,
-        staticMode: false,
-        surface: STAGE_SURFACE,
-        settings: null,
-    });
-    const foliumTheme = useMemo(() => toFoliumTheme(theme, isDaylight), [theme, isDaylight]);
-    return (
-        <FoliumMountHost
-            modId={entry.modId}
-            where={`stage layer ${entry.id}`}
-            mount={entry.def.mount}
-            ctx={ctx}
-            shadow
-            theme={foliumTheme}
-            className="absolute inset-0"
-            pointerEvents={entry.def.interactive ? 'auto' : 'none'}
-        />
-    );
-};
+const LazyStageLayerSlotView = React.lazy(() => import('./stageLayerView'));
 
 /*
- * One stage slot. Renders nothing (not even a wrapper) while no mod has a layer
- * there, so the host tree is unchanged for users without mods.
+ * One stage slot. Renders nothing (not even a wrapper, and no chunk load) while
+ * no mod has a layer there, so the host tree and bundles are unchanged for
+ * users without mods.
  */
 export const FoliumStageLayerSlot: React.FC<{
     slot: FoliumStageSlot;
@@ -89,19 +43,12 @@ export const FoliumStageLayerSlot: React.FC<{
     isDaylight: boolean;
     paused: boolean;
     className?: string;
-}> = ({ slot, theme, isDaylight, paused, className }) => {
+}> = (props) => {
     const entries = useFoliumRegistryEntries(stageLayersRegistry);
-    const layers = entries.filter((entry) => entry.def.slot === slot).sort(byOrder);
-    if (layers.length === 0) return null;
+    if (!entries.some((entry) => entry.def.slot === props.slot)) return null;
     return (
-        <div
-            className={className ?? 'absolute inset-0 pointer-events-none'}
-            style={foliumThemeVars(toFoliumTheme(theme, isDaylight))}
-            data-folium-slot={slot}
-        >
-            {layers.map((entry) => (
-                <FoliumStageLayer key={entry.id} entry={entry} theme={theme} isDaylight={isDaylight} paused={paused} />
-            ))}
-        </div>
+        <Suspense fallback={null}>
+            <LazyStageLayerSlotView {...props} />
+        </Suspense>
     );
 };

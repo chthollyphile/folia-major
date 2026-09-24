@@ -1,18 +1,11 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { appendVisualizerEntry, removeVisualizerEntry } from '@/components/visualizer/registry';
-import type { VisualizerRegistryEntry, VisualizerSharedProps } from '@/components/visualizer/definition';
-import VisualizerShell from '@/components/visualizer/VisualizerShell';
-import VisualizerSubtitleOverlay from '@/components/visualizer/VisualizerSubtitleOverlay';
-import { resolveSubtitleFontSizes } from '@/components/visualizer/subtitleFontSizes';
-import { useVisualizerRuntime } from '@/components/visualizer/runtime';
-import { getLineRenderEndTime } from '@/utils/lyrics/renderHints';
+import type { VisualizerRegistryEntry } from '@/components/visualizer/definition';
 import type { VisualizerMode } from '@/types';
 import type { FoliumParam, FoliumParamAccess, FoliumVisualizerDef } from '../contract';
 import { sanitizeFoliumParams } from '../params';
 import { createFoliumParamAccess } from '../paramStore';
 import { createFoliumRegistry } from '../registry';
-import { useFoliumStageContext } from '../stageContext';
-import { FoliumMountHost } from '../FoliumMountHost';
 import { FoliumSettingsCard } from '../FoliumSettingsCard';
 
 // src/mods/folium/registries/visualizers.tsx
@@ -23,6 +16,8 @@ import { FoliumSettingsCard } from '../FoliumSettingsCard';
 // Host mode id is `mod:<modid>:<name>`. The `mod:` prefix keeps mod modes
 // structurally distinct from builtin ids (see isBuiltinVisualizerMode) and
 // keeps users' saved selections from the pre-Folium bridge valid.
+
+const LazyFoliumVisualizerRender = React.lazy(() => import('./visualizerRender'));
 
 export interface StoredFoliumVisualizer {
     def: FoliumVisualizerDef;
@@ -37,96 +32,6 @@ export const foliumVisualizerMode = (id: string): VisualizerMode => `mod:${id}` 
 
 const resolveLabelFallback = (label: Record<string, string | undefined>, id: string): string =>
     label['zh-CN'] ?? label.en ?? label[document?.documentElement?.lang] ?? id;
-
-/*
- * The shared bottom subtitle layer (translation / upcoming line) for mod modes.
- * Builtin modes wire this inside their own renderers; a mod has no React and no
- * access to the host's subtitle settings, so the host fills the gap here and
- * mod modes get the same font scaling, opacity, offset, blur and content mode
- * as every builtin mode. Font sizes come from subtitleFontSizes, so switching
- * from a builtin mode to a mod mode keeps the subtitles in place.
- */
-const FoliumSubtitleOverlay: React.FC<VisualizerSharedProps> = (props) => {
-    const {
-        currentTime,
-        currentLineIndex,
-        lines,
-        theme,
-        subtitleTheme,
-        showText = true,
-        lyricsFontScale = 1,
-        subtitleFontScale = 1,
-        subtitleOverlayOpacity,
-        subtitleOverlayBackground,
-        subtitleUpcomingLyricsBlur,
-        isPlayerChromeHidden,
-        hideTranslationSubtitle,
-        showSubtitleTranslation,
-        subtitleContentMode,
-    } = props;
-    const { activeLine, recentCompletedLine, nextLines } = useVisualizerRuntime({
-        currentTime,
-        currentLineIndex,
-        lines,
-        getLineEndTime: getLineRenderEndTime,
-    });
-    const subtitleFontSizes = resolveSubtitleFontSizes(lyricsFontScale);
-    return (
-        <VisualizerSubtitleOverlay
-            showText={showText}
-            activeLine={activeLine}
-            recentCompletedLine={recentCompletedLine}
-            nextLines={nextLines}
-            theme={theme}
-            subtitleTheme={subtitleTheme}
-            {...subtitleFontSizes}
-            subtitleFontScale={subtitleFontScale}
-            subtitleOverlayOpacity={subtitleOverlayOpacity}
-            subtitleOverlayBackground={subtitleOverlayBackground}
-            subtitleUpcomingLyricsBlur={subtitleUpcomingLyricsBlur}
-            isPlayerChromeHidden={isPlayerChromeHidden}
-            hideTranslationSubtitle={hideTranslationSubtitle}
-            showSubtitleTranslation={showSubtitleTranslation}
-            subtitleContentMode={subtitleContentMode}
-        />
-    );
-};
-
-const FoliumVisualizerStage: React.FC<{
-    id: string;
-    modId: string;
-    stored: StoredFoliumVisualizer;
-    props: VisualizerSharedProps;
-}> = ({ id, modId, stored, props }) => {
-    const transparent = Boolean(props.background?.transparent);
-    const surface = useMemo(
-        () => ({ transparent, hostBackground: stored.hostBackground && !transparent }),
-        [transparent, stored.hostBackground],
-    );
-    const ctx = useFoliumStageContext({
-        lines: props.lines,
-        currentTime: props.currentTime,
-        currentLineIndex: props.currentLineIndex,
-        paused: Boolean(props.paused),
-        theme: props.theme,
-        isDaylight: Boolean(props.isDaylight),
-        songTitle: props.songTitle ?? null,
-        songArtist: props.songArtist ?? null,
-        songAlbum: props.songAlbum ?? null,
-        staticMode: Boolean(props.staticMode),
-        surface,
-        settings: stored.settingsAccess,
-    });
-    return (
-        <FoliumMountHost
-            modId={modId}
-            where={`visualizer ${id}`}
-            mount={stored.def.mount}
-            ctx={ctx}
-            className="absolute inset-0"
-        />
-    );
-};
 
 const buildRegistryEntry = (id: string, modId: string, stored: StoredFoliumVisualizer): VisualizerRegistryEntry => {
     const labelFallback = resolveLabelFallback(stored.def.label, id);
@@ -150,18 +55,10 @@ const buildRegistryEntry = (id: string, modId: string, stored: StoredFoliumVisua
         previewSeed: stored.mode,
         previewStartOffset: 0,
         tuningKind: 'none',
-        render: (props) => (
-            <VisualizerShell
-                theme={props.theme}
-                audioPower={props.audioPower}
-                audioBands={props.audioBands}
-                sharedProps={props}
-                renderBackground={stored.hostBackground}
-            >
-                <FoliumVisualizerStage id={id} modId={modId} stored={stored} props={props} />
-                {stored.hostSubtitles ? <FoliumSubtitleOverlay {...props} /> : null}
-            </VisualizerShell>
-        ),
+        // Lazy like every builtin mode's renderer (callers provide Suspense): the
+        // shell and subtitle layer pull in UI stores that registration alone —
+        // e.g. in the export window's entry bundle — must not load.
+        render: (props) => <LazyFoliumVisualizerRender id={id} modId={modId} stored={stored} props={props} />,
         renderSettingsPanel: settingsAccess
             ? (panelProps) => (
                 <FoliumSettingsCard

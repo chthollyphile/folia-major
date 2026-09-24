@@ -1,7 +1,6 @@
 import type { ModRuntimeInfo } from '../types';
 import { isModsBridgeAvailable, listMods } from '../ipc';
 import type { FoliumClientModule, FoliumContextKind, FoliumDisposer } from './contract';
-import { addFoliumTeardownRegistries, createFoliumClientApi, listFoliumHostRegistries } from './api';
 import { clearFoliumIssues, reportFoliumIssue } from './status';
 import { removeFoliumEventHandlers } from './events';
 
@@ -14,6 +13,11 @@ import { removeFoliumEventHandlers } from './events';
 //
 // Reconciles are serialized: a reload that lands while the previous one is
 // still importing waits for it instead of racing it.
+//
+// The client API — and through it every registry adapter and the host
+// registries they wire into (all background types, settings panels, icons…) —
+// is imported only when there is a client to activate. The export window and
+// sessions without mods import this file but never pay for that graph.
 
 interface ActiveClient {
     url: string;
@@ -24,6 +28,12 @@ const activeClients = new Map<string, ActiveClient>();
 let queue: Promise<void> = Promise.resolve();
 let internalsPromise: Promise<Record<string, unknown>> | null = null;
 let experimentalPromise: Promise<typeof import('./experimental')> | null = null;
+let apiPromise: Promise<typeof import('./api')> | null = null;
+
+const loadApi = () => {
+    apiPromise ??= import('./api');
+    return apiPromise;
+};
 
 const loadInternals = () => {
     internalsPromise ??= import('./internals').then((module) => module.createFoliumInternals());
@@ -32,14 +42,15 @@ const loadInternals = () => {
 
 // Experimental surfaces (Omni providers/hooks, Ponder targets): main window only, on first opt-in.
 const loadExperimental = () => {
-    experimentalPromise ??= import('./experimental').then((module) => {
-        addFoliumTeardownRegistries(module.EXPERIMENTAL_REGISTRIES);
+    experimentalPromise ??= Promise.all([import('./experimental'), loadApi()]).then(([module, api]) => {
+        api.addFoliumTeardownRegistries(module.EXPERIMENTAL_REGISTRIES);
         return module;
     });
     return experimentalPromise;
 };
 
-const teardown = (modId: string) => {
+// Only active clients are torn down, and activating one already loaded the API.
+const teardown = async (modId: string) => {
     const active = activeClients.get(modId);
     activeClients.delete(modId);
     if (active?.dispose) {
@@ -49,6 +60,7 @@ const teardown = (modId: string) => {
             reportFoliumIssue(modId, 'client dispose', error);
         }
     }
+    const { listFoliumHostRegistries } = await loadApi();
     listFoliumHostRegistries().forEach((registry) => registry.unregisterAll(modId));
     removeFoliumEventHandlers(modId);
 };
@@ -63,6 +75,7 @@ const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContext
         const experimental = context === 'main' && (mod.experimental ?? []).length > 0
             ? (await loadExperimental()).createFoliumExperimental(mod)
             : undefined;
+        const { createFoliumClientApi } = await loadApi();
         const api = createFoliumClientApi(mod, { context, internals, experimental });
         const module = await import(/* @vite-ignore */ url) as FoliumClientModule;
         if (typeof module?.default !== 'function') {
@@ -89,11 +102,11 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
                 .filter((mod) => mod.status === 'loaded' && typeof mod.clientUrl === 'string' && mod.clientUrl)
                 .map((mod) => [mod.id, mod] as const),
         );
-        Array.from(activeClients.entries()).forEach(([modId, active]) => {
+        for (const [modId, active] of Array.from(activeClients.entries())) {
             if (desired.get(modId)?.clientUrl !== active.url) {
-                teardown(modId);
+                await teardown(modId);
             }
-        });
+        }
         const pending = Array.from(desired.values())
             .filter((mod) => !activeClients.has(mod.id))
             .sort((left, right) => left.id.localeCompare(right.id));
