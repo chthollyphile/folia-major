@@ -51,6 +51,12 @@ export interface FoliumSong {
     album: string | null;
     /** Where the song comes from: an Omni provider id, 'local', 'navidrome', … */
     source: string | null;
+    /**
+     * Opaque handle the host can turn back into the real song (playSong,
+     * enqueue, beforePlay.replaceWith). Valid for the session; null when the
+     * DTO was not built from a host song.
+     */
+    ref: string | null;
 }
 
 export type FoliumPlaybackState = 'playing' | 'paused' | 'stopped';
@@ -324,6 +330,114 @@ export interface FoliumRegistries {
     styles: FoliumRegistry<FoliumStyleDef>;
 }
 
+// ---------------------------------------------------------------- Events
+
+export type FoliumEventPriority = 'highest' | 'high' | 'normal' | 'low' | 'lowest';
+
+/** Read-only notifications, emitted after the fact. */
+export interface FoliumNotificationEvents {
+    'playback.songChanged': { readonly song: FoliumSong | null };
+    'playback.stateChanged': { readonly state: FoliumPlaybackState };
+    'playback.seeked': { readonly position: number };
+    'lyrics.loaded': { readonly song: FoliumSong | null; readonly lines: readonly FoliumLine[] };
+    'app.viewChanged': { readonly view: string };
+    'visualizer.modeChanged': { readonly mode: string };
+    'theme.changed': { readonly theme: FoliumTheme };
+}
+
+/**
+ * Synchronous hook: runs when new lyrics reach the player, before they are
+ * shown. Assign `lines` to rewrite them; lines left untouched (same object)
+ * keep all their host-side data, new or changed ones are built from the DTO.
+ */
+export interface FoliumLyricsTransformEvent {
+    readonly song: FoliumSong | null;
+    lines: readonly FoliumLine[];
+}
+
+/** Async hook: runs before any song starts. Handlers may cancel it or play another song instead. */
+export interface FoliumBeforePlayEvent {
+    readonly song: FoliumSong;
+    readonly cancelled: boolean;
+    cancel(): void;
+    /** Plays this song instead; it must carry a `ref` from the host. */
+    replaceWith(song: FoliumSong): void;
+}
+
+export interface FoliumHookEvents {
+    'lyrics.transform': FoliumLyricsTransformEvent;
+    'playback.beforePlay': FoliumBeforePlayEvent;
+}
+
+export type FoliumEventMap = FoliumNotificationEvents & FoliumHookEvents;
+
+export interface FoliumEvents {
+    on<K extends keyof FoliumEventMap>(
+        type: K,
+        handler: (event: FoliumEventMap[K]) => void | Promise<void>,
+        options?: { priority?: FoliumEventPriority },
+    ): FoliumDisposer;
+}
+
+// ---------------------------------------------------------------- Services
+
+export interface FoliumPlaybackService {
+    getState(): { song: FoliumSong | null; state: FoliumPlaybackState; position: number; duration: number };
+    // Everything below needs the `playback.control` permission.
+    play(): void;
+    pause(): void;
+    toggle(): void;
+    seek(seconds: number): void;
+    next(): void;
+    previous(): void;
+    /** Plays a song by its host `ref`. Resolves false when the ref is unknown. */
+    playSong(song: FoliumSong): Promise<boolean>;
+    /** Appends a song (by `ref`) to the queue. */
+    enqueue(song: FoliumSong): boolean;
+}
+
+export interface FoliumFileHandle {
+    /** folia-mod:// URL usable as a media/img src for this session. */
+    url: string;
+    name: string;
+    size: number;
+}
+
+export interface FoliumUiService {
+    toast(message: string, options?: { type?: 'info' | 'success' | 'error'; durationMs?: number }): void;
+    /** Opens the player panel, optionally on one of this mod's panel tabs (local id). */
+    openPlayerPanel(tabId?: string): void;
+    navigate(view: 'home' | 'player'): void;
+    /** Lets the user pick a local file; null when cancelled. */
+    pickFile(options?: { accept?: 'video' | 'audio' | 'image' | 'any' }): Promise<FoliumFileHandle | null>;
+    /**
+     * Embeds an external page in `container` as a sandboxed iframe. The URL's
+     * origin must be listed in the manifest `embedOrigins` (needs `net.embed`).
+     */
+    embed(container: HTMLElement, url: string, options?: { title?: string; allow?: string[] }): FoliumDisposer;
+}
+
+export interface FoliumFetchInit {
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+    headers?: Record<string, string>;
+    body?: string;
+    timeoutMs?: number;
+}
+
+export interface FoliumFetchResponse {
+    readonly ok: boolean;
+    readonly status: number;
+    readonly statusText: string;
+    readonly headers: Readonly<Record<string, string>>;
+    text(): string;
+    json<T = unknown>(): T;
+}
+
+export interface FoliumNetService {
+    /** Fetch through the host (no CORS limits); needs the `net.fetch` permission. */
+    fetch(url: string, init?: FoliumFetchInit): Promise<FoliumFetchResponse>;
+}
+
 // ---------------------------------------------------------------- Client API
 
 export type FoliumContextKind = 'main' | 'export';
@@ -359,6 +473,10 @@ export interface FoliumClientApi {
     readonly env: { readonly context: FoliumContextKind };
     readonly log: FoliumLogger;
     readonly registries: FoliumRegistries;
+    readonly events: FoliumEvents;
+    readonly playback: FoliumPlaybackService;
+    readonly ui: FoliumUiService;
+    readonly net: FoliumNetService;
     readonly storage: FoliumStorage;
     readonly rpc: FoliumRpc;
     /** Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. */

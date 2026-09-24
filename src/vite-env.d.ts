@@ -810,6 +810,8 @@ declare global {
         cancelExport: () => Promise<{ ok: boolean }>;
         invokeModRpc: (modId: string, name: string, args: unknown[]) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         invokeModStorage: (modId: string, operation: string, key?: string, value?: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        invokeModNetFetch: (modId: string, url: string, init: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        invokeModPickFile: (modId: string, accept: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         pushRuntimeSnapshot: (snapshot: ModRuntimeSnapshot) => Promise<{ ok: boolean }>;
         getFfmpegStatus: () => Promise<{ ffmpeg: ModFfmpegStatus }>;
         openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;

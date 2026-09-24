@@ -4,6 +4,7 @@ import {
     FOLIUM_VERSION,
     type FoliumClientApi,
     type FoliumContextKind,
+    type FoliumEvents,
     type FoliumRegistries,
     type FoliumRegistry,
     type FoliumSettingsSectionDef,
@@ -21,6 +22,8 @@ import { settingsSectionsRegistry } from './registries/settingsSections';
 import { playerPanelTabsRegistry } from './registries/playerPanelTabs';
 import { controlButtonsRegistry, progressLayersRegistry } from './registries/progress';
 import { stylesRegistry } from './registries/styles';
+import { addFoliumEventHandler } from './events';
+import { createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
 
 // src/mods/folium/api.ts
 // Builds the `folium` object one mod's client entry receives. Everything is
@@ -144,7 +147,15 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         tunings: bindRegistry(tuningsRegistry, modId, inert('tunings')),
         commands: bindRegistry(commandsRegistry, modId, inert('commands')),
         backgrounds: bindRegistry(backgroundsRegistry, modId, inert('backgrounds')),
-        stageLayers: bindRegistry(stageLayersRegistry, modId, inert('stageLayers')),
+        // Painting over the player page is declared up front (trust dialog lists it).
+        stageLayers: Object.freeze({
+            register: (def: Parameters<typeof stageLayersRegistry.register>[1]) => {
+                if (!mod.permissions.includes('ui.stage')) {
+                    throw new Error('permission-denied:ui.stage');
+                }
+                return inert('stageLayers') ? noopHandle(modId, def?.id) : stageLayersRegistry.register(modId, def);
+            },
+        }),
         // The handle carries the section's values so the mod can read what the user set.
         settingsSections: Object.freeze({
             register: (def: FoliumSettingsSectionDef): FoliumSettingsSectionHandle => {
@@ -196,6 +207,12 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         env: Object.freeze({ context }),
         log,
         registries,
+        events: Object.freeze<FoliumEvents>({
+            on: (type, handler, options) => addFoliumEventHandler(modId, type, handler, options?.priority),
+        }),
+        playback: createFoliumPlaybackService(mod, context),
+        ui: createFoliumUiService(mod, context),
+        net: createFoliumNetService(mod, context),
         storage: createStorage(modId, context),
         rpc,
         experimental,

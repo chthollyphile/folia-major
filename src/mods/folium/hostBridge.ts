@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Theme } from '@/types';
 import { PlayerState } from '@/types';
@@ -16,6 +16,7 @@ import { isModsBridgeAvailable, pushRuntimeSnapshot } from '../ipc';
 import type { FoliumPlaybackState } from './contract';
 import { toFoliumLines, toFoliumSong, toFoliumTheme } from './dto';
 import { useFoliumParamStore } from './paramStore';
+import { emitFoliumEvent } from './events';
 
 // src/mods/folium/hostBridge.ts
 // Publishes what the host is showing to the main process, always (not only
@@ -73,9 +74,20 @@ export const useFoliumHostBridge = (theme: Theme, isDaylight: boolean) => {
             lastAt = now;
             if (Math.abs(value - expected) > SEEK_JUMP_SEC) {
                 setSeekRevision((revision) => revision + 1);
+                emitFoliumEvent('playback.seeked', { position: value });
             }
         });
     }, []);
+
+    // theme.changed lives here because the theme is App state, not a store.
+    const themePrimedRef = useRef(false);
+    useEffect(() => {
+        if (!themePrimedRef.current) {
+            themePrimedRef.current = true;
+            return;
+        }
+        emitFoliumEvent('theme.changed', { theme: toFoliumTheme(theme, isDaylight) });
+    }, [theme, isDaylight]);
 
     useEffect(() => {
         if (!isModsBridgeAvailable()) return undefined;

@@ -38,6 +38,7 @@ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
 import { useStableActionSurface } from './useStableCallbacks';
+import { hasBeforePlayHook, runBeforePlayHook } from '../services/hostExtensionHooks';
 
 // src/hooks/usePlaybackQueueController.ts
 
@@ -436,11 +437,18 @@ export function usePlaybackQueueController({
 
     // Loads one requested song and normalizes queue behavior across sources.
     const playSong = useCallback(async (
-        song: SongResult,
+        requestedSong: SongResult,
         queue: SongResult[] = [],
         isFmCall: boolean = false,
         options: PlaybackNavigationOptions = {}
     ) => {
+        // Extension layers (Folium `playback.beforePlay`) may cancel or redirect this play.
+        // Without an installed hook this is skipped entirely, so the common path stays synchronous.
+        const allowedSong = hasBeforePlayHook() ? await runBeforePlayHook(requestedSong) : requestedSong;
+        if (!allowedSong) {
+            return;
+        }
+        const song = allowedSong;
         interruptStagePlaybackForMainTransition();
 
         console.log('[App] playSong initiated:', song.name, song.id, 'isFm:', isFmCall);

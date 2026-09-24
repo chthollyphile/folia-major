@@ -71,7 +71,8 @@ describe('toFoliumSong', () => {
             album: { id: 3, name: 'Album' },
             durationMs: 1000,
         } as unknown as SongResult;
-        expect(toFoliumSong(song)).toEqual({ id: '42', title: 'Song', artist: 'A / B', album: 'Album', source: 'netease' });
+        expect(toFoliumSong(song)).toEqual({ id: '42', title: 'Song', artist: 'A / B', album: 'Album', source: 'netease', ref: expect.any(String) });
+        expect(toFoliumSong(song)!.ref).toBe(toFoliumSong(song)!.ref);
         expect(toFoliumSong(null)).toBeNull();
     });
 });

@@ -146,6 +146,7 @@ import { usePlayerBottomBarOffset } from './hooks/usePlayerBottomBarOffset';
 import { usePlayerBottomBarPositioningEntry } from './hooks/usePlayerBottomBarPositioningEntry';
 import { PlayerBottomBarLayoutContext } from './components/floating-player/PlayerBottomBarLayoutContext';
 import { useFoliumHostBridge } from './mods/folium/hostBridge';
+import { useFoliumHostActions } from './mods/folium/hostActions';
 import { FoliumStageLayerSlot } from './mods/folium/registries/stageLayers';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
@@ -2043,6 +2044,20 @@ export default function App() {
             void publishStagePlayerPlaybackUpdate();
         }
     }, [publishStagePlayerPlaybackUpdate]);
+
+    // Folium services (folium.playback / folium.ui) call through to these App handlers.
+    useFoliumHostActions({
+        play: resumePlayback,
+        pause: pausePlayback,
+        toggle: () => togglePlay(),
+        seek: seekMainAudio,
+        next: () => { void handleNextTrack(); },
+        previous: handlePrevTrack,
+        playSong: (song) => playSong(song),
+        enqueue: addOnlineSongToQueue,
+        navigateToPlayer,
+        navigateToHome,
+    });
 
     const handleMonetLyricLineSeek = useCallback((lyricTimeSec: number) => {
         if (isNowPlayingControlDisabled) {

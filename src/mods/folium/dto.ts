@@ -61,6 +61,36 @@ const describeSource = (song: SongResult): string | null => {
     }
 };
 
+/*
+ * Song refs: opaque tokens that let a mod hand a song back to the host
+ * (playSong, enqueue, beforePlay.replaceWith) without ever holding a
+ * SongResult. The same host object always gets the same token; the map is
+ * bounded, so a token for a long-gone song eventually stops resolving.
+ */
+const MAX_SONG_REFS = 2000;
+const refBySong = new WeakMap<SongResult, string>();
+const songByRef = new Map<string, SongResult>();
+let refCounter = 0;
+
+const refFor = (song: SongResult): string => {
+    const existing = refBySong.get(song);
+    if (existing && songByRef.has(existing)) return existing;
+    refCounter += 1;
+    const ref = `song-${refCounter.toString(36)}`;
+    refBySong.set(song, ref);
+    songByRef.set(ref, song);
+    if (songByRef.size > MAX_SONG_REFS) {
+        const oldest = songByRef.keys().next().value;
+        if (oldest !== undefined) songByRef.delete(oldest);
+    }
+    return ref;
+};
+
+/** The host song behind a DTO's `ref`, or null when unknown or expired. */
+export const resolveFoliumSongRef = (ref: unknown): SongResult | null => (
+    typeof ref === 'string' ? songByRef.get(ref) ?? null : null
+);
+
 export const toFoliumSong = (song: SongResult | null | undefined): FoliumSong | null => {
     if (!song) return null;
     return {
@@ -69,6 +99,7 @@ export const toFoliumSong = (song: SongResult | null | undefined): FoliumSong | 
         artist: (song.artists ?? []).map((artist) => artist?.name).filter(Boolean).join(' / '),
         album: song.album?.name ?? null,
         source: describeSource(song),
+        ref: refFor(song),
     };
 };
 
@@ -79,6 +110,6 @@ export const toFoliumSongFromMeta = (
     album?: string | null,
 ): FoliumSong | null => (
     title || artist
-        ? { id: null, title: title ?? '', artist: artist ?? '', album: album ?? null, source: null }
+        ? { id: null, title: title ?? '', artist: artist ?? '', album: album ?? null, source: null, ref: null }
         : null
 );

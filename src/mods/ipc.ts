@@ -83,6 +83,21 @@ export const invokeModStorage = async (
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
     bridge()?.invokeModStorage(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
 
+/** folium.net.fetch: runs in the main process (permission `net.fetch`). */
+export const invokeModNetFetch = async (
+    modId: string,
+    url: string,
+    init: unknown,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModNetFetch(modId, url, init) ?? { ok: false, error: 'no-electron-bridge' };
+
+/** folium.ui.pickFile: native open dialog; resolves to a session folia-mod:// URL or null. */
+export const invokeModPickFile = async (
+    modId: string,
+    accept: string,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModPickFile(modId, accept) ?? { ok: false, error: 'no-electron-bridge' };
+
 export const pushRuntimeSnapshot = async (snapshot: ModRuntimeSnapshot): Promise<void> => {
     await bridge()?.pushRuntimeSnapshot(snapshot);
 };

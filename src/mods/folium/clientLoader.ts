@@ -3,6 +3,7 @@ import { isModsBridgeAvailable, listMods } from '../ipc';
 import type { FoliumClientModule, FoliumContextKind, FoliumDisposer } from './contract';
 import { createFoliumClientApi, listFoliumHostRegistries } from './api';
 import { clearFoliumIssues, reportFoliumIssue } from './status';
+import { removeFoliumEventHandlers } from './events';
 
 // src/mods/folium/clientLoader.ts
 // Activates mods' `client` entries in this renderer and keeps them in step
@@ -39,6 +40,7 @@ const teardown = (modId: string) => {
         }
     }
     listFoliumHostRegistries().forEach((registry) => registry.unregisterAll(modId));
+    removeFoliumEventHandlers(modId);
 };
 
 const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContextKind) => {

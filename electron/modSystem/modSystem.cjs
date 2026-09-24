@@ -30,6 +30,23 @@ const { attachModProtocolHandler } = require('./modProtocol.cjs');
 
 const SETTINGS_NAMESPACE = 'mods';
 const EXPORT_PERMISSION = 'render.export';
+const NET_FETCH_PERMISSION = 'net.fetch';
+
+// folium.net.fetch limits: a mod fetches small JSON/text, not downloads.
+const NET_FETCH_LIMITS = {
+    defaultTimeoutMs: 15000,
+    maxTimeoutMs: 60000,
+    maxBodyBytes: 5 * 1024 * 1024,
+    methods: new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
+};
+
+// folium.ui.pickFile dialog filters.
+const PICK_FILE_FILTERS = {
+    video: [{ name: 'Video', extensions: ['mp4', 'm4v', 'webm', 'mov', 'mkv'] }],
+    audio: [{ name: 'Audio', extensions: ['mp3', 'm4a', 'flac', 'ogg', 'wav'] }],
+    image: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'] }],
+    any: [],
+};
 
 // Staged installs and their rollback copies live under this directory inside
 // the user mods folder; discovery skips it (and every other dot-directory).
@@ -111,6 +128,8 @@ const IPC = {
     reload: 'folia-mods:reload',
     rpc: 'folia-mods:rpc',
     storage: 'folia-mods:storage',
+    netFetch: 'folia-mods:net-fetch',
+    pickFile: 'folia-mods:pick-file',
     pushRuntimeSnapshot: 'folia-mods:push-runtime-snapshot',
     exportCancel: 'folia-mods:export-cancel',
     ffmpegStatus: 'folia-mods:ffmpeg-status',
@@ -730,6 +749,111 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         }
     };
 
+    /*
+     * folium.net.fetch: the request runs here, in Node, so it is not subject to
+     * the renderer's CORS rules — which is why it sits behind `net.fetch`.
+     * http(s) only, bounded time and body size, text bodies only.
+     */
+    const invokeModNetFetch = async (modId, url, init) => {
+        const runtime = requireLoadedMod(modId);
+        if (!runtime.manifest.permissions.includes(NET_FETCH_PERMISSION)) {
+            return { ok: false, error: `permission-denied:${NET_FETCH_PERMISSION}` };
+        }
+        let target;
+        try {
+            target = new URL(String(url));
+        } catch {
+            return { ok: false, error: 'net-invalid-url' };
+        }
+        if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+            return { ok: false, error: 'net-unsupported-protocol' };
+        }
+        const options = init && typeof init === 'object' ? init : {};
+        const method = String(options.method ?? 'GET').toUpperCase();
+        if (!NET_FETCH_LIMITS.methods.has(method)) {
+            return { ok: false, error: `net-unsupported-method:${method}` };
+        }
+        const timeoutMs = Math.min(
+            NET_FETCH_LIMITS.maxTimeoutMs,
+            Math.max(1000, Number(options.timeoutMs) || NET_FETCH_LIMITS.defaultTimeoutMs),
+        );
+        const headers = {};
+        if (options.headers && typeof options.headers === 'object') {
+            Object.entries(options.headers).forEach(([key, value]) => {
+                if (typeof value === 'string') headers[key] = value;
+            });
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(target, {
+                method,
+                headers,
+                body: method === 'GET' || method === 'HEAD' || typeof options.body !== 'string' ? undefined : options.body,
+                signal: controller.signal,
+                redirect: 'follow',
+            });
+            const declaredLength = Number(response.headers.get('content-length'));
+            if (Number.isFinite(declaredLength) && declaredLength > NET_FETCH_LIMITS.maxBodyBytes) {
+                controller.abort();
+                return { ok: false, error: 'net-body-too-large' };
+            }
+            const buffer = Buffer.from(await response.arrayBuffer());
+            if (buffer.byteLength > NET_FETCH_LIMITS.maxBodyBytes) {
+                return { ok: false, error: 'net-body-too-large' };
+            }
+            const responseHeaders = {};
+            response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+            return {
+                ok: true,
+                result: {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: responseHeaders,
+                    body: buffer.toString('utf8'),
+                },
+            };
+        } catch (error) {
+            return { ok: false, error: controller.signal.aborted ? 'net-timeout' : serializeError(error) };
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
+    /*
+     * folium.ui.pickFile: the user chooses the file in a native dialog, so no
+     * permission is involved; the mod only ever gets an unguessable
+     * folia-mod://_files/<token>/<name> URL, valid until the app quits.
+     */
+    const pickedFiles = new Map();
+    const invokeModPickFile = async (modId, accept) => {
+        requireLoadedMod(modId);
+        const win = getMainWindowSafe();
+        const options = {
+            properties: ['openFile'],
+            filters: PICK_FILE_FILTERS[accept] ?? PICK_FILE_FILTERS.any,
+        };
+        const result = win && !win.isDestroyed()
+            ? await dialog.showOpenDialog(win, options)
+            : await dialog.showOpenDialog(options);
+        const filePath = result.canceled ? null : result.filePaths[0];
+        if (!filePath) {
+            return { ok: true, result: null };
+        }
+        const stat = fs.statSync(filePath);
+        const token = crypto.randomBytes(18).toString('hex');
+        pickedFiles.set(token, filePath);
+        const name = path.basename(filePath);
+        return {
+            ok: true,
+            result: {
+                url: `folia-mod://_files/${token}/${encodeURIComponent(name)}`,
+                name,
+                size: stat.size,
+            },
+        };
+    };
+
     const STORAGE_OPERATIONS = new Set(['get', 'set', 'has', 'delete', 'keys']);
 
     // folium.storage from the client: same data file and permission as api.storage.data.
@@ -1032,7 +1156,7 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         const runtime = mods.get(modId);
         return runtime && runtime.status === 'loaded' && runtime.dirPath ? runtime.dirPath : null;
     };
-    attachModProtocolHandler(protocol, resolveModDirectory);
+    attachModProtocolHandler(protocol, resolveModDirectory, (token) => pickedFiles.get(token) ?? null);
 
     pruneStagingDirectory();
 
@@ -1058,6 +1182,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         handle(IPC.exportCancel, () => ({ ok: exportService.cancelActiveExport() }));
         handle(IPC.rpc, (_event, modId, name, args) => invokeModRpc(modId, name, args));
         handle(IPC.storage, (_event, modId, operation, key, value) => invokeModStorage(modId, operation, key, value));
+        handle(IPC.netFetch, (_event, modId, url, init) => invokeModNetFetch(modId, url, init));
+        handle(IPC.pickFile, (_event, modId, accept) => invokeModPickFile(modId, accept));
         handle(IPC.pushRuntimeSnapshot, (_event, snapshot) => {
             if (snapshot && typeof snapshot === 'object') {
                 runtimeSnapshot = snapshot;

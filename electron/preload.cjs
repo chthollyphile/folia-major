@@ -281,6 +281,8 @@ contextBridge.exposeInMainWorld('electron', {
         reloadMods: () => ipcRenderer.invoke('folia-mods:reload'),
         invokeModRpc: (modId, name, args) => ipcRenderer.invoke('folia-mods:rpc', modId, name, args),
         invokeModStorage: (modId, operation, key, value) => ipcRenderer.invoke('folia-mods:storage', modId, operation, key, value),
+        invokeModNetFetch: (modId, url, init) => ipcRenderer.invoke('folia-mods:net-fetch', modId, url, init),
+        invokeModPickFile: (modId, accept) => ipcRenderer.invoke('folia-mods:pick-file', modId, accept),
         cancelExport: () => ipcRenderer.invoke('folia-mods:export-cancel'),
         pushRuntimeSnapshot: (snapshot) => ipcRenderer.invoke('folia-mods:push-runtime-snapshot', snapshot),
         getFfmpegStatus: () => ipcRenderer.invoke('folia-mods:ffmpeg-status'),
