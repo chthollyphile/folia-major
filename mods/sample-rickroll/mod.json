@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "sample-rickroll",
+  "name": "播放页外挂视频（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "纯模组在播放页上叠一个外部视频窗口（YouTube 嵌入）。演示 stageLayers + folium.ui.embed + embedOrigins，以及用命令开关图层。",
+  "client": "client.mjs",
+  "permissions": ["ui.stage", "net.embed"],
+  "embedOrigins": ["https://www.youtube-nocookie.com"]
+}
