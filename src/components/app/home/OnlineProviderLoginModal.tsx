@@ -73,7 +73,8 @@ const OnlineProviderLoginModal = ({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 12 }}
                 transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
-                className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl"
+                className="border border-current/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl"
+                style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }}
             >
                 <button
                     type="button"

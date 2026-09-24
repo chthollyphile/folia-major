@@ -601,6 +601,8 @@ declare global {
 
   interface Window {
     electron?: {
+      appleMusicAvailable?: boolean;
+      appleMusicRequest?: (action: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
       webUtils?: {
         /** Resolves the OS path of a dropped File (File.path was removed in modern Electron). */
         getPathForFile: (file: File) => string;

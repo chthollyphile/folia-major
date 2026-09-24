@@ -9,6 +9,12 @@ export const stripLocalAudioExtension = (fileName: string): string => (
   fileName.replace(/\.(mp3|flac|m4a|wav|ogg|opus|aac)$/iu, '').trim()
 );
 
+// ISRC is 12 alphanumerics; anything else is a malformed tag and is dropped rather than persisted.
+const normalizeIsrc = (value?: string): string | undefined => {
+  const code = (value || '').replace(/[\s-]/g, '').toUpperCase();
+  return /^[A-Z0-9]{12}$/.test(code) ? code : undefined;
+};
+
 export const buildImportedMetadataSnapshot = ({
   fileName,
   embeddedTitle,
@@ -18,6 +24,7 @@ export const buildImportedMetadataSnapshot = ({
   fallbackArtist,
   embeddedAlbum,
   fallbackAlbum,
+  embeddedIsrc,
 }: {
   fileName: string;
   embeddedTitle?: string;
@@ -27,7 +34,9 @@ export const buildImportedMetadataSnapshot = ({
   fallbackArtist?: string;
   embeddedAlbum?: string;
   fallbackAlbum?: string;
+  embeddedIsrc?: string;
 }): LocalSongImportedMetadata => {
+  const isrc = normalizeIsrc(embeddedIsrc);
   const normalizedEmbeddedTitle = cleanLocalLibraryName(embeddedTitle);
   const title = normalizedEmbeddedTitle
     || cleanLocalLibraryName(fallbackTitle)
@@ -41,6 +50,7 @@ export const buildImportedMetadataSnapshot = ({
       ? embeddedArtistNames
       : splitLocalLibraryArtistNames(embeddedArtist || fallbackArtist),
     albumName: cleanLocalLibraryName(embeddedAlbum || fallbackAlbum),
+    ...(isrc ? { isrc } : {}),
   };
 };
 

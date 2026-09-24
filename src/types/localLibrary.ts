@@ -18,13 +18,15 @@ export interface LocalLibraryEntity {
 export type LocalLibraryAssignmentOrigin = 'import' | 'auto-match' | 'manual-match' | 'manual' | 'split';
 
 export type LocalSongTitleOrigin = 'import' | 'auto-match' | 'manual-match';
-export type LocalSongMetadataSource = 'netease' | 'qq' | 'kugou';
+export type LocalSongMetadataSource = 'netease' | 'qq' | 'kugou' | 'applemusic';
 
 export interface LocalSongImportedMetadata {
   title: string;
   titleSource: 'embedded' | 'filename';
   artistNames: string[];
   albumName?: string;
+  /** Embedded ISRC tag, kept for exact catalog lookups. */
+  isrc?: string;
 }
 
 export interface LocalSongOnlineMetadata {

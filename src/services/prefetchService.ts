@@ -166,7 +166,7 @@ const prefetchSong = async (
     signal: AbortSignal,
     userId?: MediaId | null
 ): Promise<void> => {
-    if (signal.aborted) return;
+    if (signal.aborted || omni.usesRemotePlayback(song)) return;
 
     const sourceRef = getPlaybackSourceRef(song);
     if (sourceRef.kind !== 'online') {

@@ -1,3 +1,4 @@
+import { commandRemotePlayback, isRemotePlaybackActive } from '../services/remotePlayback';
 import { useCallback } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { PlayerState } from '../types';
@@ -66,6 +67,10 @@ export function usePlaybackTransportController({
     const duration = usePlaybackStore(state => state.duration);
 
     const resumePlayback = useCallback(async () => {
+        if (isRemotePlaybackActive()) {
+            await commandRemotePlayback('play');
+            return;
+        }
         if (isNowPlayingStageActive) {
             return;
         }
@@ -132,6 +137,10 @@ export function usePlaybackTransportController({
     }, [activePlaybackContext, audioContextRef, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, recoverOnlinePlaybackSource, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
+        if (isRemotePlaybackActive()) {
+            void commandRemotePlayback('pause').catch(() => setStatusMsg({ type: 'error', text: t('appleMusic.playbackError') }));
+            return;
+        }
         if (isNowPlayingStageActive) {
             return;
         }

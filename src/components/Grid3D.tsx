@@ -1,3 +1,5 @@
+import { useAppleMusicLogin } from '../hooks/useAppleMusicLogin';
+import { refreshAppleMusicLibrary } from '../hooks/useAppleMusicLibrary';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
@@ -310,10 +312,20 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         },
     });
 
+    const loginAppleMusic = useAppleMusicLogin(() => onlineProviderPlatform
+        ? onlineProviderPlatform.completeLogin('applemusic')
+        : refreshAppleMusicLibrary());
+
     const initLogin = async (providerId = activeProviderId) => {
         const summary = onlineProviderPlatform?.providers.find(provider => provider.providerId === providerId);
         if (summary && !summary.availability.configured) return;
         const attemptId = ++loginAttemptIdRef.current;
+        if (providerId === 'applemusic') {
+            stopQrLogin();
+            setShowLoginModal(false);
+            await loginAppleMusic();
+            return;
+        }
         // 等待远端能力发现，并把同一份结果同时用于流程分支与弹窗，避免异步结果让两者错位。
         const methods = await omni.resolveQrLoginMethods(providerId);
         if (attemptId !== loginAttemptIdRef.current) return;
