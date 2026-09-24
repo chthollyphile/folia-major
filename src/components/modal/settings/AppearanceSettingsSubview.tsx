@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Images, Download, Copy, Check, ChevronRight, AlertTriangle, KeyRound, Music2 } from 'lucide-react';
+import { Monitor, Palette, Settings2, LayoutGrid, PanelsTopLeft, Images, Download, Copy, Check, ChevronRight, AlertTriangle, KeyRound, Music2, Film } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -23,6 +23,7 @@ import { resolveWebObsTarget, selectWebObsSource } from '../../../services/obs/w
 import { buildVisualSettingsConfig, resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import LatticeSettingsSection from './LatticeSettingsSection';
 import GridViewSettingsSection from './GridViewSettingsSection';
+import VideoLayerSettingsSection from './VideoLayerSettingsSection';
 import NowPlayingCardSettingsSection from './NowPlayingCardSettingsSection';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../services/themePreferences';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
@@ -226,6 +227,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         monetBackgroundTuning: state.monetBackgroundTuning,
         nomandBackgroundTuning: state.nomandBackgroundTuning,
         latentBackgroundTuning: state.latentBackgroundTuning,
+        soraBackgroundTuning: state.soraBackgroundTuning,
         monetTuning: state.monetTuning,
         pendoloTuning: state.pendoloTuning,
         sonnetTuning: state.sonnetTuning,
@@ -250,6 +252,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetMonetBackgroundTuning: state.handleSetMonetBackgroundTuning,
         handleSetNomandBackgroundTuning: state.handleSetNomandBackgroundTuning,
         handleSetLatentBackgroundTuning: state.handleSetLatentBackgroundTuning,
+        handleSetSoraBackgroundTuning: state.handleSetSoraBackgroundTuning,
         handleSetMonetTuning: state.handleSetMonetTuning,
         handleSetPendoloTuning: state.handleSetPendoloTuning,
         handleSetSonnetTuning: state.handleSetSonnetTuning,
@@ -528,6 +531,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('latentBackgroundTuning') && config.latentBackgroundTuning) {
                 storeVisualizer.handleSetLatentBackgroundTuning(config.latentBackgroundTuning);
+            }
+            if (has('soraBackgroundTuning') && config.soraBackgroundTuning) {
+                storeVisualizer.handleSetSoraBackgroundTuning(config.soraBackgroundTuning);
             }
             if (has('foliumParams') && config.foliumParams) {
                 importFoliumParams(config.foliumParams);
@@ -950,7 +956,18 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 />
             </SettingsAnchor>
 
-            {/* Section 7: Configurations Import/Export (New feature) */}
+            {/* Section 7: Video layer behind the lyrics. Not part of the import/export payload below. */}
+            <SettingsAnchor anchorId="videoLayerSettings" label={t('options.videoLayerSettings')}>
+                <SettingsSectionHeading icon={Film} label={t('options.videoLayerSettings')} />
+                <VideoLayerSettingsSection
+                    settingsCardClass={settingsCardClass}
+                    toggleOffBackgroundClass={toggleOffBackgroundClass}
+                    getAccentOptionStyle={getAccentOptionStyle}
+                    theme={theme}
+                />
+            </SettingsAnchor>
+
+            {/* Section 8: Configurations Import/Export (New feature) */}
             <SettingsAnchor anchorId="importExportTitle" label={t('options.importExportTitle')}>
                 <SettingsSectionHeading icon={Settings2} label={t('options.importExportTitle')} />
                 <div className={`p-4 rounded-xl border space-y-4 ${settingsCardClass}`}>

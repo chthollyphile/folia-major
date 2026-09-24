@@ -118,6 +118,7 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     monetBackgroundTuning: 'background',
     nomandBackgroundTuning: 'background',
     latentBackgroundTuning: 'background',
+    soraBackgroundTuning: 'background',
     urlBackgroundList: 'background',
     urlBackgroundSelectedId: 'background',
 
@@ -164,6 +165,7 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'monetBackgroundTuning',
     'nomandBackgroundTuning',
     'latentBackgroundTuning',
+    'soraBackgroundTuning',
     'urlBackgroundSelectedId',
     // applyImportedConfig only applies the card's mode for the three known values, all truthy
     // strings, so an absent one is skipped there the same as here.

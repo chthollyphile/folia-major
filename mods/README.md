@@ -21,7 +21,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `sample-transparent-mov-export` | client 注册命令，经 rpc 交给 main 调导出服务 |
 | `sample-progress-bar` | 改造进度条：按钮、样式、外部动态数据图层、设置分区、net.fetch、storage |
 | `sample-rickroll` | 在播放页嵌入外部网页（stageLayers + ui.embed + embedOrigins） |
-| `sample-video-layer` | 歌词后方视频层：ui.pickFile/restoreFile（重启后恢复所选文件）、storage、播放事件同步、设置分区、命令 |
+| `sample-video-layer` | 歌词后方视频层：ui.pickFile/restoreFile（重启后恢复所选文件）、storage、播放事件同步、设置分区、命令。应用已内置同样的功能（外观设置 → 视频层），本样例只作 API 演示 |
 
 ## 安全声明（重要）
 

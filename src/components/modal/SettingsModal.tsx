@@ -325,6 +325,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         handleResetNomandBackgroundTuning: onResetNomandBackgroundTuning,
         handleSetLatentBackgroundTuning: onLatentBackgroundTuningChange,
         handleResetLatentBackgroundTuning: onResetLatentBackgroundTuning,
+        handleSetSoraBackgroundTuning: onSoraBackgroundTuningChange,
+        handleResetSoraBackgroundTuning: onResetSoraBackgroundTuning,
         handleSetMonetTuning: onMonetTuningChange,
         handleResetMonetTuning: onResetMonetTuning,
         handleSetPendoloTuning: onPendoloTuningChange,
@@ -364,6 +366,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         monetBackgroundTuning,
         nomandBackgroundTuning,
         latentBackgroundTuning,
+        soraBackgroundTuning,
         monetTuning,
         pendoloTuning,
         sonnetTuning,
@@ -1911,6 +1914,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             monet: { tuning: monetBackgroundTuning },
                             nomand: { tuning: nomandBackgroundTuning },
                             latent: { tuning: latentBackgroundTuning },
+                            sora: { tuning: soraBackgroundTuning },
                             url: {
                                 items: urlBackgroundList,
                                 selectedId: urlBackgroundSelectedId,
@@ -1940,6 +1944,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             latent: {
                                 onTuningChange: onLatentBackgroundTuningChange,
                                 onResetTuning: onResetLatentBackgroundTuning,
+                            },
+                            sora: {
+                                onTuningChange: onSoraBackgroundTuningChange,
+                                onResetTuning: onResetSoraBackgroundTuning,
                             },
                             url: {
                                 onAdd: onAddUrlBackgroundItem,
@@ -2074,6 +2082,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             monet: { tuning: monetBackgroundTuning },
                             nomand: { tuning: nomandBackgroundTuning },
                             latent: { tuning: latentBackgroundTuning },
+                            sora: { tuning: soraBackgroundTuning },
                             url: {
                                 items: urlBackgroundList,
                                 selectedId: urlBackgroundSelectedId,

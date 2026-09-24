@@ -318,6 +318,10 @@ export type CommandPaletteVisualizerContext = {
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    /** The built-in video layer behind the lyrics. */
+    toggleVideoLayer: () => void;
+    /** Opens the file picker for the video layer; resolves to the picked name, or null when cancelled. */
+    pickVideoLayerFile: () => Promise<string | null>;
     /**
      * Whether the active mode builds its typography from whole-line word segmentation. Resolved
      * from the registry by the context builder rather than read here: the command modules are

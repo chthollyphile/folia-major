@@ -1,6 +1,7 @@
 import type { CommandPaletteContext } from '../../command-palette/types';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { useLyricSegmentationStore } from '../../../stores/useLyricSegmentationStore';
+import { useVideoLayerSettingsStore } from '../../../stores/useVideoLayerSettingsStore';
 import { getVisualizerRegistryEntry } from '../../visualizer/registry';
 import { isLyricSegmentationAiAvailable } from '../../../services/lyricSegmentationAi';
 import type { LyricSegmentationActions } from '../playback/createLyricSegmentationActions';
@@ -23,6 +24,11 @@ export const buildVisualizerCommandContext = (
         setVisualizerBackgroundMode: visualizer.handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: visualizer.handleSetMonetBackgroundTuning,
         setLatentBackgroundTuning: visualizer.handleSetLatentBackgroundTuning,
+        toggleVideoLayer: () => {
+            const videoLayer = useVideoLayerSettingsStore.getState();
+            videoLayer.setVideoLayerEnabled(!videoLayer.videoLayerEnabled);
+        },
+        pickVideoLayerFile: () => useVideoLayerSettingsStore.getState().pickLocalFile(),
         usesWordSegmentation: Boolean(getVisualizerRegistryEntry(visualizer.visualizerMode).usesWordSegmentation),
         lyricSegmentation: {
             record: useLyricSegmentationStore.getState().record,

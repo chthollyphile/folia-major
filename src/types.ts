@@ -891,6 +891,11 @@ export interface LatentBackgroundTuning {
   overlayOpacity: number;
 }
 
+export interface SoraBackgroundTuning {
+  /** Skips the WebGL starfield and shows a static solid black (night) / white (daylight) frame. */
+  blank: boolean;
+}
+
 export interface MonetTuning {
   keywordColoringEnabled: boolean;
   showDescription: boolean;
@@ -960,6 +965,10 @@ export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
   meshSwirl: 0.1,
   overlayEnabled: true,
   overlayOpacity: 0.35,
+};
+
+export const DEFAULT_SORA_BACKGROUND_TUNING: SoraBackgroundTuning = {
+  blank: false,
 };
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {

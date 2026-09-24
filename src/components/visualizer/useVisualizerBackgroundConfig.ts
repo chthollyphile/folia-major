@@ -20,6 +20,7 @@ export const useVisualizerBackgroundConfig = (): VisualizerBackgroundConfig => {
         monetBackgroundTuning: state.monetBackgroundTuning,
         nomandBackgroundTuning: state.nomandBackgroundTuning,
         latentBackgroundTuning: state.latentBackgroundTuning,
+        soraBackgroundTuning: state.soraBackgroundTuning,
         urlBackgroundList: state.urlBackgroundList,
         urlBackgroundSelectedId: state.urlBackgroundSelectedId,
     })));
@@ -39,6 +40,7 @@ export const useVisualizerBackgroundConfig = (): VisualizerBackgroundConfig => {
         monet: { tuning: settings.monetBackgroundTuning },
         nomand: { tuning: settings.nomandBackgroundTuning },
         latent: { tuning: settings.latentBackgroundTuning },
+        sora: { tuning: settings.soraBackgroundTuning },
         url: {
             items: settings.urlBackgroundList,
             selectedId: settings.urlBackgroundSelectedId,

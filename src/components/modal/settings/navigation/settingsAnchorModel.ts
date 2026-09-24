@@ -15,6 +15,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     grid3dCardStyle: { section: 'appearance', labelKey: 'options.grid3dCardStyle' },
     latticeSettings: { section: 'appearance', labelKey: 'options.latticeSettings' },
     gridViewCardSettings: { section: 'appearance', labelKey: 'options.gridViewCardSettings' },
+    videoLayerSettings: { section: 'appearance', labelKey: 'options.videoLayerSettings' },
     importExportTitle: { section: 'appearance', labelKey: 'options.importExportTitle' },
 
     // GeneralSettingsSubview (PinnedCommandSettings renders inside it)

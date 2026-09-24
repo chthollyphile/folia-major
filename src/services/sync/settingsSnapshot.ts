@@ -62,6 +62,7 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     monetBackgroundTuning: state.monetBackgroundTuning,
     nomandBackgroundTuning: state.nomandBackgroundTuning,
     latentBackgroundTuning: state.latentBackgroundTuning,
+    soraBackgroundTuning: state.soraBackgroundTuning,
     monetTuning: state.monetTuning,
     pendoloTuning: state.pendoloTuning,
     sonnetTuning: state.sonnetTuning,
@@ -127,6 +128,7 @@ export const applySyncedVisualSettings = (
     if (settings.monetBackgroundTuning !== undefined) state.handleSetMonetBackgroundTuning(settings.monetBackgroundTuning as Parameters<SyncableSettingsState['handleSetMonetBackgroundTuning']>[0]);
     if (settings.nomandBackgroundTuning !== undefined) state.handleSetNomandBackgroundTuning(settings.nomandBackgroundTuning as Parameters<SyncableSettingsState['handleSetNomandBackgroundTuning']>[0]);
     if (settings.latentBackgroundTuning !== undefined) state.handleSetLatentBackgroundTuning(settings.latentBackgroundTuning as Parameters<SyncableSettingsState['handleSetLatentBackgroundTuning']>[0]);
+    if (settings.soraBackgroundTuning !== undefined) state.handleSetSoraBackgroundTuning(settings.soraBackgroundTuning as Parameters<SyncableSettingsState['handleSetSoraBackgroundTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.monetTuning !== undefined) state.handleSetMonetTuning(settings.monetTuning as Parameters<SyncableSettingsState['handleSetMonetTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.pendoloTuning !== undefined) state.handleSetPendoloTuning(settings.pendoloTuning as Parameters<SyncableSettingsState['handleSetPendoloTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.sonnetTuning !== undefined) state.handleSetSonnetTuning(settings.sonnetTuning as Parameters<SyncableSettingsState['handleSetSonnetTuning']>[0]);

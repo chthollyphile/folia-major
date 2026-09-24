@@ -160,6 +160,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setVisualizerBackgroundMode: vi.fn(),
             setMonetBackgroundTuning: vi.fn(),
             setLatentBackgroundTuning: vi.fn(),
+            toggleVideoLayer: vi.fn(),
+            pickVideoLayerFile: vi.fn(async () => null),
             usesWordSegmentation: true,
             lyricSegmentation: {
                 record: null,
