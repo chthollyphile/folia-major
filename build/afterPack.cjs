@@ -16,6 +16,13 @@ const ONNX_BIN_RELATIVE_PATH = path.join(
 // 末期才炸。这五个值是 electron-builder 的公开契约，比提升可靠。
 const ARCH_NAMES = ['ia32', 'x64', 'armv7l', 'arm64', 'universal'];
 
+/** 打包产物的入口名，与 package.json 的 build.linux.executableName 一致。 */
+const LINUX_ENTRY_NAME = 'folia-major';
+/** 改名后的 Electron 二进制名，被包装脚本 exec，见 packaging/linux/folia-major-launch.sh。 */
+const LINUX_APP_BINARY_NAME = 'folia-major-app';
+/** 包装脚本模板：抬 renderer 的 fd 上限，然后 exec 上面的二进制。 */
+const LINUX_LAUNCHER_TEMPLATE = path.join(__dirname, '..', 'packaging', 'linux', 'folia-major-launch.sh');
+
 async function pathExists(candidate) {
   try {
     await fs.access(candidate);
@@ -86,4 +93,39 @@ async function warnIfTargetHasNoBinary(binariesDir, targetPlatform, keptArchitec
   );
 }
 
-exports.default = pruneOnnxRuntimeBinaries;
+/**
+ * Linux：把入口可执行文件换成"抬 fd 上限"的包装脚本。
+ *
+ * renderer 的 soft RLIMIT_NOFILE 是从启动进程继承的，Chromium 从不为 renderer 抬高它，而
+ * systemd 给桌面应用的默认值是 1024。播放期间的共享内存泄漏（~0.5 fd/s）撞上这个 1024 之后，
+ * 合成器不再出帧——画面定格、进程还活着。把包装脚本放到入口名上，deb/rpm 的
+ * `/usr/bin/folia-major` 符号链接、AUR 包和便携版说明就一起生效，不需要改 .desktop，也不需要
+ * 发行版配合。实测：这样启动后 renderer 的 soft 上限是 524288（未经启动脚本时是 1024），
+ * 页面与播放正常。
+ */
+async function installLinuxLauncher(context) {
+  if (context.electronPlatformName !== 'linux') return;
+
+  const appDir = context.appOutDir;
+  const entry = path.join(appDir, LINUX_ENTRY_NAME);
+  const renamed = path.join(appDir, LINUX_APP_BINARY_NAME);
+
+  // afterPack 每个 platform/arch 打包进一次（platformPackager 在 pack 阶段调它，之后
+  // tar.gz / deb / rpm 都从这同一个 appOutDir 出包），正常流程只会走到这里一次。
+  // 这个判断是防御性的：万一钩子被再调一次，入口已经是脚本、二进制已经改名，再走一遍就会把脚本
+  // 改名成 folia-major-app、用 shell 覆盖掉真正的 Electron 二进制。
+  if (await pathExists(renamed)) return;
+  if (!(await pathExists(entry))) {
+    console.warn(`[afterPack] ${LINUX_ENTRY_NAME} not found in ${appDir}, skipping the Linux launcher`);
+    return;
+  }
+
+  await fs.rename(entry, renamed);
+  await fs.copyFile(LINUX_LAUNCHER_TEMPLATE, entry);
+  await fs.chmod(entry, 0o755);
+}
+
+exports.default = async (context) => {
+  await pruneOnnxRuntimeBinaries(context);
+  await installLinuxLauncher(context);
+};

@@ -3,9 +3,12 @@ Folia Linux 便携版说明
 
 此压缩包包含以下内容：
 
-- `folia-major`：程序可执行文件
+- `folia-major`：启动脚本（先抬高文件描述符上限，再启动下面的程序本体）
+- `folia-major-app`：程序本体（Electron 可执行文件）
 - `resources/linux/icon.png`：应用图标
 - `resources/linux/folia-major.desktop`：桌面启动项模板
+
+启动请用 `folia-major`，直接运行 `folia-major-app`而绕过启动脚本，会导致连续播放半小时上下画面卡死。
 
 如何创建桌面启动项：
 
@@ -13,7 +16,7 @@ Folia Linux 便携版说明
    `~/.local/share/applications/folia-major.desktop`
 
 2. 修改复制后的文件，将以下占位符替换为实际路径：
-   `__APP_PATH__`  -> `folia-major` 可执行文件的绝对路径
+   `__APP_PATH__`  -> `folia-major` 启动脚本的绝对路径
    `__ICON_PATH__` -> `resources/linux/icon.png` 的绝对路径
 
 示例：
