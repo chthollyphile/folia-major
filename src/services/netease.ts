@@ -76,7 +76,8 @@ const getApiBase = async () => {
     if (port === null) {
       throw new Error(NETEASE_API_UNAVAILABLE);
     }
-    return `http://localhost:${port}`;
+    // 必须是 127.0.0.1 而不是 localhost：本地 API 只监听 IPv4 回环，原因见 electron/main.cjs 的 startApi。
+    return `http://127.0.0.1:${port}`;
   }
 
   if (API_BASE) return API_BASE;

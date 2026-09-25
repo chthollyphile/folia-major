@@ -4067,7 +4067,10 @@ async function startApi() {
   try {
     const freePort = await getFreePort();
     await initializeNcmApiRuntime();
-    await serveNcmApi({ port: freePort });
+    // 只监听 IPv4 回环：API 把来自 ::1 的请求当成「无真实 IP」，改用启动时随机生成的国内 IP
+    // 填 X-Real-IP。机器有公网 IPv6（如手机热点）时 localhost 会解析到 ::1，网易看到的来源 IP
+    // 与实际出口不一致，扫码确认会被风控拒绝；经 127.0.0.1 进来的请求则不会被改写。
+    await serveNcmApi({ port: freePort, host: '127.0.0.1' });
     assignedPort = freePort;
     updateNeteaseApiStatus({ status: 'running', port: assignedPort, error: null });
     console.log('Netease API started on port', assignedPort);
