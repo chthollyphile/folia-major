@@ -3957,6 +3957,12 @@ async function clearCoverCacheDirectory() {
   }
 }
 
+const { withoutImplicitClientIp } = require('./neteaseApiStartup.cjs');
+// 必须赶在 main / server 首次 require util/request 之前替换缓存里的导出，它们拿到的才是包过的版本。
+// 先 require 再取缓存项：赋值左侧会先求值，写成一行时缓存项还不存在。
+const ncmRequestPath = require.resolve('@neteasecloudmusicapienhanced/api/util/request');
+const ncmRequest = require(ncmRequestPath);
+require.cache[ncmRequestPath].exports = withoutImplicitClientIp(ncmRequest);
 const { register_anonimous } = require('@neteasecloudmusicapienhanced/api/main');
 const { getXeapiPublicKey } = require('@neteasecloudmusicapienhanced/api/util/xeapiKey');
 const {
@@ -4067,9 +4073,8 @@ async function startApi() {
   try {
     const freePort = await getFreePort();
     await initializeNcmApiRuntime();
-    // 只监听 IPv4 回环：API 把来自 ::1 的请求当成「无真实 IP」，改用启动时随机生成的国内 IP
-    // 填 X-Real-IP。机器有公网 IPv6（如手机热点）时 localhost 会解析到 ::1，网易看到的来源 IP
-    // 与实际出口不一致，扫码确认会被风控拒绝；经 127.0.0.1 进来的请求则不会被改写。
+    // 只监听 IPv4 回环：本地 API 只给本进程和渲染进程用，不该暴露到局域网；固定地址也让渲染进程
+    // 不再随 localhost 解析到 ::1 还是 127.0.0.1 而走不同的来源 IP 分支（见 withoutImplicitClientIp）。
     await serveNcmApi({ port: freePort, host: '127.0.0.1' });
     assignedPort = freePort;
     updateNeteaseApiStatus({ status: 'running', port: assignedPort, error: null });

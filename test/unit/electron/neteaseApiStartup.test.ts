@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 const {
     refreshAnonymousToken,
     resolveXeapiPublicKey,
+    withoutImplicitClientIp,
 } = require('../../../electron/neteaseApiStartup.cjs') as {
+    withoutImplicitClientIp: (
+        request: (uri: string, data: unknown, options: Record<string, unknown>) => unknown,
+    ) => (uri: string, data: unknown, options?: Record<string, unknown>) => unknown;
     refreshAnonymousToken: (options: Record<string, unknown>) => Promise<boolean>;
     resolveXeapiPublicKey: (options: Record<string, unknown>) => Promise<{
         publicKey: Record<string, unknown>;
@@ -196,5 +200,20 @@ describe('NetEase API startup recovery', () => {
         expect(refreshed).toBe(false);
         expect(registerAnonymous).toHaveBeenCalledTimes(3);
         expect(persistToken).not.toHaveBeenCalled();
+    });
+});
+
+describe('NetEase API client IP policy', () => {
+    it('drops the implicit client IP so NetEase sees the real egress address', () => {
+        const request = vi.fn();
+        withoutImplicitClientIp(request)('/api/login/qrcode/client/login', { key: 'k' }, { ip: '116.1.2.3', cookie: 'c' });
+        expect(request).toHaveBeenCalledWith('/api/login/qrcode/client/login', { key: 'k' }, { ip: '', cookie: 'c' });
+    });
+
+    it('keeps the random CN IP when a request opts into randomCNIP', () => {
+        const request = vi.fn();
+        const options = { ip: '116.1.2.3', randomCNIP: true };
+        withoutImplicitClientIp(request)('/api/song/enhance/player/url/v1', {}, options);
+        expect(request).toHaveBeenCalledWith('/api/song/enhance/player/url/v1', {}, options);
     });
 });

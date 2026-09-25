@@ -196,6 +196,14 @@ async function refreshAnonymousToken({
   }
 }
 
+// 与 Docker 镜像（deploy/docker/scripts/patch-music-api-client-ip.mjs）同一策略：只有显式传了
+// randomCNIP 的请求才带伪造的来源 IP，其余请求不写 X-Real-IP / X-Forwarded-For，由网易按连接本身
+// 识别真实公网出口。上游默认会把本机请求的 127.0.0.1 写进去，从 ::1 进来的还会换成随机国内 IP；
+// 后者与手机扫码时的位置对不上，会让扫码确认失败。
+function withoutImplicitClientIp(request) {
+  return (uri, data, options = {}) => request(uri, data, options.randomCNIP ? options : { ...options, ip: '' });
+}
+
 module.exports = {
   DEFAULT_OPERATION_TIMEOUT_MS,
   hasUsableXeapiPublicKey,
@@ -203,4 +211,5 @@ module.exports = {
   resolveXeapiPublicKey,
   retryStartupOperation,
   withTimeout,
+  withoutImplicitClientIp,
 };
