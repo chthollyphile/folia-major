@@ -207,6 +207,11 @@ describe('neteaseProvider', () => {
         vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code } as any);
         await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toMatchObject({ state });
     });
+
+    it('keeps the backend code and message on an unmapped QR response', async () => {
+        vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 404, msg: 'Not Found' } as any);
+        await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({ state: 'error', message: 'code 404: Not Found' });
+    });
 });
 
 describe('neteaseProvider liked song ids', () => {

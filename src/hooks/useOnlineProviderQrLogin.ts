@@ -119,7 +119,11 @@ export const useOnlineProviderQrLogin = ({
                     setQrState(result.state);
                     if (lastLoggedQrStateRef.current !== result.state) {
                         lastLoggedQrStateRef.current = result.state;
-                        console.info('[ProviderQrLogin] state', { providerId: targetProviderId, state: result.state });
+                        console.info('[ProviderQrLogin] state', {
+                            providerId: targetProviderId,
+                            state: result.state,
+                            ...(result.state === 'error' && result.message ? { message: result.message } : {}),
+                        });
                     }
                     if (result.state === 'confirmed') {
                         clearTimer(qrCheckTimeoutRef);

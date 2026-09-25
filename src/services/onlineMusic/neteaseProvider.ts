@@ -378,7 +378,8 @@ export const neteaseProvider: OnlineMusicProvider = {
                 return { state: 'confirmed' };
             }
             if (response?.code === 801) return { state: 'waiting' };
-            return { state: 'error', message: response?.message };
+            // 带上原始状态码：只剩 state 的话，风控（8821 等）和后端吞错后的 404 在日志里无从区分。
+            return { state: 'error', message: `code ${response?.code ?? 'none'}: ${response?.message || response?.msg || 'no message'}` };
         },
     },
     library: {
