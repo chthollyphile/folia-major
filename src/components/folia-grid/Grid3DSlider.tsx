@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { formatGridMapFolderTitle } from '../../utils/gridMapFolderPath';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
 import { useHomeLayoutSettingsStore } from '../../stores/useHomeLayoutSettingsStore';
+import { useReducedMotionFor } from '../../hooks/useReducedMotionFor';
 
 // src/components/folia-grid/Grid3DSlider.tsx
 // Controlled desktop Grid3D slider shared by Netease, local music, and Navidrome overview surfaces.
@@ -73,7 +74,11 @@ export const getGrid3DSliderSummaryText = (
 const DISCRETE_WHEEL_PIXEL_THRESHOLD = 40;
 const DISCRETE_WHEEL_DISTANCE_MULTIPLIER = 3;
 const GRID3D_CARD_GAP = 48;
-const GRID3D_WINDOW_RADIUS = 18;
+export const GRID3D_WINDOW_RADIUS = 18;
+export const GRID3D_LEAP_CARDS = 4;
+const PROGRAMMATIC_SCROLL_SETTLE_PX = 3;
+const PROGRAMMATIC_SCROLL_TIMEOUT_MS = 600;
+const PROGRAMMATIC_SCROLL_IDLE_TIMEOUT_MS = 250;
 const WHEEL_SMOOTHING_SETTLE_DISTANCE = 0.5;
 const WHEEL_SMOOTHING_MIN_PROGRESS = 0.01;
 const WHEEL_SMOOTHING_MAX_DURATION_MS = 800;
@@ -101,6 +106,28 @@ export const resolveGrid3DWheelInput = (
         delta: rawDelta * unitScale,
         isDiscreteMouseWheel: deltaMode !== 0 || Math.abs(rawDelta) >= DISCRETE_WHEEL_PIXEL_THRESHOLD,
     };
+};
+
+/**
+ * Serializes item IDs safely to prevent collision when IDs contain commas (e.g. folder paths).
+ */
+export const getGrid3DItemsSignature = (items: { id: string | number }[]): string =>
+    JSON.stringify(items.map(item => String(item.id)));
+
+/**
+ * Calculates clamped target scrollLeft to center the card at the given index.
+ */
+export const getGrid3DTargetScrollLeft = (
+    index: number,
+    containerWidth: number,
+    scrollWidth: number,
+    cardPitch: number,
+    coverSize: number,
+    edgePadding: number,
+): number => {
+    const maxScrollLeft = Math.max(0, scrollWidth - containerWidth);
+    const rawTarget = edgePadding + index * cardPitch + coverSize / 2 - containerWidth / 2;
+    return Math.max(0, Math.min(maxScrollLeft, rawTarget));
 };
 
 /**
@@ -135,6 +162,53 @@ export const getGrid3DWindowRange = (
     };
 };
 
+export type Grid3DTransitionMode = 'none' | 'direct' | 'leap';
+
+/**
+ * Resolves the transition mode for external focus changes:
+ * - 'none': Immediate jump (list change, same index, or reduced motion).
+ * - 'direct': Continuous smooth scroll within the rendered window radius.
+ * - 'leap': Distant jump that stages cards near the destination before smoothly gliding in.
+ */
+export const resolveGrid3DTransitionMode = ({
+    isListChanged,
+    prevIndex,
+    nextIndex,
+    reduceMicroMotion = false,
+}: {
+    isListChanged: boolean;
+    prevIndex: number;
+    nextIndex: number;
+    reduceMicroMotion?: boolean;
+}): Grid3DTransitionMode => {
+    if (reduceMicroMotion || isListChanged || prevIndex === nextIndex) {
+        return 'none';
+    }
+    if (Math.abs(nextIndex - prevIndex) <= GRID3D_WINDOW_RADIUS) {
+        return 'direct';
+    }
+    return 'leap';
+};
+
+/**
+ * Resolves staging index and scroll direction for leap transitions.
+ */
+export const resolveGrid3DLeapPlan = ({
+    prevIndex,
+    nextIndex,
+    itemCount,
+    leapCards = GRID3D_LEAP_CARDS,
+}: {
+    prevIndex: number;
+    nextIndex: number;
+    itemCount: number;
+    leapCards?: number;
+}): { direction: number; stagingIndex: number } => {
+    const direction = Math.sign(nextIndex - prevIndex);
+    const stagingIndex = clampFocusedIndex(nextIndex - direction * leapCards, itemCount);
+    return { direction, stagingIndex };
+};
+
 export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
     items,
     focusedIndex,
@@ -148,12 +222,15 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
 }) => {
     const { t } = useTranslation();
     const grid3dCardStyle = useHomeLayoutSettingsStore(state => state.grid3dCardStyle);
+    const reduceMicroMotion = useReducedMotionFor('uiMicroMotion');
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const onFocusedIndexChangeRef = useRef(onFocusedIndexChange);
     const focusedIndexRef = useRef(focusedIndex);
     const lastInternalFocusRef = useRef<number | null>(null);
+    const prevItemsSignatureRef = useRef<string | null>(null);
+    const prevFocusedIndexRef = useRef(focusedIndex);
     const isProgrammaticScrollRef = useRef(false);
     const programmaticTargetLeftRef = useRef<number | null>(null);
     const programmaticScrollTimeoutRef = useRef<any>(null);
@@ -232,7 +309,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
     const edgePadding = Math.max(0, (containerSize.width - coverSize) / 2);
 
     const safeFocusedIndex = clampFocusedIndex(focusedIndex, items.length);
-    const itemsSignature = useMemo(() => items.map(item => item.id).join(','), [items]);
+    const itemsSignature = useMemo(() => getGrid3DItemsSignature(items), [items]);
 
     const loadedIndices = useMemo(() => {
         const indexes = new Set<number>();
@@ -402,6 +479,24 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         momentumRafRef.current = requestAnimationFrame(tick);
     }, []);
 
+    const clearProgrammaticScrollState = useCallback(() => {
+        isProgrammaticScrollRef.current = false;
+        programmaticTargetLeftRef.current = null;
+        if (programmaticScrollTimeoutRef.current) {
+            clearTimeout(programmaticScrollTimeoutRef.current);
+            programmaticScrollTimeoutRef.current = null;
+        }
+    }, []);
+
+    const armProgrammaticScrollTimeout = useCallback((timeoutMs: number) => {
+        if (programmaticScrollTimeoutRef.current) {
+            clearTimeout(programmaticScrollTimeoutRef.current);
+        }
+        programmaticScrollTimeoutRef.current = setTimeout(() => {
+            clearProgrammaticScrollState();
+        }, timeoutMs);
+    }, [clearProgrammaticScrollState]);
+
     const stopKineticScroll = useCallback(() => {
         if (wheelIdleTimerRef.current) {
             clearTimeout(wheelIdleTimerRef.current);
@@ -416,27 +511,30 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         const container = scrollContainerRef.current;
         if (!container) return;
 
-        const targetScrollLeft = edgePadding + index * cardPitch + coverSize / 2 - container.clientWidth / 2;
+        const targetScrollLeft = getGrid3DTargetScrollLeft(
+            index,
+            container.clientWidth,
+            container.scrollWidth,
+            cardPitch,
+            coverSize,
+            edgePadding,
+        );
 
         isProgrammaticScrollRef.current = true;
         programmaticTargetLeftRef.current = targetScrollLeft;
-        if (programmaticScrollTimeoutRef.current) clearTimeout(programmaticScrollTimeoutRef.current);
-        programmaticScrollTimeoutRef.current = setTimeout(() => {
-            isProgrammaticScrollRef.current = false;
-            programmaticTargetLeftRef.current = null;
-        }, 600);
+        armProgrammaticScrollTimeout(PROGRAMMATIC_SCROLL_TIMEOUT_MS);
 
         container.scrollTo({
             left: targetScrollLeft,
             behavior,
         });
-    }, [cardPitch, coverSize, edgePadding, items.length]);
+    }, [armProgrammaticScrollTimeout, cardPitch, coverSize, edgePadding, items.length]);
 
     const scrollToIndex = useCallback((index: number) => {
         if (!isInteractive) return;
         stopKineticScroll();
         reportFocusedIndex(index);
-        centerIndex(index);
+        centerIndex(index, 'smooth');
     }, [centerIndex, isInteractive, reportFocusedIndex, stopKineticScroll]);
 
     useEffect(() => {
@@ -448,18 +546,42 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
             return;
         }
 
+        const isListChanged = prevItemsSignatureRef.current !== itemsSignature;
+        const prevIndex = prevFocusedIndexRef.current;
+
+        prevItemsSignatureRef.current = itemsSignature;
+        prevFocusedIndexRef.current = nextIndex;
+
         if (lastInternalFocusRef.current === nextIndex) {
             lastInternalFocusRef.current = null;
             const frameId = requestAnimationFrame(() => updateCardTransforms());
             return () => cancelAnimationFrame(frameId);
         }
 
+        const transitionMode = resolveGrid3DTransitionMode({
+            isListChanged,
+            prevIndex,
+            nextIndex,
+            reduceMicroMotion,
+        });
+
         const frameId = requestAnimationFrame(() => {
-            centerIndex(nextIndex, 'auto');
-            updateCardTransforms();
+            if (transitionMode === 'leap') {
+                const { stagingIndex } = resolveGrid3DLeapPlan({
+                    prevIndex,
+                    nextIndex,
+                    itemCount: items.length,
+                });
+                centerIndex(stagingIndex, 'auto');
+                updateCardTransforms();
+                centerIndex(nextIndex, 'smooth');
+            } else {
+                centerIndex(nextIndex, transitionMode === 'direct' ? 'smooth' : 'auto');
+                updateCardTransforms();
+            }
         });
         return () => cancelAnimationFrame(frameId);
-    }, [centerIndex, focusedIndex, isLoading, items.length, itemsSignature, updateCardTransforms]);
+    }, [centerIndex, focusedIndex, isLoading, items.length, itemsSignature, reduceMicroMotion, updateCardTransforms]);
 
     const handleScroll = useCallback(() => {
         if (!isInteractive) {
@@ -475,16 +597,15 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         if (isProgrammaticScrollRef.current) {
             if (programmaticTargetLeftRef.current !== null) {
                 const diff = Math.abs(container.scrollLeft - programmaticTargetLeftRef.current);
-                if (diff < 3) {
-                    isProgrammaticScrollRef.current = false;
-                    programmaticTargetLeftRef.current = null;
-                    if (programmaticScrollTimeoutRef.current) {
-                        clearTimeout(programmaticScrollTimeoutRef.current);
-                        programmaticScrollTimeoutRef.current = null;
-                    }
+                if (diff < PROGRAMMATIC_SCROLL_SETTLE_PX) {
+                    clearProgrammaticScrollState();
+                } else {
+                    // 原生平滑滚动仍在活跃推进中：通过空闲看门狗续期抑制窗口，防止远距离平滑滚动超过初始超时而提前上报中间焦点。
+                    // 只要浏览器仍在触发 scroll 事件朝目标推进就持续抑制；若滚动停止或卡死，将在空闲超时后兜底恢复。
+                    armProgrammaticScrollTimeout(PROGRAMMATIC_SCROLL_IDLE_TIMEOUT_MS);
                 }
             } else {
-                isProgrammaticScrollRef.current = false;
+                clearProgrammaticScrollState();
             }
             return;
         }
@@ -493,13 +614,14 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
             reportFocusedIndex(closestIndex);
         }
 
-    }, [isInteractive, reportFocusedIndex, updateCardTransforms]);
+    }, [armProgrammaticScrollTimeout, clearProgrammaticScrollState, isInteractive, reportFocusedIndex, updateCardTransforms]);
 
     const handleMouseDown = (event: React.MouseEvent) => {
         if (!isInteractive || !scrollContainerRef.current || event.button !== 0) return;
 
-        stopWheelSmoothing();
-        stopMomentum();
+        // 用户主动拖拽接管滚动，解除程序化滚动的抑制并恢复焦点实时上报，避免拖拽打断期间焦点被卡住。
+        clearProgrammaticScrollState();
+        stopKineticScroll();
         isDraggingRef.current = true;
         startXRef.current = event.pageX - scrollContainerRef.current.offsetLeft;
         scrollLeftRef.current = scrollContainerRef.current.scrollLeft;
@@ -576,6 +698,8 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
         const handleWheelEvent = (event: WheelEvent) => {
             event.preventDefault();
 
+            // 用户滚轮主动接管滚动，解除程序化抑制并打断惯性滚动。
+            clearProgrammaticScrollState();
             stopMomentum();
             const wheelInput = resolveGrid3DWheelInput(
                 event.deltaX,
@@ -609,7 +733,7 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
             container.removeEventListener('wheel', handleWheelEvent);
             if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current);
         };
-    }, [isInteractive, smoothDiscreteWheelBy, startMomentum, stopMomentum, stopWheelSmoothing]);
+    }, [clearProgrammaticScrollState, isInteractive, smoothDiscreteWheelBy, startMomentum, stopMomentum, stopWheelSmoothing]);
 
     // Repaints the fixed card window after layout or focus changes.
     useEffect(() => {
@@ -619,12 +743,10 @@ export const Grid3DSlider: React.FC<Grid3DSliderProps> = ({
 
     useEffect(() => {
         return () => {
-            if (programmaticScrollTimeoutRef.current) clearTimeout(programmaticScrollTimeoutRef.current);
-            if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current);
-            stopWheelSmoothing();
-            stopMomentum();
+            clearProgrammaticScrollState();
+            stopKineticScroll();
         };
-    }, [stopMomentum, stopWheelSmoothing]);
+    }, [clearProgrammaticScrollState, stopKineticScroll]);
 
     const focusedItem = items[safeFocusedIndex];
     const focusedDisplayName = focusedItem ? getGrid3DSliderDisplayName(focusedItem) : '';

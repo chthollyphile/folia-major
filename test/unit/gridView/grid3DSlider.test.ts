@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
     getGrid3DCardGeometryKey,
+    getGrid3DItemsSignature,
+    getGrid3DTargetScrollLeft,
     getGrid3DWindowRange,
     getGrid3DSliderDisplayName,
     getGrid3DSliderSecondaryText,
     getGrid3DSliderSummaryText,
+    GRID3D_LEAP_CARDS,
+    GRID3D_WINDOW_RADIUS,
+    resolveGrid3DLeapPlan,
+    resolveGrid3DTransitionMode,
     resolveGrid3DWheelInput,
 } from '../../../src/components/folia-grid/Grid3DSlider';
 
@@ -128,5 +134,148 @@ describe('resolveGrid3DWheelInput', () => {
             delta: -18,
             isDiscreteMouseWheel: false,
         });
+    });
+});
+
+describe('getGrid3DItemsSignature', () => {
+    it('serializes item IDs safely', () => {
+        const items = [{ id: 'album-1' }, { id: 'album-2' }];
+        expect(getGrid3DItemsSignature(items)).toBe('["album-1","album-2"]');
+    });
+
+    it('prevents collision when IDs contain commas', () => {
+        const singleItemWithComma = [{ id: 'rock, pop' }];
+        const twoItemsSplit = [{ id: 'rock' }, { id: ' pop' }];
+
+        expect(getGrid3DItemsSignature(singleItemWithComma)).not.toBe(
+            getGrid3DItemsSignature(twoItemsSplit),
+        );
+    });
+});
+
+describe('getGrid3DTargetScrollLeft', () => {
+    it('centers the card when within container bounds', () => {
+        // containerWidth: 1000, scrollWidth: 3000, cardPitch: 266, coverSize: 218, edgePadding: 391
+        // target = 391 + 2 * 266 + 109 - 500 = 532
+        const target = getGrid3DTargetScrollLeft(2, 1000, 3000, 266, 218, 391);
+        expect(target).toBe(532);
+    });
+
+    it('clamps to zero at the start of the list', () => {
+        const target = getGrid3DTargetScrollLeft(0, 1200, 3000, 266, 218, 100);
+        expect(target).toBe(0);
+    });
+
+    it('clamps to maxScrollLeft at the end of the list', () => {
+        const target = getGrid3DTargetScrollLeft(50, 1000, 2000, 266, 218, 391);
+        expect(target).toBe(1000);
+    });
+});
+
+describe('resolveGrid3DTransitionMode', () => {
+    it('returns "none" when the collection list changes (such as initial mount or tab switching)', () => {
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: true,
+            prevIndex: 0,
+            nextIndex: 5,
+        })).toBe('none');
+    });
+
+    it('returns "none" when clicking the same collection card (returning directly to A)', () => {
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 3,
+            nextIndex: 3,
+        })).toBe('none');
+    });
+
+    it('returns "none" when reduced motion is requested on uiMicroMotion surface', () => {
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 1,
+            nextIndex: 3,
+            reduceMicroMotion: true,
+        })).toBe('none');
+    });
+
+    it('returns "direct" when navigating within virtual window radius', () => {
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 1,
+            nextIndex: 7,
+        })).toBe('direct');
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 0,
+            nextIndex: GRID3D_WINDOW_RADIUS,
+        })).toBe('direct');
+    });
+
+    it('returns "leap" for distant jumps exceeding window radius to provide smooth leap-in transition', () => {
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 0,
+            nextIndex: GRID3D_WINDOW_RADIUS + 1,
+        })).toBe('leap');
+        expect(resolveGrid3DTransitionMode({
+            isListChanged: false,
+            prevIndex: 0,
+            nextIndex: 50,
+        })).toBe('leap');
+    });
+});
+
+describe('resolveGrid3DLeapPlan', () => {
+    it('computes forward leap staging index using default GRID3D_LEAP_CARDS', () => {
+        const plan = resolveGrid3DLeapPlan({
+            prevIndex: 0,
+            nextIndex: 30,
+            itemCount: 100,
+        });
+
+        expect(plan.direction).toBe(1);
+        expect(plan.stagingIndex).toBe(30 - GRID3D_LEAP_CARDS);
+    });
+
+    it('computes backward leap staging index', () => {
+        const plan = resolveGrid3DLeapPlan({
+            prevIndex: 50,
+            nextIndex: 10,
+            itemCount: 100,
+        });
+
+        expect(plan.direction).toBe(-1);
+        expect(plan.stagingIndex).toBe(10 + GRID3D_LEAP_CARDS);
+    });
+
+    it('clamps staging index when near list boundaries', () => {
+        const atStart = resolveGrid3DLeapPlan({
+            prevIndex: 0,
+            nextIndex: 2,
+            itemCount: 5,
+            leapCards: 4,
+        });
+        expect(atStart.direction).toBe(1);
+        expect(atStart.stagingIndex).toBe(0);
+
+        const atEnd = resolveGrid3DLeapPlan({
+            prevIndex: 10,
+            nextIndex: 3,
+            itemCount: 5,
+            leapCards: 4,
+        });
+        expect(atEnd.direction).toBe(-1);
+        expect(atEnd.stagingIndex).toBe(4);
+    });
+
+    it('supports custom leapCards count', () => {
+        const plan = resolveGrid3DLeapPlan({
+            prevIndex: 0,
+            nextIndex: 30,
+            itemCount: 100,
+            leapCards: 6,
+        });
+
+        expect(plan.stagingIndex).toBe(24);
     });
 });
