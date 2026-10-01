@@ -20,6 +20,7 @@ const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = requ
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createLyricApi } = require('./lyricApi.cjs');
+const { createNowPlayingSenderApi, normalizeNowPlayingSenderProgressIntervalSec } = require('./nowPlayingSenderApi.cjs');
 const { createLocalCoverAssetStore, getLocalCoverAssetDirectory } = require('./localCoverAssets.cjs');
 const {
   compareVersions,
@@ -1802,6 +1803,8 @@ const OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY = 'OBS_BROWSER_SOURCE_ENABLED';
 const OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY = 'OBS_BROWSER_SOURCE_TOKEN';
 const OBS_BROWSER_SOURCE_PORT_SETTING_KEY = 'OBS_BROWSER_SOURCE_PORT';
 const LYRIC_API_ENABLED_SETTING_KEY = 'LYRIC_API_ENABLED';
+const NOW_PLAYING_SENDER_ENABLED_SETTING_KEY = 'NOW_PLAYING_SENDER_ENABLED';
+const NOW_PLAYING_SENDER_PROGRESS_INTERVAL_SETTING_KEY = 'NOW_PLAYING_SENDER_PROGRESS_INTERVAL_SEC';
 const DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY = 'DISCORD_RICH_PRESENCE_ENABLED';
 const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
 const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
@@ -1819,6 +1822,12 @@ const MOD_SYSTEM_ENABLED_SETTING_KEY = 'MOD_SYSTEM_ENABLED';
 const DEFAULT_STAGE_API_PORT = 32107;
 const DEFAULT_OBS_BROWSER_SOURCE_PORT = 32108;
 const DEFAULT_LYRIC_API_PORT = 32109;
+// Fixed: 9863 is what now-playing-service, its frontend and PV Tool all connect to, and only one
+// listener can hold it. Making it configurable would invite the user to break that assumption.
+const NOW_PLAYING_SENDER_PORT = 9863;
+// Seconds between two progress heartbeats, one decimal. 0 disables the timer: playback events
+// (play/pause, track change, seek) still put an anchor on the wire.
+const NOW_PLAYING_SENDER_PROGRESS_INTERVAL_DEFAULT_SEC = 0.5;
 const FOLIA_RELEASES_URL = 'https://github.com/chthollyphile/folia-major/releases';
 const FOLIA_GITHUB_REPOSITORY = {
   owner: 'chthollyphile',
@@ -1931,6 +1940,11 @@ function getPublicSettings() {
     [TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY]: readStoredBoolean(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, false),
     [DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY]: readStoredBoolean(DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY, false),
     [LYRIC_API_ENABLED_SETTING_KEY]: readStoredBoolean(LYRIC_API_ENABLED_SETTING_KEY, false),
+    [NOW_PLAYING_SENDER_ENABLED_SETTING_KEY]: readStoredBoolean(NOW_PLAYING_SENDER_ENABLED_SETTING_KEY, false),
+    [NOW_PLAYING_SENDER_PROGRESS_INTERVAL_SETTING_KEY]: normalizeNowPlayingSenderProgressIntervalSec(
+      store.get(NOW_PLAYING_SENDER_PROGRESS_INTERVAL_SETTING_KEY),
+      NOW_PLAYING_SENDER_PROGRESS_INTERVAL_DEFAULT_SEC,
+    ),
     [VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY]: readStoredBoolean(VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY, false),
     [PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY]: readStoredBoolean(PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY, false),
     [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
@@ -2017,6 +2031,14 @@ const lyricApi = createLyricApi({
   getMainWindow: () => mainWindow,
   enabledSettingKey: LYRIC_API_ENABLED_SETTING_KEY,
   port: DEFAULT_LYRIC_API_PORT,
+});
+
+const nowPlayingSenderApi = createNowPlayingSenderApi({
+  store,
+  getMainWindow: () => mainWindow,
+  enabledSettingKey: NOW_PLAYING_SENDER_ENABLED_SETTING_KEY,
+  progressIntervalSettingKey: NOW_PLAYING_SENDER_PROGRESS_INTERVAL_SETTING_KEY,
+  getPort: () => NOW_PLAYING_SENDER_PORT,
 });
 
 const discordPresence = createDiscordPresenceController({
@@ -5335,6 +5357,7 @@ app.whenReady().then(async () => {
     console.error('[OBS] Failed to start browser source server during app startup', error);
   }
   await lyricApi.start();
+  await nowPlayingSenderApi.start();
   ensureTray();
   // macOS wallpaper: create the controller once userData is available and recover a Dock left
   // auto-hidden by a crashed wallpaper session. Recovery is enqueued FIRST on the Dock op queue
@@ -5558,6 +5581,7 @@ app.on('before-quit', () => {
   void discordPresence.destroy();
   void stopQqApi();
   void lyricApi.stop();
+  void nowPlayingSenderApi.stop();
 });
 
 // Settings Management IPC
@@ -6308,6 +6332,48 @@ ipcMain.handle('lyric-api-publish', (event, lyrics, offset) => {
     return false;
   }
   return lyricApi.publishLyricData(lyrics, offset);
+});
+
+ipcMain.handle('now-playing-sender-get-status', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read Now Playing sender status.');
+  }
+  return nowPlayingSenderApi.buildStatus();
+});
+
+ipcMain.handle('now-playing-sender-set-enabled', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to change Now Playing sender state.');
+  }
+  return nowPlayingSenderApi.setEnabled(Boolean(enabled));
+});
+
+ipcMain.handle('now-playing-sender-set-progress-interval', (event, intervalSec) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to change the Now Playing sender heartbeat.');
+  }
+  return nowPlayingSenderApi.setProgressIntervalSec(intervalSec);
+});
+
+ipcMain.handle('now-playing-sender-publish-track', (event, snapshot) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return;
+  }
+  nowPlayingSenderApi.publishTrack(snapshot);
+});
+
+ipcMain.handle('now-playing-sender-publish-lyric', (event, payload) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return;
+  }
+  nowPlayingSenderApi.publishLyric(payload);
+});
+
+ipcMain.handle('now-playing-sender-publish-playback', (event, playback) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return;
+  }
+  nowPlayingSenderApi.publishPlayback(playback);
 });
 
 ipcMain.handle('discord-presence-get-status', (event) => {

@@ -48,6 +48,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { ObsBrowserSourceStatus } from '../../types/obsBrowserSource';
 import { getWebAiProvider } from '../../services/runtimeConfig';
 import type { LyricApiStatus } from '../../types/lyricApi';
+import type { NowPlayingSenderStatus } from '../../types/nowPlayingSender';
 import type { SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
@@ -117,6 +118,9 @@ interface SettingsModalProps {
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
     lyricApiStatus?: LyricApiStatus | null;
     onToggleLyricApi?: (enabled: boolean) => Promise<void> | void;
+    nowPlayingSenderStatus?: NowPlayingSenderStatus | null;
+    onToggleNowPlayingSender?: (enabled: boolean) => Promise<void> | void;
+    onChangeNowPlayingSenderProgressInterval?: (intervalSec: number) => Promise<void> | void;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     replayGainMode: ReplayGainMode;
     onReplayGainModeChange: (mode: ReplayGainMode) => void;
@@ -178,6 +182,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onRegenerateObsBrowserSourceToken,
     lyricApiStatus = null,
     onToggleLyricApi,
+    nowPlayingSenderStatus = null,
+    onToggleNowPlayingSender,
+    onChangeNowPlayingSenderProgressInterval,
     onAudioOutputDeviceChange,
     replayGainMode,
     onReplayGainModeChange,
@@ -1755,6 +1762,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 lyricApi={{
                                                     status: lyricApiStatus,
                                                     onToggle: onToggleLyricApi,
+                                                }}
+                                                nowPlayingSender={{
+                                                    status: nowPlayingSenderStatus,
+                                                    onToggle: onToggleNowPlayingSender,
+                                                    onChangeProgressIntervalSec: onChangeNowPlayingSenderProgressInterval,
                                                 }}
                                                 stage={{
                                                     nowPlayingConnectionStatus,

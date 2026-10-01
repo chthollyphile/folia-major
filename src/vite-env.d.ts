@@ -803,6 +803,13 @@ declare global {
       setLyricApiEnabled: (enabled: boolean) => Promise<import('./types/lyricApi').LyricApiStatus>;
       publishLyricApiData: (lyrics: import('./types').LyricData | null, offset: number) => Promise<boolean>;
       onLyricApiStatusChanged: (callback: (status: import('./types/lyricApi').LyricApiStatus) => void) => () => void;
+      getNowPlayingSenderStatus: () => Promise<import('./types/nowPlayingSender').NowPlayingSenderStatus>;
+      setNowPlayingSenderEnabled: (enabled: boolean) => Promise<import('./types/nowPlayingSender').NowPlayingSenderStatus>;
+      setNowPlayingSenderProgressInterval: (intervalSec: number) => Promise<import('./types/nowPlayingSender').NowPlayingSenderStatus>;
+      publishNowPlayingSenderTrack: (snapshot: import('./types').NowPlayingTrackSnapshot | null) => Promise<void>;
+      publishNowPlayingSenderLyric: (payload: import('./types').NowPlayingLyricPayload | null) => Promise<void>;
+      publishNowPlayingSenderPlayback: (playback: import('./types/nowPlayingSender').NowPlayingSenderPlayback) => Promise<void>;
+      onNowPlayingSenderStatusChanged: (callback: (status: import('./types/nowPlayingSender').NowPlayingSenderStatus) => void) => () => void;
       getDiscordPresenceStatus: () => Promise<ElectronDiscordPresenceStatus>;
       publishDiscordPresenceSnapshot: (snapshot: ElectronDiscordPresenceSnapshot) => Promise<ElectronDiscordPresenceStatus>;
       getPlaybackSyncBridgeStatus: () => Promise<ElectronPlaybackSyncBridgeStatus>;

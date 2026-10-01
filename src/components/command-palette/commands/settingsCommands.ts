@@ -153,6 +153,31 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsAnchorCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'dc'], 'discordRichPresence'),
     createSettingsAnchorCommand('settings-obs-browser-source', 'OBS browser source', 'Open OBS browser source settings', ['obs', 'browser source', 'live source', '直播源', '浏览器源'], 'obsBrowserSource'),
     {
+        id: 'desktop-cycle-now-playing-sender-interval',
+        platform: ['electron'],
+        group: 'settings',
+        title: 'Now Playing sender heartbeat',
+        description: 'Cycle the seconds between two progress reports (0 = only on playback events)',
+        keywords: ['now playing interval', 'progress heartbeat', 'push interval', 'now playing 间隔', '进度上报间隔', '推送间隔', 'jindu jiange', 'tuison jiange'],
+        execute: async (_input, context) => {
+            if (!window.electron?.getNowPlayingSenderStatus || !window.electron?.setNowPlayingSenderProgressInterval) {
+                return false;
+            }
+            const status = await window.electron.getNowPlayingSenderStatus();
+            // The same ladder the settings slider steps through, collapsed to the values worth
+            // cycling between; the slider stays the fine-grained control.
+            const ladder = [0, 0.1, 0.5, 1, 2, 5, 10];
+            const currentIndex = ladder.indexOf(status.progressIntervalSec);
+            const nextIntervalSec = ladder[(currentIndex >= 0 ? currentIndex : 1) + 1] ?? ladder[0];
+            const nextStatus = await window.electron.setNowPlayingSenderProgressInterval(nextIntervalSec);
+            const intervalLabel = nextStatus.progressIntervalSec <= 0
+                ? context.shared.t('options.nowPlayingSenderProgressIntervalOff', 'Off')
+                : `${nextStatus.progressIntervalSec.toFixed(1)}s`;
+            context.shared.setStatusMsg({ type: 'success', text: intervalLabel });
+            return true;
+        },
+    },
+    {
         id: 'desktop-toggle-lyric-api',
         platform: ['electron'],
         group: 'settings',
@@ -172,6 +197,30 @@ export const settingsCommands: CommandPaletteCommand[] = [
                         ? context.shared.t('options.lyricApiEnabledStatus', 'Lyrics API enabled at http://127.0.0.1:32109/v1/lyric')
                         : context.shared.t('options.lyricApiEnableFailed', 'Failed to start the Lyrics API')
                     : context.shared.t('options.lyricApiDisabledStatus', 'Lyrics API disabled'),
+            });
+            return true;
+        },
+    },
+    {
+        id: 'desktop-toggle-now-playing-sender',
+        platform: ['electron'],
+        group: 'settings',
+        title: 'Now Playing sender',
+        description: 'Toggle the outbound now-playing track, lyric and progress broadcast',
+        keywords: ['outbound broadcast', 'push track info', 'now playing 发送', '推送曲目', 'tuisongqu', 'npsender'],
+        execute: async (_input, context) => {
+            if (!window.electron?.getNowPlayingSenderStatus || !window.electron?.setNowPlayingSenderEnabled) {
+                return false;
+            }
+            const currentStatus = await window.electron.getNowPlayingSenderStatus();
+            const nextStatus = await window.electron.setNowPlayingSenderEnabled(!currentStatus.enabled);
+            context.shared.setStatusMsg({
+                type: nextStatus.enabled && !nextStatus.running ? 'error' : 'success',
+                text: nextStatus.enabled
+                    ? nextStatus.running
+                        ? context.shared.t('options.nowPlayingSenderEnabledStatus', 'Now Playing sender enabled')
+                        : context.shared.t('options.nowPlayingSenderEnableFailed', 'Failed to start the Now Playing sender')
+                    : context.shared.t('options.nowPlayingSenderDisabledStatus', 'Now Playing sender disabled'),
             });
             return true;
         },

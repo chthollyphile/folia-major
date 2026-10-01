@@ -93,6 +93,7 @@ import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge
 import { useRandomVisualizerMode } from './hooks/useRandomVisualizerMode';
 import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
 import { useLyricApiPublisher } from './hooks/useLyricApiPublisher';
+import { useNowPlayingSenderPublisher } from './hooks/useNowPlayingSenderPublisher';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
@@ -1681,6 +1682,16 @@ export default function App() {
         lyrics,
         offset: effectiveLyricTimelineOffsetMs,
     });
+    const {
+        nowPlayingSenderStatus,
+        setNowPlayingSenderEnabled,
+        setNowPlayingSenderProgressIntervalSec,
+    } = useNowPlayingSenderPublisher({
+        isElectronWindow,
+        loopMode,
+        volume,
+        isMuted,
+    });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const generateCurrentSongTheme = useCallback(() => {
         void generateAITheme(lyrics, currentSong);
@@ -2319,6 +2330,9 @@ export default function App() {
         refreshObsBrowserSourceStatus,
         lyricApiStatus,
         setLyricApiEnabled,
+        nowPlayingSenderStatus,
+        setNowPlayingSenderEnabled,
+        setNowPlayingSenderProgressIntervalSec,
         onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
         onReplayGainModeChange: handleChangeReplayGainMode,
         onToggleTransparentPlayerBackground: toggleTransparentModeWithHandoff,

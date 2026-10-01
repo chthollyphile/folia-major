@@ -13,6 +13,8 @@ import { ObsCopyUrlButton } from '../../shared/ObsCopyUrlButton';
 import { ObsCopyCssButton } from '../../shared/ObsCopyCssButton';
 import { resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import type { LyricApiStatus } from '../../../types/lyricApi';
+import type { NowPlayingSenderStatus } from '../../../types/nowPlayingSender';
+import NowPlayingSenderCard from './NowPlayingSenderCard';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
@@ -83,11 +85,18 @@ export type IntegrationLyricApiModel = {
     onToggle?: (enabled: boolean) => Promise<void> | void;
 };
 
+export type IntegrationNowPlayingSenderModel = {
+    status?: NowPlayingSenderStatus | null;
+    onChangeProgressIntervalSec?: (intervalSec: number) => Promise<void> | void;
+    onToggle?: (enabled: boolean) => Promise<void> | void;
+};
+
 type IntegrationSettingsSubviewProps = {
     chrome: IntegrationSettingsChrome;
     discord: IntegrationDiscordModel;
     lyricApi: IntegrationLyricApiModel;
     navidrome: IntegrationNavidromeModel;
+    nowPlayingSender: IntegrationNowPlayingSenderModel;
     stage: IntegrationStageModel;
 };
 
@@ -102,6 +111,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     discord,
     lyricApi,
     navidrome,
+    nowPlayingSender,
     stage,
 }) => {
     const {
@@ -519,6 +529,22 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                         )}
                     </div>
                 </SettingsAnchor>
+            )}
+
+            {isElectron && nowPlayingSender.status && (
+                <NowPlayingSenderCard
+                    errorBgColor={errorBgColor}
+                    errorTextColor={errorTextColor}
+                    status={nowPlayingSender.status}
+                    onChangeProgressIntervalSec={nowPlayingSender.onChangeProgressIntervalSec}
+                    onToggle={nowPlayingSender.onToggle}
+                    onCopyText={onCopyText}
+                    settingsCardClass={settingsCardClass}
+                    successBgColor={successBgColor}
+                    successTextColor={successTextColor}
+                    theme={theme}
+                    toggleOffBackgroundClass={toggleOffBackgroundClass}
+                />
             )}
 
             {isElectron && stageStatus && (

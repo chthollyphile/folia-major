@@ -106,6 +106,17 @@ GET http://127.0.0.1:32109/v1/lyric
 
 接口返回当前歌词的精简 JSON，并在顶层 `offset` 字段中携带用户设置的歌词时间偏移（毫秒）；当前没有歌词时返回 `null`。请求、响应结构、字段说明和调用示例见 [歌词接口文档](lyric-api.md)。
 
+### Now Playing 发送
+
+Electron 桌面端可在“连接与集成”中启用 Now Playing 发送。Folia 作为发布方，在回环地址的固定端口上按 now-playing 协议广播当前曲目、歌词与播放进度：
+
+```text
+ws://127.0.0.1:9863/api/ws/lyric
+http://127.0.0.1:9863/api/query
+```
+
+它与舞台模式相互独立：舞台模式是读取别的播放器，Now Playing 发送是播报 Folia 自己。查询路径、事件类型、字段说明和进度发送间隔见 [Now Playing 发送文档](now-playing-sender.md)。
+
 ### 一键部署到 Vercel
 
 如果你希望快速上线 Web 版本，可以直接通过下方入口创建 Vercel 项目：

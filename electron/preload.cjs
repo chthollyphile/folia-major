@@ -188,6 +188,17 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('lyric-api-status-changed', listener);
         return () => ipcRenderer.removeListener('lyric-api-status-changed', listener);
     },
+    getNowPlayingSenderStatus: () => ipcRenderer.invoke('now-playing-sender-get-status'),
+    setNowPlayingSenderEnabled: (enabled) => ipcRenderer.invoke('now-playing-sender-set-enabled', enabled),
+    setNowPlayingSenderProgressInterval: (intervalSec) => ipcRenderer.invoke('now-playing-sender-set-progress-interval', intervalSec),
+    publishNowPlayingSenderTrack: (snapshot) => ipcRenderer.invoke('now-playing-sender-publish-track', snapshot),
+    publishNowPlayingSenderLyric: (payload) => ipcRenderer.invoke('now-playing-sender-publish-lyric', payload),
+    publishNowPlayingSenderPlayback: (playback) => ipcRenderer.invoke('now-playing-sender-publish-playback', playback),
+    onNowPlayingSenderStatusChanged: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('now-playing-sender-status-changed', listener);
+        return () => ipcRenderer.removeListener('now-playing-sender-status-changed', listener);
+    },
     getDiscordPresenceStatus: () => ipcRenderer.invoke('discord-presence-get-status'),
     publishDiscordPresenceSnapshot: (snapshot) => ipcRenderer.invoke('discord-presence-publish-snapshot', snapshot),
     getPlaybackSyncBridgeStatus: () => ipcRenderer.invoke('playback-sync-bridge-get-status'),

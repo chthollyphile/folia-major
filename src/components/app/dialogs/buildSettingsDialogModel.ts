@@ -15,6 +15,7 @@ import { type SettingsModalState, useSettingsModalStore } from '../../../stores/
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
 import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
 import type { LyricApiStatus } from '../../../types/lyricApi';
+import type { NowPlayingSenderStatus } from '../../../types/nowPlayingSender';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
 
@@ -56,6 +57,9 @@ export type SettingsDialogDeps = {
     refreshObsBrowserSourceStatus?: () => Promise<ObsBrowserSourceStatus>;
     lyricApiStatus?: LyricApiStatus | null;
     setLyricApiEnabled?: (enabled: boolean) => Promise<LyricApiStatus>;
+    nowPlayingSenderStatus?: NowPlayingSenderStatus | null;
+    setNowPlayingSenderEnabled?: (enabled: boolean) => Promise<NowPlayingSenderStatus>;
+    setNowPlayingSenderProgressIntervalSec?: (intervalSec: number) => Promise<NowPlayingSenderStatus>;
 };
 
 type BuildSettingsDialogModelParams = SettingsDialogAmbient & SettingsDialogDeps;
@@ -90,6 +94,9 @@ export const buildSettingsDialogModel = ({
     refreshObsBrowserSourceStatus,
     lyricApiStatus,
     setLyricApiEnabled,
+    nowPlayingSenderStatus,
+    setNowPlayingSenderEnabled,
+    setNowPlayingSenderProgressIntervalSec,
 }: BuildSettingsDialogModelParams): SettingsDialogProps | null => {
     if (!state.isOpen) {
         return null;
@@ -128,6 +135,17 @@ export const buildSettingsDialogModel = ({
         onToggleLyricApi: setLyricApiEnabled
             ? async (enabled) => {
                 await setLyricApiEnabled(enabled);
+            }
+            : undefined,
+        nowPlayingSenderStatus,
+        onToggleNowPlayingSender: setNowPlayingSenderEnabled
+            ? async (enabled) => {
+                await setNowPlayingSenderEnabled(enabled);
+            }
+            : undefined,
+        onChangeNowPlayingSenderProgressInterval: setNowPlayingSenderProgressIntervalSec
+            ? async (intervalSec) => {
+                await setNowPlayingSenderProgressIntervalSec(intervalSec);
             }
             : undefined,
         onToggleObsBrowserSource: async (enabled) => {
